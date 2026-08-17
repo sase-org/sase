@@ -13,7 +13,7 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``glossary`` command group."""
     glossary_parser = subparsers.add_parser(
         "glossary",
-        help="List and show project glossary terms and their reference closure",
+        help="List, show, and audit project glossary terms and their closure",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Inspect the project glossary configured under memory.glossary in "
@@ -26,16 +26,13 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase glossary list agent -f names\n"
             '  sase glossary show "Agent Hood"\n'
             "  sase glossary show Stitch -d 0 -f markdown\n"
-            "  sase glossary -p sase show Stitch"
+            "  sase glossary -p sase show Stitch\n"
+            '  sase glossary read "Agent Hood" -r "Need the hood/agent distinction"\n'
+            "  sase glossary log\n"
+            "  sase glossary log -t Stitch -a agent-a"
         ),
     )
-    glossary_parser.add_argument(
-        "-p",
-        "--project",
-        metavar="REF",
-        default=None,
-        help=_PROJECT_HELP,
-    )
+    _add_project_option(glossary_parser, default=None)
     glossary_subparsers = glossary_parser.add_subparsers(
         dest="glossary_subcommand",
         help="Glossary subcommands",
@@ -78,13 +75,74 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         default="table",
         help="Output format (default: table)",
     )
-    list_parser.add_argument(
-        "-p",
-        "--project",
-        metavar="REF",
-        default=argparse.SUPPRESS,
-        help=_PROJECT_HELP,
+    _add_project_option(list_parser)
+
+    log_parser = glossary_subparsers.add_parser(
+        "log",
+        help="Summarize or inspect audited glossary reads",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Summarize audited glossary reads recorded by `sase glossary read`. "
+            "The default view is a dashboard grouped by term, by agent, and by "
+            "event. Filters are reflected in the header so a filtered view "
+            "cannot be mistaken for the whole log."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase glossary log\n"
+            "  sase glossary log -t Stitch\n"
+            "  sase glossary log -a agent-a -f json\n"
+            "  sase glossary log -i <read-id>"
+        ),
     )
+    log_parser.add_argument(
+        "-a",
+        "--agent",
+        metavar="NAME",
+        default=None,
+        help="Only include reads by the given agent",
+    )
+    log_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "table"),
+        default="table",
+        help="Output format (default: table)",
+    )
+    log_parser.add_argument(
+        "-i",
+        "--id",
+        metavar="READ_ID",
+        default=None,
+        help="Show one event by id or unambiguous id prefix",
+    )
+    _add_project_option(log_parser)
+    log_parser.add_argument(
+        "-t",
+        "--term",
+        metavar="TERM",
+        default=None,
+        help="Only include reads that requested or expanded this term",
+    )
+
+    read_parser = glossary_subparsers.add_parser(
+        "read",
+        help="Print glossary terms and record an audited read",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Resolve one or more glossary terms exactly like "
+            "`sase glossary show`, then append one attributable audit event "
+            "before printing. A non-empty -r/--reason is required; a "
+            "definition is never printed unless the read was recorded."
+        ),
+        epilog=(
+            "examples:\n"
+            '  sase glossary read "Agent Hood" -r "Need the hood/agent distinction"\n'
+            '  sase glossary read Stitch -d 0 -r "Confirm stitch vs commit"\n'
+            '  sase glossary read Stitch -p sase -f markdown -r "Prompt context"'
+        ),
+    )
+    _add_closure_arguments(read_parser, require_reason=True)
 
     show_parser = glossary_subparsers.add_parser(
         "show",
@@ -103,13 +161,31 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase glossary show Stitch -p sase -f json"
         ),
     )
-    show_parser.add_argument(
+    _add_closure_arguments(show_parser)
+
+
+def _add_project_option(
+    parser: argparse.ArgumentParser, *, default: object = argparse.SUPPRESS
+) -> None:
+    parser.add_argument(
+        "-p",
+        "--project",
+        metavar="REF",
+        default=default,
+        help=_PROJECT_HELP,
+    )
+
+
+def _add_closure_arguments(
+    parser: argparse.ArgumentParser, *, require_reason: bool = False
+) -> None:
+    parser.add_argument(
         "term",
         metavar="TERM",
         nargs="+",
         help="One or more term, alias, or slug-form references to resolve",
     )
-    show_parser.add_argument(
+    parser.add_argument(
         "-d",
         "--depth",
         type=nonnegative_int,
@@ -120,20 +196,21 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "requested terms"
         ),
     )
-    show_parser.add_argument(
+    parser.add_argument(
         "-f",
         "--format",
         choices=("json", "markdown", "rich"),
         default="rich",
         help="Output format (default: rich)",
     )
-    show_parser.add_argument(
-        "-p",
-        "--project",
-        metavar="REF",
-        default=argparse.SUPPRESS,
-        help=_PROJECT_HELP,
-    )
+    _add_project_option(parser)
+    if require_reason:
+        parser.add_argument(
+            "-r",
+            "--reason",
+            required=True,
+            help="Non-empty reason for the audited glossary read",
+        )
 
 
 __all__ = ["register_glossary_parser"]

@@ -60,3 +60,30 @@ def test_resolve_raises_with_diagnostics_on_invalid_config(
 
     with pytest.raises(cli_common.GlossaryCliError, match="bad shape"):
         cli_common.resolve_glossary_cli_project("sase")
+
+
+def test_resolve_project_name_succeeds_without_a_glossary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_common,
+        "editor_glossary_catalog_for_project",
+        lambda *_a, **_kw: EditorGlossaryCatalogResult(_project(), None, ()),
+    )
+
+    assert cli_common.resolve_glossary_cli_project_name("sase") == "sase"
+
+
+def test_resolve_project_name_raises_when_project_unresolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cli_common,
+        "editor_glossary_catalog_for_project",
+        lambda *_a, **_kw: EditorGlossaryCatalogResult(
+            None, None, ("no such project",)
+        ),
+    )
+
+    with pytest.raises(cli_common.GlossaryCliError, match="no such project"):
+        cli_common.resolve_glossary_cli_project_name("missing")

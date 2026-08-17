@@ -80,3 +80,23 @@ def resolved_glossary_project(
         compiled=compiled or FakeCompiledGlossaryCatalog({}),
         config_path="/tmp/sase/sase/sase.yml",
     )
+
+
+def diamond_resolved_glossary_project() -> ResolvedGlossaryProject:
+    alpha = glossary_entry(0, "Alpha", "Mentions Beta then Gamma.")
+    beta = glossary_entry(1, "Beta", "Mentions Delta.", aliases=("B",))
+    gamma = glossary_entry(2, "Gamma", "Mentions Delta.")
+    delta = glossary_entry(3, "Delta", "A leaf.")
+    compiled = FakeCompiledGlossaryCatalog(
+        {
+            alpha.definition: (
+                glossary_span(1, "Beta", start=9),
+                glossary_span(2, "Gamma", start=19),
+            ),
+            beta.definition: (glossary_span(3, "Delta", start=9),),
+            gamma.definition: (glossary_span(3, "Delta", start=9),),
+        }
+    )
+    return resolved_glossary_project(
+        entries=(alpha, beta, gamma, delta), compiled=compiled
+    )

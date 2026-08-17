@@ -8,6 +8,7 @@ import pytest
 
 from sase.main import glossary_handler
 from sase.main.parser import create_parser
+from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 
 def test_parser_registers_glossary_namespace() -> None:
@@ -54,15 +55,84 @@ def test_parser_registers_glossary_namespace() -> None:
     assert show_args.depth == 0
     assert show_args.format == "markdown"
 
+    read_args = parser.parse_args(
+        [
+            "glossary",
+            "read",
+            "Agent Hood",
+            "-d",
+            "1",
+            "-f",
+            "json",
+            "-r",
+            "Need hood",
+        ]
+    )
+    assert read_args.command == "glossary"
+    assert read_args.glossary_subcommand == "read"
+    assert read_args.term == ["Agent Hood"]
+    assert read_args.depth == 1
+    assert read_args.format == "json"
+    assert read_args.reason == "Need hood"
+
+    log_args = parser.parse_args(
+        [
+            "glossary",
+            "log",
+            "-a",
+            "agent-a",
+            "-f",
+            "json",
+            "-i",
+            "read-a",
+            "-t",
+            "Stitch",
+        ]
+    )
+    assert log_args.command == "glossary"
+    assert log_args.glossary_subcommand == "log"
+    assert log_args.agent == "agent-a"
+    assert log_args.format == "json"
+    assert log_args.id == "read-a"
+    assert log_args.term == "Stitch"
+
+
+def test_parser_read_requires_reason() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["glossary", "read", "Stitch"])
+
+
+def test_parser_glossary_help_lists_subcommands_alphabetically() -> None:
+    glossary_parser = parser_for(("sase", "glossary"))
+    expected = {"list", "log", "read", "show"}
+
+    help_text = glossary_parser.format_help()
+    assert help_subcommand_rows(help_text, expected) == sorted(expected)
+    assert "{list,log,read,show}" in help_text
+
 
 def test_parser_accepts_project_before_or_after_subcommand() -> None:
     parser = create_parser()
 
     before = parser.parse_args(["glossary", "-p", "sase", "show", "Stitch"])
     after = parser.parse_args(["glossary", "show", "Stitch", "-p", "sase"])
+    read_before = parser.parse_args(
+        ["glossary", "-p", "sase", "read", "Stitch", "-r", "Need stitch"]
+    )
+    read_after = parser.parse_args(
+        ["glossary", "read", "Stitch", "-p", "sase", "-r", "Need stitch"]
+    )
+    log_before = parser.parse_args(["glossary", "-p", "sase", "log"])
+    log_after = parser.parse_args(["glossary", "log", "-p", "sase"])
 
     assert before.project == "sase"
     assert after.project == "sase"
+    assert read_before.project == "sase"
+    assert read_after.project == "sase"
+    assert log_before.project == "sase"
+    assert log_after.project == "sase"
 
 
 def test_parser_project_before_subcommand_survives_subparser_default() -> None:
@@ -112,6 +182,46 @@ def test_glossary_show_dispatches_to_show_handler(
         "sase.glossary.cli_show.handle_glossary_show_command", fake_show
     )
     args = create_parser().parse_args(["glossary", "show", "Stitch"])
+
+    with pytest.raises(SystemExit) as exc:
+        glossary_handler.handle_glossary_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_glossary_read_dispatches_to_read_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_read(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.glossary.cli_read.handle_glossary_read_command", fake_read
+    )
+    args = create_parser().parse_args(
+        ["glossary", "read", "Stitch", "-r", "Need stitch"]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        glossary_handler.handle_glossary_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_glossary_log_dispatches_to_log_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_log(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr("sase.glossary.cli_log.handle_glossary_log_command", fake_log)
+    args = create_parser().parse_args(["glossary", "log"])
 
     with pytest.raises(SystemExit) as exc:
         glossary_handler.handle_glossary_command(args)

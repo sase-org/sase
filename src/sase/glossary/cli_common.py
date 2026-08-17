@@ -22,6 +22,20 @@ class ResolvedGlossaryProject:
     config_path: str
 
 
+def resolve_glossary_cli_project_name(project_ref: str | None) -> str:
+    """Resolve *project_ref* to a project's configured display name.
+
+    Unlike :func:`resolve_glossary_cli_project`, this does not require a
+    glossary catalog. Raises :class:`GlossaryCliError` when the project
+    itself cannot be resolved.
+    """
+    result = editor_glossary_catalog_for_project(project_ref)
+    if result.project is None:
+        detail = result.diagnostics[0] if result.diagnostics else "no such project"
+        raise GlossaryCliError(detail)
+    return result.project.name
+
+
 def resolve_glossary_cli_project(project_ref: str | None) -> ResolvedGlossaryProject:
     """Resolve *project_ref* to a loaded glossary catalog.
 
@@ -49,4 +63,5 @@ __all__ = [
     "GlossaryCliError",
     "ResolvedGlossaryProject",
     "resolve_glossary_cli_project",
+    "resolve_glossary_cli_project_name",
 ]

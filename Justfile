@@ -335,17 +335,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-on(stale_task_bead)" \
         --epic-symbol "sase-op(GlossaryReferrer)" \
         --epic-symbol "sase-op(lookup_glossary_entry)" \
-        --epic-symbol "sase-op.4(GlossaryReadAgentSummary)" \
-        --epic-symbol "sase-op.4(GlossaryReadError)" \
-        --epic-symbol "sase-op.4(GlossaryReadEvent)" \
-        --epic-symbol "sase-op.4(GlossaryReadTermSummary)" \
-        --epic-symbol "sase-op.4(append_glossary_read_event)" \
-        --epic-symbol "sase-op.4(build_glossary_read_event)" \
-        --epic-symbol "sase-op.4(filter_glossary_read_events)" \
-        --epic-symbol "sase-op.4(glossary_read_log_path)" \
-        --epic-symbol "sase-op.4(read_glossary_read_events)" \
-        --epic-symbol "sase-op.4(summarize_glossary_reads_by_agent)" \
-        --epic-symbol "sase-op.4(summarize_glossary_reads_by_term)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

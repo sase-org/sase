@@ -14,6 +14,7 @@ from sase.main.parser import create_parser
 
 from .glossary_cli_helpers import (
     FakeCompiledGlossaryCatalog,
+    diamond_resolved_glossary_project,
     glossary_entry,
     glossary_span,
     resolved_glossary_project,
@@ -21,23 +22,7 @@ from .glossary_cli_helpers import (
 
 
 def _diamond_resolved() -> ResolvedGlossaryProject:
-    alpha = glossary_entry(0, "Alpha", "Mentions Beta then Gamma.")
-    beta = glossary_entry(1, "Beta", "Mentions Delta.", aliases=("B",))
-    gamma = glossary_entry(2, "Gamma", "Mentions Delta.")
-    delta = glossary_entry(3, "Delta", "A leaf.")
-    compiled = FakeCompiledGlossaryCatalog(
-        {
-            alpha.definition: (
-                glossary_span(1, "Beta", start=9),
-                glossary_span(2, "Gamma", start=19),
-            ),
-            beta.definition: (glossary_span(3, "Delta", start=9),),
-            gamma.definition: (glossary_span(3, "Delta", start=9),),
-        }
-    )
-    return resolved_glossary_project(
-        entries=(alpha, beta, gamma, delta), compiled=compiled
-    )
+    return diamond_resolved_glossary_project()
 
 
 def _patch_resolved(

@@ -9197,7 +9197,7 @@
       {
         "aliases": [],
         "default_child": "list",
-        "description_digest": "6367d2886acf03a7",
+        "description_digest": "ff1df8fe31933b9c",
         "hidden": false,
         "mutex_groups": [],
         "name": "glossary",
@@ -9305,6 +9305,186 @@
                 "kind": null,
                 "metavar": "PATTERN",
                 "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "293bec8f41af97a7",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "log",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "agent",
+                "hidden": false,
+                "kind": "agent",
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--agent"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "json",
+                  "table"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "id",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-i",
+                  "--id"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "term",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--term"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "log"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "3ac033ab169715b8",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "read",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "depth",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--depth"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--reason"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "read"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "term",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TERM",
+                "nargs": "+"
               }
             ],
             "subcommands": []

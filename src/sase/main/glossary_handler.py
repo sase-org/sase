@@ -16,11 +16,23 @@ def handle_glossary_command(args: argparse.Namespace) -> None:
         handle_glossary_list_command(args)
         sys.exit(0)
 
+    if sub == "log":
+        from sase.glossary.cli_log import handle_glossary_log_command
+
+        handle_glossary_log_command(args)
+        sys.exit(0)
+
+    if sub == "read":
+        from sase.glossary.cli_read import handle_glossary_read_command
+
+        handle_glossary_read_command(args)
+        sys.exit(0)
+
     if sub == "show":
         from sase.glossary.cli_show import handle_glossary_show_command
 
         handle_glossary_show_command(args)
         sys.exit(0)
 
-    print("Usage: sase glossary {list,show}", file=sys.stderr)
+    print("Usage: sase glossary {list,log,read,show}", file=sys.stderr)
     sys.exit(1)
