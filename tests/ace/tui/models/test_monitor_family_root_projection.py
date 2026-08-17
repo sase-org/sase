@@ -15,8 +15,11 @@ from sase.ace.tui.models._agent_clan import (
 )
 from sase.ace.tui.models._agent_loader_normalization import normalize_loaded_agents
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
+from sase.ace.tui.models._agent_tree import agent_fold_key
+from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.models.fold_state import FoldStateManager
 
 _STARTED = datetime(2026, 8, 10, 9, 0, 0)
 
@@ -263,3 +266,130 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
     assert nested.tree_depth == starter.tree_depth + 1 == 3
     assert ordered[ordered.index(starter) + 1] is nested
     assert ordered[0].is_clan_container is True
+
+
+def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
+    """End-to-end through normalize_loaded_agents + the real fold filter.
+
+    At the default (fully collapsed) fold state no monitor row renders.
+    After expanding the clan and then the family, exactly one monitor row
+    is visible, nested at depth 3 under ``--2``.
+    """
+    family = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-ns.6.6.6.1",
+        project_file="/tmp/sase.sase",
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 5, 55, 18),
+        raw_suffix="20260817055518",
+        role_suffix="--plan",
+        workflow="ace-run",
+        agent_name="sase-ns.6.6.6.1",
+        agent_family="sase-ns.6.6.6.1",
+        agent_family_role="root",
+        plan_chain_root=True,
+        agent_clan="sase-ns.6.6.6",
+        agent_clan_generation="20260817055518",
+        plan_action="tale",
+    )
+    plan = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file=family.project_file,
+        status="TALE APPROVED",
+        start_time=family.start_time,
+        raw_suffix=family.raw_suffix,
+        parent_timestamp=family.raw_suffix,
+        parent_workflow="ace-run",
+        step_type="agent",
+        step_index=0,
+        total_steps=1,
+        role_suffix="--plan",
+        agent_name="sase-ns.6.6.6.1--plan",
+        agent_family=family.agent_family,
+    )
+    code = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--code",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 6, 10, 0),
+        stop_time=datetime(2026, 8, 17, 6, 40, 0),
+        raw_suffix="20260817061000",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--code",
+        agent_name="sase-ns.6.6.6.1--code",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    one = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--1",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 6, 50, 0),
+        stop_time=datetime(2026, 8, 17, 7, 0, 0),
+        raw_suffix="20260817065000",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--1",
+        agent_name="sase-ns.6.6.6.1--1",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    two = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--2",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 7, 8, 11),
+        stop_time=datetime(2026, 8, 17, 7, 14, 0),
+        raw_suffix="20260817070811",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--2",
+        agent_name="sase-ns.6.6.6.1--2",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--mon-1",
+        project_file=family.project_file,
+        status="MONITORING",
+        status_bucket="Running",
+        start_time=datetime(2026, 8, 17, 7, 15, 11),
+        raw_suffix="20260817071511",
+        parent_timestamp=two.raw_suffix,
+        role_suffix="--mon-1",
+        agent_name="sase-ns.6.6.6.1--mon-1",
+        agent_family=family.agent_family,
+        agent_family_role="monitor",
+        monitor_id="m1",
+        monitor_state="running",
+    )
+
+    ordered = normalize_loaded_agents(
+        [family, code, one, two, monitor],
+        [plan],
+        is_process_running=lambda _pid: False,
+    )
+
+    mgr = FoldStateManager()
+    default_visible, _counts = filter_agents_by_fold_state(ordered, mgr)
+    assert not any(row.is_monitor for row in default_visible)
+
+    container = next(row for row in ordered if row.is_clan_container)
+    family_row = next(row for row in ordered if row.agent_family_role == "root")
+    clan_key = agent_fold_key(container)
+    family_key = agent_fold_key(family_row)
+    assert clan_key is not None
+    assert family_key is not None
+
+    mgr.expand(clan_key)
+    mgr.expand(family_key)
+    expanded_visible, _counts = filter_agents_by_fold_state(ordered, mgr)
+    monitors = [row for row in expanded_visible if row.is_monitor]
+    assert len(monitors) == 1
+    nested = monitors[0]
+    starter = next(row for row in expanded_visible if row.raw_suffix == two.raw_suffix)
+    assert expanded_visible.index(nested) == expanded_visible.index(starter) + 1
+    assert nested.tree_depth == starter.tree_depth + 1 == 3

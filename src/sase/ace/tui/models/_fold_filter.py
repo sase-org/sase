@@ -1,6 +1,6 @@
 """Fold-state filtering for agent lists."""
 
-from ._agent_tree import agent_fold_key, agent_parent_fold_key
+from ._agent_tree import agent_fold_key, agent_gating_fold_key, agent_parent_fold_key
 from .agent import Agent
 from .fold_state import FoldLevel, FoldStateManager
 
@@ -11,11 +11,13 @@ def filter_agents_by_fold_state(
 ) -> tuple[list[Agent], dict[str, tuple[int, int]]]:
     """Filter agents through every immediate ancestor's in-memory fold.
 
-    ``fold_counts`` maps each owning row's fold key to its immediate ordinary
-    and hidden child counts. Synthetic clan folds own only their direct
-    members; each member independently owns its workflow/family children.
-    Monitor rows follow their starter's visibility and are omitted from
-    ``fold_counts``.
+    ``fold_counts`` maps each owning row's fold key to the rows that fold
+    reveals: its immediate ordinary and hidden child counts. Synthetic clan
+    folds own only their direct members; each member independently owns its
+    workflow/family children. A monitor row is instead counted and gated by
+    its *gating* fold key (see :func:`agent_gating_fold_key`) -- the agent
+    family or workflow that reveals it -- rather than its immediate starter,
+    so a mid-family starter never owns a monitor's fold.
     """
     owners_by_key: dict[str, Agent] = {}
     for agent in agents:
@@ -35,10 +37,14 @@ def filter_agents_by_fold_state(
         owners_by_key[key] = agent
     children_by_parent: dict[str, list[Agent]] = {}
     for agent in agents:
-        if agent.is_monitor:
-            continue
-        parent_key = agent_parent_fold_key(agent)
+        parent_key = agent_gating_fold_key(agent, owners_by_key)
         if parent_key is None or parent_key not in owners_by_key:
+            continue
+        if agent.is_monitor and parent_key.startswith("clan:"):
+            # A clan's counts are direct-member counts and clan_members
+            # already excludes monitor rows. A monitor whose gating chain
+            # collapses onto the clan fold (a malformed/disk-shaped
+            # projection with no loaded family root) stays out too.
             continue
         children_by_parent.setdefault(parent_key, []).append(agent)
 
@@ -93,8 +99,19 @@ def filter_agents_by_fold_state(
             visibility[agent_id] = False
             return False
 
+        # The hidden-step/FULLY_EXPANDED rule below stays keyed on the
+        # immediate parent; a monitor is never a hidden step, so only the
+        # COLLAPSED gate needs its own key for monitor rows.
         level = fold_manager.get(parent_key)
-        if level == FoldLevel.COLLAPSED and not agent.is_monitor:
+        if agent.is_monitor:
+            gating_key = agent_gating_fold_key(agent, owners_by_key)
+            gating_level = None if gating_key is None else fold_manager.get(gating_key)
+            # An unresolvable gating chain (a malformed projection) falls
+            # back to visible-with-parent rather than hiding the row.
+            if gating_level == FoldLevel.COLLAPSED:
+                visibility[agent_id] = False
+                return False
+        elif level == FoldLevel.COLLAPSED:
             visibility[agent_id] = False
             return False
         if (

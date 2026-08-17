@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 
 from sase.core.agent_clan_context import (
     effective_clan_attributes,
@@ -35,6 +35,41 @@ def agent_parent_fold_key(agent: Agent) -> str | None:
         return agent.tree_parent_key
     if agent.is_child_row and agent.parent_timestamp:
         return agent.parent_timestamp
+    return None
+
+
+def agent_gating_fold_key(
+    agent: Agent, owners_by_key: Mapping[str, Agent]
+) -> str | None:
+    """Return the fold key whose expansion reveals *agent*.
+
+    Non-monitor rows are gated by their own immediate parent, same as
+    :func:`agent_parent_fold_key`. A monitor row instead climbs its
+    immediate-parent chain to the nearest ancestor that is not itself a
+    child row -- the family/workflow container whose fold actually reveals
+    the monitor, skipping past any mid-family starter that owns no fold of
+    its own. Returns ``None`` when a link in that chain is missing or the
+    chain does not resolve within the number of known fold owners.
+    """
+    if not agent.is_monitor:
+        return agent_parent_fold_key(agent)
+
+    current: Agent = agent
+    visited: set[int] = set()
+    for _ in range(len(owners_by_key) + 1):
+        parent_key = agent_parent_fold_key(current)
+        if parent_key is None:
+            return None
+        owner = owners_by_key.get(parent_key)
+        if owner is None:
+            return None
+        owner_id = id(owner)
+        if owner_id in visited:
+            return None
+        visited.add(owner_id)
+        if not owner.is_child_row:
+            return parent_key
+        current = owner
     return None
 
 
@@ -536,6 +571,7 @@ def filter_tree_rows(
 
 __all__ = [
     "agent_fold_key",
+    "agent_gating_fold_key",
     "agent_is_tree_child",
     "agent_parent_fold_key",
     "agent_tree_depth",

@@ -50,16 +50,25 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             agent: The agent to get the key for.
 
         Returns:
-            The row's owned descendant key, its immediate parent's key when
-            selected as a child, or ``None`` when neither edge is foldable.
+            The row's owned descendant key, the gating family/workflow key
+            when selected as a monitor, its immediate parent's key when
+            selected as any other child, or ``None`` when no edge is
+            foldable.
         """
-        from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
+        from ...models._agent_tree import (
+            agent_fold_key,
+            agent_gating_fold_key,
+            agent_parent_fold_key,
+            tree_parent_lookup,
+        )
 
         if agent.is_clan_container:
             return agent_fold_key(agent)
         fold_key = agent_fold_key(agent)
         if fold_key in self._fold_counts:
             return fold_key
+        if agent.is_monitor:
+            return agent_gating_fold_key(agent, tree_parent_lookup(self._agents))
         if agent.is_child_row:
             return agent_parent_fold_key(agent)
         return None
@@ -319,7 +328,11 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         if agent is None:
             return None
 
-        from ...models._agent_tree import agent_parent_fold_key
+        from ...models._agent_tree import (
+            agent_gating_fold_key,
+            agent_parent_fold_key,
+            tree_parent_lookup,
+        )
         from ...models.fold_state import FoldLevel
 
         fold_key = self._get_workflow_key_for_agent(agent)
@@ -328,9 +341,12 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             and self._fold_manager.get(fold_key) != FoldLevel.COLLAPSED
         ):
             level = self._fold_manager.get(fold_key)
-            selected_is_child = (
-                agent_parent_fold_key(agent) == fold_key and agent.is_child_row
+            gating_key = (
+                agent_gating_fold_key(agent, tree_parent_lookup(self._agents))
+                if agent.is_monitor
+                else agent_parent_fold_key(agent)
             )
+            selected_is_child = gating_key == fold_key and agent.is_child_row
             reanchor = selected_is_child and (
                 level == FoldLevel.EXPANDED
                 or (level == FoldLevel.FULLY_EXPANDED and agent.is_hidden_step)

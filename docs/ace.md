@@ -1841,6 +1841,17 @@ supervisor never reported a real exit code, and an amber `⚑` follows the row w
 `--next` follow-up was dropped or launched degraded — a monitor can finish cleanly and
 still strand its follow-up. See [Monitors](monitors.md).
 
+A monitor row nests under the agent that started it, not under a synthetic aggregate —
+one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
+family's** fold rather than its starter's own: a collapsed family shows the aggregate
+`⚙N` badge and counts the monitor in its collapsed ` ×N`, but renders no monitor row,
+even when the family root itself is the starter. A single `l` on the family container
+row reveals every member and monitor in that family in one step; monitors are not
+deferred to a further "fully expanded" press the way hidden workflow steps are.
+Selecting a monitor row and pressing `l` or `H` acts on that governing family fold — `H`
+collapses the family and reanchors the cursor there — while `h` still walks up to the
+monitor's starter.
+
 A monitor has no LLM process to kill, so `x` on a selected **running** monitor row is
 routed off the ordinary kill/dismiss path: it opens a `Stop Monitor` confirmation
 (defaulting to **Keep running**) and, once confirmed, terminates the supervised command
