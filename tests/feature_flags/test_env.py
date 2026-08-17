@@ -6,7 +6,6 @@ from sase.feature_flags.env import (
     SASE_FEATURE_FLAGS_ENV,
     apply_feature_flags_env,
     collect_legacy_env_values,
-    encode_feature_flags_env,
     parse_feature_flags_env,
 )
 from sase.feature_flags.resolver import resolve_feature_flags
@@ -34,10 +33,13 @@ def test_env_round_trips_all_registered_keys_stably() -> None:
         layers=[],
     )
 
-    encoded = encode_feature_flags_env(snapshot)
+    env: dict[str, str] = {}
+    apply_feature_flags_env(snapshot, env)
+    encoded = env[SASE_FEATURE_FLAGS_ENV]
 
     assert encoded == '{"alpha_flag":true,"demo_flag":false}'
-    assert encode_feature_flags_env(snapshot) == encoded
+    apply_feature_flags_env(snapshot, env)
+    assert env[SASE_FEATURE_FLAGS_ENV] == encoded
     assert parse_feature_flags_env(encoded) == {
         "alpha_flag": True,
         "demo_flag": False,

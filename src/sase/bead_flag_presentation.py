@@ -39,20 +39,20 @@ _FLAG_SOON_ACCENT = "#FFAF00"
 
 
 @dataclass(frozen=True)
-class FlagDueStyle:
+class _FlagDueStyle:
     """Rich and ANSI styling for one removal-urgency state."""
 
     rich: str
     cli: str
 
 
-FLAG_DUE_STYLES: dict[FlagRemovalState, FlagDueStyle] = {
-    "live": FlagDueStyle(rich="dim", cli=ansi_sgr(dim=True)),
-    "soon": FlagDueStyle(
+FLAG_DUE_STYLES: dict[FlagRemovalState, _FlagDueStyle] = {
+    "live": _FlagDueStyle(rich="dim", cli=ansi_sgr(dim=True)),
+    "soon": _FlagDueStyle(
         rich=f"bold {_FLAG_SOON_ACCENT}",
         cli=ansi_sgr(color=_FLAG_SOON_ACCENT, bold=True),
     ),
-    "due": FlagDueStyle(rich="bold reverse", cli="\x1b[1;7m"),
+    "due": _FlagDueStyle(rich="bold reverse", cli="\x1b[1;7m"),
 }
 
 
@@ -64,7 +64,7 @@ class FlagDuePresentation:
     label: str
 
     @property
-    def style(self) -> FlagDueStyle:
+    def style(self) -> _FlagDueStyle:
         """Return the shared style for this presentation's due state."""
         return FLAG_DUE_STYLES[self.state]
 
@@ -126,7 +126,6 @@ __all__ = [
     "FLAG_DUE_GLYPH",
     "FLAG_DUE_STYLES",
     "FlagDuePresentation",
-    "FlagDueStyle",
     "flag_due_chip",
     "flag_due_cli_cell",
     "flag_due_presentation",

@@ -10,6 +10,7 @@ from sase.feature_flags.models import FeatureFlagDefinition
 from sase.feature_flags.registry import feature_flag_definitions
 
 
+# symvision: tools/sync_feature_flags_schema
 def feature_flags_schema_block(
     definitions: Mapping[str, FeatureFlagDefinition] | None = None,
 ) -> dict[str, Any]:
@@ -40,6 +41,7 @@ def _stable_json(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=True)
 
 
+# symvision: tools/sync_feature_flags_schema
 def feature_flags_schema_drift(document: Mapping[str, Any]) -> str | None:
     """Return a human-readable drift message for *document*, or ``None``."""
     properties = document.get("properties")

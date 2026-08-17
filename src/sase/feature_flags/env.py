@@ -73,7 +73,7 @@ def parse_feature_flags_env(raw: str) -> dict[str, bool]:
     return values
 
 
-def encode_feature_flags_env(snapshot: FeatureFlagSnapshot) -> str:
+def _encode_feature_flags_env(snapshot: FeatureFlagSnapshot) -> str:
     """Encode every resolved flag value into stable JSON."""
     values = {
         key: snapshot.decisions[key].enabled for key in sorted(snapshot.decisions)
@@ -86,13 +86,12 @@ def apply_feature_flags_env(
     env: MutableMapping[str, str] = os.environ,
 ) -> None:
     """Write the resolved feature-flag transport into *env*."""
-    env[SASE_FEATURE_FLAGS_ENV] = encode_feature_flags_env(snapshot)
+    env[SASE_FEATURE_FLAGS_ENV] = _encode_feature_flags_env(snapshot)
 
 
 __all__ = [
     "SASE_FEATURE_FLAGS_ENV",
     "apply_feature_flags_env",
     "collect_legacy_env_values",
-    "encode_feature_flags_env",
     "parse_feature_flags_env",
 ]

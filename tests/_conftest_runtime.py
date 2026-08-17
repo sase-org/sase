@@ -146,6 +146,20 @@ def _derived_config_cache_helpers() -> tuple[object, object, object]:
     return _DERIVED_CONFIG_CACHE_HELPERS
 
 
+def reset_process_feature_flags() -> None:
+    """Unpin the process feature-flag snapshot so the next read re-resolves.
+
+    Installation is deliberately once-per-process, so nothing in ``src``
+    resets a pinned snapshot and this seam belongs to the test harness.
+    """
+    from sase.feature_flags import snapshot as flag_snapshot
+
+    with flag_snapshot._lock:
+        flag_snapshot._snapshot = None
+        flag_snapshot._installed = False
+        flag_snapshot._override_stack.clear()
+
+
 def _reset_derived_config_caches() -> None:
     """Drop process-global config, identity, and derived layer caches."""
     from sase.config import core as config_core
@@ -153,7 +167,6 @@ def _reset_derived_config_caches() -> None:
     from sase.artifact_providers import reset_artifact_provider_registry_cache
     from sase.config import mentor as mentor_config
     from sase._linked_repo_identity import reset_repo_identity_caches
-    from sase.feature_flags.snapshot import reset_process_feature_flags
 
     reset_repo_identity_caches()
     reset_artifact_provider_registry_cache()

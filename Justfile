@@ -318,16 +318,11 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(UsageLimitSettings)" \
-        --epic-symbol "sase-nb(encode_feature_flags_env)" \
-        --epic-symbol "sase-nb(feature_flags_schema_block)" \
-        --epic-symbol "sase-nb(feature_flags_schema_drift)" \
-        --epic-symbol "sase-nb(FlagDueStyle)" \
         --epic-symbol "sase-n4(find_matching_pattern)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-nb(reset_process_feature_flags)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

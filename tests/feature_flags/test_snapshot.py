@@ -17,6 +17,8 @@ from sase.feature_flags.models import FeatureFlagDiagnostic
 from sase.feature_flags.resolver import FeatureFlagLayerInput
 from sase.feature_flags import snapshot as snapshot_mod
 
+from tests._conftest_runtime import reset_process_feature_flags
+
 from ._helpers import definitions, demo_flag, layer
 
 
@@ -33,7 +35,7 @@ def _install_snapshot_inputs(
         "_project_layer_inputs",
         lambda: (layers, diagnostics),
     )
-    snapshot_mod.reset_process_feature_flags()
+    reset_process_feature_flags()
 
 
 def test_current_flags_is_lazy_once_and_snapshot_mapping_is_immutable(
@@ -121,7 +123,7 @@ def test_layer_projection_warns_when_feature_flags_is_not_mapping(
             )
         ],
     )
-    snapshot_mod.reset_process_feature_flags()
+    reset_process_feature_flags()
 
     resolved = snapshot_mod.current_flags()
 
@@ -138,7 +140,7 @@ def test_legacy_env_is_mapped_when_building_the_process_snapshot(
         defs=definitions(demo_flag("prettier_enabled", default=True)),
     )
     monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
-    snapshot_mod.reset_process_feature_flags()
+    reset_process_feature_flags()
 
     resolved = snapshot_mod.current_flags()
 
@@ -152,7 +154,7 @@ def test_legacy_env_is_mapped_when_building_the_process_snapshot(
 
 
 def test_importing_feature_flags_and_sase_performs_no_resolution() -> None:
-    snapshot_mod.reset_process_feature_flags()
+    reset_process_feature_flags()
 
     importlib.import_module("sase.feature_flags")
     importlib.import_module("sase")

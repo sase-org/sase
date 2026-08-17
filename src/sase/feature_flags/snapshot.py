@@ -147,12 +147,3 @@ def override_flags(**values: bool) -> Iterator[FeatureFlagSnapshot]:
             _override_stack.pop()
             _snapshot = previous_snapshot
             _installed = previous_installed
-
-
-def reset_process_feature_flags() -> None:
-    """Reset process feature-flag state for tests."""
-    global _installed, _snapshot
-    with _lock:
-        _snapshot = None
-        _installed = False
-        _override_stack.clear()
