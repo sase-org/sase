@@ -291,7 +291,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
                 ("[ / ]", "In help: switch Keymaps / Guide"),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
-                (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
+                (d(a.patches_toggle_reverted), "Show/hide reverted PRs"),
                 (
                     d(a.open_config_center),
                     "Admin Center: 1-7 jump, # back",

@@ -103,6 +103,7 @@ class NavigationMixinBase:
     _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
+    artifacts_relations_collapsed: bool
     _relation_keymap: RelationKeymap
     _relation_reveals: dict[ArtifactsPaneKey, RelationReveal]
     _all_patches: list[Patch]

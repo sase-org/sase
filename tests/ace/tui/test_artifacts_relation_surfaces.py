@@ -13,6 +13,7 @@ def test_relations_capability_has_registered_host_actions() -> None:
         "start_ancestor_mode",
         "start_child_mode",
         "start_sibling_mode",
+        "toggle_relation_panel",
         "beads_open_plan",
         "plans_open_bead",
     )
@@ -26,5 +27,9 @@ def test_relation_help_rows_follow_contract_capability() -> None:
         if contract.has(PaneCapability.RELATIONS):
             assert rows
             assert all(len(description) <= 32 for _key, description in rows)
+            assert any(
+                description == "Collapse / expand relations"
+                for _key, description in rows
+            )
         else:
             assert rows == []

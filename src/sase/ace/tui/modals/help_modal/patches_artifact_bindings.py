@@ -312,6 +312,12 @@ def _relation_rows(
                 _truncate_relation_description(f"Navigate {relation.label.lower()}"),
             )
         )
+    rows.append(
+        (
+            key_display_name(km.app.toggle_relation_panel),
+            "Collapse / expand relations",
+        )
+    )
     return rows
 
 

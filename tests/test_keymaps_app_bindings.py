@@ -137,10 +137,19 @@ def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
 
 
 def test_capital_x_binds_agent_cleanup_panel() -> None:
-    """Capital X is the single cleanup entry point."""
+    """Capital X is the cleanup entry point and the Patches reverted toggle."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     assert by_action["open_agent_cleanup_panel"].key == "X"
+    assert by_action["patches_toggle_reverted"].key == "X"
+
+
+def test_full_stop_binds_relation_toggle_and_hide_reverted() -> None:
+    bindings = build_app_bindings(default_app_keymaps())
+    assert [binding.action for binding in bindings if binding.key == "full_stop"] == [
+        "toggle_relation_panel",
+        "toggle_hide_reverted",
+    ]
 
 
 def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:

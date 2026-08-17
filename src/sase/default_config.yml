@@ -420,8 +420,10 @@ ace:
       next_query: "underscore"
       # Display / misc
       show_help: "question_mark"
+      # Agents/Axe only; Artifacts uses toggle_relation_panel on the same key.
       toggle_hide_reverted: "full_stop"
       toggle_hide_submitted: "x"
+      patches_toggle_reverted: "X"
       show_notifications: "i"
       open_config_center: "number_sign"
       open_command_palette: "colon,semicolon"
@@ -435,6 +437,9 @@ ace:
       start_ancestor_mode: "<"
       start_child_mode: ">"
       start_sibling_mode: "~"
+      # Shares `.` with toggle_hide_reverted; disambiguated by tab availability
+      # (the same arrangement `x` already uses for kill_agent/toggle_hide_submitted).
+      toggle_relation_panel: "full_stop"
       # Mode activation prefixes
       start_fold_mode: "z"
       zoom_panel: "Z"

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 from sase.ace.tui._artifact_tab_model import PaneCapability
+from sase.ace.tui.tab_order import ARTIFACTS_TAB
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import (
     EMPTY_RELATION_KEYMAP,
@@ -125,6 +126,20 @@ class TreeNavigationMixin(NavigationMixinBase):
             )
         else:
             self._sibling_mode_active = True
+
+    def action_toggle_relation_panel(self) -> None:
+        """Collapse or expand the Artifacts relation panel."""
+        if self.current_tab != ARTIFACTS_TAB:
+            return
+        self.artifacts_relations_collapsed = not self.artifacts_relations_collapsed
+        navigator = getattr(self, "_artifacts_entry_navigator", None)
+        pane = navigator() if callable(navigator) else None
+        refresh = getattr(pane, "refresh_relation_panel", None)
+        if callable(refresh):
+            self._relation_keymap = refresh()
+        sync = getattr(self, "_sync_active_artifacts_entry_state", None)
+        if callable(sync):
+            sync()
 
     def _handle_ancestry_key(self, key: str) -> bool:
         """Handle key in ancestor/child/sibling navigation mode.

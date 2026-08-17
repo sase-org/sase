@@ -46,6 +46,16 @@ Each visible section uses the declared relation label as its uppercase header, a
 targets dimmed with a `(missing)` marker. Cross-pane link rows show their destination
 pane id so the target switch is explicit.
 
+`.` (`toggle_relation_panel`) collapses that panel into a one-line relations rail and
+expands it again. The collapsed flag is session-scoped and shared by every relations
+pane, so switching Patches / Beads / Files / Plans / Stitches keeps the same expanded or
+collapsed state. The rail starts with a `▸` glyph in the pane accent, then one
+`{key} {count} {label}` segment per section that has visible rows or a hidden count, in
+declared section order, joined by `  ·  `. Counts include nested descendant children.
+Link sections omit the key. A trailing `({N} hidden)` preserves hidden counts. The
+relation keymap stays live while collapsed: `<` / `>` / `~` still navigate. A selection
+with no relations keeps the panel hidden, collapsed or not.
+
 ### Grouping banner rows
 
 Panes whose contract enables `PaneCapability.GROUPING` render host-owned banner rows

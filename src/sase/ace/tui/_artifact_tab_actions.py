@@ -63,6 +63,7 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
         "start_ancestor_mode",
         "start_child_mode",
         "start_sibling_mode",
+        "toggle_relation_panel",
         "beads_open_plan",
         "plans_open_bead",
     ),

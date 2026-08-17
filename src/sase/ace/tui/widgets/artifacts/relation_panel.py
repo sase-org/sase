@@ -18,10 +18,15 @@ from sase.core.artifact_relation_layout import (
     RelationRole,
     RelationRow,
     RelationSection,
+    RelationSummary,
+    RelationSummaryEntry,
     RelationView,
+    build_relation_summary,
     build_relation_view,
 )
 from sase.core.artifact_relations import RelationIndex
+
+from .shell import _SEPARATOR
 
 
 _BEAD_STATUS_INDICATORS: dict[str, tuple[str, str]] = {
@@ -62,6 +67,13 @@ def _get_simple_status_indicator(status: str) -> tuple[str, str]:
     return status[0].upper(), "#87CEEB"
 
 
+_DEFAULT_MODE_KEYS: Mapping[RelationRole, str] = {
+    RelationRole.ANCESTOR: "<",
+    RelationRole.DESCENDANT: ">",
+    RelationRole.FAMILY: "~",
+}
+
+
 class RelationPanel(Static):
     """Panel rendering relations for the currently selected Artifacts entry."""
 
@@ -73,6 +85,8 @@ class RelationPanel(Static):
         relations: tuple[PaneRelationDecl, ...],
         facts: Mapping[ArtifactEntryTarget, RelationEntryFact] | None = None,
         accent: str = "#87D7FF",
+        collapsed: bool = False,
+        mode_keys: Mapping[RelationRole, str] | None = None,
     ) -> RelationKeymap:
         """Render the relation view and return its navigation keymap."""
         with tui_trace(
@@ -85,15 +99,35 @@ class RelationPanel(Static):
                 relations=relations,
                 facts=facts or {},
             )
-            self._refresh_content(view, accent=accent)
+            if collapsed:
+                self._refresh_collapsed(view, accent=accent, mode_keys=mode_keys)
+            else:
+                self._refresh_content(view, accent=accent)
             return view.keymap
 
     def clear(self) -> None:
         """Clear the relation panel and hide it."""
+        self.set_class(False, "-collapsed")
         self.display = False
         self.update("")
 
+    def _refresh_collapsed(
+        self,
+        view: RelationView,
+        *,
+        accent: str,
+        mode_keys: Mapping[RelationRole, str] | None,
+    ) -> None:
+        text = _build_collapsed_rail(view, accent=accent, mode_keys=mode_keys)
+        if text is None:
+            self.clear()
+            return
+        self.set_class(True, "-collapsed")
+        self.display = True
+        self.update(text)
+
     def _refresh_content(self, view: RelationView, *, accent: str) -> None:
+        self.set_class(False, "-collapsed")
         if not view:
             self.clear()
             return
@@ -224,12 +258,16 @@ class RelationPanelHostMixin:
         accent_getter = getattr(self, "relation_panel_accent", None)
         accent = accent_getter() if callable(accent_getter) else None
         accent = accent or getattr(contract, "accent", None) or "#87D7FF"
+        app = getattr(self, "app", None)
+        collapsed = bool(getattr(app, "artifacts_relations_collapsed", False))
         keymap = panel.update_relations(
             index=index,
             origin=origin,
             relations=relations,
             facts=facts,
             accent=accent,
+            collapsed=collapsed,
+            mode_keys=_mode_keys_from_app(app),
         )
         self._publish_relation_keymap(keymap)
         if refresh_footer:
@@ -268,6 +306,20 @@ class RelationPanelHostMixin:
                 (
                     "start_sibling_mode",
                     _footer_label(keymap.label_for_role(RelationRole.FAMILY)),
+                )
+            )
+        if keymap:
+            collapsed = bool(
+                getattr(
+                    getattr(self, "app", None),
+                    "artifacts_relations_collapsed",
+                    False,
+                )
+            )
+            entries.append(
+                (
+                    "toggle_relation_panel",
+                    "expand relations" if collapsed else "collapse relations",
                 )
             )
         return tuple(entries)
@@ -331,9 +383,68 @@ class RelationPanelHostMixin:
         )
 
 
+def _build_collapsed_rail(
+    view: RelationView,
+    *,
+    accent: str,
+    mode_keys: Mapping[RelationRole, str] | None = None,
+) -> Text | None:
+    """Build the one-line collapsed relations rail, or None when empty."""
+    summary: RelationSummary = build_relation_summary(view)
+    if not summary:
+        return None
+    entries: tuple[RelationSummaryEntry, ...] = summary.entries
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append("▸", style=f"bold {accent}")
+    text.append("  ")
+    for index, entry in enumerate(entries):
+        if index:
+            text.append(_SEPARATOR, style="dim")
+        key = _rail_mode_key(entry.role, mode_keys)
+        if key:
+            text.append(f"{key} ", style="bold #FFAF00")
+        text.append(str(entry.count), style=f"bold {accent}")
+        text.append(f" {entry.label.lower()}", style="dim")
+    if summary.hidden_total > 0:
+        text.append(f" ({summary.hidden_total} hidden)", style="dim #808080")
+    return text
+
+
 def _footer_label(label: str) -> str:
     normalized = label.strip().lower()
     return normalized or "relation"
+
+
+def _rail_mode_key(
+    role: RelationRole,
+    mode_keys: Mapping[RelationRole, str] | None,
+) -> str:
+    if role is RelationRole.LINK:
+        return ""
+    if mode_keys:
+        configured = mode_keys.get(role, "")
+        if configured:
+            return configured
+    return _DEFAULT_MODE_KEYS.get(role, "")
+
+
+def _mode_keys_from_app(app: Any) -> Mapping[RelationRole, str]:
+    registry = getattr(app, "_keymap_registry", None)
+    app_km = getattr(registry, "app", None) if registry is not None else None
+    if app_km is None:
+        return _DEFAULT_MODE_KEYS
+    from sase.ace.tui.keymaps import key_display_name
+
+    def _display(action: str, fallback: str) -> str:
+        raw = getattr(app_km, action, fallback)
+        displayed = key_display_name(raw) if isinstance(raw, str) else ""
+        return displayed or fallback
+
+    return {
+        RelationRole.ANCESTOR: _display("start_ancestor_mode", "<"),
+        RelationRole.DESCENDANT: _display("start_child_mode", ">"),
+        RelationRole.FAMILY: _display("start_sibling_mode", "~"),
+    }
 
 
 __all__ = [

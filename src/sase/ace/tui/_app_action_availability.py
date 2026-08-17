@@ -9,11 +9,12 @@ from .tab_order import ARTIFACTS_TAB
 
 CheckAction = Callable[[str, tuple[object, ...]], bool | None]
 
-_ARTIFACT_RELATION_NAV_ACTIONS = frozenset(
+_ARTIFACT_RELATION_ACTIONS = frozenset(
     {
         "start_ancestor_mode",
         "start_child_mode",
         "start_sibling_mode",
+        "toggle_relation_panel",
     }
 )
 _ARTIFACT_GROUP_FOLD_ACTIONS = frozenset(
@@ -31,7 +32,7 @@ _ARTIFACT_GROUP_CYCLE_ACTIONS = frozenset(
     }
 )
 _CONTRACT_GATED_ARTIFACT_ACTIONS = (
-    _ARTIFACT_RELATION_NAV_ACTIONS
+    _ARTIFACT_RELATION_ACTIONS
     | _ARTIFACT_GROUP_FOLD_ACTIONS
     | _ARTIFACT_GROUP_CYCLE_ACTIONS
 )
@@ -218,12 +219,26 @@ def check_app_action(
     }:
         if app.current_tab != "agents":
             return False
-    if action in {"change_status", "bulk_change_status", "mark_pr_origin"}:
+    if action in {
+        "change_status",
+        "bulk_change_status",
+        "mark_pr_origin",
+        "patches_toggle_reverted",
+    }:
         if (
             app.current_tab != ARTIFACTS_TAB
             or app.current_artifacts_pane_key != "patches"
         ):
             return False
+    if action == "toggle_relation_panel" and app.current_tab != ARTIFACTS_TAB:
+        return False
+    if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
+        return False
+    if action == "open_agent_cleanup_panel" and app.current_tab not in {
+        "agents",
+        "axe",
+    }:
+        return False
     if action == "save_marked_agents":
         if app.current_tab != "agents":
             return False
@@ -253,7 +268,7 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
         contract = artifacts_pane_contract(pane_key)
     if contract is None:
         return False
-    if action in _ARTIFACT_RELATION_NAV_ACTIONS:
+    if action in _ARTIFACT_RELATION_ACTIONS:
         return contract.has(PaneCapability.RELATIONS)
     if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
         # Bare ``L`` is artifacts_link_jump on Plan. Fold-snap lives on ``zL``.

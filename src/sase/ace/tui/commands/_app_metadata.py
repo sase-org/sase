@@ -529,7 +529,21 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("prev_query", "Previous saved query", "Queries", ALL_TABS, ()),
     ("next_query", "Next saved query", "Queries", ALL_TABS, ()),
     # Display / misc
-    ("toggle_hide_reverted", "Toggle hide reverted", "Display", CL_ONLY, ()),
+    ("toggle_hide_reverted", "Toggle hide reverted", "Display", AGENTS_AXE, ()),
+    (
+        "patches_toggle_reverted",
+        "Toggle hide reverted",
+        "Display",
+        CL_ONLY,
+        (),
+    ),
+    (
+        "toggle_relation_panel",
+        "Collapse relations panel",
+        "Display",
+        CL_ONLY,
+        ("relations", "ancestors", "children", "relation panel"),
+    ),
     ("toggle_hide_submitted", "Toggle hide submitted", "Display", CL_ONLY, ()),
     ("show_notifications", "Show notifications", "Display", ALL_TABS, ()),
     (

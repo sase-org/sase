@@ -61,6 +61,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "start_ancestor_mode",
         "start_child_mode",
         "start_sibling_mode",
+        "toggle_relation_panel",
         *{f"show_artifacts_{subtab}" for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER},
         "show_artifacts_digit",
         "show_artifacts_bugs",

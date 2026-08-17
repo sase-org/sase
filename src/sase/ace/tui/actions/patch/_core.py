@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from sase.core.artifact_relation_layout import RelationKeymap
 
 from ....patch import Patch
+from ...tab_order import ARTIFACTS_TAB
 
 
 def _legacy_changespec_targets(targets: Any) -> Any:
@@ -510,7 +511,7 @@ class PatchMixin(
                 return
 
     def action_toggle_hide_reverted(self) -> None:
-        """Toggle visibility of reverted Patches, non-run agents, or axe commands."""
+        """Toggle visibility of non-run agents or axe commands."""
         if self.current_tab == "agents":
             self._toggle_hide_non_run_agents()  # type: ignore[attr-defined]
             return
@@ -530,7 +531,13 @@ class PatchMixin(
             self._build_axe_items()  # type: ignore[attr-defined]
             self._refresh_axe_display()  # type: ignore[attr-defined]
             return
-        if self.current_tab != "artifacts":
+
+    def action_patches_toggle_reverted(self) -> None:
+        """Toggle visibility of reverted Patches."""
+        if (
+            self.current_tab != ARTIFACTS_TAB
+            or getattr(self, "current_artifacts_pane_key", None) != "patches"
+        ):
             return
         self.hide_reverted = not self.hide_reverted
         self._reload_and_reposition()

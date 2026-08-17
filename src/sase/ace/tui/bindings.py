@@ -235,8 +235,10 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("<", "start_ancestor_mode", "Ancestor", show=False),
     Binding(">", "start_child_mode", "Child", show=False),
     Binding("~", "start_sibling_mode", "Sibling", show=False),
+    Binding("full_stop", "toggle_relation_panel", "Relations Panel", show=False),
     # Hide/show reverted/submitted
     Binding("full_stop", "toggle_hide_reverted", "Toggle Reverted", show=False),
+    Binding("X", "patches_toggle_reverted", "Toggle Reverted", show=False),
     Binding("x", "toggle_hide_submitted", "Toggle Submitted", show=False),
     # Leader mode (for quick shortcuts)
     Binding("comma", "start_leader_mode", "Leader", show=False),

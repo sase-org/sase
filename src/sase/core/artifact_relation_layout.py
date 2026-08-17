@@ -128,6 +128,54 @@ class RelationView:
         return any(section.rows or section.hidden_count for section in self.sections)
 
 
+@dataclass(frozen=True, slots=True)
+class RelationSummaryEntry:
+    """One rail segment derived from a rendered relation section."""
+
+    role: RelationRole
+    relation: str
+    label: str
+    count: int
+    hidden: int
+
+
+@dataclass(frozen=True, slots=True)
+class RelationSummary:
+    """Collapsed-rail facts for a built relation view."""
+
+    entries: tuple[RelationSummaryEntry, ...]
+
+    def __bool__(self) -> bool:
+        return bool(self.entries)
+
+    @property
+    def hidden_total(self) -> int:
+        """Return the sum of per-section hidden counts."""
+        return sum(entry.hidden for entry in self.entries)
+
+
+def build_relation_summary(view: RelationView) -> RelationSummary:
+    """Summarize visible and hidden relation rows for the collapsed rail."""
+    entries: list[RelationSummaryEntry] = []
+    for section in view.sections:
+        if not section.rows and section.hidden_count == 0:
+            continue
+        entries.append(
+            RelationSummaryEntry(
+                role=section.role,
+                relation=section.relation,
+                label=section.label,
+                count=_count_relation_rows(section.rows),
+                hidden=section.hidden_count,
+            )
+        )
+    return RelationSummary(entries=tuple(entries))
+
+
+def _count_relation_rows(rows: tuple[RelationRow, ...]) -> int:
+    return sum(1 + _count_relation_rows(row.children) for row in rows)
+
+
 def assign_relation_roles(
     relations: tuple[PaneRelationDecl, ...],
 ) -> dict[str, RelationRole]:
@@ -462,7 +510,10 @@ __all__ = [
     "RelationRole",
     "RelationRow",
     "RelationSection",
+    "RelationSummary",
+    "RelationSummaryEntry",
     "RelationView",
     "assign_relation_roles",
+    "build_relation_summary",
     "build_relation_view",
 ]

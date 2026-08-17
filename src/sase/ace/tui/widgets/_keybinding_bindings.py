@@ -484,6 +484,17 @@ class KeybindingBindingsMixin:
             )
             bindings.append((self._kd("clear_marks"), f"unmark ({mark_count})"))
 
+        app = getattr(self, "_app", None)
+        keymap = getattr(app, "_relation_keymap", None) if app is not None else None
+        if keymap:
+            collapsed = bool(getattr(app, "artifacts_relations_collapsed", False))
+            bindings.append(
+                (
+                    self._kd("toggle_relation_panel"),
+                    "expand relations" if collapsed else "collapse relations",
+                )
+            )
+
         return bindings
 
     # --- Chip / layout helpers ---

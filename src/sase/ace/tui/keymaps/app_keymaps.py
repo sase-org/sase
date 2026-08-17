@@ -156,6 +156,7 @@ class AppKeymaps:
     # Display / misc
     show_help: str
     toggle_hide_reverted: str
+    patches_toggle_reverted: str
     toggle_hide_submitted: str
     show_notifications: str
     open_config_center: str
@@ -170,6 +171,7 @@ class AppKeymaps:
     start_ancestor_mode: str
     start_child_mode: str
     start_sibling_mode: str
+    toggle_relation_panel: str
     # Mode activation prefixes
     start_fold_mode: str
     zoom_panel: str

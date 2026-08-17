@@ -683,6 +683,8 @@ launch routing uses the same `@small` fallback.
 | `v`             | View files (hint mode)                                                                       |
 | `w`             | Reword PR description                                                                        |
 | `W`             | Add tag to PR description                                                                    |
+| `x`             | Show/hide submitted PRs                                                                      |
+| `X`             | Show/hide reverted PRs                                                                       |
 | `Y`             | Sync workspace                                                                               |
 
 ### PR Grouping and Folding
@@ -2382,7 +2384,7 @@ These work on all tabs:
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                                                                           |
 | `#`                 | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back) |
-| `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                                                                        |
+| `.`                 | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                            |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                                                                               |
 | `i`                 | Show notifications inbox                                                                                                                                 |
 | `Ctrl+G`            | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                 |
