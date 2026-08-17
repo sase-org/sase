@@ -85,6 +85,15 @@
 # fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_owner_snapshot_reuses_parsed_overlay_until_token_changes
 # fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_drain_config_token_refresh_joins_worker_and_advances_epoch
 #
+# sase-ng.1.1: fixed by 13e9ccbc9 "fix(agent): consume force-reuse plans on
+# the durable launch path" (committed 2026-08-17T20:21:41Z). The unauthorized
+# path never builds a force-reuse plan, so launch_query calls
+# launch_agents_from_cwd without segment_extra_env at all; the two seam tests
+# had asserted the keyword was passed as None. This retires the pre-fix
+# evidence three workspaces recorded against the sase-ng.1 epic's own trees.
+# fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_plain_sase_run_without_request_sidecar_still_rejects_forced_reuse
+# fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_sidecar_without_authorization_still_rejects_forced_reuse
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
