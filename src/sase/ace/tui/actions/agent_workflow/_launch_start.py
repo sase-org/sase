@@ -130,22 +130,21 @@ class AgentLaunchStartMixin:
         )
 
     def _launch_resolved_prompt(self, prompt: str, *, keep_bar: bool = False) -> None:
-        """Launch *prompt* (inputs already resolved) in a worker thread.
+        """Launch *prompt* (inputs already resolved) via durable ``sase run``.
 
-        Unmounts the prompt bar immediately, then runs the heavy launch
-        work (VCS resolution, history writes, xprompt expansion, subprocess
-        spawn) in a tracked Textual worker thread so the Textual event loop
+        Unmounts the prompt bar immediately, then submits argv-only
+        ``sase run`` to the durable supervisor so the Textual event loop
         stays responsive to keystrokes (notably ``j``/``k``) during the
-        blocking I/O portion of the launch.
+        out-of-process launch.
 
         ``keep_bar`` is set for a Phase 4 single-pane submit from a multi-pane
         stack: the bar stays mounted so the remaining panes can be submitted
         next. The mounted bar's ``_prompt_context`` is the immutable base for
         the stack, so this clones it (with a freshly reserved timestamp /
-        workflow name) and hands the snapshot to the launch worker. That keeps
-        the base intact for later submits and makes each launch's context
-        independent of subsequent edits — avoiding any cross-submit races on the
-        shared ``self._prompt_context``.
+        workflow name) and puts that identity on the submitted payload. That
+        keeps the base intact for later submits and makes each launch's
+        context independent of subsequent edits — avoiding any cross-submit
+        races on the shared ``self._prompt_context``.
 
         Args:
             prompt: The user's prompt for the agent (inputs already substituted).
@@ -177,9 +176,9 @@ class AgentLaunchStartMixin:
         # safety-net cancel save (sase-3q.2).
         #
         # In the keep_bar case the bar stays mounted and ``self._prompt_context``
-        # remains the base, so the vestigial in-process test callable must
-        # operate on the explicit ``ctx`` snapshot rather than reading the
-        # shared base.
+        # remains the base. ``ctx`` is a snapshot with a freshly reserved
+        # timestamp / workflow name so this submit does not mutate the base
+        # that later panes still use.
         if not keep_bar:
             self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
             self._prompt_context = None
@@ -206,7 +205,6 @@ class AgentLaunchStartMixin:
                 "workflow_name": ctx.workflow_name,
             },
             submitted_prompt=prompt,
-            proc_callable=lambda: self._run_agent_launch_body(prompt, ctx),  # type: ignore[attr-defined]
         )
 
     def _release_prompt_context_if_no_bar_mounted(self) -> None:

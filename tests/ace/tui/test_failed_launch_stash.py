@@ -8,8 +8,7 @@ preserves it in the per-user prompt stash so it stays recoverable through
   metadata,
 - a payloadless launch-task failure (worker died before returning an outcome,
   e.g. a project-alias canonicalization conflict) stashes that metadata and
-  refreshes the badge,
-- a real single-agent spawn failure leaves a restorable stash row, and
+  refreshes the badge, and
 - a failed/partial launch outcome refreshes the badge from disk.
 """
 
@@ -18,24 +17,16 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
-from sase.ace.tui.actions.agent_workflow._launch_procs import (
-    LaunchProcMixin,
-    LaunchProcOutcome,
-)
+from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import PromptBarStashMixin
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.proc_queue import ProcInfo
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
-from ._agent_launch_helpers import (
-    _FakeApp,
-    _LaunchBodyApp,
-    _run_launch_body_with_common_patches,
-)
+from ._agent_launch_helpers import _FakeApp
 
 
 def _skip_without_prompt_stash_bindings() -> None:
@@ -91,9 +82,10 @@ async def _drain_async_tasks(app: object) -> None:
 def _completion(
     *,
     success: bool,
-    payload: LaunchProcOutcome | None,
+    payload: dict[str, object] | None,
     proc_id: str = "task-1",
-) -> TrackedProcCompletion[LaunchProcOutcome]:
+    message: str = "m",
+) -> TrackedProcCompletion[object]:
     return TrackedProcCompletion(
         proc_info=ProcInfo(
             proc_id=proc_id,
@@ -101,12 +93,12 @@ def _completion(
             cl_name="cl",
             project_file="/tmp/proj.sase",
             status="error" if not success else "success",
-            message="m",
+            message=message,
             started_at=datetime.now(),
             display_name="launch cl",
         ),
         success=success,
-        message="m",
+        message=message,
         output="",
         payload=payload,
         error=None if success else "worker died",
@@ -187,7 +179,8 @@ async def test_error_outcome_refreshes_badge_for_worker_stashed_row(
     app._on_launch_proc_complete(
         _completion(
             success=False,
-            payload=LaunchProcOutcome("Launch failed", severity="error"),
+            payload={},
+            message="Launch failed",
         )
     )
     await _drain_async_tasks(app)
@@ -234,30 +227,4 @@ def test_workflow_thread_start_failure_stashes_submitted_prompt(
     assert result is False
     entries = _entries(stash_path)
     assert [e.text for e in entries] == ["#!eval/foo run the workflow now"]
-    assert entries[0].source == "failed_launch"
-
-
-# --- real single-agent spawn failure leaves a restorable stash row ----------
-
-
-def test_single_agent_spawn_failure_leaves_stash_row(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _skip_without_prompt_stash_bindings()
-    stash_path = tmp_path / "prompt_stash.jsonl"
-    _point_store_at(monkeypatch, stash_path)
-
-    app = _LaunchBodyApp()
-    prompt = "launch a single agent for this long unit of work"
-
-    def _boom(**kwargs: Any) -> Any:
-        del kwargs
-        raise RuntimeError("spawn boom")
-
-    with patch.object(_LaunchBodyApp, "_launch_background_agent", side_effect=_boom):
-        outcome = _run_launch_body_with_common_patches(app, prompt)
-
-    assert outcome.severity == "error"
-    entries = _entries(stash_path)
-    assert [e.text for e in entries] == [prompt]
     assert entries[0].source == "failed_launch"

@@ -5,14 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._launch_background import BackgroundAgentLaunchMixin
-from ._launch_body import AgentLaunchBodyMixin
-from ._launch_bulk import BulkLaunchMixin
 from ._launch_delta import LaunchDeltaMixin
-from ._launch_multi_model import MultiModelLaunchMixin
-from ._launch_multi_prompt import MultiPromptLaunchMixin
-from ._launch_repeat import RepeatLaunchMixin
-from ._launch_start import AgentLaunchStartMixin
 from ._launch_procs import LaunchProcMixin
+from ._launch_start import AgentLaunchStartMixin
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -23,14 +18,9 @@ if TYPE_CHECKING:
 
 class AgentLaunchMixin(
     AgentLaunchStartMixin,
-    AgentLaunchBodyMixin,
     BackgroundAgentLaunchMixin,
     LaunchDeltaMixin,
     LaunchProcMixin,
-    MultiModelLaunchMixin,
-    RepeatLaunchMixin,
-    MultiPromptLaunchMixin,
-    BulkLaunchMixin,
 ):
     """Internal mixin providing agent launching functionality."""
 

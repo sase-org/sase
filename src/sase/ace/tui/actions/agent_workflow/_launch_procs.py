@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
@@ -14,16 +14,16 @@ if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
 
 
-LaunchSeverity = Literal["warning", "error"]
+_LaunchSeverity = Literal["warning", "error"]
 
 
 @dataclass(frozen=True)
-class LaunchProcOutcome:
+class _LaunchProcOutcome:
     """UI-thread effects to apply after a launch proc completes."""
 
     message: str
     results: tuple[AgentLaunchResult, ...] = ()
-    severity: LaunchSeverity | None = None
+    severity: _LaunchSeverity | None = None
     warning_messages: tuple[str, ...] = ()
     notify: bool = True
     request_agents_refresh: bool = False
@@ -35,18 +35,8 @@ class LaunchProcOutcome:
         """Return whether this outcome should be recorded as proc success."""
         return self.severity != "error"
 
-    def with_warning_messages(
-        self,
-        warning_messages: Sequence[str],
-    ) -> LaunchProcOutcome:
-        """Return a copy carrying additional non-fatal warning toasts."""
-        if not warning_messages:
-            return self
-        merged = tuple(dict.fromkeys((*self.warning_messages, *warning_messages)))
-        return replace(self, warning_messages=merged)
 
-
-def launch_results_tuple(
+def _launch_results_tuple(
     results: Sequence[AgentLaunchResult | None],
 ) -> tuple[AgentLaunchResult, ...]:
     """Normalize a launch result sequence into a tuple without None values."""
@@ -54,7 +44,7 @@ def launch_results_tuple(
 
 
 class LaunchProcMixin:
-    """Mixin that routes launch worker bodies through the central proc queue."""
+    """Mixin that submits durable ``sase run`` launches through the proc queue."""
 
     def _submit_launch_proc(
         self,
@@ -66,19 +56,14 @@ class LaunchProcMixin:
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
         extra_payload: dict[str, object] | None = None,
-        proc_callable: object | None = None,
     ) -> bool:
         """Submit a durable ``sase run`` launch and return whether it was accepted.
 
         ``submitted_prompt`` is launch-specific recovery metadata: if the worker
-        dies before returning a :class:`LaunchProcOutcome` (a payloadless
+        dies before returning a :class:`_LaunchProcOutcome` (a payloadless
         failure), the completion handler stashes this prompt so it stays
         recoverable. It is kept off the generic proc-queue contract.
-
-        ``proc_callable`` is accepted so existing test doubles can still record
-        the launch body. Production submits argv-only ``sase run``.
         """
-        del proc_callable
         from ..agent_durable import submit_agent_launch
 
         workflow = (dedup_key or "").removeprefix("launch:") or uuid4().hex
@@ -102,7 +87,7 @@ class LaunchProcMixin:
 
     def _on_launch_proc_complete(
         self,
-        completion: TrackedProcCompletion[LaunchProcOutcome],
+        completion: TrackedProcCompletion[_LaunchProcOutcome],
     ) -> None:
         """Apply launch-specific completion effects on the UI thread."""
         # The launch worker has finished writing prompt history by now, so any
@@ -157,7 +142,7 @@ class LaunchProcMixin:
 
     def _pop_launch_submitted_prompt(
         self,
-        completion: TrackedProcCompletion[LaunchProcOutcome],
+        completion: TrackedProcCompletion[_LaunchProcOutcome],
     ) -> str | None:
         """Remove and return the recovery prompt recorded for this launch proc."""
         prompts = getattr(self, "_launch_submitted_prompts", None)
@@ -182,7 +167,7 @@ def _refresh_notification_count_if_available(app: object) -> None:
 
 def _schedule_payloadless_launch_failure_log(
     app: Any,
-    completion: TrackedProcCompletion[LaunchProcOutcome],
+    completion: TrackedProcCompletion[_LaunchProcOutcome],
 ) -> None:
     """Write payloadless launch proc failures off the Textual event loop."""
     import asyncio
@@ -205,7 +190,7 @@ def _schedule_payloadless_launch_failure_log(
 
 
 def _log_payloadless_launch_failure(
-    completion: TrackedProcCompletion[LaunchProcOutcome],
+    completion: TrackedProcCompletion[_LaunchProcOutcome],
 ) -> None:
     """Persist a launch proc failure when the worker produced no outcome."""
     from sase.logs import log_launch_failure
@@ -226,10 +211,10 @@ def _log_payloadless_launch_failure(
 
 
 def _launch_outcome_from_completion(
-    completion: TrackedProcCompletion[LaunchProcOutcome],
-) -> LaunchProcOutcome | None:
+    completion: TrackedProcCompletion[_LaunchProcOutcome],
+) -> _LaunchProcOutcome | None:
     payload = completion.payload
-    if isinstance(payload, LaunchProcOutcome):
+    if isinstance(payload, _LaunchProcOutcome):
         return payload
     if not isinstance(payload, dict):
         return None
@@ -254,12 +239,12 @@ def _launch_outcome_from_completion(
                 agent_name=item.get("agent_name"),
             )
         )
-    severity: LaunchSeverity | None = None
+    severity: _LaunchSeverity | None = None
     if not completion.success:
         severity = "error"
-    return LaunchProcOutcome(
+    return _LaunchProcOutcome(
         completion.message,
-        results=launch_results_tuple(results),
+        results=_launch_results_tuple(results),
         severity=severity,
         warning_messages=_warning_messages_from_payload(payload),
         request_agents_refresh=bool(payload.get("request_agents_refresh")),
@@ -280,6 +265,4 @@ def _warning_messages_from_payload(payload: Mapping[str, object]) -> tuple[str, 
 
 __all__ = [
     "LaunchProcMixin",
-    "LaunchProcOutcome",
-    "launch_results_tuple",
 ]

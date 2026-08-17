@@ -11,6 +11,7 @@ These pin the contracts the launch path depends on:
 - ``_finish_agent_launch(keep_bar=True)`` clones an independent launch context
   per submit (fresh timestamp / workflow name) and leaves the base untouched,
   so back-to-back single submits never race on ``self._prompt_context``.
+  Assertions inspect the recorded ``_submit_launch_proc`` prompt and payload.
 """
 
 from __future__ import annotations
@@ -273,14 +274,15 @@ def test_keep_bar_launch_clones_context_and_preserves_base() -> None:
     assert app._prompt_context is base
     assert base.timestamp == "ts"
 
-    # The worker received an independent snapshot with a fresh timestamp.
+    # The submitted payload carries an independent snapshot identity.
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["pane one"]
-    snapshot = app.body_call_contexts[0]
-    assert snapshot is not None
-    assert snapshot is not base
-    assert snapshot.timestamp != "ts"
+    task = app.launch_tasks[0]
+    assert task["prompt"] == "pane one"
+    extra = task["extra_payload"]
+    assert extra is not None
+    assert extra["workflow_name"] != base.workflow_name
+    assert extra["workflow_name"].startswith("ace(run)-")
+    assert extra["display_name"] == base.display_name
 
 
 def test_keep_bar_launch_keeps_ctrl_space_gated() -> None:
@@ -304,27 +306,20 @@ def test_back_to_back_keep_bar_launches_use_distinct_contexts() -> None:
     app._finish_agent_launch("pane two", keep_bar=True)
 
     assert app._prompt_context is base  # base never mutated
-    for task in app.launch_tasks:
-        task["proc_callable"]()
-
-    assert app.body_calls == ["pane one", "pane two"]
-    first, second = app.body_call_contexts
+    assert [task["prompt"] for task in app.launch_tasks] == ["pane one", "pane two"]
+    first, second = (task["extra_payload"] for task in app.launch_tasks)
     assert first is not None
     assert second is not None
     # Independent snapshots -> no cross-submit clobbering of launch identity.
-    assert first is not second
-    assert first.timestamp != second.timestamp
-    assert first.workflow_name != second.workflow_name
+    assert first["workflow_name"] != second["workflow_name"]
 
 
 def test_keep_bar_false_launch_unmounts_like_today() -> None:
     app = _FakeApp()
-    base = app._prompt_context
 
     app._finish_agent_launch("solo prompt")
 
     assert app.unmount_calls == ["submit"]
     assert app._prompt_context is None
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_call_contexts == [base]
+    assert app.launch_tasks[0]["prompt"] == "solo prompt"

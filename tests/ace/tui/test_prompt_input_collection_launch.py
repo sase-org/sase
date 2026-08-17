@@ -6,7 +6,7 @@ frontmatter ``input:`` arguments. Either kind opens the Prompt Inputs panel (and
 launches nothing until the user confirms), optional-only declared inputs
 substitute their defaults without a panel, and a prompt with nothing to collect
 launches unchanged. The collected values are substituted into every segment
-before the launch worker runs.
+before ``_submit_launch_proc`` records the resolved prompt.
 """
 
 from __future__ import annotations
@@ -83,8 +83,7 @@ def test_prompt_without_inputs_launches_directly() -> None:
 
     assert app.pushed_screens == []  # no modal
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["plain prompt"]
+    assert app.launch_tasks[0]["prompt"] == "plain prompt"
 
 
 def test_optional_only_prompt_substitutes_defaults_without_modal() -> None:
@@ -94,8 +93,7 @@ def test_optional_only_prompt_substitutes_defaults_without_modal() -> None:
 
     assert app.pushed_screens == []  # all defaulted -> no modal
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["run=False"]
+    assert app.launch_tasks[0]["prompt"] == "run=False"
 
 
 def test_required_input_opens_modal_then_launches_substituted() -> None:
@@ -117,8 +115,7 @@ def test_required_input_opens_modal_then_launches_substituted() -> None:
         )
     )
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor billing"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor billing"
 
 
 def test_required_input_modal_cancel_launches_nothing() -> None:
@@ -244,8 +241,7 @@ def test_raw_placeholder_opens_panel_then_launches_substituted(
 
     callback(PromptInputValues(placeholders={"the plan": "sase-9q"}, declared={}))
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor sase-9q and report back"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor sase-9q and report back"
     # D7: the tags are learned from the pre-substitution body.
     assert recorded_placeholder_texts == ["Refactor <the plan> and report back"]
 
@@ -272,8 +268,7 @@ def test_literal_marked_placeholder_survives_into_the_launched_prompt() -> None:
     _screen, callback = app.pushed_screens[0]
     callback(PromptInputValues(placeholders={}, declared={}))
 
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor <the plan> now"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor <the plan> now"
 
 
 def test_backticked_placeholder_only_prompt_launches_immediately() -> None:
@@ -282,8 +277,7 @@ def test_backticked_placeholder_only_prompt_launches_immediately() -> None:
     app._finish_agent_launch("keep `<div>` literal")
 
     assert app.pushed_screens == []
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["keep `<div>` literal"]
+    assert app.launch_tasks[0]["prompt"] == "keep `<div>` literal"
 
 
 def test_placeholder_and_declared_input_collected_on_one_page() -> None:
@@ -300,8 +294,7 @@ def test_placeholder_and_declared_input_collected_on_one_page() -> None:
             declared={"service": "billing"},
         )
     )
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor billing in app.py"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor billing in app.py"
 
 
 def test_multi_segment_placeholder_is_collected_once_and_applied_to_both() -> None:
@@ -312,8 +305,7 @@ def test_multi_segment_placeholder_is_collected_once_and_applied_to_both() -> No
     screen, callback = app.pushed_screens[0]
     assert isinstance(screen, InputCollectionModal)
     callback(PromptInputValues(placeholders={"target": "parser"}, declared={}))
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["fix parser\n---\ntest parser"]
+    assert app.launch_tasks[0]["prompt"] == "fix parser\n---\ntest parser"
 
 
 def test_collect_raw_placeholders_disabled_launches_without_panel(
@@ -325,8 +317,7 @@ def test_collect_raw_placeholders_disabled_launches_without_panel(
     app._finish_agent_launch("Refactor <the plan> and report back")
 
     assert app.pushed_screens == []
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor <the plan> and report back"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor <the plan> and report back"
 
 
 def test_collect_raw_placeholders_disabled_still_collects_declared_inputs(
@@ -341,5 +332,4 @@ def test_collect_raw_placeholders_disabled_still_collects_declared_inputs(
     assert isinstance(screen, InputCollectionModal)
     assert screen._placeholders == []
     callback(PromptInputValues(placeholders={}, declared={"service": "billing"}))
-    app.launch_tasks[0]["proc_callable"]()
-    assert app.body_calls == ["Refactor billing"]
+    assert app.launch_tasks[0]["prompt"] == "Refactor billing"

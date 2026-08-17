@@ -1,4 +1,4 @@
-"""Shared harnesses for launch fan-out tests."""
+"""Shared harnesses for launch refresh and launch-delta tests."""
 
 from __future__ import annotations
 
@@ -6,36 +6,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from sase.ace.tui.actions.agent_workflow._launch_bulk import BulkLaunchMixin
 from sase.ace.tui.actions.agent_workflow._launch_delta import LaunchDeltaMixin
-from sase.ace.tui.actions.agent_workflow._launch_multi_model import (
-    MultiModelLaunchMixin,
-)
-from sase.ace.tui.actions.agent_workflow._launch_multi_prompt import (
-    MultiPromptLaunchMixin,
-)
-from sase.ace.tui.actions.agent_workflow._launch_repeat import RepeatLaunchMixin
-from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
-from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.agent.launch_types import AgentLaunchResult
-
-
-def _ctx() -> PromptContext:
-    return PromptContext(
-        project_name="proj",
-        cl_name="cl",
-        project_file="/tmp/proj.sase",
-        workspace_dir="/tmp/ws",
-        workspace_num=1,
-        workflow_name="ace(run)-ts",
-        timestamp="ts",
-        history_sort_key="cl",
-        display_name="cl",
-        update_target="cl",
-        is_home_mode=False,
-    )
 
 
 def _launch_result(
@@ -84,127 +58,6 @@ class _CoalesceApp(AgentLoadingMixin):
         return
 
 
-class _FanOutHarness:
-    """Common attrs and shims used by the fan-out tests."""
-
-    def __init__(self) -> None:
-        self.notifications: list[tuple[str, str | None]] = []
-        self.scheduled: list[tuple[Any, tuple[Any, ...]]] = []
-        self.refresh_requests: list[str] = []
-        self.launch_delta_batches: list[list[AgentLaunchResult]] = []
-        self.launch_tasks: list[dict[str, Any]] = []
-        self.launched: list[dict[str, Any]] = []
-        self.refresh_display_calls: int = 0
-        self.notification_refresh_count: int = 0
-
-    def notify(self, msg: str, *, severity: str | None = None) -> None:
-        self.notifications.append((msg, severity))
-
-    def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
-        del kwargs
-        self.scheduled.append((fn, args))
-
-    def request_agents_refresh(
-        self,
-        source: str,
-        *,
-        debounce_ms: int = 150,
-        latest_only: bool = True,
-    ) -> None:
-        del debounce_ms, latest_only
-        self.refresh_requests.append(source)
-
-    def _refresh_display(self) -> None:
-        self.refresh_display_calls += 1
-
-    def _refresh_notification_count(self) -> None:
-        self.notification_refresh_count += 1
-
-    def _submit_launch_proc(
-        self,
-        *,
-        display_name: str,
-        cl_name: str,
-        project_file: str,
-        prompt: str = "",
-        proc_callable: Callable[[], LaunchProcOutcome] | None = None,
-        dedup_key: str | None = None,
-        submitted_prompt: str | None = None,
-        extra_payload: object = None,
-    ) -> bool:
-        del prompt, extra_payload
-        self.launch_tasks.append(
-            {
-                "display_name": display_name,
-                "cl_name": cl_name,
-                "project_file": project_file,
-                "proc_callable": proc_callable,
-                "dedup_key": dedup_key,
-                "submitted_prompt": submitted_prompt,
-            }
-        )
-        return True
-
-    def _apply_launch_outcome(self, outcome: LaunchProcOutcome) -> None:
-        if outcome.results:
-            self._handle_launch_results_delta(list(outcome.results))
-        if outcome.request_agents_refresh:
-            self.request_agents_refresh("launch")
-        if outcome.refresh_notifications:
-            self._refresh_notification_count()
-        if outcome.notify:
-            self.notify(outcome.message, severity=outcome.severity)
-
-    def _run_submitted_launch_procs(self) -> None:
-        while self.launch_tasks:
-            task = self.launch_tasks.pop(0)
-            self._apply_launch_outcome(task["proc_callable"]())
-
-    def _launch_background_agent(self, **kwargs: Any) -> AgentLaunchResult:
-        self.launched.append(kwargs)
-        return AgentLaunchResult(
-            pid=123,
-            workspace_num=kwargs["workspace_num"],
-            workspace_dir=kwargs["workspace_dir"],
-            output_path="/tmp/out.txt",
-            project_file=kwargs["project_file"],
-            project_name=kwargs["project_name"],
-            workflow_name=kwargs["workflow_name"],
-            cl_name=kwargs["cl_name"],
-            timestamp=kwargs["timestamp"],
-        )
-
-    def _handle_launch_results_delta(
-        self,
-        results: list[AgentLaunchResult],
-        *,
-        source: str = "launch",
-    ) -> None:
-        assert source == "launch"
-        self.launch_delta_batches.append(list(results))
-
-
-class _MultiPromptApp(_FanOutHarness, MultiPromptLaunchMixin):
-    pass
-
-
-class _MultiModelApp(_FanOutHarness, MultiModelLaunchMixin):
-    pass
-
-
-class _RepeatApp(_FanOutHarness, RepeatLaunchMixin):
-    pass
-
-
-class _BulkApp(_FanOutHarness, BulkLaunchMixin):
-    def __init__(self) -> None:
-        super().__init__()
-        self._bulk_patches = None
-        self._prompt_context = None
-        self.marked_indices = set()
-        self._artifacts_marked_targets: dict[str, set[Any]] = {"patches": set()}
-
-
 class _LaunchDeltaApp(LaunchDeltaMixin):
     def __init__(self) -> None:
         self.delta_refreshes: list[tuple[list[str], str]] = []
@@ -221,11 +74,3 @@ class _LaunchDeltaApp(LaunchDeltaMixin):
 
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         self.broad_refreshes.append(source)
-
-
-class _FakeMultiPrompt:
-    """Stand-in for sase.agent.multi_prompt.MultiPrompt that bypasses isinstance."""
-
-    def __init__(self, segments: list[str]) -> None:
-        self.segments = segments
-        self.local_xprompts: dict[str, Any] = {}
