@@ -13,8 +13,8 @@ lane below instead gets a cadence sized to what actually invalidates it:
   Nothing about it changes between repaints of the same selection, so it gets
   no time-based TTL at all; only a new cache entry (a new selection, or a
   plan/bead identity change) re-resolves it.
-- ``artifacts``, ``memory``, ``skills``, ``workspaces``, ``plan-bead``,
-  ``xprompts``, ``page-url``: store- or lookup-backed but each already has
+- ``artifacts``, ``memory``, ``glossary``, ``skills``, ``workspaces``,
+  ``plan-bead``, ``xprompts``, ``page-url``: store- or lookup-backed but each already has
   (or gains, in the sibling `stores` phase) its own mtime-keyed cache, so a
   revalidation here is cheap. They share the auto-refresh cadence (10 s)
   instead of a sub-second one.
@@ -59,6 +59,7 @@ from ._agent_display_state import (
 from ._helpers import load_xprompts_used
 
 if TYPE_CHECKING:
+    from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
     from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
     from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 
@@ -88,6 +89,7 @@ _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
     "plan-bead": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "artifacts": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "memory": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
+    "glossary": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "skills": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "workspaces": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
     "xprompts": _LANE_DEFAULT_REFRESH_INTERVAL_SECONDS,
@@ -103,6 +105,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "plan-bead": ("associated_plan", "phase_bead"),
     "artifacts": ("artifact_file_paths", "delta_entries", "linked_delta_groups"),
     "memory": ("memory_reads",),
+    "glossary": ("glossary_reads",),
     "skills": ("skill_uses",),
     "workspaces": ("opened_workspaces",),
     "slow-tools": ("slow_tool_sources",),
@@ -127,7 +130,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
 # batch; see `test_lane_resolution_batches_cover_every_lane_exactly_once`.
 LANE_RESOLUTION_BATCHES: tuple[frozenset[DetailContextLane], ...] = (
     frozenset({"wait-beads", "plan-bead", "workspaces", "xprompts", "page-url"}),
-    frozenset({"artifacts", "memory", "skills"}),
+    frozenset({"artifacts", "memory", "glossary", "skills"}),
     frozenset({"slow-tools"}),
 )
 
@@ -468,6 +471,13 @@ def _build_detail_header_summary_impl(
         with tui_trace(f"{_TRACE_SPAN_PREFIX}.memory_reads"):
             memory_reads = load_memory_reads_for_agent_context(agent)
 
+    glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = ()
+    if "glossary" in lanes:
+        from sase.ace.tui.glossary_reads import load_glossary_reads_for_agent_context
+
+        with tui_trace(f"{_TRACE_SPAN_PREFIX}.glossary_reads"):
+            glossary_reads = load_glossary_reads_for_agent_context(agent)
+
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     if "skills" in lanes:
         from sase.ace.tui.skill_uses import load_skill_uses_for_agent_context
@@ -499,6 +509,7 @@ def _build_detail_header_summary_impl(
         linked_delta_groups=linked_delta_groups,
         artifact_file_paths=resolved_artifact_file_paths,
         memory_reads=memory_reads,
+        glossary_reads=glossary_reads,
         skill_uses=skill_uses,
         opened_workspaces=opened_workspaces,
         slow_tool_sources=slow_tool_sources,

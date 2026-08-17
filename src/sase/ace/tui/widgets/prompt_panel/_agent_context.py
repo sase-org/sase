@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -20,6 +21,7 @@ from ._agent_bead_section import BEAD_SECTION_ID, ResponsiveBeadSection
 from ._agent_context_common import (
     COLOR_ARTIFACTS_SUBHEADER,
     COLOR_BEAD_SUBHEADER,
+    COLOR_GLOSSARY_SUBHEADER,
     COLOR_MEMORY_SUBHEADER,
     COLOR_PLAN_SUBHEADER,
     COLOR_SKILLS_SUBHEADER,
@@ -27,6 +29,7 @@ from ._agent_context_common import (
     COLOR_WORKSPACE_SUBHEADER,
     append_context_lane_header,
 )
+from ._agent_glossary_reads import append_agent_glossary_reads_section
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_plan_section import ResponsivePlanSection
@@ -42,6 +45,7 @@ CONTEXT_LANE_ORDER = (
     "BEAD",
     "ARTIFACTS",
     "MEMORY",
+    "GLOSSARY",
     "SKILLS",
     "WORKSPACES",
 )
@@ -56,6 +60,7 @@ _LANE_LABEL_BACKING: dict[str, DetailContextLane] = {
     "BEAD": "plan-bead",
     "ARTIFACTS": "artifacts",
     "MEMORY": "memory",
+    "GLOSSARY": "glossary",
     "SKILLS": "skills",
     "WORKSPACES": "workspaces",
 }
@@ -64,6 +69,7 @@ _LANE_LABEL_PENDING_STYLE: dict[str, str] = {
     "BEAD": COLOR_BEAD_SUBHEADER,
     "ARTIFACTS": COLOR_ARTIFACTS_SUBHEADER,
     "MEMORY": COLOR_MEMORY_SUBHEADER,
+    "GLOSSARY": COLOR_GLOSSARY_SUBHEADER,
     "SKILLS": COLOR_SKILLS_SUBHEADER,
     "WORKSPACES": COLOR_WORKSPACE_SUBHEADER,
 }
@@ -74,6 +80,7 @@ def append_agent_context_section(
     text: Text,
     *,
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = (),
+    glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = (),
     skill_uses: tuple[SkillUseDisplayEvent, ...] = (),
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = (),
     bead_section: ResponsiveBeadSection | None = None,
@@ -132,6 +139,11 @@ def append_agent_context_section(
             events=memory_reads,
             hint_state=hint_state,
         ),
+        "GLOSSARY": lambda lane: append_agent_glossary_reads_section(
+            lane,
+            events=glossary_reads,
+            hint_state=hint_state,
+        ),
         "SKILLS": lambda lane: append_agent_skills_section(
             lane,
             events=skill_uses,
@@ -184,6 +196,7 @@ def append_agent_context_section(
             "PLAN": "plan",
             "ARTIFACTS": "artifacts",
             "MEMORY": "memory-reads",
+            "GLOSSARY": "glossary-reads",
             "SKILLS": "skill-uses",
             "WORKSPACES": "opened-workspaces",
         }
@@ -213,6 +226,7 @@ def append_agent_context_section(
                 "PLAN": "plan",
                 "ARTIFACTS": "artifacts",
                 "MEMORY": "memory-reads",
+                "GLOSSARY": "glossary-reads",
                 "SKILLS": "skill-uses",
                 "WORKSPACES": "opened-workspaces",
             }[label]

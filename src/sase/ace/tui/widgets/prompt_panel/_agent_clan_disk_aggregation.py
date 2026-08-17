@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -138,6 +139,17 @@ def aggregate_clan_context_lanes(
                 member_label,
                 memory_display,
             )
+        for glossary_display in summary.glossary_reads:
+            glossary_event = cast(GlossaryReadDisplayEvent, glossary_display).event
+            for term in glossary_event.terms:
+                _add_context(
+                    accumulators,
+                    "GLOSSARY",
+                    term,
+                    term,
+                    member_label,
+                    glossary_display,
+                )
         for skill_display in summary.skill_uses:
             skill_event = cast(SkillUseDisplayEvent, skill_display).event
             _add_context(

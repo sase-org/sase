@@ -30,6 +30,7 @@ _CHILD_SPAN_SUFFIXES = (
     "linked_delta_groups",
     "artifact_file_paths",
     "memory_reads",
+    "glossary_reads",
     "skill_uses",
     "opened_workspaces",
     "delta_entries",
@@ -119,6 +120,10 @@ def _stub_all_resolvers(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "sase.ace.tui.memory_reads.load_memory_reads_for_agent_context",
+        lambda agent: (),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.glossary_reads.load_glossary_reads_for_agent_context",
         lambda agent: (),
     )
     monkeypatch.setattr(

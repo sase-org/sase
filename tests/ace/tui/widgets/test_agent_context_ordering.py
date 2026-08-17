@@ -17,6 +17,7 @@ from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from tests.ace.tui.widgets._agent_context_helpers import (
     EXPECTED_CONTEXT_LANE_ORDER,
     bead_section,
+    glossary_event,
     memory_event,
     pin_context_timezone,
     plan_section,
@@ -41,6 +42,7 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             bead_section=bead_section() if enabled["BEAD"] else None,
             plan_section=plan_section() if enabled["PLAN"] else None,
             memory_reads=(memory_event(),) if enabled["MEMORY"] else (),
+            glossary_reads=(glossary_event(),) if enabled["GLOSSARY"] else (),
             skill_uses=(skill_event(),) if enabled["SKILLS"] else (),
             opened_workspaces=((workspace_event(),) if enabled["WORKSPACES"] else ()),
             artifact_file_paths=(
@@ -94,6 +96,7 @@ def test_unresolved_lanes_render_dim_pending_affordance_not_real_content() -> No
         bead_section=bead_section(),
         plan_section=plan_section(),
         memory_reads=(memory_event(),),
+        glossary_reads=(glossary_event(),),
         skill_uses=(skill_event(),),
         opened_workspaces=(workspace_event(),),
         artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
@@ -107,6 +110,7 @@ def test_unresolved_lanes_render_dim_pending_affordance_not_real_content() -> No
     assert "sase-42.3" not in plain
     assert "Plan lane" not in plain
     assert "generated_skills.md" not in plain
+    assert "Agent Hood" not in plain
     assert "sase_plan" not in plain
     assert "sase-core" not in plain
     assert "result.txt" not in plain
@@ -126,6 +130,7 @@ def test_mixed_readiness_keeps_stable_order_and_only_pending_rows_stay_dim() -> 
     plain = text.plain
     assert "▸ BEAD · ↳ phase sase-42.3\n" in plain
     assert "generated_skills.md" in plain
+    assert "▸ GLOSSARY · resolving…\n" in plain
     assert "▸ SKILLS · resolving…\n" in plain
     assert "sase_plan" not in plain
     assert "▸ WORKSPACES · resolving…\n" in plain
@@ -134,7 +139,8 @@ def test_mixed_readiness_keeps_stable_order_and_only_pending_rows_stay_dim() -> 
     # "resolved to nothing" rather than "still pending".
     assert "▸ PLAN" not in plain
     assert plain.index("▸ BEAD") < plain.index("▸ MEMORY")
-    assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
+    assert plain.index("▸ MEMORY") < plain.index("▸ GLOSSARY")
+    assert plain.index("▸ GLOSSARY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
 
 
@@ -167,6 +173,7 @@ def test_context_lanes_render_in_parent_context_order() -> None:
         bead_section=bead_section(),
         plan_section=plan_section(),
         memory_reads=(memory_event(),),
+        glossary_reads=(glossary_event(),),
         skill_uses=(skill_event(),),
         opened_workspaces=(workspace_event(),),
         artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
@@ -177,9 +184,11 @@ def test_context_lanes_render_in_parent_context_order() -> None:
     assert plain.index("▸ PLAN") < plain.index("▸ BEAD")
     assert plain.index("▸ BEAD") < plain.index("▸ ARTIFACTS")
     assert plain.index("▸ ARTIFACTS") < plain.index("▸ MEMORY")
-    assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
+    assert plain.index("▸ MEMORY") < plain.index("▸ GLOSSARY")
+    assert plain.index("▸ GLOSSARY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
     assert "needed generated skill rules" in plain
+    assert "needed the hood/agent distinction" in plain
     assert "needed an implementation plan" in plain
     assert "needed to inspect core boundary" in plain
 

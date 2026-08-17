@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models._agent_clan_sections import (
     ClanDiskMemberSnapshot,
@@ -25,6 +26,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 
@@ -204,6 +206,22 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         reason="test",
         runtime="codex",
     )
+    glossary_event = GlossaryReadEvent(
+        schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
+        id="glossary-1",
+        timestamp="2026-07-18T10:00:00+00:00",
+        project="demo",
+        cwd="/tmp",
+        agent_name="research.first",
+        agent_source="test",
+        artifacts_dir="/tmp/artifacts",
+        reason="test",
+        terms=("Agent Hood",),
+        related_terms=(),
+        depth_limit=None,
+        definition_bytes=10,
+        source_path="/tmp/sase.yml",
+    )
 
     def summary(suffix: str) -> DetailHeaderSummary:
         return DetailHeaderSummary(
@@ -214,6 +232,7 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
                 )
             ],
             memory_reads=(MemoryReadDisplayEvent(event=memory_event),),
+            glossary_reads=(GlossaryReadDisplayEvent(event=glossary_event),),
             skill_uses=(SkillUseDisplayEvent(event=skill_event),),
             opened_workspaces=(
                 OpenedWorkspaceDisplayEvent(
@@ -236,6 +255,7 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         "BEAD",
         "ARTIFACTS",
         "MEMORY",
+        "GLOSSARY",
         "SKILLS",
         "WORKSPACES",
     ]
@@ -246,6 +266,8 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         ".second",
     )
     assert by_label["MEMORY"].entries[0].count == 2
+    assert by_label["GLOSSARY"].entries[0].label == "Agent Hood"
+    assert by_label["GLOSSARY"].entries[0].count == 2
     assert by_label["SKILLS"].entries[0].label == _SASE_BEADS_SKILL
     assert by_label["SKILLS"].entries[0].count == 2
     # The in-memory workspace number and disk-backed opened repo remain

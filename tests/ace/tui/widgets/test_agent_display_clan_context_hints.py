@@ -7,6 +7,7 @@ from pathlib import Path
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models._agent_clan_sections import (
     ClanContextEntry,
@@ -27,6 +28,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     HeaderHintState,
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
@@ -56,12 +58,34 @@ def _memory_read(resolved_path: str) -> MemoryReadDisplayEvent:
     )
 
 
+def _glossary_read(source_path: str) -> GlossaryReadDisplayEvent:
+    return GlossaryReadDisplayEvent(
+        event=GlossaryReadEvent(
+            schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
+            id="glossary-read-1",
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp",
+            agent_name="research.one",
+            agent_source="test",
+            artifacts_dir=None,
+            reason="test",
+            terms=("Agent Hood",),
+            related_terms=(),
+            depth_limit=None,
+            definition_bytes=10,
+            source_path=source_path,
+        )
+    )
+
+
 def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
     linked_workspace = tmp_path / "linked"
     plan_path = tmp_path / "plans" / "epic.md"
     bead_plan_path = tmp_path / "plans" / "bead.md"
     artifact_path = tmp_path / "artifacts" / "report.md"
     memory_path = tmp_path / "memory" / "tui_perf.md"
+    glossary_path = tmp_path / "sase" / "sase.yml"
     return (
         ClanContextLane(
             "PLAN",
@@ -138,6 +162,17 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
             ),
         ),
         ClanContextLane(
+            "GLOSSARY",
+            (
+                ClanContextEntry(
+                    key="Agent Hood",
+                    label="Agent Hood",
+                    member_labels=(".one",),
+                    values=(_glossary_read(str(glossary_path)),),
+                ),
+            ),
+        ),
+        ClanContextLane(
             "SKILLS",
             (
                 ClanContextEntry(
@@ -182,9 +217,11 @@ def test_fully_expanded_context_uses_typed_exact_path_hints(tmp_path: Path) -> N
         4: str(tmp_path / "primary" / "src" / "main.py"),
         5: str(tmp_path / "linked" / "src" / "lib.rs"),
         6: str(tmp_path / "memory" / "tui_perf.md"),
+        7: str(tmp_path / "sase" / "sase.yml"),
     }
-    assert text.plain.count("[") == 6
+    assert text.plain.count("[") == 7
     assert "• [1] plan:epic.md" in text.plain
+    assert "• [7] Agent Hood" in text.plain
     assert f"• {_SASE_BEADS_SKILL}" in text.plain
     assert "• sase-core" in text.plain
 

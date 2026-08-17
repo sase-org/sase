@@ -13,6 +13,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     BeadSummary,
     PhaseBeadSummary,
 )
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -26,6 +27,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
 )
+from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 
@@ -34,6 +36,7 @@ EXPECTED_CONTEXT_LANE_ORDER = (
     "BEAD",
     "ARTIFACTS",
     "MEMORY",
+    "GLOSSARY",
     "SKILLS",
     "WORKSPACES",
 )
@@ -63,6 +66,27 @@ def memory_event() -> MemoryReadDisplayEvent:
             reason="needed generated skill rules",
             byte_count=64,
             frontmatter_stripped=False,
+        )
+    )
+
+
+def glossary_event() -> GlossaryReadDisplayEvent:
+    return GlossaryReadDisplayEvent(
+        event=GlossaryReadEvent(
+            schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
+            id="glossary-read-a",
+            timestamp="2026-06-14T14:22:38+00:00",
+            project="test",
+            cwd="/tmp/test",
+            agent_name="alpha",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir="/tmp/test/artifacts",
+            reason="needed the hood/agent distinction",
+            terms=("Agent Hood",),
+            related_terms=("Sase Agent",),
+            depth_limit=None,
+            definition_bytes=64,
+            source_path="/tmp/test/sase/sase.yml",
         )
     )
 

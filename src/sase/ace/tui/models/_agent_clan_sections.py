@@ -44,6 +44,7 @@ CLAN_CONTEXT_LANE_ORDER = (
     "COMMITS",
     "ARTIFACTS",
     "MEMORY",
+    "GLOSSARY",
     "SKILLS",
     "WORKSPACES",
 )

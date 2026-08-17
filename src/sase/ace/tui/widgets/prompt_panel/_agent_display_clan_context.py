@@ -6,6 +6,7 @@ import os
 from collections.abc import Mapping
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 
 from ...models._agent_clan_sections import ClanContextEntry
@@ -75,6 +76,8 @@ def _typed_context_value_path(
 
     if lane_label == "MEMORY" and isinstance(value, MemoryReadDisplayEvent):
         return value.event.resolved_path
+    if lane_label == "GLOSSARY" and isinstance(value, GlossaryReadDisplayEvent):
+        return value.event.source_path
     return None
 
 

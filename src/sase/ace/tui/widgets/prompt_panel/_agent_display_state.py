@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -72,6 +73,7 @@ type DetailContextLane = Literal[
     "plan-bead",
     "artifacts",
     "memory",
+    "glossary",
     "skills",
     "workspaces",
     "slow-tools",
@@ -80,8 +82,8 @@ type DetailContextLane = Literal[
     "wait-beads",
 ]
 # The independently resolved/cached lanes inside `DetailHeaderSummary` (bead
-# sase-l6.3). `plan-bead`, `artifacts`, `memory`, `skills`, and `workspaces`
-# back the SASE CONTEXT lanes in `CONTEXT_LANE_ORDER`
+# sase-l6.3). `plan-bead`, `artifacts`, `memory`, `glossary`, `skills`, and
+# `workspaces` back the SASE CONTEXT lanes in `CONTEXT_LANE_ORDER`
 # (`_agent_context.py:30`; `plan-bead` covers both PLAN and BEAD, which share
 # one resolver). The remaining four back non-context summary fields resolved
 # by the same worker. `bead_display` is deliberately not a lane: it is a
@@ -93,6 +95,7 @@ ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
         "plan-bead",
         "artifacts",
         "memory",
+        "glossary",
         "skills",
         "workspaces",
         "slow-tools",
@@ -116,6 +119,7 @@ class DetailHeaderSummary:
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     artifact_file_paths: list[ArtifactFilePath] | None = None
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
+    glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
