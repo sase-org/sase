@@ -1,0 +1,26 @@
+"""Handler for ``sase glossary`` subcommands."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+
+def handle_glossary_command(args: argparse.Namespace) -> None:
+    """Dispatch to the appropriate ``sase glossary`` sub-handler."""
+    sub = getattr(args, "glossary_subcommand", None) or "list"
+
+    if sub == "list":
+        from sase.glossary.cli_list import handle_glossary_list_command
+
+        handle_glossary_list_command(args)
+        sys.exit(0)
+
+    if sub == "show":
+        from sase.glossary.cli_show import handle_glossary_show_command
+
+        handle_glossary_show_command(args)
+        sys.exit(0)
+
+    print("Usage: sase glossary {list,show}", file=sys.stderr)
+    sys.exit(1)

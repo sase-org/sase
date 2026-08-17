@@ -329,11 +329,12 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-oc.8(set_completion_kind)" \
         --epic-symbol "sase-oc.8(set_completion_summary)" \
-        --epic-symbol "sase-op.3(GlossaryClosure)" \
-        --epic-symbol "sase-op.3(GlossaryClosureNode)" \
-        --epic-symbol "sase-op.3(GlossaryLookupError)" \
-        --epic-symbol "sase-op.3(GlossaryReferrer)" \
-        --epic-symbol "sase-op.3(lookup_glossary_entry)" \
+        --epic-symbol "sase-on(create_bead_stale_cleanup_gate)" \
+        --epic-symbol "sase-on(get_task_triage_stale_after_days)" \
+        --epic-symbol "sase-on(get_task_triage_stale_cleanup_min_beads)" \
+        --epic-symbol "sase-on(stale_task_bead)" \
+        --epic-symbol "sase-op(GlossaryReferrer)" \
+        --epic-symbol "sase-op(lookup_glossary_entry)" \
         --epic-symbol "sase-op.4(GlossaryReadAgentSummary)" \
         --epic-symbol "sase-op.4(GlossaryReadError)" \
         --epic-symbol "sase-op.4(GlossaryReadEvent)" \

@@ -9196,6 +9196,200 @@
       },
       {
         "aliases": [],
+        "default_child": "list",
+        "description_digest": "6367d2886acf03a7",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "glossary",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "project",
+            "hidden": false,
+            "kind": "project",
+            "repeatable": false,
+            "strings": [
+              "-p",
+              "--project"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "glossary"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "c86696b5e294ec13",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "definitions",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--definitions"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "names",
+                  "table"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "list"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "pattern",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "PATTERN",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "347e143fea69c48b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "depth",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--depth"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "term",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TERM",
+                "nargs": "+"
+              }
+            ],
+            "subcommands": []
+          }
+        ]
+      },
+      {
+        "aliases": [],
         "default_child": null,
         "description_digest": "1a0a0982685cfd38",
         "hidden": false,

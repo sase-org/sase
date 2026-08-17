@@ -109,6 +109,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "file-hook": ("sase.main.parser_file_hook", "register_file_hook_parser"),
     "flag": ("sase.main.parser_flag", "register_flag_parser"),
     "gate": ("sase.main.parser_gate", "register_gate_parser"),
+    "glossary": ("sase.main.parser_glossary", "register_glossary_parser"),
     "init": ("sase.main.parser_init", "register_init_parser"),
     "launch": ("sase.main.parser_launch", "register_launch_parser"),
     "logs": ("sase.main.parser_commands", "register_logs_parser"),
