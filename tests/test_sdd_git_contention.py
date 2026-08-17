@@ -1,11 +1,12 @@
 """Tests for shared SDD store git-write serialization."""
 
+from collections.abc import Callable
 import fcntl
 import json
-import multiprocessing
 import os
 from pathlib import Path
 import subprocess
+import threading
 import time
 from contextvars import Context
 from typing import Any
@@ -50,19 +51,64 @@ from sase.sdd._store_types import SddMaterializationError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
-def _acquire_epic_plan_launch_lock(anchor: str, acquired: Any) -> None:
-    def acquire() -> None:
-        with epic_plan_launch_lock(Path(anchor)) as locked:
-            assert locked is True
-            acquired.set()
+class _ForeignEpicLaunchLockWorker:
+    """A foreign epic-plan-launch-lock holder running inside this process.
 
-    Context().run(acquire)
+    ``flock`` ownership belongs to the open file description rather than the
+    process, so a second ``open()`` of the lock path from this same process is
+    refused exactly as it would be from a separate process. Running the body in
+    a fresh :class:`~contextvars.Context` gives it the empty
+    ``_held_epic_plan_launch_anchors`` that a separate process would start with,
+    so the re-entrancy guard does not short-circuit the real ``flock`` wait.
+
+    This replaces ``multiprocessing.get_context("fork")``, which forks from a
+    multi-threaded xdist worker and therefore inherits every other thread's
+    locks and buffers in an indeterminate state.
+    """
+
+    def __init__(self, target: Callable[..., None], *args: object) -> None:
+        self._error: BaseException | None = None
+        self._thread = threading.Thread(
+            target=self._run,
+            args=(target, args),
+            daemon=True,
+        )
+
+    def _run(self, target: Callable[..., None], args: tuple[object, ...]) -> None:
+        try:
+            Context().run(target, *args)
+        except BaseException as exc:  # noqa: BLE001 - re-raised by check()
+            self._error = exc
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def join(self, timeout: float) -> None:
+        self._thread.join(timeout)
+
+    def check(self, timeout: float = 2.0) -> None:
+        """Join the worker and surface its failure, if any.
+
+        Replaces the forked holder's ``assert process.exitcode == 0``: an
+        assertion that fired in the worker is re-raised here instead of being
+        flattened into a nonzero exit code.
+        """
+        self._thread.join(timeout)
+        assert not self._thread.is_alive()
+        if self._error is not None:
+            raise self._error
+
+
+def _acquire_epic_plan_launch_lock(anchor: str, acquired: threading.Event) -> None:
+    with epic_plan_launch_lock(Path(anchor)) as locked:
+        assert locked is True
+        acquired.set()
 
 
 def _hold_epic_plan_launch_lock(
     anchor: str,
-    acquired: Any,
-    release: Any,
+    acquired: threading.Event,
+    release: threading.Event,
     plan_file: str,
 ) -> None:
     with epic_plan_launch_lock(
@@ -319,21 +365,20 @@ def test_epic_plan_launch_lock_blocks_other_process_for_same_canonical_anchor(
     anchor.mkdir()
     alias = tmp_path / "anchor-alias"
     alias.symlink_to(anchor, target_is_directory=True)
-    context = multiprocessing.get_context("fork")
-    acquired = context.Event()
-    process = context.Process(
-        target=_acquire_epic_plan_launch_lock,
-        args=(str(alias), acquired),
+    acquired = threading.Event()
+    worker = _ForeignEpicLaunchLockWorker(
+        _acquire_epic_plan_launch_lock,
+        str(alias),
+        acquired,
     )
 
     with epic_plan_launch_lock(anchor) as locked:
         assert locked is True
-        process.start()
+        worker.start()
         assert acquired.wait(0.1) is False
 
     assert acquired.wait(2.0) is True
-    process.join(timeout=2.0)
-    assert process.exitcode == 0
+    worker.check()
 
 
 def test_epic_plan_launch_lock_does_not_serialize_distinct_anchors(
@@ -343,20 +388,19 @@ def test_epic_plan_launch_lock_does_not_serialize_distinct_anchors(
     second = tmp_path / "second"
     first.mkdir()
     second.mkdir()
-    context = multiprocessing.get_context("fork")
-    acquired = context.Event()
-    process = context.Process(
-        target=_acquire_epic_plan_launch_lock,
-        args=(str(second), acquired),
+    acquired = threading.Event()
+    worker = _ForeignEpicLaunchLockWorker(
+        _acquire_epic_plan_launch_lock,
+        str(second),
+        acquired,
     )
 
     with epic_plan_launch_lock(first) as locked:
         assert locked is True
-        process.start()
+        worker.start()
         assert acquired.wait(2.0) is True
 
-    process.join(timeout=2.0)
-    assert process.exitcode == 0
+    worker.check()
 
 
 def test_epic_plan_launch_lock_releases_after_exception(tmp_path: Path) -> None:
@@ -417,19 +461,16 @@ def test_epic_plan_launch_lock_expiry_can_defer_or_raise_with_holder_details(
     holder_plan = tmp_path / "holder plan.md"
     waiting_plan = tmp_path / "waiting plan.md"
     monkeypatch.setenv(ENV_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT, "0.02")
-    context = multiprocessing.get_context("fork")
-    holder_acquired = context.Event()
-    release_holder = context.Event()
-    process = context.Process(
-        target=_hold_epic_plan_launch_lock,
-        args=(
-            str(tmp_path),
-            holder_acquired,
-            release_holder,
-            str(holder_plan),
-        ),
+    holder_acquired = threading.Event()
+    release_holder = threading.Event()
+    worker = _ForeignEpicLaunchLockWorker(
+        _hold_epic_plan_launch_lock,
+        str(tmp_path),
+        holder_acquired,
+        release_holder,
+        str(holder_plan),
     )
-    process.start()
+    worker.start()
     assert holder_acquired.wait(2.0) is True
 
     try:
@@ -452,17 +493,17 @@ def test_epic_plan_launch_lock_expiry_can_defer_or_raise_with_holder_details(
                 pass
     finally:
         release_holder.set()
-        process.join(timeout=2.0)
+        worker.join(2.0)
 
     message = str(excinfo.value)
-    assert f"holder pid {process.pid}" in message
+    assert f"holder pid {os.getpid()}" in message
     assert "test holder launch" in message
     assert str(holder_plan) in message
     assert "Resume with" in message
     assert excinfo.value.resume_command == (f"sase bead work '{waiting_plan}'")
     assert "test deferring waiter" in caplog.text
     assert "test holder launch" in caplog.text
-    assert process.exitcode == 0
+    worker.check()
 
     # Expiry does not disturb the holder, and release clears stale identity.
     with epic_plan_launch_lock(tmp_path, plan_file=waiting_plan) as acquired:
@@ -489,19 +530,16 @@ def test_epic_launch_preflight_defers_without_materializing_under_contention(
     anchor = epic_launch_lock_anchor(tmp_path)
     holder_plan = tmp_path / "holder.md"
     monkeypatch.setenv(ENV_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT, "0.02")
-    context = multiprocessing.get_context("fork")
-    holder_acquired = context.Event()
-    release_holder = context.Event()
-    process = context.Process(
-        target=_hold_epic_plan_launch_lock,
-        args=(
-            str(anchor),
-            holder_acquired,
-            release_holder,
-            str(holder_plan),
-        ),
+    holder_acquired = threading.Event()
+    release_holder = threading.Event()
+    worker = _ForeignEpicLaunchLockWorker(
+        _hold_epic_plan_launch_lock,
+        str(anchor),
+        holder_acquired,
+        release_holder,
+        str(holder_plan),
     )
-    process.start()
+    worker.start()
     assert holder_acquired.wait(2.0) is True
     calls: list[tuple[Path, bool]] = []
     monkeypatch.setattr(
@@ -513,10 +551,10 @@ def test_epic_launch_preflight_defers_without_materializing_under_contention(
         require_epic_launch_store_health(tmp_path)
     finally:
         release_holder.set()
-        process.join(timeout=2.0)
+        worker.join(2.0)
 
     assert calls == []
-    assert process.exitcode == 0
+    worker.check()
 
 
 def test_epic_launch_preflight_materializes_and_propagates_failure_when_free(
