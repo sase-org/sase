@@ -65,12 +65,17 @@ _include_local_config = True
 # Bundled and plugin defaults are process-static.  The merged and identity
 # values are keyed by ``current_config_token()``.  Callers must not mutate a
 # returned merged dict because repeat reads intentionally return the same object.
+#
+# Each cache below is a single module global holding an immutable
+# ``(token, value)`` pair so a publish is one atomic store and a read is one
+# atomic load: no concurrent reader can ever observe a token paired with the
+# wrong value.
 _default_config_cache: dict[str, Any] | None = None
 _plugin_configs_cache: list[dict[str, Any]] | None = None
-_merged_config_cache_token: tuple[Any, ...] | None = None
-_merged_config_cache_value: dict[str, Any] | None = None
-_agent_owner_config_cache_token: tuple[Any, ...] | None = None
-_agent_owner_config_cache_value: AgentOwnerConfigSnapshot | None = None
+_merged_config_cache: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+_agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | None = (
+    None
+)
 
 # Explicit clears increment the generation so rapid same-size edits cannot
 # retain an otherwise-identical filesystem token.
@@ -164,7 +169,11 @@ def _refresh_current_config_token(cache_epoch: int) -> None:
             _current_config_token_cache_deadline = (
                 time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             )
-        _current_config_token_refresh_thread = None
+        # A worker that missed its drain window and finally runs inside a
+        # later generation must only deregister itself, never a live worker
+        # that has since taken the slot.
+        if _current_config_token_refresh_thread is threading.current_thread():
+            _current_config_token_refresh_thread = None
 
 
 def current_config_token() -> tuple[Any, ...]:
@@ -215,16 +224,13 @@ def clear_config_cache() -> None:
     """Drop cached config layers and force the next freshness inspection."""
     global _config_cache_generation
     global _default_config_cache, _plugin_configs_cache
-    global _merged_config_cache_token, _merged_config_cache_value
-    global _agent_owner_config_cache_token, _agent_owner_config_cache_value
+    global _merged_config_cache, _agent_owner_config_cache
     with _current_config_token_cache_lock:
         _config_cache_generation += 1
         _default_config_cache = None
         _plugin_configs_cache = None
-        _merged_config_cache_token = None
-        _merged_config_cache_value = None
-        _agent_owner_config_cache_token = None
-        _agent_owner_config_cache_value = None
+        _merged_config_cache = None
+        _agent_owner_config_cache = None
         _reset_current_config_token_cache()
 
 
@@ -546,16 +552,18 @@ def _build_agent_owner_config_snapshot() -> AgentOwnerConfigSnapshot:
 
 def get_agent_owner_config_snapshot() -> AgentOwnerConfigSnapshot:
     """Return the cached selected-overlay identity state used by init/doctor."""
-    global _agent_owner_config_cache_token, _agent_owner_config_cache_value
+    global _agent_owner_config_cache
     token = current_config_token()
-    if (
-        _agent_owner_config_cache_value is not None
-        and _agent_owner_config_cache_token == token
-    ):
-        return _agent_owner_config_cache_value
+    cached = _agent_owner_config_cache
+    if cached is not None and cached[0] == token:
+        return cached[1]
+    generation = _config_cache_generation
     snapshot = _build_agent_owner_config_snapshot()
-    _agent_owner_config_cache_token = token
-    _agent_owner_config_cache_value = snapshot
+    # A concurrent clear_config_cache() during the build means this snapshot
+    # is already known stale; publish only when the generation held steady so
+    # a build that outlived a cache clear cannot install itself as current.
+    if _config_cache_generation == generation:
+        _agent_owner_config_cache = (token, snapshot)
     return snapshot
 
 
@@ -634,16 +642,18 @@ def load_merged_config() -> dict[str, Any]:
     local-config inclusion changes.
     """
     global _default_config_cache, _plugin_configs_cache
-    global _merged_config_cache_token, _merged_config_cache_value
+    global _merged_config_cache
 
     token = current_config_token()
-    if _merged_config_cache_value is not None and _merged_config_cache_token == token:
-        return _merged_config_cache_value
+    cached = _merged_config_cache
+    if cached is not None and cached[0] == token:
+        return cached[1]
     if _default_config_cache is None:
         _default_config_cache = _load_default_config()
     if _plugin_configs_cache is None:
         _plugin_configs_cache = _load_plugin_configs()
 
+    generation = _config_cache_generation
     result = merge_config_sources(
         default_config=_default_config_cache,
         plugin_configs=_plugin_configs_cache,
@@ -653,8 +663,11 @@ def load_merged_config() -> dict[str, Any]:
         local_path=get_local_config_path(),
         yaml_loader=_load_yaml_file,
     )
-    _merged_config_cache_token = token
-    _merged_config_cache_value = result
+    # A concurrent clear_config_cache() during the merge means this build is
+    # already known stale; publish only when the generation held steady so a
+    # build that outlived a cache clear cannot install itself as current.
+    if _config_cache_generation == generation:
+        _merged_config_cache = (token, result)
     return result
 
 

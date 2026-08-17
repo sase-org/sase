@@ -20,6 +20,7 @@ from sase import _yaml_safe
 from sase.config import core as config_core
 from sase.config.core import (
     clear_config_cache,
+    get_agent_owner_config_snapshot,
     load_merged_config,
     set_include_local_config,
 )
@@ -270,3 +271,133 @@ def test_load_merged_config_serves_stale_while_refreshing(tmp_path: Path) -> Non
             release_refresh.set()
 
     assert second is not first
+
+
+def test_load_merged_config_discards_build_invalidated_by_concurrent_clear(
+    tmp_path: Path,
+) -> None:
+    """A ``clear_config_cache()`` mid-merge must not publish the stale build.
+
+    ``load_merged_config`` captures ``_config_cache_generation`` before the
+    merge and refuses to publish when it no longer matches afterwards, so a
+    reader that began before a test boundary cannot install its result into
+    the next test's generation.
+    """
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"key": "v1"})
+
+    build_started = threading.Event()
+    release_build = threading.Event()
+    real_merge = config_core.merge_config_sources
+
+    def blocking_merge(*args: object, **kwargs: object) -> dict:
+        build_started.set()
+        assert release_build.wait(timeout=2.0)
+        return real_merge(*args, **kwargs)  # type: ignore[arg-type]
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core.merge_config_sources", side_effect=blocking_merge),
+    ):
+        try:
+            builder = threading.Thread(target=load_merged_config)
+            builder.start()
+            assert build_started.wait(timeout=2.0)
+
+            clear_config_cache()
+            assert config_core._merged_config_cache is None
+            (global_dir / "sase.yml").write_text(yaml.dump({"key": "v2"}))
+
+            release_build.set()
+            builder.join(timeout=2.0)
+            assert not builder.is_alive()
+
+            # The discarded build must not have installed itself even though
+            # it finished after the clear.
+            assert config_core._merged_config_cache is None
+
+            second = load_merged_config()
+        finally:
+            release_build.set()
+
+    assert second["key"] == "v2"
+
+
+def test_owner_config_snapshot_discards_build_invalidated_by_concurrent_clear(
+    tmp_path: Path,
+) -> None:
+    """Same generation guard, for ``get_agent_owner_config_snapshot``."""
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"key": "v1"})
+
+    build_started = threading.Event()
+    release_build = threading.Event()
+    real_build = config_core._build_agent_owner_config_snapshot
+
+    def blocking_build() -> object:
+        build_started.set()
+        assert release_build.wait(timeout=2.0)
+        return real_build()
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch(
+            "sase.config.core._build_agent_owner_config_snapshot",
+            side_effect=blocking_build,
+        ),
+    ):
+        try:
+            builder = threading.Thread(target=get_agent_owner_config_snapshot)
+            builder.start()
+            assert build_started.wait(timeout=2.0)
+
+            clear_config_cache()
+            assert config_core._agent_owner_config_cache is None
+
+            release_build.set()
+            builder.join(timeout=2.0)
+            assert not builder.is_alive()
+
+            assert config_core._agent_owner_config_cache is None
+        finally:
+            release_build.set()
+
+
+def test_merged_config_cache_is_a_single_slot(tmp_path: Path) -> None:
+    """The merged-config cache is one ``(token, value)`` pair, not two globals."""
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"key": "user"})
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        result = load_merged_config()
+        cached = config_core._merged_config_cache
+        assert cached is not None
+        assert cached[0] == config_core.current_config_token()
+        assert cached[1] is result
+
+        clear_config_cache()
+        assert config_core._merged_config_cache is None
+
+
+def test_agent_owner_config_cache_is_a_single_slot(tmp_path: Path) -> None:
+    """The owner-snapshot cache is one ``(token, value)`` pair, not two globals."""
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"key": "user"})
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        snapshot = get_agent_owner_config_snapshot()
+        cached = config_core._agent_owner_config_cache
+        assert cached is not None
+        assert cached[0] == config_core.current_config_token()
+        assert cached[1] is snapshot
+
+        clear_config_cache()
+        assert config_core._agent_owner_config_cache is None

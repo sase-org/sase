@@ -24,7 +24,6 @@
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_legacy_overlay_is_discovered_but_not_a_complete_owner
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_machine_overlays_require_matching_selector_and_keep_ordinary_overlays
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_selected_overlay_identity_cannot_be_overridden_by_other_sources
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_clear_config_cache_forces_reload
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_clear_config_cache_resets_config_token_time_gate
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_current_config_token_refresh_is_single_flight
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_explicit_invalidation_wins_race_with_background_refresh
@@ -69,6 +68,22 @@
 # JSON store round-trip. The sibling disable is checked by provider/source/
 # duration and pytest.approx on created_at/expires_at.
 # fixed-at: 2026-08-17T15:40:00Z tests/fakey/test_usage_limit_e2e.py::test_usage_limit_failure_disables_only_fakey_and_preserves_error
+#
+# sase-mv / sase-ns.6.6.6.1: fixed by 2959d3992 "fix(ace-tui): stop leaked
+# proc-observer threads between tests" (committed 2026-08-17T15:32:01Z). This
+# retires the still-collectable tests/test_config_cache.py pre-fix evidence
+# that the c715bacbc file split left uncovered by the sase-nv block above.
+# test_clear_config_cache_forces_reload carried a fixed-at entry in the
+# sase-nv block too; a node may have only one fixed-at entry, and this later
+# instant is a strict superset of that earlier retirement, so the sase-nv
+# line was removed rather than duplicated.
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_selector_change_eventually_invalidates_merged_config
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_caches_default_layer
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_clear_config_cache_forces_reload
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_invalidates_on_include_local_toggle
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_caches_plugin_layer
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_owner_snapshot_reuses_parsed_overlay_until_token_changes
+# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_drain_config_token_refresh_joins_worker_and_advances_epoch
 #
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes

@@ -135,6 +135,84 @@ def test_clear_config_cache_resets_config_token_time_gate() -> None:
     assert compute.call_count == 2
 
 
+def test_refresh_worker_only_deregisters_itself() -> None:
+    """A stale worker publishing late must not clear a newer live registration.
+
+    ``_refresh_current_config_token`` correctly skips publishing a token when
+    its captured epoch is stale, but must clear the module's worker slot only
+    when that slot still points at itself. A worker that missed its drain
+    window and finally runs inside a later generation must not deregister the
+    live worker that has since taken the slot, or the next expired read would
+    start a second worker and break the single-flight contract.
+    """
+    now = [10.0]
+    stale_started = threading.Event()
+    release_stale = threading.Event()
+    live_started = threading.Event()
+    release_live = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            stale_started.set()
+            assert release_stale.wait(timeout=2.0)
+            return ("stale", call_number)
+        if call_number == 3:
+            live_started.set()
+            assert release_live.wait(timeout=2.0)
+            return ("live", call_number)
+        return ("inline", call_number)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        _reset_config_token_cache()
+        try:
+            assert current_config_token() == ("inline", 1)
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() == ("inline", 1)
+            assert stale_started.wait(timeout=1.0)
+            stale_worker = config_core._current_config_token_refresh_thread
+            assert stale_worker is not None
+
+            # Simulate a drain that timed out without joining the stale
+            # worker: bump the epoch and forget its registration, but keep
+            # the stale cached token so the next read takes the
+            # stale-while-revalidate path and starts a new, live worker.
+            with config_core._current_config_token_cache_lock:
+                config_core._current_config_token_cache_epoch += 1
+                config_core._current_config_token_refresh_thread = None
+
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() == ("inline", 1)
+            assert live_started.wait(timeout=1.0)
+            live_worker = config_core._current_config_token_refresh_thread
+            assert live_worker is not None
+            assert live_worker is not stale_worker
+
+            release_stale.set()
+            stale_worker.join(timeout=2.0)
+            assert not stale_worker.is_alive()
+            # The stale worker's own publish path ran after the live worker
+            # registered; it must have deregistered only itself.
+            assert config_core._current_config_token_refresh_thread is live_worker
+
+            release_live.set()
+            live_worker.join(timeout=2.0)
+            assert not live_worker.is_alive()
+            assert config_core._current_config_token_refresh_thread is None
+            assert current_config_token() == ("live", 3)
+        finally:
+            release_stale.set()
+            release_live.set()
+
+
 def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
     """A stale worker cannot overwrite an inline post-clear token swap."""
     now = [10.0]
