@@ -7453,6 +7453,75 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "5c537fc4d93450de",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "candidates",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "candidates"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "kind",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "KIND",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "prefix",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "PREFIX",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "0452164a8405f581",
             "hidden": false,
             "mutex_groups": [],

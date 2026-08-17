@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.completion.candidates.protocol import DEFAULT_LIMIT
+
 
 def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase completion`` command group."""
@@ -35,20 +37,71 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase completion spec                    # structural JSON\n"
             "  sase completion spec -j -o spec.json    # write the snapshot artifact\n"
             "  sase completion zsh                     # print a compsys script\n"
-            "  sase completion zsh -o ~/.zfunc/_sase   # write `_sase` for fpath"
+            "  sase completion zsh -o ~/.zfunc/_sase   # write `_sase` for fpath\n"
+            "  sase completion candidates bead         # live bead-id candidates"
         ),
     )
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{bash,fish,list,spec,zsh}",
+        metavar="{bash,candidates,fish,list,spec,zsh}",
     )
 
     _register_bash_parser(completion_sub)
+    _register_candidates_parser(completion_sub)
     _register_fish_parser(completion_sub)
     _register_list_parser(completion_sub)
     _register_spec_parser(completion_sub)
     _register_zsh_parser(completion_sub)
+
+
+def _register_candidates_parser(subparsers: argparse._SubParsersAction) -> None:
+    candidates_parser = subparsers.add_parser(
+        "candidates",
+        help="Print live completion candidates for one value kind",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print `value<TAB>description` candidate lines for one value "
+            "kind, optionally filtered by a prefix. A pre-argparse fast "
+            "path in entry.py handles this command ahead of argparse for "
+            "every normal invocation; reaching this parser means the fast "
+            "path deferred, which happens only for `--help` and argv shapes "
+            "it does not recognize."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion candidates project\n"
+            "  sase completion candidates bead sase-oc\n"
+            "  sase completion candidates bead sase-oc -l 20"
+        ),
+    )
+    candidates_parser.add_argument(
+        "kind",
+        metavar="KIND",
+        help="Value kind to list candidates for (e.g. project, bead)",
+    )
+    candidates_parser.add_argument(
+        "prefix",
+        metavar="PREFIX",
+        nargs="?",
+        default="",
+        help="Only print candidates whose value starts with PREFIX",
+    )
+    candidates_parser.add_argument(
+        "-l",
+        "--limit",
+        type=int,
+        default=DEFAULT_LIMIT,
+        metavar="N",
+        help="Print at most N candidates (default: 200)",
+    )
+    candidates_parser.add_argument(
+        "-p",
+        "--project",
+        metavar="NAME",
+        default=None,
+        help="Scope candidates to project NAME",
+    )
 
 
 def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:

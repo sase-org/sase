@@ -13,6 +13,13 @@ def main() -> NoReturn:
         if exit_code is not None:
             sys.exit(exit_code)
 
+    if sys.argv[1:3] == ["completion", "candidates"]:
+        from .completion_fast_path import try_handle_completion_candidates
+
+        exit_code = try_handle_completion_candidates(sys.argv[3:])
+        if exit_code is not None:
+            sys.exit(exit_code)
+
     # Check for 'sase run' special cases before argparse processes it
     # This allows us to handle queries that contain spaces
     if len(sys.argv) >= 2 and sys.argv[1] == "run":

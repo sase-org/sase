@@ -38,6 +38,8 @@ def handle_completion_command(args: argparse.Namespace) -> int:
     sub = getattr(args, "completion_subcommand", None) or "list"
     if sub == "bash":
         return _handle_completion_bash(args)
+    if sub == "candidates":
+        return _handle_completion_candidates(args)
     if sub == "fish":
         return _handle_completion_fish(args)
     if sub == "list":
@@ -46,8 +48,34 @@ def handle_completion_command(args: argparse.Namespace) -> int:
         return _handle_completion_spec(args)
     if sub == "zsh":
         return _handle_completion_zsh(args)
-    print("Usage: sase completion {bash,fish,list,spec,zsh}", file=sys.stderr)
+    print(
+        "Usage: sase completion {bash,candidates,fish,list,spec,zsh}", file=sys.stderr
+    )
     return 2
+
+
+def _handle_completion_candidates(args: argparse.Namespace) -> int:
+    """Run ``sase completion candidates`` through the normal argparse path.
+
+    The pre-argparse fast path in ``completion_fast_path.py`` handles every
+    normal invocation before argparse ever runs. Reaching this handler means
+    the fast path deferred -- ``--help`` or an argv shape its hand-rolled
+    parser does not recognize -- so this stays a thin, correct fallback
+    rather than a second latency-critical path.
+    """
+    from sase.completion.candidates.protocol import render_candidates
+    from sase.completion.candidates.providers import candidates_for
+
+    candidates = candidates_for(
+        str(args.kind),
+        str(getattr(args, "prefix", "") or ""),
+        project=getattr(args, "project", None),
+        limit=int(args.limit),
+    )
+    output = render_candidates(candidates)
+    if output:
+        print(output)
+    return 0
 
 
 def _handle_completion_list(

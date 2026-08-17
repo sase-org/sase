@@ -139,3 +139,41 @@ def test_dispatch_unknown_subcommand_exits_two(
 ) -> None:
     assert handle_completion_command(Namespace(completion_subcommand="nope")) == 2
     assert "Usage: sase completion" in capsys.readouterr().err
+
+
+def test_candidates_handler_prints_provider_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sase.completion.candidates.providers as providers
+
+    calls: list[dict[str, object]] = []
+
+    def fake_candidates_for(kind, prefix, *, project, limit):
+        calls.append(
+            {"kind": kind, "prefix": prefix, "project": project, "limit": limit}
+        )
+        from sase.completion.candidates.protocol import Candidate
+
+        return [Candidate("sase-1", "Fix the thing")]
+
+    monkeypatch.setattr(providers, "candidates_for", fake_candidates_for)
+    args = create_parser().parse_args(
+        ["completion", "candidates", "bead", "sase-", "-l", "5", "-p", "sase"]
+    )
+
+    assert handle_completion_command(args) == 0
+
+    assert capsys.readouterr().out == "sase-1\tFix the thing\n"
+    assert calls == [{"kind": "bead", "prefix": "sase-", "project": "sase", "limit": 5}]
+
+
+def test_candidates_handler_prints_nothing_for_no_candidates(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import sase.completion.candidates.providers as providers
+
+    monkeypatch.setattr(providers, "candidates_for", lambda *a, **k: [])
+    args = create_parser().parse_args(["completion", "candidates", "project"])
+
+    assert handle_completion_command(args) == 0
+    assert capsys.readouterr().out == ""
