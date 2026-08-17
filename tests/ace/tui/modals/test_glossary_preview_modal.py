@@ -15,7 +15,7 @@ from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
-    _EditorGlossaryProject,
+    EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
 
@@ -131,7 +131,7 @@ def _catalog(
     return (
         EditorGlossaryCatalog(
             schema_version=1,
-            project=_EditorGlossaryProject(
+            project=EditorGlossaryProject(
                 key="sase",
                 name="sase",
                 aliases=(),

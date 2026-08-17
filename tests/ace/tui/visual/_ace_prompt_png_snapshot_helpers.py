@@ -18,7 +18,7 @@ from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
-    _EditorGlossaryProject,
+    EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
 from sase.xprompt._literal_zones import code_literal_ranges
@@ -383,7 +383,7 @@ def _visual_glossary_catalog() -> EditorGlossaryCatalog:
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=_EditorGlossaryProject(
+        project=EditorGlossaryProject(
             key="sase",
             name="sase",
             aliases=("sase-org",),

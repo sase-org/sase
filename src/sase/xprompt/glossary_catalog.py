@@ -46,7 +46,7 @@ class _GlossaryConfigSignature:
 
 
 @dataclass(frozen=True, slots=True)
-class _EditorGlossaryProject:
+class EditorGlossaryProject:
     """The enabled project/workspace selected for glossary semantics."""
 
     key: str
@@ -68,7 +68,7 @@ class EditorGlossaryCatalog:
     """A normalized glossary catalog plus the compiled native matcher handle."""
 
     schema_version: int
-    project: _EditorGlossaryProject
+    project: EditorGlossaryProject
     config_path: Path
     config_signature: _GlossaryConfigSignature
     catalog: GlossaryCatalog
@@ -92,7 +92,7 @@ class EditorGlossaryCatalog:
 class EditorGlossaryCatalogResult:
     """Best-effort glossary load result for editor warmers."""
 
-    project: _EditorGlossaryProject | None
+    project: EditorGlossaryProject | None
     catalog: EditorGlossaryCatalog | None
     diagnostics: tuple[str, ...] = ()
 
@@ -109,8 +109,8 @@ def editor_glossary_catalog_for_project(
 ) -> EditorGlossaryCatalogResult:
     """Load one enabled project's glossary catalog by key, name, alias, or CWD."""
 
-    records = _enabled_project_records(projects_root)
-    project = _select_project(
+    records = enabled_project_records(projects_root)
+    project = select_project(
         project_ref,
         records,
         launch_workspace=launch_workspace,
@@ -126,7 +126,7 @@ def editor_glossary_catalog_for_project(
 
 
 def _load_editor_glossary_catalog(
-    project: _EditorGlossaryProject,
+    project: EditorGlossaryProject,
 ) -> EditorGlossaryCatalogResult:
     """Load and compile the project-local glossary for an exact project."""
 
@@ -220,8 +220,8 @@ def editor_glossary_lsp_catalog_payload(
 ) -> dict[str, object]:
     """Return the JSON-serializable glossary catalog consumed by the LSP."""
 
-    records = _enabled_project_records(projects_root)
-    default_project = _select_project(
+    records = enabled_project_records(projects_root)
+    default_project = select_project(
         None,
         records,
         launch_workspace=launch_workspace,
@@ -243,7 +243,7 @@ def editor_glossary_lsp_catalog_payload(
     }
 
 
-def _enabled_project_records(
+def enabled_project_records(
     projects_root: str | Path | None,
 ) -> tuple[ProjectRecordWire, ...]:
     root = Path(projects_root) if projects_root is not None else sase_projects_dir()
@@ -266,12 +266,12 @@ def _enabled_project_records(
     )
 
 
-def _select_project(
+def select_project(
     project_ref: str | None,
     records: Sequence[ProjectRecordWire],
     *,
     launch_workspace: str | Path | None,
-) -> _EditorGlossaryProject | None:
+) -> EditorGlossaryProject | None:
     if project_ref:
         record = _record_for_ref(project_ref, records)
         return None if record is None else _project_from_record(record)
@@ -331,10 +331,10 @@ def _record_for_workspace(
     return None
 
 
-def _project_from_record(record: ProjectRecordWire) -> _EditorGlossaryProject | None:
+def _project_from_record(record: ProjectRecordWire) -> EditorGlossaryProject | None:
     if not record.workspace_dir:
         return None
-    return _EditorGlossaryProject(
+    return EditorGlossaryProject(
         key=record.project_name,
         name=effective_project_name(record),
         aliases=tuple(dict.fromkeys(record.aliases)),
@@ -634,6 +634,9 @@ __all__ = [
     "GLOSSARY_CONFIG_KEY",
     "EditorGlossaryCatalog",
     "EditorGlossaryCatalogResult",
+    "EditorGlossaryProject",
     "editor_glossary_catalog_for_project",
     "editor_glossary_lsp_catalog_payload",
+    "enabled_project_records",
+    "select_project",
 ]

@@ -333,6 +333,13 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-p1.2(GlossaryValidationError)" \
         --epic-symbol "sase-p1.2(add_glossary_term)" \
         --epic-symbol "sase-p1.2(delete_glossary_term)" \
+        --epic-symbol "sase-p2.2(EditorRepoMentionCatalog)" \
+        --epic-symbol "sase-p2.2(EditorRepoMentionCatalogResult)" \
+        --epic-symbol "sase-p2.2(RepoMentionSpan)" \
+        --epic-symbol "sase-p2.2(editor_repo_mention_catalog_for_project)" \
+        --epic-symbol "sase-p2.2(lookup_repo_mention)" \
+        --epic-symbol "sase-p2.2(scan_repo_mentions)" \
+        --epic-symbol "sase-p2.3(RepoMention)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

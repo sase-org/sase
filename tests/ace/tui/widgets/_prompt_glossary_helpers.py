@@ -10,7 +10,7 @@ import pytest
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
-    _EditorGlossaryProject,
+    EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
 
@@ -132,7 +132,7 @@ def catalog_for_text(
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=_EditorGlossaryProject(
+        project=EditorGlossaryProject(
             key="sase",
             name="sase",
             aliases=("sase-org",),
@@ -191,7 +191,7 @@ def catalog_for_wrapped_text(
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=_EditorGlossaryProject(
+        project=EditorGlossaryProject(
             key="sase",
             name="sase",
             aliases=("sase-org",),
@@ -234,7 +234,7 @@ def dynamic_catalog_for_term(
     )
     return EditorGlossaryCatalog(
         schema_version=1,
-        project=_EditorGlossaryProject(
+        project=EditorGlossaryProject(
             key=project_key,
             name=project_name,
             aliases=(),

@@ -9,12 +9,12 @@ import pytest
 from sase.glossary import cli_common
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalogResult,
-    _EditorGlossaryProject,
+    EditorGlossaryProject,
 )
 
 
-def _project(name: str = "sase", key: str = "sase") -> _EditorGlossaryProject:
-    return _EditorGlossaryProject(
+def _project(name: str = "sase", key: str = "sase") -> EditorGlossaryProject:
+    return EditorGlossaryProject(
         key=key, name=name, aliases=(), workspace_dir=Path("/tmp/sase")
     )
 
