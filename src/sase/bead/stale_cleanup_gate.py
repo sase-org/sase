@@ -1,15 +1,14 @@
 """Trusted notification-gate contract for stale task-bead cleanup.
 
 This module is the contract's front door — every consumer imports the gate's
-constants, renderers, and translators from here, and the option command
+constants, renderers, and host effects from here, and the option command
 wrapper persisted into each bundle names this module by path. The
 implementation lives in focused siblings:
 
 - :mod:`sase.bead._stale_cleanup_gate_spec` — constants, request spec, command
 - :mod:`sase.bead._stale_cleanup_gate_preview` — the Markdown and notification text
 - :mod:`sase.bead._stale_cleanup_gate_response` — persisted response → trusted decision
-
-Host effects live in the later actions phase; this facade does not apply them.
+- :mod:`sase.bead._stale_cleanup_gate_actions` — the host effect a decision authorizes
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from sase.bead._stale_cleanup_gate_actions import close_bead_stale_cleanup
 from sase.bead._stale_cleanup_gate_preview import (
     bead_stale_cleanup_presentation_note,
     render_bead_stale_cleanup_preview,
@@ -91,6 +91,7 @@ __all__ = [
     "bead_stale_cleanup_presentation_note",
     "bead_stale_cleanup_selection_inputs",
     "build_bead_stale_cleanup_gate_spec",
+    "close_bead_stale_cleanup",
     "create_bead_stale_cleanup_gate",
     "execute_bead_stale_cleanup_gate_command",
     "render_bead_stale_cleanup_preview",

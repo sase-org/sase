@@ -146,6 +146,17 @@ class GateAdapter:
                 response["task_launch_task_id"] = proc.proc_id
                 atomic_write_json(bundle_path / "response.json", response)
             return
+        if self.kind == "bead_stale_cleanup":
+            from sase.bead.stale_cleanup_gate import (
+                close_bead_stale_cleanup,
+                translate_bead_stale_cleanup_response,
+            )
+
+            stale_cleanup_decision = translate_bead_stale_cleanup_response(
+                bundle_path, response
+            )
+            close_bead_stale_cleanup(stale_cleanup_decision)
+            return
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
