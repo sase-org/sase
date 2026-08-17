@@ -30,7 +30,10 @@ import pytest
 
 from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
+from sase.ace.tui.actions.agent_workflow._launch_procs import (
+    LaunchProcOutcome,
+    _launch_outcome_from_completion,
+)
 from sase.ace.tui.proc_queue import ProcInfo
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 from tests.ace.tui._agent_launch_helpers import _LaunchBodyApp
@@ -146,6 +149,57 @@ def test_launch_task_completion_emits_warning_messages() -> None:
     _complete_launch_task(app, outcome)
 
     assert app.notifications == [("Unknown xprompt reference(s): #reviewww", "warning")]
+
+
+def test_launch_outcome_from_completion_reads_warning_messages_payload() -> None:
+    toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"
+    completion = TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id="task",
+            proc_type="launch",
+            cl_name="test",
+            project_file="/tmp/test.sase",
+            status="success",
+            message="Started 1 agent(s)",
+            started_at=datetime.now(),
+        ),
+        success=True,
+        message="Started 1 agent(s)",
+        output="",
+        payload={"warning_messages": [toast]},
+        error=None,
+    )
+
+    outcome = _launch_outcome_from_completion(completion)
+
+    assert outcome is not None
+    assert outcome.warning_messages == (toast,)
+
+
+def test_launch_task_completion_emits_warning_messages_from_result_payload() -> None:
+    app = _SubmitLaunchBodyApp()
+    toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"
+
+    app._on_launch_proc_complete(
+        TrackedProcCompletion(
+            proc_info=ProcInfo(
+                proc_id="task",
+                proc_type="launch",
+                cl_name="test",
+                project_file="/tmp/test.sase",
+                status="success",
+                message="Started 1 agent(s)",
+                started_at=datetime.now(),
+            ),
+            success=True,
+            message="Started 1 agent(s)",
+            output="",
+            payload={"warning_messages": [toast]},
+            error=None,
+        )
+    )
+
+    assert (toast, "warning") in app.notifications
 
 
 @pytest.mark.asyncio

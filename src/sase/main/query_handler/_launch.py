@@ -43,10 +43,12 @@ def launch_query(query: str) -> None:
     from sase.output import print_status
     from sase.xprompt.unresolved import (
         format_unresolved_reference_warning,
+        format_unresolved_references_toast,
         scan_query_for_unresolved_references,
     )
 
-    for name in scan_query_for_unresolved_references(query):
+    unresolved_names = scan_query_for_unresolved_references(query)
+    for name in unresolved_names:
         print_status(format_unresolved_reference_warning(name), "warning")
 
     from sase.agent.launch_request import (
@@ -145,16 +147,22 @@ def launch_query(query: str) -> None:
 
     for result in results:
         print(f"Agent started (PID {result.pid})")
+    _record_leading_vcs_xprompt_usage(query)
+    result_payload: dict[str, object] = {
+        "count": len(results),
+        "pids": [result.pid for result in results],
+        "results": [_serialize_launch_result(item) for item in results],
+        "request_agents_refresh": True,
+        "schedule_agents_refresh": True,
+    }
+    if unresolved_names:
+        result_payload["warning_messages"] = [
+            format_unresolved_references_toast(unresolved_names)
+        ]
     emit_run_launch_result(
         success=True,
         message=f"Started {len(results)} agent(s)",
-        payload={
-            "count": len(results),
-            "pids": [result.pid for result in results],
-            "results": [_serialize_launch_result(item) for item in results],
-            "request_agents_refresh": True,
-            "schedule_agents_refresh": True,
-        },
+        payload=result_payload,
     )
     sys.exit(0)
 
@@ -173,3 +181,27 @@ def _serialize_launch_result(result: object) -> dict[str, object]:
         "workspace_dir": getattr(result, "workspace_dir", ""),
         "workspace_num": getattr(result, "workspace_num", 0),
     }
+
+
+def _record_leading_vcs_xprompt_usage(query: str) -> None:
+    """Record the leading VCS prefix from a successful launch query."""
+    prefix = _leading_vcs_xprompt_prefix(query)
+    if prefix is None:
+        return
+    from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+
+    record_vcs_xprompt_usage(prefix)
+
+
+def _leading_vcs_xprompt_prefix(query: str) -> str | None:
+    """Return ``#<workflow>:<ref>`` for the first VCS tag in *query*, if any."""
+    from sase.workspace_provider import get_ref_patterns
+
+    for workflow_type, pattern in get_ref_patterns().items():
+        match = pattern.search(query)
+        if match is None:
+            continue
+        ref = match.group(1) or match.group(2)
+        if ref:
+            return f"#{workflow_type}:{ref}"
+    return None

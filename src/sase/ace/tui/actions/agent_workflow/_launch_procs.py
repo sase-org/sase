@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
@@ -261,10 +261,21 @@ def _launch_outcome_from_completion(
         completion.message,
         results=launch_results_tuple(results),
         severity=severity,
+        warning_messages=_warning_messages_from_payload(payload),
         request_agents_refresh=bool(payload.get("request_agents_refresh")),
         schedule_agents_refresh=bool(payload.get("schedule_agents_refresh")),
         refresh_notifications=bool(payload.get("refresh_notifications")),
     )
+
+
+def _warning_messages_from_payload(payload: Mapping[str, object]) -> tuple[str, ...]:
+    """Read ACE toast strings from a durable ``sase run`` result payload."""
+    raw = payload.get("warning_messages")
+    if isinstance(raw, str):
+        return (raw,) if raw else ()
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    return tuple(item for item in raw if isinstance(item, str) and item)
 
 
 __all__ = [
