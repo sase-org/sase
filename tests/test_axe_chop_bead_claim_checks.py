@@ -1,266 +1,22 @@
-"""Stale waiting-agent bead claim reconciliation tests."""
+"""Claim-candidate prepass, acquisition, and tombstone reconciliation tests."""
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call
 
 import pytest
 
 import sase.scripts.sase_chop_bead_claim_checks as claim_checks
-from sase.axe.chop_script_context import ChopScriptContext
-from sase.bead.model import Issue, Status
-from sase.chops.builtin import BuiltinChopRuntime
+from sase.bead.model import Status
 from sase.chops.sdk import ChopLogger
-from tests.test_bead.claims_test_helpers import writable_store_for_beads
 
-
-def _runtime(tmp_path: Path) -> BuiltinChopRuntime:
-    return BuiltinChopRuntime(
-        name="bead_claim_checks",
-        context=ChopScriptContext(
-            max_hook_runners=1,
-            max_agent_runners=1,
-            zombie_timeout_seconds=60,
-            query="",
-            lumberjack_name="waits",
-            state_dir=str(tmp_path),
-            all_patches_file=str(tmp_path / "all.json"),
-            filtered_patches_file=str(tmp_path / "filtered.json"),
-        ),
-        log=ChopLogger(stdout=StringIO(), stderr=StringIO()),
-    )
-
-
-def _artifact(
-    tmp_path: Path,
-    *,
-    name: str = "sase-1.1",
-    bead_id: str = "sase-1.1",
-    project_name: str = "sase",
-    promoted: bool | None = False,
-    has_marker: bool = True,
-    timestamp: str = "20260724120000",
-    tombstoned: bool = False,
-) -> claim_checks._ClaimArtifact:
-    return claim_checks._ClaimArtifact(
-        project_name=project_name,
-        agent_name=name,
-        artifact_dir=tmp_path / timestamp,
-        timestamp=timestamp,
-        pid=123,
-        stopped_at=None,
-        bead_id=bead_id,
-        bead_claim_promoted=promoted,
-        has_bead_claim_marker=has_marker,
-        has_reconcile_tombstone=tombstoned,
-    )
-
-
-def _tombstone_path(tmp_path: Path, timestamp: str = "20260724120000") -> Path:
-    return tmp_path / timestamp / claim_checks.BEAD_CLAIM_RECONCILED_MARKER
-
-
-def _claimed_issue(
-    *,
-    bead_id: str = "sase-1.1",
-    assignee: str = "sase-1.1",
-) -> Issue:
-    return Issue(
-        id=bead_id,
-        title="Claimed phase",
-        status=Status.CLAIMED,
-        parent_id="sase-1",
-        assignee=assignee,
-    )
-
-
-def _reconciliation(
-    *,
-    released: tuple[tuple[str, str], ...] = (),
-    release_errors: tuple[tuple[str, str], ...] = (),
-    held: tuple[tuple[str, str], ...] = (),
-) -> claim_checks._ProjectClaimReconciliation:
-    return claim_checks._ProjectClaimReconciliation(
-        released=frozenset(released),
-        release_errors=frozenset(release_errors),
-        held=frozenset(held),
-    )
-
-
-def _tick(
-    *,
-    snapshot_ok: bool = False,
-    scanned: bool = False,
-    claimed_count: int = 0,
-    released: tuple[tuple[str, str], ...] = (),
-    release_errors: tuple[tuple[str, str], ...] = (),
-    held: tuple[tuple[str, str], ...] = (),
-) -> claim_checks._ProjectClaimTick:
-    return claim_checks._ProjectClaimTick(
-        snapshot_ok=snapshot_ok,
-        scanned=scanned,
-        claimed_count=claimed_count,
-        reconciliation=_reconciliation(
-            released=released,
-            release_errors=release_errors,
-            held=held,
-        ),
-    )
-
-
-_NO_FAIL_PROJECTS: frozenset[str] = frozenset()
-
-
-def _install_counting_store(
-    monkeypatch: pytest.MonkeyPatch,
-    beads_dir: Path,
-    *,
-    fail_projects: frozenset[str] = _NO_FAIL_PROJECTS,
-) -> list[str]:
-    holders: list[str] = []
-
-    @contextmanager
-    def fake_store(project: str, **kwargs: object):
-        holders.append(str(kwargs.get("holder", project)))
-        if project in fail_projects:
-            raise RuntimeError(f"{project} store down")
-        yield writable_store_for_beads(beads_dir, project=project)
-
-    monkeypatch.setattr(
-        "sase.bead.background_store.writable_bead_store_for_machine",
-        fake_store,
-    )
-    monkeypatch.setattr(
-        "sase.bead.background_store.schedule_beads_sidecar_convergence",
-        lambda _project: None,
-    )
-    return holders
-
-
-def _install_leased_apply(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    *,
-    project: MagicMock | None = None,
-    fail_projects: frozenset[str] = _NO_FAIL_PROJECTS,
-) -> tuple[list[str], list[Path], MagicMock, MagicMock]:
-    beads_dir = tmp_path / "beads"
-    beads_dir.mkdir()
-    holders = _install_counting_store(
-        monkeypatch, beads_dir, fail_projects=fail_projects
-    )
-    lock_entries: list[Path] = []
-
-    @contextmanager
-    def lock(path: Path):
-        lock_entries.append(path)
-        yield True
-
-    if project is None:
-        project = MagicMock()
-        project.release_agent_claim.return_value = (_claimed_issue(), True)
-        project.claim_for_agent_wait.return_value = (_claimed_issue(), True)
-
-    project_context = MagicMock()
-    project_context.__enter__.return_value = project
-    commit = MagicMock(return_value=True)
-    publish = MagicMock()
-    monkeypatch.setattr(claim_checks, "refresh_bead_store", lambda _path: None)
-    monkeypatch.setattr(
-        claim_checks,
-        "open_bead_project_for_beads_dir",
-        lambda _path: project_context,
-    )
-    monkeypatch.setattr(claim_checks, "bead_store_write_lock", lock)
-    monkeypatch.setattr(claim_checks, "commit_bead_claim_reconciliation", commit)
-    monkeypatch.setattr(claim_checks, "publish_bead_claim", publish)
-    return holders, lock_entries, commit, publish
-
-
-def test_project_reconciliation_batches_mutations_into_one_commit_and_push(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    beads_dir = tmp_path / "beads"
-    beads_dir.mkdir()
-    project = MagicMock()
-    project.release_agent_claim.side_effect = [
-        (_claimed_issue(bead_id="sase-1.1", assignee="worker.1"), True),
-        (_claimed_issue(bead_id="sase-1.2", assignee="worker.2"), True),
-    ]
-    project.claim_for_agent_wait.side_effect = [
-        (_claimed_issue(bead_id="sase-1.3", assignee="worker.3"), True),
-        (
-            Issue(
-                id="sase-1.4",
-                title="Pre-marked phase",
-                status=Status.IN_PROGRESS,
-                assignee="worker.4",
-            ),
-            False,
-        ),
-    ]
-    project_context = MagicMock()
-    project_context.__enter__.return_value = project
-    lock_entries: list[Path] = []
-
-    @contextmanager
-    def lock(path: Path):
-        lock_entries.append(path)
-        yield True
-
-    commit = MagicMock(return_value=True)
-    publish = MagicMock()
-    hint = MagicMock()
-    operation_context = SimpleNamespace()
-    monkeypatch.setattr(
-        claim_checks,
-        "open_bead_project_for_beads_dir",
-        lambda _path: project_context,
-    )
-    monkeypatch.setattr(claim_checks, "bead_store_write_lock", lock)
-    monkeypatch.setattr(claim_checks, "commit_bead_claim_reconciliation", commit)
-    monkeypatch.setattr(claim_checks, "publish_bead_claim", publish)
-    monkeypatch.setattr(
-        "sase.bead.background_store.schedule_beads_sidecar_convergence",
-        hint,
-    )
-
-    result = claim_checks._reconcile_project_claims(
-        "sase",
-        beads_dir=beads_dir,
-        operation_context=operation_context,
-        releases=[("sase-1.1", "worker.1"), ("sase-1.2", "worker.2")],
-        acquisitions=[("sase-1.3", "worker.3"), ("sase-1.4", "worker.4")],
-        log=_runtime(tmp_path).log,
-    )
-
-    assert lock_entries == [beads_dir]
-    assert project.release_agent_claim.call_args_list == [
-        call("sase-1.1", "worker.1"),
-        call("sase-1.2", "worker.2"),
-    ]
-    assert project.claim_for_agent_wait.call_args_list == [
-        call("sase-1.3", "worker.3"),
-        call("sase-1.4", "worker.4"),
-    ]
-    commit.assert_called_once()
-    assert commit.call_args.args == (beads_dir,)
-    assert commit.call_args.kwargs["already_locked"] is True
-    assert commit.call_args.kwargs["mutation_origin"] == "machine"
-    assert commit.call_args.kwargs["operation_context"] is operation_context
-    publish.assert_called_once_with(beads_dir, "reconciliation", "sase")
-    hint.assert_called_once_with("sase")
-    assert result.released == frozenset(
-        {("sase-1.1", "worker.1"), ("sase-1.2", "worker.2")}
-    )
-    assert result.held == frozenset(
-        {("sase-1.3", "worker.3"), ("sase-1.4", "worker.4")}
-    )
+from tests._axe_chop_bead_claim_checks_helpers import (
+    make_artifact,
+    make_runtime,
+    make_tick,
+    tombstone_path,
+)
 
 
 def test_artifact_scan_records_claim_marker_presence(
@@ -309,7 +65,7 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    record = _artifact(tmp_path)
+    record = make_artifact(tmp_path)
     processed: list[tuple[str, bool, list[tuple[str, str]]]] = []
 
     monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
@@ -325,7 +81,7 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
     ) -> claim_checks._ProjectClaimTick:
         del projects_root, log
         processed.append((project_name, need_claimed_snapshot, acquisitions))
-        return _tick(
+        return make_tick(
             snapshot_ok=True,
             scanned=True,
             claimed_count=1,
@@ -334,7 +90,7 @@ def test_dead_unpromoted_owner_is_released_after_bead_snapshot(
 
     monkeypatch.setattr(claim_checks, "_process_project_claims", process)
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert processed == [("sase", True, [])]
     assert result.counters == {
@@ -358,7 +114,7 @@ def test_live_promoted_or_unreadable_owner_is_untouched_in_prepass(
     monkeypatch.setattr(
         claim_checks,
         "_scan_claim_artifacts",
-        lambda _root: [_artifact(tmp_path, promoted=promoted)],
+        lambda _root: [make_artifact(tmp_path, promoted=promoted)],
     )
     monkeypatch.setattr(
         claim_checks,
@@ -373,36 +129,10 @@ def test_live_promoted_or_unreadable_owner_is_untouched_in_prepass(
         ),
     )
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert result.reason == "no_claim_reconciliation_candidates"
     assert result.counters["projects_scanned"] == 0
-
-
-def test_unresolvable_assignee_is_not_released(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch, tmp_path
-    )
-    dead = _artifact(tmp_path)
-    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [dead])
-    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
-    monkeypatch.setattr(
-        claim_checks,
-        "_read_claimed_issues",
-        lambda _beads_dir: [_claimed_issue(assignee="missing-agent")],
-    )
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert holders == ["bead_claim_checks:sase"]
-    assert lock_entries == []
-    commit.assert_not_called()
-    publish.assert_not_called()
-    assert result.counters["claims_examined"] == 1
-    assert result.counters["claims_released"] == 0
 
 
 def test_empty_steady_state_never_reads_a_bead_store(
@@ -416,7 +146,7 @@ def test_empty_steady_state_never_reads_a_bead_store(
         lambda *_args, **_kwargs: pytest.fail("empty steady state opened a bead store"),
     )
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert result.reason == "no_claim_reconciliation_candidates"
 
@@ -425,7 +155,7 @@ def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    record = _artifact(tmp_path, has_marker=False)
+    record = make_artifact(tmp_path, has_marker=False)
     monkeypatch.setattr(
         claim_checks,
         "_scan_claim_artifacts",
@@ -446,7 +176,7 @@ def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
     ) -> claim_checks._ProjectClaimTick:
         del need_claimed_snapshot, projects_root, log
         acquired.append((project_name, acquisitions))
-        return _tick(held=(("sase-1.1", "sase-1.1"),))
+        return make_tick(held=(("sase-1.1", "sase-1.1"),))
 
     def mark(
         artifacts_dir: Path,
@@ -461,7 +191,7 @@ def test_live_unpromoted_unmarked_agent_is_claimed_and_marked(
     monkeypatch.setattr(claim_checks, "_process_project_claims", process)
     monkeypatch.setattr(claim_checks, "write_bead_claim_marker", mark)
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert acquired == [("sase", [("sase-1.1", "sase-1.1")])]
     assert marked == [(record.artifact_dir, "sase", "sase-1.1", "sase-1.1")]
@@ -480,7 +210,7 @@ def test_live_candidate_declined_by_terminal_bead_state_is_not_marked(
     tmp_path: Path,
     status: Status,
 ) -> None:
-    record = _artifact(tmp_path, has_marker=False)
+    record = make_artifact(tmp_path, has_marker=False)
     monkeypatch.setattr(
         claim_checks,
         "_scan_claim_artifacts",
@@ -490,7 +220,7 @@ def test_live_candidate_declined_by_terminal_bead_state_is_not_marked(
     monkeypatch.setattr(
         claim_checks,
         "_process_project_claims",
-        lambda *_args, **_kwargs: _tick(),
+        lambda *_args, **_kwargs: make_tick(),
     )
     monkeypatch.setattr(
         claim_checks,
@@ -500,7 +230,7 @@ def test_live_candidate_declined_by_terminal_bead_state_is_not_marked(
         ),
     )
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert result.reason == "no_claims_reconciled"
     assert result.counters["claims_acquired"] == 0
@@ -510,7 +240,7 @@ def test_dead_agent_is_never_acquired(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    record = _artifact(tmp_path, has_marker=False)
+    record = make_artifact(tmp_path, has_marker=False)
     processed: list[list[tuple[str, str]]] = []
     monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
     monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
@@ -525,11 +255,11 @@ def test_dead_agent_is_never_acquired(
     ) -> claim_checks._ProjectClaimTick:
         del project_name, need_claimed_snapshot, projects_root, log
         processed.append(acquisitions)
-        return _tick(snapshot_ok=True, scanned=True)
+        return make_tick(snapshot_ok=True, scanned=True)
 
     monkeypatch.setattr(claim_checks, "_process_project_claims", process)
 
-    result = claim_checks._run(_runtime(tmp_path))
+    result = claim_checks._run(make_runtime(tmp_path))
 
     assert processed == [[]]
     assert result.reason == "no_claims_reconciled"
@@ -547,7 +277,7 @@ def test_reconciled_dead_owner_stops_opening_bead_stores(
         claim_checks,
         "_scan_claim_artifacts",
         lambda _root: [
-            _artifact(tmp_path, tombstoned=_tombstone_path(tmp_path).exists())
+            make_artifact(tmp_path, tombstoned=tombstone_path(tmp_path).exists())
         ],
     )
     monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
@@ -562,7 +292,7 @@ def test_reconciled_dead_owner_stops_opening_bead_stores(
     ) -> claim_checks._ProjectClaimTick:
         del need_claimed_snapshot, acquisitions, projects_root, log
         ticks.append(project_name)
-        return _tick(
+        return make_tick(
             snapshot_ok=True,
             scanned=True,
             claimed_count=1,
@@ -571,13 +301,13 @@ def test_reconciled_dead_owner_stops_opening_bead_stores(
 
     monkeypatch.setattr(claim_checks, "_process_project_claims", process)
 
-    first = claim_checks._run(_runtime(tmp_path))
+    first = claim_checks._run(make_runtime(tmp_path))
 
     assert first.counters["claims_released"] == 1
     assert ticks == ["sase"]
-    assert _tombstone_path(tmp_path).exists()
+    assert tombstone_path(tmp_path).exists()
 
-    second = claim_checks._run(_runtime(tmp_path))
+    second = claim_checks._run(make_runtime(tmp_path))
 
     assert second.reason == "no_claim_reconciliation_candidates"
     assert ticks == ["sase"]
@@ -588,31 +318,31 @@ def test_dead_owner_without_a_claim_is_still_tombstoned(
     tmp_path: Path,
 ) -> None:
     """A store read that proves there is nothing to release is terminal too."""
-    record = _artifact(tmp_path)
+    record = make_artifact(tmp_path)
     monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
     monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
     monkeypatch.setattr(
         claim_checks,
         "_process_project_claims",
-        lambda *_args, **_kwargs: _tick(snapshot_ok=True, scanned=True),
+        lambda *_args, **_kwargs: make_tick(snapshot_ok=True, scanned=True),
     )
 
-    claim_checks._run(_runtime(tmp_path))
+    claim_checks._run(make_runtime(tmp_path))
 
-    assert _tombstone_path(tmp_path).exists()
+    assert tombstone_path(tmp_path).exists()
 
 
 def test_failed_release_and_unreadable_store_leave_no_tombstone(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    record = _artifact(tmp_path)
+    record = make_artifact(tmp_path)
     monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
     monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
     monkeypatch.setattr(
         claim_checks,
         "_process_project_claims",
-        lambda *_args, **_kwargs: _tick(
+        lambda *_args, **_kwargs: make_tick(
             snapshot_ok=True,
             scanned=True,
             claimed_count=1,
@@ -620,27 +350,27 @@ def test_failed_release_and_unreadable_store_leave_no_tombstone(
         ),
     )
 
-    claim_checks._run(_runtime(tmp_path))
+    claim_checks._run(make_runtime(tmp_path))
 
-    assert not _tombstone_path(tmp_path).exists()
+    assert not tombstone_path(tmp_path).exists()
 
     monkeypatch.setattr(
         claim_checks,
         "_process_project_claims",
-        lambda *_args, **_kwargs: _tick(),
+        lambda *_args, **_kwargs: make_tick(),
     )
 
-    claim_checks._run(_runtime(tmp_path))
+    claim_checks._run(make_runtime(tmp_path))
 
-    assert not _tombstone_path(tmp_path).exists()
+    assert not tombstone_path(tmp_path).exists()
 
 
 def test_acquire_then_die_is_released_on_following_tick(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    alive_record = _artifact(tmp_path, has_marker=False)
-    dead_record = _artifact(tmp_path, has_marker=True)
+    alive_record = make_artifact(tmp_path, has_marker=False)
+    dead_record = make_artifact(tmp_path, has_marker=True)
     current_record = alive_record
     alive = True
 
@@ -656,8 +386,8 @@ def test_acquire_then_die_is_released_on_following_tick(
     )
     outcomes = iter(
         (
-            _tick(held=(("sase-1.1", "sase-1.1"),)),
-            _tick(
+            make_tick(held=(("sase-1.1", "sase-1.1"),)),
+            make_tick(
                 snapshot_ok=True,
                 scanned=True,
                 claimed_count=1,
@@ -676,221 +406,11 @@ def test_acquire_then_die_is_released_on_following_tick(
         lambda *_args, **_kwargs: True,
     )
 
-    first = claim_checks._run(_runtime(tmp_path))
+    first = claim_checks._run(make_runtime(tmp_path))
     assert first.counters["claims_acquired"] == 1
 
     current_record = dead_record
     alive = False
-    second = claim_checks._run(_runtime(tmp_path))
+    second = claim_checks._run(make_runtime(tmp_path))
 
     assert second.counters["claims_released"] == 1
-
-
-def test_snapshot_and_reconcile_share_one_lease_and_one_publication(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project = MagicMock()
-    project.release_agent_claim.return_value = (_claimed_issue(), True)
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch, tmp_path, project=project
-    )
-    events: list[str] = []
-    record = _artifact(tmp_path)
-    refresh_calls: list[Path] = []
-
-    def scan(_root: Path) -> list[claim_checks._ClaimArtifact]:
-        events.append("scan")
-        return [record]
-
-    def read(_beads_dir: Path) -> list[Issue]:
-        events.append("beads")
-        return [_claimed_issue()]
-
-    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", scan)
-    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
-    monkeypatch.setattr(claim_checks, "_read_claimed_issues", read)
-    monkeypatch.setattr(
-        claim_checks,
-        "refresh_bead_store",
-        lambda path: refresh_calls.append(path),
-    )
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert events == ["scan", "beads", "scan"]
-    assert holders == ["bead_claim_checks:sase"]
-    assert len(refresh_calls) == 1
-    assert lock_entries == [tmp_path / "beads"]
-    commit.assert_called_once()
-    publish.assert_called_once_with(tmp_path / "beads", "reconciliation", "sase")
-    project.release_agent_claim.assert_called_once_with("sase-1.1", "sase-1.1")
-    assert result.counters == {
-        "projects_scanned": 1,
-        "claims_examined": 1,
-        "claims_released": 1,
-        "claims_acquired": 0,
-    }
-    assert _tombstone_path(tmp_path).exists()
-
-
-def test_acquire_only_tick_uses_one_lease_without_reading_claimed_issues(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project = MagicMock()
-    project.claim_for_agent_wait.return_value = (_claimed_issue(), True)
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch, tmp_path, project=project
-    )
-    record = _artifact(tmp_path, has_marker=False)
-    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
-    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: True)
-    monkeypatch.setattr(
-        claim_checks,
-        "_read_claimed_issues",
-        lambda _beads_dir: pytest.fail("acquire-only tick used the release read path"),
-    )
-    monkeypatch.setattr(
-        claim_checks,
-        "write_bead_claim_marker",
-        lambda *_args, **_kwargs: True,
-    )
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert holders == ["bead_claim_checks:sase"]
-    assert lock_entries == [tmp_path / "beads"]
-    commit.assert_called_once()
-    publish.assert_called_once()
-    project.release_agent_claim.assert_not_called()
-    project.claim_for_agent_wait.assert_called_once_with("sase-1.1", "sase-1.1")
-    assert result.counters["claims_acquired"] == 1
-
-
-def test_empty_authoritative_snapshot_skips_write_lock(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch, tmp_path
-    )
-    record = _artifact(tmp_path)
-    monkeypatch.setattr(claim_checks, "_scan_claim_artifacts", lambda _root: [record])
-    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
-    monkeypatch.setattr(claim_checks, "_read_claimed_issues", lambda _beads_dir: [])
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert holders == ["bead_claim_checks:sase"]
-    assert lock_entries == []
-    commit.assert_not_called()
-    publish.assert_not_called()
-    assert result.reason == "no_claims_reconciled"
-    assert _tombstone_path(tmp_path).exists()
-
-
-def test_failed_snapshot_still_applies_acquisitions_under_the_same_lease(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project = MagicMock()
-    project.claim_for_agent_wait.return_value = (
-        _claimed_issue(bead_id="sase-1.2", assignee="live.1"),
-        True,
-    )
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch, tmp_path, project=project
-    )
-    dead = _artifact(tmp_path, name="dead.1", bead_id="sase-1.1")
-    live = _artifact(
-        tmp_path,
-        name="live.1",
-        bead_id="sase-1.2",
-        has_marker=False,
-        timestamp="20260724120001",
-    )
-    monkeypatch.setattr(
-        claim_checks,
-        "_scan_claim_artifacts",
-        lambda _root: [dead, live],
-    )
-    monkeypatch.setattr(
-        claim_checks,
-        "_claim_owner_is_alive",
-        lambda record: record.agent_name == "live.1",
-    )
-
-    def unreadable(_beads_dir: Path) -> list[Issue]:
-        raise RuntimeError("store is broken")
-
-    monkeypatch.setattr(claim_checks, "_read_claimed_issues", unreadable)
-    monkeypatch.setattr(
-        claim_checks,
-        "write_bead_claim_marker",
-        lambda *_args, **_kwargs: True,
-    )
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert holders == ["bead_claim_checks:sase"]
-    assert lock_entries == [tmp_path / "beads"]
-    commit.assert_called_once()
-    publish.assert_called_once()
-    project.release_agent_claim.assert_not_called()
-    project.claim_for_agent_wait.assert_called_once_with("sase-1.2", "live.1")
-    assert result.counters["claims_acquired"] == 1
-    assert result.counters["claims_released"] == 0
-    assert not _tombstone_path(tmp_path).exists()
-
-
-def test_two_projects_each_take_one_lease_and_isolate_failures(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    project = MagicMock()
-    project.release_agent_claim.return_value = (
-        _claimed_issue(bead_id="beta-1.1", assignee="beta-1.1"),
-        True,
-    )
-    holders, lock_entries, commit, publish = _install_leased_apply(
-        monkeypatch,
-        tmp_path,
-        project=project,
-        fail_projects=frozenset({"alpha"}),
-    )
-    alpha = _artifact(
-        tmp_path,
-        name="alpha-1.1",
-        bead_id="alpha-1.1",
-        project_name="alpha",
-        timestamp="20260724120000",
-    )
-    beta = _artifact(
-        tmp_path,
-        name="beta-1.1",
-        bead_id="beta-1.1",
-        project_name="beta",
-        timestamp="20260724120001",
-    )
-    monkeypatch.setattr(
-        claim_checks,
-        "_scan_claim_artifacts",
-        lambda _root: [alpha, beta],
-    )
-    monkeypatch.setattr(claim_checks, "_claim_owner_is_alive", lambda _record: False)
-    monkeypatch.setattr(
-        claim_checks,
-        "_read_claimed_issues",
-        lambda _beads_dir: [_claimed_issue(bead_id="beta-1.1", assignee="beta-1.1")],
-    )
-
-    result = claim_checks._run(_runtime(tmp_path))
-
-    assert holders == ["bead_claim_checks:alpha", "bead_claim_checks:beta"]
-    assert lock_entries == [tmp_path / "beads"]
-    commit.assert_called_once()
-    publish.assert_called_once_with(tmp_path / "beads", "reconciliation", "beta")
-    assert result.counters["claims_released"] == 1
-    assert not _tombstone_path(tmp_path, "20260724120000").exists()
-    assert _tombstone_path(tmp_path, "20260724120001").exists()
