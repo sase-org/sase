@@ -37,16 +37,33 @@ def prepare_selected_bead_work_force_reuse(
             f"{sorted(selection.launch_names)}; aborting forced reuse cleanup"
         )
 
-    for target in selection.destructive_targets:
+    # Verify every destructive target before wiping any of them: a stale
+    # target discovered mid-loop must not leave earlier targets already
+    # wiped with nothing relaunched in their place.
+    destructive_targets = selection.destructive_targets
+    for target in destructive_targets:
         _verify_cleanup_target_still_selected(
             target,
             selection=selection,
             bead_assignees=bead_assignees,
         )
-        if target.action == "RELEASE":
-            _release_selected_stale_container(target)
-            continue
-        wipe_force_reuse_owner(target.name, allow_container_skip=False)
+
+    wiped_names: list[str] = []
+    for target in destructive_targets:
+        try:
+            if target.action == "RELEASE":
+                _release_selected_stale_container(target)
+            else:
+                wipe_force_reuse_owner(target.name, allow_container_skip=False)
+        except ForcedReuseCleanupError as exc:
+            if not wiped_names:
+                raise
+            raise ForcedReuseCleanupError(
+                f"{exc}; bead-work cleanup already wiped "
+                f"{', '.join(wiped_names)} before this failure, so the epic "
+                "now has no live agent for those owners until this is rerun"
+            ) from exc
+        wiped_names.append(target.name)
     return rewrite_force_reuse_name_directives(query)
 
 
