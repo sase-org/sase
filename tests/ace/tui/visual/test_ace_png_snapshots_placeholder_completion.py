@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionMetadata,
+    PlaceholderRankingMetadata,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -29,13 +30,36 @@ pytestmark = pytest.mark.visual
 def _candidate(
     text: str,
     source: Literal["prompt", "common"] = "prompt",
+    *,
+    reason: str = "",
+    related_to: str = "",
+    use_count: int = 0,
+    age_seconds: float = 0.0,
+    score: float = 0.0,
+    relation: float = 0.0,
+    recency: float = 0.0,
+    frequency: float = 0.0,
 ) -> CompletionCandidate:
+    ranking = (
+        PlaceholderRankingMetadata(
+            reason=reason,
+            related_to=related_to,
+            use_count=use_count,
+            age_seconds=age_seconds,
+            score=score,
+            relation=relation,
+            recency=recency,
+            frequency=frequency,
+        )
+        if source == "common" and reason
+        else None
+    )
     return CompletionCandidate(
         display=text,
         insertion=text,
         is_dir=False,
         name=text,
-        metadata=PlaceholderCompletionMetadata(source=source),
+        metadata=PlaceholderCompletionMetadata(source=source, ranking=ranking),
     )
 
 
@@ -104,8 +128,29 @@ async def test_common_placeholder_completion_panel_png_snapshot(
             [
                 _candidate("release note"),
                 _candidate("release owner"),
-                _candidate("release checklist", "common"),
-                _candidate("release risks", "common"),
+                _candidate(
+                    "release checklist",
+                    "common",
+                    reason="relation",
+                    related_to="release",
+                    use_count=9,
+                    age_seconds=10800,
+                    score=0.62,
+                    relation=0.42,
+                    recency=0.12,
+                    frequency=0.08,
+                ),
+                _candidate(
+                    "release risks",
+                    "common",
+                    reason="frequency",
+                    use_count=21,
+                    age_seconds=604800,
+                    score=0.30,
+                    relation=0.0,
+                    recency=0.02,
+                    frequency=0.28,
+                ),
             ],
             selected_index=2,
             completion_kind=PLACEHOLDER_COMPLETION_KIND,

@@ -4682,18 +4682,36 @@ token under the cursor:
   current-prompt group, live tags keep document order and literal-zone tags follow in
   document order. Current-prompt rows use the cyan `<>` badge; saved rows use the gold
   `◆` badge. ACE retains up to `ace.prompt_completion.common_placeholder_count` saved
-  placeholders, ranked by use count and recency. Automatic completion stays quiet for a
-  bare `<` and adds saved placeholders only after you type at least one prefix
-  character; manual `Ctrl+T` on a bare `<` shows the saved list explicitly. A lone match
-  in the highest-priority group is inserted outright, so saved tags never suppress
-  direct insertion of a lone current-prompt match. Set `common_placeholder_count: 0` to
-  disable saving and display of common placeholders. In the completion panel, `Ctrl+D`
-  deletes the highlighted saved (`◆`) placeholder from the store; current-prompt (`<>`)
-  rows are not deletable. By default, submitting from ACE opens **Fill in this prompt**
-  and asks once for each distinct live tag before launch; `Ctrl+L` can keep a tag
-  literal. Saving a new xprompt converts the same live tags to typed inputs.
-  Inline-code, fenced-code, and disabled-region tags stay literal in both paths; see
+  placeholders. Automatic completion stays quiet for a bare `<` and adds saved
+  placeholders only after you type at least one prefix character; manual `Ctrl+T` on a
+  bare `<` shows the saved list explicitly. A lone match in the highest-priority group
+  is inserted outright, so saved tags never suppress direct insertion of a lone
+  current-prompt match. Set `common_placeholder_count: 0` to disable saving and display
+  of common placeholders. In the completion panel, `Ctrl+D` deletes the highlighted
+  saved (`◆`) placeholder from the store; current-prompt (`<>`) rows are not deletable.
+  By default, submitting from ACE opens **Fill in this prompt** and asks once for each
+  distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new xprompt
+  converts the same live tags to typed inputs. Inline-code, fenced-code, and
+  disabled-region tags stay literal in both paths; see
   [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
+
+  By default (`ace.prompt_completion.placeholder_ranking: smart`) saved rows are ranked
+  by the same weighted composite the history-word menu uses: how strongly a tag relates
+  to the words and tags already in the prompt (weight `0.50`), how recently it was used
+  (`0.30`), and how often it has been used (`0.20`). Each saved row shows the same
+  5-cell stacked score meter and dominant-reason chip as history words —
+  `⇄ <tag or word>` for relation, `◷ <age>` for recency, or `✦ <count>×` for frequency —
+  with the current-prompt and saved groups aligned on one shared label column. The
+  panel's border subtitle adds a matching `⇄ related · ◷ recent · ✦ frequent` legend
+  alongside the `<> prompt   ◆ saved` source legend when both are visible; a narrowing
+  panel drops the source legend first (the badges are already visible in the rows), then
+  the signal legend, leaving today's subtitle, and finally just the `[^D] delete` hint.
+  The meter and chip degrade the same way on individual rows too narrow to fit them —
+  the chip is dropped first, then the meter. Set `placeholder_ranking: recent` to
+  restore the previous most-recent-use ordering with no signal column, or
+  `placeholder_ranking_signals: false` to keep smart ranking but hide the meter, chip,
+  and legend.
+
 - **File path completion**: When the cursor is on a path-like token (starting with `/`,
   `./`, `../`, `~/`, or containing `/`), completion shows matching filesystem entries.
   Tokens starting with `@` are also recognized — the `@` prefix is preserved in the

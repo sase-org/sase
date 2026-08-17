@@ -30,6 +30,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     artifact_ref_kind_label_width,
     history_word_label_width,
     model_completion_column_widths,
+    placeholder_label_width,
     vcs_project_label_width,
     vcs_ref_label_width,
     vcs_repo_label_width,
@@ -51,6 +52,7 @@ class _RowLayout:
     model: tuple[int, int]
     artifact_kind: int
     history_word: int
+    placeholder: int
     tribe_colors: dict[str, str] | None
 
 
@@ -65,6 +67,7 @@ def build_completion_panel_content(
     group_directory: str,
     inner_width: int,
     word_ranking_signals: bool = True,
+    placeholder_ranking_signals: bool = True,
 ) -> Text:
     """Render the panel body for the *visible* slice of a completion menu.
 
@@ -80,6 +83,8 @@ def build_completion_panel_content(
         inner_width: Content width available inside the panel border.
         word_ranking_signals: Whether history-word rows render their score
             meter and reason chip.
+        placeholder_ranking_signals: Whether saved placeholder rows render
+            their score meter and reason chip.
     """
     layout = _row_layout(kinds, visible)
     content = Text()
@@ -110,6 +115,7 @@ def build_completion_panel_content(
             layout=layout,
             inner_width=inner_width,
             word_ranking_signals=word_ranking_signals,
+            placeholder_ranking_signals=placeholder_ranking_signals,
         )
 
         if i < len(visible) - 1:
@@ -143,6 +149,9 @@ def _row_layout(
         ),
         history_word=_max_label_width(
             visible, history_word_label_width, kinds.history_word
+        ),
+        placeholder=_max_label_width(
+            visible, placeholder_label_width, kinds.placeholder
         ),
         tribe_colors=_tribe_colors(kinds, visible),
     )
@@ -186,6 +195,7 @@ def _append_candidate_row(
     layout: _RowLayout,
     inner_width: int,
     word_ranking_signals: bool = True,
+    placeholder_ranking_signals: bool = True,
 ) -> None:
     """Append the provider-specific rendering of a single candidate."""
     if kinds.xprompt:
@@ -244,7 +254,14 @@ def _append_candidate_row(
     elif kinds.jinja:
         append_jinja_completion_row(content, candidate, is_selected)
     elif kinds.placeholder:
-        append_placeholder_completion_row(content, candidate, is_selected)
+        append_placeholder_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.placeholder,
+            inner_width=inner_width,
+            signals_enabled=placeholder_ranking_signals,
+        )
     elif kinds.prompt_word:
         append_prompt_word_completion_row(content, candidate, is_selected)
     elif kinds.history_word:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
@@ -28,6 +29,7 @@ from sase.ace.tui.widgets.history_word_completion import (
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionMetadata,
+    PlaceholderRankingMetadata,
 )
 
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
@@ -302,6 +304,52 @@ def history_word_completion_subtitle(
     if inner_width > 0 and legend.cell_len > inner_width:
         return plain_hint
     return legend
+
+
+def placeholder_completion_subtitle(
+    visible: list[CompletionCandidate],
+    inner_width: int,
+) -> Text | str:
+    """Return the placeholder panel's border subtitle, width-ladder ranked.
+
+    Widest to narrowest: the source legend plus the ranking-signal legend
+    plus the delete hint; the ranking-signal legend alone (the badges
+    already appear in the rows, so the source legend is the first thing
+    dropped) plus the delete hint; today's plain subtitle (the source
+    legend, when both groups are visible, plus the delete hint) with no
+    signal legend; and the delete hint alone. The source legend only
+    appears when both groups are visible, and the signal legend only when
+    some visible row carries ranking metadata.
+    """
+    delete_hint = "[^D] delete"
+    has_source_legend = _visible_placeholder_sources(visible) == {"prompt", "common"}
+    has_signal_legend = any(
+        isinstance(candidate.metadata, PlaceholderCompletionMetadata)
+        and isinstance(candidate.metadata.ranking, PlaceholderRankingMetadata)
+        for candidate in visible
+    )
+
+    rungs: list[Text | str] = []
+    if has_source_legend and has_signal_legend:
+        combined = Text(_PLACEHOLDER_SOURCE_LEGEND, no_wrap=True)
+        combined.append("  ")
+        combined.append_text(ranking_signal_legend())
+        combined.append("  ", style="dim")
+        combined.append(delete_hint, style="dim")
+        rungs.append(combined)
+    if has_signal_legend:
+        signal_only = ranking_signal_legend()
+        signal_only.append("  ", style="dim")
+        signal_only.append(delete_hint, style="dim")
+        rungs.append(signal_only)
+    rungs.append(completion_delete_subtitle(PLACEHOLDER_COMPLETION_KIND, visible))
+    rungs.append(delete_hint)
+
+    for rung in rungs:
+        width = rung.cell_len if isinstance(rung, Text) else cell_len(rung)
+        if inner_width <= 0 or width <= inner_width:
+            return rung
+    return delete_hint
 
 
 def completion_delete_subtitle(

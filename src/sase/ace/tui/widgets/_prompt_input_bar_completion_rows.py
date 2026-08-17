@@ -29,6 +29,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
     append_placeholder_completion_row,
     append_prompt_word_completion_row,
     append_xprompt_completion_row,
+    placeholder_label_width,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_vcs import (
     append_vcs_project_completion_row,
@@ -59,6 +60,7 @@ __all__ = [
     "history_word_label_width",
     "is_agent_completion_candidate",
     "model_completion_column_widths",
+    "placeholder_label_width",
     "vcs_project_label_width",
     "vcs_ref_label_width",
     "vcs_repo_label_width",

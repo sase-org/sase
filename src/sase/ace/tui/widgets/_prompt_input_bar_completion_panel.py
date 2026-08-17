@@ -33,6 +33,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     completion_panel_title,
     history_word_completion_subtitle,
     model_completion_subtitle,
+    placeholder_completion_subtitle,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -114,6 +115,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         artifact_ref_truncated_payloads: int = 0,
         artifact_ref_files_suppressed: bool = False,
         word_ranking_signals: bool = True,
+        placeholder_ranking_signals: bool = True,
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -128,6 +130,9 @@ class PromptInputBarCompletionMixin(_MixinBase):
             group_directory: Resolved directory named by an ``@`` group rule.
             word_ranking_signals: Whether smart-ranked history-word rows show
                 their score meter, reason chip, and legend.
+            placeholder_ranking_signals: Whether smart-ranked saved
+                placeholder rows show their score meter, reason chip, and
+                legend.
         """
         panel = self._completion_panel()
         if panel is None:
@@ -155,6 +160,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
             group_directory=group_directory,
             inner_width=panel_inner_width,
             word_ranking_signals=word_ranking_signals,
+            placeholder_ranking_signals=placeholder_ranking_signals,
         )
 
         panel.border_title = completion_panel_title(
@@ -167,6 +173,11 @@ class PromptInputBarCompletionMixin(_MixinBase):
         delete_subtitle = completion_delete_subtitle(completion_kind, visible)
         if kinds.history_word and word_ranking_signals:
             panel.border_subtitle = history_word_completion_subtitle(
+                visible,
+                panel_inner_width,
+            )
+        elif kinds.placeholder and placeholder_ranking_signals:
+            panel.border_subtitle = placeholder_completion_subtitle(
                 visible,
                 panel_inner_width,
             )
