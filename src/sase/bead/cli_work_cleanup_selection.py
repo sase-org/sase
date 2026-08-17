@@ -100,22 +100,39 @@ def select_bead_work_launch(
     targets: list[CleanupTarget] = []
     owner_present_by_slot: dict[str, int] = {}
     preserved_slots: set[str] = set()
+    blocked_slots: set[str] = set()
 
     for slot in slots:
         owner = lookup_registered_name(slot.owner_name)
         if owner is None:
             continue
-        classified = classify_slot_owner(
-            slot,
-            owner,
-            bead_assignees=bead_assignees,
-            view=view,
-        )
+        try:
+            classified = classify_slot_owner(
+                slot,
+                owner,
+                bead_assignees=bead_assignees,
+                view=view,
+            )
+        except ForcedReuseCleanupError as exc:
+            classified = (
+                CleanupTarget(
+                    name=slot.owner_name,
+                    action="BLOCKED",
+                    current_state="blocked",
+                    detail=str(exc),
+                    expected_bead_id=slot.expected_bead_id,
+                    slot_id=slot.slot_id,
+                ),
+            )
         if classified is None:
             continue
         owner_present_by_slot[slot.slot_id] = (
             owner_present_by_slot.get(slot.slot_id, 0) + 1
         )
+        if any(target.blocked for target in classified):
+            blocked_slots.add(slot.slot_id)
+            targets.extend(target for target in classified if not target.destructive)
+            continue
         targets.extend(classified)
         if any(target.preserved for target in classified):
             preserved_slots.add(slot.slot_id)
@@ -135,7 +152,7 @@ def select_bead_work_launch(
         if slot.slot_id in seen_slot_ids:
             continue
         seen_slot_ids.add(slot.slot_id)
-        if slot.slot_id in preserved_slots:
+        if slot.slot_id in preserved_slots or slot.slot_id in blocked_slots:
             continue
         if slot.launch_name is not None:
             launch_names.add(slot.launch_name)

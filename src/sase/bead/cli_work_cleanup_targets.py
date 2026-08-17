@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sase.bead.cli_work_cleanup_types import (
     BeadWorkSlot,
@@ -16,6 +16,8 @@ from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 if TYPE_CHECKING:
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
+
+type _OwnerMembership = Literal["registry", "family", "clan"]
 
 
 @dataclass(frozen=True)
@@ -115,6 +117,8 @@ def classify_slot_owner(
             record,
             owner_name=slot.owner_name,
             bead_assignees=bead_assignees,
+            membership="registry",
+            identity=view.identity,
         ),
     )
 
@@ -151,17 +155,35 @@ def _classify_family_owner(
             ),
         )
 
-    member_targets = tuple(
-        _classify_artifact_record(
-            slot,
-            member,
-            owner_name=_record_agent_name(member) or slot.owner_name,
-            bead_assignees=bead_assignees,
-        )
-        for member in members
-    )
-    if any(target.preserved for target in member_targets):
-        preserved = next(target for target in member_targets if target.preserved)
+    member_targets: list[CleanupTarget] = []
+    for member in members:
+        owner_name = _record_agent_name(member) or slot.owner_name
+        try:
+            member_targets.append(
+                _classify_artifact_record(
+                    slot,
+                    member,
+                    owner_name=owner_name,
+                    bead_assignees=bead_assignees,
+                    membership="family",
+                    identity=view.identity,
+                )
+            )
+        except ForcedReuseCleanupError as exc:
+            member_targets.append(
+                _blocked_target(
+                    slot,
+                    owner_name=owner_name,
+                    detail=str(exc),
+                    artifacts_dir=str(getattr(member, "artifact_dir", "")),
+                    generation=str(getattr(member, "timestamp", "")),
+                )
+            )
+    classified = tuple(member_targets)
+    if any(target.blocked for target in classified):
+        return classified
+    if any(target.preserved for target in classified):
+        preserved = next(target for target in classified if target.preserved)
         return (
             CleanupTarget(
                 name=slot.owner_name,
@@ -174,7 +196,7 @@ def _classify_family_owner(
                 generation=preserved.generation,
             ),
         )
-    return member_targets
+    return classified
 
 
 def _classify_clan_owner(
@@ -213,16 +235,35 @@ def _classify_artifact_record(
     *,
     owner_name: str,
     bead_assignees: dict[str, str],
+    membership: _OwnerMembership,
+    identity: AgentIdentitySnapshot,
 ) -> CleanupTarget:
-    _require_record_bead(slot, record, owner_name=owner_name)
+    _require_record_association(
+        slot,
+        record,
+        owner_name=owner_name,
+        membership=membership,
+        identity=identity,
+    )
     _require_compatible_assignee(
         slot,
         owner_name=owner_name,
         bead_assignees=bead_assignees,
     )
 
-    current_state = _record_current_state(record)
+    try:
+        current_state = _record_current_state(record)
+    except ForcedReuseCleanupError:
+        raise ForcedReuseCleanupError(
+            f"agent owner '{owner_name}' at {record.artifact_dir} has unknown "
+            f"live state via {_membership_via(membership, slot)}"
+        ) from None
     detail = f"for bead {slot.expected_bead_id} at {record.artifact_dir}"
+    if not _record_bead_ids(record):
+        if membership in {"family", "clan"}:
+            detail += f" (no bead metadata; matched by {membership} membership)"
+        else:
+            detail += " (no bead metadata; matched by registry owner name)"
     generation = str(getattr(record, "timestamp", ""))
     artifacts_dir = str(getattr(record, "artifact_dir", ""))
     if current_state == "WAITING":
@@ -301,19 +342,67 @@ def _record_bead_ids(record: AgentArtifactRecordWire) -> set[str]:
     }
 
 
-def _require_record_bead(
+def _bead_ids_related(left: str, right: str) -> bool:
+    return left == right or left.startswith(f"{right}.") or right.startswith(f"{left}.")
+
+
+def _membership_via(membership: _OwnerMembership, slot: BeadWorkSlot) -> str:
+    if membership == "family":
+        return f"family {slot.owner_name}"
+    if membership == "clan":
+        return f"clan {slot.owner_name}"
+    return f"registry owner {slot.owner_name}"
+
+
+def _blocked_target(
+    slot: BeadWorkSlot,
+    *,
+    owner_name: str,
+    detail: str,
+    artifacts_dir: str = "",
+    generation: str = "",
+) -> CleanupTarget:
+    return CleanupTarget(
+        name=owner_name,
+        action="BLOCKED",
+        current_state="blocked",
+        detail=detail,
+        expected_bead_id=slot.expected_bead_id,
+        slot_id=slot.slot_id,
+        artifacts_dir=artifacts_dir,
+        generation=generation,
+    )
+
+
+def _require_record_association(
     slot: BeadWorkSlot,
     record: AgentArtifactRecordWire,
     *,
     owner_name: str,
+    membership: _OwnerMembership,
+    identity: AgentIdentitySnapshot,
 ) -> None:
     bead_ids = _record_bead_ids(record)
     if slot.expected_bead_id in bead_ids:
         return
+    if any(_bead_ids_related(observed, slot.expected_bead_id) for observed in bead_ids):
+        return
+    if not bead_ids:
+        if membership in {"family", "clan"}:
+            return
+        from sase.core.agent_identity_facade import current_owner_agent_name_key
+
+        record_name = _record_agent_name(record)
+        if record_name and current_owner_agent_name_key(
+            record_name, identity
+        ) == current_owner_agent_name_key(owner_name, identity):
+            return
     observed = ", ".join(sorted(bead_ids)) or "none"
+    artifact = str(getattr(record, "artifact_dir", "")) or "unknown artifact directory"
     raise ForcedReuseCleanupError(
         f"agent owner '{owner_name}' is not associated with expected bead "
-        f"{slot.expected_bead_id}; observed bead association(s): {observed}"
+        f"{slot.expected_bead_id}; observed bead association(s): {observed}; "
+        f"artifact {artifact} via {_membership_via(membership, slot)}"
     )
 
 

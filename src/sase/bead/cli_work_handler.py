@@ -20,6 +20,7 @@ from sase.bead.cli_work_cleanup import (
     revalidate_bead_work_launch_selection,
     rollback_work_launch,
 )
+from sase.bead.cli_work_cleanup_types import format_blocked_cleanup_error
 from sase.bead.cli_work_commit import (
     EpicLaunchCheckpointError,
     checkpoint_epic_work_launch,
@@ -35,6 +36,7 @@ from sase.bead.cli_work_plan import (
     confirm_launch,
     expected_agent_names,
     print_work_plan_summary,
+    render_blocked_launch_warning,
     render_cleanup_preview,
 )
 from sase.bead.cli_work_plan_snapshot import (
@@ -274,6 +276,7 @@ def launch_epic_bead_work(
 
     if dry_run:
         render_cleanup_preview(epic_id, preview)
+        render_blocked_launch_warning(len(selection.blocked_targets))
         dry_query = render_multi_prompt(
             plan,
             work_phase_xprompt=work_phase_xprompt,
@@ -291,6 +294,10 @@ def launch_epic_bead_work(
             launched_agent_names=_ordered_selected_names(plan, selection.launch_names),
             preserved_agent_names=selection.preserved_names,
         )
+
+    if selection.blocked_targets:
+        render_cleanup_preview(epic_id, preview)
+        raise BeadWorkError(format_blocked_cleanup_error(selection.blocked_targets))
 
     if preview.has_destructive_targets:
         render_cleanup_preview(epic_id, preview)

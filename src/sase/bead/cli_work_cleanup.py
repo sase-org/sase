@@ -26,6 +26,9 @@ from sase.bead.cli_work_cleanup_types import BeadWorkSlot as BeadWorkSlot
 from sase.bead.cli_work_cleanup_types import CleanupAction as CleanupAction
 from sase.bead.cli_work_cleanup_types import CleanupPreview as CleanupPreview
 from sase.bead.cli_work_cleanup_types import CleanupTarget as CleanupTarget
+from sase.bead.cli_work_cleanup_types import (
+    format_blocked_cleanup_error as format_blocked_cleanup_error,
+)
 from sase.bead.cli_work_name_cleanup import (
     ForcedReuseCleanupError as ForcedReuseCleanupError,
 )
@@ -227,6 +230,7 @@ __all__ = [
     "CleanupPreview",
     "CleanupTarget",
     "ForcedReuseCleanupError",
+    "format_blocked_cleanup_error",
     "prepare_selected_bead_work_force_reuse",
     "preview_bead_work_force_reuse",
     "preview_bead_work_launch_selection",

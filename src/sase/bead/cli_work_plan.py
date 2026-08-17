@@ -92,7 +92,13 @@ def render_cleanup_preview(epic_id: str, preview: CleanupPreview) -> None:
         f"\nExisting agents for epic {epic_id}:",
         file=sys.stderr,
     )
-    action_order = {"PRESERVE": 0, "KILL": 1, "REMOVE": 2, "RELEASE": 3}
+    action_order = {
+        "BLOCKED": 0,
+        "PRESERVE": 1,
+        "KILL": 2,
+        "REMOVE": 3,
+        "RELEASE": 4,
+    }
     for target in sorted(
         preview.targets,
         key=lambda item: (action_order[item.action], item.name),
@@ -113,7 +119,13 @@ def render_task_cleanup_preview(task_id: str, preview: CleanupPreview) -> None:
         f"\nExisting agent for task {task_id}:",
         file=sys.stderr,
     )
-    action_order = {"PRESERVE": 0, "KILL": 1, "REMOVE": 2, "RELEASE": 3}
+    action_order = {
+        "BLOCKED": 0,
+        "PRESERVE": 1,
+        "KILL": 2,
+        "REMOVE": 3,
+        "RELEASE": 4,
+    }
     for target in sorted(
         preview.targets,
         key=lambda item: (action_order[item.action], item.name),
@@ -124,6 +136,17 @@ def render_task_cleanup_preview(task_id: str, preview: CleanupPreview) -> None:
             f"{target.name}{bead}  {target.detail}",
             file=sys.stderr,
         )
+
+
+def render_blocked_launch_warning(blocked_count: int) -> None:
+    """Print how many blockers would abort a real launch."""
+    if blocked_count <= 0:
+        return
+    noun = "blocker" if blocked_count == 1 else "blockers"
+    print(
+        f"{blocked_count} {noun} would abort a real launch.",
+        file=sys.stderr,
+    )
 
 
 def _confirm(prompt: str) -> bool | None:

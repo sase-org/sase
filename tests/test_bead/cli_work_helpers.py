@@ -123,7 +123,7 @@ def write_bead_agent_meta(
     home: Path,
     name: str,
     *,
-    bead_id: str,
+    bead_id: str | None = None,
     done: bool = False,
     waiting: bool = False,
     outcome: str = "failed",
@@ -147,13 +147,14 @@ def write_bead_agent_meta(
         "name": name,
         "pid": os.getpid(),
         "model": "test",
-        "bead_id": bead_id,
     }
-    if "." in bead_id:
-        meta["phase_bead_id"] = bead_id
-        meta["epic_bead_id"] = bead_id.rsplit(".", 1)[0]
-    else:
-        meta["epic_bead_id"] = bead_id
+    if bead_id is not None:
+        meta["bead_id"] = bead_id
+        if "." in bead_id:
+            meta["phase_bead_id"] = bead_id
+            meta["epic_bead_id"] = bead_id.rsplit(".", 1)[0]
+        else:
+            meta["epic_bead_id"] = bead_id
     if agent_family:
         meta["agent_family"] = agent_family
     if agent_family_role:

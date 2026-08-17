@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
 
-type CleanupAction = Literal["PRESERVE", "KILL", "REMOVE", "RELEASE"]
+type CleanupAction = Literal["BLOCKED", "PRESERVE", "KILL", "REMOVE", "RELEASE"]
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,10 @@ class CleanupTarget:
     def preserved(self) -> bool:
         return self.action == "PRESERVE"
 
+    @property
+    def blocked(self) -> bool:
+        return self.action == "BLOCKED"
+
 
 @dataclass(frozen=True)
 class BeadWorkLaunchSelection:
@@ -59,8 +64,22 @@ class BeadWorkLaunchSelection:
         return tuple(target.name for target in self.targets if target.preserved)
 
     @property
+    def blocked_targets(self) -> tuple[CleanupTarget, ...]:
+        return tuple(target for target in self.targets if target.blocked)
+
+    @property
     def has_launches(self) -> bool:
         return bool(self.launch_names)
+
+
+def format_blocked_cleanup_error(blocked_targets: Sequence[CleanupTarget]) -> str:
+    """Aggregate every blocker reason plus a concrete next step."""
+    reasons = "\n".join(target.detail for target in blocked_targets)
+    return (
+        f"{reasons}\n"
+        "Rerun with --dry-run to review the full cleanup preview. "
+        "Dismiss the listed agent(s) in sase ace before retrying."
+    )
 
 
 @dataclass(frozen=True)

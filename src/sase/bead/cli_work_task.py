@@ -17,6 +17,7 @@ from sase.bead.cli_work_cleanup import (
     revalidate_bead_work_launch_selection,
     rollback_task_work_launch,
 )
+from sase.bead.cli_work_cleanup_types import format_blocked_cleanup_error
 from sase.bead.cli_work_commit import (
     TaskLaunchCheckpointError,
     checkpoint_task_work_launch,
@@ -27,6 +28,7 @@ from sase.bead.cli_work_plan import (
     confirm_cleanup,
     confirm_launch,
     print_task_work_summary,
+    render_blocked_launch_warning,
     render_task_cleanup_preview,
 )
 from sase.bead.model import IssueType, Status
@@ -179,6 +181,7 @@ def launch_task_bead_work(
 
     if dry_run:
         render_task_cleanup_preview(task_id, preview)
+        render_blocked_launch_warning(len(selection.blocked_targets))
         print("\n--- Task prompt (dry run) ---")
         print(query if selection.has_launches else "")
         return TaskWorkResult(
@@ -188,6 +191,10 @@ def launch_task_bead_work(
             else task_id,
             launch_state="dry_run",
         )
+
+    if selection.blocked_targets:
+        render_task_cleanup_preview(task_id, preview)
+        raise TaskBeadWorkError(format_blocked_cleanup_error(selection.blocked_targets))
 
     if preview.has_destructive_targets:
         render_task_cleanup_preview(task_id, preview)

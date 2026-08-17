@@ -8,6 +8,7 @@ from sase.bead.cli_work_cleanup_selection import select_bead_work_launch
 from sase.bead.cli_work_cleanup_types import (
     BeadWorkLaunchSelection,
     CleanupTarget,
+    format_blocked_cleanup_error,
 )
 from sase.bead.cli_work_name_cleanup import (
     ForcedReuseCleanupError,
@@ -35,6 +36,11 @@ def prepare_selected_bead_work_force_reuse(
             "rendered bead-work prompt force-reuse names "
             f"{sorted(directive_names)} do not match the selected launch names "
             f"{sorted(selection.launch_names)}; aborting forced reuse cleanup"
+        )
+
+    if selection.blocked_targets:
+        raise ForcedReuseCleanupError(
+            format_blocked_cleanup_error(selection.blocked_targets)
         )
 
     # Verify every destructive target before wiping any of them: a stale
@@ -77,6 +83,10 @@ def revalidate_bead_work_launch_selection(
         slots=previous.slots,
         bead_assignees=bead_assignees,
     )
+    if current.blocked_targets:
+        raise ForcedReuseCleanupError(
+            format_blocked_cleanup_error(current.blocked_targets)
+        )
 
     previous_targets = {
         _target_stability_key(target): target for target in previous.targets
