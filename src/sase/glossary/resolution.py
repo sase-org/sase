@@ -154,11 +154,6 @@ def normalize_glossary_reference(value: str) -> str:
     return _SEPARATOR_RE.sub(" ", value.casefold()).strip()
 
 
-def lookup_glossary_entry(catalog: GlossaryCatalog, reference: str) -> GlossaryEntry:
-    """Resolve a user- or agent-supplied reference to one catalog entry."""
-    return _LookupIndex(catalog).lookup(reference)
-
-
 def resolve_glossary_closure(
     catalog: GlossaryCatalog,
     compiled: CompiledGlossaryCatalog | None,
@@ -299,7 +294,6 @@ __all__ = [
     "GlossaryClosureNode",
     "GlossaryLookupError",
     "GlossaryReferrer",
-    "lookup_glossary_entry",
     "normalize_glossary_reference",
     "resolve_glossary_closure",
 ]

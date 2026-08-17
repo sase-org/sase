@@ -17,7 +17,11 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.cli_show_palette import SECTION_COLOR
-from sase.glossary.resolution import GlossaryClosure, GlossaryClosureNode
+from sase.glossary.resolution import (
+    GlossaryClosure,
+    GlossaryClosureNode,
+    GlossaryReferrer,
+)
 
 GlossaryShowFormat = Literal["json", "markdown", "rich"]
 
@@ -250,11 +254,15 @@ def _node_json(node: GlossaryClosureNode) -> dict[str, object]:
         "definition": node.entry.definition,
         "depth": node.depth,
         "origin": node.origin,
-        "referrer": None
-        if node.referrer is None
-        else {"term": node.referrer.term, "matched_text": node.referrer.matched_text},
+        "referrer": _referrer_json(node.referrer),
         "also_referenced_by": list(node.also_referenced_by),
     }
+
+
+def _referrer_json(referrer: GlossaryReferrer | None) -> dict[str, str] | None:
+    if referrer is None:
+        return None
+    return {"term": referrer.term, "matched_text": referrer.matched_text}
 
 
 __all__ = [

@@ -17,10 +17,14 @@ from sase.core.glossary_facade import (
 )
 from sase.glossary.resolution import (
     GlossaryLookupError,
-    lookup_glossary_entry,
     normalize_glossary_reference,
     resolve_glossary_closure,
 )
+
+
+def _lookup(catalog: GlossaryCatalog, reference: str) -> GlossaryEntry:
+    """Resolve one reference through the closure entry point callers use."""
+    return resolve_glossary_closure(catalog, None, (reference,), depth=0).roots[0]
 
 
 def test_normalize_glossary_reference_collapses_separators() -> None:
@@ -41,11 +45,11 @@ def test_lookup_resolves_alias_plural_prefix_and_slug_forms() -> None:
         _entry(2, "Sase Agent", effective=("Sase Agent", "agent")),
     )
 
-    assert lookup_glossary_entry(catalog, "hood").term == "Agent Hood"
-    assert lookup_glossary_entry(catalog, "Widget Boxes").term == "Widget Box"
-    assert lookup_glossary_entry(catalog, "widget b").term == "Widget Box"
-    assert lookup_glossary_entry(catalog, "agent-hood").term == "Agent Hood"
-    assert lookup_glossary_entry(catalog, "agent_hood").term == "Agent Hood"
+    assert _lookup(catalog, "hood").term == "Agent Hood"
+    assert _lookup(catalog, "Widget Boxes").term == "Widget Box"
+    assert _lookup(catalog, "widget b").term == "Widget Box"
+    assert _lookup(catalog, "agent-hood").term == "Agent Hood"
+    assert _lookup(catalog, "agent_hood").term == "Agent Hood"
 
 
 def test_lookup_unknown_and_ambiguous_references_include_candidates() -> None:
@@ -64,19 +68,19 @@ def test_lookup_unknown_and_ambiguous_references_include_candidates() -> None:
     with pytest.raises(
         GlossaryLookupError, match="did you mean: Widget Box"
     ) as unknown:
-        lookup_glossary_entry(catalog, "box")
+        _lookup(catalog, "box")
     assert unknown.value.reference == "box"
     assert unknown.value.candidates == ("Widget Box",)
 
     with pytest.raises(GlossaryLookupError, match="unknown glossary term: widget"):
-        lookup_glossary_entry(catalog, "widget")
+        _lookup(catalog, "widget")
 
     with pytest.raises(GlossaryLookupError) as missing:
-        lookup_glossary_entry(catalog, "xyzzy")
+        _lookup(catalog, "xyzzy")
     assert missing.value.candidates == ()
 
     with pytest.raises(GlossaryLookupError) as crowded:
-        lookup_glossary_entry(catalog, "foo")
+        _lookup(catalog, "foo")
     assert crowded.value.candidates == (
         "Alpha Foo",
         "Beta Foo",
@@ -250,8 +254,8 @@ def test_closure_uses_rust_matcher_for_plural_and_slug_roots() -> None:
     catalog = build_glossary_catalog(inputs)
     compiled = compile_glossary_catalog(inputs)
 
-    assert lookup_glossary_entry(catalog, "agent-hood").term == "Agent Hood"
-    assert lookup_glossary_entry(catalog, "widget boxes").term == "Widget Box"
+    assert _lookup(catalog, "agent-hood").term == "Agent Hood"
+    assert _lookup(catalog, "widget boxes").term == "Widget Box"
 
     closure = resolve_glossary_closure(catalog, compiled, ("agent_hood",))
     related = [node.entry.term for node in closure.nodes if node.origin == "related"]

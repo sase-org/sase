@@ -1181,12 +1181,14 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 
 Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: short`
 or `type: long` frontmatter is automatically an xprompt — no opt-in field is required. A
-note's filename remains its identity: `sase/memory/glossary.md` (or the home equivalent)
-is invoked as `#memory/glossary`. Nested files such as `sase/memory/assets/**` and
-`README.md` are never catalog entries.
+note's filename remains its identity: `sase/memory/sase_beads.md` (or the home
+equivalent) is invoked as `#memory/sase_beads`. Nested files such as
+`sase/memory/assets/**` and `README.md` are never catalog entries. Project glossary
+terms are not a memory note at all — they are fetched on demand with
+`sase glossary read`, so there is no `#memory/glossary` reference.
 
-The `memory/` reference segment is reserved. There is no bare `#glossary` alias for
-`#memory/glossary`, no `#memory/long/glossary` compatibility form, and an ordinary
+The `memory/` reference segment is reserved. There is no bare `#sase_beads` alias for
+`#memory/sase_beads`, no `#memory/long/sase_beads` compatibility form, and an ordinary
 xprompt, workflow, config entry, plugin, or skill that claims the `memory/` namespace is
 rejected with a load diagnostic rather than silently losing the collision.
 
