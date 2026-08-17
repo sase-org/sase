@@ -323,8 +323,11 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-o8.2(CommonPlaceholderIndex)" \
-        --epic-symbol "sase-o8.2(load_common_placeholder_index)" \
+        --epic-symbol "sase-o8.3(RankedPlaceholder)" \
+        --epic-symbol "sase-o8.3(build_placeholder_ranking_context)" \
+        --epic-symbol "sase-o8.3(rank_common_placeholders)" \
+        --epic-symbol "sase-o8.3(rank_recent_common_placeholders)" \
+        --epic-symbol "sase-o8.4(load_common_placeholder_index)" \
         --epic-symbol "sase-o9.2(monitor_row_agent_name)" \
         {{ args }}
 

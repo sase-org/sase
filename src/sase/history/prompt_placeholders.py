@@ -279,7 +279,7 @@ def seed_common_placeholders_from_history(limit: int) -> bool:
         return False
 
 
-def _prompt_context_tokens(
+def prompt_context_tokens(
     text: str,
     *,
     context_frequency: Mapping[str, int],
@@ -293,6 +293,8 @@ def _prompt_context_tokens(
     stopwords whose ``df / prompt_count`` exceeds ``CONTEXT_STOPWORD_RATIO``.
     The remainder is filled with the rarest prose tokens, ties broken by token
     text, up to ``CONTEXT_TOKENS_PER_PROMPT``.
+
+    Ranking queries use this same function so evidence and queries cannot drift.
     """
     tag_tokens = tuple(
         sorted(_tag_token(inner) for inner in _all_placeholder_texts(text))
@@ -313,6 +315,10 @@ def _prompt_context_tokens(
     remaining = CONTEXT_TOKENS_PER_PROMPT - len(tag_tokens)
     ranked = sorted(prose, key=lambda token: (context_frequency.get(token, 0), token))
     return tag_tokens + tuple(ranked[:remaining])
+
+
+# Recording and tests keep the private name; ranking imports the public one.
+_prompt_context_tokens = prompt_context_tokens
 
 
 def _seed_store_from_history() -> _PlaceholderStore:
