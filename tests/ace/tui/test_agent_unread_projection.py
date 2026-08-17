@@ -293,6 +293,35 @@ def test_cached_reconcile_patches_expanded_member_and_clan_ancestor() -> None:
     assert app.refresh_calls == []
 
 
+def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> None:
+    """A plan-family root's own notification key must reach its own row.
+
+    Regression: ``concrete_family_member_rows`` substitutes the root for its
+    concrete ``main`` workflow step when computing member counts, but that
+    step never owns a distinct completion notification -- the runner writes
+    completions under the root's own ``(cl_name, raw_suffix)``.
+    """
+    raw_suffix = "root-suffix"
+    root = make_agent(name="gh_sase-org__sase", status="DONE", raw_suffix=raw_suffix)
+    root.agent_family = "gh_sase-org__sase"
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    root.role_suffix = "--plan"
+    main_step = make_agent(name="main", status="DONE", raw_suffix=raw_suffix)
+    main_step.parent_timestamp = root.raw_suffix
+    main_step.parent_workflow = "ace-run"
+    main_step.step_type = "agent"
+    root.runtime_children = [main_step]
+    root.followup_agents = [main_step]
+    app = _ProjectionApp([root, main_step])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=root.cl_name, raw_suffix=root.raw_suffix)]
+    )
+
+    assert root.identity in app._unread_completed_agent_ids
+
+
 def test_poll_reconcile_prunes_absent_identity_but_not_fold_hidden_member() -> None:
     member = make_agent(name="research.done", status="DONE", raw_suffix="done")
     member.agent_clan = "research"

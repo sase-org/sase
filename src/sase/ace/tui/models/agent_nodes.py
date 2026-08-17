@@ -77,9 +77,31 @@ def _agent_node_owned_rows(agent: Agent) -> tuple[Agent, ...]:
     return (agent,)
 
 
+def _agent_node_completion_rows(
+    agent: Agent, owned_rows: Iterable[Agent] | None = None
+) -> tuple[Agent, ...]:
+    """Return rows whose completion notifications belong to *agent*.
+
+    A node always owns the notification written under its own
+    ``(cl_name, raw_suffix)``: the runner keys completions by the artifacts
+    directory the node row was loaded from. Rows the node subsumes for status
+    counting are additive, never a substitute -- ``concrete_family_member_rows``
+    deliberately swaps a plan-family root for its concrete ``main`` workflow
+    step, and step rows carry the step name as ``cl_name``.
+
+    Workflow step children are excluded: they always share their node's
+    ``raw_suffix`` and never own a distinct completion notification, so their
+    step-name keys only widen the ``(cl_name, None)`` match surface.
+    """
+    if owned_rows is None:
+        owned_rows = _agent_node_owned_rows(agent)
+    owned = tuple(row for row in owned_rows if not row.is_workflow_step_child)
+    return (agent, *owned)
+
+
 def agent_node_completion_keys(agent: Agent) -> tuple[AgentCompletionKey, ...]:
     """Return notification completion keys owned by one agent node."""
-    return _completion_keys_for_rows(_agent_node_owned_rows(agent) or (agent,))
+    return _completion_keys_for_rows(_agent_node_completion_rows(agent))
 
 
 def _completion_keys_for_rows(rows: Iterable[Agent]) -> tuple[AgentCompletionKey, ...]:
@@ -132,7 +154,9 @@ def agent_node_projection_index(
         projection = _AgentNodeProjection(
             node=agent,
             owned_rows=owned_tuple,
-            completion_keys=_completion_keys_for_rows(owned_tuple),
+            completion_keys=_completion_keys_for_rows(
+                _agent_node_completion_rows(agent, owned_tuple)
+            ),
         )
         projections.append(projection)
         by_node_identity[projection.identity] = projection

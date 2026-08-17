@@ -7,7 +7,12 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_nodes import is_agents_tab_agent_node
+from sase.ace.tui.models.agent_nodes import (
+    agent_node_completion_keys,
+    agent_node_projection_index,
+    is_agents_tab_agent_node,
+    projection_has_active_completion,
+)
 
 _START = datetime(2026, 8, 16, 12, 0, 0)
 
@@ -115,3 +120,81 @@ def test_family_container_detection_counts_as_agent_node_after_member_load() -> 
     assert root.is_family_container_row
     assert is_agents_tab_agent_node(root)
     assert not is_agents_tab_agent_node(child)
+
+
+def _plan_family_root_with_main_step_and_continuation() -> tuple[Agent, Agent, Agent]:
+    """Build the shape from the regression: a plan root whose ``main`` workflow
+    step shares the root's own ``raw_suffix``, plus a real continuation member.
+    """
+    root = _agent(
+        "gh_sase-org__sase",
+        agent_family="gh_sase-org__sase",
+        agent_family_role="root",
+        plan_chain_root=True,
+        role_suffix="--plan",
+    )
+    main_step = _agent(
+        "main",
+        raw_suffix=root.raw_suffix,
+        parent_timestamp=root.raw_suffix,
+        parent_workflow="ace-run",
+        step_type="agent",
+    )
+    continuation = _agent(
+        "gh_sase-org__sase--code",
+        parent_timestamp=root.raw_suffix,
+        agent_family="gh_sase-org__sase",
+        agent_family_role="code",
+    )
+    root.runtime_children = [main_step, continuation]
+    root.followup_agents = [main_step, continuation]
+    return root, main_step, continuation
+
+
+def test_plan_family_root_owns_its_key_not_its_main_step_key() -> None:
+    root, _, continuation = _plan_family_root_with_main_step_and_continuation()
+
+    keys = agent_node_completion_keys(root)
+
+    assert (root.cl_name, root.raw_suffix) in keys
+    assert (continuation.cl_name, continuation.raw_suffix) in keys
+    assert ("main", root.raw_suffix) not in keys
+
+
+def test_plan_family_root_projection_index_matches_its_own_key() -> None:
+    root, main_step, continuation = _plan_family_root_with_main_step_and_continuation()
+    index = agent_node_projection_index([root, main_step, continuation])
+    projection = index.by_node_identity[root.identity]
+    root_key = (root.cl_name, root.raw_suffix)
+
+    assert root_key in projection.completion_keys
+    assert projection_has_active_completion(projection, {root_key})
+
+
+def test_standalone_node_yields_exactly_one_completion_key() -> None:
+    solo = _agent("solo")
+
+    keys = agent_node_completion_keys(solo)
+
+    assert keys == ((solo.cl_name, solo.raw_suffix),)
+
+
+def test_sequential_family_container_owns_member_keys_and_its_own_key() -> None:
+    root = _agent(
+        "alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+    )
+    coder = _agent(
+        "alpha--code",
+        parent_timestamp=root.raw_suffix,
+        agent_family="alpha",
+        agent_family_role="code",
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+
+    keys = agent_node_completion_keys(root)
+
+    assert (root.cl_name, root.raw_suffix) in keys
+    assert (coder.cl_name, coder.raw_suffix) in keys

@@ -178,11 +178,39 @@ def test_family_member_completion_notifications_project_to_one_node(
     assert app._unread_completed_agent_ids == set()
     notification_dismiss.assert_called_once_with(
         [
+            {"cl_name": family.cl_name, "raw_suffix": family.raw_suffix},
             {"cl_name": plan.cl_name, "raw_suffix": plan.raw_suffix},
             {"cl_name": code.cl_name, "raw_suffix": code.raw_suffix},
         ]
     )
     assert app.patch_calls == [family]
+
+
+def test_plan_family_root_dismissal_includes_its_own_notification_key() -> None:
+    """A plan-family root's own completion key must be dismissible.
+
+    Regression: notification ownership borrowed the status-count projection,
+    which substitutes a plan-family root for its concrete ``main`` workflow
+    step. That step never owns a distinct completion notification, so the
+    root's own key was dropped from the dismiss/mark-read key set.
+    """
+    raw_suffix = "root"
+    root = make_agent(name="gh_sase-org__sase", status="DONE", raw_suffix=raw_suffix)
+    root.agent_family = "gh_sase-org__sase"
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    root.role_suffix = "--plan"
+    main_step = make_agent(name="main", status="DONE", raw_suffix=raw_suffix)
+    main_step.parent_timestamp = root.raw_suffix
+    main_step.parent_workflow = "ace-run"
+    main_step.step_type = "agent"
+    root.runtime_children = [main_step]
+    root.followup_agents = [main_step]
+    app = UnreadJumpApp([root, main_step])
+
+    key_dicts = app._notification_key_dicts_for_agents([root])
+
+    assert {"cl_name": root.cl_name, "raw_suffix": root.raw_suffix} in key_dicts
 
 
 def test_manual_toggle_rejects_family_member_shell() -> None:
