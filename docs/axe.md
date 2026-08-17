@@ -399,10 +399,11 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop               | Description                                                                     |
-| ------------------ | ------------------------------------------------------------------------------- |
-| `error_digest`     | Send error notification digests (creates `ViewErrorReport` notification action) |
-| `managed_tmp_reap` | Prune stale scratch under the managed SASE temp root                            |
+| Chop                 | Description                                                                     |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `error_digest`       | Send error notification digests (creates `ViewErrorReport` notification action) |
+| `managed_tmp_reap`   | Prune stale scratch under the managed SASE temp root                            |
+| `bead_stale_cleanup` | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
@@ -421,6 +422,22 @@ the agent artifact index too, since a workflow launched without an explicit
 `artifacts_dir` gets one under `workflow-artifacts/`. It lives on `housekeeping` rather
 than an interactive path because the first pass over a neglected root walks tens of
 thousands of entries.
+
+The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
+beads that never clear [`bead.task_triage.min_plus_ones`](configuration.md#bead) stay
+`ready` (the five-minute `bead_task_triage` chop withholds their `TaskTriage` gate) and
+would otherwise accumulate forever. Once at least
+`bead.task_triage.stale_cleanup_min_beads` of them have sat below that bar for
+`bead.task_triage.stale_after_days` days, this hourly pass raises one human-only
+`BeadStaleCleanup` gate for the whole backlog — one gate across every enabled project,
+not one per project. The offered roster is capped at 50 beads, oldest first, with a
+`(project, bead_id)` tie-break; any remainder is named in the preview as `omitted_count`
+and is offered on a later tick. Lane state holds the pending request, a generation
+counter, and a fingerprint over the offered roster plus the three thresholds (not the
+pinned `stale_as_of` date), so an unchanged roster leaves the pending gate alone and a
+changed roster replaces it. When the backlog drops below the bar the pending gate is
+canceled. A project whose store cannot be read is skipped and cannot cancel a healthy
+pending gate, because the true roster is then unknown.
 
 ## Configuration
 

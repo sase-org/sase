@@ -306,6 +306,7 @@ def test_hook_builtin_uses_shared_runner_and_emits_noop_result(tmp_path: Path) -
 
 def test_all_builtin_chop_modules_use_the_registry() -> None:
     modules = {
+        "bead_stale_cleanup",
         "comment_checks",
         "comment_zombie_checks",
         "epic_launch_flush",

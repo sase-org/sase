@@ -596,6 +596,16 @@ or falls below the `+1` bar, defers re-gating while that task bead's detached la
 still in flight, and uses a new deterministic generation if the same task becomes ready
 again or its pending gate needs a presentation-contract refresh.
 
+The hourly `bead_stale_cleanup` chop is the other half of that bar. Sub-threshold ready
+task beads stay `ready` and stay visible here; they are not closed automatically. Once
+at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them
+have been below the bar for `bead.task_triage.stale_after_days` days, one
+`BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the reviewer can
+close a selected subset as `canceled`. The chop keeps a single pending gate and cancels
+it when the backlog drops below the bar. See
+[Stale Task Cleanup Notification](notifications.md#stale-task-cleanup-notification) and
+the [housekeeping lane](axe.md#housekeeping-1-hour-interval).
+
 The gate offers three decisions:
 
 - **Launch** (default) submits an unattributed proc that runs

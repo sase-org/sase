@@ -831,11 +831,11 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests and managed-temp cleanup
+        Run hourly error digests, managed-temp cleanup, and stale task-bead sweep
 
-        Runs once an hour because notification batching and bounded scratch reclamation are useful but not
-        latency-sensitive. Put durable maintenance that may scan substantial local state here, not lifecycle,
-        dependency, or remote polling work.
+        Runs once an hour because notification batching, bounded scratch reclamation, and stale-backlog
+        cleanup are useful but not latency-sensitive. Put durable maintenance that may scan substantial
+        local state here, not lifecycle, dependency, or remote polling work.
       interval: 3600
       chops:
         - name: error_digest
@@ -854,6 +854,19 @@ axe:
             Removes old children from known managed-temp buckets using workload-specific age limits, without following
             symlinks or deleting the stable bucket directories. Each pass removes at most 2,000 entries and de-indexes
             deleted agent-artifact directories, so a neglected root converges without blocking interactive commands.
+        - name: bead_stale_cleanup
+          script: sase_chop_bead_stale_cleanup
+          timeout: "2m"
+          description: |-
+            Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate
+
+            Reads every enabled project's ready task beads and offers those that have sat below
+            bead.task_triage.min_plus_ones for bead.task_triage.stale_after_days once at least
+            bead.task_triage.stale_cleanup_min_beads such beads exist. One pending gate at a time
+            carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
+            offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
+            canceled when the backlog drops below the bar.
+
 
 llm_provider:
   # Registered provider to use. One of: claude, codex, qwen, opencode, agy,

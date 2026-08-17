@@ -39,14 +39,16 @@ from sase.scripts._bead_task_triage_gates import (
     presentation_fingerprint as _presentation_fingerprint_impl,
     request_id as _request_id_impl,
 )
+from sase.scripts._bead_gate_projects import (
+    ProjectInventory as _ProjectInventory,
+    coerce_project_inventory as _coerce_project_inventory,
+    enabled_project_stores as _enabled_project_stores_impl,
+    project_display_name as _project_display_name,
+)
 from sase.scripts._bead_task_triage_state import (
     STATE_SCHEMA_VERSION as _STATE_SCHEMA_VERSION,
-    ProjectInventory as _ProjectInventory,
     ProjectState as _ProjectState,
-    coerce_project_inventory as _coerce_project_inventory,
-    enabled_project_stores as _enabled_project_stores,
     gateable_beads as _gateable_beads,
-    project_display_name as _project_display_name,
     write_state as _write_state_impl,
 )
 from sase.scripts._bead_task_triage_state import read_state as _read_state_impl
@@ -64,6 +66,11 @@ _PRESENTATION_FORMAT_VERSION = 2
 _GATE_CONTRACT_VERSION = 2
 
 _GATE_KINDS = (TASK_TRIAGE_KIND, BEAD_SNOOZE_KIND, FLAG_TRIAGE_KIND)
+
+
+def _enabled_project_stores(log: ChopLogger) -> _ProjectInventory:
+    """Keep the log-only signature so existing test doubles still patch this name."""
+    return _enabled_project_stores_impl(log, chop="bead_task_triage")
 
 
 def _read_state(path: Path) -> dict[str, _ProjectState]:

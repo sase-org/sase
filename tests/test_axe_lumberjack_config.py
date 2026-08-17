@@ -1,5 +1,7 @@
 """Tests for loading and validating axe lumberjack config."""
 
+import tomllib
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -256,10 +258,23 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     assert "bead_task_triage" in checks.chop_names
     assert "pr_submitted_checks" in checks.chop_names
     assert "cl_submitted_checks" not in checks.chop_names
+    housekeeping = config.lumberjacks["housekeeping"]
+    assert "bead_stale_cleanup" in housekeeping.chop_names
+    stale_cleanup = next(
+        chop for chop in housekeeping.chops if chop.name == "bead_stale_cleanup"
+    )
+    assert stale_cleanup.script == "sase_chop_bead_stale_cleanup"
+    assert stale_cleanup.timeout == 120
+    scripts = tomllib.loads(
+        (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )["project"]["scripts"]
     for lumberjack in config.lumberjacks.values():
         for chop in lumberjack.chops:
             assert chop.script is not None
             assert chop.script.startswith("sase_chop_")
+            assert scripts[chop.script] == f"sase.scripts.{chop.script}:main"
 
 
 def test_axe_config_error_hints_at_stale_core_binding_for_advertised_provider() -> None:
