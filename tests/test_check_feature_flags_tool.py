@@ -12,6 +12,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
+import pytest
+
 from sase.feature_flags import FeatureFlag, FeatureFlagDefinition
 from sase.feature_flags.schema import feature_flags_schema_block
 
@@ -20,6 +22,14 @@ from tests.feature_flags._helpers import definitions, demo_flag
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "tools" / "check_feature_flags"
+
+
+@pytest.fixture(autouse=True)
+def _restore_sys_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The tool inserts `src` onto sys.path at import time so it keeps working
+    # when run standalone. _load_tool() re-executes that module on every
+    # call, so without this the insert accumulates across tests.
+    monkeypatch.syspath_prepend(str(ROOT / "src"))
 
 
 def _load_tool() -> ModuleType:
