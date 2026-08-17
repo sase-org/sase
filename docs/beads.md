@@ -314,21 +314,20 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 3. Triage it. The default AXE `checks` lumberjack scans enabled non-home projects every
    five minutes and creates one priority `TaskTriage` gate for each task whose stored
    status is `ready` and that has accumulated at least
-   [`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports
-   (`1` by default). A sub-threshold task is withheld from triage — it stays stored as
-   `ready` and stays visible to `sase bead ready` and this triage guide's other
-   commands, only the gate is withheld — and a `TaskTriage` gate already raised for a
-   task that later falls below the bar is canceled and its notification dismissed.
-   Setting `bead.task_triage.min_plus_ones: 0` restores the pre-threshold behavior of
-   gating every ready task. This scan currently does not apply the dependency filter
-   used by `sase bead ready`, so a blocked ready task can still receive a gate. The
-   reviewed preview contains the task's title, description, and notes. **Launch**
-   accepts optional feedback and submits one global unattributed proc that runs
-   `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
-   bead with `resolution=canceled` and that feedback as the reason. The detached launch
-   survives ACE, CLI, Telegram, or mobile client exit and appears in `sase proc list`
-   and ACE's Procs tab. **Snooze** requires a wake time, accepts an optional `+N` wake
-   threshold and reason, and defers the task until either condition is met.
+   [`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
+   sub-threshold task is withheld from triage — it stays stored as `ready` and stays
+   visible to `sase bead ready` and this triage guide's other commands, only the gate is
+   withheld — and a `TaskTriage` gate already raised for a task that later falls below
+   the bar is canceled and its notification dismissed. This scan currently does not
+   apply the dependency filter used by `sase bead ready`, so a blocked ready task can
+   still receive a gate. The reviewed preview contains the task's title, description,
+   and notes. **Launch** accepts optional feedback and submits one global unattributed
+   proc that runs `sase bead work <task-id> --yes-to-all`; **Close** requires feedback
+   and closes the bead with `resolution=canceled` and that feedback as the reason. The
+   detached launch survives ACE, CLI, Telegram, or mobile client exit and appears in
+   `sase proc list` and ACE's Procs tab. **Snooze** requires a wake time, accepts an
+   optional `+N` wake threshold and reason, and defers the task until either condition
+   is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
@@ -584,8 +583,7 @@ The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
 `bead_task_triage` chop scans enabled projects every five minutes and raises one
 human-only `TaskTriage` gate per ready task bead that has accumulated at least
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports (`1`
-by default; `0` restores the pre-threshold behavior of gating every ready task bead). A
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
 sub-threshold task is withheld from triage without any change to its stored status, and
 a gate already raised for a task that later falls below the bar is canceled and its
 notification dismissed. The compact `[bead] <bead-id> — <title>` notification lands in
@@ -599,10 +597,10 @@ again or its pending gate needs a presentation-contract refresh.
 The hourly `bead_stale_cleanup` chop is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once
 at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them
-have been below the bar for `bead.task_triage.stale_after_days` days, one
-`BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the reviewer can
-close a selected subset as `canceled`. The chop keeps a single pending gate and cancels
-it when the backlog drops below the bar. See
+have been below the bar for [`bead.task_triage.stale_after_days`](configuration.md#bead)
+days, one `BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the
+reviewer can close a selected subset as `canceled`. The chop keeps a single pending gate
+and cancels it when the backlog drops below the bar. See
 [Stale Task Cleanup Notification](notifications.md#stale-task-cleanup-notification) and
 the [housekeeping lane](axe.md#housekeeping-1-hour-interval).
 

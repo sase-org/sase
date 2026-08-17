@@ -2141,6 +2141,24 @@ axe:
         maintenance deliberately live elsewhere.
       interval: 300
       chops:
+        - name: bead_task_triage
+          script: sase_chop_bead_task_triage
+          timeout: "2m"
+          description: |-
+            Raise one human gate for each ready or snoozed task bead, and for each due flag bead
+
+            Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
+            gate: a TaskTriage gate while a task bead is ready and has at least bead.task_triage.min_plus_ones +1
+            reports, a BeadSnooze wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
+            release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
+            triage without changing its stored status, and a gate already raised for a bead that falls below the
+            bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
+            duplicate notifications, a gate of the wrong kind is replaced when its bead's status or due-ness
+            changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts. Gates are
+            canceled when their beads leave those states, while answered or missing gates can be regenerated
+            safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
+            touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
+            in flight is deferred instead of re-gated.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
@@ -3052,7 +3070,9 @@ above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land
 remains authoritative over both.
 
 See [`bead_task_triage`](axe.md#checks-5-minute-interval) for how the `task_triage`
-fields gate `TaskTriage` notifications, and
+fields gate `TaskTriage` notifications,
+[Task Triage Notification](notifications.md#task-triage-notification) for the
+post-upgrade dismissal of already-raised sub-threshold gates, and
 [Discovered Follow-Up Capture and Triage](beads.md#discovered-follow-up-capture-and-triage)
 for the human-facing triage lifecycle.
 

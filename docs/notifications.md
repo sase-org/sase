@@ -40,10 +40,10 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `Esc` / `q`         | Close modal                                                                 |
 
-Plan, launch, question, and task-triage notifications require confirmation (`y` / `n`)
-before dismissal to prevent accidental loss of pending decisions. The same `y` / `n`
-confirmation is used for bulk dismissal when at least one marked protected notification
-is included in the batch.
+Plan, launch, question, task-triage, flag-triage, snooze, and stale-cleanup
+notifications require confirmation (`y` / `n`) before dismissal to prevent accidental
+loss of pending decisions. The same `y` / `n` confirmation is used for bulk dismissal
+when at least one marked protected notification is included in the batch.
 
 `R` is scoped to the tab you are on, not the whole inbox, and it is a wider write than
 it looks: it marks the tab read in the notification store, which includes rows matching
@@ -57,17 +57,17 @@ itself runs as a proc, so a slow store write does not block the modal.
 ### Gate Detail Pane
 
 Highlighting any gate-backed row — plan, epic, question, launch, custom, task-triage,
-flag-triage, or workflow HITL — always renders a live decision card in the right pane: a
-status line (`Awaiting your decision`, `Answered`, `Cancelled`, `Timed out`, or
-`Gate details unavailable`), the notification's context and tags, a `Decision` block
-listing every branch in canonical query order with the primary branch marked, and an
-`Attachments` line when the gate has files. The card renders instantly from the
-notification row and enriches itself with the verified bundle a moment later without
-blocking navigation. When a bundle cannot be resolved, hashed, or parsed — a deleted
-directory, a corrupted `request.json`, a legacy bundle layout — the card degrades to
-`▲ Gate details unavailable` rather than going blank; press `d` to open Gate Debug and
-see exactly why. Every other notification, including attachment-less ones, gets a
-compact summary card instead of an empty pane.
+flag-triage, snooze, stale-cleanup, or workflow HITL — always renders a live decision
+card in the right pane: a status line (`Awaiting your decision`, `Answered`,
+`Cancelled`, `Timed out`, or `Gate details unavailable`), the notification's context and
+tags, a `Decision` block listing every branch in canonical query order with the primary
+branch marked, and an `Attachments` line when the gate has files. The card renders
+instantly from the notification row and enriches itself with the verified bundle a
+moment later without blocking navigation. When a bundle cannot be resolved, hashed, or
+parsed — a deleted directory, a corrupted `request.json`, a legacy bundle layout — the
+card degrades to `▲ Gate details unavailable` rather than going blank; press `d` to open
+Gate Debug and see exactly why. Every other notification, including attachment-less
+ones, gets a compact summary card instead of an empty pane.
 
 ### Tabs and Ordering
 
@@ -282,9 +282,11 @@ arrival, alongside its priority inbox row, warning toast, and the producer's des
 notification. The ACE toast says `Tale ready` or `Epic ready`; an epic adds the
 gate-time phase, dependency-wave, and non-zero phase-size counts, while batched toasts
 count tales and epics separately. Already-handled plan reviews discovered during polling
-and the intermediate post-approval handoff remain silent. Task triage, questions,
-launch/custom/HITL gates, errors, agent completions, and ordinary notifications retain
-their arrival bell.
+and the intermediate post-approval handoff remain silent. Task triage, stale-cleanup,
+questions, launch/custom/HITL gates, errors, agent completions, and ordinary
+notifications retain their arrival bell. Priority actions include `PlanApproval`,
+`EpicApproval`, `UserQuestion`, `LaunchApproval`, `TaskTriage`, `BeadSnooze`,
+`FlagTriage`, `BeadStaleCleanup`, and `JumpToMentorReview`.
 
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every
 notification class, including a snoozed tale or epic review.
@@ -311,15 +313,20 @@ The following events generate notifications:
 
 The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for
 each ready task bead that has accumulated at least
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports (`1`
-by default; `0` restores the pre-threshold behavior of gating every ready task bead). A
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
 sub-threshold task is withheld from triage — it stays stored as `ready`, only the gate
 is withheld — and a `TaskTriage` gate already raised for a task that later falls below
-the bar is canceled and its notification dismissed on the chop's next tick. Its compact
-notification note is `<bead-id> — <title>` and it lands in the `Beads` panel while
-retaining the `bead` and `task` tags. The filing agent, when known, appears as a **Filed
-by** line in the Markdown preview above the task's description and notes; the notes
-section is present only when the bead has notes. The gate offers three branches:
+the bar is canceled and its notification dismissed on the chop's next tick.
+
+After upgrading, gates already raised for beads below the new bar are canceled and their
+notifications dismissed automatically on the first `checks`-lane tick. Run
+`sase axe chop run bead_task_triage` to force that tick immediately. To see the matching
+cleanup gate without waiting for the hour, run `sase axe chop run bead_stale_cleanup`.
+
+Its compact notification note is `<bead-id> — <title>` and it lands in the `Beads` panel
+while retaining the `bead` and `task` tags. The filing agent, when known, appears as a
+**Filed by** line in the Markdown preview above the task's description and notes; the
+notes section is present only when the bead has notes. The gate offers three branches:
 
 - **Launch** is the default. It submits an unattributed proc that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker
@@ -402,14 +409,16 @@ The gate offers four branches:
 
 The hourly `bead_stale_cleanup` chop raises one human-only `BeadStaleCleanup` gate once
 at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) ready task
-beads have sat below the `+1` bar for `bead.task_triage.stale_after_days` days. The
-notification lands in the `Beads` panel with `bead`, `task`, and `stale` tags. Its
-preview lists the offered roster (at most 50 beads, oldest first) and names how many
-additional stale beads were omitted when the backlog is larger. Each offered bead is a
-close/keep control defaulting to close; the single **Close selected** branch closes the
-reviewer-selected subset as `canceled`. Selecting nothing fails the command and leaves
-the gate pending. The chop keeps at most one of these gates at a time and cancels it
-when the backlog drops below the bar.
+beads have sat below the `+1` bar for
+[`bead.task_triage.stale_after_days`](configuration.md#bead) days. The notification
+lands in the `Beads` panel with `bead`, `task`, and `stale` tags. Its preview lists the
+offered roster (at most 50 beads, oldest first) and names how many additional stale
+beads were omitted when the backlog is larger. Each offered bead is a close/keep control
+defaulting to close; the single **Close selected** branch closes the reviewer-selected
+subset as `canceled`. Selecting nothing fails the command and leaves the gate pending.
+The chop keeps at most one of these gates at a time and cancels it when the backlog
+drops below the bar. Run `sase axe chop run bead_stale_cleanup` to raise or refresh that
+gate without waiting for the next hourly housekeeping tick.
 
 ### Agent Completion Attachments
 
@@ -724,8 +733,8 @@ sase notify create -s my_sender --tag review --tag handoff < notification.json
 Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional
 `#RRGGBB` JSON `color` (see [Tab colors](#tab-colors)), and the JSON `silent` field. It
 rejects registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`,
-`BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`, `CustomGate`, and `HITL`) because
-a raw row has no trusted command bundle.
+`BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`,
+`CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
 
 The first-class gate API reads a versioned gate specification from stdin:
 
