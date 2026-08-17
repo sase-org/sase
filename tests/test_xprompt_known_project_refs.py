@@ -5,7 +5,6 @@ from unittest.mock import patch
 from sase.xprompt._parsing import (
     extract_known_project_vcs_ref,
     resolve_known_project_ref,
-    strip_known_project_vcs_refs,
 )
 
 
@@ -94,13 +93,3 @@ def test_extract_known_project_vcs_ref_ignores_ambiguous_basename_fallback(
         result = extract_known_project_vcs_ref("#gh:baz-org/foo fix")
 
     assert result is None
-
-
-def test_strip_known_project_vcs_refs_handles_owner_repo_form() -> None:
-    """Stripping known-project refs removes ``owner/repo`` forms too."""
-    with patch(
-        "sase.xprompt.loader.get_known_project_workspaces",
-        return_value={"sase": object()},
-    ):
-        result = strip_known_project_vcs_refs("#gh:sase-org/sase #!sase/nightly_docs")
-    assert result == "#!sase/nightly_docs"

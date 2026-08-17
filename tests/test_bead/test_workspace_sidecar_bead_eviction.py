@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.axe.runner_workspace import (
-    WorkspaceBeadEvictionRefused,
+    _WorkspaceBeadEvictionRefused,
     _workspace_bead_store_dirs,
     prepare_launch_workspace_repos,
 )
@@ -121,7 +121,7 @@ def test_eviction_refuses_to_trash_unpublished_sidecar_bead_commits(
         _record_clone(clones),
     )
 
-    with pytest.raises(WorkspaceBeadEvictionRefused):
+    with pytest.raises(_WorkspaceBeadEvictionRefused):
         prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
     assert sync_attempts == [sidecar]

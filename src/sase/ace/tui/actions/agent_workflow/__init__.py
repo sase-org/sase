@@ -6,8 +6,6 @@ from ._entry_points import EntryPointsMixin
 from ._leader_mode import LeaderModeMixin
 from ._mentor_review import MentorReviewMixin
 from ._prompt_bar import PromptBarMixin
-from ._ref_resolution import RefResolutionMixin
-from ._workflow_exec import WorkflowExecMixin
 
 
 class AgentWorkflowMixin(
@@ -17,8 +15,6 @@ class AgentWorkflowMixin(
     PromptBarMixin,
     EditorMixin,
     AgentLaunchMixin,
-    WorkflowExecMixin,
-    RefResolutionMixin,
 ):
     """Mixin providing custom agent workflow actions."""
 

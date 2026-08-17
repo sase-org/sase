@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._launch_background import BackgroundAgentLaunchMixin
 from ._launch_delta import LaunchDeltaMixin
 from ._launch_procs import LaunchProcMixin
 from ._launch_start import AgentLaunchStartMixin
@@ -18,7 +17,6 @@ if TYPE_CHECKING:
 
 class AgentLaunchMixin(
     AgentLaunchStartMixin,
-    BackgroundAgentLaunchMixin,
     LaunchDeltaMixin,
     LaunchProcMixin,
 ):
@@ -29,8 +27,6 @@ class AgentLaunchMixin(
     marked_indices: set[int]
     _agents: list[Agent]
 
-    # State for bulk agent runs (from AgentWorkflowMixin)
-    _bulk_patches: list[Patch] | None = None
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
     # State for repeat-last-+/Ctrl+Space selection (from EntryPointsMixin)

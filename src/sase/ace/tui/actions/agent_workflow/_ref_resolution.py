@@ -3,26 +3,6 @@
 from __future__ import annotations
 
 
-class RefResolutionMixin:
-    """Mixin providing dynamic VCS reference resolution."""
-
-    def _resolve_vcs_from_prompt(
-        self,
-        prompt: str,
-        workflow_type: str,
-        *,
-        skip_workspace: bool = False,
-    ) -> tuple[str, str, str, int, str] | None:
-        """Extract and resolve a VCS reference for *workflow_type* from *prompt*.
-
-        Returns (project_file, project_name, workspace_dir, workspace_num,
-        ref) or None if not found or resolution fails.
-        """
-        return resolve_ref_from_prompt(
-            prompt, workflow_type, skip_workspace=skip_workspace
-        )
-
-
 def resolve_ref_from_prompt(
     prompt: str,
     workflow_type: str,
@@ -90,12 +70,3 @@ def resolve_ref_from_prompt(
         workspace_num,
         resolved.canonical_ref or ref,
     )
-
-
-def strip_all_vcs_refs(prompt: str) -> str:
-    """Remove all VCS ref tags from *prompt*."""
-    from sase.workspace_provider import get_ref_patterns
-
-    for pattern in get_ref_patterns().values():
-        prompt = pattern.sub("", prompt)
-    return prompt.strip()

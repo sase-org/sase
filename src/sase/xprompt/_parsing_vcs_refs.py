@@ -269,33 +269,10 @@ def iter_known_project_vcs_refs(
     return refs
 
 
-def strip_known_project_vcs_refs(prompt: str) -> str:
-    """Remove generic VCS refs that point at known projects."""
-    from sase.xprompt.loader import get_known_project_workspaces
-
-    known_projects = get_known_project_workspaces()
-    if not known_projects or "#" not in prompt:
-        return prompt.strip()
-
-    workflow_names = _workspace_workflow_names()
-
-    def _replace(match: re.Match[str]) -> str:
-        workflow_type = match.group("workflow")
-        if workflow_type not in workflow_names:
-            return match.group(0)
-        ref = match.group("colon") or match.group("paren")
-        if resolve_known_project_ref(ref, known_projects) is not None:
-            return ""
-        return match.group(0)
-
-    return _GENERIC_PROJECT_VCS_REF_PATTERN.sub(_replace, prompt).strip()
-
-
 __all__ = [
     "extract_known_project_vcs_ref",
     "iter_known_project_vcs_refs",
     "normalize_launch_xprompt_at_refs",
     "normalize_vcs_underscore_refs",
     "resolve_known_project_ref",
-    "strip_known_project_vcs_refs",
 ]

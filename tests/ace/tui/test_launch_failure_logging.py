@@ -1,9 +1,9 @@
 """Per-category launch-failure persistence tests.
 
-Asserts that each live TUI launch path (workflow, chop, payloadless durable
-launch proc) durably records a ``launch_failures.jsonl`` entry with the
-correct ``kind`` when the launch fails. ``~/.sase`` is isolated per test, so
-the canonical log paths resolve into a tmpdir automatically.
+Asserts that each live TUI launch path (chop, payloadless durable launch
+proc) durably records a ``launch_failures.jsonl`` entry with the correct
+``kind`` when the launch fails. ``~/.sase`` is isolated per test, so the
+canonical log paths resolve into a tmpdir automatically.
 """
 
 from __future__ import annotations
@@ -38,43 +38,6 @@ def _assert_persisted(kind: str) -> dict[str, Any]:
     # The human-readable sidecar log is always written too.
     assert launch_failures_log_path().exists()
     return record
-
-
-def test_workflow_failure_persists_record(monkeypatch) -> None:
-    from sase.ace.tui.actions.agent_workflow._workflow_exec import WorkflowExecMixin
-
-    class _SyncThread:
-        """Run the target synchronously on start() so the test is deterministic."""
-
-        def __init__(self, *, target: Any = None, daemon: bool = False) -> None:
-            self._target = target
-
-        def start(self) -> None:
-            if self._target is not None:
-                self._target()
-
-    class _WorkflowApp(WorkflowExecMixin):
-        def __init__(self) -> None:
-            self._prompt_context = None
-            self.scheduled: list[Any] = []
-
-        def call_later(self, fn: Any, *args: Any, **kwargs: Any) -> None:
-            self.scheduled.append((fn, args))
-
-        def notify(self, msg: str, *, severity: str | None = None) -> None:
-            pass
-
-    monkeypatch.setattr("threading.Thread", _SyncThread)
-    monkeypatch.setattr(
-        "sase.xprompt.execute_workflow",
-        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("workflow boom")),
-    )
-
-    app = _WorkflowApp()
-    assert app._execute_workflow_in_thread("eval/foo", [], {}) is True
-    record = _assert_persisted("workflow")
-    assert record["workflow_name"] == "eval/foo"
-    assert record["project"] == "eval"
 
 
 def test_chop_failure_persists_record() -> None:

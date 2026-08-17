@@ -327,12 +327,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-ng.1.5(record_launched_vcs_xprompt_usage)" \
-        --epic-symbol "sase-ng.1.5(record_prompt_file_references)" \
-        --epic-symbol "sase-ng.1.5(record_resolved_vcs_xprompt_usage)" \
-        --epic-symbol "sase-ng.1.5(save_replayable_vcs_selection)" \
-        --epic-symbol "sase-ng.1.5(strip_all_vcs_refs)" \
-        --epic-symbol "sase-ng.1.5(strip_known_project_vcs_refs)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

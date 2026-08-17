@@ -152,11 +152,6 @@ def iter_known_project_vcs_refs(
     return result
 
 
-def strip_known_project_vcs_refs(prompt: str) -> str:
-    """Remove generic VCS refs that point at known projects."""
-    return _vcs_refs.strip_known_project_vcs_refs(prompt)
-
-
 def _get_vcs_tag_pattern() -> re.Pattern[str]:
     """Lazily initialize and return the VCS tag pattern."""
     _sync_vcs_tag_caches_to_impl()
@@ -312,7 +307,6 @@ __all__ = [
     "replace_ref_in_vcs_tag",
     "replace_vcs_workflow_tags",
     "resolve_known_project_ref",
-    "strip_known_project_vcs_refs",
     "strip_hitl_suffix",
     "strip_vcs_workflow_tag",
     "xprompt_reference_from_match",

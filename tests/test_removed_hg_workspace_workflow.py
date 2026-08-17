@@ -12,7 +12,6 @@ from sase.workspace_provider import get_ref_patterns, get_workflow_names
 from sase.xprompt._parsing_vcs_refs import (
     iter_known_project_vcs_refs,
     normalize_launch_xprompt_at_refs,
-    strip_known_project_vcs_refs,
 )
 from sase.xprompt.processor import prompt_may_reference_xprompt
 from tests._workspace_provider_helpers import (
@@ -45,7 +44,6 @@ def test_retired_workflow_has_no_core_fallback(
     assert workflow not in get_workflow_names()
     assert workflow not in get_ref_patterns()
     assert iter_known_project_vcs_refs(prompt, known_projects) == []
-    assert strip_known_project_vcs_refs(prompt) == prompt
     assert normalize_launch_xprompt_at_refs(f"#{workflow}@sase") == f"#{workflow}@sase"
     assert canonicalize_project_aliases_in_prompt(prompt) == prompt
     assert prompt_may_reference_xprompt(prompt) is True

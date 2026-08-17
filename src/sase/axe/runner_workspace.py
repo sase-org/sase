@@ -18,7 +18,7 @@ from sase.vcs_provider import get_vcs_provider
 logger = logging.getLogger(__name__)
 
 
-class WorkspaceBeadEvictionRefused(RuntimeError):
+class _WorkspaceBeadEvictionRefused(RuntimeError):
     """Raised when eviction would destroy unpublished canonical bead commits."""
 
 
@@ -414,7 +414,7 @@ def prepare_launch_workspace_repos(
     materialization or synchronization pass.
 
     Raises:
-        WorkspaceBeadEvictionRefused: when a sidecar bead clone holds canonical
+        _WorkspaceBeadEvictionRefused: when a sidecar bead clone holds canonical
             bead commits that could not be published. Eviction would delete the
             only copy of those commits, so the launch fails instead.
     """
@@ -425,7 +425,7 @@ def prepare_launch_workspace_repos(
     if workspace_num > 1 and not _protect_unpushed_sidecar_bead_commits(
         workspace_dir, refuse_on_unpublished=True
     ):
-        raise WorkspaceBeadEvictionRefused(
+        raise _WorkspaceBeadEvictionRefused(
             "refusing to evict workspace sidecar repos: a bead store holds "
             "unpublished canonical bead commits (see diagnostics above)"
         )

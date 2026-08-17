@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sase.ace.tui.modals.project_discovery import is_launchable_project
 
@@ -85,14 +85,6 @@ class _EntryPointsBaseMixin:
     @changespecs.setter  # legacy compatibility alias
     def changespecs(self, value: list[Patch]) -> None:  # legacy compatibility alias
         self.patches = value
-
-    @property
-    def _bulk_changespecs(self) -> Any:  # legacy compatibility alias
-        return getattr(self, "_bulk_patches", None)
-
-    @_bulk_changespecs.setter  # legacy compatibility alias
-    def _bulk_changespecs(self, value: Any) -> None:  # legacy compatibility alias
-        self._bulk_patches = value
 
     def _vcs_prompt_prefix_or_notify(self, project_file: str, name: str) -> str | None:
         """Build a VCS prompt prefix, or show a TUI error when detection fails."""

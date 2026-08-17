@@ -239,10 +239,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         ),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_workflow_runner.py:_write_workflow_state": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
     "src/sase/axe/runner_artifacts.py:write_done_marker": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
