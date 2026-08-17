@@ -53,7 +53,7 @@ from tests._tmp_leak_guard import (
 # node IDs through a nested pytest subprocess. The imports above expose the
 # split fixture modules to pytest while preserving existing direct imports
 # from ``tests.conftest``.
-pytest_plugins = ["pytester"]
+pytest_plugins = ["pytester", "tests._config_reader_probe"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL: object | None = None
@@ -99,7 +99,10 @@ def pytest_runtest_protocol(
 
 def pytest_configure(config: pytest.Config) -> None:
     """Acquire host-global worker tokens for an xdist controller."""
+    from tests._config_reader_probe import register_config_reader_probe
+
     configure_suite_gate(config)
+    register_config_reader_probe(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:

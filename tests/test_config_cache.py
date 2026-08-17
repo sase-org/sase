@@ -11,6 +11,7 @@ owner snapshot), ``test_config_cache_teardown.py`` (the isolation fixture's
 drain/reset helpers), and ``test_mentor_config_cache.py`` (mentor profiles).
 """
 
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -68,8 +69,6 @@ def test_load_merged_config_eventually_invalidates_on_file_mtime_change(
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
-        stale = load_merged_config()
-        assert stale is first
         second = _wait_for_new_merged_config(first)
 
     assert second["key"] == "v2"
@@ -187,6 +186,8 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         first = load_merged_config()
+        loads_after_first = call_count["n"]
+        assert loads_after_first <= 1
         # Force a different cache token by editing the user file.
         sase_yml = global_dir / "sase.yml"
         sase_yml.write_text(yaml.dump({"key": "user2"}))
@@ -195,11 +196,8 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        assert load_merged_config() is first
         _wait_for_new_merged_config(first)
-
-    # Default layer loaded exactly once even though merged-config was rebuilt.
-    assert call_count["n"] == 1
+        assert call_count["n"] == loads_after_first
 
 
 def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
@@ -222,6 +220,8 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         first = load_merged_config()
+        loads_after_first = call_count["n"]
+        assert loads_after_first <= 1
         sase_yml = global_dir / "sase.yml"
         sase_yml.write_text(yaml.dump({"key": "user2"}))
         new_mtime_ns = sase_yml.stat().st_mtime_ns + 10_000_000
@@ -229,7 +229,44 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        assert load_merged_config() is first
         _wait_for_new_merged_config(first)
+        assert call_count["n"] == loads_after_first
 
-    assert call_count["n"] == 1
+
+def test_load_merged_config_serves_stale_while_refreshing(tmp_path: Path) -> None:
+    """A refresh in flight must keep serving the already-merged object."""
+    global_dir = tmp_path / "global"
+    _write_user_config(global_dir, {"key": "user"})
+
+    token_generation = [1]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+
+    def compute() -> tuple[str, int]:
+        generation = token_generation[0]
+        if generation >= 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("controlled", generation)
+
+    now = [10.0]
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        try:
+            first = load_merged_config()
+            token_generation[0] = 2
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            stale = load_merged_config()
+            assert stale is first
+            assert refresh_started.wait(timeout=1.0)
+            assert load_merged_config() is first
+            release_refresh.set()
+            second = _wait_for_new_merged_config(first)
+        finally:
+            release_refresh.set()
+
+    assert second is not first

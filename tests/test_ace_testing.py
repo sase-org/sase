@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import threading
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +20,7 @@ from sase.ace.testing import (
     make_changespec as make_patch,  # legacy ACE test helper name
 )
 from sase.ace.tui import AceApp
+from sase.ace.tui.proc_observer import PROC_OBSERVER_THREAD_NAME
 
 
 async def test_ace_page_initial_state() -> None:
@@ -527,6 +529,10 @@ async def test_ace_page_restores_overrides_when_entry_fails(
 
     assert AceApp._run_mount_state_loads is original_mount_state
     assert patch_module.find_all_patches is original_find
+    assert not any(
+        thread.name == PROC_OBSERVER_THREAD_NAME and thread.is_alive()
+        for thread in threading.enumerate()
+    )
 
 
 def test_ace_page_rejects_unknown_startup_policy() -> None:

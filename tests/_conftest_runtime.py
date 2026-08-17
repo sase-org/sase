@@ -96,17 +96,31 @@ def _mock_system_clipboard(request: pytest.FixtureRequest):
 def _drain_config_token_refresh(
     *, timeout: float = _CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS
 ) -> None:
-    """Invalidate the token generation and join a live refresh worker."""
+    """Invalidate the token generation and join a live refresh worker.
+
+    The module pointer is cleared only when the observed worker has exited.
+    A timed-out join leaves a still-live worker registered and raises so a
+    later test cannot inherit a silently orphaned single-flight slot.
+    """
     from sase.config import core as config_core
 
     with config_core._current_config_token_cache_lock:
         config_core._reset_current_config_token_cache_locked()
         thread = config_core._current_config_token_refresh_thread
+    skipped_join = thread is None or thread is threading.current_thread()
     if thread is not None and thread is not threading.current_thread():
         thread.join(timeout=timeout)
     with config_core._current_config_token_cache_lock:
-        if config_core._current_config_token_refresh_thread is thread:
-            config_core._current_config_token_refresh_thread = None
+        if config_core._current_config_token_refresh_thread is not thread:
+            return
+        if thread is not None and thread.is_alive():
+            if skipped_join:
+                return
+            raise RuntimeError(
+                f"{config_core.CONFIG_TOKEN_REFRESH_THREAD_NAME} did not exit "
+                f"within {timeout}s; leaving the live worker registered"
+            )
+        config_core._current_config_token_refresh_thread = None
 
 
 def _clear_function_cache(cached: object) -> None:
@@ -160,6 +174,18 @@ def reset_process_feature_flags() -> None:
         flag_snapshot._override_stack.clear()
 
 
+def _stop_orphaned_proc_observers_if_loaded() -> None:
+    """Stop leaked ACE proc observers without importing the TUI into every test."""
+    import sys
+
+    module = sys.modules.get("sase.ace.tui.proc_observer")
+    if module is None:
+        return
+    stop = getattr(module, "stop_orphaned_proc_observers", None)
+    if callable(stop):
+        stop()
+
+
 def _reset_derived_config_caches() -> None:
     """Drop process-global config, identity, and derived layer caches."""
     from sase.config import core as config_core
@@ -171,6 +197,7 @@ def _reset_derived_config_caches() -> None:
     reset_repo_identity_caches()
     reset_artifact_provider_registry_cache()
     reset_process_feature_flags()
+    _stop_orphaned_proc_observers_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()
     for cached in _derived_config_cache_helpers():
@@ -191,8 +218,9 @@ def _clear_config_caches(_isolate_sase_home: None) -> Iterator[None]:
 
     Setup runs after ``_isolate_sase_home`` has redirected ``CONFIG_DIR`` so
     a leftover reader cannot install a host-path token into the successor's
-    generation. Teardown drains ``sase-config-token-refresh`` and clears
-    derived caches again before monkeypatch restores host paths.
+    generation. Teardown stops orphaned ``sase-ace-proc-observer`` threads,
+    drains ``sase-config-token-refresh``, and clears derived caches again
+    before monkeypatch restores host paths.
     """
     _reset_derived_config_caches()
     yield

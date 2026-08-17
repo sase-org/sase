@@ -11,6 +11,7 @@ from ..proc_observer import (
     ProcObserver,
     ProcProjection,
     compose_proc_projection,
+    stop_orphaned_proc_observers,
 )
 from ..widgets.proc_indicator import MonitorIndicator, ProcIndicator
 from ._proc_action_types import ProcCallbackConfig
@@ -24,6 +25,7 @@ class ProcObserverActionsMixin:
 
     def _init_proc_observer(self) -> None:
         """Initialize observer projection, short submit workers, and callbacks."""
+        previous = getattr(self, "_proc_observer", None)
         self._proc_projection = ProcProjection()
         self._durable_submit_workers: dict[str, Worker[Any]] = {}
         self._session_workers: dict[str, Worker[Any]] = {}
@@ -34,10 +36,19 @@ class ProcObserverActionsMixin:
         self._proc_reconciler_worker: Worker[Any] | None = None
         self._proc_reconciler_start_timer = None
         self._proc_reconciler_interval_timer = None
-        self._proc_observer = ProcObserver(
+        observer = ProcObserver(
             on_snapshot=self._on_proc_observer_thread_snapshot,  # type: ignore[attr-defined]
         )
-        self._proc_observer.start()
+        observer.bind_owner(self)
+        self._proc_observer = observer
+        if previous is not None and previous is not observer:
+            stop = getattr(previous, "stop", None)
+            if callable(stop):
+                try:
+                    stop(timeout=1.0)
+                except Exception:
+                    pass
+        observer.start()
 
     def _stop_proc_observer(self) -> None:
         """Retire the observer thread without touching proc lifetimes."""
@@ -45,6 +56,7 @@ class ProcObserverActionsMixin:
         observer = getattr(self, "_proc_observer", None)
         if observer is not None:
             observer.stop(timeout=1.0)
+        stop_orphaned_proc_observers()
 
     def _start_proc_reconciler(self) -> None:
         """Start slow best-effort orphaned-proc reconciliation workers."""

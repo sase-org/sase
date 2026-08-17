@@ -75,7 +75,6 @@ def test_selector_change_eventually_invalidates_merged_config(tmp_path: Path) ->
         os.utime(selector, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
-        assert load_merged_config() is first
         second = _wait_for_new_merged_config(first)
 
     assert second["id"]["machine_name"] == "zeus"

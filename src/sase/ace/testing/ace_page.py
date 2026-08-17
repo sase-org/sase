@@ -103,6 +103,19 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
     return state
 
 
+def _stop_ace_app_proc_observer(app: AceApp | None) -> None:
+    """Retire a constructed app's proc observer even when unmount never ran."""
+    if app is None:
+        return
+    stop = getattr(app, "_stop_proc_observer", None)
+    if not callable(stop):
+        return
+    try:
+        stop()
+    except Exception:
+        pass
+
+
 def _resolve_key(data: dict[str, Any], key: str) -> Any:
     """Resolve a dot-notation key like 'selected.name' into nested dicts."""
     parts = key.split(".")
@@ -219,8 +232,10 @@ class AcePage:
                 finish_fast_stylesheet_boot(self._app, self._stylesheet_seed)
             return self
         except BaseException:
+            app = self._app
             await stack.aclose()
             self._stack = None
+            _stop_ace_app_proc_observer(app)
             raise
 
     async def __aexit__(
@@ -231,8 +246,11 @@ class AcePage:
     ) -> None:
         stack = self._stack
         self._stack = None
-        if stack is not None:
-            await stack.__aexit__(exc_type, exc_val, exc_tb)
+        try:
+            if stack is not None:
+                await stack.__aexit__(exc_type, exc_val, exc_tb)
+        finally:
+            _stop_ace_app_proc_observer(self._app)
 
     async def press(self, *keys: str) -> None:
         """Press one or more keys via the pilot."""

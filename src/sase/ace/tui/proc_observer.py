@@ -13,6 +13,7 @@ import os
 import threading
 import time
 import uuid
+import weakref
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
@@ -38,6 +39,7 @@ log = logging.getLogger(__name__)
 ProcLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
 
 POLL_SECONDS = 0.5
+PROC_OBSERVER_THREAD_NAME = "sase-ace-proc-observer"
 DETAIL_LOG_LINES = 400
 _MAX_PROC_LOG_LINES = 5_000
 _MAX_PROC_LOG_CHARS = 512 * 1024
@@ -314,11 +316,16 @@ class ProcObserver:
     _detail_proc_id: str | None = field(default=None, init=False)
     _context: _ObserverContext | None = field(default=None, init=False)
     _last_signature: tuple[Any, ...] | None = field(default=None, init=False)
+    _owner_ref: weakref.ref[Any] | None = field(default=None, init=False, repr=False)
 
     @property
     def running(self) -> bool:
         thread = self._thread
         return thread is not None and thread.is_alive()
+
+    def bind_owner(self, owner: object) -> None:
+        """Remember the AceApp (or test double) that owns this observer."""
+        self._owner_ref = weakref.ref(owner)
 
     def start(self) -> None:
         """Start the observer thread."""
@@ -330,11 +337,12 @@ class ProcObserver:
             self._stop.clear()
             thread = threading.Thread(
                 target=self._thread_main,
-                name="sase-ace-proc-observer",
+                name=PROC_OBSERVER_THREAD_NAME,
                 daemon=True,
             )
             self._thread = thread
             thread.start()
+        _remember_live_observer(self)
 
     def stop(self, *, timeout: float = 1.0) -> None:
         """Retire the observer thread without touching any proc lifetime."""
@@ -344,6 +352,10 @@ class ProcObserver:
             self._stop.set()
         if thread is not None and thread.is_alive():
             thread.join(timeout=timeout)
+        if thread is not None and thread.is_alive():
+            _remember_live_observer(self)
+            return
+        _forget_live_observer(self)
 
     def register_pending(
         self,
@@ -675,9 +687,69 @@ def _snapshot_signature(snapshot: ProcObserverSnapshot) -> tuple[Any, ...]:
     )
 
 
+_LIVE_OBSERVERS: dict[int, weakref.ref[ProcObserver]] = {}
+_LIVE_OBSERVERS_LOCK = threading.Lock()
+
+
+def _remember_live_observer(observer: ProcObserver) -> None:
+    ident = id(observer)
+
+    def _drop(_ref: weakref.ref[ProcObserver], *, key: int = ident) -> None:
+        with _LIVE_OBSERVERS_LOCK:
+            _LIVE_OBSERVERS.pop(key, None)
+
+    with _LIVE_OBSERVERS_LOCK:
+        _LIVE_OBSERVERS[ident] = weakref.ref(observer, _drop)
+
+
+def _forget_live_observer(observer: ProcObserver) -> None:
+    with _LIVE_OBSERVERS_LOCK:
+        _LIVE_OBSERVERS.pop(id(observer), None)
+
+
+def _live_observers() -> list[ProcObserver]:
+    with _LIVE_OBSERVERS_LOCK:
+        live: list[ProcObserver] = []
+        stale: list[int] = []
+        for ident, ref in _LIVE_OBSERVERS.items():
+            observer = ref()
+            if observer is None:
+                stale.append(ident)
+                continue
+            live.append(observer)
+        for ident in stale:
+            _LIVE_OBSERVERS.pop(ident, None)
+        return live
+
+
+def stop_orphaned_proc_observers(*, timeout: float = 1.0) -> None:
+    """Stop started observers that are not the current observer of a running app.
+
+    ACE tests often construct :class:`~sase.ace.tui.app.AceApp` without mounting
+    it, which starts ``sase-ace-proc-observer`` in ``__init__``. Those threads
+    keep calling ``load_merged_config()`` via timezone conversion and poison
+    later config-cache tests on the same process. Shared :class:`AcePageGroup`
+    apps stay ``is_running`` between checkouts, so their current observer is
+    left alone.
+    """
+    protected: set[int] = set()
+    observers = _live_observers()
+    for observer in observers:
+        owner = observer._owner_ref() if observer._owner_ref is not None else None
+        if owner is None or not getattr(owner, "is_running", False):
+            continue
+        if getattr(owner, "_proc_observer", None) is observer:
+            protected.add(id(observer))
+    for observer in observers:
+        if id(observer) in protected:
+            continue
+        observer.stop(timeout=timeout)
+
+
 __all__ = [
     "DETAIL_LOG_LINES",
     "POLL_SECONDS",
+    "PROC_OBSERVER_THREAD_NAME",
     "ObservedProc",
     "ProcCompletionRecord",
     "ProcLogLine",
@@ -690,4 +762,5 @@ __all__ = [
     "is_monitor_shell_row",
     "monitor_row_agent_name",
     "proc_projection_for",
+    "stop_orphaned_proc_observers",
 ]
