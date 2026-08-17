@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -12,8 +13,12 @@ import pytest
 
 import sase.history.prompt_placeholders as store
 from sase.history.prompt_placeholders import (
+    CONTEXT_STOPWORD_RATIO,
+    CONTEXT_TOKENS_PER_PROMPT,
     _common_placeholder_limit,
+    _prompt_context_tokens,
     common_placeholder_source_token,
+    load_common_placeholder_index,
     load_common_placeholders,
     record_prompt_placeholders,
     remove_common_placeholder,
@@ -67,6 +72,22 @@ def read_store(home: Path) -> dict[str, Any]:
     return json.loads(store_file(home).read_text(encoding="utf-8"))
 
 
+def core_entries(home: Path) -> list[dict[str, Any]]:
+    """Return the version-1 placeholder fields, ignoring context bags."""
+    return [
+        {"text": item["text"], "count": item["count"], "last_used": item["last_used"]}
+        for item in read_store(home)["placeholders"]
+    ]
+
+
+def write_store(home: Path, payload: dict[str, Any]) -> None:
+    store_file(home).write_text(json.dumps(payload), encoding="utf-8")
+
+
+def version_1_store(*placeholders: dict[str, Any]) -> dict[str, Any]:
+    return {"version": 1, "placeholders": list(placeholders)}
+
+
 def entry(text: str, last_used: str) -> PromptEntry:
     return PromptEntry(text=text, timestamp=last_used, last_used=last_used)
 
@@ -78,12 +99,12 @@ def test_new_placeholder_is_inserted_then_incremented(
     freeze_timestamps(monkeypatch, ["260701_000000", "260702_000000"])
 
     record_prompt_placeholders("write <alpha> now")
-    assert read_store(sase_home_dir)["placeholders"] == [
+    assert core_entries(sase_home_dir) == [
         {"text": "alpha", "count": 1, "last_used": "260701_000000"}
     ]
 
     record_prompt_placeholders("write <alpha> again")
-    assert read_store(sase_home_dir)["placeholders"] == [
+    assert core_entries(sase_home_dir) == [
         {"text": "alpha", "count": 2, "last_used": "260702_000000"}
     ]
     assert load_common_placeholders(10) == ["alpha"]
@@ -97,7 +118,7 @@ def test_placeholder_repeated_in_one_prompt_counts_once(
 
     record_prompt_placeholders("<alpha> then <alpha> and <alpha>")
 
-    assert read_store(sase_home_dir)["placeholders"] == [
+    assert core_entries(sase_home_dir) == [
         {"text": "alpha", "count": 1, "last_used": "260701_000000"}
     ]
 
@@ -210,9 +231,10 @@ def test_limit_falls_back_to_the_default_for_unusable_config(
     [
         '{"version": 1, "placehol',
         "not json at all",
-        '{"version": 2, "placeholders": [{"text": "alpha", "count": 3, '
+        '{"version": 3, "placeholders": [{"text": "alpha", "count": 3, '
         '"last_used": "260701_000000"}]}',
         '{"version": 1, "placeholders": [{"text": "alpha"}]}',
+        "",
     ],
 )
 def test_unusable_store_loads_empty_and_is_replaced(
@@ -226,10 +248,11 @@ def test_unusable_store_loads_empty_and_is_replaced(
     freeze_timestamps(monkeypatch, ["260701_000000"])
     record_prompt_placeholders("<alpha>")
 
-    assert read_store(sase_home_dir) == {
-        "version": 1,
-        "placeholders": [{"text": "alpha", "count": 1, "last_used": "260701_000000"}],
-    }
+    recorded = read_store(sase_home_dir)
+    assert recorded["version"] == 2
+    assert core_entries(sase_home_dir) == [
+        {"text": "alpha", "count": 1, "last_used": "260701_000000"}
+    ]
 
 
 def test_store_write_failure_does_not_break_prompt_recording(
@@ -313,9 +336,14 @@ def test_removing_last_placeholder_leaves_store_present_and_seeded(
     freeze_timestamps(monkeypatch, ["260701_000000"])
     record_prompt_placeholders("<alpha>")
 
+    before = read_store(sase_home_dir)
     assert remove_common_placeholder("alpha") is True
     assert store_file(sase_home_dir).exists()
-    assert read_store(sase_home_dir) == {"version": 1, "placeholders": []}
+    after = read_store(sase_home_dir)
+    assert after["version"] == 2
+    assert after["placeholders"] == []
+    assert after["prompt_count"] == before["prompt_count"]
+    assert after["context_frequency"] == before["context_frequency"]
 
     with patch.object(
         store,
@@ -338,7 +366,7 @@ def test_seed_counts_placeholders_across_shards(sase_home_dir: Path) -> None:
 
     assert seed_common_placeholders_from_history(100) is True
 
-    assert read_store(sase_home_dir)["placeholders"] == [
+    assert core_entries(sase_home_dir) == [
         {"text": "alpha", "count": 2, "last_used": "260702_000000"},
         {"text": "beta", "count": 2, "last_used": "260702_000000"},
     ]
@@ -387,5 +415,328 @@ def test_seed_is_a_no_op_once_the_store_exists(
 def test_seed_writes_an_empty_store_without_history(sase_home_dir: Path) -> None:
     assert seed_common_placeholders_from_history(100) is True
 
-    assert read_store(sase_home_dir) == {"version": 1, "placeholders": []}
+    assert read_store(sase_home_dir) == {
+        "version": 2,
+        "prompt_count": 0,
+        "context_frequency": {},
+        "placeholders": [],
+    }
     assert load_common_placeholders(10) == []
+
+
+def test_version_1_store_loads_without_upgrade(sase_home_dir: Path) -> None:
+    write_store(
+        sase_home_dir,
+        version_1_store(
+            {"text": "delta", "count": 3, "last_used": "260703_000000"},
+            {"text": "gamma", "count": 3, "last_used": "260702_000000"},
+            {"text": "alpha", "count": 1, "last_used": "260701_000000"},
+        ),
+    )
+
+    assert load_common_placeholders(10) == ["delta", "gamma", "alpha"]
+    index = load_common_placeholder_index()
+    assert index.prompt_count == 0
+    assert index.context_frequency == {}
+    assert index.max_count == 3
+    assert all(
+        entry.context_uses == 0 and entry.context == {} for entry in index.entries
+    )
+    assert read_store(sase_home_dir)["version"] == 1
+
+
+def test_version_1_store_upgrades_in_place_from_history(sase_home_dir: Path) -> None:
+    write_store(
+        sase_home_dir,
+        version_1_store(
+            {"text": "alpha", "count": 5, "last_used": "260615_000000"},
+            {"text": "gamma", "count": 1, "last_used": "260610_000000"},
+        ),
+    )
+    history_dir = sase_home_dir / "prompt_history"
+    save_shard(
+        history_dir / "2607.json",
+        [
+            entry("newer <alpha> with <beta>", "260702_000000"),
+            entry("older <alpha>", "260701_000000"),
+        ],
+    )
+
+    assert load_common_placeholders(10) == ["alpha", "gamma"]
+    assert seed_common_placeholders_from_history(100) is True
+
+    data = read_store(sase_home_dir)
+    assert data["version"] == 2
+    assert data["prompt_count"] == 2
+    by_text = {item["text"]: item for item in data["placeholders"]}
+    assert set(by_text) == {"alpha", "beta", "gamma"}
+    assert by_text["alpha"]["count"] == 5
+    assert by_text["alpha"]["last_used"] == "260615_000000"
+    assert by_text["alpha"]["context_uses"] == 2
+    assert "<beta>" in by_text["alpha"]["context"]
+    assert "<alpha>" not in by_text["alpha"]["context"]
+    assert by_text["gamma"]["count"] == 1
+    assert by_text["gamma"]["last_used"] == "260610_000000"
+    assert by_text["beta"]["count"] == 1
+    assert by_text["beta"]["last_used"] == "260702_000000"
+    assert seed_common_placeholders_from_history(100) is False
+
+
+def test_version_1_upgrade_keeps_a_submit_that_races_the_scan(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_store(
+        sase_home_dir,
+        version_1_store({"text": "alpha", "count": 4, "last_used": "260601_000000"}),
+    )
+    save_shard(
+        sase_home_dir / "prompt_history" / "2607.json",
+        [entry("history <alpha> <beta>", "260701_000000")],
+    )
+    freeze_timestamps(monkeypatch, ["260805_000000"])
+    original_load = store.load_shard
+    raced = False
+
+    def _race(path: Path) -> list[PromptEntry]:
+        nonlocal raced
+        if not raced:
+            raced = True
+            record_prompt_placeholders("live <fresh>")
+        return original_load(path)
+
+    with patch.object(store, "load_shard", side_effect=_race):
+        assert seed_common_placeholders_from_history(100) is True
+
+    by_text = {item["text"]: item for item in read_store(sase_home_dir)["placeholders"]}
+    assert by_text["alpha"]["count"] == 4
+    assert by_text["alpha"]["last_used"] == "260601_000000"
+    assert "beta" in by_text
+    assert by_text["fresh"]["count"] == 1
+    assert by_text["fresh"]["last_used"] == "260805_000000"
+
+
+def test_recording_increments_context_once_per_prompt(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000", "260702_000000"])
+
+    record_prompt_placeholders("<alpha> then <alpha> and <beta> write")
+    first = read_store(sase_home_dir)
+    assert first["version"] == 2
+    assert first["prompt_count"] == 1
+    by_text = {item["text"]: item for item in first["placeholders"]}
+    assert by_text["alpha"]["count"] == 1
+    assert by_text["alpha"]["context_uses"] == 1
+    assert by_text["beta"]["count"] == 1
+    assert "<beta>" in by_text["alpha"]["context"]
+    assert by_text["alpha"]["context"]["<beta>"] == 1
+    assert "<alpha>" not in by_text["alpha"]["context"]
+    assert "<alpha>" in by_text["beta"]["context"]
+    assert "<beta>" not in by_text["beta"]["context"]
+    assert first["context_frequency"]["<alpha>"] == 1
+    assert first["context_frequency"]["<beta>"] == 1
+
+    record_prompt_placeholders("<alpha> then <alpha> and <beta> write")
+    second = read_store(sase_home_dir)
+    assert second["prompt_count"] == 2
+    by_text = {item["text"]: item for item in second["placeholders"]}
+    assert by_text["alpha"]["count"] == 2
+    assert by_text["alpha"]["context_uses"] == 2
+    assert by_text["alpha"]["context"]["<beta>"] == 2
+    assert second["context_frequency"]["<alpha>"] == 2
+
+
+def test_literal_zone_tag_is_context_but_not_a_saved_entry(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+
+    record_prompt_placeholders("see `<alpha>` and <beta>")
+
+    assert load_common_placeholders(10) == ["beta"]
+    beta = read_store(sase_home_dir)["placeholders"][0]
+    assert "<alpha>" in beta["context"]
+    assert "<beta>" not in beta["context"]
+
+
+def test_prompt_context_tokens_keep_tags_and_drop_stopwords() -> None:
+    tokens = _prompt_context_tokens(
+        "write the plan <phase title> rareword",
+        context_frequency={
+            "write": 10,
+            "plan": 10,
+            "rareword": 1,
+            "<phase title>": 10,
+        },
+        prompt_count=10,
+    )
+    assert tokens[0] == "<phase title>"
+    assert "write" not in tokens
+    assert "plan" not in tokens
+    assert "rareword" in tokens
+    assert 10 / 10 > CONTEXT_STOPWORD_RATIO
+
+
+def test_prompt_context_tokens_prefer_tags_when_the_prompt_is_capped() -> None:
+    words = " ".join(f"word{index:02d}xx" for index in range(30))
+    tokens = _prompt_context_tokens(
+        f"<alpha> <beta> {words}",
+        context_frequency={},
+        prompt_count=0,
+    )
+    assert tokens[:2] == ("<alpha>", "<beta>")
+    assert len(tokens) == CONTEXT_TOKENS_PER_PROMPT
+    assert "<alpha>" in tokens
+    assert "<beta>" in tokens
+
+
+def test_prompt_context_tokens_are_deterministic() -> None:
+    first = _prompt_context_tokens(
+        "write the <phase title> plan",
+        context_frequency={"write": 2, "phase": 1},
+        prompt_count=4,
+    )
+    second = _prompt_context_tokens(
+        "write the <phase title> plan",
+        context_frequency={"write": 2, "phase": 1},
+        prompt_count=4,
+    )
+    assert first == second
+
+
+def test_entry_and_vocabulary_trims_are_deterministic(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(store, "CONTEXT_TOKENS_PER_ENTRY", 2)
+    monkeypatch.setattr(store, "CONTEXT_VOCABULARY_LIMIT", 2)
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    monkeypatch.setattr(
+        store,
+        "_prompt_context_tokens",
+        lambda _text, **_kwargs: ("<zebra>", "<mango>", "<apple>"),
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=store.log.name):
+        record_prompt_placeholders("<alpha>")
+
+    saved = read_store(sase_home_dir)
+    assert saved["placeholders"][0]["context"] == {"<apple>": 1, "<mango>": 1}
+    assert saved["context_frequency"] == {"<apple>": 1, "<mango>": 1}
+    assert "trimmed placeholder context bag" in caplog.text
+    assert "trimmed placeholder context vocabulary" in caplog.text
+
+
+def test_entry_trim_keeps_highest_count_then_smallest_token(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(store, "CONTEXT_TOKENS_PER_ENTRY", 2)
+    monkeypatch.setattr(store, "CONTEXT_VOCABULARY_LIMIT", 50)
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    tokens = iter(
+        [
+            ("<zebra>", "<apple>"),
+            ("<zebra>", "<mango>"),
+        ]
+    )
+    monkeypatch.setattr(
+        store,
+        "_prompt_context_tokens",
+        lambda _text, **_kwargs: next(tokens),
+    )
+
+    record_prompt_placeholders("<alpha>")
+    record_prompt_placeholders("<alpha>")
+
+    assert read_store(sase_home_dir)["placeholders"][0]["context"] == {
+        "<zebra>": 2,
+        "<apple>": 1,
+    }
+
+
+def test_lru_eviction_drops_the_bag_and_keeps_corpus_statistics(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_limit(monkeypatch, 2)
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    record_prompt_placeholders("<stale> uniqueaaaa")
+    freeze_timestamps(monkeypatch, ["260702_000000"])
+    record_prompt_placeholders("<older>")
+    freeze_timestamps(monkeypatch, ["260703_000000"])
+    record_prompt_placeholders("<fresh>")
+
+    data = read_store(sase_home_dir)
+    assert [item["text"] for item in data["placeholders"]] == ["fresh", "older"]
+    assert data["prompt_count"] == 3
+    assert "uniqueaaaa" in data["context_frequency"]
+    assert "<stale>" in data["context_frequency"]
+
+
+def test_remove_common_placeholder_leaves_corpus_statistics(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000"])
+    record_prompt_placeholders("<alpha> <beta>")
+    before = read_store(sase_home_dir)
+
+    assert remove_common_placeholder("beta") is True
+
+    after = read_store(sase_home_dir)
+    assert after["prompt_count"] == before["prompt_count"]
+    assert after["context_frequency"] == before["context_frequency"]
+    assert [item["text"] for item in after["placeholders"]] == ["alpha"]
+
+
+def test_version_2_payload_with_missing_stats_degrades_to_zero(
+    sase_home_dir: Path,
+) -> None:
+    write_store(
+        sase_home_dir,
+        {
+            "version": 2,
+            "prompt_count": -3,
+            "context_frequency": {"write": -1, "plan": True, "": 2},
+            "placeholders": [
+                {
+                    "text": "alpha",
+                    "count": 3,
+                    "last_used": "260701_000000",
+                    "context_uses": -1,
+                    "context": [],
+                }
+            ],
+        },
+    )
+
+    assert load_common_placeholders(10) == ["alpha"]
+    index = load_common_placeholder_index()
+    assert index.prompt_count == 0
+    assert index.context_frequency == {}
+    assert index.max_count == 3
+    assert index.entries[0].context_uses == 0
+    assert index.entries[0].context == {}
+
+
+def test_failed_write_leaves_the_previous_store_readable(
+    sase_home_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    freeze_timestamps(monkeypatch, ["260701_000000", "260702_000000"])
+    record_prompt_placeholders("<alpha>")
+    before = read_store(sase_home_dir)
+
+    def _boom(_loaded: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "_save_payload", _boom)
+    record_prompt_placeholders("<beta>")
+
+    assert read_store(sase_home_dir) == before
+    assert load_common_placeholders(10) == ["alpha"]
