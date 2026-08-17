@@ -1142,7 +1142,7 @@
                 "choices": null,
                 "dest": "name",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-n",
@@ -1845,7 +1845,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "agent",
                 "metavar": "name",
                 "nargs": null
               }
@@ -1882,7 +1882,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "agent",
                 "metavar": "NAME",
                 "nargs": null
               }
@@ -2687,7 +2687,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-a",
@@ -2836,7 +2836,7 @@
                 "choices": null,
                 "dest": "reference",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "artifact",
                 "metavar": "reference",
                 "nargs": null
               }
@@ -2952,7 +2952,7 @@
                 "choices": null,
                 "dest": "reference",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "artifact",
                 "metavar": "reference",
                 "nargs": null
               }
@@ -3220,7 +3220,7 @@
                 "choices": null,
                 "dest": "reference",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "artifact",
                 "metavar": "reference",
                 "nargs": null
               }
@@ -3467,7 +3467,7 @@
                     "choices": null,
                     "dest": "reference",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "artifact",
                     "metavar": "reference",
                     "nargs": null
                   }
@@ -4414,7 +4414,7 @@
                 "choices": null,
                 "dest": "id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "id",
                 "nargs": null
               }
@@ -4624,7 +4624,7 @@
                 "choices": null,
                 "dest": "ids",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "ID",
                 "nargs": "+"
               }
@@ -4679,7 +4679,7 @@
                 "choices": null,
                 "dest": "patch",
                 "hidden": false,
-                "kind": null,
+                "kind": "patch",
                 "repeatable": false,
                 "strings": [
                   "-c",
@@ -4716,7 +4716,7 @@
                 "choices": null,
                 "dest": "model",
                 "hidden": false,
-                "kind": null,
+                "kind": "model",
                 "repeatable": false,
                 "strings": [
                   "-m",
@@ -4982,7 +4982,7 @@
                     "choices": null,
                     "dest": "id",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "bead",
                     "metavar": "id",
                     "nargs": "?"
                   }
@@ -5143,7 +5143,7 @@
                     "choices": null,
                     "dest": "id",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "bead",
                     "metavar": "id",
                     "nargs": "?"
                   }
@@ -5289,7 +5289,7 @@
                 "choices": null,
                 "dest": "id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "id",
                 "nargs": "?"
               }
@@ -5402,7 +5402,7 @@
                 "choices": null,
                 "dest": "id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "id",
                 "nargs": "?"
               }
@@ -5627,7 +5627,7 @@
                 "choices": null,
                 "dest": "id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "id",
                 "nargs": null
               },
@@ -5700,7 +5700,7 @@
                 "choices": null,
                 "dest": "id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "id",
                 "nargs": null
               }
@@ -5925,7 +5925,7 @@
                     "choices": null,
                     "dest": "id",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "bead",
                     "metavar": "id",
                     "nargs": null
                   },
@@ -5933,7 +5933,7 @@
                     "choices": null,
                     "dest": "refs",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "artifact",
                     "metavar": "refs",
                     "nargs": "+"
                   }
@@ -5995,7 +5995,7 @@
                     "choices": null,
                     "dest": "id",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "bead",
                     "metavar": "id",
                     "nargs": "?"
                   }
@@ -6033,7 +6033,7 @@
                     "choices": null,
                     "dest": "id",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "bead",
                     "metavar": "id",
                     "nargs": null
                   },
@@ -6041,7 +6041,7 @@
                     "choices": null,
                     "dest": "refs",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "artifact",
                     "metavar": "refs",
                     "nargs": "+"
                   }
@@ -6108,7 +6108,7 @@
                 "choices": null,
                 "dest": "ids",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "ids",
                 "nargs": "+"
               }
@@ -6434,7 +6434,7 @@
                 "choices": null,
                 "dest": "ids",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "ID",
                 "nargs": "+"
               }
@@ -6662,7 +6662,7 @@
                 "choices": null,
                 "dest": "model",
                 "hidden": false,
-                "kind": null,
+                "kind": "model",
                 "repeatable": false,
                 "strings": [
                   "-m",
@@ -6767,7 +6767,7 @@
                 "choices": null,
                 "dest": "ids",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "bead",
                 "metavar": "ID",
                 "nargs": "+"
               }
@@ -7080,7 +7080,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-n",
@@ -9036,7 +9036,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": true,
                 "strings": [
                   "-t",
@@ -10236,7 +10236,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "--agent"
@@ -11010,7 +11010,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-l",
@@ -11022,7 +11022,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": true,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "--lane"
@@ -11204,7 +11204,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-a",
@@ -11216,7 +11216,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": true,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "--lane"
@@ -11498,7 +11498,7 @@
             "choices": null,
             "dest": "tag",
             "hidden": false,
-            "kind": null,
+            "kind": "tag",
             "repeatable": true,
             "strings": [
               "-t",
@@ -11690,7 +11690,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": true,
                 "strings": [
                   "-t",
@@ -11790,7 +11790,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": false,
                 "strings": [
                   "-t",
@@ -11969,7 +11969,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -12042,7 +12042,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -12171,7 +12171,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -12294,7 +12294,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -12360,7 +12360,7 @@
                     "choices": null,
                     "dest": "patch",
                     "hidden": false,
-                    "kind": null,
+                    "kind": "patch",
                     "repeatable": false,
                     "strings": [
                       "-p",
@@ -12381,7 +12381,7 @@
                     "choices": null,
                     "dest": "refs",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "artifact",
                     "metavar": "refs",
                     "nargs": "+"
                   }
@@ -12412,7 +12412,7 @@
                     "choices": null,
                     "dest": "patch",
                     "hidden": false,
-                    "kind": null,
+                    "kind": "patch",
                     "repeatable": false,
                     "strings": [
                       "-p",
@@ -12479,7 +12479,7 @@
                     "choices": null,
                     "dest": "patch",
                     "hidden": false,
-                    "kind": null,
+                    "kind": "patch",
                     "repeatable": false,
                     "strings": [
                       "-p",
@@ -12500,7 +12500,7 @@
                     "choices": null,
                     "dest": "refs",
                     "is_remainder": false,
-                    "kind": null,
+                    "kind": "artifact",
                     "metavar": "refs",
                     "nargs": "+"
                   }
@@ -12575,7 +12575,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -12656,7 +12656,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -12729,7 +12729,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -12810,7 +12810,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -12912,7 +12912,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -12997,7 +12997,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -13078,7 +13078,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -13151,7 +13151,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               }
@@ -13355,7 +13355,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "patch",
                 "metavar": "name",
                 "nargs": null
               },
@@ -13363,7 +13363,7 @@
                 "choices": null,
                 "dest": "tag",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "tag",
                 "metavar": "tag",
                 "nargs": null
               },
@@ -13488,7 +13488,7 @@
                 "choices": null,
                 "dest": "model",
                 "hidden": false,
-                "kind": null,
+                "kind": "model",
                 "repeatable": false,
                 "strings": [
                   "-m",
@@ -13653,7 +13653,7 @@
                     "choices": null,
                     "dest": "plan",
                     "hidden": false,
-                    "kind": null,
+                    "kind": "plan",
                     "repeatable": false,
                     "strings": [
                       "-P",
@@ -14230,7 +14230,7 @@
                 "choices": null,
                 "dest": "target",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "plan",
                 "metavar": "TARGET",
                 "nargs": "?"
               }
@@ -15036,7 +15036,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": false,
                 "strings": [
                   "-t",
@@ -15160,7 +15160,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": true,
                 "strings": [
                   "-t",
@@ -16399,7 +16399,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": true,
                 "strings": [
                   "-t",
@@ -16533,7 +16533,7 @@
                 "choices": null,
                 "dest": "tag",
                 "hidden": false,
-                "kind": null,
+                "kind": "tag",
                 "repeatable": true,
                 "strings": [
                   "-t",
@@ -16939,7 +16939,7 @@
                 "choices": null,
                 "dest": "workspace",
                 "hidden": false,
-                "kind": null,
+                "kind": "workspace",
                 "repeatable": false,
                 "strings": [
                   "-w",
@@ -16979,7 +16979,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-a",
@@ -17039,7 +17039,7 @@
                 "choices": null,
                 "dest": "workspace",
                 "hidden": false,
-                "kind": null,
+                "kind": "workspace",
                 "repeatable": false,
                 "strings": [
                   "-w",
@@ -17103,7 +17103,7 @@
                 "choices": null,
                 "dest": "workspace",
                 "hidden": false,
-                "kind": null,
+                "kind": "workspace",
                 "repeatable": false,
                 "strings": [
                   "-w",
@@ -17176,7 +17176,7 @@
                 "choices": null,
                 "dest": "workspace",
                 "hidden": false,
-                "kind": null,
+                "kind": "workspace",
                 "repeatable": false,
                 "strings": [
                   "-w",
@@ -17466,7 +17466,7 @@
             "choices": null,
             "dest": "name",
             "is_remainder": false,
-            "kind": null,
+            "kind": "patch",
             "metavar": "name",
             "nargs": "?"
           }
@@ -17502,7 +17502,7 @@
             "choices": null,
             "dest": "name",
             "is_remainder": false,
-            "kind": null,
+            "kind": "patch",
             "metavar": "name",
             "nargs": null
           }
@@ -17896,7 +17896,7 @@
                 "choices": null,
                 "dest": "agent",
                 "hidden": false,
-                "kind": null,
+                "kind": "agent",
                 "repeatable": false,
                 "strings": [
                   "-a",
@@ -17944,7 +17944,7 @@
                 "choices": null,
                 "dest": "skill",
                 "hidden": false,
-                "kind": null,
+                "kind": "skill",
                 "repeatable": false,
                 "strings": [
                   "-s",
@@ -18002,7 +18002,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "skill",
                 "metavar": "skill-name",
                 "nargs": null
               }
@@ -19852,7 +19852,7 @@
                 "choices": null,
                 "dest": "workflow_name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "xprompt",
                 "metavar": "workflow_name",
                 "nargs": null
               },
@@ -19912,7 +19912,7 @@
                 "choices": null,
                 "dest": "workflow_name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "xprompt",
                 "metavar": "workflow_name",
                 "nargs": "?"
               }
@@ -20021,7 +20021,7 @@
                 "choices": null,
                 "dest": "name",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "xprompt",
                 "metavar": "NAME",
                 "nargs": null
               }

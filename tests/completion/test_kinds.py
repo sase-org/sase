@@ -46,6 +46,22 @@ def test_name_table_resolves_unambiguous_dest() -> None:
     assert resolve_value_kind(action, ("bead", "list")) is ValueKind.PROJECT
 
 
+def test_name_table_resolves_catalog_dests() -> None:
+    expected = {
+        "--agent": ValueKind.AGENT,
+        "--model": ValueKind.MODEL,
+        "--tag": ValueKind.TAG,
+        "--skill": ValueKind.SKILL,
+        "--patch": ValueKind.PATCH,
+        "--plan": ValueKind.PLAN,
+        "--workspace": ValueKind.WORKSPACE,
+    }
+    for flag, kind in expected.items():
+        dest = flag.removeprefix("--")
+        action = _option_action(flag, dest=dest)
+        assert resolve_value_kind(action, ("any", "path")) is kind, flag
+
+
 def test_metavar_resolves_when_dest_does_not() -> None:
     action = _positional_action("plan_file", metavar="PLAN_FILE")
     assert resolve_value_kind(action, ()) is ValueKind.PATH
@@ -63,3 +79,14 @@ def test_ambiguous_bare_names_are_not_in_name_table() -> None:
 
 def test_bead_show_id_path_override_present() -> None:
     assert PATH_OVERRIDES[(("bead", "show"), "id")] is ValueKind.BEAD
+
+
+def test_path_overrides_cover_shipped_catalog_slots() -> None:
+    assert PATH_OVERRIDES[(("bead", "close"), "ids")] is ValueKind.BEAD
+    assert PATH_OVERRIDES[(("patch", "status"), "name")] is ValueKind.PATCH
+    assert PATH_OVERRIDES[(("agent", "show"), "name")] is ValueKind.AGENT
+    assert PATH_OVERRIDES[(("xprompt", "show"), "name")] is ValueKind.XPROMPT
+    assert PATH_OVERRIDES[(("skill", "use"), "name")] is ValueKind.SKILL
+    assert PATH_OVERRIDES[(("plan", "show"), "target")] is ValueKind.PLAN
+    assert PATH_OVERRIDES[(("bead", "ref", "add"), "refs")] is ValueKind.ARTIFACT
+    assert PATH_OVERRIDES[(("artifact", "show"), "reference")] is ValueKind.ARTIFACT

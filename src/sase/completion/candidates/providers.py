@@ -15,6 +15,7 @@ from sase.completion.candidates.cache import (
     load_cached_candidates,
     store_cached_candidates,
 )
+from sase.completion.candidates.catalog import PROVIDERS as _CATALOG_PROVIDERS
 from sase.completion.candidates.protocol import Candidate, filter_candidates
 from sase.completion.kinds import ValueKind
 
@@ -44,7 +45,10 @@ def candidates_for(
     source_mtime = _safe_mtime(source_path(project))
     cached = load_cached_candidates(cache_key, source_mtime=source_mtime)
     if cached is None:
-        cached = fetch(project)
+        try:
+            cached = fetch(project)
+        except Exception:
+            return []
         store_cached_candidates(cache_key, cached)
     return filter_candidates(cached, prefix, limit)
 
@@ -77,29 +81,9 @@ def _project_candidates(_project: str | None) -> list[Candidate]:
     ]
 
 
-def _resolve_beads_dir() -> Path | None:
-    from sase.bead.cli_location import resolve_beads_location
-
-    location = resolve_beads_location(Path.cwd(), require_existing=True)
-    return None if location is None else location.beads_dir
-
-
-def _bead_source_path(_project: str | None) -> Path | None:
-    return _resolve_beads_dir()
-
-
-def _bead_candidates(_project: str | None) -> list[Candidate]:
-    beads_dir = _resolve_beads_dir()
-    if beads_dir is None:
-        return []
-    from sase.core.bead_read_facade import list_issues
-
-    return [Candidate(issue.id, issue.title) for issue in list_issues(beads_dir)]
-
-
 _PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.PROJECT: (_project_candidates, _project_source_path),
-    ValueKind.BEAD: (_bead_candidates, _bead_source_path),
+    **_CATALOG_PROVIDERS,
 }
 
 

@@ -18,14 +18,38 @@ import textwrap
 import time
 from pathlib import Path
 
+import pytest
+
+_SHIPPED_KINDS = (
+    "project",
+    "bead",
+    "repo",
+    "workspace",
+    "flag",
+    "plugin",
+    "plan",
+    "patch",
+    "memory",
+    "xprompt",
+    "skill",
+    "proc",
+    "monitor",
+    "artifact",
+    "tag",
+    "agent",
+    "model",
+)
+
 _PROBE_SOURCE = """
 import sys
-sys.argv = ["sase", "completion", "candidates", "project"]
+kinds = {kinds!r}
 from sase.main.entry import main
-try:
-    main()
-except SystemExit as exc:
-    assert exc.code in (0, None), exc.code
+for kind in kinds:
+    sys.argv = ["sase", "completion", "candidates", kind]
+    try:
+        main()
+    except SystemExit as exc:
+        assert exc.code in (0, None), (kind, exc.code)
 forbidden = [
     name
     for name in sys.modules
@@ -40,11 +64,16 @@ assert not forbidden, forbidden
 """
 
 
-def _run_probe(cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run_probe(
+    cwd: Path, kinds: tuple[str, ...] = _SHIPPED_KINDS
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["SASE_HOME"] = str(cwd / "sase-home")
+    env.pop("SASE_SDD_BEADS_DIR", None)
+    env.pop("SASE_SDD_PLANS_DIR", None)
+    source = textwrap.dedent(_PROBE_SOURCE.format(kinds=kinds))
     return subprocess.run(
-        [sys.executable, "-c", textwrap.dedent(_PROBE_SOURCE)],
+        [sys.executable, "-c", source],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -70,14 +99,15 @@ _LATENCY_BUDGET_MS = 150.0
 _CI_MULTIPLIER = 3.0 if os.environ.get("CI") else 1.0
 
 
-def test_candidates_fast_path_wall_clock_budget(tmp_path: Path) -> None:
+@pytest.mark.parametrize("kind", _SHIPPED_KINDS)
+def test_candidates_fast_path_wall_clock_budget(tmp_path: Path, kind: str) -> None:
     timings_seconds: list[float] = []
-    for _ in range(3):
+    for _ in range(2):
         start = time.perf_counter()
-        result = _run_probe(tmp_path)
+        result = _run_probe(tmp_path, kinds=(kind,))
         timings_seconds.append(time.perf_counter() - start)
         assert result.returncode == 0, result.stderr + result.stdout
 
     best_ms = min(timings_seconds) * 1000
     budget_ms = _LATENCY_BUDGET_MS * _CI_MULTIPLIER
-    assert best_ms < budget_ms, (timings_seconds, budget_ms)
+    assert best_ms < budget_ms, (kind, timings_seconds, budget_ms)

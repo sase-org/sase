@@ -39,25 +39,97 @@ _KIND_ATTR: Final = "_sase_completion_kind"
 # here -- resolve those one command path at a time through PATH_OVERRIDES
 # instead, or a wrong kind will be offered somewhere it doesn't belong.
 NAME_TABLE: Final[dict[str, ValueKind]] = {
-    "project": ValueKind.PROJECT,
+    "agent": ValueKind.AGENT,
     "bead_id": ValueKind.BEAD,
-    "repo": ValueKind.REPO,
-    "workspace_num": ValueKind.WORKSPACE,
+    "flag_key": ValueKind.FLAG,
+    "memory_path": ValueKind.MEMORY,
+    "model": ValueKind.MODEL,
+    "monitor_id": ValueKind.MONITOR,
+    "patch": ValueKind.PATCH,
+    "plan": ValueKind.PLAN,
+    "plan_file": ValueKind.PATH,
     "plugin": ValueKind.PLUGIN,
     "plugin_name": ValueKind.PLUGIN,
-    "flag_key": ValueKind.FLAG,
-    "monitor_id": ValueKind.MONITOR,
-    "plan_file": ValueKind.PATH,
-    "memory_path": ValueKind.MEMORY,
     "proc_id": ValueKind.PROC,
+    "project": ValueKind.PROJECT,
+    "repo": ValueKind.REPO,
+    "skill": ValueKind.SKILL,
+    "tag": ValueKind.TAG,
+    "workflow_name": ValueKind.XPROMPT,
+    "workspace": ValueKind.WORKSPACE,
+    "workspace_num": ValueKind.WORKSPACE,
 }
 
 # Explicit (command_path, dest) overrides for actions whose dest/metavar is
-# too ambiguous to resolve from NAME_TABLE alone. Extended one provider at a
-# time as the "kinds" epic phase lands each value-kind's completion source.
-PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], ValueKind]] = {
-    (("bead", "show"), "id"): ValueKind.BEAD,
-}
+# too ambiguous to resolve from NAME_TABLE alone. Bare names such as "id"
+# and "name" are listed here one command path at a time.
+_BEAD_ID_SLOTS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
+    (("bead", "+1"), "id"),
+    (("bead", "close"), "ids"),
+    (("bead", "dep", "list"), "id"),
+    (("bead", "dep", "tree"), "id"),
+    (("bead", "epic-symbols"), "id"),
+    (("bead", "history"), "id"),
+    (("bead", "note"), "id"),
+    (("bead", "open"), "id"),
+    (("bead", "ref", "add"), "id"),
+    (("bead", "ref", "list"), "id"),
+    (("bead", "ref", "rm"), "id"),
+    (("bead", "rm"), "ids"),
+    (("bead", "show"), "id"),
+    (("bead", "snooze"), "ids"),
+    (("bead", "update"), "ids"),
+)
+_PATCH_NAME_COMMANDS: Final[tuple[str, ...]] = (
+    "accept",
+    "archive",
+    "mail",
+    "rebase",
+    "restore",
+    "revert",
+    "rewind",
+    "reword",
+    "set-origin",
+    "status",
+    "submit",
+    "sync",
+    "tag",
+)
+_ARTIFACT_REF_SLOTS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
+    (("artifact", "open"), "reference"),
+    (("artifact", "path"), "reference"),
+    (("artifact", "show"), "reference"),
+    (("artifact", "trash", "restore"), "reference"),
+    (("bead", "ref", "add"), "refs"),
+    (("bead", "ref", "rm"), "refs"),
+    (("patch", "ref", "add"), "refs"),
+    (("patch", "ref", "rm"), "refs"),
+)
+
+
+def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
+    overrides: dict[tuple[tuple[str, ...], str], ValueKind] = {
+        (("agent", "kill"), "name"): ValueKind.AGENT,
+        (("agent", "revert"), "name"): ValueKind.AGENT,
+        (("agent", "show"), "name"): ValueKind.AGENT,
+        (("plan", "show"), "target"): ValueKind.PLAN,
+        (("restore",), "name"): ValueKind.PATCH,
+        (("revert",), "name"): ValueKind.PATCH,
+        (("skill", "use"), "name"): ValueKind.SKILL,
+        (("xprompt", "show"), "name"): ValueKind.XPROMPT,
+    }
+    for slot in _BEAD_ID_SLOTS:
+        overrides[slot] = ValueKind.BEAD
+    for command in _PATCH_NAME_COMMANDS:
+        overrides[(("patch", command), "name")] = ValueKind.PATCH
+    for slot in _ARTIFACT_REF_SLOTS:
+        overrides[slot] = ValueKind.ARTIFACT
+    return overrides
+
+
+PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], ValueKind]] = (
+    _build_path_overrides()
+)
 
 
 def set_completion_kind(action: argparse.Action, kind: ValueKind) -> None:
