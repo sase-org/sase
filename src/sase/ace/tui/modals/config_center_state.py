@@ -29,6 +29,10 @@ def _migrate_legacy_tab_id(value: str) -> str:
     return _LEGACY_TAB_ALIASES.get(value, value)
 
 
+def _replace_state_file(source: Path, target: Path) -> None:
+    os.replace(source, target)
+
+
 def load_admin_center_tab_history() -> AdminCenterTabHistory:
     """Load the persisted ``(current, alternate)`` pair, or an empty history."""
     path = _admin_center_last_tab_path()
@@ -89,7 +93,7 @@ def save_admin_center_tab_history(history: AdminCenterTabHistory) -> None:
             stream.write(payload.encode())
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        _replace_state_file(temporary, path)
     except BaseException:
         try:
             os.close(fd)

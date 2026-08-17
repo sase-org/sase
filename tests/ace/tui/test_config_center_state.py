@@ -147,9 +147,7 @@ def test_save_atomically_replaces_existing_state(
     replacements: list[tuple[Path, Path]] = []
     real_replace = os.replace
 
-    def _replace(
-        source: str | os.PathLike[str], target: str | os.PathLike[str]
-    ) -> None:
+    def _replace(source: Path, target: Path) -> None:
         source_path = Path(source)
         target_path = Path(target)
         replacements.append((source_path, target_path))
@@ -157,12 +155,13 @@ def test_save_atomically_replaces_existing_state(
         assert target_path.read_text() == "logs\n"
         real_replace(source_path, target_path)
 
-    monkeypatch.setattr(config_center_state.os, "replace", _replace)
+    monkeypatch.setattr(config_center_state, "_replace_state_file", _replace)
 
     save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))
 
     assert len(replacements) == 1
     assert replacements[0][1] == path
+    assert os.replace is real_replace
     assert path.read_text() == "procs\n"
     assert not list(home.glob(f".{path.name}.*.tmp"))
 
@@ -176,10 +175,10 @@ def test_failed_replace_preserves_destination_and_cleans_temporary(
     path = home / "ace_admin_center_last_tab.txt"
     path.write_text("logs\n")
 
-    def _fail_replace(_source: object, _target: object) -> None:
+    def _fail_replace(_source: Path, _target: Path) -> None:
         raise OSError("synthetic replace failure")
 
-    monkeypatch.setattr(config_center_state.os, "replace", _fail_replace)
+    monkeypatch.setattr(config_center_state, "_replace_state_file", _fail_replace)
 
     with pytest.raises(OSError, match="synthetic replace failure"):
         save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))

@@ -8,8 +8,6 @@ tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extre
 tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
 # sase-ke
 tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
-# sase-j7
-tests/ace/tui/test_config_center_state.py::test_save_atomically_replaces_existing_state
 # sase-le
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_family_header_renders_followup_role_attribution
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_header_renders_skill_uses_without_memory_reads
