@@ -608,20 +608,22 @@ agent and LLM latency come from the local telemetry store. The detailed body con
 
 1. **Startup breakdown** — p50, p95, and maximum durations for process→mount,
    mount→first paint, visible ready, and all surfaces ready, plus the slowest session in
-   the range. Startup status is OK below two seconds, warning from two to five seconds,
-   and critical at five seconds or more.
+   the range. The Startup tile itself reports the _median visible-ready_ time and grades
+   it OK below two seconds, warning from two to five seconds, and critical at five
+   seconds or more.
 2. **Stalls & hitches** — event counts, worst and median duration, recency, suppressed
-   counts, top contexts, and recoveries. Any hitch produces a warning; any stall is
-   critical.
+   counts, top contexts, and recoveries. Any hitch makes the Stalls tile warn; any stall
+   makes it critical.
 3. **Latency & reliability** — telemetry-backed p50, p95, maximum, sample count, error
    rate, retry rate, and share. Provider grouping also shows input/output token and
-   cache data. The configured `telemetry.health_thresholds` grade the agent and LLM
-   latency tiles, matching `sase telemetry health`.
+   cache data. The configured `telemetry.health_thresholds` grade every row in this
+   panel as well as the Agent p95 and LLM p95 tiles, using the same rules as
+   `sase telemetry health`.
 4. **Data & instrumentation** — telemetry enablement, selected resolution, store size,
    raw/rollup counts, write freshness, and one coverage row per diagnostic log. Coverage
    reports file presence, records in the selected window, earliest retained record,
-   truncation, and unreadable lines. It also reports whether the optional probe flags
-   are enabled.
+   truncation, and unreadable lines. A final line lists the optional probe flags; see
+   [Deep profiling and probe flags](#deep-profiling-and-probe-flags) for how to read it.
 
 The dashboard reads these files from `~/.sase/logs/` by default:
 
@@ -634,27 +636,31 @@ The dashboard reads these files from `~/.sase/logs/` by default:
 
 Missing, disabled, truncated, or partially unreadable sources degrade independently, so
 the rest of the view remains usable. Percentiles use the nearest-rank method described
-in the in-app `?` help. For a bounded range, comparable headline values can include a
-delta against the immediately preceding range.
+in the in-app `?` help. Every range except **All time** also loads the immediately
+preceding window of the same length; that second load is what the Startup and Agent p95
+tiles compare against to show a delta. The other three tiles never show one.
 
 ### Retention and rollups
 
-Perf analytics combine high-resolution raw samples with downsampled rollups:
+The view's two data sources age out on entirely different rules:
 
-- Each TUI JSONL diagnostic log is byte-bounded rather than time-retained. The default
-  limit is 2 MiB per current file; rotation preserves one `.1` segment. Set
-  `SASE_TUI_TELEMETRY_MAX_BYTES` to override the byte limit.
-- Telemetry keeps raw samples for 48 hours, five-minute rollups for 30 days, and hourly
-  rollups for 365 days by default. These durations are configurable under
-  `telemetry.retention`.
+- Each TUI JSONL diagnostic log is byte-bounded, not time-retained: nothing expires on a
+  clock, but the oldest records fall off once the file grows. The default limit is 2 MiB
+  per current file, and rotation preserves exactly one `.1` segment before discarding
+  the previous one. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to override the byte limit.
+- The telemetry store is time-retained and rolled up: raw samples for 48 hours,
+  five-minute rollups for 30 days, and hourly rollups for 365 days by default. These
+  durations are configurable under `telemetry.retention`.
 
-Older windows therefore use the retained rollup resolution for telemetry and only the
-current plus rotated segment for each JSONL source. **All time** means all retained
-data, not an unbounded history.
+So a long lookback reads telemetry at the coarser rollup resolution, and reads only the
+current plus rotated segment of each JSONL log. **All time** means everything still
+retained under those two rules, not an unbounded history.
 
 ### Deep profiling and probe flags
 
-The dashboard reports these flags as on or off but does not parse their output files:
+Both probes are off by default and write to their own files under `~/.sase/perf/`, which
+is a different directory from the `~/.sase/logs/` diagnostic logs the dashboard reads.
+The dashboard only names these flags; it never parses what they produce.
 
 - `SASE_TUI_PERF=1` records per-keystroke `j`/`k` key-to-paint samples in
   `~/.sase/perf/tui_jk.jsonl` by default. Override the path with `SASE_TUI_PERF_PATH`.
@@ -662,6 +668,12 @@ The dashboard reports these flags as on or off but does not parse their output f
   default. Override the path with `SASE_TUI_TRACE_PATH`; see
   [Trace recorder](#trace-recorder).
 
-`sase ace --tmux` enables both probes unless the caller has already set either variable,
-so `SASE_TUI_TRACE=0` or `SASE_TUI_PERF=0` opts out explicitly. Use
-`just view-hints-perf-check` for the automated hint-mode regression floor.
+Each probe records only when its variable is exactly `1`. The **Probes** line in **Data
+& instrumentation** is looser: it prints `on` whenever the variable is _set_ in the
+environment that started the TUI, so a deliberate `SASE_TUI_PERF=0` still displays as
+`on` while nothing is being recorded. Read that line as "set / unset", and check the
+value yourself when an expected probe file stays empty.
+
+`sase ace --tmux` turns both probes on unless the caller has already set the variable,
+so `SASE_TUI_TRACE=0 sase ace --tmux …` (or the `SASE_TUI_PERF=0` equivalent) opts out.
+Use `just view-hints-perf-check` for the automated hint-mode regression floor.

@@ -12,13 +12,15 @@ history or old artifacts opt into all project lifecycle states explicitly.
 This page documents Patch queries. The Agents tab in ACE has a separate agent query
 language with agent-specific property keys.
 
-In the Patches sub-tab, the canonical query stays visible in a persistent filter row.
-Press `/` to edit it: typing previews valid queries against the loaded Patch snapshot,
-`Enter` commits the query and closes the editor, and `Escape` restores the previous
-query, result, and selection. Parse errors leave the visible list unchanged. `Tab`
-accepts completions for property keys and values, shorthand sigils, predicates, macros,
-and saved-query slots. A leading `#` saves or deletes a slot without changing the active
-query; see [ACE: Editing Queries](ace.md#editing-queries).
+In the Patches sub-tab, the canonical form of the active query stays visible in a
+persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
+valid query against the already-loaded Patch snapshot, `Enter` commits it and closes the
+editor, and `Escape` abandons the edit and restores the committed query, its result, and
+your selection. A parse error is reported inline and leaves the visible list on the last
+valid query. `Tab` accepts completions for property keys and values, shorthand sigils,
+predicates, and macros — and, while the row is empty, saved-query slots. A leading `#`
+saves or deletes a slot without changing the active query; see
+[ACE: Editing Queries](ace.md#editing-queries).
 
 ## String Matching
 

@@ -209,13 +209,29 @@ family and clan plus `@tribe` references derived from stored tribe assignments a
 declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
 clan rows also have aggregate `status`.
 
-For the newest 20 families, the helper attempts to resolve an associated plan or bead.
-On success, `detail` leads with plan kind, structure, and title, and optional Markdown
-`documentation` supplies the available goal, epic phases, or phase/task context followed
-by family member count and aggregate status. A launch-prompt title can fill the detail
-when no structured preview exists. Older or unresolved families keep the stable
-`family · N members` detail. Group enrichment is additive, so missing plans or malformed
-legacy metadata never hide ordinary agent rows.
+Family rows carry a `detail` of `family · N members` by default. For the 20 families
+with the most recent activity — and only those, so the short-lived helper subprocess
+stays fast enough for interactive completion — the helper additionally tries to resolve
+an associated plan or bead, in three descending rungs:
+
+1. A plan or bead resolved with a title: `detail` becomes
+   `<kind> · <structure> · <title>`, such as
+   `epic · 5 phases · 2 waves · Bead review hardening`. `kind` is the raw
+   `tale`/`epic`/`plan`/`phase`/`task` token. `structure` is the `N phases · M waves`
+   fragment, present only when a plan exposes its phase list; bead-derived rows never
+   have it.
+2. A kind resolved but no title (an untitled, missing, or unreadable plan file): a
+   cleaned snippet of the family's launch prompt fills the title slot in that same
+   shape.
+3. Nothing resolved but a usable prompt snippet exists: `detail` becomes
+   `family · N members · <snippet>`.
+
+Rungs 1 and 2 also attach Markdown `documentation` — the plan's goal, its epic phase
+list, or a phase/task bead's parent context, closed by a `family · N members · <status>`
+footer. Rung 3 and unenriched families have no `documentation`. Every family keeps its
+plain `family · N members` detail if resolution fails outright, and group enrichment is
+additive throughout, so missing plans or malformed legacy metadata never hide ordinary
+agent rows.
 
 `vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's
 registered workspace provider for repositories. The response reports `status`,

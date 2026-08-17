@@ -155,16 +155,20 @@ keys above are the defaults.
 When the selected entry has declared relationships, a relation panel appears at the
 bottom of the list column. Its section names come from the pane contract, so examples
 include parents and children, document lifecycle stages, dependencies, linked beads or
-plans, and file-version families. The footer shows only the relation modes currently
-available: `<` starts ancestor navigation, `>` starts descendant navigation, and `~`
-starts family or sibling navigation. Follow with the key printed beside the target in
-the panel. Hidden-target and `(missing)` annotations distinguish filtered or dangling
-relationships, and cross-pane links name their destination pane.
+plans, and file-version families. Navigation is two keystrokes: first a relation mode,
+then the key printed in square brackets beside the target row. The modes are `<` for
+ancestors, `>` for descendants, and `~` for family or siblings, and the footer lists
+only the ones the current entry actually has. A section header ending in `(N hidden)`
+means the query is filtering out that many targets, a row ending in `(missing)` points
+at an entry that no longer exists, and a row ending in `→ <pane>` crosses to another
+Artifacts pane.
 
-If a same-pane target exists but the current query hides it, choosing that relationship
-temporarily narrows the query to reveal the target. The pane records the original query
-and selection first, so its previous-query/history action restores the exact view you
-came from.
+On Patches, choosing a hidden same-pane target rewrites the query to reveal it rather
+than failing. Patches saves the query and selection you started from first and pushes
+the old query onto the same history stack `^` walks, so `^` returns to the exact view
+you came from. Other panes do not rewrite their query: choosing a target they are
+currently filtering out warns that it is not in the current results and leaves the
+selection alone.
 
 Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`, `a`–`z`,
 `A`–`Z`. A session with at most 62 targets uses one character (`0` through `Z`). A
@@ -236,13 +240,18 @@ that count is nonzero.
 
 ### Filtering Patches, Stitches, Beads, and Plans
 
-Patches keeps its canonical query visible in a persistent filter row. Press `/` to focus
-it: typing filters the loaded Patch snapshot immediately, `Enter` commits the query to
-history and returns focus to the list, and `Escape` restores the committed query,
-result, and selection. A parse error stays inline and leaves the visible Patch list
-unchanged. `Tab` accepts key, value, shorthand, macro, and saved-slot completions.
-Saved-query commands such as `#3 status:Draft`, `# status:Ready`, and `#3` save,
-allocate, or delete a slot without changing the active query or closing the editor.
+Patches keeps its canonical query visible in a persistent, read-only filter row at the
+top of the detail column, so the active query is legible without opening anything. Press
+`/` (or the local `f`) to start editing it. Typing re-filters the already-loaded Patch
+snapshot on every keystroke, so previews are instant and never re-query the store.
+`Enter` commits: it reloads Patches from the committed query, pushes the query you
+replaced onto the `^` history stack, and returns focus to the list. `Escape` abandons
+the edit, restoring the committed query, its result, and the row you had selected. A
+parse error stays inline in the row and leaves the visible Patch list on the last valid
+query. `Tab` accepts completions for keys, values, shorthand sigils, state predicates,
+status macros, and — while the row is empty — saved-slot commands. Saved-query commands
+such as `#3 status:Draft`, `# status:Ready`, and `#3` save, allocate, or delete a slot
+without changing the active query or closing the editor.
 
 Stitches keeps its effective canonical query visible above the timeline. Press `/` or
 the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
@@ -2303,20 +2312,25 @@ cancels, with configured target keys taking precedence.
 
 ### Editing Queries
 
-Press `/` on Patches to focus its persistent inline filter, or on Axe to open the
-current query editor. The same app-level key opens the inline filter bar on Stitches,
-provider document panes, and Files. Agents reserves bare `/` for forward inline metadata
-search, so its structured query editor uses the independent `,/` leader chord. Help
-remains `,?` on every tab.
+`/` is the app-level query key on every Artifacts pane. On Patches and Stitches it
+focuses a filter row that is always on screen; on Beads, provider document panes, and
+Files it opens an inline filter bar that is only visible while you are editing. Each of
+those panes also accepts a local `f` for the same thing. Agents reserves bare `/` for
+forward inline metadata search, so its structured query editor uses the independent `,/`
+leader chord instead. Help remains `,?` on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
-| Patches                 | `/`                |
+| Patches                 | `/` (or local `f`) |
 | Stitches                | `/` (or local `f`) |
+| Beads                   | `/` (or local `f`) |
 | Provider documents      | `/` (or local `f`) |
 | Files                   | `/` (or local `f`) |
 | Agents structured query | `,/`               |
-| Axe                     | `/`                |
+
+The Axe tab has no query editor. Its `,?` help modal and the command palette both still
+offer "Edit search query" there, but the action currently does nothing on Axe; use the
+tab's own filtering and navigation keys instead.
 
 To save a query, prefix with `#`:
 
@@ -4061,7 +4075,7 @@ ace:
     app:
       next_patch: "n" # Remap j -> n
       prev_patch: "p" # Remap k -> p
-      edit_query: "f5" # Artifacts query panes and Axe
+      edit_query: "f5" # Every Artifacts query pane
       show_notifications: "N" # Remap i → N
 ```
 
@@ -4601,12 +4615,15 @@ token under the cursor:
   and `false`, and inside parenthesized syntax it completes missing `name=` arguments
   without repeating names already present in the argument list. Agent inputs such as
   `#fork` offer agent, family, clan, and `@tribe` targets with kind and member context.
-  Family rows also show the associated plan or bead when SASE can resolve it: plan kind,
-  structure, and title lead the row, while the selected-row subtitle can show epic phase
-  titles, a plan goal, or phase/task context. Plan titles participate in filtering. If
-  enrichment is unavailable, the row falls back to member names or a launch-prompt
-  snippet without blocking completion. Numeric inputs keep the type hint visible but do
-  not invent values.
+  Family rows also show the associated plan or bead when SASE can resolve one: the row
+  reads `<kind> · <phases/waves> · <title>` (for example
+  `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
+  searchable, so typing part of the title filters to that family. Selecting the row
+  fills the panel subtitle with more of the same artifact — phase titles for an epic,
+  the goal for a tale or plain plan, the parent title for a phase or task bead. When
+  nothing resolves, the row falls back to a snippet of the family's launch prompt and
+  the subtitle falls back to member names; completion is never blocked either way.
+  Numeric inputs keep the type hint visible but do not invent values.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to

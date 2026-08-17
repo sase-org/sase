@@ -4447,15 +4447,17 @@ intentionally a fixed-operation bridge rather than a generic shell or filesystem
 | `sase editor helper-bridge vcs-repo-catalog` | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
 
 The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and
-reads the cross-project agent snapshot. Ordinary agent rows are de-duplicated by name
-and include `status` and `project`; monitor rows use `kind: monitor`. When group
-metadata is available, additive family, clan, and `@tribe` rows include `kind`,
-`member_count`, and display-ready `detail`; clan rows also include aggregate `status`.
-For the newest 20 families, SASE attempts to enrich `detail` with the associated plan or
-bead's kind, structure, and title, and adds Markdown `documentation` with the available
-goal, phases, or parent/task context plus a family status footer. Unresolved or older
-families retain the member-count detail, and enrichment failure never removes ordinary
-rows. The structured xprompt catalog includes insertion metadata (`insertion`,
+reads the cross-project agent snapshot. Ordinary rows are de-duplicated by name and
+include `status` and `project`, with `kind: agent` for agents and `kind: monitor` for
+monitors. When group metadata is available, additive family, clan, and `@tribe` rows
+include `kind`, `member_count`, and display-ready `detail`; clan rows also include
+aggregate `status`. For the 20 most recently active families, SASE tries to enrich
+`detail` with the associated plan or bead's kind, structure, and title, and to add
+Markdown `documentation` carrying the goal, phase list, or parent/task context plus a
+family status footer. Unresolved or older families keep the plain member-count detail,
+and enrichment failure never removes ordinary rows; see
+[Editor Integration: Helper Bridge](editor.md#helper-bridge) for the exact fallback
+ladder. The structured xprompt catalog includes insertion metadata (`insertion`,
 `reference_prefix`, `kind`), typed argument metadata, display/source fields, and
 `definition_path` when SASE can resolve a real file to jump to.
 
