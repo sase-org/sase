@@ -28,7 +28,6 @@ from sase.memory.paths import (
 )
 
 from .formatting import format_generated_memory_markdown
-from .glossary import GeneratedGlossaryMemory
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 
 MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
@@ -115,7 +114,8 @@ def _generated_sase_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
 
 
-def generated_glossary_memory_relative_path() -> Path:
+def retired_glossary_memory_relative_path() -> Path:
+    """Return the retired generated glossary note's root-relative path."""
     return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
 
 
@@ -375,7 +375,6 @@ def render_expected_memory_files(
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
-    generated_glossary: GeneratedGlossaryMemory | None = None,
     source_memory_root: Path | None = None,
     include_project_memory: bool = False,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -400,10 +399,6 @@ def render_expected_memory_files(
     note_overlay = {
         generated_sase_path: generated_sase_content,
     }
-    if generated_glossary is not None:
-        note_overlay[root / generated_glossary_memory_relative_path()] = (
-            generated_glossary.content
-        )
     if include_project_memory and generated_project_long_contents is not None:
         for relative_path, content in generated_project_long_contents.items():
             note_overlay[root / relative_path] = content
@@ -441,14 +436,6 @@ def render_expected_memory_files(
                     detail=spec.detail,
                 )
             )
-    if generated_glossary is not None:
-        expected.append(
-            MemoryExpectedFile(
-                path=root / generated_glossary_memory_relative_path(),
-                content=generated_glossary.content,
-                detail="generated glossary memory",
-            )
-        )
     expected.extend(
         [
             MemoryExpectedFile(

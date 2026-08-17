@@ -11,6 +11,7 @@ import sase.config.core as config_core
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd.init import plan_amd_memory_sync
 from sase.main import init_memory_handler
+from sase.main.init_memory.glossary import ProjectGlossaryTerms
 from sase.main.init_memory.root_rendering import (
     generated_long_notes,
     render_generated_project_long_memory_contents,
@@ -25,6 +26,7 @@ from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
     run_handler,
+    single_line,
     write,
 )
 
@@ -208,6 +210,61 @@ def test_generated_child_long_note_metadata_renders_single_pass(
         "memory files directly.\n\n"
         "**`sase/memory/generated_child.md`**  \n"
         "Generated child.\n"
+    )
+
+
+def test_glossary_terms_block_is_sole_tier2_content_without_other_notes(
+    tmp_path: Path,
+) -> None:
+    write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
+    glossary_terms = ProjectGlossaryTerms(
+        terms=(
+            ("Agent Hood", ("hood", "agent neighborhood")),
+            ("Stitch", ()),
+        )
+    )
+
+    plan = plan_amd_memory_sync(
+        tmp_path,
+        generated_short_notes={},
+        generated_long_notes={},
+        glossary_terms=glossary_terms,
+    )
+
+    assert plan.blockers == ()
+    assert plan.agents_content is not None
+    line = single_line(plan.agents_content)
+    assert (
+        "Terms (aliases follow in parentheses): Agent Hood (hood, agent "
+        "neighborhood); Stitch" in line
+    )
+    parsed = parse_amd_agents_document(plan.agents_content)
+    assert parsed.long_memory_entries == ()
+
+
+def test_glossary_terms_block_precedes_discovered_long_notes(tmp_path: Path) -> None:
+    write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
+    write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+    )
+    glossary_terms = ProjectGlossaryTerms(terms=(("Stitch", ()),))
+
+    plan = plan_amd_memory_sync(
+        tmp_path,
+        generated_short_notes={},
+        generated_long_notes={},
+        glossary_terms=glossary_terms,
+    )
+
+    assert plan.blockers == ()
+    assert plan.agents_content is not None
+    glossary_index = plan.agents_content.index("**GLOSSARY TERMS:**")
+    heading_index = plan.agents_content.index("`sase/memory/parent.md`")
+    assert glossary_index < heading_index
+    parsed = parse_amd_agents_document(plan.agents_content)
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/parent.md",
     )
 
 

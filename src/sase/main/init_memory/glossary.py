@@ -1,4 +1,4 @@
-"""Project-local glossary memory generation for ``sase memory init``."""
+"""Project-local glossary term extraction for ``sase memory init``."""
 
 from __future__ import annotations
 
@@ -7,43 +7,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.agents_sync.rendering_markdown import md_escape
 from sase.core.glossary_facade import (
-    GlossaryCatalog,
     GlossaryInputEntry,
     build_glossary_catalog,
     validate_glossary_entries,
 )
 from sase.glossary_config import GLOSSARY_CONFIG_KEY, resolve_glossary_config
-from sase.memory.notes import (
-    AGENTS_PARENT,
-    apply_memory_frontmatter,
-    parse_memory_note_text,
-)
+from sase.memory.notes import parse_memory_note_text
 from sase.project_management import load_local_config
 
-from .formatting import format_generated_memory_markdown
-
-GLOSSARY_MEMORY_TITLE = "Glossary of Terms"
 GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
 GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
-GLOSSARY_ALIASES_LABEL = "ALIASES"
 
 
 @dataclass(frozen=True)
-class GeneratedGlossaryMemory:
-    """Rendered project glossary note content."""
+class ProjectGlossaryTerms:
+    """Ordered project glossary terms and their display aliases."""
 
-    content: str
-
-
-def _generated_glossary_frontmatter_extra() -> dict[str, str]:
-    """Return stable frontmatter identifying generated glossary output."""
-    return {GENERATED_GLOSSARY_MARKER_KEY: GENERATED_GLOSSARY_MARKER_VALUE}
+    terms: tuple[tuple[str, tuple[str, ...]], ...]
 
 
 def is_generated_glossary_memory_content(content: str) -> bool:
-    """Return whether *content* carries the managed glossary marker."""
+    """Return whether *content* carries the retired managed glossary marker."""
     note = parse_memory_note_text(content, "sase/memory/glossary.md")
     return (
         note.frontmatter.get(GENERATED_GLOSSARY_MARKER_KEY)
@@ -51,10 +36,10 @@ def is_generated_glossary_memory_content(content: str) -> bool:
     )
 
 
-def load_project_glossary_memory(
+def load_project_glossary_terms(
     config_path: Path,
-) -> tuple[GeneratedGlossaryMemory | None, tuple[str, ...]]:
-    """Load, validate, and render the project-local glossary note."""
+) -> tuple[ProjectGlossaryTerms | None, tuple[str, ...]]:
+    """Load, validate, and return the project-local glossary's terms."""
     loaded = load_local_config(config_path)
     if not loaded.valid:
         return None, (loaded.error or f"{config_path}: invalid configuration",)
@@ -88,7 +73,14 @@ def load_project_glossary_memory(
         catalog = build_glossary_catalog(entries)
     except (AttributeError, ImportError, ValueError) as exc:
         return None, (f"{config_path}: failed to build glossary catalog: {exc}",)
-    return _render_glossary_memory(catalog), ()
+    return (
+        ProjectGlossaryTerms(
+            terms=tuple(
+                (entry.term, entry.display_aliases) for entry in catalog.entries
+            )
+        ),
+        (),
+    )
 
 
 def _glossary_entries(
@@ -156,49 +148,6 @@ def _diagnostic_path(path: str | None, display_path: str) -> str:
     if path.startswith(f"{GLOSSARY_CONFIG_KEY}."):
         return f"{display_path}{path.removeprefix(GLOSSARY_CONFIG_KEY)}"
     return path
-
-
-def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory:
-    lines = [f"# {GLOSSARY_MEMORY_TITLE}"]
-    for entry in catalog.entries:
-        lines.extend(["", f"## {md_escape(entry.term)}"])
-        if entry.display_aliases:
-            aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
-            lines.extend(["", f"{GLOSSARY_ALIASES_LABEL}: {aliases}"])
-        lines.extend(["", entry.definition.rstrip()])
-    body = format_generated_memory_markdown("\n".join(lines))
-    content = apply_memory_frontmatter(
-        body,
-        note_type="long",
-        parent=AGENTS_PARENT,
-        description=_glossary_memory_description(catalog),
-        extra=_generated_glossary_frontmatter_extra(),
-        preserve_existing_extra=False,
-    )
-    return GeneratedGlossaryMemory(content=content)
-
-
-def _glossary_memory_description(catalog: GlossaryCatalog) -> str:
-    lines = [
-        "Read this note before relying on any of these SASE glossary terms and aliases:",
-        "",
-    ]
-    for entry in catalog.entries:
-        term = md_escape(entry.term)
-        suffix = ""
-        if entry.display_aliases:
-            aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
-            suffix = f" (aka {aliases})"
-        lines.append(f"- {term}{suffix}")
-    lines.extend(
-        [
-            "",
-            "Read it with `sase memory read glossary.md` whenever one of those terms "
-            "or aliases appears in a prompt, bead, plan, or code comment and you are "
-            "not certain what it means in SASE.",
-        ]
-    )
-    return "\n".join(lines)
 
 
 def _path_component(value: Any) -> str:

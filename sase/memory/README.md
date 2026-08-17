@@ -109,24 +109,6 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Lines: 70
 - Approx. tokens: 751
 
-### `sase/memory/glossary.md`
-
-- Type: `long`
-- Description: Read this note before relying on any of these SASE glossary terms and
-  aliases: - Agent Clan - Agent Family - Agent Hood (aka hood, agent neighborhood) -
-  Agent Instruction File (aka agents.md file) - Agent Neighbor - Agent Node - Agent
-  Shell - Agent Tribe - Artifact Reference (aka ref) - Feature Flag - Flag Bead (aka
-  flag bead) - Patch - Proc (aka background task) - Proc Shell - Sase Agent (aka
-  agent) - Sase Monitor (aka monitor) - Sase Node (aka node) - Sase Project (aka
-  project) - Sase Repo (aka repo) - Sase Shell (aka shell) - Sase Workspace (aka
-  workspace) - Stitch - Xprompt - Xprompt Memory (aka memory file) - Xprompt Part -
-  Xprompt Swarm - Xprompt Workflow Read it with `sase memory read glossary.md` whenever
-  one of those terms or aliases appears in a prompt, bead, plan, or code comment and you
-  are not certain what it means in SASE.
-- Parent: `AGENTS.md`
-- Lines: 254
-- Approx. tokens: 2476
-
 ### `sase/memory/sase_beads.md`
 
 - Type: `long`
@@ -186,11 +168,11 @@ always-loaded notes from detailed reference notes that agents read only when rel
 
 ## Statistics
 
-- Total notes: 14
+- Total notes: 13
 - Short notes: 5
-- Long notes: 9
-- Total lines: 1059
-- Total approx. tokens: 12765
+- Long notes: 8
+- Total lines: 805
+- Total approx. tokens: 10289
 
 ## Commands
 

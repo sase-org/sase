@@ -28,8 +28,8 @@ from .init_memory.config import (
     project_config_read_path as _project_config_read_path,
 )
 from .init_memory.glossary import (
-    GeneratedGlossaryMemory as _GeneratedGlossaryMemory,
-    load_project_glossary_memory as _load_project_glossary_memory,
+    ProjectGlossaryTerms as _ProjectGlossaryTerms,
+    load_project_glossary_terms as _load_project_glossary_terms,
 )
 from sase.memory.paths import memory_write_root
 from sase.project_management import enable_sase_management, project_management_status
@@ -63,7 +63,7 @@ class _MemoryInitInputs:
     home_root: Path
     project_name: str | None
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
-    project_glossary: _GeneratedGlossaryMemory | None
+    project_glossary_terms: _ProjectGlossaryTerms | None
     home_entries: tuple[_LinkedRepoMemoryEntry, ...]
     config_errors: tuple[str, ...]
 
@@ -111,7 +111,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
 
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
     project_errors: tuple[str, ...]
-    project_glossary: _GeneratedGlossaryMemory | None = None
+    project_glossary_terms: _ProjectGlossaryTerms | None = None
     glossary_errors: tuple[str, ...] = ()
     project_name: str | None = None
     if is_project_dir:
@@ -128,7 +128,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
                 primary_root=primary_root,
                 project_name=project_name,
             )
-            project_glossary, glossary_errors = _load_project_glossary_memory(
+            project_glossary_terms, glossary_errors = _load_project_glossary_terms(
                 project_config
             )
         else:
@@ -144,7 +144,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     config_errors = (*project_errors, *glossary_errors, *home_errors)
     if config_errors or not is_project_dir or not project_managed:
         project_name = None
-        project_glossary = None
+        project_glossary_terms = None
     return _MemoryInitInputs(
         use_chezmoi=use_chezmoi,
         no_commit=bool(getattr(args, "no_commit", False)),
@@ -155,7 +155,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
         home_root=_home_root_path(use_chezmoi),
         project_name=project_name,
         project_entries=project_entries,
-        project_glossary=project_glossary,
+        project_glossary_terms=project_glossary_terms,
         home_entries=home_entries,
         config_errors=config_errors,
     )
@@ -287,7 +287,7 @@ def _memory_root_plans(inputs: _MemoryInitInputs) -> tuple[_MemoryRootPlan, ...]
                 inputs.project_root,
                 inputs.project_entries,
                 project_name=inputs.project_name,
-                generated_glossary=inputs.project_glossary,
+                glossary_terms=inputs.project_glossary_terms,
                 manage_memory=inputs.is_sase_managed,
                 enable_amd=True,
                 derive_project_title=inputs.is_sase_managed,
@@ -455,7 +455,7 @@ def run_init_memory(args: argparse.Namespace) -> int:
             inputs.project_root,
             inputs.project_entries,
             project_name=inputs.project_name,
-            generated_glossary=inputs.project_glossary,
+            glossary_terms=inputs.project_glossary_terms,
             manage_memory=inputs.is_sase_managed,
             enable_amd=True,
             derive_project_title=inputs.is_sase_managed,

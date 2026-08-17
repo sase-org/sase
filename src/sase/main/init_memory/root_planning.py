@@ -30,16 +30,16 @@ from .models import (
     MemoryRootPlan,
 )
 from .glossary import (
-    GeneratedGlossaryMemory,
+    ProjectGlossaryTerms,
     is_generated_glossary_memory_content,
 )
 from .root_rendering import (
-    generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
     render_expected_memory_files,
+    retired_glossary_memory_relative_path,
 )
 
 
@@ -205,13 +205,14 @@ def _retired_note_paths(
     return tuple(retired)
 
 
-def _retired_glossary_note_paths(
-    root: Path, *, generated_glossary: GeneratedGlossaryMemory | None
-) -> tuple[Path, ...]:
-    """Return a generated glossary memory note this root no longer manages."""
-    if generated_glossary is not None:
-        return ()
-    path = root / generated_glossary_memory_relative_path()
+def _retired_glossary_note_paths(root: Path) -> tuple[Path, ...]:
+    """Return a previously generated glossary memory note this root must delete.
+
+    The generated glossary note is retired: no root writes it any more, so any
+    marked copy left over from an earlier ``sase memory init`` is deleted on
+    every pass. An unmarked (hand-authored) note at the same path is left alone.
+    """
+    path = root / retired_glossary_memory_relative_path()
     if not path.exists():
         return ()
     try:
@@ -221,28 +222,6 @@ def _retired_glossary_note_paths(
     if not is_generated_glossary_memory_content(current):
         return ()
     return (path,)
-
-
-def _glossary_collision_blocker(
-    root: Path, *, generated_glossary: GeneratedGlossaryMemory | None
-) -> str | None:
-    """Return a blocker when generated glossary output would overwrite a user note."""
-    if generated_glossary is None:
-        return None
-    path = root / generated_glossary_memory_relative_path()
-    if not path.exists():
-        return None
-    try:
-        current = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return f"{path}: failed to inspect existing glossary memory note: {exc}"
-    if is_generated_glossary_memory_content(current):
-        return None
-    return (
-        f"{path}: refusing to overwrite unmarked glossary memory note; migrate "
-        "its content into glossary entries in sase.yml or remove it before "
-        "rerunning `sase memory init`"
-    )
 
 
 def _merge_expected_files(
@@ -264,6 +243,7 @@ def _amd_sync_plan(
     generated_long_notes: dict[str, GeneratedLongMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
+    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
@@ -277,6 +257,7 @@ def _amd_sync_plan(
         generated_long_notes=generated_long_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        glossary_terms=glossary_terms,
     )
 
 
@@ -466,7 +447,7 @@ def memory_root_context(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-    generated_glossary: GeneratedGlossaryMemory | None = None,
+    glossary_terms: ProjectGlossaryTerms | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -497,22 +478,9 @@ def memory_root_context(
             blockers=migration.blockers,
         )
 
-    glossary_collision = _glossary_collision_blocker(
-        root, generated_glossary=generated_glossary
-    )
-    if glossary_collision is not None:
-        return _MemoryRootContext(
-            amd_sync=None,
-            expected_files=(),
-            shim_plan=ProviderShimPlan(writes=(), deletes=()),
-            additional_shim_plans=(),
-            source_memory_root=migration.source_memory_root,
-            blockers=(glossary_collision,),
-        )
-
     retired_note_paths = (
         *_retired_note_paths(root, include_project_memory=include_project_memory),
-        *_retired_glossary_note_paths(root, generated_glossary=generated_glossary),
+        *_retired_glossary_note_paths(root),
     )
     root_resolved = root.resolve(strict=False)
     excluded_note_paths = frozenset(
@@ -548,19 +516,15 @@ def memory_root_context(
                 source_memory_root=migration.source_memory_root,
                 blockers=(generated_long_error,),
             )
-    generated_amd_long_contents = dict(generated_project_long_contents)
-    if generated_glossary is not None:
-        generated_amd_long_contents[
-            generated_glossary_memory_relative_path().as_posix()
-        ] = generated_glossary.content
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
-        generated_long_notes=generated_long_notes(generated_amd_long_contents),
+        generated_long_notes=generated_long_notes(generated_project_long_contents),
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        glossary_terms=glossary_terms,
     )
     expected_files, expected_error = render_expected_memory_files(
         root,
@@ -569,7 +533,6 @@ def memory_root_context(
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
         generated_project_long_contents=generated_project_long_contents,
-        generated_glossary=generated_glossary,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,
         excluded_note_paths=excluded_note_paths,
@@ -613,7 +576,7 @@ def plan_memory_root(
     linked_entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-    generated_glossary: GeneratedGlossaryMemory | None = None,
+    glossary_terms: ProjectGlossaryTerms | None = None,
     manage_memory: bool = True,
     enable_amd: bool = False,
     derive_project_title: bool = False,
@@ -625,7 +588,7 @@ def plan_memory_root(
         root,
         linked_entries,
         project_name=project_name,
-        generated_glossary=generated_glossary,
+        glossary_terms=glossary_terms,
         manage_memory=manage_memory,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,

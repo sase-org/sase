@@ -22,6 +22,8 @@ from ._shared import (
 from ._template import render_agents_template
 from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
+from sase.agents_sync.rendering_markdown import md_escape
+from sase.main.init_memory.glossary import ProjectGlossaryTerms
 from sase.memory.notes import (
     AGENTS_PARENT,
     GeneratedLongMemoryNote,
@@ -274,6 +276,28 @@ def _long_memory_description_blockers(
     return tuple(blockers)
 
 
+def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> str:
+    escaped_term = md_escape(term)
+    if not display_aliases:
+        return escaped_term
+    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
+    return f"{escaped_term} ({escaped_aliases})"
+
+
+def _render_glossary_terms_block(glossary_terms: ProjectGlossaryTerms) -> str:
+    """Render the Tier 2 ``**GLOSSARY TERMS:**`` instruction paragraph."""
+    entries = "; ".join(
+        _render_glossary_term_entry(term, display_aliases)
+        for term, display_aliases in glossary_terms.terms
+    )
+    return (
+        '**GLOSSARY TERMS:** Run `sase glossary read <term> -r "<why>"` before '
+        "relying on any of these SASE terms; it prints that term's definition "
+        "plus every term the definition depends on. Terms (aliases follow in "
+        f"parentheses): {entries}"
+    )
+
+
 def _render_managed_agents(
     root: Path,
     title: str,
@@ -283,6 +307,7 @@ def _render_managed_agents(
     short_memory_bodies: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
+    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
@@ -335,6 +360,11 @@ def _render_managed_agents(
         )
         rendered_long_notes.append(replace(note, description=description))
     tier2_entries = render_long_memory_sections(rendered_long_notes)
+    if glossary_terms is not None and glossary_terms.terms:
+        glossary_block = _render_glossary_terms_block(glossary_terms)
+        tier2_entries = (
+            f"{glossary_block}\n\n{tier2_entries}" if tier2_entries else glossary_block
+        )
 
     rendered, render_error = render_agents_template(
         root,
@@ -414,6 +444,7 @@ def plan_amd_memory_sync(
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
+    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
@@ -422,6 +453,8 @@ def plan_amd_memory_sync(
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
     *generated_long_notes* maps generated long-note paths to their metadata so a
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
+    *glossary_terms* renders a ``**GLOSSARY TERMS:**`` paragraph at the top of Tier 2
+    when the project configures glossary entries; the home root never passes this.
     """
     root = root or Path.cwd()
     generated_short_notes = generated_short_notes or {}
@@ -487,6 +520,7 @@ def plan_amd_memory_sync(
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
+        glossary_terms=glossary_terms,
     )
     if template_error is not None or agents_content is None:
         return AmdMemorySyncPlan(

@@ -189,6 +189,16 @@ The below files contain detailed reference material. When working in their domai
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical
 memory files directly.
 
+**GLOSSARY TERMS:** Run `sase glossary read <term> -r "<why>"` before relying on any of
+these SASE terms; it prints that term's definition plus every term the definition
+depends on. Terms (aliases follow in parentheses): Agent Clan; Agent Family; Agent Hood
+(hood, agent neighborhood); Agent Instruction File (agents.md file); Agent Neighbor;
+Agent Node; Agent Shell; Agent Tribe; Artifact Reference (ref); Feature Flag; Flag Bead
+(flag bead); Patch; Proc (background task); Proc Shell; Sase Agent (agent); Sase Monitor
+(monitor); Sase Node (node); Sase Project (project); Sase Repo (repo); Sase Shell
+(shell); Sase Workspace (workspace); Stitch; Xprompt; Xprompt Memory (memory file);
+Xprompt Part; Xprompt Swarm; Xprompt Workflow
+
 ### 2.1 `sase/memory/cli_rules.md`
 
 Read anytime new CLI subcommands or options are added.
@@ -199,63 +209,27 @@ Read when working with sase agent skills (aka xprompt skills), which are generat
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-### 2.3 `sase/memory/glossary.md`
-
-Read this note before relying on any of these SASE glossary terms and aliases:
-
-- Agent Clan
-- Agent Family
-- Agent Hood (aka hood, agent neighborhood)
-- Agent Instruction File (aka agents.md file)
-- Agent Neighbor
-- Agent Node
-- Agent Shell
-- Agent Tribe
-- Artifact Reference (aka ref)
-- Feature Flag
-- Flag Bead (aka flag bead)
-- Patch
-- Proc (aka background task)
-- Proc Shell
-- Sase Agent (aka agent)
-- Sase Monitor (aka monitor)
-- Sase Node (aka node)
-- Sase Project (aka project)
-- Sase Repo (aka repo)
-- Sase Shell (aka shell)
-- Sase Workspace (aka workspace)
-- Stitch
-- Xprompt
-- Xprompt Memory (aka memory file)
-- Xprompt Part
-- Xprompt Swarm
-- Xprompt Workflow
-
-Read it with `sase memory read glossary.md` whenever one of those terms or aliases
-appears in a prompt, bead, plan, or code comment and you are not certain what it means
-in SASE.
-
-### 2.4 `sase/memory/sase_beads.md`
+### 2.3 `sase/memory/sase_beads.md`
 
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-### 2.5 `sase/memory/sase_flags.md`
+### 2.4 `sase/memory/sase_flags.md`
 
 Read before adding, deferring, or removing a SASE feature flag or flag bead.
 
-### 2.6 `sase/memory/symvision.md`
+### 2.5 `sase/memory/symvision.md`
 
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-### 2.7 `sase/memory/tui_perf.md`
+### 2.6 `sase/memory/tui_perf.md`
 
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-### 2.8 `sase/memory/xprompts.md`
+### 2.7 `sase/memory/xprompts.md`
 
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.
