@@ -20,6 +20,9 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_types import AgentExecResult
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.llm_provider.retry_config import RetryState
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
@@ -356,6 +359,12 @@ class FakeyRetryHarness:
             attempt["start_epoch"] = attempt_base_epoch + attempt_index * 5
             attempt["end_epoch"] = attempt["start_epoch"] + 1
             attempt_path.write_text(json.dumps(attempt, indent=2), encoding="utf-8")
+
+        # The TUI's first Agents load prefers the persistent artifact index.
+        # Rewriting markers here without refreshing that index leaves the
+        # real runner PID in the snapshot, so live visual rows load as
+        # FAILED or disappear entirely.
+        update_agent_artifact_index_for_marker_mutation(target_dir)
 
     def run_spawn_retry_chain(
         self,
