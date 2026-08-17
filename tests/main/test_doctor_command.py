@@ -221,6 +221,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "state.agent_index",
         "state.agent_publication_outbox",
         "project.beads",
+        "completion.install",
         "flags.registry",
         "flags.overrides",
         "flags.due",
@@ -245,6 +246,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "tools.tmux_version",
         "terminal.truecolor",
         "tools.optional",
+        "completion.registration",
     } <= deep_ids
 
 

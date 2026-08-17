@@ -19,6 +19,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
+    completion_refresh_on_update = "completion_refresh_on_update"
     prettier_enabled = "prettier_enabled"
 
 
@@ -33,6 +34,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         default=False,
         scope="global",
         bead="sase-nw",
+    ),
+    FeatureFlag.completion_refresh_on_update: FeatureFlagDefinition(
+        key=FeatureFlag.completion_refresh_on_update,
+        kind="beta",
+        description=(
+            "After a successful sase update, regenerate, zcompile, and "
+            "restamp installed shell completion scripts. Off by default "
+            "while the generator soaks."
+        ),
+        default=False,
+        scope="global",
+        bead="sase-om",
     ),
     FeatureFlag.prettier_enabled: FeatureFlagDefinition(
         key=FeatureFlag.prettier_enabled,

@@ -15,7 +15,8 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Generate native shell-completion scripts from the live sase "
-            "argparse tree, and inspect the structural spec those scripts "
+            "argparse tree, install them where the shell will actually "
+            "load them, and inspect the structural spec those scripts "
             "are built from.\n"
             "\n"
             "With no subcommand, `sase completion` defaults to "
@@ -33,7 +34,9 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "~/.local/share/bash-completion/completions/sase\n"
             "  sase completion fish                    # print fish complete directives\n"
             "  sase completion fish -o ~/.config/fish/completions/sase.fish\n"
-            "  sase completion list                    # shells and generator status\n"
+            "  sase completion install                 # detect the shell and install\n"
+            "  sase completion install zsh             # write, zcompile, verify, stamp\n"
+            "  sase completion list                    # shells, path, zwc, stamp\n"
             "  sase completion spec                    # structural JSON\n"
             "  sase completion spec -j -o spec.json    # write the snapshot artifact\n"
             "  sase completion zsh                     # print a compsys script\n"
@@ -44,12 +47,13 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{bash,candidates,fish,list,spec,zsh}",
+        metavar="{bash,candidates,fish,install,list,spec,zsh}",
     )
 
     _register_bash_parser(completion_sub)
     _register_candidates_parser(completion_sub)
     _register_fish_parser(completion_sub)
+    _register_install_parser(completion_sub)
     _register_list_parser(completion_sub)
     _register_spec_parser(completion_sub)
     _register_zsh_parser(completion_sub)
@@ -111,9 +115,8 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "List every supported shell, whether sase can generate a "
-            "completion script for it, and the current install status. "
-            "Install later fills in path, `.zwc` freshness, and stamp "
-            "version."
+            "completion script for it, the installed path, `.zwc` "
+            "freshness, stamp version, and the resolved install status."
         ),
         epilog=("examples:\n  sase completion list\n  sase completion list --json"),
     )
@@ -122,6 +125,60 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Emit machine-readable JSON",
+    )
+
+
+def _register_install_parser(subparsers: argparse._SubParsersAction) -> None:
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Write, zcompile, verify, and stamp a completion script",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Install native shell completion for sase. Detects the shell "
+            "from $SHELL and the parent process when SHELL is omitted, "
+            "picks a directory the shell actually scans, writes the "
+            "script atomically, zcompiles it (zsh), verifies "
+            "`_comps[sase]` registration, and stamps the install.\n"
+            "\n"
+            "Never edits ~/.zshrc. If registration fails, the exact "
+            "`fpath=(...)` line to add before compinit is printed.\n"
+            "\n"
+            'Do not `eval "$(sase completion zsh)"`.'
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion install\n"
+            "  sase completion install zsh\n"
+            "  sase completion install zsh -t ~/.zfunc\n"
+            "  sase completion install bash -d\n"
+            "  sase completion install fish -f"
+        ),
+    )
+    install_parser.add_argument(
+        "shell",
+        nargs="?",
+        choices=("bash", "fish", "zsh"),
+        default=None,
+        help="Shell to install for (default: detect from $SHELL and the parent process)",
+    )
+    install_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Print the install plan without touching the filesystem",
+    )
+    install_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite a completion file sase did not write",
+    )
+    install_parser.add_argument(
+        "-t",
+        "--target",
+        metavar="DIR",
+        default=None,
+        help="Directory to write the script into",
     )
 
 

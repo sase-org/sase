@@ -7562,6 +7562,83 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "429d26a7c1204917",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "install",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "target",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--target"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "install"
+            ],
+            "positionals": [
+              {
+                "choices": [
+                  "bash",
+                  "fish",
+                  "zsh"
+                ],
+                "dest": "shell",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "shell",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "ddcab9b6957da81f",
             "hidden": false,
             "mutex_groups": [],

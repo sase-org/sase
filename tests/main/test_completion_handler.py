@@ -11,8 +11,15 @@ import pytest
 from rich.console import Console
 
 from sase.completion.snapshot import current_structural_view
+from sase.completion.install import (
+    DetectedShell,
+    InstallResult,
+    InstallStep,
+    ShellInstallStatus,
+    TargetChoice,
+)
 from sase.main.completion_handler import (
-    _ShellRow,
+    _handle_completion_install,
     _handle_completion_list,
     handle_completion_command,
 )
@@ -33,6 +40,9 @@ def test_list_renders_all_three_generators() -> None:
     assert "SHELL" in text
     assert "GENERATOR" in text
     assert "STATUS" in text
+    assert "PATH" in text
+    assert "ZWC" in text
+    assert "STAMP" in text
     assert "zsh" in text
     assert "yes" in text
     assert "not installed" in text
@@ -49,7 +59,10 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     shells = {row["shell"]: row for row in payload["shells"]}
     expected = {
         "generator": True,
+        "path": None,
+        "stamp_version": None,
         "status": "not installed",
+        "zwc": "n/a",
     }
     assert shells["zsh"] == {**expected, "shell": "zsh"}
     assert shells["bash"] == {**expected, "shell": "bash"}
@@ -59,15 +72,17 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
 def test_list_accepts_injected_rows_for_later_columns() -> None:
     console, buf = _console()
     rows = (
-        _ShellRow("zsh", True, "available"),
-        _ShellRow("bash", True, "pending"),
+        ShellInstallStatus("zsh", True, "installed", "/tmp/_sase", "fresh", "0.16.0"),
+        ShellInstallStatus("bash", True, "stale", "/tmp/sase", "n/a", "0.15.0"),
     )
     args = create_parser().parse_args(["completion", "list"])
 
     assert _handle_completion_list(args, console=console, rows=rows) == 0
     text = buf.getvalue()
-    assert "available" in text
+    assert "installed" in text
+    assert "fresh" in text
     assert "bash" in text
+    assert "0.15.0" in text
 
 
 def test_spec_prints_structural_snapshot(
@@ -132,6 +147,36 @@ def test_write_output_reports_unwritable_path(
 
     assert handle_completion_command(args) == 1
     assert "cannot write" in capsys.readouterr().err
+
+
+def test_install_dispatch_renders_detected_shell_and_zstyle() -> None:
+    console, buf = _console()
+    result = InstallResult(
+        shell=DetectedShell("zsh", "explicit", None, None),
+        target=TargetChoice(Path("/tmp/zfunc"), "--target"),
+        script=Path("/tmp/zfunc/_sase"),
+        steps=(
+            InstallStep("detect", "ok", "explicit"),
+            InstallStep("write", "ok", "/tmp/zfunc/_sase"),
+        ),
+        stamp=None,
+        registered=True,
+        fpath_hint=None,
+        ok=True,
+        exit_code=0,
+    )
+
+    args = create_parser().parse_args(["completion", "install", "zsh"])
+    assert (
+        _handle_completion_install(
+            args, console=console, install_fn=lambda **_kwargs: result
+        )
+        == 0
+    )
+    text = buf.getvalue()
+    assert "Detected shell: zsh" in text
+    assert "explicit" in text
+    assert "zstyle ':completion:*' menu select" in text
 
 
 def test_dispatch_unknown_subcommand_exits_two(

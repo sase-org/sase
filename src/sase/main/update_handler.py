@@ -35,6 +35,11 @@ from sase.dev_update import (
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevCommandRunner
 from sase.config import load_merged_config
+from sase.completion.install import (
+    CompletionRefreshReport,
+    RefreshShellOutcome,
+    maybe_refresh_installed_completions,
+)
 from sase.main.update_json import combined_result_json, dry_run_json
 from sase.main.update_render import (
     render_dev_update_dry_run,
@@ -120,6 +125,7 @@ def handle_update_command(
     version_fn: VersionFn = installed_version,
     clock: ClockFn = time.monotonic,
     config_fn: Callable[[], dict[str, Any]] = load_merged_config,
+    refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> int:
     """Run ``sase update``; return the process exit code."""
     as_json = bool(getattr(args, "json", False))
@@ -178,6 +184,7 @@ def handle_update_command(
         restart_axe_fn=restart_axe_fn,
         version_fn=version_fn,
         clock=clock,
+        refresh_completions_fn=refresh_completions_fn,
     )
 
 
@@ -295,6 +302,7 @@ def _handle_live_update(
     restart_axe_fn: RestartAxeFn,
     version_fn: VersionFn,
     clock: ClockFn,
+    refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> int:
     receipt = try_load_receipt(install)
     route = dev_route(receipt, inventory_fn)
@@ -421,22 +429,21 @@ def _handle_live_update(
             restart=restart,
         )
 
+    refresh = _completion_refresh_after_update(refresh_completions_fn)
+
     if as_json:
-        print(
-            json.dumps(
-                combined_result_json(
-                    mode=mode,
-                    managed_argv=argv,
-                    managed_summary=managed_summary,
-                    dev_plan=dev_plan,
-                    dev_result=dev_result,
-                    elapsed=elapsed,
-                    restart=restart,
-                ),
-                indent=2,
-                sort_keys=True,
-            )
+        payload = combined_result_json(
+            mode=mode,
+            managed_argv=argv,
+            managed_summary=managed_summary,
+            dev_plan=dev_plan,
+            dev_result=dev_result,
+            elapsed=elapsed,
+            restart=restart,
         )
+        if refresh.attempted:
+            payload["completion_refresh"] = refresh.to_json()
+        print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
     if dev_result is not None:
@@ -447,6 +454,7 @@ def _handle_live_update(
         render_update_result(managed_summary, elapsed=elapsed, quiet=quiet, console=out)
     if changed:
         render_restart_info(restart, console=out, quiet=quiet)
+    _render_completion_refresh(refresh, console=out, quiet=quiet)
     return 0
 
 
@@ -575,6 +583,38 @@ def _call_plan_dev_update(
     if _callable_accepts_keyword(fn, "stale_core_record"):
         kwargs["stale_core_record"] = stale_core_record
     return fn(records, **kwargs)
+
+
+def _completion_refresh_after_update(
+    refresh_fn: Callable[[], CompletionRefreshReport] | None,
+) -> CompletionRefreshReport:
+    return maybe_refresh_installed_completions(refresh_fn)
+
+
+def _render_completion_refresh(
+    report: CompletionRefreshReport,
+    *,
+    console: Console,
+    quiet: bool,
+) -> None:
+    if quiet or not report.attempted:
+        return
+    if not report.outcomes:
+        console.print("Completion refresh: no stamped shells")
+        return
+    console.print("Refreshing installed shell completions…")
+    for outcome in report.outcomes:
+        console.print(
+            _refresh_outcome_line(outcome), style=_refresh_outcome_style(outcome)
+        )
+
+
+def _refresh_outcome_line(outcome: RefreshShellOutcome) -> str:
+    return f"  {outcome.shell}: {outcome.detail}"
+
+
+def _refresh_outcome_style(outcome: RefreshShellOutcome) -> str:
+    return "green" if outcome.ok else "yellow"
 
 
 __all__ = [
