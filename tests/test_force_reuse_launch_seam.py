@@ -17,6 +17,9 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.actions.agent_workflow._entry_name_prompts import (
+    prepare_kill_and_edit_prompt,
+)
 from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._launch_start import AgentLaunchStartMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
@@ -72,15 +75,42 @@ def _submit_kill_and_edit(prompt: str) -> dict[str, Any]:
     return host.calls[0]
 
 
+def _clan_kill_and_edit_prompt() -> str:
+    return prepare_kill_and_edit_prompt(
+        "%id(2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work",
+        "sase-op.2",
+    )
+
+
+def _family_kill_and_edit_prompt() -> str:
+    return prepare_kill_and_edit_prompt(
+        "Do work",
+        "sase-oc.4--plan",
+        family_name="sase-oc.4",
+        role_suffix="--plan",
+        phase_bead_id="sase-oc.4",
+    )
+
+
+def _authorized_request(prompt: str) -> DurableOperationRequest:
+    return DurableOperationRequest(
+        operation=RUN_LAUNCH,
+        payload={"prompt": prompt, "workflow": "w", "allow_force_reuse": True},
+    )
+
+
 # --- ACE submission carries the authorization + unrewritten prompt ---------
 
 
 def test_kill_and_edit_submission_authorizes_forced_reuse_clan_form() -> None:
     """A clan-member ``,x`` relaunch prompt reaches the proc queue verbatim."""
-    prompt = "%id(!2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work"
+    prompt = _clan_kill_and_edit_prompt()
 
     call = _submit_kill_and_edit(prompt)
 
+    assert prompt == (
+        "%id(!2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work"
+    )
     assert call["operation"] == RUN_LAUNCH
     assert call["request"]["prompt"] == prompt
     assert call["request"]["allow_force_reuse"] is True
@@ -88,10 +118,11 @@ def test_kill_and_edit_submission_authorizes_forced_reuse_clan_form() -> None:
 
 def test_kill_and_edit_submission_authorizes_forced_reuse_family_form() -> None:
     """A family-phase ``,x`` relaunch prompt reaches the proc queue verbatim."""
-    prompt = "%id(!plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
+    prompt = _family_kill_and_edit_prompt()
 
     call = _submit_kill_and_edit(prompt)
 
+    assert prompt == "%id(!plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
     assert call["request"]["prompt"] == prompt
     assert call["request"]["allow_force_reuse"] is True
 
@@ -120,18 +151,23 @@ def test_marked_bulk_kill_and_edit_each_pane_authorizes_its_own_forced_name() ->
 # --- The ``sase run`` child consumes the authorization ----------------------
 
 
-def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
+def _run_authorized_launch_query(
+    prompt: str,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+    *,
+    wipe_side_effect: Exception | None = None,
+    expect_launch: bool = True,
+) -> tuple[Any, Any, Any, Any, SystemExit]:
     from sase.main.query_handler._launch import launch_query
 
     monkeypatch.delenv("SASE_AGENT", raising=False)
-    prompt = "%id(!2, clan=sase-op, bead=sase-op.2)\nDo work"
-    request = DurableOperationRequest(
-        operation=RUN_LAUNCH,
-        payload={"prompt": prompt, "workflow": "w", "allow_force_reuse": True},
-    )
-
+    request = _authorized_request(prompt)
+    wipe_kwargs: dict[str, Any] = {}
+    if wipe_side_effect is not None:
+        wipe_kwargs["side_effect"] = wipe_side_effect
+    launch_kwargs: dict[str, Any] = {}
+    if expect_launch:
+        launch_kwargs["return_value"] = []
     with (
         patch("sase.ops.cli.load_request", return_value=request),
         patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
@@ -139,19 +175,38 @@ def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
             "sase.xprompt.unresolved.scan_query_for_unresolved_references",
             return_value=[],
         ),
-        patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe_names,
+        patch(
+            "sase.agent.launch_validation.wipe_names_for_forced_reuse",
+            **wipe_kwargs,
+        ) as wipe_names,
         patch(
             "sase.main.query_handler._launch.launch_agents_from_cwd",
-            return_value=[],
+            **launch_kwargs,
         ) as mock_launch,
-        pytest.raises(SystemExit),
+        patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
+        patch("sase.ops.commands.run.emit_run_launch_result") as emit_result,
+        pytest.raises(SystemExit) as excinfo,
     ):
         launch_query(prompt)
+    return wipe_names, mock_launch, record_failed, emit_result, excinfo.value
+
+
+def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt = _clan_kill_and_edit_prompt()
+
+    wipe_names, mock_launch, record_failed, _emit, _exc = _run_authorized_launch_query(
+        prompt, monkeypatch
+    )
 
     wipe_names.assert_called_once_with(["sase-op.2"])
+    record_failed.assert_not_called()
     mock_launch.assert_called_once()
     args, kwargs = mock_launch.call_args
-    assert args[0] == "%id(2, clan=sase-op, bead=sase-op.2)\nDo work"
+    assert args[0] == (
+        "%id(2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work"
+    )
     segment_envs = kwargs["segment_extra_env"]
     assert segment_envs is not None
     assert segment_envs[0] is not None
@@ -160,32 +215,143 @@ def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
     )
 
 
+def test_launch_query_consumes_authorized_family_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt = _family_kill_and_edit_prompt()
+
+    wipe_names, mock_launch, _record_failed, _emit, _exc = _run_authorized_launch_query(
+        prompt, monkeypatch
+    )
+
+    wipe_names.assert_called_once_with(["sase-oc.4--plan"])
+    mock_launch.assert_called_once()
+    args, kwargs = mock_launch.call_args
+    assert args[0] == "%id(plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
+    segment_envs = kwargs["segment_extra_env"]
+    assert segment_envs is not None
+    assert segment_envs[0] is not None
+    assert segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
+        '{"bead_id":"sase-oc.4","owner_name":"sase-oc.4--plan"}'
+    )
+
+
+def test_launch_query_threads_multi_prompt_segment_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt = (
+        "%id(!a, bead=sase-1)\nFirst\n---\n"
+        "%id:ordinary\nSecond\n---\n"
+        "%i(!b, clan=crew, bead=sase-2)\nThird"
+    )
+
+    wipe_names, mock_launch, _record_failed, _emit, _exc = _run_authorized_launch_query(
+        prompt, monkeypatch
+    )
+
+    wipe_names.assert_called_once_with(["a", "crew.b"])
+    args, kwargs = mock_launch.call_args
+    assert args[0] == (
+        "%id(a, bead=sase-1)\nFirst\n---\n"
+        "%id:ordinary\nSecond\n---\n"
+        "%i(b, clan=crew, bead=sase-2)\nThird"
+    )
+    segment_envs = kwargs["segment_extra_env"]
+    assert segment_envs is not None
+    assert len(segment_envs) == 3
+    assert segment_envs[0] is not None
+    assert segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
+        '{"bead_id":"sase-1","owner_name":"a"}'
+    )
+    assert segment_envs[1] is None
+    assert segment_envs[2] is not None
+    assert segment_envs[2][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
+        '{"bead_id":"sase-2","owner_name":"crew.b"}'
+    )
+
+
+def test_prepared_kill_and_edit_prompt_survives_submit_then_launch_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ACE ``,x`` producer, durable payload, and child consumer agree."""
+    prompt = _clan_kill_and_edit_prompt()
+    call = _submit_kill_and_edit(prompt)
+    assert call["request"]["allow_force_reuse"] is True
+    assert call["request"]["prompt"] == prompt
+
+    wipe_names, mock_launch, _record_failed, _emit, _exc = _run_authorized_launch_query(
+        call["request"]["prompt"], monkeypatch
+    )
+
+    wipe_names.assert_called_once_with(["sase-op.2"])
+    mock_launch.assert_called_once()
+    assert mock_launch.call_args.args[0] == (
+        "%id(2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work"
+    )
+
+
 def test_launch_query_fanout_contradiction_surfaces_clear_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.main.query_handler._launch import launch_query
-
-    monkeypatch.delenv("SASE_AGENT", raising=False)
     prompt = "%id(!2, clan=sase-op)\n%{%m:claude/opus | %m:claude/sonnet}"
-    request = DurableOperationRequest(
-        operation=RUN_LAUNCH,
-        payload={"prompt": prompt, "workflow": "w", "allow_force_reuse": True},
+
+    wipe_names, mock_launch, record_failed, emit_result, exc = (
+        _run_authorized_launch_query(prompt, monkeypatch, expect_launch=False)
     )
 
-    with (
-        patch("sase.ops.cli.load_request", return_value=request),
-        patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
-        patch(
-            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
-            return_value=[],
-        ),
-        patch("sase.main.query_handler._launch.launch_agents_from_cwd") as mock_launch,
-        pytest.raises(SystemExit) as excinfo,
-    ):
-        launch_query(prompt)
-
-    assert excinfo.value.code == 1
+    assert exc.code == 1
+    wipe_names.assert_not_called()
     mock_launch.assert_not_called()
+    record_failed.assert_called_once_with(prompt)
+    emit_result.assert_called_once()
+    emit_kwargs = emit_result.call_args.kwargs
+    assert emit_kwargs["success"] is False
+    assert "cannot be combined" in emit_kwargs["message"]
+
+
+def test_launch_query_wipe_failure_records_and_emits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt = "%id:!foo\nDo work"
+
+    wipe_names, mock_launch, record_failed, emit_result, exc = (
+        _run_authorized_launch_query(
+            prompt,
+            monkeypatch,
+            wipe_side_effect=RuntimeError("boom"),
+            expect_launch=False,
+        )
+    )
+
+    assert exc.code == 1
+    wipe_names.assert_called_once_with(["foo"])
+    mock_launch.assert_not_called()
+    record_failed.assert_called_once_with(prompt)
+    emit_result.assert_called_once()
+    emit_kwargs = emit_result.call_args.kwargs
+    assert emit_kwargs["success"] is False
+    assert emit_kwargs["message"] == "Agent name reuse failed: boom"
+
+
+def test_launch_query_parse_failure_records_and_emits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompt = (
+        "---\nxprompts:\n  badname: content\n---\n"
+        "%id:!foo\nFirst\n---\n%id:!bar\nSecond"
+    )
+
+    wipe_names, mock_launch, record_failed, emit_result, exc = (
+        _run_authorized_launch_query(prompt, monkeypatch, expect_launch=False)
+    )
+
+    assert exc.code == 1
+    wipe_names.assert_not_called()
+    mock_launch.assert_not_called()
+    record_failed.assert_called_once_with(prompt)
+    emit_result.assert_called_once()
+    assert emit_result.call_args.kwargs["success"] is False
+    assert "must start with '_'" in emit_result.call_args.kwargs["message"]
 
 
 # --- Negative: unauthorized callers keep today's rejection ------------------
@@ -224,7 +390,7 @@ def _run_launch_query_unauthorized(
     assert excinfo.value.code == 1
     # No authorization means no force-reuse rewrite/wipe: the untouched
     # (still-``!``) prompt reaches the same validation the child always ran.
-    mock_launch.assert_called_once_with(prompt, segment_extra_env=None)
+    mock_launch.assert_called_once_with(prompt)
 
 
 def test_plain_sase_run_without_request_sidecar_still_rejects_forced_reuse(

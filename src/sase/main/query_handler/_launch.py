@@ -92,7 +92,7 @@ def launch_query(query: str) -> None:
 
         try:
             force_reuse_plan = plan_force_reuse_launch(query)
-        except RuntimeError as exc:
+        except Exception as exc:
             message = str(exc)
             record_failed_launch_prompt(query)
             print(f"Error: {message}", file=sys.stderr)

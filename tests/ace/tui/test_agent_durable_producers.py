@@ -104,6 +104,7 @@ def test_launch_and_cleanup_argv() -> None:
     assert launch["concurrency_keys"] == (launch_concurrency_key("ace(run)-1"),)
     assert "do work" not in launch["argv"]
     assert launch["request"]["prompt"] == "#git:sase do work"
+    assert launch["request"]["allow_force_reuse"] is True
     assert cleanup["argv"][2:5] == ["sase", "agent", "persist-cleanup"]
     assert cleanup["operation"] == AGENT_CLEANUP
 
