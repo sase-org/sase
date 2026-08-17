@@ -23,14 +23,14 @@ Use [initialization](init.md#memory-initialization) to create or refresh the fil
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
 provider instruction file status. Initialization always generates the short
 `sase/memory/sase.md` workspace note. For SASE-managed project repositories it
-additionally generates two long notes: the `sase/memory/sase_beads.md` bead reference,
-listed in Tier 2 of managed agent instructions, and, nested under it as a child,
-`sase/memory/sase_sizes.md` size-scale guidance — surfaced via `sase_beads.md`'s
-`## Children` section on an audited read rather than as its own Tier 2 entry. Day to
-day, the usual order is: inspect loaded context with `sase memory list`, have agents use
-`sase memory read` for audited long-term reads, have agents use `sase memory write` only
-to create proposals, then have a human approve or reject those proposals with
-`sase memory review`.
+additionally generates three long notes: the `sase/memory/sase_beads.md` bead reference
+and `sase/memory/sase_flags.md` feature-flag reference, both listed in Tier 2 of managed
+agent instructions, plus `sase/memory/sase_sizes.md` size-scale guidance nested under
+`sase_beads.md` and surfaced through that note's `## Children` section on an audited
+read. Day to day, the usual order is: inspect loaded context with `sase memory list`,
+have agents use `sase memory read` for audited long-term reads, have agents use
+`sase memory write` only to create proposals, then have a human approve or reject those
+proposals with `sase memory review`.
 
 ## XPrompt Inclusion
 

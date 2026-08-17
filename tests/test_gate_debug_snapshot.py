@@ -329,10 +329,10 @@ def test_missing_bundle_and_non_gate_notification_have_explicit_empty_states(
 
 
 def test_flag_triage_snapshot_uses_the_flag_action_icon(gate_home: Path) -> None:
+    from tests.test_bead.flag_gate_test_helpers import flag_triage_spec
+
     del gate_home
-    spec = _spec(request_id="debug-flag")
-    spec["kind"] = "flag_triage"
-    created = create_gate(spec)
+    created = create_gate(flag_triage_spec(request_id="debug-flag"))
     [notification] = load_notifications(include_dismissed=True)
 
     snapshot = build_gate_debug_snapshot(notification, notification.action_data)

@@ -13,6 +13,8 @@ description: |-
   - Agent Shell
   - Agent Tribe
   - Artifact Reference (aka ref)
+  - Feature Flag
+  - Flag Bead (aka flag bead)
   - Patch
   - Proc (aka background task)
   - Proc Shell
@@ -107,6 +109,20 @@ artifact repos add document kinds such as `@plan` and `@research` through a proj
 `ref:` config, written inline or with `use: <provider>` from an installed provider
 plugin. Every ref expands to prompt text, is recorded against the agent that used it,
 and publishes as a `[@kind:arg][N]` link.
+
+## Feature Flag
+
+A feature flag is a code-owned boolean route for SASE behavior that reaches users before
+it is ready to become unconditional. Non-ops flags are temporary, are created through
+`sase flag new`, and must be removed through their dedicated flag bead.
+
+## Flag Bead
+
+ALIASES: flag bead
+
+A flag bead is the dedicated top-level removal bead for one non-ops feature flag. It
+owns the flag key plus the `remove_by_date` and `remove_by_release` thresholds that
+drive `FlagTriage`; it is not the epic or task that introduced the behavior.
 
 ## Patch
 

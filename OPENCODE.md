@@ -173,6 +173,16 @@ link, and records the issue in the right place. Only a genuinely new task become
 proposed to the project owner, who either launches an agent to work them or closes them
 with a reason.
 
+#### 1.4.4 Feature Flags
+
+You MUST put a feature flag on user-reaching behavior before it is ready: a disabled
+beta, an early landed path, or a deprecation whose old branch must stay reachable. You
+SHOULD NOT flag anything users are meant to choose forever; that is a config field.
+
+Create one only with `sase flag new <key>`, which also files its `flag` removal bead.
+Read `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
+removing any flag.
+
 ## 2. Tier 2 (long-term) Memory
 
 The below files contain detailed reference material. When working in their domain, you
@@ -199,6 +209,8 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Agent Shell
 - Agent Tribe
 - Artifact Reference (aka ref)
+- Feature Flag
+- Flag Bead (aka flag bead)
 - Patch
 - Proc (aka background task)
 - Proc Shell
@@ -224,6 +236,9 @@ in SASE.
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
+
+**`sase/memory/sase_flags.md`**  
+Read before adding, deferring, or removing a SASE feature flag or flag bead.
 
 **`sase/memory/symvision.md`**  
 Read before fixing Symvision lint failures, including unused symbols, private misuse,

@@ -52,3 +52,14 @@ Before creating any task bead, you MUST use `/sase_new_task`. That skill checks 
 duplicates, checks in-progress epics for a credible causal link, and records the issue in the right place. Only a
 genuinely new task becomes an `open` draft, and every new task requires an intentional `--size`. Ready task beads are
 proposed to the project owner, who either launches an agent to work them or closes them with a reason.
+
+{% if project_name %}
+## Feature Flags
+
+You MUST put a feature flag on user-reaching behavior before it is ready: a disabled beta, an early landed path, or a
+deprecation whose old branch must stay reachable. You SHOULD NOT flag anything users are meant to choose forever; that
+is a config field.
+
+Create one only with `sase flag new <key>`, which also files its `flag` removal bead. Read `sase/memory/sase_flags.md`
+with `/sase_memory_read` before adding, deferring, or removing any flag.
+{% endif %}

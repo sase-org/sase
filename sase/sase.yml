@@ -71,6 +71,20 @@ memory:
         `use: <provider>` from an installed provider plugin. Every ref expands to prompt
         text, is recorded against the agent that used it, and publishes as a
         `[@kind:arg][N]` link.
+    Feature Flag:
+      definition: >-
+        A feature flag is a code-owned boolean route for SASE behavior that reaches
+        users before it is ready to become unconditional. Non-ops flags are temporary,
+        are created through `sase flag new`, and must be removed through their dedicated
+        flag bead.
+    Flag Bead:
+      aliases:
+        - flag bead
+      definition: >-
+        A flag bead is the dedicated top-level removal bead for one non-ops feature
+        flag. It owns the flag key plus the `remove_by_date` and `remove_by_release`
+        thresholds that drive `FlagTriage`; it is not the epic or task that introduced
+        the behavior.
     Patch:
       definition: >-
         A Patch is SASE's local unit of change. Every PR created or managed by SASE is

@@ -16,6 +16,7 @@ DAG.
 - [Data Model](#data-model)
   - [Issue Types](#issue-types)
   - [Status Lifecycle](#status-lifecycle)
+  - [Flag Bead Lifecycle](#flag-bead-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
   - [Standalone Task Workflow](#standalone-task-workflow)
   - [Snoozing a Task Bead](#snoozing-a-task-bead)
@@ -106,14 +107,15 @@ lists the candidate full IDs instead of choosing one arbitrarily.
 | **Plan**  | Plan-like container with a tier; may be a child epic           | `{prefix}-{counter}` or `{parent_id}.{N}` |
 | **Phase** | Sized executable child within an epic/plan bead                | `{parent_id}.{N}`                         |
 | **Task**  | Independent, explicitly sized work item with no parent or tier | `{prefix}-{counter}`                      |
+| **Flag**  | Dedicated removal bead for one non-ops SASE feature flag       | `{prefix}-{counter}`                      |
 
 Plans are groupings that can optionally link to an SDD file via the `design` field.
 Phases always belong to a parent plan and use hierarchical IDs (e.g., `beads-001.1`,
-`beads-001.2`). Task beads are top-level, carry neither a parent nor a tier, and require
-a size when newly created. An epic proposed by a phase or land agent becomes a child
-plan bead beneath the bead responsible for that agent. For example, phase `beads-001.2`
-can own child epic `beads-001.2.1`; an epic proposed by the land agent can become the
-next direct child such as `beads-001.3`.
+`beads-001.2`). Task and flag beads are top-level, carry neither a parent nor a tier,
+and task beads require a size when newly created. An epic proposed by a phase or land
+agent becomes a child plan bead beneath the bead responsible for that agent. For
+example, phase `beads-001.2` can own child epic `beads-001.2.1`; an epic proposed by the
+land agent can become the next direct child such as `beads-001.3`.
 
 Task beads are deliberately flat: the task creation form takes no plan path or parent
 ID, and a task cannot carry a plan tier or Patch metadata. Use a task for independent
@@ -143,14 +145,14 @@ sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.m
 
 ### Status Lifecycle
 
-| Status        | Icon | Description                                                               |
-| ------------- | ---- | ------------------------------------------------------------------------- |
-| `open`        | `○`  | Not started; for task beads, still a draft that is not offered for triage |
-| `claimed`     | `◎`  | Reserved by a live agent that has not started work                        |
-| `ready`       | `◇`  | Task bead explicitly offered for triage; invalid for plan and phase beads |
-| `snoozed`     | `◈`  | Task bead deferred to a wake time (or +1 target); invalid for plan/phase  |
-| `in_progress` | `◐`  | Being worked on, or preassigned by an epic/task launch checkpoint         |
-| `closed`      | `✓`  | Completed, canceled, or superseded                                        |
+| Status        | Icon | Description                                                                               |
+| ------------- | ---- | ----------------------------------------------------------------------------------------- |
+| `open`        | `○`  | Not started; for task beads, still a draft that is not offered for triage                 |
+| `claimed`     | `◎`  | Reserved by a live agent that has not started work                                        |
+| `ready`       | `◇`  | Task bead explicitly offered for triage; invalid for plan, phase, and flag beads          |
+| `snoozed`     | `◈`  | Task bead deferred to a wake time (or +1 target); invalid for plan, phase, and flag beads |
+| `in_progress` | `◐`  | Being worked on, or preassigned by an epic/task launch checkpoint                         |
+| `closed`      | `✓`  | Completed, canceled, or superseded                                                        |
 
 Status can transition between values via `sase bead update --status=<status>`. A task
 normally moves `open → ready` when its draft is proposed, `ready → open` when retracted,
@@ -175,6 +177,34 @@ explanation. Closing an already-closed bead is a verified no-op: the command suc
 when any supplied reason or resolution agrees with the recorded close, and fails without
 writing when the request conflicts. Historical closed beads are not backfilled, so their
 resolution remains unset and human-readable detail views show `(unrecorded)`.
+
+### Flag Bead Lifecycle
+
+A flag bead is not the epic or task that introduced a feature. It is the dedicated
+top-level removal bead for one non-ops feature flag, linked from the code-owned registry
+and carrying the `flag.key`, `remove_by_date`, and `remove_by_release` thresholds.
+
+Create feature flags with `sase flag new <key>`, not by hand-editing the registry. The
+command creates the flag bead, computes default thresholds, prints the registry entry to
+paste, and shows the both-states test checklist. The lower-level bead parser accepts
+`-T "flag(<key>,<YYYY-MM-DD>,<release>)"` because the store can represent the type, but
+the flag CLI is the normal creation path.
+
+Flag beads use `open`, `in_progress`, and `closed`; they do not use `ready` or
+`snoozed`. A flag becomes due only when both the date and release threshold have passed.
+Due-ness never flips the stored status and never changes the boolean value.
+
+AXE's bead-gate reconciler raises one `FlagTriage` gate for a live due flag bead. Its
+decisions are:
+
+- **Remove** launches work to choose the winning branch, delete the losing branch,
+  remove the registry entry, and close the flag bead in the same change.
+- **Extend** rewrites both `remove_by` thresholds and records why the temporary flag
+  still needs time.
+- **Keep** records that the behavior is permanent and promotes it to `ops` or an
+  ordinary config field.
+- **Close** closes the bead when the flag was already removed or is intentionally
+  orphaned; registry/bead integrity checks catch an inconsistent survivor.
 
 ### Bead Claim Lifecycle
 
@@ -436,9 +466,9 @@ A bead remembers how it was closed even after a later reopen undoes that close. 
 _current_ close, when a bead is closed right now, stays exactly where it has always
 lived: the flat `closed_at`, `close_reason`, and `resolution` fields. `close_history` is
 strictly the past — an append-only, oldest-first list of close episodes that have since
-been undone. This applies to every bead type (task, phase, and plan), not just tasks:
-phases and plans are reopened by `sase bead open` and by epic work preclaims, and "why
-was this closed before?" is the same useful question there too.
+been undone. This applies to every bead type, including flag beads, not just tasks:
+non-task beads are reopened by `sase bead open` and by epic work preclaims, and "why was
+this closed before?" is the same useful question there too.
 
 Each record captures one undone close:
 
@@ -581,6 +611,10 @@ never `ready` — for every uncovered issue, so a first-pass backlog never flood
 `TaskTriage` gate queue. Run
 `sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview the
 same pass manually.
+
+Flag beads are deliberately excluded from external mirroring. Feature-flag removal is
+internal SASE hygiene owned by the registry, flag bead, and `FlagTriage` gate; it should
+not become GitHub issue noise.
 
 A mirrored bead carries `external_ref` (the mirror's idempotency key, project-key
 qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-facing,
@@ -995,7 +1029,7 @@ Create a new issue.
 | Flag                           | Required             | Description                                                                                                                                                                                                                                                         |
 | ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
-| `-T, --type`                   | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                                                            |
+| `-T, --type`                   | yes                  | Bead type: `task`, `flag(<key>,<YYYY-MM-DD>,<release>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                      |
 | `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                                                   |
 | `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
 | `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
@@ -1272,7 +1306,7 @@ and `by_status`, including zero buckets for every known type and status.
 | `-S, --since`  | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
 | `-s, --status` | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
 | `-r, --tier`   | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`, `task`                                               | Filter by type (repeatable)                                                           |
+| `-t, --type`   | `plan`, `phase`, `task`, `flag`                                       | Filter by type (repeatable)                                                           |
 | `-u, --until`  | `DATE`                                                                | Only beads created at or before `DATE`                                                |
 
 Active (`open`/`claimed`/`ready`/`snoozed`/`in_progress`) listings are unlimited by
@@ -1367,7 +1401,7 @@ sase bead search auth --type plan --tier epic
 | `-e, --regex`  | flag                                                           | Interpret the query as a regular expression     |
 | `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
 | `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`, `task`                                        | Filter by type (repeatable)                     |
+| `-t, --type`   | `plan`, `phase`, `task`, `flag`                                | Filter by type (repeatable)                     |
 
 ### `sase bead show <id>`
 
@@ -1388,7 +1422,9 @@ detail views always print a size: they use the stored value when present and
 fallback. Any bead's children are grouped as phases (with status and size) and child
 epics (with tier and status), including child epics owned by a phase bead. Nested beads
 show their complete lineage back to the root plan. A `claimed` bead also prints
-`Claimed by: <assignee> (agent has not started working yet)`.
+`Claimed by: <assignee> (agent has not started working yet)`. A flag bead additionally
+prints a `FLAG` section with the registry key, both `remove_by` thresholds, and derived
+due state.
 
 Detail resolution — the target issue plus its ancestors, children, dependencies, and
 blockers — comes from a single Rust-side store read instead of the three independent
@@ -1471,7 +1507,7 @@ batch semantics.
 ### `sase bead stats`
 
 Show project statistics: total, open, claimed, ready, snoozed, in-progress, and closed
-counts, plus plan, phase, and task counts.
+counts, plus plan, phase, task, flag, and due-flag counts.
 
 ### `sase bead sync`
 
@@ -1516,6 +1552,7 @@ unaffected — same syntax, output line, and commit message as before.
 | `-X, --clear-external-ref` | Clear the external issue identity (mutually exclusive with `-x`)                                                                                             |
 | `--tier`                   | Change plan tier                                                                                                                                             |
 | `-m, --model`              | Change the launch model. Pass an empty string to clear.                                                                                                      |
+| `-b, --remove-by`          | Extend one flag bead's removal thresholds as `<YYYY-MM-DD>/<release>`. Takes exactly one flag bead ID.                                                       |
 | `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
 
 Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note`

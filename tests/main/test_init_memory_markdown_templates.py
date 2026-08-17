@@ -151,6 +151,22 @@ def test_default_sizes_template_renders_canonical_child_long_note() -> None:
     assert generated.parent == "sase/memory/sase_beads.md"
 
 
+def test_default_flags_template_renders_canonical_long_note() -> None:
+    content = _generated_project_note("sase/memory/sase_flags.md")
+
+    relative_path = "sase/memory/sase_flags.md"
+    note = parse_memory_note_text(content, relative_path)
+    assert note.type == "long"
+    assert note.parent == "AGENTS.md"
+    assert (
+        note.description
+        == "Read before adding, deferring, or removing a SASE feature flag or flag bead."
+    )
+    generated = generated_long_notes({relative_path: content})[relative_path]
+    assert generated.description == note.description
+    assert generated.parent == "AGENTS.md"
+
+
 def test_generated_child_long_note_metadata_renders_single_pass(
     tmp_path: Path,
 ) -> None:

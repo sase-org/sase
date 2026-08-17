@@ -47,6 +47,7 @@ sections, environment variables, and CLI flags.
   - [sdd](#sdd)
   - [bead](#bead)
   - [external_mirror](#external_mirror)
+  - [feature_flags](#feature_flags)
   - [workspace](#workspace)
   - [telemetry](#telemetry)
   - [update](#update)
@@ -3102,6 +3103,42 @@ banners show a `· M remote-only` suffix when a filtered-PR count is known.
 
 Source: `src/sase/default_config.yml`
 
+### feature_flags
+
+`feature_flags` is the user and project override surface for code-owned SASE feature
+flags. Registry defaults live in `src/sase/feature_flags/registry.py`; the config block
+only overrides registered keys.
+
+```yaml
+feature_flags:
+  coder_inherits_planner_chat: false
+  prettier_enabled: true
+```
+
+The generated JSON Schema exposes one boolean property per registered flag with its
+description and default. Unknown keys are tolerated by the schema so downgraded installs
+can still read a config written by a newer SASE, but the resolver warns and ignores
+unknown keys at runtime.
+
+Resolution order is registry default, user config, overlay configs, project-local config
+for `scope: "project"` flags only, explicit in-process test overrides, then
+`SASE_FEATURE_FLAGS`. Plugin config layers never flip first-party flag defaults. A local
+config entry for a global flag is ignored with a warning, because ACE disables
+project-local config and global flags must resolve consistently across frontends.
+
+`SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
+`{"coder_inherits_planner_chat":true}`. Malformed JSON, a non-object payload, or a
+non-boolean value is a startup error for that process. SASE-launched children inherit a
+resolved snapshot through the same variable, so `sase flag list` marks env provenance
+prominently.
+
+Create temporary flags with `sase flag new <key>` rather than editing the registry by
+hand. The command creates the dedicated `flag` removal bead, prints the registry entry,
+and gives the both-states test checklist. See [Beads](beads.md#flag-bead-lifecycle) for
+the removal lifecycle.
+
+Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`
+
 ### workspace
 
 Controls how SASE chooses the physical location of managed workspace checkouts. See
@@ -3353,6 +3390,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                        |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                   |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                            |
+| `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Overrides config-layer values.                                                                                                                                                           |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                                                                                                                                         |
 | `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                             |
 | `SASE_PYTEST_DIST`                    | xdist scheduler for the `just` pytest recipes: `worksteal` (default) or `loadfile` (fallback). Invalid values fail before worker-token acquisition; serial inline-snapshot modes ignore it.                                                                                                            |
@@ -3980,18 +4018,18 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                           | Values                                         | Default    | Description                                                                            |
-| ------------------------------ | ---------------------------------------------- | ---------- | -------------------------------------------------------------------------------------- |
-| `-t, --title`                  | string                                         | (required) | Issue title                                                                            |
-| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or standalone `task`    |
-| `-d, --description`            | string                                         | -          | Issue description                                                                      |
-| `-a, --assignee`               | string                                         | -          | Assignee name                                                                          |
-| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                    |
-| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                               |
-| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only |
-| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                       |
-| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible              |
-| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                    |
+| Flag                           | Values                                         | Default    | Description                                                                                                         |
+| ------------------------------ | ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                         |
+| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, `flag(<key>,<date>,<release>)`, or standalone `task` |
+| `-d, --description`            | string                                         | -          | Issue description                                                                                                   |
+| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                       |
+| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                 |
+| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                            |
+| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                              |
+| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                    |
+| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                           |
+| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                 |
 
 #### `sase bead list`
 
@@ -4001,7 +4039,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-n, --limit`  | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all |
 | `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                        |
 | `-r, --tier`   | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                |
-| `-t, --type`   | `plan`, `phase`, `task`                             | -           | Filter by type (repeatable)                                          |
+| `-t, --type`   | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                          |
 
 #### `sase bead search`
 
@@ -4013,7 +4051,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-n, --limit`  | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                  |
 | `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
 | `-r, --tier`   | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                               |
-| `-t, --type`   | `plan`, `phase`, `task`                             | -           | Filter by type (repeatable)                                         |
+| `-t, --type`   | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                         |
 
 #### `sase bead show`
 
@@ -4040,6 +4078,7 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-D, --design`      | path                                                | -          | Change design path; all types accepted  |
 | `-a, --assignee`    | string                                              | -          | Change assignee                         |
 | `-m, --model`       | string                                              | -          | Change launch model                     |
+| `-b, --remove-by`   | `YYYY-MM-DD/release`                                | -          | Extend one flag bead's thresholds       |
 | `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                  |
 | `-r, --tier`        | `plan`, `epic`                                      | -          | Change plan-bead tier                   |
 
@@ -4154,6 +4193,20 @@ missing from disk; both are read-only and provide cleanup/repair guidance.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.
+
+### `sase flag`
+
+With no subcommand, `sase flag` defaults to `sase flag list`.
+
+| Form             | Flag or argument                                                                      | Description                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `sase flag list` | `-j, --json`                                                                          | List registered flags, resolved values, provenance, beads, and due state.    |
+| `sase flag show` | `<key>`, `-j/--json`                                                                  | Show one flag's full decision, bead thresholds, diagnostics, and call sites. |
+| `sase flag new`  | `<key>`, `-d/--description`, `-k/--kind`, `-r/--remove-by`, `-s/--scope`, `-z/--size` | Create the dedicated flag bead and print the registry entry to paste.        |
+
+`new` requires a SASE-managed checkout because the registry lives in this source tree.
+For `ops` flags, `new` skips bead creation and uses the description as the required
+rationale.
 
 ### `sase file-hook`
 
