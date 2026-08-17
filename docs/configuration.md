@@ -267,33 +267,37 @@ and `R` refreshes the off-thread cached inventory.
 ### Statistics tab
 
 The Statistics tab aggregates durable agent run and activity records over a selectable
-time range. Its seven numbered views are **1 Overview**, **2 Runners**, **3 Projects**,
-**4 Providers**, **5 Activity**, **6 XPrompts**, and **7 Plans & Questions**. The
-Runners view uses today's effective global limit—including a temporary override—as
-present-day context, never as historical configuration. The Projects view can group by
-project, by Patch, or as a project-to-Patch drilldown. XPrompts can group by usage,
-model, project, or co-usage. A pane-wide project filter lets you apply the same scope to
-the other views.
+time range. Its eight numbered views are **1 Overview**, **2 Runners**, **3 Projects**,
+**4 Providers**, **5 Activity**, **6 XPrompts**, **7 Plans & Questions**, and **8
+Perf**. The Runners view uses today's effective global limit—including a temporary
+override—as present-day context, never as historical configuration. The Projects view
+can group by project, by Patch, or as a project-to-Patch drilldown. XPrompts can group
+by usage, model, project, or co-usage. Perf combines TUI startup and responsiveness logs
+with telemetry latency and reliability; its grouping cycles through subsystem, provider,
+and workflow. A pane-wide project filter lets you apply the same scope to the run-backed
+views, but Perf is global and marks the project chip **not applied**.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
-off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`7` to
+off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`8` to
 select one directly. Use `t`/`T` or `c` to choose a preset or custom range, `g` to
-change the Projects or XPrompts grouping, `p`/`P` to cycle the project filter forward or
-backward, and `r` to refresh immediately. Keyed scope chips keep the effective range,
-grouping, and project visible; the **Group** chip appears only in Projects and XPrompts
-and names the selected dimension there. Project scopes use configured display names
-while retaining canonical keys internally. The filter order is **All projects**,
-followed by projects ranked by run count in the most recently loaded unfiltered result,
-and then wraps: `p` moves forward and `P` backward. Return to **All** after changing the
-range to rebuild that list for the new range. If a selected project produces an empty
-result, either project-cycle key clears directly to **All projects**. Every populated
-view includes a compact metric legend, `?` opens the complete glossary and current
-scope, and empty/error states show the effective keys for widening, clearing, or
-retrying. The Overview Agents Run, Success Rate, and Commits tiles open Projects, while
-Plans Proposed and Questions open Plans & Questions. The plan and question tiles remain
-all-project values even when a project is selected; see
+change the Projects, XPrompts, or Perf grouping, `p`/`P` to cycle the project filter
+forward or backward, and `r` to refresh immediately. Keyed scope chips keep the
+effective range, grouping, and project visible; the **Group** chip appears only in those
+three groupable views and names the selected dimension there. Project scopes use
+configured display names while retaining canonical keys internally. The filter order is
+**All projects**, followed by projects ranked by run count in the most recently loaded
+unfiltered result, and then wraps: `p` moves forward and `P` backward. Return to **All**
+after changing the range to rebuild that list for the new range. If a selected project
+produces an empty result, either project-cycle key clears directly to **All projects**.
+Every populated view includes a compact metric legend, `?` opens the complete glossary
+and current scope, and empty/error states show the effective keys for widening,
+clearing, or retrying. The Overview Agents Run, Success Rate, and Commits tiles open
+Projects, while Plans Proposed and Questions open Plans & Questions. The plan and
+question tiles remain all-project values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for
-the view contents, range syntax, and project-filter caveats.
+the view contents, range syntax, and project-filter caveats, and
+[Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
+for Perf data sources and retention.
 
 ### Updates tab
 
@@ -942,16 +946,19 @@ focused. The available actions are:
 | ------------------------------ | ---------------------- | --------------------------------------------------------------------- |
 | `prev_view`                    | `left_square_bracket`  | Select the previous Statistics view.                                  |
 | `next_view`                    | `right_square_bracket` | Select the next Statistics view.                                      |
-| `select_view`                  | `0`                    | Arm `1`–`7` selection for a numbered Statistics view.                 |
+| `select_view`                  | `0`                    | Arm `1`–`8` selection for a numbered Statistics view.                 |
+| `jump_to_entry`                | `apostrophe`           | Arm the same numbered-view selection used by `select_view`.           |
 | `cycle_range`                  | `t`                    | Cycle to the next statistics time range.                              |
 | `cycle_range_reverse`          | `T`                    | Cycle to the previous statistics time range.                          |
 | `custom_range`                 | `c`                    | Enter a custom statistics time range.                                 |
-| `cycle_group`                  | `g`                    | Cycle grouping in the Projects or XPrompts view.                      |
+| `cycle_group`                  | `g`                    | Cycle grouping in the Projects, XPrompts, or Perf view.               |
 | `cycle_project_filter`         | `p`                    | Cycle forward through All and the latest unfiltered project ranking.  |
 | `cycle_project_filter_reverse` | `P`                    | Cycle backward through All and the latest unfiltered project ranking. |
+| `focus_xprompt`                | `x`                    | Focus one XPrompt in the XPrompts Statistics view.                    |
+| `clear_xprompt_focus`          | `X`                    | Return the XPrompts Statistics view to all XPrompts.                  |
 | `scroll_down`                  | `ctrl+d`               | Scroll the Statistics body down by half a page.                       |
 | `scroll_up`                    | `ctrl+u`               | Scroll the Statistics body up by half a page.                         |
-| `refresh`                      | `r`                    | Refresh from durable run and activity records.                        |
+| `refresh`                      | `r`                    | Refresh the active view from its durable data sources.                |
 | `help`                         | `question_mark`        | Open contextual Statistics help; the same key closes it.              |
 
 Statistics keys may overlap app-level bindings because they are registered on the
@@ -4441,12 +4448,16 @@ intentionally a fixed-operation bridge rather than a generic shell or filesystem
 
 The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and
 reads the cross-project agent snapshot. Ordinary agent rows are de-duplicated by name
-and include `status` and `project`. When group metadata is available, additive family,
-clan, and `@tribe` rows include `kind`, `member_count`, and display-ready `detail`; clan
-rows also include aggregate `status`. The structured xprompt catalog includes insertion
-metadata (`insertion`, `reference_prefix`, `kind`), typed argument metadata,
-display/source fields, and `definition_path` when SASE can resolve a real file to jump
-to.
+and include `status` and `project`; monitor rows use `kind: monitor`. When group
+metadata is available, additive family, clan, and `@tribe` rows include `kind`,
+`member_count`, and display-ready `detail`; clan rows also include aggregate `status`.
+For the newest 20 families, SASE attempts to enrich `detail` with the associated plan or
+bead's kind, structure, and title, and adds Markdown `documentation` with the available
+goal, phases, or parent/task context plus a family status footer. Unresolved or older
+families retain the member-count detail, and enrichment failure never removes ordinary
+rows. The structured xprompt catalog includes insertion metadata (`insertion`,
+`reference_prefix`, `kind`), typed argument metadata, display/source fields, and
+`definition_path` when SASE can resolve a real file to jump to.
 
 The snippet catalog uses the same source ordering as ACE: xprompts marked with `snippet`
 front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger

@@ -203,12 +203,19 @@ fields, and `definition_path` when SASE can resolve a real file.
 
 `agent-catalog` requires only `{"schema_version":1}` and reads across projects. It
 returns active and recent ordinary agent rows, de-duplicated by name, with `status` and
-`project`. When the same artifact snapshot contains usable group metadata, the response
-adds the latest identifiable generation of each family and clan plus `@tribe` references
-derived from stored tribe assignments and clan declarations. Every row has `name`,
-`kind`, `member_count`, and display-ready `detail`; clan rows also have aggregate
-`status`. Group entries are additive, so malformed legacy group metadata does not hide
-the ordinary agent rows.
+`project`; monitor rows use `kind: monitor`. When the same artifact snapshot contains
+usable group metadata, the response adds the latest identifiable generation of each
+family and clan plus `@tribe` references derived from stored tribe assignments and clan
+declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
+clan rows also have aggregate `status`.
+
+For the newest 20 families, the helper attempts to resolve an associated plan or bead.
+On success, `detail` leads with plan kind, structure, and title, and optional Markdown
+`documentation` supplies the available goal, epic phases, or phase/task context followed
+by family member count and aggregate status. A launch-prompt title can fill the detail
+when no structured preview exists. Older or unresolved families keep the stable
+`family · N members` detail. Group enrichment is additive, so missing plans or malformed
+legacy metadata never hide ordinary agent rows.
 
 `vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's
 registered workspace provider for repositories. The response reports `status`,

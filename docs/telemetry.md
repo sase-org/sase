@@ -162,20 +162,22 @@ sase telemetry status
 ## Admin Center Statistics tab
 
 Open the SASE Admin Center with `#` or the command palette, then press `4` or select
-**Statistics**. The pane aggregates durable agent records rather than the short-lived
-telemetry metric store described above. It loads only while visible, performs
-aggregation off the UI thread, refreshes every 30 seconds, and shows loading,
-empty-range, and query-error states in place.
+**Statistics**. The first seven views aggregate durable agent records. The eighth,
+**Perf**, combines bounded TUI diagnostic logs with the telemetry metric store described
+above. The pane loads only while visible, performs aggregation off the UI thread,
+refreshes every 30 seconds, and shows loading, empty-range, and query-error states in
+place.
 
 The scope header makes the current controls explicit: **Range** shows a friendly summary
-and, when space permits, its absolute span; **Group** appears only in the Projects and
-XPrompts views and names the active dimension; and **Project** shows **All projects** or
-the selected project's display name (falling back to its canonical key), preceded by a
-categorical color swatch. A custom range is labeled **Custom**, and narrow terminals
-compact the chips without changing the selection. Project keys remain canonical
-internally even when a configured display name is shown.
+and, when space permits, its absolute span; **Group** appears only in the Projects,
+XPrompts, and Perf views and names the active dimension; and **Project** shows **All
+projects** or the selected project's display name (falling back to its canonical key),
+preceded by a categorical color swatch. A custom range is labeled **Custom**, and narrow
+terminals compact the chips without changing the selection. Project keys remain
+canonical internally even when a configured display name is shown. Perf is global, so
+its project chip stays visible but adds **not applied**.
 
-The seven numbered views answer different questions:
+The eight numbered views answer different questions:
 
 | #   | View                  | Contents                                                                                                                                         |
 | --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -186,6 +188,7 @@ The seven numbered views answer different questions:
 | 5   | **Activity**          | Skill, memory, and workspace use.                                                                                                                |
 | 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                             |
 | 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                              |
+| 8   | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                   |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
@@ -198,12 +201,14 @@ The default focused-pane keys are:
 | Key                 | Action                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `[`/`]`             | Cycle statistic views.                                                                   |
-| `0`, then `1`–`7`   | Select the corresponding numbered Statistics view.                                       |
+| `0`, then `1`–`8`   | Select the corresponding numbered Statistics view.                                       |
+| `'`                 | Arm the same numbered-view selection as `0`.                                             |
 | `t`/`T`             | Cycle Today, 24h, 7d, 30d, 90d, and All forward / backward.                              |
 | `c`                 | Enter a custom absolute or relative time range.                                          |
-| `g`                 | Cycle grouping in the Projects or XPrompts view.                                         |
+| `g`                 | Cycle grouping in Projects, XPrompts, or Perf.                                           |
 | `p`                 | Cycle All → each project from the latest unfiltered ranking → All.                       |
 | `P`                 | Cycle the same project order backward, wrapping in either direction.                     |
+| `x` / `X`           | Focus one XPrompt / return to all XPrompts in the XPrompts view.                         |
 | `Ctrl+D` / `Ctrl+U` | Scroll the statistics body down / up by half a page when the range input is not focused. |
 | `r`                 | Refresh immediately.                                                                     |
 | `?`                 | Open contextual help; press the configured help key again to close.                      |
@@ -231,7 +236,11 @@ distributions, come from global documents rather than project-attributed runs. T
 detailed Plans & Questions view labels those fields **all projects** while a project is
 selected. The Overview Plans Proposed and Questions tiles also use all-project document
 aggregates, but their tile faces do not append that scope label. The Projects view
-retains an `(no Patch)` row for runs that have a project but no Patch attribution.
+retains an `(no Patch)` row for runs that have a project but no Patch attribution. Perf
+does not apply the project filter because its telemetry labels and TUI diagnostic logs
+do not carry project attribution. See
+[Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
+for its panels, sources, retention, and probe flags.
 
 Override these focused-pane bindings under `ace.keymaps.statistics`; the effective keys
 are reflected in the pane's hint bar:
@@ -243,12 +252,15 @@ ace:
       prev_view: "["
       next_view: "]"
       select_view: "0"
+      jump_to_entry: "apostrophe"
       cycle_range: "t"
       cycle_range_reverse: "T"
       custom_range: "c"
       cycle_group: "g"
       cycle_project_filter: "p"
       cycle_project_filter_reverse: "P"
+      focus_xprompt: "x"
+      clear_xprompt_focus: "X"
       scroll_down: "ctrl+d"
       scroll_up: "ctrl+u"
       refresh: "r"

@@ -181,15 +181,16 @@ Patch is contract-in like every other pane: `ArtifactsPatchesPane` receives a co
 `ArtifactsPaneContract` and its accent, label, and capabilities come from that contract
 exactly like Stitches, Beads, or Files. But Patch is not spec-out — its query, grouping,
 detail rendering, and action surface remain the pre-existing, heavily specialized Patch
-implementation (`PatchInfoPanel`, `PatchList`, `PatchDetail`, the modal query editor),
-and this phase does not migrate any of that to the generic document/snapshot pipeline.
-Patch's existing empty state already routes through `TabQuickStart`
-(`_actions/patch/_onboarding.py` shows/hides `#patch-quickstart-panel`); this phase
-treats that established mechanism as Patch's canonical empty surface rather than
-introducing a second one. A literal shared identity-header _row_ was deliberately not
-added to Patch's layout in this phase: Patch is covered by a very large number of PNG
-snapshots across otherwise-unrelated test suites (agents, axe, config center, and more
-all screenshot the default view), and inserting a new row would shift every one of them
-for no behavioral benefit — `PatchInfoPanel` already carries Patch's identity and
-state/count information. That migration is left as explicit follow-up work, tracked
-separately from this phase's bead.
+implementation (`PatchInfoPanel`, `PatchList`, `PatchDetail`, and its persistent inline
+`PatchFilterBar`), rather than the generic document/snapshot pipeline. Typing in that
+bar filters the loaded Patch snapshot live; commit, rollback, completion, history, and
+saved-slot behavior remain Patch-owned. Patch's existing empty state already routes
+through `TabQuickStart` (`_actions/patch/_onboarding.py` shows/hides
+`#patch-quickstart-panel`); this phase treats that established mechanism as Patch's
+canonical empty surface rather than introducing a second one. A literal shared
+identity-header _row_ was deliberately not added to Patch's layout in this phase: Patch
+is covered by a very large number of PNG snapshots across otherwise-unrelated test
+suites (agents, axe, config center, and more all screenshot the default view), and
+inserting a new row would shift every one of them for no behavioral benefit —
+`PatchInfoPanel` already carries Patch's identity and state/count information. That
+migration is left as explicit follow-up work, tracked separately from this phase's bead.

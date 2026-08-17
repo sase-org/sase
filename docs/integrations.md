@@ -354,8 +354,12 @@ composed ACE snippet registry from xprompt snippets plus user snippets configure
 registry matches ACE, editor completion, and the native LSP fallback. The
 `agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated
 by name, and additive `family`, `clan`, and `tribe` rows derived from the same artifact
-snapshot. Group rows include member counts, while clan rows also include aggregate
-status. The `vcs-repo-catalog` operation returns provider-backed repository candidates
+snapshot. Ordinary monitor entries use `kind: monitor`. Group rows include member
+counts, while clan rows also include aggregate status. The newest 20 family rows are
+enriched, when resolvable, with associated plan/bead kind, structure, and title in
+`detail` plus Markdown `documentation` for goal, phase, or task context. Older and
+unresolved families retain their member-count detail, and enrichment failures degrade
+safely. The `vcs-repo-catalog` operation returns provider-backed repository candidates
 for one VCS workflow and namespace, including structured failure fields and a
 stale-cache flag. Its entry `ref` is the full value to insert, not just the
 repository-name suffix. Editor integrations should use this bridge or `sase lsp` instead

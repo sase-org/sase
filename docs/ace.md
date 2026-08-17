@@ -152,6 +152,20 @@ changing project scope, refreshing data, or collapsing an expanded bead tree. Es
 an invalid hint exits jump mode. These actions use the configured keymap values; the
 keys above are the defaults.
 
+When the selected entry has declared relationships, a relation panel appears at the
+bottom of the list column. Its section names come from the pane contract, so examples
+include parents and children, document lifecycle stages, dependencies, linked beads or
+plans, and file-version families. The footer shows only the relation modes currently
+available: `<` starts ancestor navigation, `>` starts descendant navigation, and `~`
+starts family or sibling navigation. Follow with the key printed beside the target in
+the panel. Hidden-target and `(missing)` annotations distinguish filtered or dangling
+relationships, and cross-pane links name their destination pane.
+
+If a same-pane target exists but the current query hides it, choosing that relationship
+temporarily narrows the query to reveal the target. The pane records the original query
+and selection first, so its previous-query/history action restores the exact view you
+came from.
+
 Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`, `a`–`z`,
 `A`–`Z`. A session with at most 62 targets uses one character (`0` through `Z`). A
 larger session uses two characters for every target, beginning `00`, `01`, …, `0Z`, `10`
@@ -220,7 +234,15 @@ are capped at 512,000 bytes per item and per assembled payload, with an explicit
 truncation banner and toast. The footer shows the active pane's mark count only while
 that count is nonzero.
 
-### Filtering Stitches, Beads, and Plans
+### Filtering Patches, Stitches, Beads, and Plans
+
+Patches keeps its canonical query visible in a persistent filter row. Press `/` to focus
+it: typing filters the loaded Patch snapshot immediately, `Enter` commits the query to
+history and returns focus to the list, and `Escape` restores the committed query,
+result, and selection. A parse error stays inline and leaves the visible Patch list
+unchanged. `Tab` accepts key, value, shorthand, macro, and saved-slot completions.
+Saved-query commands such as `#3 status:Draft`, `# status:Ready`, and `#3` save,
+allocate, or delete a slot without changing the active query or closing the editor.
 
 Stitches keeps its effective canonical query visible above the timeline. Press `/` or
 the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
@@ -2281,11 +2303,11 @@ cancels, with configured target keys taking precedence.
 
 ### Editing Queries
 
-Press `/` on Patches or Axe to open the current query editor; the canonical query is
-pre-filled. The same app-level key opens the inline filter bar on Stitches, provider
-document panes, and Files. Agents reserves bare `/` for forward inline metadata search,
-so its structured query editor uses the independent `,/` leader chord. Help remains `,?`
-on every tab.
+Press `/` on Patches to focus its persistent inline filter, or on Axe to open the
+current query editor. The same app-level key opens the inline filter bar on Stitches,
+provider document panes, and Files. Agents reserves bare `/` for forward inline metadata
+search, so its structured query editor uses the independent `,/` leader chord. Help
+remains `,?` on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
@@ -2302,14 +2324,17 @@ To save a query, prefix with `#`:
 - `# "myproject"` -- save to next available slot
 - `#3` (no query) -- delete slot 3
 
+On Patches these commands run inside the inline filter and leave both the active query
+and editor session in place.
+
 ### Saved Queries
 
 On the Artifacts tab, press `0` followed by a slot digit (`1`-`9`, then `0` again for
 slot 0) to load that saved Patches query directly -- e.g. `02` loads slot 2. This works
 from any Artifacts sub-tab, not just Patches, and always lands on the Patches sub-tab.
 `Esc` or any other non-digit key after `0` cancels without changing the query. Bare
-digits `1`-`4` still select the Artifacts sub-tabs; the saved-query slot keys live
-behind the `0` prefix so the two never collide.
+digits still select the corresponding visible Artifacts sub-tab; the saved-query slot
+keys live behind the `0` prefix so the two never collide.
 
 Press `*` on the Patches sub-tab to open the saved-query chooser instead. Press a
 populated slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press
@@ -2502,16 +2527,24 @@ system-managed projects such as `home` are excluded from the panel.
 ## Statistics Tab
 
 Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its
-seven sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
-usage, and plan/question activity for the selected time range and optional project
-filter. The strip is numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5
-Activity · 6 XPrompts · 7 Plans & Questions**; press `0` and then that digit to jump
-straight to a view. The Admin Center-wide `'` entry-jump key arms this same
-numbered-view selection instead of painting row hints — Statistics has no row cursor, so
-the already visible strip numbers act as its jump hints; `Esc` or any non-digit cancels.
-Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle
-project scope, and `r` to refresh. On Overview, Agents Run, Success Rate, and Commits
-open Projects; Plans Proposed and Questions open Plans & Questions.
+eight sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
+usage, plan/question activity, and performance for the selected time range. The strip is
+numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5 Activity · 6 XPrompts ·
+7 Plans & Questions · 8 Perf**; press `0` and then that digit to jump straight to a
+view. The Admin Center-wide `'` entry-jump key arms this same numbered-view selection
+instead of painting row hints — Statistics has no row cursor, so the already visible
+strip numbers act as its jump hints; `Esc` or any non-digit cancels. Use `[` / `]` to
+move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope,
+and `r` to refresh. On Overview, Agents Run, Success Rate, and Commits open Projects;
+Plans Proposed and Questions open Plans & Questions.
+
+The **Perf** sub-tab combines five headline measures—Startup, Stalls, Launch, Agent p95,
+and LLM p95—with startup stages, stall/hitch events, grouped latency and reliability,
+and source-coverage diagnostics. Press `g` to group latency by subsystem, provider, or
+workflow. Perf is global: the project chip remains visible but is marked **not
+applied**. See
+[Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
+for data sources, retention, and probe details.
 
 The Statistics **XPrompts** sub-tab reports xprompts referenced by agent launch prompts:
 
@@ -4028,7 +4061,7 @@ ace:
     app:
       next_patch: "n" # Remap j -> n
       prev_patch: "p" # Remap k -> p
-      edit_query: "f5" # Patches, Stitches, Plans, and Axe
+      edit_query: "f5" # Artifacts query panes and Axe
       show_notifications: "N" # Remap i → N
 ```
 
@@ -4071,11 +4104,11 @@ want to change.
 These keys dispatch only while the Admin Center Statistics pane is focused. They may
 overlap app-level bindings without creating a global conflict, and the pane's hint bar
 always shows the effective keys. Press the configured `select_view` prefix and then
-`1`–`7` to select the matching numbered view; bare digits continue to switch the Admin
+`1`–`8` to select the matching numbered view; bare digits continue to switch the Admin
 Center's top-level tabs. `jump_to_entry` arms that same numbered-view selection, which
 is how the Admin Center-wide `'` behaves on a pane that has no row cursor to jump
 between — the visible strip numbers serve as its hints. The group control is visible and
-active only in Projects and XPrompts. On the XPrompts view, the focus key opens a
+active only in Projects, XPrompts, and Perf. On the XPrompts view, the focus key opens a
 filterable picker and the clear-focus key restores **All xprompts**. Project filtering
 cycles through **All projects** and the latest cached unfiltered ranking: the configured
 forward key moves toward the first ranked project, the reverse key moves toward the
@@ -4568,7 +4601,12 @@ token under the cursor:
   and `false`, and inside parenthesized syntax it completes missing `name=` arguments
   without repeating names already present in the argument list. Agent inputs such as
   `#fork` offer agent, family, clan, and `@tribe` targets with kind and member context.
-  Numeric inputs keep the type hint visible but do not invent values.
+  Family rows also show the associated plan or bead when SASE can resolve it: plan kind,
+  structure, and title lead the row, while the selected-row subtitle can show epic phase
+  titles, a plan goal, or phase/task context. Plan titles participate in filtering. If
+  enrichment is unavailable, the row falls back to member names or a launch-prompt
+  snippet without blocking completion. Numeric inputs keep the type hint visible but do
+  not invent values.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to
