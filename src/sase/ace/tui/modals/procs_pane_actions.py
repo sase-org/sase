@@ -33,6 +33,7 @@ class ProcsPaneActionsMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _body_cache: BodyCache
+        _monitor_agent_names: dict[str, str]
         _spinner_index: int
         _tasks: list[ObservedProc]
         _user_scrolled: bool
@@ -76,7 +77,13 @@ class ProcsPaneActionsMixin(_MixinBase):
 
     def _output_text(self, task: ObservedProc) -> Text:
         out = Text()
-        out.append_text(output_header(task, spinner_index=self._spinner_index))
+        out.append_text(
+            output_header(
+                task,
+                spinner_index=self._spinner_index,
+                agent_names=self._monitor_agent_names,
+            )
+        )
         body = output_body(task, self._body_cache)
         if body.plain:
             out.append("\n")

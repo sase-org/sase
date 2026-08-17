@@ -328,7 +328,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-o8.3(rank_common_placeholders)" \
         --epic-symbol "sase-o8.3(rank_recent_common_placeholders)" \
         --epic-symbol "sase-o8.4(load_common_placeholder_index)" \
-        --epic-symbol "sase-o9.2(monitor_row_agent_name)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

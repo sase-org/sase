@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual import events
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
+from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
+
 from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
-from ..proc_observer import ObservedProc, ProcProjection, is_monitor_shell_row
+from ..proc_observer import (
+    ObservedProc,
+    ProcProjection,
+    is_monitor_shell_row,
+    monitor_row_agent_name,
+)
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
 from .procs_pane_render import is_active, task_row_label
@@ -23,6 +31,40 @@ else:
     _MixinBase = object
 
 _TASK_OPTION_PREFIX = "task__"
+
+
+def _resolve_monitor_agent_names(
+    tasks: Sequence[ObservedProc], agents: Iterable[Any]
+) -> dict[str, str]:
+    """Return ``proc_id -> presented agent name`` for the pane's monitor rows.
+
+    Resolution order per row: (1) the loaded Agent whose ``monitor_id``
+    matches the row's ``proc_id``, using its already-presented name; (2) the
+    row's ``shell_name`` presented through the current identity snapshot; (3)
+    no entry, so the row renders no name rather than a placeholder. Callers
+    without ``_agents`` (e.g. the pane test harness) degrade to (2)/(3).
+    """
+    monitor_ids = {task.proc_id for task in tasks if is_monitor_shell_row(task)}
+    if not monitor_ids:
+        return {}
+    by_monitor_id: dict[str, Any] = {}
+    for agent in agents:
+        monitor_id = getattr(agent, "monitor_id", None)
+        if monitor_id in monitor_ids and monitor_id not in by_monitor_id:
+            by_monitor_id[monitor_id] = agent
+    snapshot = AgentIdentitySnapshot.current()
+    names: dict[str, str] = {}
+    for task in tasks:
+        if task.proc_id not in monitor_ids:
+            continue
+        agent = by_monitor_id.get(task.proc_id)
+        if agent is not None and agent.presented_agent_name:
+            names[task.proc_id] = agent.presented_agent_name
+            continue
+        shell_name = monitor_row_agent_name(task)
+        if shell_name:
+            names[task.proc_id] = present_agent_name(shell_name, snapshot)
+    return names
 
 
 class TaskList(OptionList):
@@ -92,6 +134,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
     if TYPE_CHECKING:
         _all_sessions: bool
         _last_statuses: dict[str, tuple[str, str | None, str]]
+        _monitor_agent_names: dict[str, str]
         _option_list_id: str
         _session_state: object
         _store_loaded_once: bool
@@ -140,7 +183,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         ]
 
     def _render_task_label(self, index: int, task: ObservedProc) -> Text:
-        label = task_row_label(task)
+        label = task_row_label(task, agent_names=self._monitor_agent_names)
         hint = self.jump_hint_for(index)
         if hint is None:
             return label
@@ -295,6 +338,9 @@ class ProcsPaneSelectionMixin(_MixinBase):
         """Rebuild the option list from current tasks."""
         self._user_scrolled = False
         self._last_statuses = self._status_snapshot()
+        self._monitor_agent_names = _resolve_monitor_agent_names(
+            self._tasks, getattr(self.app, "_agents", ())
+        )
         self._update_title()
         option_list = self._option_list()
         if option_list is None:

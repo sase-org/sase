@@ -7,16 +7,24 @@ row it is handed.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 
 from rich.text import Text
 
+from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 from sase.sessions import session_chip
 from sase.core.time import local_now
 from sase.procs import ACTIVE_PROC_STATUSES, DETACHED_PROC_KIND
 
-from ..proc_observer import ObservedProc, ProcLogLine
+from ..proc_observer import (
+    DETAIL_LOG_LINES,
+    ObservedProc,
+    ProcLogLine,
+    is_monitor_shell_row,
+)
 from ..proc_subprocess import command_display
+from ..util.axe_log_renderer import render_axe_output
 
 _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "pending": ("◌", "dim"),
@@ -31,6 +39,8 @@ _MAX_RENDERED_LOG_LINES = 1_200
 
 _RULE = "─" * 60
 _DETACHED_MARKER = "◆ detached"
+_MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
+_TAIL_CAP_NOTICE = f"… showing the last {DETAIL_LOG_LINES} lines …"
 
 # Rendered body cache: task id -> (log version, static text, rendered body).
 BodyCache = dict[str, tuple[int, str | None, Text]]
@@ -108,12 +118,41 @@ def _append_detached_marker(
         text.append(f"{prefix}{_DETACHED_MARKER}{suffix}", style="bold cyan")
 
 
-def task_row_label(task: ObservedProc) -> Text:
+def _append_monitor_marker(
+    text: Text,
+    task: ObservedProc,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+) -> None:
+    """Mark a ``sase monitor start`` proc shell with the canonical orange gear."""
+    if is_monitor_shell_row(task):
+        text.append(f"{prefix}{MONITOR_GLYPH}{suffix}", style=_MONITOR_GLYPH_STYLE)
+
+
+def _resolved_agent_name(
+    task: ObservedProc, agent_names: Mapping[str, str] | None
+) -> str | None:
+    """Return the monitor row's member agent name from the rebuild's index.
+
+    Gated on ``is_monitor_shell_row`` rather than mapping membership alone,
+    so a non-monitor row never shows a name even if the caller's index were
+    ever built or keyed incorrectly.
+    """
+    if not agent_names or not is_monitor_shell_row(task):
+        return None
+    return agent_names.get(task.proc_id)
+
+
+def task_row_label(
+    task: ObservedProc, *, agent_names: Mapping[str, str] | None = None
+) -> Text:
     """Build the styled option-list entry for one task."""
     icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
     text = Text()
     text.append(f"{icon} ", style=icon_style)
     _append_detached_marker(text, task, prefix="", suffix=" ")
+    _append_monitor_marker(text, task, prefix="", suffix=" ")
     text.append(task.label, style="bold")
     time_ref = task.finished_at or task.started_at
     text.append(f"  {_relative_time(time_ref)}", style="dim")
@@ -122,15 +161,28 @@ def task_row_label(task: ObservedProc) -> Text:
         text.append("  ")
         text.append_text(chip)
     secondary = task.phase or ("Working..." if is_active(task) else task.message)
-    if secondary:
-        text.append(f"\n   {secondary}", style="dim")
+    agent_name = _resolved_agent_name(task, agent_names)
+    if agent_name or secondary:
+        text.append("\n   ")
+        if agent_name:
+            text.append(agent_name, style=MONITOR_GLYPH_COLOR)
+            if secondary:
+                text.append(" · ", style="dim")
+        if secondary:
+            text.append(secondary, style="dim")
     return text
 
 
-def output_header(task: ObservedProc, *, spinner_index: int) -> Text:
+def output_header(
+    task: ObservedProc,
+    *,
+    spinner_index: int,
+    agent_names: Mapping[str, str] | None = None,
+) -> Text:
     """Build the output-pane header for one task."""
     out = Text()
     icon, style = _task_status_token(task, spinner_index=spinner_index)
+    _append_monitor_marker(out, task, suffix=" ")
     out.append(task.label, style="bold")
     _append_detached_marker(out, task)
     out.append("  ")
@@ -143,6 +195,10 @@ def output_header(task: ObservedProc, *, spinner_index: int) -> Text:
     if task.command:
         out.append("\n$ ", style="dim")
         out.append(command_display(task.command), style="dim")
+    agent_name = _resolved_agent_name(task, agent_names)
+    if agent_name:
+        out.append("\nagent  ", style="dim")
+        out.append(agent_name, style=MONITOR_GLYPH_COLOR)
     phase = task.phase
     if is_active(task):
         phase = phase or "Working..."
@@ -197,11 +253,18 @@ def output_body(task: ObservedProc, cache: BodyCache) -> Text:
 
     out = Text()
     if static_text:
-        out.append_text(Text.from_ansi(static_text))
+        if task.store_backed and _tail_at_cap(static_text):
+            out.append(f"{_TAIL_CAP_NOTICE}\n", style="dim italic")
+        out.append_text(render_axe_output(f"proc:{task.proc_id}", static_text, "ansi"))
     else:
         out.append_text(_log_body(snapshot.lines, snapshot.trimmed_count))
     cache[task.proc_id] = (snapshot.version, static_text, out.copy())
     return out
+
+
+def _tail_at_cap(text: str) -> bool:
+    """Return whether a durable tail read came back at the detail line cap."""
+    return len(text.splitlines()) >= DETAIL_LOG_LINES
 
 
 def cached_body_version(task: ObservedProc, cache: BodyCache) -> int:

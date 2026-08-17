@@ -17,6 +17,8 @@ from textual.widgets import OptionList
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.procs_pane_render import _relative_time
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.monitor_state import MONITOR_GLYPH, MONITOR_PROC_ORIGIN
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
     open_procs_pane,
@@ -288,6 +290,49 @@ async def test_tasks_tab_scroll_actions_do_not_move_selection() -> None:
         await pilot.pause()
         assert scroll.scroll_y == 0
         assert option_list.highlighted == highlighted_before
+
+
+def _agent(*, monitor_id: str, presented_agent_name: str) -> Agent:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo",
+        project_file="/repo/proj.sase",
+        status="RUNNING",
+        start_time=None,
+        monitor_id=monitor_id,
+    )
+    agent.presented_agent_name = presented_agent_name
+    return agent
+
+
+async def test_tasks_tab_marks_monitor_rows_and_names_their_agent() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=3,
+        live_output="ruff .... Passed\n",
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    plain = task("run", label="sync sase-42", status="running", age_seconds=1)
+    agents = (_agent(monitor_id="mon-1", presented_agent_name="acme--mon"),)
+
+    async with ProcsTestApp(queue(monitor, plain), agents=agents).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+
+        option_list = pane.query_one("#procs-list", OptionList)
+        monitor_option = option_list.get_option_at_index(1)
+        plain_option = option_list.get_option_at_index(0)
+        assert f"{MONITOR_GLYPH} just check-full" in monitor_option.prompt.plain
+        assert "acme--mon" in monitor_option.prompt.plain
+        assert MONITOR_GLYPH not in plain_option.prompt.plain
+
+        await pilot.press("j")
+        await pilot.pause()
+
+        assert f"{MONITOR_GLYPH} just check-full" in output_plain(pane)
+        assert "agent  acme--mon" in output_plain(pane)
 
 
 def _option_plain(option_list: OptionList, index: int) -> str:

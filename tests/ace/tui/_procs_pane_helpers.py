@@ -109,10 +109,12 @@ class ProcsTestApp(App[None]):
         self,
         proc_queue: ProcQueue,
         session_rows: tuple[ObservedProc, ...] = (),
+        agents: tuple[Any, ...] = (),
     ) -> None:
         super().__init__()
         self._proc_queue = proc_queue
         self._session_overlay = session_rows
+        self._agents = agents
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
 
@@ -165,6 +167,8 @@ def task(
     output: str = "",
     error: str | None = None,
     live_output: str | None = None,
+    origin: str = "",
+    shell_name: str | None = None,
 ) -> ProcInfo:
     started_at = datetime.now() - timedelta(seconds=age_seconds)
     info = ProcInfo(
@@ -181,6 +185,8 @@ def task(
         ),
         output=output,
         error=error,
+        origin=origin,
+        shell_name=shell_name,
     )
     if live_output is not None:
         info._live_buffer = io.StringIO(live_output)

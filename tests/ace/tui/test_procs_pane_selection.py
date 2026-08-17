@@ -6,6 +6,9 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
+from sase.ace.tui.modals.procs_pane_selection import _resolve_monitor_agent_names
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.monitor_state import MONITOR_PROC_ORIGIN
 
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
@@ -14,6 +17,82 @@ from tests.ace.tui._procs_pane_helpers import (
     queue,
     task,
 )
+
+
+def _agent(*, monitor_id: str, presented_agent_name: str | None) -> Agent:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="demo",
+        project_file="/repo/proj.sase",
+        status="RUNNING",
+        start_time=None,
+        monitor_id=monitor_id,
+    )
+    agent.presented_agent_name = presented_agent_name
+    return agent
+
+
+def test_resolve_monitor_agent_names_prefers_the_matched_agent_row() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    agents = [_agent(monitor_id="mon-1", presented_agent_name="acme--mon-renamed")]
+
+    names = _resolve_monitor_agent_names([monitor], agents)
+
+    assert names == {"mon-1": "acme--mon-renamed"}
+
+
+def test_resolve_monitor_agent_names_falls_back_to_shell_name_without_a_match() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+
+    names = _resolve_monitor_agent_names([monitor], [])
+
+    assert names == {"mon-1": "acme--mon"}
+
+
+def test_resolve_monitor_agent_names_omits_rows_with_neither_source() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+    )
+
+    names = _resolve_monitor_agent_names([monitor], [])
+
+    assert names == {}
+
+
+def test_resolve_monitor_agent_names_ignores_non_monitor_rows_with_a_shell_name() -> (
+    None
+):
+    # A plain ``sase proc run --shell NAME`` row also carries ``shell_name``;
+    # only ``origin == MONITOR_PROC_ORIGIN`` rows may show an agent name.
+    plain = task(
+        "proc-1",
+        label="sase proc run",
+        status="running",
+        age_seconds=1,
+        shell_name="acme--mon",
+    )
+
+    names = _resolve_monitor_agent_names([plain], [])
+
+    assert names == {}
 
 
 async def test_tasks_loading_echo_preserves_requested_store_bookmark(

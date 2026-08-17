@@ -68,6 +68,7 @@ class ProcsPane(
         super().__init__(**kwargs)
         self._session_state = session_state or ProcsSessionState()
         self._tasks: list[ObservedProc] = []
+        self._monitor_agent_names: dict[str, str] = {}
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
         self._selection_guard = ProgrammaticSelectionGuard()
