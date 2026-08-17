@@ -95,6 +95,44 @@ def test_plans_questions_ignore_inaccurate_index_derived_totals() -> None:
     assert view.mean_questions_per_session == 1.5
 
 
+def test_overview_buckets_trim_leading_and_trailing_zero_runs() -> None:
+    payload = run_payload()
+    payload["bucket_seconds"] = 86_400
+    payload["buckets"] = [
+        {"start_ts": 0, "runs": 0},
+        {"start_ts": 86_400, "runs": 0},
+        {"start_ts": 172_800, "runs": 3},
+        {"start_ts": 259_200, "runs": 0},
+        {"start_ts": 345_600, "runs": 5},
+        {"start_ts": 432_000, "runs": 0},
+        {"start_ts": 518_400, "runs": 0},
+    ]
+
+    overview = build_statistics_views(payload, activity_payload()).overview
+
+    assert [(bucket.start_ts, bucket.runs) for bucket in overview.buckets] == [
+        (172_800, 3),
+        (259_200, 0),
+        (345_600, 5),
+    ]
+    assert overview.bucket_group_seconds is None
+
+
+def test_overview_buckets_group_when_the_trimmed_span_exceeds_the_cap() -> None:
+    payload = run_payload()
+    payload["bucket_seconds"] = 86_400
+    payload["buckets"] = [
+        {"start_ts": index * 86_400, "runs": 1 if index % 10 == 0 else 0}
+        for index in range(200)
+    ]
+
+    overview = build_statistics_views(payload, activity_payload()).overview
+
+    assert len(overview.buckets) <= 96
+    assert overview.bucket_group_seconds == 172_800
+    assert sum(bucket.runs for bucket in overview.buckets) == 20
+
+
 def test_empty_and_partial_payloads_are_safe() -> None:
     views = build_statistics_views({}, {})
 

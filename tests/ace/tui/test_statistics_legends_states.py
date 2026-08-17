@@ -96,6 +96,67 @@ def test_empty_agent_runs_still_paint_the_perf_view() -> None:
     assert painted == ["perf"]
 
 
+def _assert_view_ignores_run_count_empty_state(view: StatisticsView) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = view
+    pane._last_result = _result(view, pane._range, runs_empty=True)
+    painted: list[str] = []
+    pane._set_tiles_visible = lambda _visible: None  # type: ignore[method-assign]
+    pane._update_heading = lambda: None  # type: ignore[method-assign]
+    pane._empty_state_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append("empty") or "empty"
+    )
+    pane._view_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append(view) or view
+    )
+    pane._update_static = lambda _selector, _content: None  # type: ignore[method-assign]
+
+    pane._paint_current_view()
+
+    assert painted == [view]
+
+
+def test_activity_ignores_the_run_count_empty_state() -> None:
+    """A window with zero agent runs can still hold log-backed skill/memory data."""
+    _assert_view_ignores_run_count_empty_state("activity")
+
+
+def test_plans_questions_ignores_the_run_count_empty_state() -> None:
+    """A window with zero agent runs can still hold log-backed plan/question data."""
+    _assert_view_ignores_run_count_empty_state("plans_questions")
+
+
+def test_overview_still_shows_empty_state_when_no_runs_are_recorded() -> None:
+    """overview, projects, and providers stay run-derived empty states."""
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "overview"
+    pane._last_result = _result("overview", pane._range, runs_empty=True)
+    painted: list[str] = []
+    pane._set_tiles_visible = lambda _visible: None  # type: ignore[method-assign]
+    pane._update_heading = lambda: None  # type: ignore[method-assign]
+    pane._empty_state_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append("empty") or "empty"
+    )
+    pane._view_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append("overview") or "overview"
+    )
+    pane._update_static = lambda _selector, _content: None  # type: ignore[method-assign]
+
+    pane._paint_current_view()
+
+    assert painted == ["empty"]
+
+
+def test_empty_state_message_is_specific_to_the_selected_view() -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "activity"
+    assert pane._empty_state_message() == "No skill or memory activity recorded"
+    pane._view = "plans_questions"
+    assert pane._empty_state_message() == "No plans or questions recorded"
+    pane._view = "overview"
+    assert pane._empty_state_message() == "No agent runs recorded"
+
+
 def test_empty_state_names_range_and_omits_irrelevant_filter_action() -> None:
     pane = StatisticsPane(
         auto_load=False,

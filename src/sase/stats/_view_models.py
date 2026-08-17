@@ -147,6 +147,7 @@ class OverviewView:
     question_sessions: int
     questions: int
     buckets: tuple[RunBucket, ...]
+    bucket_group_seconds: int | None
     top_providers: tuple[CountRow, ...]
     top_skills: tuple[ActivityRow, ...]
     top_projects: tuple[ProjectWorkRow, ...]
@@ -207,6 +208,11 @@ class ActivityView:
     skills: tuple[ActivityRow, ...]
     memories: tuple[ActivityRow, ...]
     workspaces: tuple[WorkspaceRow, ...]
+
+    @property
+    def empty(self) -> bool:
+        """True when no skill, memory, or workspace rows were recorded."""
+        return not (self.skills or self.memories or self.workspaces)
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +304,19 @@ class PlansQuestionsView:
     questions_per_session: tuple[DistributionRow, ...]
     mean_questions_per_session: float
     coverage_start_ts: float | None
+
+    @property
+    def empty(self) -> bool:
+        """True when no plan or question activity was recorded."""
+        return (
+            self.plans_proposed == 0
+            and self.plans_approved == 0
+            and self.plans_rejected == 0
+            and self.plans_feedback == 0
+            and self.plans_pending == 0
+            and self.question_sessions == 0
+            and self.questions == 0
+        )
 
 
 @dataclass(frozen=True, slots=True)

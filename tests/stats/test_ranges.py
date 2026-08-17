@@ -70,6 +70,11 @@ def test_all_starts_at_unix_epoch() -> None:
     assert result.start_ts == 0
     assert result.end_ts == int(_NOW.timestamp())
     assert result.display_label == "All time"
+    assert result.label == (
+        "through 2026-07-18 14:30 EDT · start bounded by retained data"
+    )
+    assert "1969" not in result.label
+    assert "1970" not in result.label
 
 
 @pytest.mark.parametrize(

@@ -26,6 +26,15 @@ _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
 
 
+def _bucket_span_label(seconds: int) -> str:
+    """Describe a grouped Overview bucket's width, e.g. ``"7-day"``."""
+    if seconds % 86_400 == 0:
+        days = seconds // 86_400
+        return f"{days}-day"
+    hours = max(1, seconds // 3_600)
+    return f"{hours}-hour"
+
+
 class StatisticsViewsRenderingMixin(
     StatisticsPerfRenderingMixin,
     StatisticsXPromptsRenderingMixin,
@@ -94,8 +103,12 @@ class StatisticsViewsRenderingMixin(
                 self._percent(row.success_rate),
             )
         mini_table_width = max(24, (max(60, int(self.size.width or 100)) - 4) // 3)
+        buckets_title = "Runs over time"
+        if overview.bucket_group_seconds is not None:
+            span = _bucket_span_label(overview.bucket_group_seconds)
+            buckets_title = f"{buckets_title} · {span} buckets"
         return Group(
-            Panel(buckets, title="Runs over time", border_style=_ACCENT),
+            Panel(buckets, title=buckets_title, border_style=_ACCENT),
             Columns(
                 (
                     Panel(providers, title="Top providers", border_style=_CYAN),

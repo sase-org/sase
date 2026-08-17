@@ -69,6 +69,30 @@ def test_renderers_use_projected_labels_and_canonical_project_colors(
     assert widgets_key in color_keys
 
 
+def test_overview_bucket_panel_discloses_grouping_only_when_aggregated() -> None:
+    default_range = StatsRange(0, 7_200, "absolute", "Test")
+    default_payload = _run_payload(default_range, "agent")
+    default_views = build_statistics_views(default_payload, _activity_payload())
+    pane = StatisticsPane(auto_load=False)
+
+    default_overview = _render_plain(pane._overview_renderable(default_views.overview))
+
+    assert "Runs over time" in default_overview
+    assert "buckets" not in default_overview
+
+    grouped_payload = _run_payload(default_range, "agent")
+    grouped_payload["bucket_seconds"] = 86_400
+    grouped_payload["buckets"] = [
+        {"start_ts": index * 86_400, "runs": 1 if index % 10 == 0 else 0}
+        for index in range(200)
+    ]
+    grouped_views = build_statistics_views(grouped_payload, _activity_payload())
+
+    grouped_overview = _render_plain(pane._overview_renderable(grouped_views.overview))
+
+    assert "Runs over time · 2-day buckets" in grouped_overview
+
+
 def test_all_project_plan_and_question_values_need_no_scope_markers() -> None:
     pane = StatisticsPane(auto_load=False)
     view = _result(pane._view, pane._range).views

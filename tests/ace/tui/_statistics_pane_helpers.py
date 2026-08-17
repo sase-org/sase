@@ -288,6 +288,7 @@ def _result(
     selected_range: StatsRange,
     *,
     empty: bool = False,
+    runs_empty: bool = False,
     project_filter: str | None = None,
     project_display_snapshot: ProjectDisplaySnapshot | None = None,
     project_display_case: ProjectDisplayCase | None = None,
@@ -296,7 +297,11 @@ def _result(
     perf_group_by: PerfGroupBy = "subsystem",
     perf: PerfView | None = None,
 ) -> StatisticsViewData:
-    run_payload = {} if empty else _run_payload(selected_range, runtime_group_by)
+    run_payload: dict[str, Any] = (
+        {} if empty else _run_payload(selected_range, runtime_group_by)
+    )
+    if runs_empty and not empty:
+        run_payload = {"totals": {"runs": 0}}
     if run_payload and xprompt_focus is not None:
         found = xprompt_focus == "split_file"
         run_payload["xprompts"]["focus"] = {

@@ -64,17 +64,20 @@ def resolve_preset(
     if key == "today":
         start = current.replace(hour=0, minute=0, second=0, microsecond=0)
         start_ts = int(start.timestamp())
+        label = _absolute_label(start_ts, end_ts, current.tzinfo)
     elif key == "all":
         start_ts = _ALL_TIME_START_TS
+        label = _all_time_label(end_ts, current.tzinfo)
     else:
         seconds = {"24h": 86_400, "7d": 604_800, "30d": 2_592_000, "90d": 7_776_000}[
             key
         ]
         start_ts = end_ts - seconds
+        label = _absolute_label(start_ts, end_ts, current.tzinfo)
     return StatsRange(
         start_ts,
         end_ts,
-        _absolute_label(start_ts, end_ts, current.tzinfo),
+        label,
         _PRESET_LABELS[key],
     )
 
@@ -264,6 +267,11 @@ def _absolute_label(start_ts: int, end_ts: int, timezone: tzinfo | None) -> str:
     start = datetime.fromtimestamp(start_ts, timezone)
     end = datetime.fromtimestamp(end_ts, timezone)
     return f"{start:%Y-%m-%d %H:%M %Z} – {end:%Y-%m-%d %H:%M %Z}"
+
+
+def _all_time_label(end_ts: int, timezone: tzinfo | None) -> str:
+    end = datetime.fromtimestamp(end_ts, timezone)
+    return f"through {end:%Y-%m-%d %H:%M %Z} · start bounded by retained data"
 
 
 __all__ = [

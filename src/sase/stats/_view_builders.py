@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Mapping
 from datetime import tzinfo
@@ -52,6 +53,58 @@ from sase.stats._view_payload import (
 )
 from sase.stats.query import RuntimeGroupBy
 
+_MAX_OVERVIEW_BUCKETS = 96
+"""Cap on rendered Overview buckets.
+
+Covers a 90-day daily range or a 48-hour hourly range without aggregation.
+Wider spans (chiefly All time) group adjacent buckets so the panel stays a
+fixed height instead of rendering one row per raw bucket.
+"""
+
+
+def _clamp_overview_buckets(
+    bucket_rows: tuple[Payload, ...],
+    bucket_seconds: int,
+    timezone: tzinfo,
+) -> tuple[tuple[RunBucket, ...], int | None]:
+    """Trim empty edges and cap the row count of the Overview run chart.
+
+    Leading and trailing zero-run buckets are dropped so an ``All time``
+    window doesn't render decades of empty rows; interior zero buckets are
+    kept so gaps in activity stay visible. If the trimmed sequence still
+    exceeds :data:`_MAX_OVERVIEW_BUCKETS`, adjacent buckets are grouped into
+    equal-width chunks. Returns the buckets to render and, when grouping
+    occurred, the effective seconds each rendered bucket spans.
+    """
+    entries = [
+        (integer(row.get("start_ts")), integer(row.get("runs"))) for row in bucket_rows
+    ]
+    start = 0
+    end = len(entries)
+    while start < end and entries[start][1] == 0:
+        start += 1
+    while end > start and entries[end - 1][1] == 0:
+        end -= 1
+    trimmed = entries[start:end]
+
+    group_size = 1
+    if len(trimmed) > _MAX_OVERVIEW_BUCKETS:
+        group_size = math.ceil(len(trimmed) / _MAX_OVERVIEW_BUCKETS)
+    grouped_seconds = bucket_seconds * group_size
+
+    buckets = tuple(
+        RunBucket(
+            start_ts=group[0][0],
+            label=bucket_label(group[0][0], grouped_seconds, timezone),
+            runs=sum(runs for _, runs in group),
+        )
+        for group in (
+            trimmed[index : index + group_size]
+            for index in range(0, len(trimmed), group_size)
+        )
+    )
+    return buckets, grouped_seconds if group_size > 1 else None
+
 
 def build_overview_view(
     run_payload: Payload,
@@ -90,6 +143,9 @@ def build_overview_view(
     )
 
     bucket_seconds = integer(run_payload.get("bucket_seconds"), 86_400)
+    buckets, bucket_group_seconds = _clamp_overview_buckets(
+        rows(run_payload, "buckets"), bucket_seconds, timezone
+    )
     return OverviewView(
         agents_run=current_runs,
         completed=integer(totals.get("completed")),
@@ -104,16 +160,8 @@ def build_overview_view(
         tale_plans=tier_counts.get("tale", 0),
         question_sessions=integer(questions.get("sessions")),
         questions=integer(questions.get("questions")),
-        buckets=tuple(
-            RunBucket(
-                start_ts=integer(row.get("start_ts")),
-                label=bucket_label(
-                    integer(row.get("start_ts")), bucket_seconds, timezone
-                ),
-                runs=integer(row.get("runs")),
-            )
-            for row in rows(run_payload, "buckets")
-        ),
+        buckets=buckets,
+        bucket_group_seconds=bucket_group_seconds,
         top_providers=providers,
         top_skills=activity_rows(rows(activity_payload, "skills")),
         top_projects=projects.projects[:5],

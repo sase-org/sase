@@ -110,7 +110,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 self._runners_unavailable_renderable(result),
             )
             return
-        if result.views.empty and self._view not in {"runners", "xprompts", "perf"}:
+        if self._current_view_is_empty(result):
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -122,6 +122,24 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         elif self._view == "perf":
             self._paint_perf_tiles(result)
         self._update_static("#statistics-body", self._view_renderable(result))
+
+    def _current_view_is_empty(self, result: StatisticsViewData) -> bool:
+        """Gate the run-count empty state on data the selected view actually uses.
+
+        ``overview``, ``projects``, and ``providers`` are entirely run-derived,
+        so the shared run-count check is accurate for them. ``activity`` and
+        ``plans_questions`` are timestamped by when their skill/memory/plan/
+        question events happened, not by when the producing agent launched,
+        so a window with zero launches can still hold data for those two.
+        ``runners``, ``xprompts``, and ``perf`` render their own empty states.
+        """
+        if self._view == "activity":
+            return result.views.activity.empty
+        if self._view == "plans_questions":
+            return result.views.plans_questions.empty
+        if self._view in {"runners", "xprompts", "perf"}:
+            return False
+        return result.views.empty
 
     def _paint_overview_tiles(self, result: StatisticsViewData) -> None:
         overview = result.views.overview
@@ -196,15 +214,24 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self._error_state_renderable(message),
         )
 
+    def _empty_state_message(self) -> str:
+        """Describe what's missing for the currently selected view."""
+        if self._view == "activity":
+            return "No skill or memory activity recorded"
+        if self._view == "plans_questions":
+            return "No plans or questions recorded"
+        return "No agent runs recorded"
+
     def _empty_state_renderable(self, result: StatisticsViewData) -> Panel:
-        """Build recovery guidance for a range with no matching runs."""
+        """Build recovery guidance for a range with no matching data."""
         range_key = self._effective_key("cycle_range")
         recovery = Text()
         recovery.append(f"Press {range_key}", style=f"bold {_CYAN}")
         recovery.append(" to widen the range.")
         lines: list[Text] = [
             Text(
-                f"No agent runs recorded in {result.selected_range.display_label}.",
+                f"{self._empty_state_message()} in "
+                f"{result.selected_range.display_label}.",
                 style="dim italic",
             ),
             recovery,
