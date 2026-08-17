@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,11 +18,13 @@ if str(REPO_ROOT) not in sys.path:
 from tests._test_selection_health import (  # noqa: E402
     CollectibleNodeIdOracle,
     CommitOrderOracle,
+    RetiredEvidenceOracle,
     attributable_dirty_failures,
     collectible_nodeid_oracle,
     git_ancestor_oracle,
     git_commit_order_oracle,
     reproducible_flake_nodeids,
+    retired_flake_evidence,
     stale_flake_nodeids,
     summarize,
     unresolved_commit_order_count,
@@ -41,6 +43,7 @@ from tests._test_selection_health_store import (  # noqa: E402
 
 DEFAULT_FLAKE_BASELINE = REPO_ROOT / "tests" / "reproducible_flake_baseline.txt"
 BASELINE_EFFECTIVE_AFTER_PREFIX = "effective-after:"
+BASELINE_FIXED_AT_PREFIX = "fixed-at:"
 MAX_GATED_FAILURES_PER_FULL_RUN = 5
 MIN_GATED_FULL_RUNS = 2
 
@@ -52,10 +55,12 @@ class FlakeBaseline:
         path: Path,
         nodeids: frozenset[str],
         effective_after: datetime | None = None,
+        retirements: Mapping[str, datetime] | None = None,
     ) -> None:
         self.path = path
         self.nodeids = nodeids
         self.effective_after = effective_after
+        self.retirements = retirements if retirements is not None else {}
 
 
 def _parse_utc_timestamp(raw_value: str) -> datetime:
@@ -72,6 +77,7 @@ def load_flake_baseline(path: Path) -> FlakeBaseline:
     """Read the committed node-ID baseline used by ``--fail-on-new-flake``."""
     nodeids: list[str] = []
     effective_after: datetime | None = None
+    retirements: dict[str, datetime] = {}
     for line_number, raw_line in enumerate(
         path.read_text(encoding="utf-8").splitlines(), 1
     ):
@@ -88,6 +94,26 @@ def load_flake_baseline(path: Path) -> FlakeBaseline:
                     raise ValueError(
                         f"{path}:{line_number}: invalid effective-after timestamp"
                     ) from error
+            elif comment.lower().startswith(BASELINE_FIXED_AT_PREFIX):
+                raw_value = comment.split(":", 1)[1].strip()
+                parts = raw_value.split(None, 1)
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"{path}:{line_number}: fixed-at directive needs a "
+                        "timestamp and a node id"
+                    )
+                raw_timestamp, nodeid = parts
+                try:
+                    fixed_at = _parse_utc_timestamp(raw_timestamp)
+                except ValueError as error:
+                    raise ValueError(
+                        f"{path}:{line_number}: invalid fixed-at timestamp"
+                    ) from error
+                if nodeid in retirements:
+                    raise ValueError(
+                        f"{path}:{line_number}: duplicate fixed-at entry for {nodeid}"
+                    )
+                retirements[nodeid] = fixed_at
             continue
         nodeids.append(line)
 
@@ -98,7 +124,10 @@ def load_flake_baseline(path: Path) -> FlakeBaseline:
             f"{path}: duplicate flake baseline node id(s): {duplicate_list}"
         )
     return FlakeBaseline(
-        path=path, nodeids=frozenset(nodeids), effective_after=effective_after
+        path=path,
+        nodeids=frozenset(nodeids),
+        effective_after=effective_after,
+        retirements=retirements,
     )
 
 
@@ -109,6 +138,19 @@ def _recorded_at_utc(record: FullRunRecord) -> datetime | None:
         return _parse_utc_timestamp(record.recorded_at)
     except ValueError:
         return None
+
+
+def _retired_evidence_oracle(baseline: FlakeBaseline) -> RetiredEvidenceOracle:
+    def _is_retired(nodeid: str, full_run: FullRunRecord) -> bool:
+        fixed_at = baseline.retirements.get(nodeid)
+        if fixed_at is None:
+            return False
+        recorded_at = _recorded_at_utc(full_run)
+        if recorded_at is None:
+            return False  # an unreadable timestamp keeps its evidence
+        return recorded_at <= fixed_at
+
+    return _is_retired
 
 
 def _eligible_full_runs(
@@ -189,6 +231,39 @@ def _dirty_attribution_lines(excluded: Sequence[tuple[str, str]]) -> list[str]:
     return lines
 
 
+def _retirement_lines(
+    retired: Sequence[tuple[str, str]], baseline: FlakeBaseline
+) -> list[str]:
+    """Evidence a declared ``# fixed-at:`` entry discounted, and dead entries.
+
+    Surfaced by name, like the dirty-tree attribution lines, so a reader
+    watching the flake count drop can see a declared fix retired it rather
+    than a real flake going unnoticed. The baseline file calls its contents
+    "debt to remove, not suppressions to grow"; a ``# fixed-at:`` entry that
+    retired nothing in the current window is exactly that kind of debt, so it
+    is named too rather than left to accumulate forever.
+    """
+    lines: list[str] = []
+    if retired:
+        lines.append(
+            f"flake baseline gate: {len(retired)} failure(s) retired by a "
+            f"# fixed-at: entry in {_baseline_label(baseline)}:"
+        )
+        lines.extend(f"  {nodeid} ({record})" for nodeid, record in sorted(retired))
+    retired_nodeids = {nodeid for nodeid, _record in retired}
+    dead = sorted(
+        nodeid for nodeid in baseline.retirements if nodeid not in retired_nodeids
+    )
+    if dead:
+        lines.append(
+            "flake baseline gate: the following # fixed-at: entries in "
+            f"{_baseline_label(baseline)} retired nothing in the current window "
+            "and can be removed:"
+        )
+        lines.extend(f"  {nodeid}" for nodeid in dead)
+    return lines
+
+
 def _flake_gate_result(
     full_runs: tuple[FullRunRecord, ...],
     baseline: FlakeBaseline,
@@ -206,11 +281,13 @@ def _flake_gate_result(
             f"{MAX_GATED_FAILURES_PER_FULL_RUN} failures per run). Passing."
         ]
 
+    retired_evidence = _retired_evidence_oracle(baseline)
     current = reproducible_flake_nodeids(
         eligible,
         max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
         commit_order=commit_order,
         collectible=collectible,
+        retired_evidence=retired_evidence,
     )
     stale = (
         stale_flake_nodeids(
@@ -218,6 +295,7 @@ def _flake_gate_result(
             collectible=collectible,
             max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
             commit_order=commit_order,
+            retired_evidence=retired_evidence,
         )
         if collectible is not None
         else frozenset()
@@ -230,9 +308,15 @@ def _flake_gate_result(
     excluded_dirty = attributable_dirty_failures(
         eligible, max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN
     )
+    retired = retired_flake_evidence(
+        eligible,
+        retired_evidence=retired_evidence,
+        max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
+    )
     diagnostics = [
         *_stale_and_unresolved_lines(stale, unresolved),
         *_dirty_attribution_lines(excluded_dirty),
+        *_retirement_lines(retired, baseline),
     ]
     new_flakes = sorted(current - baseline.nodeids)
     if not new_flakes:

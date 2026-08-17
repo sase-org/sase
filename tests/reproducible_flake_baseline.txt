@@ -2,6 +2,35 @@
 # Entries are debt to remove, not suppressions to grow. Adding a node requires
 # a filed SASE bead that names the flake, evidence, and owner.
 # effective-after: 2026-08-15T17:22:27Z
+#
+# Fixed nodes: `# fixed-at: <UTC timestamp> <node id>` retires only that
+# node's failure evidence recorded at or before the instant its fix landed.
+# It does not touch any other node's evidence or the gate's bar for new
+# flakes, and a failure of the same node recorded after the timestamp is
+# ordinary live evidence again. A preceding comment should name the bead and
+# the commit that fixed the node, the same convention the node-id entries
+# below already use.
+#
+# Known limitation: a workspace testing a stale (pre-fix) tree can still
+# write a failure record after the declared fix instant, since the record's
+# timestamp reflects when it ran, not what tree it tested. Such a failure is
+# not retired and the gate goes red rather than silently staying green; this
+# is a transient red that self-heals as workspaces rebase and as records age
+# out at `RETENTION_DAYS`, not the permanent evidence this directive exists
+# to remove.
+#
+# sase-nv: fixed by 3a22ff04f "fix(config): isolate config cache from
+# test-owned CONFIG_DIR" (committed 2026-08-16T23:02:36Z).
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_legacy_overlay_is_discovered_but_not_a_complete_owner
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_machine_overlays_require_matching_selector_and_keep_ordinary_overlays
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_selected_overlay_identity_cannot_be_overridden_by_other_sources
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_clear_config_cache_forces_reload
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_clear_config_cache_resets_config_token_time_gate
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_current_config_token_refresh_is_single_flight
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_explicit_invalidation_wins_race_with_background_refresh
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_first_config_token_read_does_not_start_worker
+# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_yaml_content_cache_survives_config_cache_clear
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6

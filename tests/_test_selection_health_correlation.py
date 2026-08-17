@@ -28,6 +28,7 @@ from tests._test_selection_health_records import FullRunRecord, HealthRecords
 AncestorOracle = Callable[[str, str], bool]
 CommitOrderOracle = Callable[[str], int | None]
 CollectibleNodeIdOracle = Callable[[str], bool]
+RetiredEvidenceOracle = Callable[[str, FullRunRecord], bool]
 
 
 #: Test files whose failure can be a deterministic, correct consequence of an
@@ -96,6 +97,31 @@ def attributable_dirty_failures(
         for full_run in eligible
         for nodeid in full_run.failures
         if _is_attributable_dirty_failure(nodeid, full_run)
+    )
+
+
+def retired_flake_evidence(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    retired_evidence: RetiredEvidenceOracle,
+    max_failures_per_run: int | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """``(nodeid, record name)`` pairs a declared fix retired.
+
+    Kept separate from the evidence computation so the gate can report exactly
+    which failures a declared fix discounted, instead of asking a reader to
+    trust a shrinking count with no explanation attached. Mirrors
+    :func:`attributable_dirty_failures`.
+    """
+    eligible = _ordered_flake_candidate_runs(
+        full_runs, max_failures_per_run=max_failures_per_run, commit_order=None
+    )
+    return tuple(
+        (nodeid, full_run.name)
+        for full_run in eligible
+        for nodeid in full_run.failures
+        if not _is_attributable_dirty_failure(nodeid, full_run)
+        and retired_evidence(nodeid, full_run)
     )
 
 
@@ -246,6 +272,7 @@ def _flake_evidence_nodeids(
     *,
     max_failures_per_run: int | None,
     commit_order: CommitOrderOracle | None,
+    retired_evidence: RetiredEvidenceOracle | None = None,
 ) -> frozenset[str]:
     """Node IDs with unrelated failures and an interleaved independent pass.
 
@@ -286,6 +313,15 @@ def _flake_evidence_nodeids(
     :func:`attributable_dirty_failures` for the matching exclusion count a
     report can show.
 
+    Evidence recorded here is not permanent: a caller may pass
+    ``retired_evidence`` to discount a specific node's pre-fix failures once a
+    human has declared, out of band, that a fix landed. A retired failure is
+    skipped at the same site as an attributable dirty-tree failure — never
+    inside :func:`_has_interleaved_independent_pass` — so retirement can only
+    withhold evidence, never manufacture an interleaved pass that was not
+    really there. See :func:`retired_flake_evidence` for the matching
+    exclusion count.
+
     This is the shared evidence bar behind :func:`reproducible_flake_nodeids`
     and :func:`stale_flake_nodeids`, which differ only in which side of
     "still collectable" they keep — neither reasons about that here.
@@ -301,6 +337,8 @@ def _flake_evidence_nodeids(
         assert changed_files is not None
         for nodeid in full_run.failures:
             if _is_attributable_dirty_failure(nodeid, full_run):
+                continue
+            if retired_evidence is not None and retired_evidence(nodeid, full_run):
                 continue
             failures_by_node.setdefault(nodeid, []).append((index, changed_files))
 
@@ -322,6 +360,7 @@ def reproducible_flake_nodeids(
     max_failures_per_run: int | None = None,
     commit_order: CommitOrderOracle | None = None,
     collectible: CollectibleNodeIdOracle | None = None,
+    retired_evidence: RetiredEvidenceOracle | None = None,
 ) -> frozenset[str]:
     """The :func:`_flake_evidence_nodeids` bar, minus stale node IDs.
 
@@ -332,10 +371,14 @@ def reproducible_flake_nodeids(
     working tree; a node that fails it is reported by
     :func:`stale_flake_nodeids` instead. Omitting ``collectible`` trusts
     every node ID as live, matching every caller from before this parameter
-    existed.
+    existed. ``retired_evidence``, likewise omittable, discounts a declared-
+    fixed node's pre-fix failures; see :func:`_flake_evidence_nodeids`.
     """
     evidence = _flake_evidence_nodeids(
-        full_runs, max_failures_per_run=max_failures_per_run, commit_order=commit_order
+        full_runs,
+        max_failures_per_run=max_failures_per_run,
+        commit_order=commit_order,
+        retired_evidence=retired_evidence,
     )
     if collectible is None:
         return evidence
@@ -348,6 +391,7 @@ def stale_flake_nodeids(
     collectible: CollectibleNodeIdOracle,
     max_failures_per_run: int | None = None,
     commit_order: CommitOrderOracle | None = None,
+    retired_evidence: RetiredEvidenceOracle | None = None,
 ) -> frozenset[str]:
     """The other half of :func:`reproducible_flake_nodeids`'s staleness split.
 
@@ -356,7 +400,10 @@ def stale_flake_nodeids(
     debt instead of disappearing silently.
     """
     evidence = _flake_evidence_nodeids(
-        full_runs, max_failures_per_run=max_failures_per_run, commit_order=commit_order
+        full_runs,
+        max_failures_per_run=max_failures_per_run,
+        commit_order=commit_order,
+        retired_evidence=retired_evidence,
     )
     return frozenset(nodeid for nodeid in evidence if not collectible(nodeid))
 
