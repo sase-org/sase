@@ -11,12 +11,17 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.bead.gate_lookup import _PendingBeadGate
+from sase.bead.model import TaskPlusOneEvidence
 
 from tests._axe_chop_bead_task_triage_helpers import (
+    _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
+    make_due_flag,
     make_runtime,
+    make_snoozed_task,
     make_task,
     patch_active_launches,
     patch_project,
+    patch_snooze_gate,
 )
 
 
@@ -43,6 +48,7 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -52,6 +58,7 @@ def test_ready_task_is_gated_once_while_gate_remains_pending(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -96,6 +103,7 @@ def test_blank_task_creator_is_forwarded_without_placeholder(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -119,7 +127,7 @@ def test_stale_gate_is_canceled_and_ready_again_uses_new_generation(
     monkeypatch.setattr(
         task_triage,
         "_cancel_pending_gate",
-        lambda _kind, request_id: canceled.append(request_id) or True,
+        lambda _kind, request_id, **_kwargs: canceled.append(request_id) or True,
     )
 
     task_triage._run(make_runtime(tmp_path))
@@ -134,6 +142,7 @@ def test_stale_gate_is_canceled_and_ready_again_uses_new_generation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -144,6 +153,7 @@ def test_stale_gate_is_canceled_and_ready_again_uses_new_generation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -176,6 +186,7 @@ def test_terminal_gate_for_still_ready_task_is_regenerated(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -209,6 +220,7 @@ def test_terminal_gate_for_task_with_launch_in_flight_is_deferred_then_regenerat
         "skipped": 0,
         "deferred": 1,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -226,6 +238,7 @@ def test_terminal_gate_for_task_with_launch_in_flight_is_deferred_then_regenerat
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -255,6 +268,7 @@ def test_ready_task_with_launch_in_flight_is_not_gated_or_recorded(
         "skipped": 0,
         "deferred": 1,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -294,6 +308,7 @@ def test_pending_gate_with_launch_in_flight_ignores_presentation_changes(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -328,6 +343,7 @@ def test_active_task_launch_read_failure_falls_back_to_existing_behavior(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -402,6 +418,7 @@ def test_pending_gate_produced_by_chop_but_missing_from_state_is_canceled(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 1,
     }
@@ -442,6 +459,7 @@ def test_gate_inspection_failure_preserves_mapping_without_duplicate(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -469,10 +487,231 @@ def test_dry_run_does_not_read_stores_or_mutate_state(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
     assert not (tmp_path / task_triage._STATE_FILENAME).exists()
+
+
+def test_ready_task_below_plus_one_bar_gets_no_gate_and_is_counted_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()], min_plus_ones=1)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 0,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 1,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert created == []
+    assert not (tmp_path / task_triage._STATE_FILENAME).exists()
+
+
+def test_ready_task_at_plus_one_bar_still_gets_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = make_task()
+    task.plus_one_evidence = [
+        TaskPlusOneEvidence(
+            timestamp="2026-01-02T00:00:00Z", reporter="bryan", note="me too"
+        )
+    ]
+    patch_project(monkeypatch, tmp_path, [task], min_plus_ones=1)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 1,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert len(created) == 1
+
+
+def test_tracked_gate_falling_below_bar_is_canceled_with_threshold_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = make_task()
+    task.plus_one_evidence = [
+        TaskPlusOneEvidence(
+            timestamp="2026-01-02T00:00:00Z", reporter="bryan", note="me too"
+        )
+    ]
+    patch_project(monkeypatch, tmp_path, [task], min_plus_ones=1)
+    created: list[str] = []
+    canceled: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda kind, request_id, *, reason: (
+            canceled.append((kind, request_id, reason)) or True
+        ),
+    )
+
+    task_triage._run(make_runtime(tmp_path))
+    task.plus_one_evidence = []
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 0,
+        "canceled": 1,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 1,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert canceled == [
+        (
+            task_triage.TASK_TRIAGE_KIND,
+            created[0],
+            "task_bead_below_plus_one_threshold",
+        )
+    ]
+    state = task_triage._read_state(tmp_path / task_triage._STATE_FILENAME)
+    assert state["sase"].gates == {}
+
+
+def test_suppressed_bead_with_launch_in_flight_is_deferred_not_canceled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    task = make_task()
+    task.plus_one_evidence = [
+        TaskPlusOneEvidence(
+            timestamp="2026-01-02T00:00:00Z", reporter="bryan", note="me too"
+        )
+    ]
+    patch_project(monkeypatch, tmp_path, [task], min_plus_ones=1)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
+
+    task_triage._run(make_runtime(tmp_path))
+
+    task.plus_one_evidence = []
+    patch_active_launches(monkeypatch, {"sase-task.1"})
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda *_args, **_kwargs: pytest.fail(
+            "suppressed gate with an in-flight launch was canceled"
+        ),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 0,
+        "canceled": 0,
+        "skipped": 1,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 1,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    state = task_triage._read_state(tmp_path / task_triage._STATE_FILENAME)
+    assert state["sase"].gates == {"sase-task.1": created[0]}
+
+
+def test_snoozed_and_due_flag_beads_are_gated_regardless_of_plus_one_bar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    snoozed = make_snoozed_task()
+    due_flag = make_due_flag()
+    patch_project(monkeypatch, tmp_path, [snoozed, due_flag], min_plus_ones=5)
+    snooze_created: list[dict[str, Any]] = []
+    flag_created: list[dict[str, Any]] = []
+    patch_snooze_gate(monkeypatch, snooze_created)
+    monkeypatch.setattr(
+        task_triage,
+        "create_flag_triage_gate",
+        lambda **kwargs: flag_created.append(kwargs),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 2,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert len(snooze_created) == 1
+    assert len(flag_created) == 1
+
+
+def test_min_plus_ones_zero_reproduces_pre_epic_gating(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(monkeypatch, tmp_path, [make_task()], min_plus_ones=0)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 1,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert len(created) == 1
 
 
 def test_request_ids_are_deterministic_project_scoped_kind_scoped_and_bounded() -> None:

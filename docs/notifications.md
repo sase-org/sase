@@ -310,11 +310,16 @@ The following events generate notifications:
 ### Task Triage Notification
 
 The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for
-each ready task bead. Its compact notification note is `<bead-id> — <title>` and it
-lands in the `Beads` panel while retaining the `bead` and `task` tags. The filing agent,
-when known, appears as a **Filed by** line in the Markdown preview above the task's
-description and notes; the notes section is present only when the bead has notes. The
-gate offers three branches:
+each ready task bead that has accumulated at least
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports (`1`
+by default; `0` restores the pre-threshold behavior of gating every ready task bead). A
+sub-threshold task is withheld from triage — it stays stored as `ready`, only the gate
+is withheld — and a `TaskTriage` gate already raised for a task that later falls below
+the bar is canceled and its notification dismissed on the chop's next tick. Its compact
+notification note is `<bead-id> — <title>` and it lands in the `Beads` panel while
+retaining the `bead` and `task` tags. The filing agent, when known, appears as a **Filed
+by** line in the Markdown preview above the task's description and notes; the notes
+section is present only when the bead has notes. The gate offers three branches:
 
 - **Launch** is the default. It submits an unattributed proc that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker

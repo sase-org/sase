@@ -67,6 +67,7 @@ def test_missing_presentation_fingerprint_is_canceled_and_recreated(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -120,6 +121,7 @@ def test_current_presentation_fingerprint_remains_pending(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -224,6 +226,7 @@ def test_later_plus_one_refreshes_pending_triage_presentation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -274,6 +277,7 @@ def test_later_close_history_refreshes_pending_triage_presentation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }

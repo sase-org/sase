@@ -193,3 +193,140 @@ def test_big_epic_phase_threshold_falls_back_when_config_load_fails(
     monkeypatch.setattr(bead_config, "load_merged_config", load)
 
     assert bead_config.get_big_epic_phase_threshold() == 5
+
+
+@pytest.mark.parametrize(
+    "accessor, key, configured, default",
+    [
+        (
+            "get_task_triage_min_plus_ones",
+            "min_plus_ones",
+            3,
+            1,
+        ),
+        (
+            "get_task_triage_stale_after_days",
+            "stale_after_days",
+            14,
+            7,
+        ),
+        (
+            "get_task_triage_stale_cleanup_min_beads",
+            "stale_cleanup_min_beads",
+            25,
+            10,
+        ),
+    ],
+)
+def test_task_triage_accessors_read_configured_value(
+    monkeypatch: pytest.MonkeyPatch,
+    accessor: str,
+    key: str,
+    configured: int,
+    default: int,
+) -> None:
+    monkeypatch.setattr(
+        bead_config,
+        "load_merged_config",
+        lambda: {"bead": {"task_triage": {key: configured}}},
+    )
+
+    assert getattr(bead_config, accessor)() == configured
+
+
+@pytest.mark.parametrize(
+    "accessor, key, floor, default",
+    [
+        ("get_task_triage_min_plus_ones", "min_plus_ones", 0, 1),
+        ("get_task_triage_stale_after_days", "stale_after_days", 1, 7),
+        (
+            "get_task_triage_stale_cleanup_min_beads",
+            "stale_cleanup_min_beads",
+            1,
+            10,
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "bad_merged_factory",
+    [
+        lambda key: {},
+        lambda key: {"bead": None},
+        lambda key: {"bead": {"task_triage": None}},
+        lambda key: {"bead": {"task_triage": {key: None}}},
+        lambda key: {"bead": {"task_triage": {key: True}}},
+        lambda key: {"bead": {"task_triage": {key: "7"}}},
+    ],
+)
+def test_task_triage_accessors_fall_back_for_missing_or_malformed_values(
+    monkeypatch: pytest.MonkeyPatch,
+    accessor: str,
+    key: str,
+    floor: int,
+    default: int,
+    bad_merged_factory,
+) -> None:
+    monkeypatch.setattr(
+        bead_config, "load_merged_config", lambda: bad_merged_factory(key)
+    )
+
+    assert getattr(bead_config, accessor)() == default
+
+
+@pytest.mark.parametrize(
+    "accessor, key, floor, default",
+    [
+        ("get_task_triage_min_plus_ones", "min_plus_ones", 0, 1),
+        ("get_task_triage_stale_after_days", "stale_after_days", 1, 7),
+        (
+            "get_task_triage_stale_cleanup_min_beads",
+            "stale_cleanup_min_beads",
+            1,
+            10,
+        ),
+    ],
+)
+def test_task_triage_accessors_fall_back_below_their_floor(
+    monkeypatch: pytest.MonkeyPatch,
+    accessor: str,
+    key: str,
+    floor: int,
+    default: int,
+) -> None:
+    monkeypatch.setattr(
+        bead_config,
+        "load_merged_config",
+        lambda: {"bead": {"task_triage": {key: floor - 1}}},
+    )
+
+    assert getattr(bead_config, accessor)() == default
+
+
+def test_task_triage_min_plus_ones_accepts_its_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bead_config,
+        "load_merged_config",
+        lambda: {"bead": {"task_triage": {"min_plus_ones": 0}}},
+    )
+
+    assert bead_config.get_task_triage_min_plus_ones() == 0
+
+
+@pytest.mark.parametrize(
+    "accessor",
+    [
+        "get_task_triage_min_plus_ones",
+        "get_task_triage_stale_after_days",
+        "get_task_triage_stale_cleanup_min_beads",
+    ],
+)
+def test_task_triage_accessors_do_not_propagate_config_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    accessor: str,
+) -> None:
+    load = MagicMock(side_effect=RuntimeError("bad config"))
+    monkeypatch.setattr(bead_config, "load_merged_config", load)
+
+    getattr(bead_config, accessor)()

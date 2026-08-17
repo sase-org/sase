@@ -2494,6 +2494,31 @@
           "default": 5,
           "minimum": 1
         },
+        "task_triage": {
+          "type": "object",
+          "description": "Volume controls for task-bead triage gates: the +1 bar a ready task bead needs before it earns a TaskTriage gate, and the staleness sweep for the sub-threshold remainder.",
+          "additionalProperties": false,
+          "properties": {
+            "min_plus_ones": {
+              "type": "integer",
+              "description": "+1 reports a ready task bead needs before bead_task_triage raises its TaskTriage gate. 0 restores the pre-threshold behavior of gating every ready task bead.",
+              "default": 1,
+              "minimum": 0
+            },
+            "stale_after_days": {
+              "type": "integer",
+              "description": "Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the cleanup gate.",
+              "default": 7,
+              "minimum": 1
+            },
+            "stale_cleanup_min_beads": {
+              "type": "integer",
+              "description": "Stale beads required before bead_stale_cleanup raises its gate. Below this count the chop does nothing.",
+              "default": 10,
+              "minimum": 1
+            }
+          }
+        },
         "push_after_commit": {
           "type": "boolean",
           "description": "When true, run `git push` after `sase bead work` commits sdd/beads/issues.jsonl. Push failures only warn; the local commit is preserved.",

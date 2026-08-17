@@ -330,6 +330,9 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-oc.8(set_completion_kind)" \
         --epic-symbol "sase-oc.8(set_completion_summary)" \
         --epic-symbol "sase-on(create_bead_stale_cleanup_gate)" \
+        --epic-symbol "sase-on(get_task_triage_stale_after_days)" \
+        --epic-symbol "sase-on(get_task_triage_stale_cleanup_min_beads)" \
+        --epic-symbol "sase-on(stale_task_bead)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

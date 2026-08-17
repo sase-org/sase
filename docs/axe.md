@@ -255,6 +255,16 @@ This scan does not call the dependency-aware `sase bead ready` query, so a store
 task with an active blocker still receives a gate. A flag bead's due-ness is derived
 through the one shared `flag_removal_due` predicate, never recomputed here.
 
+A ready task bead additionally needs at least
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports
+before it earns a `TaskTriage` gate (`1` by default; `0` restores the pre-threshold
+behavior of gating every ready task bead). A sub-threshold bead is withheld from triage
+without any change to its stored status — it stays `ready` and stays visible to
+`sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
+`TaskTriage` gate already raised for a bead that later falls below the bar is canceled
+(reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
+chop's next tick. Snoozed and flag beads are never subject to this bar.
+
 A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
 bead leaves its gateable status or type through a launch, close, extension, or manual
 retraction, the chop cancels its pending gate. If a gate becomes terminal or its bundle

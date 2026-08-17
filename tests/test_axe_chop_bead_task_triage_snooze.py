@@ -42,6 +42,7 @@ def test_snoozed_task_raises_a_wake_gate_carrying_its_snooze_record(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -85,6 +86,7 @@ def test_snoozing_a_ready_task_replaces_its_triage_gate_with_a_wake_gate(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -137,6 +139,7 @@ def test_waking_a_snoozed_task_replaces_its_wake_gate_with_a_triage_gate(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -289,6 +292,7 @@ def test_unmuted_wake_notification_is_re_snoozed_to_the_bead_wake_time(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 1,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -318,6 +322,7 @@ def test_wake_notification_already_snoozed_to_its_wake_time_is_left_alone(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -348,6 +353,7 @@ def test_a_past_wake_time_leaves_the_resurfaced_notification_unread(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -389,6 +395,7 @@ def test_a_pending_triage_gate_never_touches_the_notification_store(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }

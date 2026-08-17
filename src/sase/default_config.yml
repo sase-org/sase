@@ -747,14 +747,17 @@ axe:
             Raise one human gate for each ready or snoozed task bead, and for each due flag bead
 
             Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
-            gate: a TaskTriage gate while a task bead is ready, a BeadSnooze wake gate while it is snoozed, and a
-            FlagTriage gate once a flag bead's date and release removal thresholds have both passed. Deterministic
-            gate generations in lane state prevent duplicate notifications, a gate of the wrong kind is replaced
-            when its bead's status or due-ness changes, and a snoozed bead's notification is re-snoozed to its wake
-            time if it ever drifts. Gates are canceled when their beads leave those states, while answered or
-            missing gates can be regenerated safely if work remains. Gates stranded by removed projects or
-            forgotten lane state are swept without touching projects that are only temporarily unreadable. A
-            gateable bead with a detached launch still in flight is deferred instead of re-gated.
+            gate: a TaskTriage gate while a task bead is ready and has at least bead.task_triage.min_plus_ones +1
+            reports, a BeadSnooze wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
+            release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
+            triage without changing its stored status, and a gate already raised for a bead that falls below the
+            bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
+            duplicate notifications, a gate of the wrong kind is replaced when its bead's status or due-ness
+            changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts. Gates are
+            canceled when their beads leave those states, while answered or missing gates can be regenerated
+            safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
+            touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
+            in flight is deferred instead of re-gated.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
@@ -1049,6 +1052,21 @@ bead:
   # llm_provider.big_epic_lander_model unless the plan sets an explicit land
   # model.
   big_epic_phase_threshold: 5
+  # Volume controls for task-bead triage gates. A ready task bead earns a
+  # TaskTriage gate only once independent reporters have corroborated it, and
+  # the remainder that never clears that bar is swept periodically instead of
+  # accumulating forever.
+  task_triage:
+    # +1 reports a ready task bead needs before bead_task_triage raises its
+    # TaskTriage gate. 0 restores the pre-threshold behavior of gating every
+    # ready task bead.
+    min_plus_ones: 1
+    # Days after creation at which a still-sub-threshold ready task bead is
+    # considered stale and eligible for the cleanup gate.
+    stale_after_days: 7
+    # Stale beads required before bead_stale_cleanup raises its gate. Below
+    # this count the chop does nothing.
+    stale_cleanup_min_beads: 10
   # Controls the post-commit `git push` after `sase bead work` successfully
   # commits the sdd/beads bead-state mutation (canonical events plus
   # compatibility projections). Accepts:

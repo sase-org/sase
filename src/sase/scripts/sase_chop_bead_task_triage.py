@@ -14,12 +14,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import sase
+from sase.bead.config import get_task_triage_min_plus_ones
 from sase.bead.flag_gate import FLAG_TRIAGE_KIND, create_flag_triage_gate
 from sase.bead.gate_lookup import find_pending_bead_gates
 from sase.bead.model import Issue, SnoozeRecord
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
 from sase.bead.task_gate import TASK_TRIAGE_KIND, create_task_triage_gate
 from sase.bead.task_launch import active_task_launch_bead_ids
+from sase.bead.task_triage_policy import task_gate_suppressed
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import time as core_time
@@ -130,6 +132,7 @@ def _summary(
     skipped: int = 0,
     deferred: int = 0,
     resnoozed: int = 0,
+    suppressed: int = 0,
     swept_projects: int = 0,
     untracked_canceled: int = 0,
     reason: str | None = None,
@@ -141,6 +144,7 @@ def _summary(
             "skipped": skipped,
             "deferred": deferred,
             "resnoozed": resnoozed,
+            "suppressed": suppressed,
             "swept_projects": swept_projects,
             "untracked_canceled": untracked_canceled,
         },
@@ -280,6 +284,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     skipped = 0
     deferred = 0
     resnoozed = 0
+    suppressed_total = 0
     swept_projects = 0
     untracked_canceled = 0
     state_changed = False
@@ -296,12 +301,10 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
     today = core_time.local_now().date()
     release = sase.__version__
+    min_plus_ones = get_task_triage_min_plus_ones()
     for project_name, beads_dir in inventory.stores:
         try:
-            live_tasks = {
-                issue.id: issue
-                for issue in _gateable_beads(beads_dir, today=today, release=release)
-            }
+            gateable = _gateable_beads(beads_dir, today=today, release=release)
         except Exception as exc:  # noqa: BLE001 - one store must not stop the chop.
             skipped_projects.add(project_name)
             runtime.log.warning(
@@ -309,6 +312,16 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 f"{_project_display_name(project_name)}: {exc}"
             )
             continue
+
+        suppressed = {
+            issue.id
+            for issue in gateable
+            if task_gate_suppressed(issue, min_plus_ones=min_plus_ones)
+        }
+        suppressed_total += len(suppressed)
+        live_tasks = {
+            issue.id: issue for issue in gateable if issue.id not in suppressed
+        }
 
         reconciled_projects.add(project_name)
         project_state = projects.setdefault(project_name, _ProjectState())
@@ -368,8 +381,18 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 canceled += int(was_canceled)
 
             if issue is None and gate_state == "pending":
+                if bead_id in suppressed and bead_id in in_flight_launches:
+                    skipped += 1
+                    continue
+                cancel_reason = (
+                    "task_bead_below_plus_one_threshold"
+                    if bead_id in suppressed
+                    else "task_bead_no_longer_ready"
+                )
                 try:
-                    was_canceled = _cancel_pending_gate(kind, request_id)
+                    was_canceled = _cancel_pending_gate(
+                        kind, request_id, reason=cancel_reason
+                    )
                 except Exception as exc:  # noqa: BLE001 - retry on the next tick.
                     runtime.log.warning(
                         f"[bead_task_triage] Failed to cancel stale gate "
@@ -443,7 +466,14 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
     reason = (
         None
-        if gated or canceled or resnoozed or swept_projects or untracked_canceled
+        if (
+            gated
+            or canceled
+            or resnoozed
+            or suppressed_total
+            or swept_projects
+            or untracked_canceled
+        )
         else "no_triage_changes"
     )
     return _summary(
@@ -453,6 +483,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         skipped=skipped,
         deferred=deferred,
         resnoozed=resnoozed,
+        suppressed=suppressed_total,
         swept_projects=swept_projects,
         untracked_canceled=untracked_canceled,
         reason=reason,

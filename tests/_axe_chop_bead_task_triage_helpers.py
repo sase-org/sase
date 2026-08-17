@@ -127,6 +127,8 @@ def patch_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     ready: list[Issue],
+    *,
+    min_plus_ones: int = 0,
 ) -> None:
     monkeypatch.setattr(
         task_triage,
@@ -139,7 +141,26 @@ def patch_project(
         lambda _path, **_kwargs: list(ready),
     )
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
+    patch_min_plus_ones(monkeypatch, min_plus_ones)
     patch_active_launches(monkeypatch)
+
+
+def patch_min_plus_ones(monkeypatch: pytest.MonkeyPatch, min_plus_ones: int) -> None:
+    monkeypatch.setattr(
+        task_triage, "get_task_triage_min_plus_ones", lambda: min_plus_ones
+    )
+
+
+@pytest.fixture(autouse=True)
+def _default_task_triage_min_plus_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default the ``+1`` bar to 0 so pre-existing fixtures keep gating every ready task.
+
+    Tests that exercise the threshold itself override it via
+    :func:`patch_min_plus_ones` or ``patch_project(..., min_plus_ones=...)``.
+    Importing this fixture's name into a test module is enough for pytest to
+    pick it up, since fixture discovery scans the module's own namespace.
+    """
+    patch_min_plus_ones(monkeypatch, 0)
 
 
 def patch_active_launches(

@@ -3020,17 +3020,29 @@ Configuration for the bead issue tracker.
 ```yaml
 bead:
   big_epic_phase_threshold: 5 # minimum authored phase count for llm_provider.big_epic_lander_model
+  task_triage:
+    min_plus_ones: 1 # +1 reports a ready task bead needs before it earns a TaskTriage gate
+    stale_after_days: 7 # age at which a still-sub-threshold ready task bead is stale
+    stale_cleanup_min_beads: 10 # stale beads required before bead_stale_cleanup gates
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
-| Field                           | Type        | Default | Description                                                                                                                                                                                                                                                                              |
-| ------------------------------- | ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                            |
-| `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push. |
+| Field                                      | Type        | Default | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bead.big_epic_phase_threshold`            | int         | `5`     | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                                                                                             |
+| `bead.task_triage.min_plus_ones`           | int         | `1`     | `+1` reports a ready task bead needs before `bead_task_triage` raises its `TaskTriage` gate. Must be at least `0`; `0` restores the pre-threshold behavior of gating every ready task bead. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
+| `bead.task_triage.stale_after_days`        | int         | `7`     | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                              |
+| `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the chop does nothing. Must be at least `1`.                                                                                                                                                                                                                               |
+| `bead.push_after_commit`                   | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                  |
 
 Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
 above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land model
 remains authoritative over both.
+
+See [`bead_task_triage`](axe.md#checks-5-minute-interval) for how the `task_triage`
+fields gate `TaskTriage` notifications, and
+[Discovered Follow-Up Capture and Triage](beads.md#discovered-follow-up-capture-and-triage)
+for the human-facing triage lifecycle.
 
 In Launch Control (`,m`), the `big epic starts at` row shows this effective threshold
 next to the two epic-lander rows. `e` or Enter opens a focused positive-integer editor,

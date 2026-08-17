@@ -30,6 +30,7 @@ def _empty_counters(**overrides: int) -> dict[str, int]:
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }

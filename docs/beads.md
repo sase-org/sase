@@ -313,10 +313,17 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 
 3. Triage it. The default AXE `checks` lumberjack scans enabled non-home projects every
    five minutes and creates one priority `TaskTriage` gate for each task whose stored
-   status is `ready`. This scan currently does not apply the dependency filter used by
-   `sase bead ready`, so a blocked ready task can still receive a gate. The reviewed
-   preview contains the task's title, description, and notes. **Launch** accepts
-   optional feedback and submits one global unattributed proc that runs
+   status is `ready` and that has accumulated at least
+   [`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports
+   (`1` by default). A sub-threshold task is withheld from triage — it stays stored as
+   `ready` and stays visible to `sase bead ready` and this triage guide's other
+   commands, only the gate is withheld — and a `TaskTriage` gate already raised for a
+   task that later falls below the bar is canceled and its notification dismissed.
+   Setting `bead.task_triage.min_plus_ones: 0` restores the pre-threshold behavior of
+   gating every ready task. This scan currently does not apply the dependency filter
+   used by `sase bead ready`, so a blocked ready task can still receive a gate. The
+   reviewed preview contains the task's title, description, and notes. **Launch**
+   accepts optional feedback and submits one global unattributed proc that runs
    `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
    bead with `resolution=canceled` and that feedback as the reason. The detached launch
    survives ACE, CLI, Telegram, or mobile client exit and appears in `sase proc list`
@@ -576,14 +583,18 @@ reporter to a new, node-specific task bead instead, with a
 The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
 `bead_task_triage` chop scans enabled projects every five minutes and raises one
-human-only `TaskTriage` gate per ready task bead. The compact
-`[bead] <bead-id> — <title>` notification lands in the `Beads` panel, and the filing
-agent travels with the gate into its Markdown preview when that attribution is known.
-The chop records pending gates in lane state so later ticks do not repeat the
-notification, cancels a pending gate if the bead leaves `ready`, defers re-gating while
-that task bead's detached launch is still in flight, and uses a new deterministic
-generation if the same task becomes ready again or its pending gate needs a
-presentation-contract refresh.
+human-only `TaskTriage` gate per ready task bead that has accumulated at least
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports (`1`
+by default; `0` restores the pre-threshold behavior of gating every ready task bead). A
+sub-threshold task is withheld from triage without any change to its stored status, and
+a gate already raised for a task that later falls below the bar is canceled and its
+notification dismissed. The compact `[bead] <bead-id> — <title>` notification lands in
+the `Beads` panel, and the filing agent travels with the gate into its Markdown preview
+when that attribution is known. The chop records pending gates in lane state so later
+ticks do not repeat the notification, cancels a pending gate if the bead leaves `ready`
+or falls below the `+1` bar, defers re-gating while that task bead's detached launch is
+still in flight, and uses a new deterministic generation if the same task becomes ready
+again or its pending gate needs a presentation-contract refresh.
 
 The gate offers three decisions:
 

@@ -12,6 +12,7 @@ from sase.bead.gate_lookup import _PendingBeadGate
 from sase.bead.model import Issue
 
 from tests._axe_chop_bead_task_triage_helpers import (
+    _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
     make_runtime,
     make_task,
     patch_active_launches,
@@ -54,6 +55,7 @@ def test_failed_project_read_does_not_block_other_projects(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -101,6 +103,7 @@ def test_state_project_absent_from_inventory_is_swept(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 1,
         "untracked_canceled": 0,
     }
@@ -173,6 +176,7 @@ def test_reenabled_project_starts_fresh_gate_generation_after_sweep(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 1,
         "untracked_canceled": 0,
     }
@@ -190,6 +194,7 @@ def test_reenabled_project_starts_fresh_gate_generation_after_sweep(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -279,6 +284,7 @@ def test_removed_project_key_does_not_duplicate_same_live_bead_in_new_project(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 1,
         "untracked_canceled": 0,
     }
@@ -350,6 +356,7 @@ def test_unreadable_inventory_project_keeps_state_and_pending_gates(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -400,6 +407,7 @@ def test_empty_inventory_read_sweeps_nothing(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
@@ -440,6 +448,7 @@ def test_inventory_failure_sweeps_nothing(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "suppressed": 0,
         "swept_projects": 0,
         "untracked_canceled": 0,
     }
