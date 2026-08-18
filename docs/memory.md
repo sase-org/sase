@@ -137,13 +137,12 @@ sase glossary del tt -n
 accepts `-p/--project REF` (a project key, display name, or alias) before or after the
 subcommand name.
 
-Without `-p`, the project is inferred from the current directory, and the match is
-currently limited to directories **inside the project's own ProjectSpec workspace path**
-— the primary checkout. A numbered managed workspace checkout
-(`.../workspaces/<key>/<project>_<N>/`) does not match it, and the command exits 1 with
-`no enabled project matched the active workspace`, even though `sase repo` and
-`sase memory` resolve the same directory to a project. Pass `-p/--project` explicitly
-(`sase glossary read Stitch -p sase -r "…"`) when working from a numbered workspace.
+Without `-p`, the project is inferred from the current directory the same way
+`sase repo`, `sase workspace`, and `sase memory` do: a path inside the project's
+ProjectSpec workspace (the primary checkout), a numbered managed workspace whose
+`.sase/checkout.json` marker identifies an enabled project, or the workspace-provider
+and sibling-workspace backstops. If none of those match an enabled project, the command
+exits 1 with `no enabled project matched the active workspace; pass -p/--project`.
 
 `sase glossary list [PATTERN]` prints the terms configured for a project. `PATTERN` is
 an optional case-insensitive substring match against each term and its display aliases;

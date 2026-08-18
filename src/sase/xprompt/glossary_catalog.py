@@ -119,7 +119,7 @@ def editor_glossary_catalog_for_project(
         detail = (
             f"project ref {project_ref!r} did not resolve to an enabled workspace"
             if project_ref
-            else "no enabled project matched the active workspace"
+            else "no enabled project matched the active workspace; pass -p/--project"
         )
         return EditorGlossaryCatalogResult(None, None, (detail,))
     return _load_editor_glossary_catalog(project)
@@ -313,11 +313,14 @@ def glossary_project_record_for_workspace(
     launch_workspace: str | Path | None,
     records: Sequence[ProjectRecordWire],
 ) -> ProjectRecordWire | None:
-    """Return the enabled record containing *launch_workspace*, or CWD's.
+    """Return the enabled record for *launch_workspace*, or CWD's.
 
-    Shared by :func:`editor_glossary_catalog_for_project`'s CWD-fallback
-    resolution and the ACE glossary panel's project-ring builder, which
-    needs the launch project even when it declares no glossary.
+    Resolution is cheapest-first: the record whose ProjectSpec workspace
+    contains the path, then a managed-checkout marker, then the same CWD
+    inference ``sase repo`` and ``sase workspace`` use. Shared by
+    :func:`editor_glossary_catalog_for_project`'s CWD-fallback resolution
+    and the ACE glossary panel's project-ring builder, which needs the
+    launch project even when it declares no glossary.
     """
     workspace = (
         Path(launch_workspace).expanduser()
@@ -326,7 +329,13 @@ def glossary_project_record_for_workspace(
     )
     if workspace is None:
         return None
-    return _record_for_workspace(workspace, records)
+    record = _record_for_workspace(workspace, records)
+    if record is not None:
+        return record
+    record = _record_for_checkout_marker(workspace, records)
+    if record is not None:
+        return record
+    return _record_for_inferred_project(workspace, records)
 
 
 def _record_for_workspace(
@@ -347,6 +356,69 @@ def _record_for_workspace(
         if _is_relative_to(resolved_workspace, candidate):
             return record
     return None
+
+
+def _record_for_checkout_marker(
+    workspace: Path,
+    records: Sequence[ProjectRecordWire],
+) -> ProjectRecordWire | None:
+    """Join a managed-checkout marker to an enabled record, if any.
+
+    The marker walker is imported lazily so ACE warmers and the LSP payload
+    builder do not pull workspace-provider into this module's import graph.
+    """
+    try:
+        from sase.workspace_provider import find_marker_from_cwd
+    except Exception:
+        return None
+    try:
+        found = find_marker_from_cwd(str(workspace))
+    except Exception:
+        return None
+    if found is None:
+        return None
+    _, marker = found
+
+    primary = marker.primary_workspace_dir.strip()
+    if primary:
+        record = _record_for_workspace(Path(primary).expanduser(), records)
+        if record is not None:
+            return record
+
+    project_key = marker.project_key.strip()
+    if project_key:
+        record = _record_for_ref(project_key, records)
+        if record is not None:
+            return record
+
+    project_name = marker.project_name.strip()
+    if project_name:
+        return _record_for_ref(project_name, records)
+    return None
+
+
+def _record_for_inferred_project(
+    workspace: Path,
+    records: Sequence[ProjectRecordWire],
+) -> ProjectRecordWire | None:
+    """Backstop via the canonical CWD project-name inference.
+
+    Imported lazily for the same reason as :func:`_record_for_checkout_marker`.
+    """
+    try:
+        from sase.bead.project_name import infer_project_name_from_cwd
+    except Exception:
+        return None
+    try:
+        inferred = infer_project_name_from_cwd(str(workspace))
+    except Exception:
+        return None
+    if not inferred:
+        return None
+    return next(
+        (record for record in records if record.project_name == inferred),
+        None,
+    )
 
 
 def _project_from_record(record: ProjectRecordWire) -> EditorGlossaryProject | None:

@@ -126,7 +126,7 @@ def editor_repo_mention_catalog_for_project(
         detail = (
             f"project ref {project_ref!r} did not resolve to an enabled workspace"
             if project_ref
-            else "no enabled project matched the active workspace"
+            else "no enabled project matched the active workspace; pass -p/--project"
         )
         return EditorRepoMentionCatalogResult(None, None, (detail,))
     return _load_editor_repo_mention_catalog(project, projects_root=projects_root)

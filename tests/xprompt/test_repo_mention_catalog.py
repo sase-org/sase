@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,32 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
+def _write_marker(
+    checkout: Path,
+    *,
+    primary_workspace_dir: str | Path,
+    project_name: str = "sase",
+    project_key: str = "sase-org/sase",
+) -> Path:
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = marker_dir / "checkout.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_name": project_name,
+                "project_key": project_key,
+                "workspace_num": 7,
+                "primary_workspace_dir": str(primary_workspace_dir),
+                "registry_path": str(checkout / "registry.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return marker_path
+
+
 def _setup_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -129,6 +156,37 @@ def test_sidecar_slug_admitted_bare_role_not_and_primary_excluded(
     assert catalog.scan_repo_mentions(result.catalog, "beads alone") == ()
     matches = catalog.scan_repo_mentions(result.catalog, "clone sase--beads today")
     assert [span.matched_text for span in matches] == ["sase--beads"]
+
+
+def test_catalog_resolves_numbered_workspace_via_checkout_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    launch = tmp_path / "state" / "sase_7"
+    launch.mkdir(parents=True)
+    _write_marker(launch, primary_workspace_dir=primary)
+    record = _record("sase", primary)
+    monkeypatch.setattr(
+        glossary_catalog, "list_project_records", lambda *_a, **_kw: [record]
+    )
+    monkeypatch.setattr(
+        catalog,
+        "collect_repo_inventory",
+        lambda *_a, **_kw: RepoInventory((_repo_record("sase-core", "linked"),)),
+    )
+
+    result = catalog.editor_repo_mention_catalog_for_project(
+        None,
+        launch_workspace=launch,
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "sase"
+    assert result.catalog is not None
+    assert {mention.identifier for mention in result.catalog.mentions} == {"sase-core"}
 
 
 def test_no_admitted_records_returns_no_catalog(

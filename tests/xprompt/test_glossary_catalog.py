@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,39 @@ def _write_config(workspace: Path, body: str) -> Path:
     return config_path
 
 
+def _write_marker(
+    checkout: Path,
+    *,
+    primary_workspace_dir: str | Path = "",
+    project_name: str = "sase",
+    project_key: str = "sase-org/sase",
+    workspace_num: int = 7,
+) -> Path:
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = marker_dir / "checkout.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_name": project_name,
+                "project_key": project_key,
+                "workspace_num": workspace_num,
+                "primary_workspace_dir": str(primary_workspace_dir),
+                "registry_path": str(checkout / "registry.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return marker_path
+
+
+_ONE_TERM = "memory:\n  glossary:\n    Stitch:\n      definition: A stitch.\n"
+_NO_WORKSPACE_MATCH = (
+    "no enabled project matched the active workspace; pass -p/--project"
+)
+
+
 def test_catalog_for_project_uses_project_alias_and_source_ranges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -176,9 +210,17 @@ def test_catalog_without_ref_uses_launch_workspace_and_never_falls_back_from_bad
         None,
         launch_workspace=beta / "nested",
     )
+    numbered = tmp_path / "state" / "beta_7"
+    numbered.mkdir(parents=True)
+    _write_marker(
+        numbered,
+        primary_workspace_dir=beta,
+        project_name="beta",
+        project_key="beta",
+    )
     missing = catalog.editor_glossary_catalog_for_project(
         "missing",
-        launch_workspace=beta,
+        launch_workspace=numbered,
     )
 
     assert fallback.catalog is not None
@@ -269,3 +311,159 @@ def test_lsp_payload_materializes_enabled_project_catalogs_and_default(
     assert projects[1]["project"]["aliases"] == ["b"]
     assert projects[1]["entries"][0]["term"] == "Beta Term"
     assert projects[1]["entries"][0]["display_aliases"] == []
+
+
+def test_catalog_resolves_numbered_workspace_via_checkout_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    _write_config(primary, _ONE_TERM)
+    launch = tmp_path / "state" / "proj_7"
+    launch.mkdir(parents=True)
+    _write_marker(launch, primary_workspace_dir=primary)
+    record = _record("gh_sase-org__sase", primary, display_name="sase")
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=launch,
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "gh_sase-org__sase"
+    assert result.catalog is not None
+    assert result.catalog.entries[0].term == "Stitch"
+
+
+def test_catalog_resolves_nested_subdirectory_of_numbered_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    _write_config(primary, _ONE_TERM)
+    launch = tmp_path / "state" / "proj_7"
+    nested = launch / "src" / "sase"
+    nested.mkdir(parents=True)
+    _write_marker(launch, primary_workspace_dir=primary)
+    record = _record("gh_sase-org__sase", primary, display_name="sase")
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=nested,
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "gh_sase-org__sase"
+
+
+def test_catalog_resolves_empty_primary_via_marker_project_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    _write_config(primary, _ONE_TERM)
+    launch = tmp_path / "state" / "proj_7"
+    launch.mkdir(parents=True)
+    _write_marker(
+        launch,
+        primary_workspace_dir="",
+        project_name="sase",
+        project_key="",
+    )
+    record = _record("gh_sase-org__sase", primary, display_name="sase")
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=launch,
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "gh_sase-org__sase"
+
+
+def test_catalog_resolves_empty_primary_via_marker_project_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    primary = tmp_path / "projects" / "github" / "foo-org" / "foo"
+    primary.mkdir(parents=True)
+    _write_config(primary, _ONE_TERM)
+    launch = tmp_path / "state" / "proj_7"
+    launch.mkdir(parents=True)
+    _write_marker(
+        launch,
+        primary_workspace_dir="",
+        project_name="",
+        project_key="foo-org/foo",
+    )
+    record = _record("gh_foo_org__foo", primary)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=launch,
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "gh_foo_org__foo"
+
+
+def test_catalog_leaves_unlisted_marker_project_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listed = tmp_path / "listed"
+    listed.mkdir()
+    _write_config(listed, _ONE_TERM)
+    other_primary = tmp_path / "other-primary"
+    other_primary.mkdir()
+    launch = tmp_path / "state" / "proj_7"
+    launch.mkdir(parents=True)
+    _write_marker(
+        launch,
+        primary_workspace_dir=other_primary,
+        project_name="ghost",
+        project_key="ghost-org/ghost",
+    )
+    record = _record("listed", listed)
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=launch,
+    )
+
+    assert result.project is None
+    assert result.catalog is None
+    assert result.diagnostics == (_NO_WORKSPACE_MATCH,)
+
+
+def test_catalog_still_resolves_primary_checkout_without_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    _write_config(primary, _ONE_TERM)
+    record = _record("gh_sase-org__sase", primary, display_name="sase")
+    monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
+
+    result = catalog.editor_glossary_catalog_for_project(
+        None,
+        launch_workspace=primary / "src",
+    )
+
+    assert result.ok
+    assert result.project is not None
+    assert result.project.key == "gh_sase-org__sase"

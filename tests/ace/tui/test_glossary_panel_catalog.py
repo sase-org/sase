@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -45,6 +46,32 @@ def _write_config(workspace: Path, body: str) -> Path:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(body, encoding="utf-8")
     return config_path
+
+
+def _write_marker(
+    checkout: Path,
+    *,
+    primary_workspace_dir: Path,
+    project_name: str,
+    project_key: str,
+) -> Path:
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = marker_dir / "checkout.json"
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_name": project_name,
+                "project_key": project_key,
+                "workspace_num": 7,
+                "primary_workspace_dir": str(primary_workspace_dir),
+                "registry_path": str(checkout / "registry.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return marker_path
 
 
 def _install_records(
@@ -110,6 +137,40 @@ def test_ring_orders_by_display_name_and_includes_launch_project_without_glossar
     assert by_key["gh_z__z"].has_glossary is True
     # The user-facing field is the display name, never the ProjectSpec key.
     assert all(ref.display_name != ref.key for ref in ring)
+
+
+def test_ring_includes_launch_project_from_numbered_workspace_without_glossary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launch_primary = tmp_path / "launch"
+    launch_primary.mkdir()
+    _write_config(launch_primary, "timezone: UTC\n")
+
+    other_ws = tmp_path / "other"
+    other_ws.mkdir()
+    _write_config(other_ws, _ONE_TERM_GLOSSARY)
+
+    numbered = tmp_path / "state" / "launch_7"
+    numbered.mkdir(parents=True)
+    _write_marker(
+        numbered,
+        primary_workspace_dir=launch_primary,
+        project_name="Launch",
+        project_key="gh_launch__launch",
+    )
+
+    records = [
+        _record("gh_launch__launch", launch_primary, display_name="Launch"),
+        _record("gh_other__other", other_ws, display_name="Other"),
+    ]
+    _install_records(monkeypatch, records)
+
+    ring = panel_catalog.build_glossary_project_ring(str(numbered))
+
+    assert [ref.key for ref in ring] == ["gh_launch__launch", "gh_other__other"]
+    by_key = {ref.key: ref for ref in ring}
+    assert by_key["gh_launch__launch"].has_glossary is False
+    assert by_key["gh_other__other"].has_glossary is True
 
 
 def test_ring_excludes_no_glossary_project_when_not_the_launch_project(
