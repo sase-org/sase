@@ -116,7 +116,7 @@ def test_flags_overrides_warns_on_inherited_env(tmp_path: Path) -> None:
 
 
 def test_flags_overrides_warns_on_deprecated_env(tmp_path: Path) -> None:
-    flag = demo_flag("prettier_enabled", default=True)
+    flag = demo_flag("prettier_enabled", kind="sunset")
     check = _check_flags_overrides(
         _context(tmp_path),
         snapshot=snapshot_for(

@@ -67,16 +67,12 @@ def _broken_flag(
     *,
     kind: str = "beta",
     bead: str | None = None,
-    rationale: str = "",
 ) -> FeatureFlagDefinition:
     return FeatureFlagDefinition(
         key=cast(FeatureFlag, key),
         kind=cast(Any, kind),
         description=f"Description for {key}",
-        default=False,
-        scope="global",
         bead=bead,
-        rationale=rationale,
     )
 
 
@@ -114,29 +110,24 @@ def test_tool_script_is_executable() -> None:
     assert TOOL_PATH.stat().st_mode & 0o111
 
 
-def test_rule_1_rejects_missing_bead_and_ops_rationale() -> None:
+def test_rule_1_rejects_missing_bead() -> None:
     tool = _load_tool()
 
     findings = tool.check_definition_metadata(
-        definitions(
-            _broken_flag("beta_flag", kind="beta", bead=None),
-            _broken_flag("ops_flag", kind="ops", rationale=""),
-        )
+        definitions(_broken_flag("beta_flag", kind="beta", bead=None))
     )
 
-    assert _rules(findings) == [1, 1]
+    assert _rules(findings) == [1]
     assert "beta_flag" in findings[0].message
     assert "must reference its flag bead" in findings[0].message
-    assert "ops_flag" in findings[1].message
-    assert "must include a rationale" in findings[1].message
 
 
-def test_rule_1_accepts_named_bead_and_ops_rationale() -> None:
+def test_rule_1_accepts_named_bead() -> None:
     tool = _load_tool()
 
     assert (
         tool.check_definition_metadata(
-            definitions(demo_flag("beta_flag"), demo_flag("ops_flag", kind="ops"))
+            definitions(demo_flag("beta_flag"), demo_flag("sunset_flag", kind="sunset"))
         )
         == []
     )

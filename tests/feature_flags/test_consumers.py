@@ -23,17 +23,14 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
 
     assert coder.kind == "beta"
     assert coder.default is False
-    assert coder.scope == "global"
     assert coder.bead == "sase-nw"
 
     assert refresh.kind == "beta"
     assert refresh.default is False
-    assert refresh.scope == "global"
     assert refresh.bead == "sase-om"
 
     assert prettier.kind == "sunset"
     assert prettier.default is True
-    assert prettier.scope == "global"
     assert prettier.bead == "sase-nx"
 
 

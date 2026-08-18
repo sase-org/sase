@@ -116,8 +116,6 @@ def _list_row(
     line.append("  ")
     line.append_text(source_text(view.decision))
     line.append("  ")
-    line.append(view.definition.scope)
-    line.append("  ")
     line.append_text(_bead_text(view.bead))
     record = None if view.bead is None else flag_record_from_snapshot(view.bead)
     if record is not None:

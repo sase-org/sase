@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.bead.cli_common import (
@@ -16,6 +16,8 @@ from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.bead.project import BeadProject
 from sase.feature_flags.models import FeatureFlagError
 
+
+FLAG_TASK_TYPE = "flag"
 
 _LIVE_FLAG_STATUSES = frozenset(
     {
@@ -98,54 +100,75 @@ def flag_bead_for_id(
 
 
 def create_flag_bead(
-    record: FlagRecord,
     *,
+    key: str,
+    kind: str,
+    when_enabled: str,
+    when_disabled: str,
+    remove_when: str,
+    remove_by_date: str,
+    remove_by_release: str,
     title: str,
     description: str = "",
     size: str | None = None,
     cwd: Path | None = None,
 ) -> Issue:
-    """Create the dedicated removal bead for *record* and return it.
+    """Create the typed ``flag`` task bead for *key* and return it.
 
     Re-read the bead by key after the store mutation commits. A colliding
     id can be reminted on the commit/push path after ``create`` returns.
     """
     from sase.bead.attribution import resolve_bead_creator
 
+    field_values = {
+        "key": key,
+        "kind": kind,
+        "when_enabled": when_enabled,
+        "when_disabled": when_disabled,
+        "remove_when": remove_when,
+        "remove_by_date": remove_by_date,
+        "remove_by_release": remove_by_release,
+    }
+
     existing = load_flag_bead_snapshots(cwd=cwd)
     if existing is not None:
-        live = flag_bead_for_key(existing, record.key)
+        live = flag_bead_for_key(existing, key)
         if live is not None and live.status in LIVE_FLAG_STATUS_VALUES:
-            raise FeatureFlagError(
-                f"live flag bead {live.id} already owns key {record.key!r}"
-            )
+            raise FeatureFlagError(f"live flag bead {live.id} already owns key {key!r}")
 
     try:
         with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
             issue = mutation.project.create(
                 title=title,
-                issue_type=IssueType.FLAG,
+                issue_type=IssueType.TASK,
                 description=description,
-                flag=record,
                 size=size,
-                created_by=resolve_bead_creator(issue_type=IssueType.FLAG),
+                created_by=resolve_bead_creator(issue_type=IssueType.TASK),
+                task_type=FLAG_TASK_TYPE,
+                task_type_fields=field_values,
             )
             mutation.commit(require_mutation_commit_message("create", [issue.id]))
     except (ValueError, RuntimeError, OSError) as exc:
         raise FeatureFlagError(str(exc)) from exc
-    return _committed_flag_issue(issue, record.key, cwd=cwd)
+    return _committed_flag_task_issue(key, cwd=cwd)
 
 
-def _committed_flag_issue(issue: Issue, key: str, *, cwd: Path | None) -> Issue:
-    """Return the committed flag bead for *key*, or fail if it vanished."""
-    snapshot = flag_bead_for_key(load_flag_bead_snapshots(cwd=cwd), key)
-    if snapshot is None:
-        raise FeatureFlagError(
-            f"flag bead for {key!r} was not found after the store mutation committed"
-        )
-    if snapshot.id == issue.id:
-        return issue
-    return replace(issue, id=snapshot.id)
+def _committed_flag_task_issue(key: str, *, cwd: Path | None) -> Issue:
+    """Return the committed flag task bead for *key*, or fail if it vanished."""
+    location = resolve_beads_location(cwd=cwd, require_existing=True)
+    if location is not None and bead_store_exists(
+        location.root, location.beads_dirname
+    ):
+        project = BeadProject(location.root, beads_dirname=location.beads_dirname)
+        for candidate in project.list_issues(issue_types=[IssueType.TASK]):
+            if (
+                candidate.task_type == FLAG_TASK_TYPE
+                and candidate.task_type_fields.get("key") == key
+            ):
+                return candidate
+    raise FeatureFlagError(
+        f"flag bead for {key!r} was not found after the store mutation committed"
+    )
 
 
 def flag_record_from_snapshot(bead: FlagBeadSnapshot) -> FlagRecord | None:
@@ -160,6 +183,7 @@ def flag_record_from_snapshot(bead: FlagBeadSnapshot) -> FlagRecord | None:
 
 
 __all__ = [
+    "FLAG_TASK_TYPE",
     "LIVE_FLAG_STATUS_VALUES",
     "FlagBeadSnapshot",
     "create_flag_bead",

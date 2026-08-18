@@ -33,7 +33,7 @@ def parse_field_args(raw_fields: Sequence[str] | None) -> dict[str, str]:
         key, value = _split_field_assignment(raw)
         if key in parsed:
             raise TaskTypeCreateError(f"duplicate --field key: {key}")
-        parsed[key] = _resolve_field_value(key, value)
+        parsed[key] = resolve_field_value(key, value)
     return parsed
 
 
@@ -68,7 +68,7 @@ def resolve_created_task_type(
                 f"task type '{slug}' cannot be created by agents.\n{when_to_use}"
             )
         raise TaskTypeCreateError(f"task type '{slug}' cannot be created by agents")
-    problems = _field_value_problems(record.spec, stored_fields)
+    problems = task_type_field_problems(record.spec, stored_fields)
     if problems:
         details = "\n".join(f"  {name}: {message}" for name, message in problems)
         raise TaskTypeCreateError(f"invalid task type fields:\n{details}")
@@ -100,19 +100,27 @@ def _split_field_assignment(raw: str) -> tuple[str, str]:
     return key, value
 
 
-def _resolve_field_value(key: str, value: str) -> str:
+def resolve_field_value(key: str, value: str, *, option: str = "--field") -> str:
+    """Resolve one raw field value, reading ``@<path>`` from a file.
+
+    *option* names the CLI flag to cite in the error when *value* is an
+    ``@<path>`` reference to a file that does not exist. Pass an empty *key*
+    when *option* already identifies exactly one field.
+    """
     if not value.startswith(_FILE_VALUE_PREFIX) or value == _FILE_VALUE_PREFIX:
         return value
     path = Path(value[len(_FILE_VALUE_PREFIX) :]).expanduser()
     if not path.is_file():
-        raise TaskTypeCreateError(f"--field {key}: file not found: {path}")
+        label = f"{option} {key}" if key else option
+        raise TaskTypeCreateError(f"{label}: file not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
-def _field_value_problems(
+def task_type_field_problems(
     spec: Mapping[str, Any],
     values: Mapping[str, str],
 ) -> list[tuple[str, str]]:
+    """Return ``(field, message)`` pairs for every invalid value in *values*."""
     errors = require_rust_binding("validate_task_type_field_values")(
         plain_task_type_spec(spec),
         dict(values),
@@ -183,4 +191,6 @@ __all__ = [
     "parse_field_args",
     "required_task_type_field_names",
     "resolve_created_task_type",
+    "resolve_field_value",
+    "task_type_field_problems",
 ]

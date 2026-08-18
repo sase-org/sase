@@ -28,8 +28,10 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase flag                         # same as `sase flag list`\n"
             "  sase flag list                    # every registered flag\n"
             "  sase flag show plugins_enabled    # one flag's provenance\n"
-            "  sase flag new demo_key            # bead + paste-ready entry\n"
-            "  sase flag new demo_key -k beta -s global -r 2026-12-01/0.19.0"
+            "  sase flag new demo_key --when-enabled '...' --when-disabled '...' "
+            "--remove-when '...'\n"
+            "  sase flag new demo_key -k beta -r 2026-12-01/0.19.0 "
+            "--when-enabled @on.txt --when-disabled @off.txt --remove-when @gate.txt"
         ),
     )
     flag_sub = flag_parser.add_subparsers(
@@ -44,7 +46,7 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "List every registered feature flag: the key chip, kind, default, "
-            "effective value, source layer, scope, bead id and status, and the "
+            "effective value, source layer, bead id and status, and the "
             "removal countdown. Inherited SASE_FEATURE_FLAGS values are marked "
             "ENV so a long-running detached process cannot hide an override."
         ),
@@ -63,18 +65,21 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Scaffold a new feature flag. Creates the dedicated `flag` removal "
-            "bead (unless -k/--kind is ops) with remove_by_date = today + 90 "
-            "days and remove_by_release = the current minor plus two, then "
-            "prints the registry entry to paste and a both-states test "
-            "checklist.\n"
+            "task bead with remove_by_date = today + 90 days and "
+            "remove_by_release = the current minor plus two, then prints the "
+            "registry entry to paste and a both-states test checklist.\n"
+            "\n"
+            "--when-enabled, --when-disabled, and --remove-when are required "
+            "and each accepts `@<path>` to read the value from a file.\n"
             "\n"
             "Requires is_sase_managed: true in this checkout's sase/sase.yml."
         ),
         epilog=(
             "examples:\n"
-            "  sase flag new demo_key\n"
-            "  sase flag new demo_key -d 'Opt-in beta' -k beta -s global\n"
-            "  sase flag new demo_key -r 2026-12-01/0.19.0 -z small"
+            "  sase flag new demo_key --when-enabled 'the new path runs' "
+            "--when-disabled 'the old path runs' --remove-when 'soaked a week'\n"
+            "  sase flag new demo_key -k beta -r 2026-12-01/0.19.0 "
+            "--when-enabled @on.txt --when-disabled @off.txt --remove-when @gate.txt"
         ),
     )
     new_parser.add_argument(
@@ -86,14 +91,32 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
         "-d",
         "--description",
         default=None,
-        help="Flag description (ops flags use this as the required rationale)",
+        help="Registry scaffold description (default: --when-enabled)",
     )
     new_parser.add_argument(
         "-k",
         "--kind",
-        choices=("beta", "ops", "sunset", "wip"),
+        choices=("beta", "sunset"),
         default=None,
         help="Flag kind (default: beta)",
+    )
+    new_parser.add_argument(
+        "--when-enabled",
+        required=True,
+        help="What the code does with this flag enabled; accepts @<path>",
+    )
+    new_parser.add_argument(
+        "--when-disabled",
+        required=True,
+        help=(
+            "What the code does with this flag disabled, i.e. the branch "
+            "deleted at removal; accepts @<path>"
+        ),
+    )
+    new_parser.add_argument(
+        "--remove-when",
+        required=True,
+        help="What must be true before the disabled branch is deleted; accepts @<path>",
     )
     new_parser.add_argument(
         "-r",
@@ -103,18 +126,11 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Override both thresholds, e.g. 2026-12-01/0.19.0",
     )
     new_parser.add_argument(
-        "-s",
-        "--scope",
-        choices=("global", "project"),
-        default=None,
-        help="Flag scope (default: global)",
-    )
-    new_parser.add_argument(
         "-z",
         "--size",
         choices=("xsmall", "small", "medium", "large", "xlarge"),
-        default=None,
-        help="Optional size for the created flag bead",
+        default="small",
+        help="Size for the created flag bead (default: small)",
     )
 
     show_parser = flag_sub.add_parser(

@@ -34,7 +34,6 @@ def flag_view_json(view: FlagView) -> dict[str, Any]:
         "overridden": view.decision.overridden,
         "remove_by_date": None if record is None else record.remove_by_date,
         "remove_by_release": None if record is None else record.remove_by_release,
-        "scope": view.definition.scope,
         "source": view.decision.source,
         "source_detail": view.decision.source_detail,
     }

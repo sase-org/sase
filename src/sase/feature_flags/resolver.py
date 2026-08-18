@@ -92,13 +92,12 @@ def _apply_values(
                 )
             )
             continue
-        if source == "local" and definition.scope == "global":
+        if source == "local":
             diagnostics.append(
                 _diagnostic(
                     code="scope_violation",
                     message=(
-                        f"global feature flag {key_text!r} cannot be overridden "
-                        "by local config"
+                        f"feature flag {key_text!r} cannot be set from local config"
                     ),
                     source=diagnostic_source,
                 )

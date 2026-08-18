@@ -11,25 +11,27 @@ from pathlib import Path
 from rich.console import Console
 
 import sase
-from sase.bead.model import FlagRecord
 from sase.core import time as core_time
-from sase.feature_flags.beads import create_flag_bead
+from sase.feature_flags.beads import FLAG_TASK_TYPE, create_flag_bead
 from sase.feature_flags.cli_render import resolve_console
-from sase.feature_flags.defaults import default_flag_record
+from sase.feature_flags.defaults import default_remove_by_thresholds
 from sase.feature_flags.managed import project_is_sase_managed
 from sase.feature_flags.models import (
     FeatureFlagDefinition,
     FeatureFlagError,
     FlagKind,
-    FlagScope,
     is_feature_flag_key,
 )
 from sase.feature_flags.registry import feature_flag_definitions
+from sase.task_types.fields import (
+    TaskTypeCreateError,
+    resolve_field_value,
+    task_type_field_problems,
+)
 
 
 _SNAKE_CASE_KEY_MESSAGE = "feature flag key must be snake_case"
-_KIND_CHOICES: tuple[FlagKind, ...] = ("beta", "ops", "sunset", "wip")
-_SCOPE_CHOICES: tuple[FlagScope, ...] = ("global", "project")
+_KIND_CHOICES: tuple[FlagKind, ...] = ("beta", "sunset")
 _UNMANAGED_NEW_ERROR = (
     "`sase flag new` can only run in a SASE-managed checkout "
     "(set is_sase_managed: true in sase/sase.yml). The registry lives in "
@@ -59,8 +61,10 @@ def handle_flag_new(
             key,
             description=getattr(args, "description", None),
             kind=getattr(args, "kind", None),
+            when_enabled=getattr(args, "when_enabled", None),
+            when_disabled=getattr(args, "when_disabled", None),
+            remove_when=getattr(args, "remove_when", None),
             remove_by=getattr(args, "remove_by", None),
-            scope=getattr(args, "scope", None),
             size=getattr(args, "size", None),
             definitions=definitions,
             today=today,
@@ -81,8 +85,10 @@ def _build_flag_scaffold(
     *,
     description: str | None = None,
     kind: FlagKind | str | None = None,
+    when_enabled: str | None = None,
+    when_disabled: str | None = None,
+    remove_when: str | None = None,
     remove_by: str | None = None,
-    scope: FlagScope | str | None = None,
     size: str | None = None,
     definitions: Mapping[str, FeatureFlagDefinition] | None = None,
     today: date | None = None,
@@ -90,7 +96,7 @@ def _build_flag_scaffold(
     cwd: Path | None = None,
     create_bead: bool = True,
 ) -> str:
-    """Create the flag bead (when needed) and return the paste-ready scaffold."""
+    """Create the flag bead and return the paste-ready scaffold."""
     if not is_feature_flag_key(key):
         raise FeatureFlagError(f"{_SNAKE_CASE_KEY_MESSAGE}: {key!r}")
     resolved_definitions = (
@@ -100,44 +106,55 @@ def _build_flag_scaffold(
         raise FeatureFlagError(f"feature flag {key!r} is already registered")
 
     resolved_kind: FlagKind = _coerce_kind(kind)
-    resolved_scope: FlagScope = _coerce_scope(scope)
-    resolved_description = (description or "").strip() or (
-        f"Remove the {key} feature flag once both thresholds pass."
-    )
-    if resolved_kind == "ops" and not (description or "").strip():
-        raise FeatureFlagError(
-            "ops feature flags need a rationale; pass it with -d/--description"
-        )
+    resolved_when_enabled = _resolve_prose(when_enabled, option="--when-enabled")
+    resolved_when_disabled = _resolve_prose(when_disabled, option="--when-disabled")
+    resolved_remove_when = _resolve_prose(remove_when, option="--remove-when")
+    resolved_description = (description or "").strip() or resolved_when_enabled
 
-    bead_id: str | None = None
-    record: FlagRecord | None = None
-    if resolved_kind != "ops":
-        record = default_flag_record(
-            key,
-            today=today or core_time.local_now().date(),
-            version=version or sase.__version__,
-            remove_by=remove_by,
+    remove_by_date, remove_by_release = default_remove_by_thresholds(
+        today=today or core_time.local_now().date(),
+        version=version or sase.__version__,
+        remove_by=remove_by,
+    )
+
+    field_values = {
+        "key": key,
+        "kind": resolved_kind,
+        "when_enabled": resolved_when_enabled,
+        "when_disabled": resolved_when_disabled,
+        "remove_when": resolved_remove_when,
+        "remove_by_date": remove_by_date,
+        "remove_by_release": remove_by_release,
+    }
+    _validate_flag_field_values(field_values)
+
+    if create_bead:
+        issue = create_flag_bead(
+            key=key,
+            kind=resolved_kind,
+            when_enabled=resolved_when_enabled,
+            when_disabled=resolved_when_disabled,
+            remove_when=resolved_remove_when,
+            remove_by_date=remove_by_date,
+            remove_by_release=remove_by_release,
+            title=f"Retire {key}",
+            description=resolved_description,
+            size=size or "small",
+            cwd=cwd,
         )
-        if create_bead:
-            issue = create_flag_bead(
-                record,
-                title=f"Retire {key}",
-                description=resolved_description,
-                size=size,
-                cwd=cwd,
-            )
-            bead_id = issue.id
-        else:
-            bead_id = "<flag-bead-id>"
+        bead_id = issue.id
+    else:
+        bead_id = "<flag-bead-id>"
 
     return _scaffold_text(
         key,
         kind=resolved_kind,
         description=resolved_description,
-        scope=resolved_scope,
+        when_enabled=resolved_when_enabled,
+        when_disabled=resolved_when_disabled,
         bead_id=bead_id,
-        record=record,
-        default=_default_for_kind(resolved_kind),
+        remove_by_date=remove_by_date,
+        remove_by_release=remove_by_release,
     )
 
 
@@ -146,46 +163,55 @@ def _scaffold_text(
     *,
     kind: FlagKind,
     description: str,
-    scope: FlagScope,
-    bead_id: str | None,
-    record: FlagRecord | None,
-    default: bool,
+    when_enabled: str,
+    when_disabled: str,
+    bead_id: str,
+    remove_by_date: str,
+    remove_by_release: str,
 ) -> str:
-    bead_line = (
-        f"        bead={bead_id!r}," if bead_id is not None else "        bead=None,"
-    )
-    rationale_line = f"        rationale={description!r},\n" if kind == "ops" else ""
-    thresholds = ""
-    if record is not None:
-        thresholds = (
-            f"remove_by: {record.remove_by_date} / {record.remove_by_release}\n"
-        )
-    created = (
-        f"Created flag bead: {bead_id} — Retire {key}\n" if bead_id is not None else ""
-    )
-    if kind == "ops":
-        created = (
-            "No flag bead created (ops flags are permanent and carry a rationale).\n"
-        )
     return (
-        f"{created}{thresholds}\n"
+        f"Created flag bead: {bead_id} — Retire {key}\n"
+        f"remove_by: {remove_by_date} / {remove_by_release}\n\n"
         "Paste this registry entry into src/sase/feature_flags/registry.py:\n\n"
         f"    {key} = {key!r}\n\n"
         f"    FeatureFlag.{key}: FeatureFlagDefinition(\n"
         f"        key=FeatureFlag.{key},\n"
         f"        kind={kind!r},\n"
         f"        description={description!r},\n"
-        f"        default={default},\n"
-        f"        scope={scope!r},\n"
-        f"{bead_line}\n"
-        f"{rationale_line}"
+        f"        bead={bead_id!r},\n"
         "    ),\n\n"
         "Both-states test checklist:\n"
-        "- [ ] enabled=true path is covered\n"
-        "- [ ] enabled=false path is covered\n"
+        f"- [ ] enabled=true path is covered: {when_enabled}\n"
+        f"- [ ] enabled=false path is covered: {when_disabled}\n"
         f"- [ ] snapshot.enabled(FeatureFlag.{key}) is used at every call site\n"
         "- [ ] no import-time resolution\n"
     )
+
+
+def _resolve_prose(value: str | None, *, option: str) -> str:
+    if not value or not value.strip():
+        raise FeatureFlagError(f"{option} is required")
+    try:
+        resolved = resolve_field_value("", value, option=option)
+    except TaskTypeCreateError as exc:
+        raise FeatureFlagError(str(exc)) from exc
+    if not resolved.strip():
+        raise FeatureFlagError(f"{option} is required")
+    return resolved
+
+
+def _validate_flag_field_values(field_values: Mapping[str, str]) -> None:
+    from sase.task_types.registry import get_task_type_registry
+
+    record = get_task_type_registry().by_slug.get(FLAG_TASK_TYPE)
+    if record is None:
+        raise FeatureFlagError(
+            "the 'flag' task type is not declared in this project's config"
+        )
+    problems = task_type_field_problems(record.spec, field_values)
+    if problems:
+        details = "\n".join(f"  {name}: {message}" for name, message in problems)
+        raise FeatureFlagError(f"invalid flag fields:\n{details}")
 
 
 def _coerce_kind(value: FlagKind | str | None) -> FlagKind:
@@ -194,18 +220,6 @@ def _coerce_kind(value: FlagKind | str | None) -> FlagKind:
     if value in _KIND_CHOICES:
         return value  # type: ignore[return-value]
     raise FeatureFlagError(f"unknown flag kind: {value!r}")
-
-
-def _coerce_scope(value: FlagScope | str | None) -> FlagScope:
-    if value is None:
-        return "global"
-    if value in _SCOPE_CHOICES:
-        return value  # type: ignore[return-value]
-    raise FeatureFlagError(f"unknown flag scope: {value!r}")
-
-
-def _default_for_kind(kind: FlagKind) -> bool:
-    return kind == "sunset"
 
 
 __all__ = [

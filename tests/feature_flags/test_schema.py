@@ -18,7 +18,7 @@ from ._helpers import definitions, demo_flag
 def test_feature_flags_schema_block_is_ordered_and_marks_sunset_flags() -> None:
     block = feature_flags_schema_block(
         definitions(
-            demo_flag("zeta_flag", default=True),
+            demo_flag("zeta_flag", kind="sunset"),
             demo_flag("old_flag", kind="sunset"),
         )
     )

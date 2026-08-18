@@ -12,8 +12,7 @@ if TYPE_CHECKING:
     from sase.feature_flags.registry import FeatureFlag
 
 
-FlagKind = Literal["beta", "wip", "sunset", "ops"]
-FlagScope = Literal["global", "project"]
+FlagKind = Literal["beta", "sunset"]
 FlagSource = Literal["default", "user", "overlay", "local", "override", "env", "cli"]
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
@@ -39,27 +38,22 @@ class FeatureFlagDefinition:
     key: FeatureFlag
     kind: FlagKind
     description: str
-    default: bool
-    scope: FlagScope
     bead: str | None = None
-    rationale: str = ""
+
+    @property
+    def default(self) -> bool:
+        """Return the kind-derived default: a sunset flag defaults on."""
+        return self.kind == "sunset"
 
     def validate(self) -> None:
         """Validate registry invariants for this definition."""
         key = str(self.key)
         if not is_feature_flag_key(key):
             raise FeatureFlagError(f"feature flag key must be snake_case: {key!r}")
-        if self.kind == "ops":
-            if not self.rationale.strip():
-                raise FeatureFlagError(
-                    f"ops feature flag {key!r} must include a rationale"
-                )
-        elif self.bead is None:
+        if self.bead is None:
             raise FeatureFlagError(
                 f"{self.kind} feature flag {key!r} must reference its flag bead"
             )
-        if type(self.default) is not bool:
-            raise FeatureFlagError(f"feature flag {key!r} default must be boolean")
 
 
 @dataclass(frozen=True)
@@ -125,7 +119,6 @@ __all__ = [
     "FeatureFlagError",
     "FeatureFlagSnapshot",
     "FlagKind",
-    "FlagScope",
     "FlagSource",
     "is_feature_flag_key",
 ]

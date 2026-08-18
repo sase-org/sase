@@ -4,6 +4,9 @@ Definition authors must follow two rules:
 
 - ``remove_by`` never appears here; it lives on the flag bead.
 - Definitions are added only through ``sase flag new``, never by hand.
+
+``default`` is derived from ``kind`` (``FeatureFlagDefinition.default``) and is never
+passed explicitly: a ``beta`` flag defaults off, a ``sunset`` flag defaults on.
 """
 
 from __future__ import annotations
@@ -33,8 +36,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Opt-in beta: the follow-up coder inherits the planner's chat "
             "via #fork instead of starting from the approved plan file alone."
         ),
-        default=False,
-        scope="global",
         bead="sase-nw",
     ),
     FeatureFlag.commit_finalizer_shared_clone_exempt: FeatureFlagDefinition(
@@ -47,8 +48,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "discards in the commit finalizer's dirty-work guard. Disable to "
             "fall back to strict single-owner classification."
         ),
-        default=True,
-        scope="global",
         bead="sase-pk",
     ),
     FeatureFlag.completion_refresh_on_update: FeatureFlagDefinition(
@@ -59,8 +58,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "restamp installed shell completion scripts. Off by default "
             "while the generator soaks."
         ),
-        default=False,
-        scope="global",
         bead="sase-om",
     ),
     FeatureFlag.epic_resume_gate: FeatureFlagDefinition(
@@ -70,8 +67,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Opt-in beta: the epic_resume chop raises an EpicResume gate "
             "when a failed phase agent stalls an epic."
         ),
-        default=False,
-        scope="global",
         bead="sase-pa",
     ),
     FeatureFlag.prettier_enabled: FeatureFlagDefinition(
@@ -81,8 +76,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Format markdown with prettier when it is installed. "
             "SASE_DISABLE_PRETTIER remains a deprecated alias."
         ),
-        default=True,
-        scope="global",
         bead="sase-nx",
     ),
 }

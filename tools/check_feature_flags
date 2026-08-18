@@ -3,8 +3,7 @@
 
 Static rules (also run under ``just validate``, no bead store required):
 
-1. every non-``ops`` definition names a bead; every ``ops`` definition
-   carries a rationale
+1. every definition names its flag bead
 2. the generated ``feature_flags`` schema block matches the registry
 3. every registered key has at least one non-test reference
 4. no flag is resolved at module import time
@@ -107,7 +106,6 @@ class MarkerDefinition:
     key: str
     kind: str
     bead: str | None
-    rationale: str = ""
 
 
 @dataclass(frozen=True)
@@ -206,7 +204,6 @@ def markers_from_flag_definitions(
             key=str(definition.key),
             kind=definition.kind,
             bead=definition.bead,
-            rationale=definition.rationale,
         )
         for _, definition in sorted(definitions.items())
     )
@@ -215,7 +212,7 @@ def markers_from_flag_definitions(
 def check_definition_metadata(
     definitions: Mapping[str, FeatureFlagDefinition],
 ) -> list[Finding]:
-    """Rule 1: non-ops flags name a bead; ops flags carry a rationale."""
+    """Rule 1: every flag definition names its bead."""
     findings: list[Finding] = []
     for _, definition in sorted(definitions.items()):
         try:
@@ -504,7 +501,7 @@ def check_bead_status(
     findings: list[Finding] = []
 
     for marker in markers:
-        if marker.kind == "ops" or not marker.bead:
+        if not marker.bead:
             continue
         bead = beads_by_id.get(marker.bead)
         if bead is None:

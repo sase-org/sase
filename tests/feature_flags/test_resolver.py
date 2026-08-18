@@ -16,7 +16,6 @@ from ._helpers import definitions, demo_flag, layer
     [
         ("user", "/home/u/.config/sase/sase.yml", "user"),
         ("overlay:extra.yml", "/home/u/.config/sase/extra.yml", "overlay"),
-        ("local", "/repo/sase/sase.yml", "local"),
     ],
 )
 def test_authoritative_layers_resolve_with_provenance(
@@ -25,7 +24,7 @@ def test_authoritative_layers_resolve_with_provenance(
     source: str,
 ) -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[layer(layer_name, {"demo_flag": True}, detail=detail)],
     )
 
@@ -38,24 +37,23 @@ def test_authoritative_layers_resolve_with_provenance(
 
 def test_last_writer_wins_across_authoritative_layers() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[
             layer("user", {"demo_flag": True}, detail="user.yml"),
             layer("overlay:a.yml", {"demo_flag": False}, detail="a.yml"),
             layer("overlay:b.yml", {"demo_flag": True}, detail="b.yml"),
-            layer("local", {"demo_flag": False}, detail="local.yml"),
         ],
     )
 
     decision = snapshot.decision("demo_flag")
-    assert decision.enabled is False
-    assert decision.source == "local"
-    assert decision.source_detail == "local.yml"
+    assert decision.enabled is True
+    assert decision.source == "overlay"
+    assert decision.source_detail == "b.yml"
     assert decision.overridden is True
 
 
 def test_default_layer_warns_and_plugin_layer_is_silent() -> None:
-    definitions_by_key = definitions(demo_flag(default=False))
+    definitions_by_key = definitions(demo_flag())
 
     default_snapshot = resolve_feature_flags(
         definitions=definitions_by_key,
@@ -74,34 +72,36 @@ def test_default_layer_warns_and_plugin_layer_is_silent() -> None:
     assert plugin_snapshot.diagnostics == ()
 
 
-def test_local_scope_violation_ignores_global_flag_but_project_flag_wins() -> None:
+def test_local_layer_always_violates_scope() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(
-            demo_flag("global_flag", scope="global"),
-            demo_flag("project_flag", scope="project"),
+            demo_flag("alpha_flag"),
+            demo_flag("beta_flag"),
         ),
         layers=[
             layer(
                 "local",
                 {
-                    "global_flag": True,
-                    "project_flag": True,
+                    "alpha_flag": True,
+                    "beta_flag": True,
                 },
             )
         ],
     )
 
-    assert snapshot.enabled("global_flag") is False
-    assert snapshot.enabled("project_flag") is True
-    assert snapshot.decision("project_flag").source == "local"
+    assert snapshot.enabled("alpha_flag") is False
+    assert snapshot.enabled("beta_flag") is False
+    assert snapshot.decision("alpha_flag").source == "default"
+    assert snapshot.decision("beta_flag").source == "default"
     assert [diagnostic.code for diagnostic in snapshot.diagnostics] == [
-        "scope_violation"
+        "scope_violation",
+        "scope_violation",
     ]
 
 
 def test_unknown_and_non_boolean_file_values_warn_and_leave_prior_decision() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[
             layer("user", {"demo_flag": True}),
             layer("overlay:bad.yml", {"demo_flag": 1, "missing_flag": True}),
@@ -118,7 +118,7 @@ def test_unknown_and_non_boolean_file_values_warn_and_leave_prior_decision() -> 
 
 def test_legacy_disable_env_maps_to_flag_and_warns() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        definitions=definitions(demo_flag("prettier_enabled", kind="sunset")),
         layers=[layer("user", {"prettier_enabled": True})],
         legacy_env={"SASE_DISABLE_PRETTIER": "1"},
     )
@@ -135,7 +135,7 @@ def test_legacy_disable_env_maps_to_flag_and_warns() -> None:
 
 def test_override_and_feature_flags_env_beat_legacy_env() -> None:
     overridden = resolve_feature_flags(
-        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        definitions=definitions(demo_flag("prettier_enabled", kind="sunset")),
         layers=[],
         overrides={"prettier_enabled": True},
         legacy_env={"SASE_DISABLE_PRETTIER": "1"},
@@ -147,7 +147,7 @@ def test_override_and_feature_flags_env_beat_legacy_env() -> None:
     ]
 
     env_wins = resolve_feature_flags(
-        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        definitions=definitions(demo_flag("prettier_enabled", kind="sunset")),
         layers=[],
         legacy_env={"SASE_DISABLE_PRETTIER": "1"},
         env_value='{"prettier_enabled":true}',
@@ -162,7 +162,7 @@ def test_override_and_feature_flags_env_beat_legacy_env() -> None:
 
 def test_legacy_env_is_ignored_for_unregistered_keys() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[],
         legacy_env={"SASE_DISABLE_PRETTIER": "1"},
     )
@@ -173,7 +173,7 @@ def test_legacy_env_is_ignored_for_unregistered_keys() -> None:
 
 def test_empty_legacy_env_does_not_apply() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        definitions=definitions(demo_flag("prettier_enabled", kind="sunset")),
         layers=[],
         legacy_env={"SASE_DISABLE_PRETTIER": ""},
     )
@@ -185,7 +185,7 @@ def test_empty_legacy_env_does_not_apply() -> None:
 
 def test_cli_beats_env_override_and_config_layers() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[
             layer("user", {"demo_flag": False}, detail="user.yml"),
             layer("overlay:extra.yml", {"demo_flag": False}, detail="extra.yml"),
@@ -205,7 +205,7 @@ def test_cli_beats_env_override_and_config_layers() -> None:
 
 def test_cli_disable_beats_env_and_records_disable_option() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=True)),
+        definitions=definitions(demo_flag(kind="sunset")),
         layers=[],
         overrides={"demo_flag": True},
         env_value='{"demo_flag":true}',
@@ -218,16 +218,14 @@ def test_cli_disable_beats_env_and_records_disable_option() -> None:
     assert decision.source_detail == "--disable-feature"
 
 
-def test_cli_can_set_a_project_scoped_flag() -> None:
+def test_cli_can_set_a_flag() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(
-            demo_flag("project_flag", scope="project", default=False)
-        ),
+        definitions=definitions(demo_flag("demo_flag")),
         layers=[],
-        cli={"project_flag": True},
+        cli={"demo_flag": True},
     )
 
-    decision = snapshot.decision("project_flag")
+    decision = snapshot.decision("demo_flag")
     assert decision.enabled is True
     assert decision.source == "cli"
     assert decision.source_detail == "--enable-feature"
@@ -235,7 +233,7 @@ def test_cli_can_set_a_project_scoped_flag() -> None:
 
 def test_env_beats_overrides_and_unknown_env_key_warns_only() -> None:
     snapshot = resolve_feature_flags(
-        definitions=definitions(demo_flag(default=False)),
+        definitions=definitions(demo_flag()),
         layers=[],
         overrides={"demo_flag": True},
         env_value='{"demo_flag":false,"future_flag":true}',

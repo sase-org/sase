@@ -43,7 +43,7 @@ def test_current_flags_is_lazy_once_and_snapshot_mapping_is_immutable(
 ) -> None:
     _install_snapshot_inputs(
         monkeypatch,
-        defs=definitions(demo_flag(default=True)),
+        defs=definitions(demo_flag(kind="sunset")),
     )
 
     first = snapshot_mod.current_flags()
@@ -62,7 +62,7 @@ def test_override_flags_nests_and_restores_on_exception(
 ) -> None:
     _install_snapshot_inputs(
         monkeypatch,
-        defs=definitions(demo_flag(default=False)),
+        defs=definitions(demo_flag()),
     )
     original = snapshot_mod.current_flags()
 
@@ -85,7 +85,7 @@ def test_install_process_feature_flags_is_idempotent_and_logs_once(
 ) -> None:
     _install_snapshot_inputs(
         monkeypatch,
-        defs=definitions(demo_flag(default=False)),
+        defs=definitions(demo_flag()),
         layers=(layer("user", {"demo_flag": True}),),
     )
     monkeypatch.delenv(SASE_FEATURE_FLAGS_ENV, raising=False)
@@ -137,7 +137,7 @@ def test_legacy_env_is_mapped_when_building_the_process_snapshot(
 ) -> None:
     _install_snapshot_inputs(
         monkeypatch,
-        defs=definitions(demo_flag("prettier_enabled", default=True)),
+        defs=definitions(demo_flag("prettier_enabled", kind="sunset")),
     )
     monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
     reset_process_feature_flags()
@@ -159,8 +159,8 @@ def test_set_cli_feature_flags_invalidates_snapshot_and_exports_env(
     _install_snapshot_inputs(
         monkeypatch,
         defs=definitions(
-            demo_flag("demo_flag", default=False),
-            demo_flag("keep_me", default=False),
+            demo_flag("demo_flag"),
+            demo_flag("keep_me"),
         ),
     )
     monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"keep_me":true}')

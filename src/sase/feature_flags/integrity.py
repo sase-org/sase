@@ -61,7 +61,7 @@ def registry_integrity_findings(
                 )
             )
             continue
-        if definition.kind == "ops" or not definition.bead:
+        if not definition.bead:
             continue
         bead = flag_bead_for_id(tuple(beads), definition.bead)
         if bead is None:
@@ -149,7 +149,7 @@ def due_integrity_findings(
     findings: list[IntegrityFinding] = []
     seen: set[str] = set()
     for key, definition in sorted(definitions.items()):
-        if definition.kind == "ops" or not definition.bead:
+        if not definition.bead:
             continue
         bead = flag_bead_for_id(tuple(beads), definition.bead)
         if bead is None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sase.bead.model import FlagRecord
 from sase.feature_flags.models import FeatureFlagError
 
 
@@ -31,42 +30,26 @@ def _default_remove_by_release(version: str) -> str:
     return f"{major}.{minor + _DEFAULT_REMOVE_BY_MINOR_BUMP}.0"
 
 
-def _parse_remove_by_arg(value: str, *, key: str) -> FlagRecord:
-    """Parse ``YYYY-MM-DD/release`` into a :class:`FlagRecord` for *key*."""
+def _parse_remove_by_arg(value: str) -> tuple[str, str]:
+    """Parse ``YYYY-MM-DD/release`` into its two threshold strings."""
     remove_by_date, sep, remove_by_release = value.partition("/")
     if not sep or not remove_by_date or not remove_by_release:
         raise FeatureFlagError(f"--remove-by expects <YYYY-MM-DD>/<release>: {value}")
-    record = FlagRecord(
-        key=key,
-        remove_by_date=remove_by_date,
-        remove_by_release=remove_by_release,
-    )
-    try:
-        record.validate()
-    except ValueError as exc:
-        raise FeatureFlagError(str(exc)) from exc
-    return record
+    return remove_by_date, remove_by_release
 
 
-def default_flag_record(
-    key: str,
+def default_remove_by_thresholds(
     *,
     today: date,
     version: str,
     remove_by: str | None = None,
-) -> FlagRecord:
-    """Return the flag bead record for *key*, honoring an optional override."""
+) -> tuple[str, str]:
+    """Return ``(remove_by_date, remove_by_release)``, honoring an override."""
     if remove_by is not None:
-        return _parse_remove_by_arg(remove_by, key=key)
-    record = FlagRecord(
-        key=key,
-        remove_by_date=_default_remove_by_date(today),
-        remove_by_release=_default_remove_by_release(version),
-    )
-    record.validate()
-    return record
+        return _parse_remove_by_arg(remove_by)
+    return _default_remove_by_date(today), _default_remove_by_release(version)
 
 
 __all__ = [
-    "default_flag_record",
+    "default_remove_by_thresholds",
 ]

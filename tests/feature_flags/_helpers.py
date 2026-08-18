@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 from sase.feature_flags import FeatureFlag, FeatureFlagDefinition
-from sase.feature_flags.models import FlagKind, FlagScope, FlagSource
+from sase.feature_flags.models import FlagKind, FlagSource
 from sase.feature_flags.beads import FlagBeadSnapshot
 from sase.feature_flags.models import FeatureFlagDecision, FeatureFlagSnapshot
 from sase.feature_flags.resolver import FeatureFlagLayerInput
@@ -14,19 +14,15 @@ from sase.feature_flags.resolver import FeatureFlagLayerInput
 def demo_flag(
     key: str = "demo_flag",
     *,
-    default: bool = False,
-    scope: FlagScope = "project",
     kind: FlagKind = "beta",
     description: str | None = None,
+    bead: str | None = "sase-nb.test",
 ) -> FeatureFlagDefinition:
     return FeatureFlagDefinition(
         key=cast(FeatureFlag, key),
         kind=kind,
         description=description or f"Description for {key}",
-        default=default,
-        scope=scope,
-        bead=None if kind == "ops" else "sase-nb.test",
-        rationale="Operational escape hatch" if kind == "ops" else "",
+        bead=bead,
     )
 
 

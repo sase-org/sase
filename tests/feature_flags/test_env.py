@@ -31,8 +31,8 @@ def test_collect_legacy_env_values_inverts_disable_prettier() -> None:
 def test_env_round_trips_all_registered_keys_stably() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(
-            demo_flag("alpha_flag", default=True),
-            demo_flag("demo_flag", default=False),
+            demo_flag("alpha_flag", kind="sunset"),
+            demo_flag("demo_flag"),
         ),
         layers=[],
     )
@@ -51,7 +51,7 @@ def test_env_round_trips_all_registered_keys_stably() -> None:
 
 
 def test_applied_env_pins_child_process_resolution() -> None:
-    definitions_by_key = definitions(demo_flag(default=False))
+    definitions_by_key = definitions(demo_flag())
     parent = resolve_feature_flags(
         definitions=definitions_by_key,
         layers=[layer("user", {"demo_flag": True})],

@@ -119,10 +119,7 @@ def _render_show(
     key = str(view.definition.key)
     console.print(flag_key_chip(key))
     console.print(f"kind:        {view.definition.kind}")
-    console.print(f"scope:       {view.definition.scope}")
     console.print(f"description: {view.definition.description}")
-    if view.definition.kind == "ops" and view.definition.rationale:
-        console.print(f"rationale:   {view.definition.rationale}")
     console.print()
     console.print("[bold]VALUE[/bold]")
     console.print(f"  default:    {on_off(view.definition.default)}")
@@ -194,7 +191,7 @@ def _layer_rows(
             value: Any = None
         else:
             value = raw
-            note = _layer_note(definition, layer, raw)
+            note = _layer_note(layer, raw)
         rows.append({"name": layer.name, "value": value, "note": note})
     if env_value is not None:
         rows.append(
@@ -217,7 +214,6 @@ def _layer_rows(
 
 
 def _layer_note(
-    definition: FeatureFlagDefinition,
     layer: FeatureFlagLayerInput,
     raw: object,
 ) -> str:
@@ -225,8 +221,8 @@ def _layer_note(
         return "(plugin layers cannot flip a first-party default)"
     if type(raw) is not bool:
         return "(ignored: not boolean)"
-    if layer.name == "local" and definition.scope == "global":
-        return "(ignored: global flag)"
+    if layer.name == "local":
+        return "(ignored: local config cannot set a flag)"
     if layer.detail:
         return f"({layer.detail})"
     return "(applied)"
