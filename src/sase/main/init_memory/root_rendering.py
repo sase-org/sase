@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.amd._config import resolve_markdown_template_override
 from sase.amd.inline_memory import validate_short_memory_structure
 from sase.amd.init import AmdMemorySyncPlan
+from sase.content_layout import resolve_project_layout
 from sase.directory_map_assets import read_directory_map_asset
 from sase.mdtemplates import render_markdown_template
 from sase.memory.inventory import MemoryStats, stats_for_text
@@ -26,6 +28,12 @@ from sase.memory.paths import (
     canonical_memory_reference,
     memory_write_root,
 )
+from sase.task_types import (
+    BuiltinTaskTypes,
+    build_task_type_snapshot_entries,
+    get_task_type_registry,
+    render_task_type_snapshot_json,
+)
 
 from .formatting import format_generated_memory_markdown
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
@@ -37,9 +45,11 @@ MEMORY_DIRECTORY_MAP_RELATIVE_PATH = (
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
 MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
 MEMORY_SASE_SIZES_TEMPLATE_FILENAME = "memory-sase-sizes.template.md"
+MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME = "memory-sase-task-types.template.md"
 MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
+_MEMORY_SASE_TASK_TYPES_TEMPLATE_VARS = frozenset({"task_type_entries"})
 _MEMORY_README_TEMPLATE_VARS = frozenset(
     {
         "memory_notes",
@@ -161,6 +171,127 @@ def _generated_sase_memory_content(generated_sase_body: str) -> str:
         note_type="short",
         parent=AGENTS_PARENT,
     )
+
+
+def _generated_task_types_memory_relative_path() -> Path:
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "task_types.md"
+
+
+def _generated_task_type_snapshot_path(root: Path) -> Path:
+    """Return the committed catalog snapshot path (D6), outside ``sase/memory``."""
+    return resolve_project_layout(root).namespace_root.path / "task_types.json"
+
+
+def _task_type_note_field_names(
+    spec: Mapping[str, Any],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(required_names, optional_names)`` for one task-type spec."""
+    raw_fields = spec.get("fields")
+    fields = raw_fields if isinstance(raw_fields, list) else ()
+    required = tuple(
+        str(field["name"])
+        for field in fields
+        if isinstance(field, Mapping) and field.get("required")
+    )
+    optional = tuple(
+        str(field["name"])
+        for field in fields
+        if isinstance(field, Mapping) and not field.get("required")
+    )
+    return required, optional
+
+
+def _render_task_type_note_entry(spec: Mapping[str, Any]) -> str:
+    slug = str(spec.get("task_type", ""))
+    label = str(spec.get("label") or slug)
+    when_to_use = str(spec.get("when_to_use") or "")
+    required, optional = _task_type_note_field_names(spec)
+    lines = [f"### `{slug}` — {label}", "", when_to_use]
+    bullets = []
+    if required:
+        names = ", ".join(f"`{name}`" for name in required)
+        bullets.append(f"- Required fields: {names}")
+    if optional:
+        names = ", ".join(f"`{name}`" for name in optional)
+        bullets.append(f"- Optional fields: {names}")
+    if bullets:
+        lines.append("")
+        lines.extend(bullets)
+    lines.append("")
+    lines.append(
+        f"Run `sase bead task-type show {slug}` for the full field list, "
+        "validators, and body template."
+    )
+    return "\n".join(lines)
+
+
+def _render_task_type_note_entries(specs: Sequence[Mapping[str, Any]]) -> str:
+    creatable = tuple(spec for spec in specs if spec.get("agent_creatable", True))
+    if not creatable:
+        return "No agent-creatable task types are registered."
+    ordered = sorted(creatable, key=lambda spec: str(spec.get("task_type", "")))
+    return "\n\n".join(_render_task_type_note_entry(spec) for spec in ordered)
+
+
+def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
+    """Return every catalog member this machine's live registry discovers.
+
+    D6's committed-snapshot pipeline: the note and ``sase/task_types.json`` are
+    both rendered from this same validated, digested entry list.
+    """
+    return build_task_type_snapshot_entries(get_task_type_registry())
+
+
+def _home_task_type_specs() -> tuple[Mapping[str, Any], ...]:
+    """Return the builtin specs only, so the home note never varies with plugins."""
+    return tuple(BuiltinTaskTypes().task_type_specs())
+
+
+def render_generated_task_types_memory_body(
+    *, include_project_memory: bool
+) -> tuple[str | None, str | None]:
+    """Render the stable ``sase/memory/task_types.md`` body or return a blocker."""
+    specs: Sequence[Mapping[str, Any]] = (
+        _project_task_type_snapshot_entries()
+        if include_project_memory
+        else _home_task_type_specs()
+    )
+    rendered, render_error = render_markdown_template(
+        package=_MEMORY_TEMPLATE_PACKAGE,
+        filename=f"templates/{MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME}",
+        required_variables=_MEMORY_SASE_TASK_TYPES_TEMPLATE_VARS,
+        context={"task_type_entries": _render_task_type_note_entries(specs)},
+    )
+    if render_error is not None or rendered is None:
+        return (
+            None,
+            render_error or "failed to render sase/memory/task_types.md template",
+        )
+    formatted = format_generated_memory_markdown(rendered)
+    structure_error = validate_short_memory_structure(formatted)
+    if structure_error is not None:
+        return (
+            None,
+            f"packaged {MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME}: {structure_error}",
+        )
+    return formatted, None
+
+
+def _generated_task_types_memory_content(generated_task_types_body: str) -> str:
+    return apply_memory_frontmatter(
+        generated_task_types_body,
+        note_type="short",
+        parent=AGENTS_PARENT,
+    )
+
+
+def _render_generated_task_type_snapshot_json() -> tuple[str | None, str | None]:
+    """Render the committed ``sase/task_types.json`` catalog snapshot (D6)."""
+    entries = _project_task_type_snapshot_entries()
+    try:
+        return render_task_type_snapshot_json(entries), None
+    except Exception as exc:
+        return None, f"failed to render sase/task_types.json snapshot: {exc}"
 
 
 def _render_generated_long_memory_content(
@@ -374,6 +505,7 @@ def render_expected_memory_files(
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
+    generated_task_types_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     include_project_memory: bool = False,
@@ -385,6 +517,17 @@ def render_expected_memory_files(
         )
         if render_error is not None or generated_sase_body is None:
             return (), render_error or "failed to render sase/memory/sase.md template"
+    if generated_task_types_body is None:
+        generated_task_types_body, render_error = (
+            render_generated_task_types_memory_body(
+                include_project_memory=include_project_memory
+            )
+        )
+        if render_error is not None or generated_task_types_body is None:
+            return (
+                (),
+                render_error or "failed to render sase/memory/task_types.md template",
+            )
     if include_project_memory and generated_project_long_contents is None:
         generated_project_long_contents, render_error = (
             render_generated_project_long_memory_contents()
@@ -396,8 +539,13 @@ def render_expected_memory_files(
             )
     generated_sase_path = root / _generated_sase_memory_relative_path()
     generated_sase_content = _generated_sase_memory_content(generated_sase_body)
+    generated_task_types_path = root / _generated_task_types_memory_relative_path()
+    generated_task_types_content = _generated_task_types_memory_content(
+        generated_task_types_body
+    )
     note_overlay = {
         generated_sase_path: generated_sase_content,
+        generated_task_types_path: generated_task_types_content,
     }
     if include_project_memory and generated_project_long_contents is not None:
         for relative_path, content in generated_project_long_contents.items():
@@ -420,7 +568,26 @@ def render_expected_memory_files(
             content=generated_sase_content,
             detail="generated SASE memory",
         ),
+        MemoryExpectedFile(
+            path=generated_task_types_path,
+            content=generated_task_types_content,
+            detail="generated task-type memory note",
+        ),
     ]
+    if include_project_memory:
+        snapshot_content, snapshot_error = _render_generated_task_type_snapshot_json()
+        if snapshot_error is not None or snapshot_content is None:
+            return (
+                (),
+                snapshot_error or "failed to render sase/task_types.json snapshot",
+            )
+        expected.append(
+            MemoryExpectedFile(
+                path=_generated_task_type_snapshot_path(root),
+                content=snapshot_content,
+                detail="generated task-type catalog snapshot",
+            )
+        )
     if include_project_memory and generated_project_long_contents is not None:
         content_by_relative_path = dict(generated_project_long_contents)
         for spec in _GENERATED_PROJECT_LONG_MEMORY_SPECS:
@@ -482,9 +649,16 @@ def render_expected_memory_files(
     return tuple(expected), None
 
 
-def generated_short_notes(generated_sase_body: str) -> dict[str, str]:
+def generated_short_notes(
+    generated_sase_body: str, generated_task_types_body: str
+) -> dict[str, str]:
     """Return freshly generated short-note bodies keyed by relative path."""
-    return {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
+    return {
+        _generated_sase_memory_relative_path().as_posix(): generated_sase_body,
+        _generated_task_types_memory_relative_path().as_posix(): (
+            generated_task_types_body
+        ),
+    }
 
 
 def generated_long_notes(

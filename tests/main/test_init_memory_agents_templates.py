@@ -182,7 +182,10 @@ def test_project_template_override_renders_and_round_trips(
     parsed = parse_amd_agents_document(agents)
     assert parsed.has_short_section
     assert parsed.has_long_section
-    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert parsed.short_memory_paths == (
+        "sase/memory/sase.md",
+        "sase/memory/task_types.md",
+    )
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/detail.md",
         "sase/memory/sase_beads.md",

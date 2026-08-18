@@ -291,7 +291,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase bead list --type plan --tier epic --status in_progress",
                 "DISCOVERED ISSUE:",
                 "If both the duplicate and active-epic branches apply, record both",
-                "sase bead create -T task",
+                'sase bead create -T "task(<slug>)"',
                 "RELATED:",
                 "--size <size>",
                 "Default to\n   `large`",

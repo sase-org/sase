@@ -1,0 +1,230 @@
+{
+  "types": [
+    {
+      "task_type": "bug",
+      "label": "Bug",
+      "summary": "A defect an agent found while doing unrelated work, not an external tracker bug.",
+      "when_to_use": "File one when you found a defect while doing unrelated work and it is not an external tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.",
+      "glyph": "⨯",
+      "accent_color": "#FF5F5F",
+      "agent_creatable": true,
+      "fields": [
+        {
+          "name": "location",
+          "label": "Location",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "File, symbol, or other locator for the defect"
+        },
+        {
+          "name": "repro",
+          "label": "Repro",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "Steps or command that reproduce the defect"
+        },
+        {
+          "name": "impact",
+          "label": "Impact",
+          "type": "string",
+          "required": false,
+          "role": [
+            "template"
+          ],
+          "help": "Who or what the defect breaks, and how badly"
+        }
+      ],
+      "body_template": "## Bug\n\n- **Location:** `{{ location }}`\n\n{{ repro }}\n\n{{ impact }}\n",
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "builtin",
+      "package": "sase",
+      "digest": "a95dfcc701e065ddd963bd4876f6b2209836c31c42cb8eeffb6b967fdea91047"
+    },
+    {
+      "task_type": "ci",
+      "label": "CI failure",
+      "summary": "A confirmed true test or lint failure, not a flake.",
+      "when_to_use": "File one when a test or lint failed and you confirmed it is a true failure, not a flake. Record the pytest node ID, the failing SHA if known, and why this is not intermittent. Use flake instead when a rerun on the same tree passed.",
+      "glyph": "⚙",
+      "accent_color": "#D7D700",
+      "agent_creatable": true,
+      "fields": [
+        {
+          "name": "node_id",
+          "label": "Test node ID",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "The pytest node ID, e.g. tests/foo.py::test_bar"
+        },
+        {
+          "name": "sha",
+          "label": "SHA",
+          "type": "string",
+          "required": false,
+          "role": [
+            "data"
+          ],
+          "help": "Commit SHA where the failure was observed"
+        },
+        {
+          "name": "why_not_flake",
+          "label": "Why not a flake",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "Why this is a confirmed true failure rather than a flake"
+        }
+      ],
+      "body_template": "## CI failure\n\n- **Node:** `{{ node_id }}`\n\n{{ why_not_flake }}\n",
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "builtin",
+      "package": "sase",
+      "digest": "c2b94da13484a4abc07afeec91fe9c4bbbe7fa5ceece6981228716e9a88ed004"
+    },
+    {
+      "task_type": "feature",
+      "label": "Feature",
+      "summary": "An out-of-scope product idea that should not become a wish list.",
+      "when_to_use": "File one when you discovered a product or capability idea that is outside the current task or epic. State the proposal and why it is out of scope for the work you were doing. Do not file one for in-scope follow-up that belongs on the current epic.",
+      "glyph": "✦",
+      "accent_color": "#5FD75F",
+      "agent_creatable": true,
+      "fields": [
+        {
+          "name": "proposal",
+          "label": "Proposal",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "What should exist that is outside the current work"
+        },
+        {
+          "name": "why_out_of_scope",
+          "label": "Why out of scope",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "Why this does not belong on the current task or epic"
+        }
+      ],
+      "body_template": "## Feature proposal\n\n{{ proposal }}\n\n{{ why_out_of_scope }}\n",
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "builtin",
+      "package": "sase",
+      "digest": "3169592d767ec44de72a46f2ba3dd1e1ab88e120a07275bfacf1991e187058b7"
+    },
+    {
+      "task_type": "flake",
+      "label": "Flaky test",
+      "summary": "A test that fails and then passes on an unchanged tree.",
+      "when_to_use": "File one when a test or lint failed, a rerun on the same tree passed, and you did not cause the failure. Record the fail rate and whether it reproduces serially. Use ci instead when the failure is confirmed and reproducible.",
+      "glyph": "≈",
+      "accent_color": "#00D7D7",
+      "agent_creatable": true,
+      "fields": [
+        {
+          "name": "node_id",
+          "label": "Test node ID",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "The pytest node ID, e.g. tests/foo.py::test_bar",
+          "pattern": "\\S+::\\S+"
+        },
+        {
+          "name": "repro_cmd",
+          "label": "Repro command",
+          "type": "string",
+          "required": false,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "Command that reproduced the intermittent failure"
+        },
+        {
+          "name": "evidence",
+          "label": "Evidence",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "Fail/pass observations, fail rate, and serial vs parallel"
+        }
+      ],
+      "body_template": "## Flake report\n\n- **Test:** `{{ node_id }}`\n- **Repro:** `{{ repro_cmd }}`\n\n{{ evidence }}\n",
+      "triage": {
+        "min_plus_ones": 1
+      },
+      "source": "builtin",
+      "package": "sase",
+      "digest": "f50350ab60ca76042bc5e1fde68ce76f40238b8a889c3cbdf5c55fdab6d72b8c"
+    },
+    {
+      "task_type": "memory",
+      "label": "Memory",
+      "summary": "A sase memory note or skill that is out of date.",
+      "when_to_use": "File one when a sase memory file or skill contains out-of-date information that should be updated. Closing still requires explicit user permission plus `sase memory init`. Record the memory path and the proposed change.",
+      "glyph": "▤",
+      "accent_color": "#8787FF",
+      "agent_creatable": true,
+      "fields": [
+        {
+          "name": "path",
+          "label": "Path",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "Memory note path relative to memory/, e.g. sase_beads.md"
+        },
+        {
+          "name": "proposed_change",
+          "label": "Proposed change",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "The correction the memory note should receive"
+        }
+      ],
+      "body_template": "## Memory update\n\n- **Path:** `{{ path }}`\n\n{{ proposed_change }}\n",
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "builtin",
+      "package": "sase",
+      "digest": "37366acc1543cf5793a8c8d9c2cdca3f9583ee1f30b8ca9fce3936bc88da52be"
+    }
+  ]
+}

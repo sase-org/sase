@@ -26,7 +26,11 @@ Ambiguous shorthand fails and lists the candidates. Output and stored relationsh
 
 - `plan` — `-T "plan(<plan_file>[,<parent_id>])"`, top level, `--tier plan|epic`.
 - `phase` — `-T "phase(<parent_id>)"`, child of a plan bead.
-- `task` — `-T task`, standalone discovered follow-up; no tier, required `--size` when newly created.
+- `task` — `-T task`, or `-T "task(<slug>)"` for a typed task, standalone discovered follow-up; no tier, required
+  `--size` when newly created. `task_type` is immutable once set (`sase bead update` has no `--task-type`), and a
+  typed task takes repeatable `-f/--field k=v` values for its declared fields (`@<path>` reads a value from a file).
+  Read the generated `task_types.md` short note for the current catalog and `sase bead task-type show <slug>` for
+  one type in full.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or one task worker. Epic launches
 normally come from plan approval and task launches from a `TaskTriage` gate, so hand-create beads only for tracker or

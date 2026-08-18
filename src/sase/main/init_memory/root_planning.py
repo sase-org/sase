@@ -38,6 +38,7 @@ from .root_rendering import (
     generated_short_notes,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
+    render_generated_task_types_memory_body,
     render_expected_memory_files,
     retired_glossary_memory_relative_path,
 )
@@ -502,6 +503,23 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
+    generated_task_types_body, task_types_render_error = (
+        render_generated_task_types_memory_body(
+            include_project_memory=include_project_memory
+        )
+    )
+    if task_types_render_error is not None or generated_task_types_body is None:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=(
+                task_types_render_error
+                or "failed to render sase/memory/task_types.md template",
+            ),
+        )
     generated_project_long_contents: dict[str, str] = {}
     if include_project_memory:
         generated_project_long_contents, generated_long_error = (
@@ -520,7 +538,9 @@ def memory_root_context(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
-        generated_short_notes=generated_short_notes(generated_sase_body),
+        generated_short_notes=generated_short_notes(
+            generated_sase_body, generated_task_types_body
+        ),
         generated_long_notes=generated_long_notes(generated_project_long_contents),
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
@@ -532,6 +552,7 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
+        generated_task_types_body=generated_task_types_body,
         generated_project_long_contents=generated_project_long_contents,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,

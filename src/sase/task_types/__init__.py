@@ -22,6 +22,11 @@ from .registry import (
     reset_task_type_registry_cache,
     validate_task_type_spec,
 )
+from .snapshot import (
+    build_task_type_snapshot_entries,
+    render_task_type_snapshot_json,
+    task_type_snapshot_entry,
+)
 
 __all__ = [
     "TASK_TYPE_BODY_SEPARATOR",
@@ -35,6 +40,7 @@ __all__ = [
     "TaskTypeRegistry",
     "UNTYPED_TASK_TYPE",
     "assemble_task_type_registry",
+    "build_task_type_snapshot_entries",
     "get_task_type_registry",
     "hookimpl",
     "hookspec",
@@ -42,7 +48,9 @@ __all__ = [
     "issue_task_type_slug",
     "parse_field_args",
     "render_task_type_display_block",
+    "render_task_type_snapshot_json",
     "reset_task_type_registry_cache",
     "resolve_created_task_type",
+    "task_type_snapshot_entry",
     "validate_task_type_spec",
 ]
