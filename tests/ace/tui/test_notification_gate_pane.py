@@ -6,7 +6,8 @@ from pathlib import Path
 from collections.abc import Callable
 
 import pytest
-from rich.console import Console
+from rich.console import Console, Group
+from rich.text import Text
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.bead.model import SnoozeRecord
@@ -245,6 +246,78 @@ def test_answered_summary_marks_chosen_options_and_prints_feedback(
     assert "Proceed safely" in text
     assert "Note" in text
     assert "Looks safe to me" in text
+
+
+def _pane_renderables(content: object) -> tuple[object, ...]:
+    assert isinstance(content, Group)
+    return content.renderables
+
+
+def _direct_gate_notification(
+    *,
+    action_data: dict[str, str],
+    notes: list[str] | None = None,
+) -> Notification:
+    return Notification(
+        id="pane-direct-chip",
+        timestamp="2026-08-07T09:00:00-04:00",
+        sender="test",
+        action="CustomGate",
+        action_data=action_data,
+        notes=notes or ["This gate no longer resolves to a bundle."],
+    )
+
+
+def test_declared_chip_renders_as_its_own_row_after_meta() -> None:
+    notification = _direct_gate_notification(
+        action_data={
+            "request_id": "does-not-exist",
+            "gate_chip_glyph": "≈",
+            "gate_chip_label": "flake",
+            "gate_chip_color": "#AF87FF",
+        }
+    )
+    modal = _modal_for([notification])
+    _title, content = _render_loaded(modal, notification)
+    renderables = _pane_renderables(content)
+
+    assert "≈ flake" in _render_plain(renderables[2])
+    assert isinstance(renderables[3], Text)
+    assert renderables[3].plain == ""
+
+    text = _render_plain(content)
+    assert text.index("does-not-exist") < text.index("≈ flake")
+    assert text.index("≈ flake") < text.index(notification.notes[0])
+
+
+def test_chipless_gate_omits_chip_row_entirely() -> None:
+    notification = _direct_gate_notification(
+        action_data={"request_id": "does-not-exist"}
+    )
+    modal = _modal_for([notification])
+    _title, content = _render_loaded(modal, notification)
+    renderables = _pane_renderables(content)
+
+    assert isinstance(renderables[2], Text)
+    assert renderables[2].plain == ""
+    assert "≈ flake" not in _render_plain(content)
+
+
+def test_chip_row_tolerates_junk_color_and_markup_glyph() -> None:
+    notification = _direct_gate_notification(
+        action_data={
+            "request_id": "does-not-exist",
+            "gate_chip_glyph": "[",
+            "gate_chip_label": "flake",
+            "gate_chip_color": "not-a-color",
+        }
+    )
+    modal = _modal_for([notification])
+    _title, content = _render_loaded(modal, notification)
+    text = _render_plain(content)
+
+    assert "[ flake" in text
+    assert "not-a-color" not in text
 
 
 def test_unavailable_summary_renders_degraded_card(gate_home: Path) -> None:

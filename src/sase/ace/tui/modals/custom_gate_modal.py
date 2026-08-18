@@ -15,6 +15,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
 from sase.notification_gates.debug import GateDebugContext
+from sase.notification_gates.models import GateError, validate_color
+from sase.notification_gates.presentation import GateChip
 
 from ..keymaps import (
     GateModalKeymaps,
@@ -68,6 +70,7 @@ class CustomGateModalData:
     origin_agent: str | None = None
     gate_title: str | None = None
     actions: GateActionsData = GateActionsData()
+    chip: GateChip | None = None
 
 
 @dataclass(frozen=True)
@@ -267,6 +270,7 @@ class CustomGateModal(
         return (
             f"[bold cyan]{escape(self._data.icon)} "
             f"{escape(headline)}[/bold cyan]  "
+            f"{_chip_markup(self._data.chip)}"
             f"[dim]{escape(self._data.title)}[/dim]  "
             f"[bold]{escape(self._data.sender)}[/bold]  "
             f"[dim]{escape(self._data.request_id)}[/dim]"
@@ -320,6 +324,25 @@ class CustomGateModal(
         text.append_text(self.gate_action_hints())
         text.append("d debug  q cancel")
         return text
+
+
+def _chip_style(color: str | None) -> str:
+    """Foreground-only style; a malformed colour degrades to uncoloured bold."""
+    try:
+        validated = validate_color(color, "presentation.chip")
+    except (AttributeError, GateError, TypeError):
+        validated = None
+    if validated is None:
+        return "bold"
+    return f"bold {validated}"
+
+
+def _chip_markup(chip: GateChip | None) -> str:
+    """Return the title-segment markup for a chip, or ``""`` when absent."""
+    if chip is None:
+        return ""
+    style = _chip_style(chip.color)
+    return f"[{style}]{escape(chip.glyph)} {escape(chip.label)}[/]  "
 
 
 __all__ = [

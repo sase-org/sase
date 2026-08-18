@@ -31,6 +31,7 @@ from sase.ace.tui.modals.notification_modal_constants import (
     ACTION_BADGES,
     notification_icon,
 )
+from sase.notification_gates.presentation import GateChip
 from sase.notification_gates.service import create_gate
 from sase.ops.names import GATE_ANSWER
 from sase.bead.task_gate import create_task_triage_gate
@@ -211,12 +212,31 @@ def test_custom_gate_loader_projects_icons_preview_and_defaults(
     assert data.icon == "🛡️"
     assert data.title == "Custom Gate"
     assert data.origin_agent is None
+    assert data.chip is None
     assert data.sender == "safety-agent"
     assert data.preview_name == "preview.md"
     assert data.preview_text is not None and "Guarded work" in data.preview_text
     assert data.gate.options[0].icon == "✅"
     assert data.gate.options[1].default_selected is True
     assert data.gate.branches == (("approve", "audit"),)
+
+
+def test_custom_gate_loader_carries_declared_chip(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec()
+    presentation = cast(dict[str, object], spec["presentation"])
+    spec["presentation"] = {
+        **presentation,
+        "chip": {"glyph": "≈", "label": "flake", "color": "#AF87FF"},
+    }
+    create_gate(spec)
+    notification = load_notifications()[0]
+
+    data = _load_custom_gate_modal_data(notification)
+
+    assert data.chip == GateChip("≈", "flake", "#AF87FF")
 
 
 def test_custom_gate_loader_carries_declared_origin_agent(

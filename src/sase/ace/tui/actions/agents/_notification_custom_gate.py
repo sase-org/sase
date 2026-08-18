@@ -103,6 +103,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
     from sase.notification_gates.hashing import load_and_verify_bundle
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import resolve_notification_bundle
+    from sase.notification_gates.presentation import gate_chip_from_action_data
     from sase.notification_gates.summary import gate_summary_from_notification
 
     from ._notification_gate_actions import load_gate_actions
@@ -142,6 +143,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         origin_agent=notification_origin_agent(notification),
         gate_title=None if summary is None else summary.title,
         actions=load_gate_actions(bundle.root, dict(envelope)),
+        chip=gate_chip_from_action_data(notification.action_data),
     )
 
 

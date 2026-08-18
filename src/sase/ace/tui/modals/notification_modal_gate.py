@@ -14,8 +14,9 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.ace.tui.util.pump_tasks import spawn_pump_free_task
-from sase.notification_gates.models import GateInputField
+from sase.notification_gates.models import GateError, GateInputField, validate_color
 from sase.notification_gates.paths import resolve_notification_bundle
+from sase.notification_gates.presentation import gate_chip_from_action_data
 from sase.notification_gates.summary import (
     GateSummary,
     GateSummaryBranch,
@@ -67,6 +68,9 @@ class NotificationGateMixin:
         self._schedule_gate_summary_refresh(notification.id)
 
         renderables: list[RenderableType] = [_status_row(summary), _meta_row(summary)]
+        chip_row = _chip_row(notification)
+        if chip_row is not None:
+            renderables.append(chip_row)
         if loading:
             renderables.append(Text("loading decision…", style=f"{PANE_MUTED} italic"))
         renderables.append(Text(""))
@@ -198,6 +202,28 @@ def _meta_row(summary: GateSummary) -> Table:
     table.add_column(ratio=1)
     table.add_column(justify="right")
     table.add_row(left, right)
+    return table
+
+
+def _chip_style(color: str | None) -> str:
+    """Foreground-only style; a malformed colour degrades to uncoloured bold."""
+    try:
+        validated = validate_color(color, "presentation.chip")
+    except (AttributeError, GateError, TypeError):
+        validated = None
+    if validated is None:
+        return "bold"
+    return f"bold {validated}"
+
+
+def _chip_row(notification: Notification) -> Table | None:
+    """Return the identity chip row, or ``None`` when no chip was declared."""
+    chip = gate_chip_from_action_data(notification.action_data)
+    if chip is None:
+        return None
+    table = Table.grid(expand=True, padding=(0, 1))
+    table.add_column(ratio=1)
+    table.add_row(Text(f"{chip.glyph} {chip.label}", style=_chip_style(chip.color)))
     return table
 
 

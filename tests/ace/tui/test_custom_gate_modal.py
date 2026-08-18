@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.markup import escape
+from rich.text import Text
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import VerticalScroll
@@ -28,6 +30,7 @@ from sase.ace.tui.modals.gate_branch_controls import (
 from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.notification_gates.models import GateGroup, GateOption
+from sase.notification_gates.presentation import GateChip
 
 
 class _TestApp(App[None]):
@@ -87,6 +90,8 @@ def _data(
     title: str = "Custom Gate",
     origin_agent: str | None = None,
     notes: tuple[str, ...] | None = None,
+    gate_title: str | None = None,
+    chip: GateChip | None = None,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
@@ -105,6 +110,8 @@ def _data(
             primary_branch=primary_branch or branches[0],
         ),
         origin_agent=origin_agent,
+        gate_title=gate_title,
+        chip=chip,
     )
 
 
@@ -581,6 +588,67 @@ async def test_previewless_gate_composes_compact_actions_only() -> None:
         assert not modal.query(".gate-review-document")
         actions = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
         assert actions.has_class("gate-review-actions--compact")
+
+
+def test_title_omits_chip_when_absent() -> None:
+    modal = CustomGateModal(
+        _data(options=(_option("proceed"),), branches=(("proceed",),))
+    )
+
+    assert modal._title() == (
+        "[bold cyan]🛡️ Custom Gate[/bold cyan]  "
+        "[dim]Custom Gate[/dim]  "
+        "[bold]review-agent[/bold]  "
+        "[dim]custom-ace[/dim]"
+    )
+
+
+def test_title_renders_chip_between_headline_and_kind() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            title="Task Triage",
+            gate_title="Review follow-up",
+            chip=GateChip("≈", "flake", "#AF87FF"),
+        )
+    )
+
+    assert modal._title() == (
+        "[bold cyan]🛡️ Review follow-up[/bold cyan]  "
+        "[bold #AF87FF]≈ flake[/]  "
+        "[dim]Task Triage[/dim]  "
+        "[bold]review-agent[/bold]  "
+        "[dim]custom-ace[/dim]"
+    )
+
+
+def test_title_degrades_malformed_chip_color() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            chip=GateChip("≈", "flake", "not-a-color"),
+        )
+    )
+    title = modal._title()
+
+    assert "[bold]≈ flake[/]" in title
+    assert "not-a-color" not in title
+
+
+def test_title_escapes_markup_in_chip_glyph_and_label() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            chip=GateChip("[", "x[/]y"),
+        )
+    )
+    title = modal._title()
+
+    assert f"[bold]{escape('[')} {escape('x[/]y')}[/]" in title
+    assert "[ x[/]y" in Text.from_markup(title).plain
 
 
 async def test_header_uses_adapter_title_and_omits_absent_filer() -> None:
