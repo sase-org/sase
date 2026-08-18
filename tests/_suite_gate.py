@@ -7,8 +7,11 @@ import fcntl
 import json
 import os
 import shlex
+import signal
 import sys
+import threading
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, Any
 
@@ -18,6 +21,15 @@ import pytest
 _DEFAULT_TIMEOUT_SECONDS = 45 * 60
 _POLL_INTERVAL_SECONDS = 2.0
 _STATUS_INTERVAL_SECONDS = 30.0
+# A live holder that stops completing work (no progress heartbeat) is treated
+# as wedged. Thirty minutes is longer than any legitimate single test in this
+# suite and far shorter than the 27-hour scoped run that motivated the bound.
+_DEFAULT_STALE_SECONDS = 30 * 60
+# Absolute backstop even while heartbeats continue. A full suite is minutes;
+# four hours covers a loaded host without letting one grant sit overnight.
+_DEFAULT_MAX_HOLD_SECONDS = 4 * 60 * 60
+_DEFAULT_WATCHDOG_SECONDS = 30.0
+_PROGRESS_WRITE_INTERVAL_SECONDS = 5.0
 _DEFAULT_AUTOMATIC_FLOOR = 4
 _DEFAULT_AUTOMATIC_CEILING = 28
 _DEFAULT_AUTOMATIC_FAIR_SHARE_RUNS = 2
@@ -39,7 +51,20 @@ _MEMINFO_PATH = Path("/proc/meminfo")
 _CONFIG_ATTRIBUTE = "_sase_worker_token_lease"
 _DISABLED_ENV = "SASE_TEST_GATE_DISABLED"
 _GOVERNED_ENV = "SASE_TEST_GATE_GOVERNED"
+_LEASE_ID_ENV = "SASE_TEST_GATE_LEASE_ID"
+_LEASE_PID_ENV = "SASE_TEST_GATE_LEASE_PID"
+_FDS_ENV = "SASE_TEST_GATE_FDS"
+_LEASE_ENV_NAMES = (
+    _DISABLED_ENV,
+    _GOVERNED_ENV,
+    _LEASE_ID_ENV,
+    _LEASE_PID_ENV,
+    _FDS_ENV,
+)
 _POOL_FILE_NAME = "pool.lock"
+_leases_by_id: dict[str, WorkerTokenLease] = {}
+_progress_last_write: dict[str, float] = {}
+_progress_counts: dict[str, int] = {}
 
 
 class WorkerTokenLease:
@@ -54,6 +79,9 @@ class WorkerTokenLease:
         capacity_is_explicit: bool = False,
         poll_interval: float = _POLL_INTERVAL_SECONDS,
         status_interval: float = _STATUS_INTERVAL_SECONDS,
+        stale_timeout: float | None = None,
+        max_hold: float | None = None,
+        watchdog_interval: float | None = None,
     ) -> None:
         if budget < 1:
             raise ValueError("budget must be positive")
@@ -63,9 +91,18 @@ class WorkerTokenLease:
         self._capacity_is_explicit = capacity_is_explicit
         self._poll_interval = poll_interval
         self._status_interval = status_interval
+        self._stale_timeout = stale_timeout
+        self._max_hold = max_hold
+        self._watchdog_interval = watchdog_interval
         self._token_files: list[IO[str]] = []
         self._previous_environment: dict[str, str | None] = {}
         self._effective_budget: int | None = None
+        self._lease_id: str | None = None
+        self._started: float | None = None
+        self._lock = threading.Lock()
+        self._watchdog_stop = threading.Event()
+        self._watchdog_started = False
+        self._signaled_leases: dict[str, int] = {}
 
     @property
     def granted(self) -> int:
@@ -93,7 +130,14 @@ class WorkerTokenLease:
             now = time.monotonic()
             if now >= next_status:
                 print(
-                    _waiting_message(floor, ceiling, last_available, last_holders),
+                    _waiting_message(
+                        floor,
+                        ceiling,
+                        last_available,
+                        last_holders,
+                        stale=self._effective_stale_timeout(),
+                        max_hold=self._effective_max_hold(),
+                    ),
                     file=sys.stderr,
                     flush=True,
                 )
@@ -107,6 +151,8 @@ class WorkerTokenLease:
                         ceiling,
                         last_available,
                         last_holders,
+                        stale=self._effective_stale_timeout(),
+                        max_hold=self._effective_max_hold(),
                     )
                 )
 
@@ -158,21 +204,30 @@ class WorkerTokenLease:
                 self._token_files = token_files
                 self._effective_budget = effective_budget
                 try:
-                    _write_holder_metadata(
+                    metadata = _write_holder_metadata(
                         token_files,
                         floor=effective_floor,
                         ceiling=effective_ceiling,
                         budget=effective_budget,
                     )
+                    self._lease_id = str(metadata["lease_id"])
+                    self._started = float(metadata["started"])
                     self._set_descendant_environment()
+                    _register_lease(self)
+                    self.start_watchdog()
                 except BaseException:
+                    self._stop_watchdog()
+                    _unregister_lease(self)
                     _release_token_files(self._token_files)
                     self._token_files = []
                     self._effective_budget = None
+                    self._lease_id = None
+                    self._started = None
                     self._restore_descendant_environment()
                     raise
                 return self.granted, len(token_files), holders
             _release_token_files(token_files)
+            self._reclaim_holders(holders)
             return 0, len(token_files), holders
         finally:
             fcntl.flock(pool_file.fileno(), fcntl.LOCK_UN)
@@ -187,15 +242,153 @@ class WorkerTokenLease:
 
     def release(self) -> None:
         """Release every held token and restore inherited environment values."""
-        if not self._token_files:
-            return
-
-        try:
-            _release_token_files(self._token_files)
+        self._stop_watchdog()
+        self._watchdog_started = False
+        with self._lock:
+            token_files = self._token_files
+            lease_id = self._lease_id
+            if not token_files:
+                self._restore_descendant_environment()
+                return
             self._token_files = []
             self._effective_budget = None
+            self._lease_id = None
+            self._started = None
+        _unregister_lease_id(lease_id)
+        if lease_id is not None:
+            _remove_progress_sidecar(self._directory, lease_id)
+        try:
+            _release_token_files(token_files)
         finally:
             self._restore_descendant_environment()
+
+    def start_watchdog(self) -> None:
+        """Release this grant if it stops making progress or outlives the cap."""
+        interval = self._effective_watchdog_interval()
+        if interval <= 0 or self._watchdog_started or not self._token_files:
+            return
+        self._watchdog_started = True
+        self._watchdog_stop.clear()
+        thread = threading.Thread(
+            target=self._watchdog_loop,
+            args=(interval,),
+            name="sase-suite-gate-watchdog",
+            daemon=True,
+        )
+        thread.start()
+
+    def _stop_watchdog(self) -> None:
+        self._watchdog_stop.set()
+
+    def _watchdog_loop(self, interval: float) -> None:
+        while not self._watchdog_stop.wait(interval):
+            if self._own_grant_reclaimable():
+                print(
+                    _reclaim_message(
+                        os.getpid(),
+                        self.granted,
+                        self._own_reclaim_reason() or "stale-heartbeat",
+                        action="released",
+                        stale=self._effective_stale_timeout(),
+                        max_hold=self._effective_max_hold(),
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                self.release()
+                return
+
+    def _own_grant_reclaimable(self) -> bool:
+        return self._own_reclaim_reason() is not None
+
+    def _own_reclaim_reason(self) -> str | None:
+        started = self._started
+        lease_id = self._lease_id
+        if started is None or lease_id is None:
+            return None
+        sidecar = _read_progress_sidecar(self._directory, lease_id)
+        heartbeat = float(sidecar["heartbeat"]) if sidecar is not None else started
+        return _reclaim_reason_from_state(
+            {"started": started, "heartbeat": heartbeat},
+            stale=self._effective_stale_timeout(),
+            max_hold=self._effective_max_hold(),
+        )
+
+    def _effective_stale_timeout(self) -> float:
+        if self._stale_timeout is None:
+            return holder_stale_timeout()
+        return self._stale_timeout
+
+    def _effective_max_hold(self) -> float:
+        if self._max_hold is None:
+            return holder_max_hold()
+        return self._max_hold
+
+    def _effective_watchdog_interval(self) -> float:
+        if self._watchdog_interval is None:
+            return holder_watchdog_interval()
+        return self._watchdog_interval
+
+    def _refresh_holder_heartbeat(self, heartbeat: float, progress: int) -> None:
+        with self._lock:
+            token_files = list(self._token_files)
+            lease_id = self._lease_id
+        if not token_files or lease_id is None:
+            return
+        for token_file in token_files:
+            try:
+                token_file.seek(0)
+                parsed: Any = json.load(token_file)
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+            if not isinstance(parsed, dict):
+                continue
+            parsed["heartbeat"] = heartbeat
+            parsed["progress"] = progress
+            try:
+                token_file.seek(0)
+                token_file.truncate()
+                json.dump(parsed, token_file, sort_keys=True)
+                token_file.write("\n")
+                token_file.flush()
+            except OSError:
+                continue
+
+    def _reclaim_holders(self, holders: dict[Path, str]) -> None:
+        seen: set[str] = set()
+        for token_path, raw in holders.items():
+            state = _load_holder_state(raw, token_path.parent)
+            if state is None:
+                continue
+            lease_id = str(state["lease_id"])
+            if lease_id in seen:
+                continue
+            seen.add(lease_id)
+            reason = _reclaim_reason_from_state(
+                state,
+                stale=self._effective_stale_timeout(),
+                max_hold=self._effective_max_hold(),
+            )
+            if reason is None:
+                continue
+            pid = int(state["pid"])
+            previous = self._signaled_leases.get(lease_id)
+            signum = signal.SIGKILL if previous == signal.SIGTERM else signal.SIGTERM
+            if not _signal_holder(pid, state.get("starttime"), signum):
+                continue
+            self._signaled_leases[lease_id] = signum
+            print(
+                _reclaim_message(
+                    pid,
+                    int(state.get("granted", 1)),
+                    reason,
+                    action="signaled",
+                    stale=self._effective_stale_timeout(),
+                    max_hold=self._effective_max_hold(),
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
 
     def _synchronize_capacity(self, pool_file: IO[str]) -> int:
         stored_capacity = _read_pool_capacity(pool_file)
@@ -234,10 +427,16 @@ class WorkerTokenLease:
         indistinguishable from an unaccounted run.
         """
         self._previous_environment = {
-            name: os.environ.get(name) for name in (_DISABLED_ENV, _GOVERNED_ENV)
+            name: os.environ.get(name) for name in _LEASE_ENV_NAMES
         }
         os.environ[_DISABLED_ENV] = "1"
         os.environ[_GOVERNED_ENV] = "1"
+        if self._lease_id is not None:
+            os.environ[_LEASE_ID_ENV] = self._lease_id
+        os.environ[_LEASE_PID_ENV] = str(os.getpid())
+        os.environ[_FDS_ENV] = ",".join(
+            str(token_file.fileno()) for token_file in self._token_files
+        )
 
     def _restore_descendant_environment(self) -> None:
         for name, previous_value in self._previous_environment.items():
@@ -317,6 +516,79 @@ def gate_timeout() -> float:
     return _non_negative_float_env("SASE_TEST_GATE_TIMEOUT", _DEFAULT_TIMEOUT_SECONDS)
 
 
+def holder_stale_timeout() -> float:
+    """Seconds without a progress heartbeat before a live holder is reclaimable.
+
+    Zero disables stale-heartbeat reclaim. The waiter and the holder's
+    watchdog both read this so tests can shrink the bound without changing
+    the production default.
+    """
+    return _non_negative_float_env("SASE_TEST_GATE_STALE", _DEFAULT_STALE_SECONDS)
+
+
+def holder_max_hold() -> float:
+    """Absolute age after which a live holder is reclaimable even if progressing.
+
+    Zero disables the age cap. This is the backstop for a grant that keeps
+    writing heartbeats but never finishes.
+    """
+    return _non_negative_float_env("SASE_TEST_GATE_MAX_HOLD", _DEFAULT_MAX_HOLD_SECONDS)
+
+
+def holder_watchdog_interval() -> float:
+    """How often a holder checks its own grant for reclaim. Zero disables it."""
+    return _non_negative_float_env("SASE_TEST_GATE_WATCHDOG", _DEFAULT_WATCHDOG_SECONDS)
+
+
+def holder_reclaim_reason(
+    metadata: str,
+    *,
+    now: float | None = None,
+    directory: Path | None = None,
+    stale: float | None = None,
+    max_hold: float | None = None,
+) -> str | None:
+    """Return ``stale-heartbeat``, ``max-hold``, or ``None`` if the grant is healthy."""
+    state = _load_holder_state(metadata, directory)
+    if state is None:
+        return None
+    return _reclaim_reason_from_state(
+        state,
+        now=now,
+        stale=holder_stale_timeout() if stale is None else stale,
+        max_hold=holder_max_hold() if max_hold is None else max_hold,
+    )
+
+
+def record_lease_progress(event: str) -> None:
+    """Record suite progress for the inherited or locally held worker-token grant.
+
+    xdist workers skip this: the controller sees their forwarded reports and is
+    the process whose pid matches the lease. Nested pytest subprocesses still
+    write the sidecar — a child that is running tests *is* progress — but they
+    cannot adopt the parent's flock.
+    """
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        return
+    lease_id = os.environ.get(_LEASE_ID_ENV)
+    if not lease_id:
+        return
+    now = time.time()
+    last = _progress_last_write.get(lease_id, 0.0)
+    if event == "call" and now - last < _PROGRESS_WRITE_INTERVAL_SECONDS:
+        return
+    progress = _progress_counts.get(lease_id, 0) + 1
+    _progress_counts[lease_id] = progress
+    _progress_last_write[lease_id] = now
+    directory = gate_directory()
+    _write_progress_sidecar(
+        directory, lease_id, heartbeat=now, progress=progress, event=event
+    )
+    lease = _leases_by_id.get(lease_id)
+    if lease is not None:
+        lease._refresh_holder_heartbeat(now, progress)
+
+
 def descendant_exemption() -> bool:
     """Report whether an ancestor's lease already accounts for this demand.
 
@@ -334,6 +606,7 @@ def descendant_exemption() -> bool:
 def configure_suite_gate(config: pytest.Config) -> None:
     """Acquire exact worker capacity for an ungoverned xdist controller."""
     if _is_gate_exempt():
+        _adopt_inherited_lease(config)
         return
 
     requested_workers = _xdist_worker_count(config)
@@ -445,6 +718,62 @@ def fit_request_to_budget(
             "SASE_TEST_GATE_SLOTS deliberately."
         )
     return min(floor, budget), min(ceiling, budget)
+
+
+def _adopt_inherited_lease(config: pytest.Config) -> None:
+    """Re-wrap exec-surviving token FDs so this process can watchdog and release.
+
+    ``tools/run_pytest`` acquires, marks the descriptors inheritable, and
+    ``execv``s into pytest. The lease object dies with the runner; the flocks
+    do not. Only the same PID that acquired may adopt — xdist workers and
+    nested pytest children inherit the FDs but have a different pid, so they
+    must not unlock the controller's grant on exit.
+    """
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        return
+    raw_pid = os.environ.get(_LEASE_PID_ENV)
+    raw_fds = os.environ.get(_FDS_ENV)
+    lease_id = os.environ.get(_LEASE_ID_ENV)
+    if not raw_pid or not raw_fds or not lease_id:
+        return
+    try:
+        if int(raw_pid) != os.getpid():
+            return
+        fds = [int(part) for part in raw_fds.split(",") if part]
+    except ValueError:
+        return
+    if not fds:
+        return
+    token_files: list[IO[str]] = []
+    try:
+        token_files = [os.fdopen(fd, "r+", encoding="utf-8") for fd in fds]
+    except OSError:
+        _release_token_files(token_files)
+        return
+    lease = WorkerTokenLease(
+        directory=gate_directory(),
+        budget=max(len(token_files), 1),
+        timeout=0.0,
+    )
+    lease._token_files = token_files
+    lease._effective_budget = len(token_files)
+    lease._lease_id = lease_id
+    started = _started_from_token_files(token_files)
+    lease._started = started if started is not None else time.time()
+    _register_lease(lease)
+    lease.start_watchdog()
+    setattr(config, _CONFIG_ATTRIBUTE, lease)
+
+
+def _started_from_token_files(token_files: list[IO[str]]) -> float | None:
+    for token_file in token_files:
+        try:
+            token_file.seek(0)
+            parsed: Any = json.load(token_file)
+            return float(parsed["started"])
+        except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return None
 
 
 def _is_gate_exempt() -> bool:
@@ -564,16 +893,20 @@ def _try_acquire_token(token_path: Path) -> tuple[IO[str] | None, str]:
 
 def _write_holder_metadata(
     token_files: list[IO[str]], *, floor: int, ceiling: int, budget: int
-) -> None:
-    metadata = {
+) -> dict[str, Any]:
+    started = time.time()
+    metadata: dict[str, Any] = {
         "argv": shlex.join(sys.argv),
         "budget": budget,
         "granted": len(token_files),
+        "heartbeat": started,
         "lease_id": f"{os.getpid()}-{time.time_ns()}",
         "pid": os.getpid(),
+        "progress": 0,
         "requested_ceiling": ceiling,
         "requested_floor": floor,
-        "started": time.time(),
+        "started": started,
+        "starttime": _process_starttime(os.getpid()),
     }
     for token_file in token_files:
         token_file.seek(0)
@@ -581,6 +914,7 @@ def _write_holder_metadata(
         json.dump(metadata, token_file, sort_keys=True)
         token_file.write("\n")
         token_file.flush()
+    return metadata
 
 
 def _release_token_files(token_files: list[IO[str]]) -> None:
@@ -609,11 +943,15 @@ def _waiting_message(
     ceiling: int,
     available: int,
     holders: dict[Path, str],
+    *,
+    stale: float | None = None,
+    max_hold: float | None = None,
 ) -> str:
     return (
         "Waiting for a SASE pytest worker-token grant of "
         f"{_request_description(floor, ceiling)}; {available} tokens were "
-        f"available below the floor. Current holders: {_format_holders(holders)}"
+        f"available below the floor. Current holders: "
+        f"{_format_holders(holders, stale=stale, max_hold=max_hold)}"
     )
 
 
@@ -623,25 +961,37 @@ def _timeout_message(
     ceiling: int,
     available: int,
     holders: dict[Path, str],
+    *,
+    stale: float | None = None,
+    max_hold: float | None = None,
 ) -> str:
     return (
         "Timed out waiting for a SASE pytest worker-token grant of "
         f"{_request_description(floor, ceiling)} after {timeout:g}s; "
         f"{available} tokens were available below the floor. Current holders: "
-        f"{_format_holders(holders)}. Adjust SASE_TEST_GATE_TIMEOUT, "
-        "SASE_TEST_GATE_SLOTS, SASE_PYTEST_WORKER_FLOOR, or "
-        "SASE_PYTEST_WORKER_CEILING; set SASE_TEST_GATE_DISABLED=1 only to "
-        "bypass the pool deliberately."
+        f"{_format_holders(holders, stale=stale, max_hold=max_hold)}. "
+        "Adjust SASE_TEST_GATE_TIMEOUT, SASE_TEST_GATE_SLOTS, "
+        "SASE_TEST_GATE_STALE, SASE_TEST_GATE_MAX_HOLD, "
+        "SASE_PYTEST_WORKER_FLOOR, or SASE_PYTEST_WORKER_CEILING; set "
+        "SASE_TEST_GATE_DISABLED=1 only to bypass the pool deliberately."
     )
 
 
-def _format_holders(holders: dict[Path, str]) -> str:
+def _format_holders(
+    holders: dict[Path, str],
+    *,
+    stale: float | None = None,
+    max_hold: float | None = None,
+) -> str:
     if not holders:
         return "unknown"
 
+    directory = next(iter(holders)).parent
     grouped: dict[str, tuple[int, str]] = {}
     for metadata in holders.values():
-        key, formatted = _holder_identity_and_text(metadata)
+        key, formatted = _holder_identity_and_text(
+            metadata, directory=directory, stale=stale, max_hold=max_hold
+        )
         count, _ = grouped.get(key, (0, formatted))
         grouped[key] = (count + 1, formatted)
     return "; ".join(
@@ -650,7 +1000,38 @@ def _format_holders(holders: dict[Path, str]) -> str:
     )
 
 
-def _holder_identity_and_text(metadata: str) -> tuple[str, str]:
+def _holder_identity_and_text(
+    metadata: str,
+    *,
+    directory: Path | None = None,
+    stale: float | None = None,
+    max_hold: float | None = None,
+) -> tuple[str, str]:
+    state = _load_holder_state(metadata, directory)
+    if state is None:
+        return f"unavailable-{metadata}", "holder metadata unavailable"
+
+    now = time.time()
+    age_seconds = max(0, round(now - float(state["started"])))
+    heartbeat_seconds = max(0, round(now - float(state["heartbeat"])))
+    reason = _reclaim_reason_from_state(
+        state,
+        now=now,
+        stale=holder_stale_timeout() if stale is None else stale,
+        max_hold=holder_max_hold() if max_hold is None else max_hold,
+    )
+    reclaimable = f", {reason}" if reason is not None else ""
+    return (
+        str(state["lease_id"]),
+        (
+            f"pid {int(state['pid'])}, grant {int(state['granted'])}, "
+            f"age {age_seconds}s, heartbeat {heartbeat_seconds}s, "
+            f"argv {state['argv']!r}{reclaimable}"
+        ),
+    )
+
+
+def _load_holder_state(metadata: str, directory: Path | None) -> dict[str, Any] | None:
     try:
         parsed: Any = json.loads(metadata)
         pid = int(parsed["pid"])
@@ -658,11 +1039,159 @@ def _holder_identity_and_text(metadata: str) -> tuple[str, str]:
         argv = str(parsed["argv"])
         lease_id = str(parsed.get("lease_id", f"{pid}-{started}-{argv}"))
         granted = int(parsed.get("granted", 1))
+        heartbeat = float(parsed.get("heartbeat", started))
+        starttime = parsed.get("starttime")
+        if starttime is not None:
+            starttime = int(starttime)
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-        return f"unavailable-{metadata}", "holder metadata unavailable"
+        return None
 
-    age_seconds = max(0, round(time.time() - started))
+    if directory is not None:
+        sidecar = _read_progress_sidecar(directory, lease_id)
+        if sidecar is not None:
+            sidecar_heartbeat = float(sidecar["heartbeat"])
+            if sidecar_heartbeat > heartbeat:
+                heartbeat = sidecar_heartbeat
+
+    return {
+        "argv": argv,
+        "granted": granted,
+        "heartbeat": heartbeat,
+        "lease_id": lease_id,
+        "pid": pid,
+        "started": started,
+        "starttime": starttime,
+    }
+
+
+def _reclaim_reason_from_state(
+    state: Mapping[str, Any],
+    *,
+    now: float | None = None,
+    stale: float,
+    max_hold: float,
+) -> str | None:
+    current = time.time() if now is None else now
+    started = float(state["started"])
+    heartbeat = float(state.get("heartbeat", started))
+    if max_hold > 0 and current - started >= max_hold:
+        return "max-hold"
+    if stale > 0 and current - heartbeat >= stale:
+        return "stale-heartbeat"
+    return None
+
+
+def _progress_sidecar_path(directory: Path, lease_id: str) -> Path:
+    return directory / f"lease-{lease_id}.progress"
+
+
+def _write_progress_sidecar(
+    directory: Path,
+    lease_id: str,
+    *,
+    heartbeat: float,
+    progress: int,
+    event: str,
+) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    path = _progress_sidecar_path(directory, lease_id)
+    payload = {
+        "event": event,
+        "heartbeat": heartbeat,
+        "lease_id": lease_id,
+        "progress": progress,
+    }
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp_path.write_text(
+            json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        tmp_path.replace(path)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _read_progress_sidecar(directory: Path, lease_id: str) -> dict[str, Any] | None:
+    path = _progress_sidecar_path(directory, lease_id)
+    try:
+        parsed: Any = json.loads(path.read_text(encoding="utf-8"))
+        heartbeat = float(parsed["heartbeat"])
+        progress = int(parsed.get("progress", 0))
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return {"heartbeat": heartbeat, "progress": progress}
+
+
+def _remove_progress_sidecar(directory: Path, lease_id: str) -> None:
+    path = _progress_sidecar_path(directory, lease_id)
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    _progress_last_write.pop(lease_id, None)
+    _progress_counts.pop(lease_id, None)
+
+
+def _register_lease(lease: WorkerTokenLease) -> None:
+    if lease._lease_id is not None:
+        _leases_by_id[lease._lease_id] = lease
+
+
+def _unregister_lease(lease: WorkerTokenLease) -> None:
+    _unregister_lease_id(lease._lease_id)
+
+
+def _unregister_lease_id(lease_id: str | None) -> None:
+    if lease_id is None:
+        return
+    current = _leases_by_id.get(lease_id)
+    if current is not None and current._lease_id == lease_id:
+        _leases_by_id.pop(lease_id, None)
+
+
+def _process_starttime(pid: int) -> int | None:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    rparen = stat.rfind(")")
+    if rparen < 0:
+        return None
+    fields = stat[rparen + 2 :].split()
+    try:
+        return int(fields[19])
+    except (IndexError, ValueError):
+        return None
+
+
+def _signal_holder(pid: int, starttime: object, signum: int) -> bool:
+    if pid <= 0 or pid == os.getpid():
+        return False
+    live_starttime = _process_starttime(pid)
+    if live_starttime is None:
+        return False
+    if starttime is not None and int(starttime) != live_starttime:
+        return False
+    try:
+        os.kill(pid, signum)
+    except OSError:
+        return False
+    return True
+
+
+def _reclaim_message(
+    pid: int,
+    granted: int,
+    reason: str,
+    *,
+    action: str,
+    stale: float,
+    max_hold: float,
+) -> str:
     return (
-        lease_id,
-        f"pid {pid}, grant {granted}, age {age_seconds}s, argv {argv!r}",
+        "Reclaiming a wedged SASE pytest worker-token grant: "
+        f"{action} pid {pid}, {granted} token{'s' if granted != 1 else ''}, "
+        f"{reason}. A live holder is bounded by SASE_TEST_GATE_STALE "
+        f"({stale:g}s without progress) and "
+        f"SASE_TEST_GATE_MAX_HOLD ({max_hold:g}s absolute)."
     )

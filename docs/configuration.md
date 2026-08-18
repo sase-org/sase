@@ -3688,6 +3688,9 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_TEST_GATE_SLOTS`                | Override the host-wide pytest capacity in worker tokens. Unlike the former whole-suite gate, one token now represents one xdist worker.                                                                                                                                                                |
 | `SASE_TEST_GATE_DIR`                  | Override the shared pytest token-pool directory. Defaults to a UID-scoped `sase-pytest-tokens-<uid>` directory under `/tmp`.                                                                                                                                                                           |
 | `SASE_TEST_GATE_TIMEOUT`              | Non-negative seconds to wait for a sufficient worker-token grant before failing with requested capacity and current-holder diagnostics.                                                                                                                                                                |
+| `SASE_TEST_GATE_STALE`                | Non-negative seconds without a progress heartbeat before a _live_ holder is treated as wedged and reclaimed. Default `1800` (30 minutes). `0` disables stale-heartbeat reclaim.                                                                                                                        |
+| `SASE_TEST_GATE_MAX_HOLD`             | Non-negative seconds a live holder may keep its grant even while heartbeats continue. Default `14400` (4 hours). `0` disables the absolute age cap.                                                                                                                                                    |
+| `SASE_TEST_GATE_WATCHDOG`             | Non-negative seconds between a holder's self-checks of those bounds. Default `30`. `0` disables the holder-side watchdog; waiters still reclaim.                                                                                                                                                       |
 | `SASE_TEST_GATE_DISABLED`             | Set to `1` to bypass the pytest worker-token pool deliberately. The bypass takes no tokens and never waits, but its width is still clamped to the host budget and announced on stderr; raise `SASE_TEST_GATE_SLOTS` to run wider. Every held lease also exports it to prevent nested pytest deadlocks. |
 | `SASE_TEST_GATE_GOVERNED`             | Internal marker exported by every held worker-token lease, meaning an ancestor already paid for this process's workers. It is what separates a corroborated exemption from a top-level bypass; inherited pytest configuration must not lease again.                                                    |
 | `SASE_JUST_INVOCATION_DIR`            | Internal value set by `just` so test selectors are normalized from the caller's directory.                                                                                                                                                                                                             |
@@ -3700,7 +3703,13 @@ atomically and then take currently free tokens up to the ceiling. Exact
 `SASE_PYTEST_WORKERS` requests wait for the complete request, and an explicit
 `SASE_TEST_GATE_SLOTS` value must match an already-active pool. The former whole-suite
 slot gate is fully superseded: admission, diagnostics, and SIGKILL-safe release are all
-expressed in worker tokens.
+expressed in worker tokens. A live holder also writes a progress heartbeat (collection
+and completed test calls). Waiters and a holder-side watchdog reclaim a grant whose
+heartbeat is older than `SASE_TEST_GATE_STALE` or whose age exceeds
+`SASE_TEST_GATE_MAX_HOLD`: the watchdog releases its own tokens, and a waiter SIGTERMs
+(then SIGKILLs) a still-held wedged process so `flock` can return the tokens to the
+pool. Waiting and timeout messages print each holder's age, heartbeat age, and reclaim
+reason.
 
 ### Workspace Management (Internal)
 

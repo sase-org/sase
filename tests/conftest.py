@@ -42,7 +42,11 @@ from tests._sase_global_state_isolation import (
     restore_sase_environment,
     snapshot_sase_environment,
 )
-from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
+from tests._suite_gate import (
+    configure_suite_gate,
+    record_lease_progress,
+    unconfigure_suite_gate,
+)
 from tests._tmp_leak_guard import (
     check_tmp_env_leak_guard,
     finish_tmp_leak_guard,
@@ -114,7 +118,19 @@ def pytest_unconfigure(config: pytest.Config) -> None:
 
 def pytest_sessionstart(session: pytest.Session) -> None:
     """Snapshot the system temp directory before any test runs."""
+    record_lease_progress("session")
     start_tmp_leak_guard(session)
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Note collection as suite-gate progress so a hung run is distinguishable."""
+    record_lease_progress("collection")
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """Heartbeat the worker-token grant when a test call completes."""
+    if report.when == "call":
+        record_lease_progress("call")
 
 
 def pytest_sessionfinish(session: pytest.Session) -> None:
