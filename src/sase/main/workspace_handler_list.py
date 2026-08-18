@@ -376,7 +376,27 @@ def prepare_opened_checkout(
 
         if preparation == "runner":
             from sase.axe.runner_workspace import prepare_workspace
+            from sase.core.occupancy_guard import (
+                OccupancyCaller,
+                WorkspaceOccupiedError,
+                ensure_workspace_not_occupied,
+            )
             from sase.vcs_provider import VCS_DEFAULT_REVISION
+
+            try:
+                ensure_workspace_not_occupied(
+                    path,
+                    project_file=ctx.project_file,
+                    caller=OccupancyCaller(
+                        pid=os.getpid(),
+                        workspace_num=workspace_num,
+                        project=ctx.project_name,
+                        workflow="workspace-open-clean",
+                    ),
+                )
+            except WorkspaceOccupiedError as exc:
+                print(str(exc), file=sys.stderr)
+                return None
 
             clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
             if not prepare_workspace(
