@@ -1180,6 +1180,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
 | `sase_patches`       | Inspect and reason about Patches, stitches, hooks, comments, and mentors                      |
+| `sase_pipe`          | Hand this agent's turn to the next family member with `sase pipe`                             |
 | `sase_plan`          | Create and submit an implementation plan when provider-native plan mode is disabled           |
 | `sase_project`       | Inspect or manage project lifecycle state and aliases                                         |
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |

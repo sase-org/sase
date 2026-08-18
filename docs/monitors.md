@@ -351,6 +351,36 @@ submission rather than silently dropping the approval. Other monitor-start error
 the approval instead of using the proc fallback. See
 [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
 
+## Pipe vs. monitor
+
+`sase pipe '<prompt>'` (the `/sase_pipe` skill) looks similar — it also kills the
+calling agent and continues the run as a new family member — but it solves a different
+problem. A monitor runs and waits on an OS command; nothing about the command's content
+is an LLM turn. Pipe hands the agent's own unfinished _turn_ to a fresh successor: no
+command runs, nothing is captured or timed out, and the successor's prompt is written by
+the agent, not derived from a command's outcome.
+
+Concretely:
+
+|                         | Monitor                                      | Pipe                                            |
+| ----------------------- | -------------------------------------------- | ----------------------------------------------- |
+| What runs               | A supervised OS command                      | Nothing — the successor is an ordinary LLM turn |
+| New member's shell      | `--mon` proc shell, then a `--<n>` follow-up | One `--<n>` (or `--<name>`) family member       |
+| Follow-up prompt source | `--next` text plus a command-run breakdown   | The `PROMPT` argument, verbatim                 |
+| Bound                   | One monitor active per agent                 | `max_agent_pipe_chain` config field             |
+
+Before this command existed, agents got a successor by monitoring a no-op command:
+
+```bash
+sase monitor start --command 'sleep 1' --reason '...' --next '<the real prompt>'
+```
+
+That only worked because `sase monitor start` already kills the caller and its
+supervisor already launches a family follow-up once the command settles — a monitor
+supervisor, a proc row, and a one-second sleep, purely to obtain a hand-off. Use
+`sase pipe` for a hand-off instead; the `sleep 1 --next '...'` pattern is no longer
+necessary. See the `/sase_pipe` skill for the command's flags and hazards.
+
 ## See also
 
 - [Agent Clans, Families, and Tribes](agent_families.md) for how a monitor shell fits

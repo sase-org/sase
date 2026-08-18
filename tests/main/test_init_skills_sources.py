@@ -227,6 +227,24 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             ),
         ),
         (
+            "sase_pipe",
+            (
+                "sase pipe 'implement the approved plan'",
+                "--reason 'hand off to a coding pass' --model opus",
+                "kills the calling agent once it starts the hand-off",
+                "this turn will not return normally",
+                "Do not pipe for",
+                "use `/sase_monitor` instead",
+                "use `/sase_run` instead",
+                "-f, --fresh",
+                "-m, --model MODEL",
+                "-n, --name TOKEN",
+                "The piped prompt is re-parsed by the successor",
+                "max_agent_pipe_chain",
+                "Do not keep working, poll, or wait after running this command",
+            ),
+        ),
+        (
             "sase_monitor",
             (
                 "sase monitor start",

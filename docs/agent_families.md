@@ -296,6 +296,13 @@ A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same fa
 **monitor shell**: a family member whose work is one supervised OS command instead of an
 LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
 
+`sase pipe '<prompt>'` creates a family member the same way a plan approval or a
+question follow-up does: it ends the calling agent's turn in-process and continues the
+run as the next member, in the same workspace and claim. The successor gets the next
+free numeric suffix (role `feedback`) by default, or an explicit `--name TOKEN` suffix
+(role: the token itself), per the suffix table above. See
+[Monitors: Pipe vs. monitor](monitors.md#pipe-vs-monitor).
+
 SASE resolves `parent` to the newest visible matching agent or family member in the
 current project. If the parent is still running, the new member appears immediately as
 WAITING and starts only after that exact parent artifact completes successfully. If the
