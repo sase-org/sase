@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.feature_flags.beads import flag_record_from_snapshot
 from sase.feature_flags.cli_views import FlagView
 from sase.feature_flags.models import FeatureFlagDiagnostic
 
@@ -21,7 +20,6 @@ def diagnostic_json(diagnostic: FeatureFlagDiagnostic) -> dict[str, Any]:
 
 def flag_view_json(view: FlagView) -> dict[str, Any]:
     """Serialize the fields both ``list --json`` and ``show --json`` emit."""
-    record = None if view.bead is None else flag_record_from_snapshot(view.bead)
     return {
         "bead": None if view.bead is None else view.bead.id,
         "bead_status": None if view.bead is None else view.bead.status,
@@ -32,8 +30,10 @@ def flag_view_json(view: FlagView) -> dict[str, Any]:
         "key": str(view.definition.key),
         "kind": view.definition.kind,
         "overridden": view.decision.overridden,
-        "remove_by_date": None if record is None else record.remove_by_date,
-        "remove_by_release": None if record is None else record.remove_by_release,
+        "remove_by_date": None if view.bead is None else view.bead.remove_by_date,
+        "remove_by_release": (
+            None if view.bead is None else view.bead.remove_by_release
+        ),
         "source": view.decision.source,
         "source_detail": view.decision.source_detail,
     }

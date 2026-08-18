@@ -12,7 +12,6 @@ from sase.feature_flags.beads import (
     LIVE_FLAG_STATUS_VALUES,
     FlagBeadSnapshot,
     flag_bead_for_id,
-    flag_record_from_snapshot,
 )
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.models import (
@@ -77,19 +76,48 @@ def registry_integrity_findings(
                 )
             )
             continue
-        if bead.issue_type != "flag":
+        if bead.task_type != "flag":
             findings.append(
                 IntegrityFinding(
                     code="wrong_type",
                     severity="error",
                     message=(
-                        f"feature flag {key!r} names bead {bead.id!r} of type "
-                        f"{bead.issue_type!r}, expected 'flag'"
+                        f"feature flag {key!r} names bead {bead.id!r}, which "
+                        f"is not a `flag` task bead"
                     ),
                     key=key,
                     bead_id=bead.id,
                 )
             )
+        if bead.kind and bead.kind != definition.kind:
+            findings.append(
+                IntegrityFinding(
+                    code="kind_mismatch",
+                    severity="error",
+                    message=(
+                        f"feature flag {key!r} has kind {definition.kind!r} "
+                        f"but bead {bead.id!r} has kind {bead.kind!r}"
+                    ),
+                    key=key,
+                    bead_id=bead.id,
+                )
+            )
+        if definition.kind in {"beta", "sunset"}:
+            expected_default = definition.kind == "sunset"
+            if definition.default != expected_default:
+                findings.append(
+                    IntegrityFinding(
+                        code="kind_mismatch",
+                        severity="error",
+                        message=(
+                            f"feature flag {key!r} default "
+                            f"{str(definition.default).lower()} disagrees "
+                            f"with kind {definition.kind!r}"
+                        ),
+                        key=key,
+                        bead_id=bead.id,
+                    )
+                )
         if bead.key != key:
             findings.append(
                 IntegrityFinding(
@@ -225,11 +253,15 @@ def _due_finding(
 ) -> IntegrityFinding | None:
     if bead.status not in LIVE_FLAG_STATUS_VALUES:
         return None
-    record = flag_record_from_snapshot(bead)
-    if record is None:
+    if not bead.key or not bead.remove_by_date or not bead.remove_by_release:
         return None
     try:
-        state = flag_removal_due(record, today=today, release=release)
+        state = flag_removal_due(
+            bead.remove_by_date,
+            bead.remove_by_release,
+            today=today,
+            release=release,
+        )
     except (IndexError, ValueError):
         return None
     if state == "due":
@@ -237,10 +269,10 @@ def _due_finding(
             code="due",
             severity="error",
             message=(
-                f"feature flag {record.key!r} is overdue "
-                f"(remove_by {record.remove_by_date} / {record.remove_by_release})"
+                f"feature flag {bead.key!r} is overdue "
+                f"(remove_by {bead.remove_by_date} / {bead.remove_by_release})"
             ),
-            key=key or record.key,
+            key=key or bead.key,
             bead_id=bead.id,
         )
     if state == "soon":
@@ -248,10 +280,10 @@ def _due_finding(
             code="soon",
             severity="warning",
             message=(
-                f"feature flag {record.key!r} is approaching removal "
-                f"(remove_by {record.remove_by_date} / {record.remove_by_release})"
+                f"feature flag {bead.key!r} is approaching removal "
+                f"(remove_by {bead.remove_by_date} / {bead.remove_by_release})"
             ),
-            key=key or record.key,
+            key=key or bead.key,
             bead_id=bead.id,
         )
     return None

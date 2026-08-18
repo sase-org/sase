@@ -12,11 +12,10 @@ from rich.console import Console
 from rich.text import Text
 
 import sase
-from sase.bead.model import FlagRecord
 from sase.bead_flag_presentation import flag_due_chip, flag_key_chip
 from sase.bead_status_presentation import bead_status_presentation
 from sase.core import time as core_time
-from sase.feature_flags.beads import FlagBeadSnapshot, flag_record_from_snapshot
+from sase.feature_flags.beads import FlagBeadSnapshot
 from sase.feature_flags.cli_json import diagnostic_json, flag_view_json
 from sase.feature_flags.cli_render import (
     on_off,
@@ -117,15 +116,21 @@ def _list_row(
     line.append_text(source_text(view.decision))
     line.append("  ")
     line.append_text(_bead_text(view.bead))
-    record = None if view.bead is None else flag_record_from_snapshot(view.bead)
-    if record is not None:
+    if (
+        view.bead is not None
+        and view.bead.remove_by_date
+        and view.bead.remove_by_release
+    ):
         line.append("  ")
-        line.append_text(_flag_due_text(record, today, release))
+        line.append_text(
+            flag_due_chip(
+                view.bead.remove_by_date,
+                view.bead.remove_by_release,
+                today=today,
+                release=release,
+            )
+        )
     return line
-
-
-def _flag_due_text(record: FlagRecord, today: date, release: str) -> Text:
-    return flag_due_chip(record, today=today, release=release)
 
 
 def _bead_text(bead: FlagBeadSnapshot | None) -> Text:

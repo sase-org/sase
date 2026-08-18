@@ -143,7 +143,15 @@ def _row_flag_is_due(row: BeadSummaryRow, *, today: date) -> bool:
     record = getattr(row, "flag", None)
     if not isinstance(record, FlagRecord):
         return False
-    return flag_removal_due(record, today=today, release=sase.__version__) == "due"
+    return (
+        flag_removal_due(
+            record.remove_by_date,
+            record.remove_by_release,
+            today=today,
+            release=sase.__version__,
+        )
+        == "due"
+    )
 
 
 def _nonzero_type_values(summary: BeadListSummary) -> list[BeadTypeValue]:

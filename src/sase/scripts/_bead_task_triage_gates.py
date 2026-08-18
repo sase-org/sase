@@ -262,7 +262,12 @@ def create_gate(
 
         today = core_time.local_now().date()
         release = sase.__version__
-        due_state = flag_removal_due(issue.flag, today=today, release=release)
+        due_state = flag_removal_due(
+            issue.flag.remove_by_date,
+            issue.flag.remove_by_release,
+            today=today,
+            release=release,
+        )
         definition = feature_flag_definitions().get(issue.flag.key)
         flag_gate_factory(
             request_id=request_id,

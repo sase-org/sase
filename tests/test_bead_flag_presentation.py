@@ -12,7 +12,6 @@ from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ansi_style import ANSI_RESET
 from sase.bead.filter_query import parse_bead_filter_query
 from sase.bead.flag_due import FlagRemovalState
-from sase.bead.model import FlagRecord
 from sase.bead_flag_presentation import (
     FLAG_DUE_GLYPH,
     FLAG_DUE_STYLES,
@@ -29,11 +28,8 @@ from sase.bead_type_presentation import (
     bead_type_presentation,
 )
 
-RECORD = FlagRecord(
-    key="plugins_enabled",
-    remove_by_date="2026-12-01",
-    remove_by_release="0.19.0",
-)
+REMOVE_BY_DATE = "2026-12-01"
+REMOVE_BY_RELEASE = "0.19.0"
 
 # Dates chosen so the three countdown labels match the epic plan's examples:
 # live 84d, soon 12d, due +6d overshoot.
@@ -88,10 +84,26 @@ def test_due_chips_pin_all_three_countdown_states_on_both_surfaces(
     state: FlagRemovalState,
     label: str,
 ) -> None:
-    presentation = flag_due_presentation(RECORD, today=today, release=release)
-    chip = flag_due_chip(RECORD, today=today, release=release)
-    plain = flag_due_cli_cell(RECORD, today=today, release=release, use_color=False)
-    colored = flag_due_cli_cell(RECORD, today=today, release=release, use_color=True)
+    presentation = flag_due_presentation(
+        REMOVE_BY_DATE, REMOVE_BY_RELEASE, today=today, release=release
+    )
+    chip = flag_due_chip(
+        REMOVE_BY_DATE, REMOVE_BY_RELEASE, today=today, release=release
+    )
+    plain = flag_due_cli_cell(
+        REMOVE_BY_DATE,
+        REMOVE_BY_RELEASE,
+        today=today,
+        release=release,
+        use_color=False,
+    )
+    colored = flag_due_cli_cell(
+        REMOVE_BY_DATE,
+        REMOVE_BY_RELEASE,
+        today=today,
+        release=release,
+        use_color=True,
+    )
     style = FLAG_DUE_STYLES[state]
 
     assert presentation.state == state
@@ -114,7 +126,9 @@ def test_due_styles_are_the_shared_urgency_ramp() -> None:
 
 
 def test_soon_after_the_date_shows_calendar_overshoot_not_due() -> None:
-    chip = flag_due_chip(RECORD, today=date(2026, 12, 7), release="0.10.0")
+    chip = flag_due_chip(
+        REMOVE_BY_DATE, REMOVE_BY_RELEASE, today=date(2026, 12, 7), release="0.10.0"
+    )
 
     assert chip.plain == "⧗ +6d · v0.19.0"
     assert Style.parse(str(chip.style)) == Style.parse(FLAG_DUE_STYLES["soon"].rich)

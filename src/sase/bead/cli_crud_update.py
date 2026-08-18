@@ -9,6 +9,11 @@ from typing import Any
 from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
 from sase.bead.cli_crud_common import mutation_outcome_ids
 from sase.bead.flag_codec import flag_to_dict
+from sase.bead.flag_fields import (
+    flag_fields,
+    is_flag_task_bead,
+    replace_flag_thresholds,
+)
 from sase.bead.model import FlagRecord, Issue, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.cli_file_values import CliFileValueError, read_at_path_value
@@ -114,14 +119,28 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             except KeyError:
                 print(f"Error: issue not found: {args.ids[0]}", file=sys.stderr)
                 sys.exit(1)
-            if target.issue_type != IssueType.FLAG or target.flag is None:
+            current = flag_fields(target)
+            if current is None:
                 print(
                     f"Error: --remove-by requires a flag bead: {args.ids[0]}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
-            new_flag = _parse_remove_by_arg(args.remove_by, target.flag.key)
-            fields["flag"] = flag_to_dict(new_flag)
+            new_flag = _parse_remove_by_arg(args.remove_by, current.key)
+            if is_flag_task_bead(target):
+                fields["task_type_fields"] = replace_flag_thresholds(
+                    target.task_type_fields,
+                    remove_by_date=new_flag.remove_by_date,
+                    remove_by_release=new_flag.remove_by_release,
+                )
+            elif target.issue_type == IssueType.FLAG:
+                fields["flag"] = flag_to_dict(new_flag)
+            else:
+                print(
+                    f"Error: --remove-by requires a flag bead: {args.ids[0]}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

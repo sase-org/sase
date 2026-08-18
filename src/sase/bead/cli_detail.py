@@ -30,6 +30,7 @@ from sase.bead.cli_detail_resolution import (
 )
 from sase.bead.cli_detail_style import DetailPalette, DetailStyle
 from sase.bead.flag_due import flag_removal_due
+from sase.bead.flag_fields import FlagFields, flag_fields
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
@@ -201,7 +202,7 @@ def render_issue_detail(
             )
         )
 
-    if issue.flag is not None:
+    if flag_fields(issue) is not None:
         lines.extend(_render_flag_lines(issue, palette=palette))
 
     if issue.close_history:
@@ -452,17 +453,20 @@ def _render_snooze_lines(
 def _render_flag_lines(issue: Issue, *, palette: DetailPalette) -> list[str]:
     """Render a flag bead's registry key, removal thresholds, and due state."""
 
-    record = issue.flag
-    assert record is not None
+    fields: FlagFields | None = flag_fields(issue)
+    assert fields is not None
     due_state = flag_removal_due(
-        record, today=core_time.local_now().date(), release=sase.__version__
+        fields.remove_by_date,
+        fields.remove_by_release,
+        today=core_time.local_now().date(),
+        release=sase.__version__,
     )
     return [
         "",
         palette.section("FLAG"),
-        f"  {palette.label('Key:')} {record.key}",
-        f"  {palette.label('Remove by:')} {record.remove_by_date} "
-        f"{palette.separator('·')} {record.remove_by_release}",
+        f"  {palette.label('Key:')} {fields.key}",
+        f"  {palette.label('Remove by:')} {fields.remove_by_date} "
+        f"{palette.separator('·')} {fields.remove_by_release}",
         f"  {palette.label('Due state:')} {due_state}",
     ]
 

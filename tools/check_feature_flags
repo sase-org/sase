@@ -12,7 +12,8 @@ Static rules (also run under ``just validate``, no bead store required):
 
 Bead-status rules (``just lint``, via ``BD_COMMAND``):
 
-6. the named bead exists, is type ``flag``, and ``flag.key`` matches
+6. the named bead exists, is a ``flag`` task bead (or a legacy flag
+   issue-type bead), and its key (and kind, when present) match
 7. a closed flag bead whose definition survives is an error
 8. a live flag bead with no definition is an error
 9. an overdue flag is a warning, never an error
@@ -43,7 +44,6 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 import sase
 from sase._yaml_safe import yaml_safe_load
 from sase.bead.flag_due import flag_removal_due
-from sase.bead.model import FlagRecord
 from sase.core import time as core_time
 from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 from sase.feature_flags.registry import feature_flag_definitions
@@ -119,6 +119,8 @@ class MarkerBead:
     key: str | None
     remove_by_date: str | None = None
     remove_by_release: str | None = None
+    task_type: str = ""
+    kind: str | None = None
 
 
 class MarkerSource(Protocol):
@@ -513,12 +515,36 @@ def check_bead_status(
                 )
             )
             continue
-        if bead.issue_type != expected_bead_type:
+        if marker.source == "flag":
+            is_flag_task = bead.issue_type == "flag" or (
+                bead.issue_type == "task" and bead.task_type == "flag"
+            )
+            if not is_flag_task:
+                findings.append(
+                    Finding(
+                        6,
+                        f"{_marker_label(marker)} names bead {bead.id!r}, "
+                        "which is not a `flag` task bead",
+                    )
+                )
+        elif bead.issue_type != expected_bead_type:
             findings.append(
                 Finding(
                     6,
                     f"{_marker_label(marker)} names bead {bead.id!r} of type "
                     f"{bead.issue_type!r}, expected {expected_bead_type!r}",
+                )
+            )
+        if (
+            marker.source == "flag"
+            and bead.kind
+            and bead.kind != marker.kind
+        ):
+            findings.append(
+                Finding(
+                    6,
+                    f"{_marker_label(marker)} names bead {bead.id!r} whose "
+                    f"kind is {bead.kind!r}, expected {marker.kind!r}",
                 )
             )
         if bead.key != marker.key:
@@ -544,11 +570,8 @@ def check_bead_status(
         ):
             try:
                 state = flag_removal_due(
-                    FlagRecord(
-                        key=bead.key or marker.key,
-                        remove_by_date=bead.remove_by_date,
-                        remove_by_release=bead.remove_by_release,
-                    ),
+                    bead.remove_by_date,
+                    bead.remove_by_release,
                     today=today,
                     release=release,
                 )
@@ -597,11 +620,23 @@ def marker_bead_from_issue_dict(
     data: Mapping[str, Any], *, source: str
 ) -> MarkerBead:
     """Project a bead JSON issue object into a :class:`MarkerBead`."""
+    task_type = str(data.get("task_type") or "")
+    raw_fields = data.get("task_type_fields")
     raw_flag = data.get("flag")
     key: str | None = None
     remove_by_date: str | None = None
     remove_by_release: str | None = None
-    if isinstance(raw_flag, Mapping):
+    kind: str | None = None
+    if task_type == "flag" and isinstance(raw_fields, Mapping):
+        if raw_fields.get("key") is not None:
+            key = str(raw_fields["key"])
+        if raw_fields.get("remove_by_date"):
+            remove_by_date = str(raw_fields["remove_by_date"])
+        if raw_fields.get("remove_by_release"):
+            remove_by_release = str(raw_fields["remove_by_release"])
+        if raw_fields.get("kind"):
+            kind = str(raw_fields["kind"])
+    elif isinstance(raw_flag, Mapping):
         if raw_flag.get("key") is not None:
             key = str(raw_flag["key"])
         if raw_flag.get("remove_by_date"):
@@ -616,6 +651,8 @@ def marker_bead_from_issue_dict(
         key=key,
         remove_by_date=remove_by_date,
         remove_by_release=remove_by_release,
+        task_type=task_type,
+        kind=kind,
     )
 
 
@@ -653,15 +690,31 @@ def _run_bd_command(
     )
 
 
-def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
-    """List every flag bead through ``BD_COMMAND``."""
+def _flag_beads_from_list_payload(payload: Any, *, resolved: str) -> list[MarkerBead]:
+    if isinstance(payload, Mapping):
+        rows = payload.get("results", [])
+    elif isinstance(payload, list):
+        rows = payload
+    else:
+        raise RuntimeError(f"unexpected flag-bead list payload from {resolved}")
+    beads: list[MarkerBead] = []
+    for row in rows:
+        if isinstance(row, Mapping):
+            beads.append(marker_bead_from_issue_dict(row, source="flag"))
+    return beads
+
+
+def _list_flag_beads(
+    repo_root: Path,
+    bd_command: str,
+    extra_args: Sequence[str],
+) -> list[MarkerBead]:
     resolved = resolve_bd_command(bd_command, repo_root)
     result = _run_bd_command(
         resolved,
         (
             "list",
-            "--type",
-            "flag",
+            *extra_args,
             "--status",
             "all",
             "--format",
@@ -676,18 +729,23 @@ def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
             f"exit {result.returncode}"
         )
         raise RuntimeError(f"cannot list flag beads via {resolved}: {detail}")
-    payload = _json_from_stdout(result.stdout)
-    if isinstance(payload, Mapping):
-        rows = payload.get("results", [])
-    elif isinstance(payload, list):
-        rows = payload
-    else:
-        raise RuntimeError(f"unexpected flag-bead list payload from {resolved}")
-    beads: list[MarkerBead] = []
-    for row in rows:
-        if isinstance(row, Mapping):
-            beads.append(marker_bead_from_issue_dict(row, source="flag"))
-    return beads
+    return _flag_beads_from_list_payload(
+        _json_from_stdout(result.stdout), resolved=resolved
+    )
+
+
+def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
+    """List every flag bead through ``BD_COMMAND``.
+
+    Merges ``--type flag`` (legacy issue type) with ``-T flag`` (typed task)
+    so the coexistence window stays green.
+    """
+    by_id: dict[str, MarkerBead] = {}
+    for extra in (("--type", "flag"), ("-T", "flag")):
+        for bead in _list_flag_beads(repo_root, bd_command, extra):
+            if bead.id:
+                by_id[bead.id] = bead
+    return list(by_id.values())
 
 
 def show_bead(

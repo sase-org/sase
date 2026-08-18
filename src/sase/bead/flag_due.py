@@ -18,24 +18,20 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from sase.bead.model import FlagRecord
-
 FlagRemovalState = Literal["live", "soon", "due"]
 
 
 def flag_removal_due(
-    record: FlagRecord, *, today: date, release: str
+    remove_by_date: str, remove_by_release: str, *, today: date, release: str
 ) -> FlagRemovalState:
-    """Return *record*'s removal urgency as of *today* and *release*.
+    """Return removal urgency for the two thresholds as of *today* and *release*.
 
     - ``"live"`` -- neither threshold has been reached.
     - ``"soon"`` -- exactly one threshold has been reached.
     - ``"due"`` -- both thresholds have been reached.
     """
-    date_reached = today >= date.fromisoformat(record.remove_by_date)
-    release_reached = _release_tuple(release) >= _release_tuple(
-        record.remove_by_release
-    )
+    date_reached = today >= date.fromisoformat(remove_by_date)
+    release_reached = _release_tuple(release) >= _release_tuple(remove_by_release)
     if date_reached and release_reached:
         return "due"
     if date_reached or release_reached:

@@ -142,7 +142,8 @@ def test_flag_group_rows_status_and_detail_render_due_metadata(tmp_path: Path) -
     )
     assert flag.flag is not None
     due = flag_due_presentation(
-        flag.flag,
+        flag.flag.remove_by_date,
+        flag.flag.remove_by_release,
         today=date(2026, 12, 7),
         release="0.19.0",
     )

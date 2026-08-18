@@ -71,7 +71,8 @@ def flag_bead(
     status: str = "open",
     remove_by_date: str = "2026-12-01",
     remove_by_release: str = "0.19.0",
-    issue_type: str = "flag",
+    task_type: str = "flag",
+    kind: str | None = None,
     title: str = "Retire demo_flag",
 ) -> FlagBeadSnapshot:
     return FlagBeadSnapshot(
@@ -80,6 +81,7 @@ def flag_bead(
         key=key,
         remove_by_date=remove_by_date,
         remove_by_release=remove_by_release,
-        issue_type=issue_type,
+        task_type=task_type,
+        kind=kind,
         title=title,
     )

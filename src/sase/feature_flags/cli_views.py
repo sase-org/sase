@@ -14,7 +14,6 @@ from sase.feature_flags.beads import (
     FlagBeadSnapshot,
     flag_bead_for_id,
     flag_bead_for_key,
-    flag_record_from_snapshot,
     load_flag_bead_snapshots,
 )
 from sase.feature_flags.models import (
@@ -72,10 +71,12 @@ def flag_views(
         if bead is None:
             bead = flag_bead_for_key(resolved_beads, key)
         due_state: FlagRemovalState | None = None
-        record = None if bead is None else flag_record_from_snapshot(bead)
-        if record is not None:
+        if bead is not None and bead.remove_by_date and bead.remove_by_release:
             due_state = flag_due_presentation(
-                record, today=resolved_today, release=resolved_release
+                bead.remove_by_date,
+                bead.remove_by_release,
+                today=resolved_today,
+                release=resolved_release,
             ).state
         views.append(
             FlagView(

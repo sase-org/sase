@@ -129,7 +129,8 @@ def load_beads_snapshot(
             flags.append(ProjectBead(project_name, issue))
             if issue.flag is not None:
                 flag_due[(project_name, issue.id)] = flag_due_presentation(
-                    issue.flag,
+                    issue.flag.remove_by_date,
+                    issue.flag.remove_by_release,
                     today=today,
                     release=release,
                 )

@@ -93,6 +93,8 @@ def _bead(
     remove_by_date: str = "2026-12-01",
     remove_by_release: str = "0.19.0",
     source: str = "flag",
+    task_type: str = "",
+    kind: str | None = None,
 ) -> Any:
     return tool.MarkerBead(
         source=source,
@@ -102,6 +104,8 @@ def _bead(
         key=key,
         remove_by_date=remove_by_date,
         remove_by_release=remove_by_release,
+        task_type=task_type,
+        kind=kind,
     )
 
 
@@ -290,8 +294,52 @@ def test_rule_6_rejects_missing_wrong_type_and_key_mismatch() -> None:
     assert 6 in _rules(findings)
     messages = " ".join(finding.message for finding in findings if finding.rule == 6)
     assert "missing bead" in messages
-    assert "expected 'flag'" in messages
+    assert "not a `flag` task bead" in messages
     assert "whose key is 'other_key'" in messages
+
+
+def test_rule_6_accepts_flag_task_bead() -> None:
+    tool = _load_tool()
+    markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
+
+    assert (
+        tool.check_bead_status(
+            markers,
+            [
+                _bead(
+                    tool,
+                    issue_type="task",
+                    task_type="flag",
+                    kind="beta",
+                )
+            ],
+            today=date(2026, 1, 1),
+            release="0.10.0",
+        )
+        == []
+    )
+
+
+def test_rule_6_rejects_kind_mismatch() -> None:
+    tool = _load_tool()
+    markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
+
+    findings = tool.check_bead_status(
+        markers,
+        [
+            _bead(
+                tool,
+                issue_type="task",
+                task_type="flag",
+                kind="sunset",
+            )
+        ],
+        today=date(2026, 1, 1),
+        release="0.10.0",
+    )
+
+    assert 6 in _rules(findings)
+    assert "kind is 'sunset'" in findings[0].message
 
 
 def test_rule_6_accepts_matching_flag_bead() -> None:
@@ -509,6 +557,32 @@ def test_load_flag_beads_reads_list_json(tmp_path: Path) -> None:
     assert len(beads) == 1
     assert beads[0].id == "sase-x"
     assert beads[0].key == "demo_flag"
+
+
+def test_marker_bead_from_issue_dict_reads_task_type_fields() -> None:
+    tool = _load_tool()
+
+    bead = tool.marker_bead_from_issue_dict(
+        {
+            "id": "sase-xy",
+            "status": "open",
+            "issue_type": "task",
+            "task_type": "flag",
+            "task_type_fields": {
+                "key": "demo_key",
+                "kind": "sunset",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        },
+        source="flag",
+    )
+
+    assert bead.key == "demo_key"
+    assert bead.kind == "sunset"
+    assert bead.task_type == "flag"
+    assert bead.remove_by_date == "2026-12-01"
+    assert bead.issue_type == "task"
 
 
 def test_overdue_warning_does_not_fail_main(tmp_path: Path) -> None:

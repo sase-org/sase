@@ -88,7 +88,10 @@ def flag_triage_presentation_note(
     comparison.
     """
     presentation = flag_due_presentation(
-        flag, today=date.fromisoformat(due_as_of), release=release
+        flag.remove_by_date,
+        flag.remove_by_release,
+        today=date.fromisoformat(due_as_of),
+        release=release,
     )
     return f"{bead_id} [⚑ {flag.key}] — {title} · {presentation.label}"
 
@@ -98,7 +101,10 @@ def _flag_triage_warning_block(
 ) -> str:
     """Render the callout naming the flag, its thresholds, and its status."""
     presentation = flag_due_presentation(
-        flag, today=date.fromisoformat(due_as_of), release=release
+        flag.remove_by_date,
+        flag.remove_by_release,
+        today=date.fromisoformat(due_as_of),
+        release=release,
     )
     return (
         f"> [!WARNING] **⚑ `{_markdown_code(flag.key)}` is due for removal**\n"

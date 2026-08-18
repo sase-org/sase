@@ -161,7 +161,13 @@ def gateable_beads(beads_dir: Path, *, today: date, release: str) -> list[Issue]
             if (
                 issue.status == Status.OPEN
                 and issue.flag is not None
-                and flag_removal_due(issue.flag, today=today, release=release) == "due"
+                and flag_removal_due(
+                    issue.flag.remove_by_date,
+                    issue.flag.remove_by_release,
+                    today=today,
+                    release=release,
+                )
+                == "due"
             ):
                 gateable.append(issue)
     return gateable

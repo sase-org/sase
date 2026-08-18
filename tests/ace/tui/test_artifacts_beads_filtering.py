@@ -220,7 +220,8 @@ def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:
         flags=(ProjectBead("alpha", flag),),
         flag_due={
             ("alpha", flag.id): flag_due_presentation(
-                flag.flag,
+                flag.flag.remove_by_date,
+                flag.flag.remove_by_release,
                 today=date(2026, 8, 16),
                 release="0.19.0",
             )

@@ -19,6 +19,7 @@ from sase.bead.cli_detail import (
     render_issue_detail,
     resolve_issue_detail,
 )
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
@@ -83,17 +84,18 @@ def compact_size_column(issue: Issue, *, use_color: bool, width: int) -> str:
 
 def _flag_compact_cells(issue: Issue, *, use_color: bool) -> str:
     """Return the compact flag identity and removal cells for flag rows."""
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return ""
     today = core_time.local_now().date()
     due_cell = flag_due_cli_cell(
-        record,
+        fields.remove_by_date,
+        fields.remove_by_release,
         today=today,
         release=sase.__version__,
         use_color=use_color,
     )
-    return f"  {flag_key_cli_cell(record.key, use_color=use_color)} {due_cell}"
+    return f"  {flag_key_cli_cell(fields.key, use_color=use_color)} {due_cell}"
 
 
 def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:

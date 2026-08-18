@@ -8,6 +8,7 @@ import sase
 from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
 from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.flag_due import flag_removal_due
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Dependency, Issue
 from sase.bead.plus_one_presentation import evidence_recorded_after_current_close
 from sase.bead.reopen_presentation import evidence_reopened_bead
@@ -137,15 +138,18 @@ def _flag_to_wire_dict(issue: Issue) -> dict[str, object] | None:
     this JSON to decide whether a flag needs attention, and re-deriving the
     comparison is how renderings drift apart.
     """
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return None
     return {
-        "key": record.key,
-        "remove_by_date": record.remove_by_date,
-        "remove_by_release": record.remove_by_release,
+        "key": fields.key,
+        "remove_by_date": fields.remove_by_date,
+        "remove_by_release": fields.remove_by_release,
         "due_state": flag_removal_due(
-            record, today=core_time.local_now().date(), release=sase.__version__
+            fields.remove_by_date,
+            fields.remove_by_release,
+            today=core_time.local_now().date(),
+            release=sase.__version__,
         ),
     }
 

@@ -485,9 +485,38 @@ def _optional_text(value: str | int | None) -> str:
     return "" if value is None else str(value)
 
 
+def _validate_flag_threshold_field_update(issue: Issue, raw: object) -> None:
+    """Allow only the two data-role flag thresholds to change on a flag task."""
+    from sase.bead.flag_fields import is_flag_task_bead
+
+    if not is_flag_task_bead(issue):
+        raise ValueError(
+            "task_type is immutable; close this bead and recreate it "
+            "with -T 'task(<slug>)'"
+        )
+    if not isinstance(raw, dict):
+        raise ValueError("task_type_fields must be a mapping")
+    new_fields = {str(key): str(value) for key, value in raw.items()}
+    allowed = {"remove_by_date", "remove_by_release"}
+    old_rest = {
+        key: value
+        for key, value in issue.task_type_fields.items()
+        if key not in allowed
+    }
+    new_rest = {key: value for key, value in new_fields.items() if key not in allowed}
+    if old_rest != new_rest:
+        raise ValueError(
+            "only remove_by_date and remove_by_release can be updated on a flag bead"
+        )
+    if "remove_by_date" not in new_fields or "remove_by_release" not in new_fields:
+        raise ValueError(
+            "flag threshold update requires remove_by_date and remove_by_release"
+        )
+
+
 def _normalize_patch_fields(
-    fields: dict[str, str | int | None],
-) -> dict[str, str | int | None]:
+    fields: dict[str, Any],
+) -> dict[str, Any]:
     normalized = dict(fields)
     for canonical_name, legacy_name in (
         ("patch_name", "changespec_name"),
@@ -507,12 +536,14 @@ def _normalize_patch_fields(
     return normalized
 
 
-def _validate_issue_update(issue: Issue, fields: dict[str, str | int | None]) -> None:
-    if "task_type" in fields or "task_type_fields" in fields:
+def _validate_issue_update(issue: Issue, fields: dict[str, Any]) -> None:
+    if "task_type" in fields:
         raise ValueError(
             "task_type is immutable; close this bead and recreate it "
             "with -T 'task(<slug>)'"
         )
+    if "task_type_fields" in fields:
+        _validate_flag_threshold_field_update(issue, fields["task_type_fields"])
     if "changespec_name" not in fields and "changespec_bug_id" not in fields:
         return
     candidate = replace(

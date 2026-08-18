@@ -168,6 +168,64 @@ def test_show_full_renders_the_flag_section(
     assert "0.19.0" in out
 
 
+def _create_flag_task_bead(project_dir: Path) -> str:
+    with BeadProject(project_dir) as project:
+        issue = project.create(
+            "Retire demo_key",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "new path",
+                "when_disabled": "old path",
+                "remove_when": "when proven",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        )
+    return issue.id
+
+
+def test_load_flag_bead_snapshots_includes_flag_task_beads(
+    project_dir: Path,
+) -> None:
+    from sase.feature_flags.beads import load_flag_bead_snapshots
+
+    bead_id = _create_flag_task_bead(project_dir)
+
+    snapshots = load_flag_bead_snapshots(cwd=project_dir)
+    assert snapshots is not None
+    assert len(snapshots) == 1
+    assert snapshots[0].id == bead_id
+    assert snapshots[0].task_type == "flag"
+    assert snapshots[0].kind == "beta"
+    assert snapshots[0].key == "demo_key"
+    assert snapshots[0].remove_by_date == "2026-12-01"
+
+
+def test_update_remove_by_writes_task_type_field_thresholds(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bead_id = _create_flag_task_bead(project_dir)
+
+    args = create_parser().parse_args(
+        ["bead", "update", bead_id, "--remove-by", "2026-12-15/0.20.0"]
+    )
+    bead_cli.handle_bead_update(args)
+
+    with BeadProject(project_dir) as project:
+        issue: Issue = project.show(bead_id)
+    assert issue.task_type == "flag"
+    assert issue.task_type_fields["remove_by_date"] == "2026-12-15"
+    assert issue.task_type_fields["remove_by_release"] == "0.20.0"
+    assert issue.task_type_fields["key"] == "demo_key"
+    assert issue.flag is None
+    assert f"✓ Updated issue: {bead_id}" in capsys.readouterr().out
+
+
 def test_update_remove_by_extends_the_thresholds(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

@@ -30,7 +30,6 @@ from rich.text import Text
 
 from sase.ansi_style import ANSI_RESET, ansi_sgr
 from sase.bead.flag_due import FlagRemovalState, flag_removal_due
-from sase.bead.model import FlagRecord
 from sase.bead_type_presentation import bead_type_presentation
 
 _FLAG_TYPE = bead_type_presentation("flag")
@@ -87,16 +86,25 @@ def flag_key_cli_cell(key: str, *, use_color: bool) -> str:
 
 
 def flag_due_presentation(
-    record: FlagRecord, *, today: date, release: str
+    remove_by_date: str, remove_by_release: str, *, today: date, release: str
 ) -> FlagDuePresentation:
-    """Return the shared countdown record for *record* as of *today*/*release*."""
-    state = flag_removal_due(record, today=today, release=release)
-    return FlagDuePresentation(state=state, label=_due_label(record, today, state))
+    """Return the shared countdown record for the thresholds as of *today*/*release*."""
+    state = flag_removal_due(
+        remove_by_date, remove_by_release, today=today, release=release
+    )
+    return FlagDuePresentation(
+        state=state,
+        label=_due_label(remove_by_date, remove_by_release, today, state),
+    )
 
 
-def flag_due_chip(record: FlagRecord, *, today: date, release: str) -> Text:
+def flag_due_chip(
+    remove_by_date: str, remove_by_release: str, *, today: date, release: str
+) -> Text:
     """Return the urgency-graded Rich removal meter."""
-    presentation = flag_due_presentation(record, today=today, release=release)
+    presentation = flag_due_presentation(
+        remove_by_date, remove_by_release, today=today, release=release
+    )
     return Text(
         presentation.label,
         style=presentation.style.rich,
@@ -105,21 +113,33 @@ def flag_due_chip(record: FlagRecord, *, today: date, release: str) -> Text:
 
 
 def flag_due_cli_cell(
-    record: FlagRecord, *, today: date, release: str, use_color: bool
+    remove_by_date: str,
+    remove_by_release: str,
+    *,
+    today: date,
+    release: str,
+    use_color: bool,
 ) -> str:
     """Return the urgency-graded ANSI removal meter for compact CLI rows."""
-    presentation = flag_due_presentation(record, today=today, release=release)
+    presentation = flag_due_presentation(
+        remove_by_date, remove_by_release, today=today, release=release
+    )
     if use_color:
         return f"{presentation.style.cli}{presentation.label}{ANSI_RESET}"
     return presentation.label
 
 
-def _due_label(record: FlagRecord, today: date, state: FlagRemovalState) -> str:
-    remaining = (date.fromisoformat(record.remove_by_date) - today).days
+def _due_label(
+    remove_by_date: str,
+    remove_by_release: str,
+    today: date,
+    state: FlagRemovalState,
+) -> str:
+    remaining = (date.fromisoformat(remove_by_date) - today).days
     if state == "due":
         return f"DUE {FLAG_DUE_GLYPH} +{-remaining}d"
     day_part = f"{remaining}d" if remaining >= 0 else f"+{-remaining}d"
-    return f"{FLAG_DUE_GLYPH} {day_part} · v{record.remove_by_release}"
+    return f"{FLAG_DUE_GLYPH} {day_part} · v{remove_by_release}"
 
 
 __all__ = [

@@ -11,13 +11,17 @@ from sase.bead.cli_common import (
     bead_store_mutation,
     resolve_beads_location,
 )
-from sase.bead.model import FlagRecord, Issue, IssueType, Status
+from sase.bead.flag_fields import (
+    FLAG_TASK_TYPE,
+    FlagFields,
+    flag_fields,
+    is_flag_task_bead,
+)
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.bead.project import BeadProject
 from sase.feature_flags.models import FeatureFlagError
 
-
-FLAG_TASK_TYPE = "flag"
 
 _LIVE_FLAG_STATUSES = frozenset(
     {
@@ -40,20 +44,30 @@ class FlagBeadSnapshot:
     key: str | None
     remove_by_date: str | None = None
     remove_by_release: str | None = None
-    issue_type: str = "flag"
+    task_type: str = FLAG_TASK_TYPE
+    kind: str | None = None
     title: str = ""
+
+
+def _is_loaded_flag_bead(issue: Issue) -> bool:
+    """Return whether *issue* belongs in the flag-bead snapshot list."""
+    return is_flag_task_bead(issue) or issue.issue_type == IssueType.FLAG
 
 
 def _flag_bead_snapshot_from_issue(issue: Issue) -> FlagBeadSnapshot:
     """Project one bead :class:`Issue` into a :class:`FlagBeadSnapshot`."""
-    record = issue.flag
+    fields: FlagFields | None = flag_fields(issue)
+    task_type = issue.task_type or (
+        FLAG_TASK_TYPE if issue.issue_type == IssueType.FLAG else ""
+    )
     return FlagBeadSnapshot(
         id=issue.id,
         status=issue.status.value,
-        key=None if record is None else record.key,
-        remove_by_date=None if record is None else record.remove_by_date,
-        remove_by_release=None if record is None else record.remove_by_release,
-        issue_type=issue.issue_type.value,
+        key=None if fields is None else fields.key,
+        remove_by_date=None if fields is None else fields.remove_by_date,
+        remove_by_release=None if fields is None else fields.remove_by_release,
+        task_type=task_type,
+        kind=None if fields is None or not fields.kind else fields.kind,
         title=issue.title,
     )
 
@@ -67,10 +81,14 @@ def load_flag_bead_snapshots(
         return None
     try:
         project = BeadProject(location.root, beads_dirname=location.beads_dirname)
-        issues = project.list_issues(issue_types=[IssueType.FLAG])
+        issues = project.list_issues(issue_types=[IssueType.TASK, IssueType.FLAG])
     except Exception:  # noqa: BLE001 - doctor/CLI must stay read-only and best-effort.
         return None
-    return tuple(_flag_bead_snapshot_from_issue(issue) for issue in issues)
+    return tuple(
+        _flag_bead_snapshot_from_issue(issue)
+        for issue in issues
+        if _is_loaded_flag_bead(issue)
+    )
 
 
 def flag_bead_for_key(
@@ -171,17 +189,6 @@ def _committed_flag_task_issue(key: str, *, cwd: Path | None) -> Issue:
     )
 
 
-def flag_record_from_snapshot(bead: FlagBeadSnapshot) -> FlagRecord | None:
-    """Return a :class:`FlagRecord` when *bead* carries both thresholds."""
-    if not bead.key or not bead.remove_by_date or not bead.remove_by_release:
-        return None
-    return FlagRecord(
-        key=bead.key,
-        remove_by_date=bead.remove_by_date,
-        remove_by_release=bead.remove_by_release,
-    )
-
-
 __all__ = [
     "FLAG_TASK_TYPE",
     "LIVE_FLAG_STATUS_VALUES",
@@ -189,6 +196,5 @@ __all__ = [
     "create_flag_bead",
     "flag_bead_for_id",
     "flag_bead_for_key",
-    "flag_record_from_snapshot",
     "load_flag_bead_snapshots",
 ]

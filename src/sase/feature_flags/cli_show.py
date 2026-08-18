@@ -15,7 +15,7 @@ from rich.text import Text
 import sase
 from sase.bead_flag_presentation import flag_due_presentation, flag_key_chip
 from sase.core import time as core_time
-from sase.feature_flags.beads import FlagBeadSnapshot, flag_record_from_snapshot
+from sase.feature_flags.beads import FlagBeadSnapshot
 from sase.feature_flags.cli_json import diagnostic_json, flag_view_json
 from sase.feature_flags.cli_render import (
     on_off,
@@ -140,17 +140,18 @@ def _render_show(
     if view.bead is None:
         console.print("  (no flag bead)")
     else:
-        record = flag_record_from_snapshot(view.bead)
         console.print(f"  id:         {view.bead.id}")
         console.print(f"  status:     {view.bead.status}")
         if view.bead.title:
             console.print(f"  title:      {view.bead.title}")
-        if record is not None:
+        if view.bead.remove_by_date and view.bead.remove_by_release:
             console.print(
-                f"  remove_by:  {record.remove_by_date} / {record.remove_by_release}"
+                f"  remove_by:  {view.bead.remove_by_date} / "
+                f"{view.bead.remove_by_release}"
             )
             due = flag_due_presentation(
-                record,
+                view.bead.remove_by_date,
+                view.bead.remove_by_release,
                 today=today,
                 release=release,
             )
