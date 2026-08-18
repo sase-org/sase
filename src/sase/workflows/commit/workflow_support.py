@@ -61,3 +61,34 @@ def log_commit_failed(method: str, reason: str) -> None:
         log_event(event="commit_failed", method=method, reason=reason)
     except Exception:
         pass
+
+
+def _resolve_revision(provider: object, revision: str, cwd: str) -> str | None:
+    try:
+        resolved = provider.revision_id(revision, cwd)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    if not isinstance(resolved, str) or not resolved.strip():
+        return None
+    return resolved.strip()
+
+
+def resolve_head_commit_sha(provider: object, cwd: str) -> str | None:
+    """Best-effort resolution of HEAD's immutable revision for the commit ledger.
+
+    Never raises: a run-owned ledger entry is a bonus attribution signal, not
+    a requirement, so a provider that cannot resolve it must not fail the
+    commit that already succeeded.
+    """
+    return _resolve_revision(provider, "HEAD", cwd)
+
+
+def resolve_head_tree_id(provider: object, cwd: str) -> str | None:
+    """Best-effort resolution of HEAD's tree object.
+
+    A rebase performed between recording this ledger entry and a later
+    consumer reading it can move the commit SHA. The tree of the committed
+    paths lets a consumer re-find the commit by content when the recorded SHA
+    is no longer reachable.
+    """
+    return _resolve_revision(provider, "HEAD^{tree}", cwd)

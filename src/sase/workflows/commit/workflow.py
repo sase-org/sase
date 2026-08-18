@@ -61,6 +61,8 @@ from sase.workflows.commit.workflow_support import (
 from sase.workflows.commit.workflow_support import (
     log_commit_failed as _log_commit_failed,
 )
+from sase.workflows.commit.workflow_support import resolve_head_commit_sha
+from sase.workflows.commit.workflow_support import resolve_head_tree_id
 from sase.workflows.commit.workflow_types import (
     EXIT_CODE_CONFLICT,
     METHOD_ALIASES,
@@ -268,6 +270,9 @@ class CommitWorkflow(BaseWorkflow):
             self._repoint_reservation_after_resuffix()
             cp.reserved_name = self._reserved_name
 
+        if self._method in ("create_commit", "create_pull_request"):
+            cp.commit_sha = resolve_head_commit_sha(provider, cwd)
+            cp.commit_tree = resolve_head_tree_id(provider, cwd)
         cp.dispatch_result = result
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
@@ -384,7 +389,13 @@ class CommitWorkflow(BaseWorkflow):
 
         if "write_result_marker" not in cp.completed_steps:
             write_result_marker(
-                self._method, self._payload, self._diff_path, result, cs_name
+                self._method,
+                self._payload,
+                self._diff_path,
+                result,
+                cs_name,
+                commit_sha=cp.commit_sha,
+                commit_tree=cp.commit_tree,
             )
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
@@ -418,6 +429,8 @@ class CommitWorkflow(BaseWorkflow):
                     result,
                     cs_name,
                     entry_id=entry_id,
+                    commit_sha=cp.commit_sha,
+                    commit_tree=cp.commit_tree,
                 )
                 cp.completed_steps.append("final_result_marker")
                 checkpoint_save(cp)

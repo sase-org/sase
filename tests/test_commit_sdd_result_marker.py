@@ -41,6 +41,7 @@ class TestRecordSddCommitResultMarker:
                     "cwd": "/workspace/sase/.sase/sdd",
                     "result": "abc123",
                     "commit_result": "abc123",
+                    "commit_sha": "abc123",
                     "message": "Archive approved plan demo updated\n\nSASE_TYPE=sdd",
                     "repo_name": "sase-org/sase--sdd",
                     "diff_path": None,

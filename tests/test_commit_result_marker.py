@@ -217,3 +217,36 @@ class TestWriteResultMarker:
         with patch.dict("os.environ", {}, clear=True):
             # Should not raise
             write_result_marker("create_commit", payload, None, "abc", None)
+
+    def test_records_commit_sha_and_tree_when_provided(self) -> None:
+        """The run-owned ledger fields are additive: absent unless resolved."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    None,
+                    None,
+                    None,
+                    commit_sha="a" * 40,
+                    commit_tree="b" * 40,
+                )
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert data["commit_sha"] == "a" * 40
+            assert data["commit_tree"] == "b" * 40
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert results[0]["commit_sha"] == "a" * 40
+            assert results[0]["commit_tree"] == "b" * 40
+
+    def test_omits_commit_sha_and_tree_when_not_resolved(self) -> None:
+        """A resolution failure must not add placeholder keys to the marker."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
+                write_result_marker("create_commit", payload, None, "abc123", None)
+
+            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert "commit_sha" not in data
+            assert "commit_tree" not in data

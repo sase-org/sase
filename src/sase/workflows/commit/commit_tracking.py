@@ -507,6 +507,7 @@ def record_sdd_commit_result_marker(
         "cwd": cwd_str,
         "result": result,
         "commit_result": result,
+        "commit_sha": result,
         "message": message,
         "repo_name": repo_name or Path(cwd_str).name,
         "diff_path": diff_path,
@@ -527,8 +528,16 @@ def write_result_marker(
     changespec_name: str | None,
     *,
     entry_id: str | None = None,
+    commit_sha: str | None = None,
+    commit_tree: str | None = None,
 ) -> None:
-    """Write commit result to a marker file for xprompt post-steps."""
+    """Write commit result to a marker file for xprompt post-steps.
+
+    ``commit_sha``/``commit_tree`` are the run-owned ledger fields: unlike
+    ``result`` (which is a PR URL for ``create_pull_request`` and a diff path
+    for ``create_proposal``), they are always the commit this run finalized,
+    letting a later reader identify it without decoding ``method`` first.
+    """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
         return
@@ -563,6 +572,10 @@ def write_result_marker(
     }
     if repo_name is not None:
         marker["repo_name"] = repo_name
+    if commit_sha:
+        marker["commit_sha"] = commit_sha
+    if commit_tree:
+        marker["commit_tree"] = commit_tree
     committed_at = _resolve_commit_created_at(commit_cwd, result)
     if committed_at is not None:
         marker["committed_at"] = committed_at

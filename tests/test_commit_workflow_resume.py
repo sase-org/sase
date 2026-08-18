@@ -159,6 +159,91 @@ def test_resume_replays_tracking_after_conflict_resolution(
 
 
 @patch(_PROVIDER_TARGET)
+def test_resume_records_finalized_commit_sha_for_conflict_originated_dispatch(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """Resume must record a real SHA where cp.dispatch_result stayed null.
+
+    A dispatch that ended in CONFLICT never set cp.dispatch_result, so before
+    this fix the ledger recorded "result": null for the commit this run
+    actually finalized. Resume has the repo and the finalized HEAD in hand
+    and must resolve and record its SHA.
+    """
+    provider = _make_provider(head_subject="fix: bug")
+    provider.revision_id.return_value = "c" * 40
+    mock_get.return_value = provider
+
+    _save_checkpoint(cwd=str(tmp_path), payload={"message": "fix: bug"})
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="42",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    assert mock_marker.call_count == 2  # initial + final-with-entry_id
+    for call in mock_marker.call_args_list:
+        assert call.kwargs["commit_sha"] == "c" * 40
+        assert call.kwargs["commit_tree"] == "c" * 40
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_resolves_commit_sha_after_finalize_commit(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """The SHA must be resolved after finalize_commit's amend/push/rebase."""
+    provider = _make_provider(head_subject="fix: bug")
+    mock_get.return_value = provider
+
+    events: list[str] = []
+    provider.finalize_commit.side_effect = lambda *_a, **_k: (
+        events.append("finalize") or (True, None)
+    )
+    provider.revision_id.side_effect = lambda *_a, **_k: (
+        events.append("revision_id") or "c" * 40
+    )
+
+    _save_checkpoint(cwd=str(tmp_path), payload={"message": "fix: bug"})
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="42",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    assert events == ["finalize", "revision_id", "revision_id"]
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_resolves_commit_sha_when_finalize_commit_unsupported(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """Even without finalize_commit support, HEAD's SHA is still knowable."""
+    provider = _make_provider(head_subject="fix: bug", finalize_raises=True)
+    provider.revision_id.return_value = "d" * 40
+    mock_get.return_value = provider
+
+    _save_checkpoint(cwd=str(tmp_path), payload={"message": "fix: bug"})
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="1",
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker") as mock_marker,
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    assert mock_marker.call_args.kwargs["commit_sha"] == "d" * 40
+
+
+@patch(_PROVIDER_TARGET)
 def test_resume_reaches_close_bead_step(
     mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
 ) -> None:

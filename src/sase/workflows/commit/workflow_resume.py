@@ -13,6 +13,8 @@ from sase.workflows.commit.runtime_tags import (
     run_owned_commit_tags,
     update_trailing_commit_tags,
 )
+from sase.workflows.commit.workflow_support import resolve_head_commit_sha
+from sase.workflows.commit.workflow_support import resolve_head_tree_id
 from sase.workflows.commit.workflow_types import RunResult
 
 if TYPE_CHECKING:
@@ -101,6 +103,14 @@ def resume_commit_workflow(
                     status="failed",
                 ).inc()
                 return RunResult.FAILED
+        # The original dispatch never recorded a SHA when it ended in
+        # CONFLICT (cp.dispatch_result stayed None), so this is the only
+        # point that has the repo and the finalized HEAD in hand. Resolve
+        # here, after any restamp/bead amend and the finalize push (which may
+        # itself have rebased), so the run-owned ledger carries the commit
+        # this resume actually finalized instead of a null result.
+        cp.commit_sha = resolve_head_commit_sha(provider, cp.cwd)
+        cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
 

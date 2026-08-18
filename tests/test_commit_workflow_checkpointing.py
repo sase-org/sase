@@ -261,6 +261,46 @@ def test_dispatch_step_recorded_after_success(
 
 
 @patch(_PROVIDER_TARGET)
+def test_dispatch_records_commit_sha_for_run_owned_ledger(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    """A successful dispatch resolves HEAD's SHA into the checkpoint ledger."""
+    provider = make_provider(dispatch_result=(True, "abc123"))
+    provider.revision_id.return_value = "e" * 40
+    mock_get.return_value = provider
+
+    saved_states: list[dict] = []
+    real_save = checkpoint.checkpoint_save
+
+    def spy_save(
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
+    ) -> str | None:
+        saved_states.append(
+            {
+                "completed_steps": list(cp.completed_steps),
+                "commit_sha": cp.commit_sha,
+                "commit_tree": cp.commit_tree,
+            }
+        )
+        return real_save(cp, path)
+
+    wf = CommitWorkflow({"message": "fix: checkpoint"}, "create_commit")
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value="1",
+        ),
+        patch("sase.workflows.commit.workflow.checkpoint_save", side_effect=spy_save),
+    ):
+        assert wf.run() == RunResult.OK
+
+    dispatch_state = next(s for s in saved_states if "dispatch" in s["completed_steps"])
+    assert dispatch_state["commit_sha"] == "e" * 40
+    assert dispatch_state["commit_tree"] == "e" * 40
+
+
+@patch(_PROVIDER_TARGET)
 def test_pre_dispatch_checkpoint_written_before_dispatch(
     mock_get: MagicMock, artifacts_dir: Path
 ) -> None:
