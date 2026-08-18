@@ -14024,6 +14024,102 @@
       },
       {
         "aliases": [],
+        "default_child": null,
+        "description_digest": "5bad3a61bc3aa588",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "pipe",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "fresh",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-f",
+              "--fresh"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "json",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-j",
+              "--json"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "model",
+            "hidden": false,
+            "kind": "model",
+            "repeatable": false,
+            "strings": [
+              "-m",
+              "--model"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "name",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-n",
+              "--name"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "reason",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-r",
+              "--reason"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "pipe"
+        ],
+        "positionals": [
+          {
+            "choices": null,
+            "dest": "prompt",
+            "is_remainder": false,
+            "kind": null,
+            "metavar": "PROMPT",
+            "nargs": null
+          }
+        ],
+        "subcommands": []
+      },
+      {
+        "aliases": [],
         "default_child": "list",
         "description_digest": "baa415214d8946fc",
         "hidden": false,

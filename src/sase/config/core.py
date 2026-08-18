@@ -272,6 +272,7 @@ def require_machine_name() -> str:
 
 
 DEFAULT_MAX_RUNNING_AGENTS = 10
+DEFAULT_MAX_AGENT_PIPE_CHAIN = 8
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_PROC_HISTORY_LIMIT = 100
@@ -295,6 +296,21 @@ def get_configured_max_running_agents() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_MAX_RUNNING_AGENTS
+
+
+def get_max_agent_pipe_chain() -> int:
+    """Return the configured ``sase pipe`` family-chain bound.
+
+    The original agent is depth 0. A pipe is refused when the next link
+    would exceed this value. Malformed configuration falls back to the
+    package default rather than allowing an unbounded chain.
+    """
+    value = load_merged_config().get(
+        "max_agent_pipe_chain", DEFAULT_MAX_AGENT_PIPE_CHAIN
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_MAX_AGENT_PIPE_CHAIN
 
 
 def get_runner_slot_deference_seconds_per_step() -> int:

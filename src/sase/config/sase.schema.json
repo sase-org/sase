@@ -2721,6 +2721,12 @@
       "minimum": 1,
       "default": 10
     },
+    "max_agent_pipe_chain": {
+      "type": "integer",
+      "description": "Maximum number of sase pipe hops in one family chain. The original agent is depth 0; each successful pipe increments depth by one and is refused when the next link would exceed this bound.",
+      "minimum": 1,
+      "default": 8
+    },
     "runner_slots": {
       "type": "object",
       "additionalProperties": false,

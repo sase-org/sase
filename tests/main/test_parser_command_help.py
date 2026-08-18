@@ -139,6 +139,21 @@ def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
     assert args.prompt == "hello"
 
 
+def test_pipe_help_documents_prompt_flags_and_turn_warning() -> None:
+    """``sase pipe --help`` states that the command ends this turn."""
+    pipe_help = flat_help(parser_for(("sase", "pipe")).format_help())
+    args = create_parser().parse_args(["pipe", "continue the work", "-n", "review"])
+
+    assert "This ends your turn" in pipe_help
+    assert "-f, --fresh" in pipe_help
+    assert "-j, --json" in pipe_help
+    assert "-m, --model" in pipe_help
+    assert "-n, --name" in pipe_help
+    assert "-r, --reason" in pipe_help
+    assert args.prompt == "continue the work"
+    assert args.name == "review"
+
+
 def test_memory_help_marks_primary_command_and_init_alias() -> None:
     """Memory help text points users to the new primary command surface."""
     memory_help = flat_help(parser_for(("sase", "memory")).format_help())

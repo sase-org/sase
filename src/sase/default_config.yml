@@ -40,6 +40,12 @@ repos:
 # excluded; axe Patch runners use their separate axe.max_* limits.
 max_running_agents: 10
 
+# Maximum number of `sase pipe` hops in one family chain. The original agent
+# is depth 0; each successful pipe increments depth by one and is refused
+# when the next link would exceed this bound. This is a config field, not a
+# feature flag: users choose the number permanently to stop runaway self-piping.
+max_agent_pipe_chain: 8
+
 runner_slots:
   # Lower priority numbers start first; the default is 10. Only priorities
   # above the default defer, scaled per step and bounded by the maximum.

@@ -115,7 +115,12 @@ def test_save_to_chat_history_passes_transcript_model_metadata() -> None:
 
 @pytest.mark.parametrize(
     "marker_name",
-    [".sase_plan_pending", ".sase_questions_pending", ".sase_monitor_pending"],
+    [
+        ".sase_plan_pending",
+        ".sase_questions_pending",
+        ".sase_monitor_pending",
+        ".sase_pipe_pending",
+    ],
 )
 def test_postprocess_success_suppresses_sound_for_pending_handoff(
     tmp_path, marker_name: str

@@ -565,7 +565,10 @@ def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None
     release.assert_not_called()
 
 
-@pytest.mark.parametrize("marker", [".sase_plan_pending", ".sase_questions_pending"])
+@pytest.mark.parametrize(
+    "marker",
+    [".sase_plan_pending", ".sase_questions_pending", ".sase_pipe_pending"],
+)
 def test_finalize_preserves_held_bead_claim_for_pending_handoff(
     tmp_path: Path, marker: str
 ) -> None:

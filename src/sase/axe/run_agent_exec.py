@@ -13,6 +13,7 @@ from sase.axe.run_agent_exec_markers import (
     write_done_marker_and_update_index as _write_done_marker_and_update_index,
 )
 from sase.axe.run_agent_exec_monitor import handle_monitor_marker
+from sase.axe.run_agent_exec_pipe import handle_pipe_marker
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
@@ -138,6 +139,7 @@ def _handle_killed_iteration(
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_monitor_pending")
+        read_and_delete_marker(state.current_artifacts_dir, ".sase_pipe_pending")
         AGENT_KILLS.labels(reason="user").inc()
         return "killed"
 
@@ -153,6 +155,10 @@ def _handle_killed_iteration(
         state.current_artifacts_dir,
         ".sase_monitor_pending",
     )
+    pipe_data = read_and_delete_marker(
+        state.current_artifacts_dir,
+        ".sase_pipe_pending",
+    )
 
     if plan_data and _marker_predates_kill(plan_data, kill_time):
         return handle_plan_marker(plan_data, ctx, state)
@@ -160,6 +166,8 @@ def _handle_killed_iteration(
         return handle_questions_marker(q_data, ctx, state)
     if monitor_data and _marker_predates_kill(monitor_data, kill_time):
         return handle_monitor_marker(monitor_data, ctx, state)
+    if pipe_data and _marker_predates_kill(pipe_data, kill_time):
+        return handle_pipe_marker(pipe_data, ctx, state)
 
     AGENT_KILLS.labels(reason="user").inc()
     return "killed"

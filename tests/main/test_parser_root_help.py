@@ -181,12 +181,15 @@ def test_non_compact_root_commands_still_parse() -> None:
     mobile_args = parser.parse_args(["mobile", "agent-bridge", "list-agents"])
     telemetry_args = parser.parse_args(["telemetry", "status"])
     questions_args = parser.parse_args(["questions", "[]"])
+    pipe_args = parser.parse_args(["pipe", "continue the work"])
     var_args = parser.parse_args(["var", "set", "answer=42"])
 
     assert artifact_args.command == "artifact-file"
     assert mobile_args.command == "mobile"
     assert telemetry_args.command == "telemetry"
     assert questions_args.command == "questions"
+    assert pipe_args.command == "pipe"
+    assert pipe_args.prompt == "continue the work"
     assert var_args.command == "var"
 
 

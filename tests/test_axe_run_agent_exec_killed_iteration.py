@@ -220,3 +220,85 @@ def test_user_kill_intent_discards_monitor_marker(tmp_path: Path) -> None:
     monitor.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_monitor_pending").exists()
+
+
+def test_pipe_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    _write_marker(
+        Path(ctx.artifacts_dir),
+        ".sase_pipe_pending",
+        {
+            "prompt": "continue the work",
+            "reason": "hand off",
+            "model": None,
+            "name_token": None,
+            "fresh": False,
+            "pipe_depth": 0,
+            "timestamp": 99.0,
+        },
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch("sase.axe.run_agent_exec.handle_pipe_marker", return_value=None) as pipe,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome is None
+    pipe.assert_called_once()
+    marker = pipe.call_args.args[0]
+    assert marker["prompt"] == "continue the work"
+
+
+def test_pipe_marker_newer_than_sigterm_is_ignored_as_user_kill(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    marker_path = Path(ctx.artifacts_dir) / ".sase_pipe_pending"
+    _write_marker(
+        Path(ctx.artifacts_dir),
+        marker_path.name,
+        {
+            "prompt": "continue the work",
+            "timestamp": 101.0,
+        },
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch("sase.axe.run_agent_exec.handle_pipe_marker") as pipe,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    pipe.assert_not_called()
+    assert not marker_path.exists()
+
+
+def test_user_kill_intent_discards_pipe_marker(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    artifacts = Path(ctx.artifacts_dir)
+    _write_marker(
+        artifacts,
+        USER_KILL_INTENT_MARKER,
+        {"schema_version": 1, "timestamp": 50.0, "pid": 123, "source": "test"},
+    )
+    _write_marker(
+        artifacts,
+        ".sase_pipe_pending",
+        {"prompt": "continue the work", "timestamp": 49.0},
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch("sase.axe.run_agent_exec.handle_pipe_marker") as pipe,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    pipe.assert_not_called()
+    assert (artifacts / USER_KILL_INTENT_MARKER).exists()
+    assert not (artifacts / ".sase_pipe_pending").exists()

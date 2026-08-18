@@ -382,6 +382,19 @@ def main() -> NoReturn:
 
         handle_plan_command(args)
 
+    # --- pipe ---
+    if args.command == "pipe":
+        from .pipe_handler import handle_pipe_command
+
+        handle_pipe_command(
+            args.prompt,
+            fresh=bool(getattr(args, "fresh", False)),
+            json_output=bool(getattr(args, "json", False)),
+            model=getattr(args, "model", None),
+            name=getattr(args, "name", None),
+            reason=getattr(args, "reason", None),
+        )
+
     # --- plugin ---
     if args.command == "plugin":
         from .plugin_handler import handle_plugin_command

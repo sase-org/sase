@@ -318,6 +318,43 @@ def test_config_schema_rejects_max_running_agents_below_minimum() -> None:
         Draft7Validator(schema()).validate({"max_running_agents": 0})
 
 
+def test_config_schema_accepts_max_agent_pipe_chain() -> None:
+    Draft7Validator(schema()).validate({"max_agent_pipe_chain": 1})
+    Draft7Validator(schema()).validate({"max_agent_pipe_chain": 8})
+
+
+def test_config_schema_rejects_max_agent_pipe_chain_below_minimum() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"max_agent_pipe_chain": 0})
+
+
+def test_max_agent_pipe_chain_reads_merged_config(monkeypatch) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {"max_agent_pipe_chain": 3},
+    )
+
+    assert config_core.get_max_agent_pipe_chain() == 3
+
+
+@pytest.mark.parametrize("value", [None, 0, -1, True, "8"])
+def test_max_agent_pipe_chain_falls_back_to_package_default(
+    monkeypatch, value: object
+) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {"max_agent_pipe_chain": value},
+    )
+
+    assert config_core.get_max_agent_pipe_chain() == 8
+
+
 def test_config_schema_validates_runner_slot_deference() -> None:
     Draft7Validator(schema()).validate(
         {
