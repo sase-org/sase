@@ -414,6 +414,7 @@ def test_gate_adapter_registry_declares_surface_capabilities() -> None:
         "bead_stale_cleanup",
         "custom",
         "flag_triage",
+        "plugins_required",
         "task_triage",
     }
     assert {

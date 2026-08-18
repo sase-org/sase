@@ -299,6 +299,7 @@ The following events generate notifications:
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                |
 | `bead`                         | A task bead needs triage, a snoozed task woke, a due flag bead needs `FlagTriage`, or stale uncorroborated tasks need `BeadStaleCleanup` |
+| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                |
 | `launch`                       | A running agent requested a new agent launch for approval                                                                                |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                           |
 | `hitl`                         | A workflow HITL step is waiting for user input                                                                                           |
@@ -419,6 +420,27 @@ subset as `canceled`. Selecting nothing fails the command and leaves the gate pe
 The chop keeps at most one of these gates at a time and cancels it when the backlog
 drops below the bar. Run `sase axe chop run bead_stale_cleanup` to raise or refresh that
 gate without waiting for the next hourly housekeeping tick.
+
+### Required Plugin Notification
+
+The five-minute `plugins_required` chop raises one human-only `PluginsRequired` gate per
+enabled project whose `plugins.required` entries are missing or version-mismatched. The
+notification lands in the `Plugins` panel with `plugin` and `required` tags. Its preview
+lists each unsatisfied requirement and notes that a successful install restarts axe.
+
+The gate offers two branches:
+
+- **Install** is the primary path. It runs `sase plugin install <name>` for each missing
+  requirement. When sase is not a `uv tool` install, the command fails with the same
+  actionable message `sase plugin install` already prints and the gate stays pending
+  rather than reporting a phantom success.
+- **Dismiss** records the decision so the same missing set is not re-offered until it
+  changes.
+
+The chop cancels the gate when the required set becomes satisfied. Agent and
+non-interactive contexts still fail closed and never auto-install. Run
+`sase axe chop run plugins_required` to raise or refresh those gates without waiting for
+the next five-minute checks tick.
 
 ### Agent Completion Attachments
 
@@ -1012,6 +1034,7 @@ map kinds to notification actions:
 | `task_triage`        | `TaskTriage`        | AXE's built-in `bead_task_triage` chop            |
 | `flag_triage`        | `FlagTriage`        | AXE's built-in `bead_task_triage` chop            |
 | `bead_stale_cleanup` | `BeadStaleCleanup`  | AXE's built-in `bead_stale_cleanup` chop          |
+| `plugins_required`   | `PluginsRequired`   | AXE's built-in `plugins_required` chop            |
 | `question`           | `UserQuestion`      | `sase questions`                                  |
 | `launch`             | `LaunchApproval`    | Agent-initiated `sase launch request`             |
 | `custom`             | `CustomGate`        | `sase gate create`                                |

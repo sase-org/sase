@@ -18,6 +18,7 @@ _PRIORITY_ACTIONS = frozenset(
         "BeadSnooze",
         "FlagTriage",
         "BeadStaleCleanup",
+        "PluginsRequired",
         "JumpToMentorReview",
     }
 )

@@ -105,6 +105,18 @@ class RequiredPluginsReport:
             if issue.kind in {"invalid", "duplicate", "undeclared_prefix"}
         )
 
+    @property
+    def installable(self) -> tuple[_RequiredPluginIssue, ...]:
+        """Missing or version-mismatched requirements an install can fix."""
+        return tuple(
+            issue
+            for issue in self.issues
+            if issue.kind in {"missing", "version_mismatch"}
+            and issue.requirement
+            and issue.name
+            and issue.install_command
+        )
+
 
 class RequiredPluginError(RuntimeError):
     """Raised when required plugins are unsatisfied in a fail-closed context."""
@@ -269,9 +281,13 @@ def required_plugin_blockers(
         installed_versions=installed_versions,
         inventory=inventory,
     )
-    if report.ok:
-        return ()
-    return tuple(f"{command_label}: {issue.message}" for issue in report.issues)
+    try:
+        fail_closed_required_plugins(report)
+    except RequiredPluginError as exc:
+        return tuple(
+            f"{command_label}: {line}" for line in str(exc).splitlines() if line
+        )
+    return ()
 
 
 def _parse_required_entries(

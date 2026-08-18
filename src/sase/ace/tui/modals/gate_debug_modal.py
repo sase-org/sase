@@ -42,6 +42,7 @@ _KIND_COLORS = {
     "question": "#87d7ff",
     "launch": "#5fffff",
     "task_triage": "#d787ff",
+    "plugins_required": "#5fd7af",
     "custom": "#ffaf5f",
     "hitl": "#ffd75f",
     "notification": "#a8a8a8",
@@ -340,6 +341,7 @@ def _context_kind(context: GateDebugContext) -> str:
         "LaunchApproval": "launch",
         "TaskTriage": "task_triage",
         "BeadSnooze": "bead_snooze",
+        "PluginsRequired": "plugins_required",
         "CustomGate": "custom",
         "HITL": "hitl",
     }.get(action, "notification")

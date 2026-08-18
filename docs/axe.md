@@ -236,11 +236,12 @@ a chop failure ever leaves the tick-driven hint unconsumed. Setting
 
 Lower-frequency status checks:
 
-| Chop                    | Description                                                |
-| ----------------------- | ---------------------------------------------------------- |
-| `bead_task_triage`      | Reconcile the one pending gate each task or flag bead owns |
-| `pr_submitted_checks`   | Start PR submission status checks                          |
-| `stale_running_cleanup` | Backstop dead-process claim cleanup                        |
+| Chop                    | Description                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| `bead_task_triage`      | Reconcile the one pending gate each task or flag bead owns   |
+| `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
+| `pr_submitted_checks`   | Start PR submission status checks                            |
+| `stale_running_cleanup` | Backstop dead-process claim cleanup                          |
 
 **A live task or flag bead has at most one pending gate**, and `bead_task_triage` is the
 single owner of that invariant. It scans enabled non-home projects for task beads whose
@@ -321,6 +322,20 @@ the definition to `kind: "ops"` or convert it to an ordinary config field, then 
 the bead; **Close** requires a reason and closes the bead as `canceled`, leaving
 `tools/check_feature_flags`' closed-bead-with-surviving-definition check to catch the
 orphan if the flag itself survives.
+
+The `plugins_required` chop is the human install offer that agent and non-interactive
+contexts deliberately do not get. It scans enabled non-home projects, compares each
+project's `plugins.required` list against installed distributions, and raises at most
+one `PluginsRequired` gate per project per distinct missing or version-mismatched set.
+**Install** runs `sase plugin install <name>` for each missing requirement from the
+answering surface; when sase is not a `uv tool` install, that command fails with the
+same actionable message `sase plugin install` already prints and the gate stays pending.
+A successful install restarts axe. **Dismiss** records the decision so the same missing
+set is not re-offered until it changes. The chop cancels the gate when the set becomes
+satisfied. Lane state holds the pending request, a generation counter, and a fingerprint
+over the missing set, so a re-run does not duplicate a notification. Run
+`sase axe chop run plugins_required` to raise or refresh those gates without waiting for
+the next five-minute checks tick.
 
 ### external_mirror (15-minute interval)
 

@@ -356,8 +356,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-p1.7(GlossaryPanel)" \
-        --epic-symbol "sase-p3.11(RequiredPluginError)" \
-        --epic-symbol "sase-p3.11(fail_closed_required_plugins)" \
         --epic-symbol "sase-p4.3(active_epic_resume)" \
         --epic-symbol "sase-p4.3(build_epic_resume_argv)" \
         --epic-symbol "sase-p4.3(epic_resume_origin_from_gate_source)" \

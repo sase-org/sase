@@ -157,6 +157,17 @@ class GateAdapter:
             )
             close_bead_stale_cleanup(stale_cleanup_decision)
             return
+        if self.kind == "plugins_required":
+            from sase.plugins.required_gate import (
+                apply_plugins_required_decision,
+                translate_plugins_required_response,
+            )
+
+            plugins_required_decision = translate_plugins_required_response(
+                bundle_path, response
+            )
+            apply_plugins_required_decision(plugins_required_decision)
+            return
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
@@ -408,6 +419,19 @@ _ADAPTERS = (
         auto_policy="forbidden",
         neutral_only=True,
         default_feedback="optional",
+        generic_form=True,
+    ),
+    GateAdapter(
+        kind="plugins_required",
+        display_title="Required Plugins",
+        action="PluginsRequired",
+        pending_action_kind="plugins_required",
+        sender="plugin",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="bundle_path",
+        auto_policy="forbidden",
+        neutral_only=True,
         generic_form=True,
     ),
     GateAdapter(

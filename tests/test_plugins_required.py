@@ -92,6 +92,10 @@ def test_resolve_required_plugins_reports_missing_and_version_mismatch() -> None
 
     assert not report.ok
     assert [issue.kind for issue in report.issues] == ["missing", "version_mismatch"]
+    assert [issue.kind for issue in report.installable] == [
+        "missing",
+        "version_mismatch",
+    ]
     assert report.issues[0].message == (
         "required plugin `sase-github` is not installed; "
         "run `sase plugin install sase-github`"
@@ -142,6 +146,7 @@ def test_resolve_required_plugins_cross_checks_use_prefixes() -> None:
     assert undeclared[0].config_path == "repos.sidecar.custom.research.ref.use"
     assert "sase-research-artifacts" in undeclared[0].message
     assert "plugins.required" in undeclared[0].message
+    assert report.installable == ()
 
 
 def test_resolve_required_plugins_ignores_builtin_prefixes() -> None:

@@ -99,13 +99,23 @@ def _print_config_errors(errors: Iterable[str]) -> None:
 
 def _required_plugin_errors(config_path: Path) -> tuple[str, ...]:
     """Return ``plugins.required`` blockers before any memory drift comparison."""
-    from sase.plugins.required import required_plugin_blockers
+    from sase.plugins.required import (
+        RequiredPluginError,
+        fail_closed_required_plugins,
+        required_plugin_blockers,
+        resolve_required_plugins,
+    )
     from sase.project_management import load_local_config
 
     loaded = load_local_config(config_path)
     if not loaded.valid:
         return ()
-    return required_plugin_blockers(loaded.config, command_label=COMMAND_LABEL)
+    report = resolve_required_plugins(loaded.config)
+    try:
+        fail_closed_required_plugins(report)
+    except RequiredPluginError:
+        return required_plugin_blockers(loaded.config, command_label=COMMAND_LABEL)
+    return ()
 
 
 def _stdin_is_tty() -> bool:

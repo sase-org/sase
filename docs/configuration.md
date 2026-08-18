@@ -2182,6 +2182,20 @@ axe:
             safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
             touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
             in flight is deferred instead of re-gated.
+        - name: plugins_required
+          script: sase_chop_plugins_required
+          timeout: "2m"
+          description: |-
+            Raise one human gate per project whose required plugins are missing
+
+            Scans enabled projects every five minutes and compares each project's plugins.required list against
+            installed distributions. A project with a missing or version-mismatched required set gets exactly one
+            pending PluginsRequired gate offering Install and Dismiss. Install runs sase plugin install for each
+            missing name from the answering surface and keeps the gate pending when that command fails, including
+            when sase is not a uv tool install. Dismiss records the decision so the same missing set is not
+            re-offered until it changes. The chop cancels the gate when the set becomes satisfied. Deterministic
+            generations in lane state prevent duplicate notifications. Agent and non-interactive contexts still
+            fail closed and never auto-install.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
