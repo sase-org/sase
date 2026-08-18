@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import Path
@@ -18,9 +20,37 @@ from sase.bead.model import (
     SnoozeRecord,
     Status,
 )
+from sase.bead.work_liveness import BeadWorkInFlight
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 from sase.core.time import get_timezone
+
+_WORK_STUB_ATTR = "_sase_bead_work_in_flight_stub"
+
+
+@dataclass
+class _WorkInFlightStub:
+    launching: frozenset[str] = field(default_factory=frozenset)
+    working: dict[tuple[str, str], str] = field(default_factory=dict)
+
+
+def _work_stub(monkeypatch: pytest.MonkeyPatch) -> _WorkInFlightStub:
+    existing = getattr(monkeypatch, _WORK_STUB_ATTR, None)
+    if existing is not None:
+        return existing
+    stub = _WorkInFlightStub()
+
+    def factory(_log_warning: Any = None, **_kwargs: Any) -> BeadWorkInFlight:
+        del _log_warning, _kwargs
+        return BeadWorkInFlight(
+            launching=stub.launching,
+            working=frozenset(stub.working),
+            working_agents=dict(stub.working),
+        )
+
+    monkeypatch.setattr(task_triage, "bead_work_in_flight", factory)
+    setattr(monkeypatch, _WORK_STUB_ATTR, stub)
+    return stub
 
 
 def make_runtime(tmp_path: Path, *, dry_run: bool = False) -> BuiltinChopRuntime:
@@ -164,6 +194,7 @@ def patch_project(
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     patch_min_plus_ones(monkeypatch, min_plus_ones)
     patch_active_launches(monkeypatch)
+    patch_live_agent_beads(monkeypatch)
 
 
 def patch_min_plus_ones(monkeypatch: pytest.MonkeyPatch, min_plus_ones: int) -> None:
@@ -193,11 +224,21 @@ def patch_active_launches(
     monkeypatch: pytest.MonkeyPatch,
     bead_ids: set[str] | frozenset[str] = frozenset(),
 ) -> None:
-    monkeypatch.setattr(
-        task_triage,
-        "active_task_launch_bead_ids",
-        lambda: frozenset(bead_ids),
-    )
+    stub = _work_stub(monkeypatch)
+    stub.launching = frozenset(bead_ids)
+
+
+def patch_live_agent_beads(
+    monkeypatch: pytest.MonkeyPatch,
+    pairs: Iterable[tuple[str, str]] = frozenset(),
+    *,
+    agents: Mapping[tuple[str, str], str] | None = None,
+) -> None:
+    stub = _work_stub(monkeypatch)
+    stub.working = {
+        pair: agents[pair] if agents is not None and pair in agents else pair[1]
+        for pair in pairs
+    }
 
 
 def patch_snooze_gate(

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
+from sase.bead import work_liveness
 from sase.bead.model import TaskPlusOneEvidence
 
 from tests._axe_chop_bead_task_triage_helpers import (
@@ -196,9 +197,15 @@ def test_active_task_launch_read_failure_falls_back_to_existing_behavior(
     patch_project(monkeypatch, tmp_path, [make_task()])
     monkeypatch.setattr(
         task_triage,
+        "bead_work_in_flight",
+        work_liveness.bead_work_in_flight,
+    )
+    monkeypatch.setattr(
+        work_liveness,
         "active_task_launch_bead_ids",
         lambda: (_ for _ in ()).throw(OSError("task store busy")),
     )
+    monkeypatch.setattr(task_triage, "beads_with_live_agents", lambda **_kwargs: {})
     created: list[str] = []
     monkeypatch.setattr(
         task_triage,

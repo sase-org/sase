@@ -359,13 +359,15 @@ attempt to cancel the matching pending gate; a cancellation failure does not fai
 close, and the next reconciliation remains the backstop. Choosing **Launch** in
 `TaskTriage` answers that gate normally, and a successful launch submission from ACE's
 Beads pane explicitly cancels it. A direct `sase bead work <task-id>` command does not
-settle an older gate itself; because the launch changes the stored status, the next
-reconciliation cancels that stale gate. If the bead's status otherwise changes out of
-band (leaves `ready`, gets snoozed, or wakes), the chop cancels the gate of the wrong
-kind and creates the right one on its next tick. If a gate becomes terminal, disappears,
-or uses an obsolete presentation or option-input contract while still expected, the next
-five-minute scan creates a replacement with a new generation-specific request ID, except
-while the task bead's detached launch is still in flight.
+settle an older gate itself; while a live agent is working the bead, the next
+reconciliation cancels that stale gate with reason `bead_work_in_flight`. The same
+liveness rule covers `BeadSnooze` and `FlagTriage`. If the bead's status otherwise
+changes out of band (leaves `ready`, gets snoozed, or wakes), the chop cancels the gate
+of the wrong kind and creates the right one on its next tick. If a gate becomes
+terminal, disappears, or uses an obsolete presentation or option-input contract while
+still expected, the next five-minute scan creates a replacement with a new
+generation-specific request ID, except while the task bead's detached launch is still in
+flight or a live agent is working the bead.
 
 ### Snoozed Task Notification
 

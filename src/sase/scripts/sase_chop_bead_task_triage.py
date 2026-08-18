@@ -7,6 +7,11 @@ thresholds have both passed awaits a ``FlagTriage`` decision. All three gate
 kinds are reconciled here, in one lane state and under one lock, because
 "which gate does this bead have" is a single question: a second chop owning a
 second kind could only race this one into giving a bead two pending gates.
+
+A gateable bead is deferred while work is in flight (an active launch proc
+**or** a live agent). A pending gate is left in place while the launch proc
+is still running — the launch may still fail — and canceled with reason
+``bead_work_in_flight`` once a live agent owns the bead.
 """
 
 from __future__ import annotations
@@ -21,8 +26,12 @@ from sase.bead.gate_lookup import find_pending_bead_gates
 from sase.bead.model import Issue, SnoozeRecord
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
 from sase.bead.task_gate import TASK_TRIAGE_KIND, create_task_triage_gate
-from sase.bead.task_launch import active_task_launch_bead_ids
 from sase.bead.task_triage_policy import effective_min_plus_ones, task_gate_suppressed
+from sase.bead.work_liveness import (
+    BeadWorkInFlight,
+    bead_work_in_flight,
+    beads_with_live_agents,
+)
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import time as core_time
@@ -158,6 +167,29 @@ def _heal_snoozed_notification(
         index,
         notification_id_for=_gate_notification_id,
     )
+
+
+def _log_live_agent_work(
+    log: ChopLogger,
+    *,
+    project_name: str,
+    bead_id: str,
+    agent_name: str | None,
+    action: str,
+) -> None:
+    owner = agent_name or "unknown"
+    log.info(
+        f"[bead_task_triage] Live agent {owner} is working "
+        f"{project_name}:{bead_id}; {action}"
+    )
+
+
+def _pending_refresh_reason(*, worked: bool, wrong_kind: bool) -> str:
+    if worked:
+        return "bead_work_in_flight"
+    if wrong_kind:
+        return "bead_status_changed"
+    return "task_triage_presentation_changed"
 
 
 def _summary(
@@ -327,13 +359,10 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     reconciled_projects: set[str] = set()
     skipped_projects = set(inventory.skipped_projects)
     notifications = _NotificationSnoozeIndex()
-    try:
-        in_flight_launches = active_task_launch_bead_ids()
-    except Exception as exc:  # noqa: BLE001 - keep today's triage behavior.
-        runtime.log.warning(
-            f"[bead_task_triage] Failed to read active task launches: {exc}"
-        )
-        in_flight_launches = frozenset()
+    work: BeadWorkInFlight = bead_work_in_flight(
+        runtime.log.warning,
+        live_agents=beads_with_live_agents,
+    )
 
     today = core_time.local_now().date()
     release = sase.__version__
@@ -382,18 +411,20 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
 
             issue = live_tasks.pop(bead_id, None)
             if issue is not None and gate_state == "pending":
-                if bead_id in in_flight_launches:
+                if work.is_launching(bead_id):
                     skipped += 1
                     continue
-                # A status change outranks the presentation check: the pending
-                # gate asks the wrong question entirely, so its fingerprint is
-                # not worth comparing.
+                # A live agent outranks the fingerprint shortcut: the pending
+                # ask is already stale for the whole remaining run. A status
+                # change still outranks a mere presentation drift.
+                worked = work.is_worked(project_name, bead_id)
                 wrong_kind = kind != _expected_gate_kind(issue)
                 fingerprint = _presentation_fingerprint(
                     issue, registry=task_type_registry
                 )
                 if (
-                    not wrong_kind
+                    not worked
+                    and not wrong_kind
                     and project_state.fingerprints.get(bead_id) == fingerprint
                 ):
                     skipped += 1
@@ -412,10 +443,8 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     was_canceled = _cancel_pending_gate(
                         kind,
                         request_id,
-                        reason=(
-                            "bead_status_changed"
-                            if wrong_kind
-                            else "task_triage_presentation_changed"
+                        reason=_pending_refresh_reason(
+                            worked=worked, wrong_kind=wrong_kind
                         ),
                     )
                 except Exception as exc:  # noqa: BLE001 - retry on the next tick.
@@ -425,9 +454,17 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                     )
                     continue
                 canceled += int(was_canceled)
+                if worked:
+                    _log_live_agent_work(
+                        runtime.log,
+                        project_name=project_name,
+                        bead_id=bead_id,
+                        agent_name=work.agent_name(project_name, bead_id),
+                        action="canceling pending gate",
+                    )
 
             if issue is None and gate_state == "pending":
-                if bead_id in suppressed and bead_id in in_flight_launches:
+                if bead_id in suppressed and work.is_launching(bead_id):
                     skipped += 1
                     continue
                 cancel_reason = (
@@ -455,7 +492,15 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 live_tasks[bead_id] = issue
 
         for bead_id, issue in sorted(live_tasks.items()):
-            if bead_id in in_flight_launches:
+            if work.covers(project_name, bead_id):
+                if work.is_worked(project_name, bead_id):
+                    _log_live_agent_work(
+                        runtime.log,
+                        project_name=project_name,
+                        bead_id=bead_id,
+                        agent_name=work.agent_name(project_name, bead_id),
+                        action="deferring new gate",
+                    )
                 deferred += 1
                 continue
             generation = project_state.generations.get(bead_id, 0) + 1

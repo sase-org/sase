@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.agent.names import is_process_alive
 from sase.bead.claims import BEAD_CLAIM_MARKER, write_bead_claim_marker
 from sase.bead.model import Issue, Status
 from sase.bead.store_locator import open_bead_project_for_beads_dir
@@ -19,26 +18,18 @@ from sase.bead.sync import (
     publish_bead_claim,
     refresh_bead_store,
 )
+from sase.bead.work_liveness import AGENT_BEAD_SCAN_OPTIONS as _SCAN_OPTIONS
+from sase.bead.work_liveness import agent_record_is_alive
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import bead_read_facade as rust_beads
 from sase.core.agent_scan_facade import scan_agent_artifacts
-from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.paths import sase_projects_dir
 
 #: Terminal marker written beside a dead owner's artifact record once its claim
 #: has been reconciled. Without it the pre-pass would keep every dead record as
 #: a release candidate forever and open bead stores on every tick.
 BEAD_CLAIM_RECONCILED_MARKER = "bead_claim_reconciled.json"
-
-_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    only_workflow_dirs=("ace-run",),
-    include_prompt_step_markers=False,
-    include_raw_prompt_snippets=False,
-    include_done_markers=False,
-    include_workflow_state=False,
-    include_waiting=False,
-)
 
 
 @dataclass(frozen=True)
@@ -53,6 +44,7 @@ class _ClaimArtifact:
     bead_claim_promoted: bool | None
     has_bead_claim_marker: bool
     has_reconcile_tombstone: bool = False
+    is_alive: bool = False
 
 
 @dataclass(frozen=True)
@@ -210,6 +202,7 @@ def _scan_claim_artifacts(projects_root: Path) -> list[_ClaimArtifact]:
                 has_reconcile_tombstone=(
                     artifact_dir / BEAD_CLAIM_RECONCILED_MARKER
                 ).exists(),
+                is_alive=agent_record_is_alive(record),
             )
         )
     return claims
@@ -240,12 +233,7 @@ def _write_reconcile_tombstone(record: _ClaimArtifact, log: ChopLogger) -> bool:
 
 
 def _claim_owner_is_alive(record: _ClaimArtifact) -> bool:
-    meta: dict[str, object] = {}
-    if record.pid is not None:
-        meta["pid"] = record.pid
-    if record.stopped_at is not None:
-        meta["stopped_at"] = record.stopped_at
-    return is_process_alive(meta, record.artifact_dir)
+    return record.is_alive
 
 
 def _read_claimed_issues(beads_dir: Path) -> list[Issue] | None:

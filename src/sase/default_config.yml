@@ -807,8 +807,9 @@ axe:
             changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts. Gates are
             canceled when their beads leave those states, while answered or missing gates can be regenerated
             safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
-            touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
-            in flight is deferred instead of re-gated.
+            touching projects that are only temporarily unreadable. A gateable bead is deferred while a detached
+            launch is still in flight or a live agent is working the bead, and a pending gate is canceled when a
+            live agent owns the bead.
         - name: epic_resume
           script: sase_chop_epic_resume
           timeout: "2m"
