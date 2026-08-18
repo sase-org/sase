@@ -1,8 +1,9 @@
 """Shared enabled-project inventory for bead-gate chops.
 
-``bead_task_triage`` and ``bead_stale_cleanup`` scan the same enabled-project
-set. The inventory lives here so each chop can label its own warnings without
-re-exporting these symbols from either chop's private state module.
+``bead_task_triage``, ``bead_stale_cleanup``, and ``epic_resume`` scan the
+same enabled-project set. The inventory lives here so each chop can label its
+own warnings without re-exporting these symbols from another chop's private
+state module.
 """
 
 from __future__ import annotations

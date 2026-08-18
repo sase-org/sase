@@ -355,14 +355,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-p4.4(EpicClanMember)" \
-        --epic-symbol "sase-p4.4(EpicClanSnapshot)" \
-        --epic-symbol "sase-p4.4(EpicStall)" \
-        --epic-symbol "sase-p4.4(active_epic_resume)" \
-        --epic-symbol "sase-p4.4(create_epic_resume_gate)" \
-        --epic-symbol "sase-p4.4(epic_stall_fingerprint)" \
-        --epic-symbol "sase-p4.4(latest_generation_snapshot)" \
-        --epic-symbol "sase-p4.4(stalled_epic)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

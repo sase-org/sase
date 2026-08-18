@@ -2757,6 +2757,19 @@
             }
           }
         },
+        "epic_resume": {
+          "type": "object",
+          "description": "Volume controls for the epic_resume chop, which raises an EpicResume gate when a failed phase agent stalls an epic. Off by default; enable via the epic_resume_gate feature flag.",
+          "additionalProperties": false,
+          "properties": {
+            "settle_seconds": {
+              "type": "integer",
+              "description": "Seconds the newest clan-member failure must sit before the epic_resume chop treats the epic as stalled. Guards against gating on a handoff race or a fast retry.",
+              "default": 120,
+              "minimum": 0
+            }
+          }
+        },
         "push_after_commit": {
           "type": "boolean",
           "description": "When true, run `git push` after `sase bead work` commits sdd/beads/issues.jsonl. Push failures only warn; the local commit is preserved.",
@@ -3195,6 +3208,11 @@
         "completion_refresh_on_update": {
           "type": "boolean",
           "description": "After a successful sase update, regenerate, zcompile, and restamp installed shell completion scripts. Off by default while the generator soaks.",
+          "default": false
+        },
+        "epic_resume_gate": {
+          "type": "boolean",
+          "description": "Opt-in beta: the epic_resume chop raises an EpicResume gate when a failed phase agent stalls an epic.",
           "default": false
         },
         "prettier_enabled": {
