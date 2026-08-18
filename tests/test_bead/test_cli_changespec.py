@@ -104,13 +104,17 @@ def test_create_accepts_external_ref_alias(project_dir: Path) -> None:
             "bead",
             "create",
             "-T",
-            "task",
+            "task(bug)",
             "-t",
             "Mirrored task",
             "--size",
             "small",
             "-x",
             "bug:sase#42",
+            "-f",
+            "location=src/mirror.py",
+            "-f",
+            "repro=mirrored issue",
         ]
     )
 
@@ -200,6 +204,7 @@ def test_show_displays_external_ref(
         task = proj.create(
             "Mirrored task",
             issue_type=bead_cli.IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             external_ref="bug:sase#42",
         )

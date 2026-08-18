@@ -31,7 +31,7 @@ _TYPE_GLYPHS = "▸↳◆⚑"
 def _seed_one_of_each_type(project_dir: Path) -> dict[str, str]:
     with BeadProject(project_dir) as proj:
         plan = proj.create("Plan Bead", IssueType.PLAN)
-        task = proj.create("Task Bead", IssueType.TASK, size="small")
+        task = proj.create("Task Bead", IssueType.TASK, task_type="bug", size="small")
         phase = proj.create("Phase Bead", IssueType.PHASE, parent_id=plan.id)
     return {"plan": plan.id, "phase": phase.id, "task": task.id}
 
@@ -47,7 +47,7 @@ def test_handle_bead_list_compact_summary_counts_printed_limited_rows(
     with BeadProject(project_dir) as proj:
         plan = proj.create("Plan Bead", IssueType.PLAN)
         phase = proj.create("Phase Bead", IssueType.PHASE, parent_id=plan.id)
-        task = proj.create("Task Bead", IssueType.TASK, size="small")
+        task = proj.create("Task Bead", IssueType.TASK, task_type="bug", size="small")
 
     args = parse_sase_args(["bead", "list", "--limit", "2", "--color", "never"])
     bead_cli.handle_bead_list(args)
@@ -130,7 +130,9 @@ def test_list_compact_renders_size_tokens_for_every_stored_size(
 ) -> None:
     with BeadProject(project_dir) as proj:
         ids = {
-            value: proj.create(f"{value.title()} Task", IssueType.TASK, size=value).id
+            value: proj.create(
+                f"{value.title()} Task", IssueType.TASK, task_type="bug", size=value
+            ).id
             for value in PHASE_SIZE_VALUES
         }
 
@@ -171,7 +173,7 @@ def test_list_compact_pads_unsized_rows_when_any_row_is_sized(
 ) -> None:
     with BeadProject(project_dir) as proj:
         plan = proj.create("Plan Bead", IssueType.PLAN)
-        task = proj.create("Large Task", IssueType.TASK, size="large")
+        task = proj.create("Large Task", IssueType.TASK, task_type="bug", size="large")
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
     lines = _compact_row_lines(capsys.readouterr().out)
@@ -192,7 +194,9 @@ def test_list_formats_render_sizes_coherently(
     with BeadProject(project_dir) as proj:
         plan = proj.create("Parent", IssueType.PLAN)
         unsized = proj.create("Unsized Phase", IssueType.PHASE, parent_id=plan.id)
-        sized = proj.create("Sized Task", IssueType.TASK, size="xlarge")
+        sized = proj.create(
+            "Sized Task", IssueType.TASK, task_type="bug", size="xlarge"
+        )
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
     compact = capsys.readouterr().out

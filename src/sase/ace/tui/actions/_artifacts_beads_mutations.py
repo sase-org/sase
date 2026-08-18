@@ -258,6 +258,8 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                         if result.issue_type == IssueType.FLAG.value
                         else None
                     ),
+                    task_type=result.task_type,
+                    task_type_fields=result.task_type_fields,
                 )
                 if result.issue_type == IssueType.TASK.value and result.ready:
                     issue = mutation.project.update(issue.id, status=Status.READY.value)

@@ -139,13 +139,14 @@ def register_bead_create_parser(
         help="Create a new issue",
         description=(
             "Create a plan, phase, or standalone task bead. New task beads "
-            "require an explicit size; plan beads reject size, while raw phase "
-            "creation accepts it optionally. Typed tasks use -T 'task(<slug>)' "
-            "and repeatable -f/--field values."
+            "require an explicit size and -T 'task(<slug>)'; plan beads reject "
+            "size, while raw phase creation accepts it optionally. Typed tasks "
+            "take repeatable -f/--field values for the type's declared fields."
         ),
         epilog=(
             "Examples:\n"
-            '  sase bead create -T task -t "Fix retry race" -z medium\n'
+            "  sase bead create -T 'task(bug)' -t \"Fix retry race\" -z medium "
+            "-f location=src/retry.py -f repro='fails on retry'\n"
             "  sase bead create -T 'task(flake)' -t \"Flaky retry\" -z medium "
             "-f node_id=tests/foo.py::test_bar -f evidence=@notes.txt\n"
             '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small\n'
@@ -219,8 +220,9 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), task, or "
-            "task(<slug>); parent IDs may be full or shorthand"
+            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or "
+            "task(<slug>); parent IDs may be full or shorthand. New tasks "
+            "require a catalog slug; list them with `sase bead task-type`"
         ),
     )
 

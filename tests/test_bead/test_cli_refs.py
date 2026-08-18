@@ -68,7 +68,9 @@ def test_ref_add_list_and_rm_round_trip_through_the_slow_path(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with BeadProject.init(tmp_path) as project:
-        issue = project.create("Attachable", IssueType.TASK, size="small")
+        issue = project.create(
+            "Attachable", IssueType.TASK, task_type="bug", size="small"
+        )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     parser = create_parser()

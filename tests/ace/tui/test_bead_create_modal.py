@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Select
+from textual.widgets import Input, Select, TextArea
 
 from sase.ace.tui.modals.bead_create_modal import BeadCreateModal, BeadCreateResult
 from sase.bead.model import PhaseSize
@@ -35,6 +35,15 @@ async def test_create_modal_requires_and_returns_an_explicit_size() -> None:
         size.value = PhaseSize.SMALL.value
         modal.action_save()
         await pilot.pause()
+        assert dismissed == []
+        assert modal.query_one("#bead-create-task-type", Select).has_focus
+
+        modal.query_one("#bead-create-task-type", Select).value = "bug"
+        modal.query_one(
+            "#bead-create-task-fields", TextArea
+        ).text = "location=src/retry.py\nrepro=fails on retry\n"
+        modal.action_save()
+        await pilot.pause()
 
     assert dismissed == [
         BeadCreateResult(
@@ -42,6 +51,11 @@ async def test_create_modal_requires_and_returns_an_explicit_size() -> None:
             description="",
             size=PhaseSize.SMALL.value,
             ready=False,
+            task_type="bug",
+            task_type_fields={
+                "location": "src/retry.py",
+                "repro": "fails on retry",
+            },
         )
     ]
 

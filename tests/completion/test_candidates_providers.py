@@ -129,7 +129,9 @@ def test_bead_candidates_lists_ids_and_titles(
     isolate_bead_store_resolution(monkeypatch, tmp_path)
 
     with BeadProject(tmp_path) as project:
-        created = project.create("Fix the thing", IssueType.TASK, size=PhaseSize.SMALL)
+        created = project.create(
+            "Fix the thing", IssueType.TASK, task_type="bug", size=PhaseSize.SMALL
+        )
 
     result = candidates_for("bead", "", project=None, limit=200)
 

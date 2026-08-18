@@ -158,7 +158,9 @@ def test_beads_list_bridge_includes_snoozed_beads_by_default(
     """
     alpha_dir, _, _, alpha_closed = seed_bead_project(tmp_path / "alpha")
     with BeadProject(alpha_dir.parents[1]) as project:
-        task = project.create("Deferrable", IssueType.TASK, size="small")
+        task = project.create(
+            "Deferrable", IssueType.TASK, task_type="bug", size="small"
+        )
         project.update(task.id, status=Status.READY.value)
         project.snooze(
             task.id,
@@ -457,6 +459,7 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
         task = project.create(
             "Alpha Task",
             IssueType.TASK,
+            task_type="bug",
             description="Follow-up",
             size="small",
         )

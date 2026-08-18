@@ -231,7 +231,9 @@ def test_execute_bead_cli_materializes_when_the_fast_path_context_defers(
     from sase.bead.project import BeadProject
 
     with BeadProject.init(tmp_path) as project:
-        issue = project.create("Deferred", IssueType.TASK, size="small")
+        issue = project.create(
+            "Deferred", IssueType.TASK, task_type="bug", size="small"
+        )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sase.bead.workspace.resolve_primary_workspace", lambda: None)
     monkeypatch.setattr(

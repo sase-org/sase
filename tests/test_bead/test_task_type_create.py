@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -198,7 +199,16 @@ def test_create_typed_task_rejects_fields_on_bare_task(
         bead_cli.handle_bead_create(args)
 
     assert exc_info.value.code == 1
-    assert "task type fields require -T 'task(<slug>)'" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "task beads require -T 'task(<slug>)'" in err
+    assert "bug" in err
+
+
+def test_resolve_created_task_type_rejects_empty_slug() -> None:
+    with pytest.raises(
+        TaskTypeCreateError, match=r"task beads require -T 'task\(<slug>\)'"
+    ):
+        resolve_created_task_type("", {})
 
 
 def test_create_unknown_type_names_snapshot_plugin(
@@ -387,25 +397,34 @@ def test_update_task_type_is_rejected(
     assert "recreate" in err
 
 
+def _seed_untyped_task(project_dir: Path, title: str) -> None:
+    with BeadProject(project_dir) as project:
+        beads_dir = project.beads_dir
+    issue = {
+        "id": "legacy-untyped",
+        "title": title,
+        "status": "open",
+        "issue_type": "task",
+        "size": "small",
+        "parent_id": None,
+        "created_at": NOW,
+        "updated_at": NOW,
+        "dependencies": [],
+    }
+    issues_path = beads_dir / "issues.jsonl"
+    existing = issues_path.read_text(encoding="utf-8")
+    issues_path.write_text(existing + json.dumps(issue) + "\n", encoding="utf-8")
+    events_dir = beads_dir / "events"
+    if events_dir.exists():
+        shutil.rmtree(events_dir)
+
+
 def test_list_and_search_filter_by_task_type(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _create_typed_task("Typed flake")
-    bead_cli.handle_bead_create(
-        create_parser().parse_args(
-            [
-                "bead",
-                "create",
-                "--title",
-                "Legacy follow-up",
-                "--type",
-                "task",
-                "--size",
-                "small",
-            ]
-        )
-    )
+    _seed_untyped_task(project_dir, "Legacy follow-up")
     capsys.readouterr()
 
     bead_cli.handle_bead_list(

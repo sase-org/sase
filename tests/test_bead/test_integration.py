@@ -79,9 +79,9 @@ class TestEpicLifecycle:
 class TestDependencyChains:
     def test_chain_a_b_c(self, project):
         """Create chain A->B->C, verify blocked/ready at each step."""
-        a = project.create("Task A", IssueType.TASK, size="small")
-        b = project.create("Task B", IssueType.TASK, size="small")
-        c = project.create("Task C", IssueType.TASK, size="small")
+        a = project.create("Task A", IssueType.TASK, task_type="bug", size="small")
+        b = project.create("Task B", IssueType.TASK, task_type="bug", size="small")
+        c = project.create("Task C", IssueType.TASK, task_type="bug", size="small")
         for task in (a, b, c):
             project.update(task.id, status="ready")
 
@@ -117,10 +117,10 @@ class TestDependencyChains:
 
     def test_diamond_dependency(self, project):
         """Diamond: D depends on B and C, both depend on A."""
-        a = project.create("A", IssueType.TASK, size="small")
-        b = project.create("B", IssueType.TASK, size="small")
-        c = project.create("C", IssueType.TASK, size="small")
-        d = project.create("D", IssueType.TASK, size="small")
+        a = project.create("A", IssueType.TASK, task_type="bug", size="small")
+        b = project.create("B", IssueType.TASK, task_type="bug", size="small")
+        c = project.create("C", IssueType.TASK, task_type="bug", size="small")
+        d = project.create("D", IssueType.TASK, task_type="bug", size="small")
         for task in (a, b, c, d):
             project.update(task.id, status="ready")
 

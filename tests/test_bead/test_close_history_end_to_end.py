@@ -23,6 +23,7 @@ def test_a_plus_one_reopen_archives_the_close_reason(tmp_path: Path) -> None:
         task = project.create(
             "Flaky retry test",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="axe.scout",
         )

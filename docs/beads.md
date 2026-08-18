@@ -47,7 +47,8 @@ sase bead init                                          # Initialize beads in cu
 sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
 sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)" --size small # Create a sized epic phase
-sase bead create -t "Fix flaky test" --type task --size small # Create a standalone draft task
+sase bead create -t "Fix flaky test" --type 'task(flake)' --size small \
+  -f node_id=tests/foo.py::test_bar -f evidence='failed then passed' # Create a typed draft task
 sase bead +1 beads-002 --note "Independent reproduction" # Corroborate an existing task
 sase bead update beads-002 --status=ready               # Offer the task for human triage
 sase bead list                                          # List open, claimed, ready, snoozed, and in-progress issues
@@ -288,9 +289,9 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    in-progress epics. Only when neither exists does it create and refine a draft:
 
    ```bash
-   sase bead create -T task -t "Remove the compatibility shim" \
+   sase bead create -T 'task(bug)' -t "Remove the compatibility shim" \
      -d "The new parser has shipped; verify callers and remove the old path." \
-     -z medium
+     -z medium -f location=src/compat.py -f repro='old path still imported'
    sase bead note <task-id> "Found while landing sase-123"
    sase bead dep add <task-id> <blocking-bead-id>
    ```
@@ -560,9 +561,9 @@ work discovered outside their current scope. The skill searches every task statu
 all in-progress epic plans before allowing a new task:
 
 ```bash
-sase bead create -T task -t "Fix flaky integration test" \
+sase bead create -T 'task(flake)' -t "Fix flaky integration test" \
   -d "The retry test flakes under parallel pytest; discovered while landing sase-xy." \
-  --size small
+  --size small -f node_id=tests/retry.py::test_retry -f evidence='failed then passed'
 sase bead update <task-id> -s ready
 ```
 

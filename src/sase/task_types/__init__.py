@@ -6,9 +6,11 @@ from .body import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 from .fields import (
     UNTYPED_TASK_TYPE,
     TaskTypeCreateError,
+    format_agent_creatable_type_listing,
     issue_matches_task_types,
     issue_task_type_slug,
     parse_field_args,
+    required_task_type_field_names,
     resolve_created_task_type,
 )
 from .registry import (
@@ -41,6 +43,7 @@ __all__ = [
     "UNTYPED_TASK_TYPE",
     "assemble_task_type_registry",
     "build_task_type_snapshot_entries",
+    "format_agent_creatable_type_listing",
     "get_task_type_registry",
     "hookimpl",
     "hookspec",
@@ -49,6 +52,7 @@ __all__ = [
     "parse_field_args",
     "render_task_type_display_block",
     "render_task_type_snapshot_json",
+    "required_task_type_field_names",
     "reset_task_type_registry_cache",
     "resolve_created_task_type",
     "task_type_snapshot_entry",

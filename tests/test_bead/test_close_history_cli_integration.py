@@ -22,6 +22,7 @@ def _close_and_reopen_task(project_dir: Path) -> str:
         task = project.create(
             "Rewrite target",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="axe.scout",
         )

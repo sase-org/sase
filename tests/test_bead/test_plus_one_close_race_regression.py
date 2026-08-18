@@ -75,6 +75,7 @@ def _closed_task_with_absorbed_wave(store: SimpleNamespace) -> tuple[str, str]:
         task = project.create(
             "Race-prone task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by=CREATOR,
         )

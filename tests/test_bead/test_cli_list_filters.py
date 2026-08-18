@@ -101,8 +101,10 @@ def test_handle_bead_list_created_bound_lifts_newest_closed_default(
 ) -> None:
     monkeypatch.setattr(cli_query, "DEFAULT_CLOSED_LIST_LIMIT", 1)
     with BeadProject(project_dir) as proj:
-        first = proj.create("First Task", IssueType.TASK, size="small")
-        second = proj.create("Second Task", IssueType.TASK, size="small")
+        first = proj.create("First Task", IssueType.TASK, task_type="bug", size="small")
+        second = proj.create(
+            "Second Task", IssueType.TASK, task_type="bug", size="small"
+        )
         proj.close([first.id], reason="done")
         proj.close([second.id], reason="done")
 

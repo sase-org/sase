@@ -165,7 +165,9 @@ def test_fast_path_mutation_reports_unpublished_state(
 
     clone, bare = workspace_bead_store
     with BeadProject(clone, beads_dirname=BEADS_DIRNAME_ROOT) as project:
-        issue = project.create("Fast path update", IssueType.TASK, size="small")
+        issue = project.create(
+            "Fast path update", IssueType.TASK, task_type="bug", size="small"
+        )
         project.update(issue.id, status="in_progress")
     subprocess.run(
         ["git", "remote", "set-url", "origin", str(bare.parent / "missing.git")],
@@ -190,7 +192,9 @@ def test_fast_path_mutation_publishes_through_the_same_verification(
 
     clone, bare = workspace_bead_store
     with BeadProject(clone, beads_dirname=BEADS_DIRNAME_ROOT) as project:
-        issue = project.create("Fast path update", IssueType.TASK, size="small")
+        issue = project.create(
+            "Fast path update", IssueType.TASK, task_type="bug", size="small"
+        )
         project.update(issue.id, status="in_progress")
 
     published = bead_fast_path._apply_mutation_side_effects(

@@ -37,7 +37,7 @@ def _close_args(*ids: str, reason: str = "done"):
 
 
 def _ready_task(project: BeadProject, title: str):
-    task = project.create(title, IssueType.TASK, size="small")
+    task = project.create(title, IssueType.TASK, task_type="bug", size="small")
     project.update(task.id, status=Status.READY.value)
     return task
 

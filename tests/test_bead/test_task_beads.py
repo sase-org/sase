@@ -33,9 +33,13 @@ def test_create_task_accepts_size_and_prints_type(
             "--title",
             "Investigate follow-up",
             "--type",
-            "task",
+            "task(bug)",
             "--size",
             "medium",
+            "--field",
+            "location=src/retry.py",
+            "--field",
+            "repro=fails on retry",
         ]
     )
 
@@ -46,9 +50,39 @@ def test_create_task_accepts_size_and_prints_type(
     assert task.parent_id is None
     assert task.status is Status.OPEN
     assert task.size is PhaseSize.MEDIUM
+    assert task.task_type == "bug"
     assert capsys.readouterr().out == (
         f"Created task: {task.id} — Investigate follow-up\n"
     )
+
+
+def test_create_task_requires_type(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "create",
+            "--title",
+            "Untyped follow-up",
+            "--type",
+            "task",
+            "--size",
+            "small",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        bead_cli.handle_bead_create(args)
+
+    assert exc_info.value.code == 1
+    err = capsys.readouterr().err
+    assert "task beads require -T 'task(<slug>)'" in err
+    assert "bug" in err
+    assert "flake" in err
+    with BeadProject(project_dir) as project:
+        assert project.list_issues(issue_types=[IssueType.TASK]) == []
 
 
 def test_create_task_records_acting_agent(
@@ -65,9 +99,13 @@ def test_create_task_records_acting_agent(
             "--title",
             "Agent follow-up",
             "--type",
-            "task",
+            "task(bug)",
             "--size",
             "small",
+            "--field",
+            "location=src/retry.py",
+            "--field",
+            "repro=fails on retry",
         ]
     )
 
@@ -86,9 +124,13 @@ def test_create_task_without_agent_records_store_owner(project_dir: Path) -> Non
             "--title",
             "Human follow-up",
             "--type",
-            "task",
+            "task(bug)",
             "--size",
             "small",
+            "--field",
+            "location=src/retry.py",
+            "--field",
+            "repro=fails on retry",
         ]
     )
 
@@ -188,10 +230,11 @@ def test_ready_stats_and_detail_handlers_render_task_semantics(
         first = project.create(
             "Ready follow-up",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.MEDIUM,
         )
         blocked = project.create(
-            "Blocked follow-up", IssueType.TASK, size=PhaseSize.SMALL
+            "Blocked follow-up", IssueType.TASK, task_type="bug", size=PhaseSize.SMALL
         )
         project.update(first.id, status="ready")
         project.update(blocked.id, status="ready")
@@ -219,7 +262,9 @@ def test_ready_handler_uses_task_specific_empty_message(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with BeadProject(project_dir) as project:
-        project.create("Draft follow-up", IssueType.TASK, size=PhaseSize.SMALL)
+        project.create(
+            "Draft follow-up", IssueType.TASK, task_type="bug", size=PhaseSize.SMALL
+        )
 
     bead_cli.handle_bead_ready(create_parser().parse_args(["bead", "ready"]))
 

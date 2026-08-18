@@ -87,7 +87,7 @@ def snooze_store(
 def _snoozed_task(store: SimpleNamespace, title: str = "Deferrable") -> Issue:
     """Create a task bead and snooze it for real, through the store."""
     with BeadProject(store.checkout) as project:
-        issue = project.create(title, IssueType.TASK, size="small")
+        issue = project.create(title, IssueType.TASK, task_type="bug", size="small")
         project.update(issue.id, status=Status.READY.value)
         project.snooze(
             issue.id,

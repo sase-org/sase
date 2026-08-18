@@ -19,6 +19,7 @@ from tests.external_mirror_issue_helpers import (
     issue,
     provider,
     run_mirror,
+    seed_untyped_mirrored_bead,
     show_bead,
 )
 
@@ -66,7 +67,7 @@ def test_untyped_mirrored_bead_still_reconciles_when_github_type_is_absent(
 ) -> None:
     from sase.task_types._models import TaskTypeRegistry
 
-    create_mirrored_bead(bead_store, number=42)
+    seed_untyped_mirrored_bead(bead_store, number=42)
     monkeypatch.setattr(
         "sase.external_mirror._issue_apply.get_task_type_registry",
         lambda: TaskTypeRegistry(records=(), diagnostics=()),
@@ -173,6 +174,7 @@ def test_referenced_only_bead_gets_note_but_status_stays_open(
         project.create(
             "Manually linked",
             IssueType.TASK,
+            task_type="bug",
             refs=["bug:sase#42"],
             size=PhaseSize.SMALL,
         )

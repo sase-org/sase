@@ -51,12 +51,11 @@ def resolve_created_task_type(
 
     stored_fields = dict(fields)
     if not slug:
-        if stored_fields:
-            raise TaskTypeCreateError(
-                "task type fields require -T 'task(<slug>)'; "
-                "bare -T task creates an untyped bead"
-            )
-        return "", {}
+        listing = format_agent_creatable_type_listing(registry)
+        message = "task beads require -T 'task(<slug>)'"
+        if listing:
+            message = f"{message}\n{listing}"
+        raise TaskTypeCreateError(message)
 
     resolved = get_task_type_registry() if registry is None else registry
     record = resolved.by_slug.get(slug)
@@ -128,6 +127,33 @@ def _field_value_problems(
     return problems
 
 
+def format_agent_creatable_type_listing(registry: Any | None = None) -> str:
+    """Return slug-and-summary lines for the agent-creatable catalog."""
+
+    resolved = get_task_type_registry() if registry is None else registry
+    lines: list[str] = []
+    for record in resolved.agent_creatable:
+        summary = str(record.spec.get("summary") or "").strip()
+        if summary:
+            lines.append(f"  {record.task_type:<8} {summary}")
+        else:
+            lines.append(f"  {record.task_type}")
+    return "\n".join(lines)
+
+
+def required_task_type_field_names(spec: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return declared required field names for one spec, in spec order."""
+
+    names: list[str] = []
+    for field in spec.get("fields") or ():
+        if not isinstance(field, Mapping):
+            continue
+        name = str(field.get("name") or "").strip()
+        if name and field.get("required"):
+            names.append(name)
+    return tuple(names)
+
+
 def _unknown_task_type_message(slug: str, registry: Any) -> str:
     available = ", ".join(record.task_type for record in registry.agent_creatable)
     lines = [f"unknown task type {slug!r}"]
@@ -149,8 +175,10 @@ def _unknown_task_type_message(slug: str, registry: Any) -> str:
 __all__ = [
     "UNTYPED_TASK_TYPE",
     "TaskTypeCreateError",
+    "format_agent_creatable_type_listing",
     "issue_matches_task_types",
     "issue_task_type_slug",
     "parse_field_args",
+    "required_task_type_field_names",
     "resolve_created_task_type",
 ]

@@ -35,7 +35,7 @@ def frozen_clocks(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _ready_task(project_dir: Path, title: str = "Deferrable") -> Issue:
     with BeadProject(project_dir) as proj:
-        issue = proj.create(title, IssueType.TASK, size="small")
+        issue = proj.create(title, IssueType.TASK, task_type="bug", size="small")
         proj.update(issue.id, status=Status.READY.value)
         return proj.show(issue.id)
 

@@ -85,6 +85,7 @@ def test_bead_with_only_bug_ref_is_recognized_as_covering(
         project.create(
             "Manually linked",
             IssueType.TASK,
+            task_type="bug",
             refs=["bug:sase#42"],
             size=PhaseSize.SMALL,
         )
@@ -96,7 +97,7 @@ def test_bead_with_only_bug_ref_is_recognized_as_covering(
 
     assert report.beads_created == 0
     [bead] = beads(bead_store)
-    assert bead.task_type == ""
+    assert bead.task_type == "bug"
 
 
 def test_flag_bead_bug_ref_does_not_cover_external_issue(
@@ -134,6 +135,7 @@ def test_conflict_created_between_plan_and_apply_is_detected_under_lock(
         project.create(
             "Existing",
             IssueType.TASK,
+            task_type="bug",
             external_ref="bug:sase#42",
             size=PhaseSize.SMALL,
         )

@@ -87,7 +87,7 @@ command.
 Task readiness is an explicit human-triage state:
 
 ```bash
-sase bead create --type task --title "Follow up" --size small
+sase bead create --type 'task(bug)' --title "Follow up" --size small -f location=src/foo.py -f repro='fails on retry'
 sase bead update <task-id> --status ready
 sase bead ready              # ready task beads whose deps are all closed
 sase bead blocked            # beads with active dependencies

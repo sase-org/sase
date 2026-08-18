@@ -20,6 +20,7 @@ def test_plus_one_badge_evidence_search_stats_and_json_agree(
         task = project.create(
             "Cache remains stale",
             IssueType.TASK,
+            task_type="bug",
             description="Invalidate the cache deterministically.",
             size=PhaseSize.MEDIUM,
         )
@@ -69,6 +70,7 @@ def test_post_close_plus_one_badge_marker_search_and_json_agree(
         task = project.create(
             "Cache remains stale",
             IssueType.TASK,
+            task_type="bug",
             description="Invalidate the cache deterministically.",
             size=PhaseSize.MEDIUM,
         )

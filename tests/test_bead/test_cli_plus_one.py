@@ -92,6 +92,7 @@ def test_plus_one_verified_after_close_reopens_and_clears_assignee(
         task = project.create(
             "Fixed task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             assignee="finisher.agent",
             created_by="creator.agent",
@@ -117,6 +118,7 @@ def test_plus_one_verified_after_close_rejects_non_closed_bead(
         task = project.create(
             "Open task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -144,6 +146,7 @@ def test_plus_one_withheld_reopen_reports_and_leaves_bead_closed(
         task = project.create(
             "Fixed task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -188,6 +191,7 @@ def test_plus_one_malformed_agent_metadata_falls_back_and_reopens(
         task = project.create(
             "Fixed task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -212,6 +216,7 @@ def test_plus_one_human_fallback_uses_current_time_and_reopens(
         task = project.create(
             "Fixed task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -232,6 +237,7 @@ def test_plus_one_accepts_shorthand_refs_and_promotes_draft_task(
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.MEDIUM,
             created_by="creator.agent",
         )
@@ -272,6 +278,7 @@ def test_plus_one_public_entry_dispatch_uses_current_agent(
         task = project.create(
             "Public command",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -301,6 +308,7 @@ def test_plus_one_repeat_is_noop_with_note_guidance(
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -353,6 +361,7 @@ def test_plus_one_reports_missing_task_and_blank_evidence(
             issue_id = project.create(
                 "Needs evidence",
                 IssueType.TASK,
+                task_type="bug",
                 size=PhaseSize.SMALL,
                 created_by="creator.agent",
             ).id
@@ -372,6 +381,7 @@ def test_plus_one_uses_canonical_commit_and_deferred_push(
         task = project.create(
             "Published evidence",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )
@@ -400,6 +410,7 @@ def test_plus_one_idempotent_retry_skips_commit_and_push(
         task = project.create(
             "Published evidence",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator.agent",
         )

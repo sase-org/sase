@@ -21,6 +21,7 @@ def test_project_plus_one_promotes_and_round_trips_all_persistence(
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.MEDIUM,
             created_by="creator-agent",
         )
@@ -83,6 +84,7 @@ def test_project_plus_one_creator_and_repeat_are_noops(tmp_path: Path) -> None:
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator-agent",
         )
@@ -123,6 +125,7 @@ def test_project_plus_one_with_stale_observed_since_records_but_withholds_reopen
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             assignee="finisher-agent",
             created_by="creator-agent",
@@ -168,6 +171,7 @@ def test_project_plus_one_with_fresh_observed_since_reopens_and_clears_assignee(
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             assignee="finisher-agent",
             created_by="creator-agent",
@@ -196,6 +200,7 @@ def test_project_plus_one_without_observed_since_still_reopens_legacy_style(
         task = project.create(
             "Corroborated task",
             IssueType.TASK,
+            task_type="bug",
             size=PhaseSize.SMALL,
             created_by="creator-agent",
         )
@@ -232,7 +237,7 @@ def test_core_create_requires_size_but_legacy_sizeless_task_still_loads(
         issues_path = project.beads_dir / "issues.jsonl"
         before = issues_path.read_bytes()
         with pytest.raises(ValueError, match="requires an explicit size"):
-            project.create("Missing size", IssueType.TASK)
+            project.create("Missing size", IssueType.TASK, task_type="bug")
         assert issues_path.read_bytes() == before
 
     legacy = {
@@ -255,3 +260,36 @@ def test_core_create_requires_size_but_legacy_sizeless_task_still_loads(
         assert loaded.issue_type == IssueType.TASK
         assert loaded.size is None
         assert loaded.plus_one_count == 0
+
+
+def test_core_create_requires_task_type_but_legacy_untyped_task_still_loads(
+    tmp_path: Path,
+) -> None:
+    with BeadProject.init(tmp_path) as project:
+        issues_path = project.beads_dir / "issues.jsonl"
+        before = issues_path.read_bytes()
+        with pytest.raises(ValueError, match="requires an explicit task type"):
+            project.create("Missing type", IssueType.TASK, size="small")
+        assert issues_path.read_bytes() == before
+
+    legacy = {
+        "id": "sase-untyped",
+        "title": "Legacy untyped task",
+        "status": "open",
+        "issue_type": "task",
+        "size": "small",
+        "parent_id": None,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "dependencies": [],
+    }
+    issues_path.write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+    events_dir = issues_path.parent / "events"
+    if events_dir.exists():
+        shutil.rmtree(events_dir)
+
+    with BeadProject(tmp_path) as project:
+        loaded = project.show("sase-untyped")
+        assert loaded.issue_type == IssueType.TASK
+        assert loaded.task_type == ""
+        assert loaded.size is PhaseSize.SMALL

@@ -22,6 +22,17 @@ def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def github_task_type_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The published sase-github wheel does not yet export this type."""
+    from tests.external_mirror_issue_fixtures import _github_task_type_registry
+
+    monkeypatch.setattr(
+        "sase.external_mirror._issue_apply.get_task_type_registry",
+        _github_task_type_registry,
+    )
+
+
 @pytest.fixture
 def bead_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "bead-store"

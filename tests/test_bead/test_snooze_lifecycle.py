@@ -24,6 +24,7 @@ def _ready_task(project: BeadProject) -> str:
     task = project.create(
         "A deferrable task",
         IssueType.TASK,
+        task_type="bug",
         size=PhaseSize.MEDIUM,
         created_by="creator-agent",
     )

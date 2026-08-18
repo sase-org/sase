@@ -26,11 +26,11 @@ Ambiguous shorthand fails and lists the candidates. Output and stored relationsh
 
 - `plan` — `-T "plan(<plan_file>[,<parent_id>])"`, top level, `--tier plan|epic`.
 - `phase` — `-T "phase(<parent_id>)"`, child of a plan bead.
-- `task` — `-T task`, or `-T "task(<slug>)"` for a typed task, standalone discovered follow-up; no tier, required
-  `--size` when newly created. `task_type` is immutable once set (`sase bead update` has no `--task-type`), and a
-  typed task takes repeatable `-f/--field k=v` values for its declared fields (`@<path>` reads a value from a file).
-  Read the generated `task_types.md` short note for the current catalog and `sase bead task-type show <slug>` for
-  one type in full.
+- `task` — `-T "task(<slug>)"` for a typed task, standalone discovered follow-up; no tier, required `--size` when newly
+  created. Bare `-T task` is an error that lists the agent-creatable slugs. `task_type` is immutable once set
+  (`sase bead update` has no `--task-type`), and a typed task takes repeatable `-f/--field k=v` values for its declared
+  fields (`@<path>` reads a value from a file). Read the generated `task_types.md` short note for the current catalog
+  and `sase bead task-type show <slug>` for one type in full.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or one task worker. Epic launches
 normally come from plan approval and task launches from a `TaskTriage` gate, so hand-create beads only for tracker or
@@ -60,7 +60,7 @@ caused by an active epic belongs on that epic as a `DISCOVERED ISSUE:` note, eve
 
 ```bash
 sase bead +1 <task-id> -n "<independent reproduction and impact>" -R <artifact-ref>
-sase bead create -T task -t "<title>" -d "<what is wrong and how you found it>" -z <size>
+sase bead create -T "task(<slug>)" -t "<title>" -d "<what is wrong and how you found it>" -z <size> -f <field>=<value>
 sase bead update <id> -s ready
 ```
 

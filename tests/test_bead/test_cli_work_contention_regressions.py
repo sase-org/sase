@@ -65,7 +65,9 @@ def _append_note_worker(
 def _seed_contention_beads(project_dir: Path, count: int) -> list[str]:
     with BeadProject(project_dir) as project:
         return [
-            project.create(f"Seeded task {index}", IssueType.TASK, size="small").id
+            project.create(
+                f"Seeded task {index}", IssueType.TASK, task_type="bug", size="small"
+            ).id
             for index in range(count)
         ]
 

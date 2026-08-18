@@ -141,6 +141,7 @@ def test_handle_bead_search_json_reports_external_ref_match(
         task = proj.create(
             "Mirrored task",
             IssueType.TASK,
+            task_type="bug",
             size="small",
             external_ref="bug:sase#42",
         )
@@ -203,7 +204,7 @@ def test_handle_bead_search_compact_renders_aligned_type_glyphs(
             IssueType.PHASE,
             parent_id=plan.id,
         )
-        task = proj.create("Needle Task", IssueType.TASK, size="small")
+        task = proj.create("Needle Task", IssueType.TASK, task_type="bug", size="small")
 
     args = parse_sase_args(["bead", "search", "needle", "--color", "never"])
     bead_cli.handle_bead_search(args)
@@ -229,13 +230,13 @@ def test_handle_bead_search_compact_renders_size_token(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with BeadProject(project_dir) as proj:
-        task = proj.create("Needle Task", IssueType.TASK, size="large")
+        task = proj.create("Needle Task", IssueType.TASK, task_type="bug", size="large")
 
     args = parse_sase_args(["bead", "search", "needle", "--color", "never"])
     bead_cli.handle_bead_search(args)
 
     row = capsys.readouterr().out.splitlines()[0]
-    assert f"◆ · ○  L {task.id} · Needle Task" in row
+    assert f"◆ ⨯ ○  L {task.id} · Needle Task" in row
 
 
 def test_handle_bead_search_compact_colors_type_glyphs(
@@ -245,7 +246,7 @@ def test_handle_bead_search_compact_colors_type_glyphs(
     with BeadProject(project_dir) as proj:
         plan = proj.create("Needle Plan", IssueType.PLAN)
         proj.create("Needle Phase", IssueType.PHASE, parent_id=plan.id)
-        proj.create("Needle Task", IssueType.TASK, size="small")
+        proj.create("Needle Task", IssueType.TASK, task_type="bug", size="small")
 
     args = parse_sase_args(["bead", "search", "needle", "--color", "always"])
     bead_cli.handle_bead_search(args)

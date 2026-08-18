@@ -171,6 +171,7 @@ def test_external_ref_facade_create_update_clear_and_conflict(
         root / "sdd/beads",
         title="Second",
         issue_type=IssueType.TASK,
+        task_type="bug",
         size="small",
         now="2026-01-01T00:01:00Z",
     )

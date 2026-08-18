@@ -57,7 +57,7 @@ def test_handle_bead_list_json_always_emits_size(
 ) -> None:
     with BeadProject(project_dir) as proj:
         plan = proj.create("Open Epic", IssueType.PLAN)
-        task = proj.create("Sized Task", IssueType.TASK, size="medium")
+        task = proj.create("Sized Task", IssueType.TASK, task_type="bug", size="medium")
 
     args = parse_sase_args(["bead", "list", "-f", "json"])
     bead_cli.handle_bead_list(args)
@@ -73,7 +73,7 @@ def test_handle_bead_list_includes_snoozed_by_default(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with BeadProject(project_dir) as proj:
-        task = proj.create("Deferrable", IssueType.TASK, size="small")
+        task = proj.create("Deferrable", IssueType.TASK, task_type="bug", size="small")
         proj.update(task.id, status=Status.READY.value)
         proj.snooze(task.id, until="2099-01-01T00:00:00Z", actor="tester@example.com")
 

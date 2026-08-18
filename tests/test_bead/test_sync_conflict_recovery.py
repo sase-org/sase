@@ -301,10 +301,14 @@ def test_concurrently_minted_bead_id_relocates_instead_of_wedging_sync(
         tmp_path
     )
     with BeadProject(left, beads_dirname="beads") as project:
-        left_bead = project.create("Left task", IssueType.TASK, size="small")
+        left_bead = project.create(
+            "Left task", IssueType.TASK, task_type="bug", size="small"
+        )
     _commit(left, "left mints a bead", "beads")
     with BeadProject(right, beads_dirname="beads") as project:
-        right_bead = project.create("Right task", IssueType.TASK, size="small")
+        right_bead = project.create(
+            "Right task", IssueType.TASK, task_type="bug", size="small"
+        )
     _commit(right, "right mints a bead", "beads")
     _git(right, "push")
     assert left_bead.id == right_bead.id
@@ -342,7 +346,9 @@ def test_concurrently_minted_bead_id_relocates_instead_of_wedging_sync(
     # The relocated bead must be a real, mintable id: the next create in
     # either clone has to land past it rather than colliding all over again.
     with BeadProject(left, beads_dirname="beads") as project:
-        follow_up = project.create("Follow up", IssueType.TASK, size="small")
+        follow_up = project.create(
+            "Follow up", IssueType.TASK, task_type="bug", size="small"
+        )
     assert follow_up.id not in {
         json.loads(line)["id"]
         for line in (left / "beads/issues.jsonl")

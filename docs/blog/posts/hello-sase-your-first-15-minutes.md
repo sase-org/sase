@@ -202,9 +202,10 @@ sase bead show <bead-id>  # inspects one bead in detail
 
 For a self-contained follow-up that does not need an epic, agents first run
 `/sase_new_task`; when it is genuinely new, create a standalone task bead with
-`sase bead create --type task --title "Follow up" --size small`, move it to `ready` when
-it is ready for triage, and launch it with `sase bead work <task-id>`. AXE also turns
-stored `ready` tasks into notification gates where a reviewer can launch or close them.
+`sase bead create --type 'task(bug)' --title "Follow up" --size small -f location=src/foo.py -f repro='fails on retry'`,
+move it to `ready` when it is ready for triage, and launch it with
+`sase bead work <task-id>`. AXE also turns stored `ready` tasks into notification gates
+where a reviewer can launch or close them.
 
 Once an epic plan exists and its phase beads are filed, `sase bead work <epic-id>`
 builds a dependency schedule from the open phases, checkpoints their `in_progress`

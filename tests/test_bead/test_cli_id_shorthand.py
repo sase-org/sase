@@ -180,7 +180,7 @@ def test_pages_url_resolves_shorthand_before_building_url(
     from sase.sdd.store import SddStore
 
     with BeadProject(project_dir) as project:
-        bead = project.create("Page", IssueType.TASK, size="small")
+        bead = project.create("Page", IssueType.TASK, task_type="bug", size="small")
     store = SddStore(
         "sidecar_repos",
         tmp_path / "plans",

@@ -197,7 +197,9 @@ def test_plan_file_rejects_linked_non_epic_bead(
     project_dir: Path,
 ) -> None:
     with BeadProject(project_dir) as project:
-        task = project.create("Follow-up", IssueType.TASK, size="small")
+        task = project.create(
+            "Follow-up", IssueType.TASK, task_type="bug", size="small"
+        )
     plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
     plan.parent.mkdir(parents=True)
     plan.write_text(

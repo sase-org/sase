@@ -18,6 +18,7 @@ from sase.bead.model import BeadTier, FlagRecord, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.task_types import (
     TaskTypeCreateError,
+    format_agent_creatable_type_listing,
     parse_field_args,
     resolve_created_task_type,
 )
@@ -25,7 +26,7 @@ from sase.task_types import (
 _TYPE_ARG_USAGE = (
     "plan(<plan_file>), plan(<plan_file>,<parent_id>), "
     "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), "
-    "task, or task(<slug>)"
+    "or task(<slug>)"
 )
 
 
@@ -47,7 +48,7 @@ def parse_type_arg(
     Returns ``(issue_type, plan_path, parent_id, flag, task_type)``.
 
     Accepted forms:
-    - ``task``                              -> TASK, untyped
+    - ``task``                              -> TASK, empty slug (rejected at create)
     - ``task(<slug>)``                      -> TASK, task_type=slug
     - ``plan(<path>)``                      -> PLAN, design=path
     - ``plan(<path>,<parent_id>)``          -> PLAN, design=path, parent_id
@@ -120,7 +121,6 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 "-f/--field can only be set on task beads created with "
                 "-T 'task(<slug>)'"
             )
-        task_type, field_values = resolve_created_task_type(task_type, field_values)
     except TaskTypeCreateError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -151,9 +151,24 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    if issue_type == IssueType.TASK and not task_type:
+        listing = format_agent_creatable_type_listing()
+        print(
+            "Error: task beads require -T 'task(<slug>)'",
+            file=sys.stderr,
+        )
+        if listing:
+            print(listing, file=sys.stderr)
+        sys.exit(1)
     if issue_type == IssueType.PLAN and size is not None:
         print("Error: --size can only be set on phase or task beads", file=sys.stderr)
         sys.exit(1)
+    if issue_type == IssueType.TASK:
+        try:
+            task_type, field_values = resolve_created_task_type(task_type, field_values)
+        except TaskTypeCreateError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
     design = ""
     resolved_plan_file: Path | None = None
     if plan_path:

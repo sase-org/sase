@@ -162,7 +162,9 @@ def test_bead_snooze_gate_preview_carries_the_real_snooze_note(
 ) -> None:
     del gate_home
     with BeadProject(project_dir) as proj:
-        task = proj.create("Follow up on the cache", IssueType.TASK, size="small")
+        task = proj.create(
+            "Follow up on the cache", IssueType.TASK, task_type="bug", size="small"
+        )
         proj.update(task.id, status=Status.READY.value)
         issue = proj.snooze(
             task.id,

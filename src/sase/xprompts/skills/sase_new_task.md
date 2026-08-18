@@ -125,7 +125,7 @@ Use this skill before creating any task bead.
    ```
 
    `task_type` is immutable once set, so pick the closest match rather than the first
-   plausible one. If no catalog type fits, bare `-T task` still creates an untyped task.
+   plausible one. Bare `-T task` is an error; every new task must use a catalog slug.
 
    When the search or the sweep surfaced beads that are related but are not duplicates —
    an adjacent defect, a shared root file, a bead whose fix could collide — record one

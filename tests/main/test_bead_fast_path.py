@@ -362,9 +362,13 @@ def test_bead_create_dispatch_records_acting_agent_as_created_by(
             "--title",
             "Probe",
             "--type",
-            "task",
+            "task(bug)",
             "--size",
             "small",
+            "--field",
+            "location=src/retry.py",
+            "--field",
+            "repro=fails on retry",
         ],
     )
 

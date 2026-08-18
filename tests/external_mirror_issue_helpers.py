@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 from pathlib import Path
 
 import pluggy
@@ -85,6 +87,35 @@ def beads(beads_dir: Path) -> list:
         return project.list_issues()
 
 
+def seed_untyped_mirrored_bead(
+    beads_dir: Path,
+    *,
+    number: int = 42,
+) -> str:
+    """Insert a legacy untyped mirrored task without going through create."""
+
+    issue = {
+        "id": f"sase-{number}",
+        "title": f"Mirrored {number}",
+        "status": "open",
+        "issue_type": "task",
+        "size": "small",
+        "parent_id": None,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "external_ref": f"bug:sase#{number}",
+        "refs": [f"bug:sase#{number}"],
+        "dependencies": [],
+    }
+    issues_path = beads_dir / "issues.jsonl"
+    existing = issues_path.read_text(encoding="utf-8") if issues_path.exists() else ""
+    issues_path.write_text(existing + json.dumps(issue) + "\n", encoding="utf-8")
+    events_dir = beads_dir / "events"
+    if events_dir.exists():
+        shutil.rmtree(events_dir)
+    return issue["id"]
+
+
 def create_mirrored_bead(
     beads_dir: Path,
     *,
@@ -95,6 +126,7 @@ def create_mirrored_bead(
         bead = project.create(
             f"Mirrored {number}",
             IssueType.TASK,
+            task_type="bug",
             refs=[f"bug:sase#{number}"],
             external_ref=f"bug:sase#{number}",
             size=PhaseSize.SMALL,

@@ -87,7 +87,9 @@ def seed_task(
 ) -> str:
     """Create one task bead with the requested launch state."""
     with BeadProject(project_dir) as proj:
-        task = proj.create("Standalone task", IssueType.TASK, size=size)
+        task = proj.create(
+            "Standalone task", IssueType.TASK, task_type="bug", size=size
+        )
         if status is Status.CLOSED:
             proj.close([task.id])
         elif status is not Status.OPEN or assignee:
