@@ -324,14 +324,15 @@ text matched across plan-document metadata and content. `kind:` accepts `proposa
 as `plans`, `research`, or `designs`. `kind:archive` matches committed documents that
 are not linked from a live bead, while `kind:designs` narrows documents to that sidecar.
 
-Beads accepts repeatable `type:`, `tier:`, `status:`, `size:`, `project:`, `assignee:`,
-`owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms. Status
-values include the five stored states plus the derived `blocked`, `launched`, and
-`triage` states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:`
-matches issue state, reference, relation, or project, with completion for `none`,
-`open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:` matches
-cached provider labels. Free text also searches cached external issue title, body, URL,
-and labels alongside the bead id, title, description, notes, design, references, and
+Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `project:`,
+`assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms.
+`task_type:` accepts catalog slugs plus `untyped` for legacy beads. Status values
+include the five stored states plus the derived `blocked`, `launched`, and `triage`
+states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:` matches
+issue state, reference, relation, or project, with completion for `none`, `open`,
+`closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:` matches cached
+provider labels. Free text also searches cached external issue title, body, URL, and
+labels alongside the bead id, title, description, notes, design, references, and
 ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and

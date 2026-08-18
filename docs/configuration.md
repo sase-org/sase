@@ -30,6 +30,7 @@ sections, environment variables, and CLI flags.
   - [vcs_ref_completion](#vcs_ref_completion)
   - [axe](#axe)
   - [file_hooks](#file_hooks)
+  - [plugins](#plugins)
   - [mentor_profiles](#mentor_profiles)
   - [metahooks](#metahooks)
   - [xprompts](#xprompts)
@@ -2526,6 +2527,48 @@ was renamed to `filters.path_globs`; the old key is not accepted.
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/config/sase.schema.json`
 
+### plugins
+
+Declares the distributions this project needs installed in the running environment. A
+linked or sidecar checkout is not an install.
+
+```yaml
+plugins:
+  required:
+    - sase-github
+    - sase-research-artifacts>=0.2
+```
+
+| Field              | Type     | Default | Description                                                                                        |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `plugins.required` | string[] | `[]`    | PEP 508 requirement strings checked against installed distributions. Duplicate names are an error. |
+
+Every non-`builtin` `<plugin>@` prefix used anywhere in this project config — artifact
+references, file hooks, and `bead.task_types[].use` — must name a distribution listed
+here. That single rule keeps a project's declared dependencies honest.
+
+Enforcement is graded by blast radius:
+
+| Surface                                                          | Behavior                                                                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `sase memory init`, `sase validate`                              | Hard error, raised before any memory-drift comparison so a missing plugin never looks like drift |
+| `sase bead create -T 'task(<slug>)'` for a missing plugin's slug | Hard error naming the plugin and `sase plugin install <name>`                                    |
+| `sase doctor -C plugins.required`                                | `ERROR` severity, listing each missing requirement and the install command                       |
+| Interactive human CLI and ACE                                    | A `PluginsRequired` gate offering to install                                                     |
+| Agent / non-interactive contexts                                 | Fail closed with the human-directed command; never auto-install                                  |
+| `sase bead show` / `list` of an unknown type                     | Degraded render, never a failure                                                                 |
+
+`use:` values themselves must be qualified as `<plugin>@<id>`, where `<plugin>` is the
+literal `builtin` or a distribution name. A bare value is a hard error that names the
+correct replacement when the live registry can resolve it.
+
+See [Task Types](beads.md#task-types) for how required plugins feed the committed
+`sase/task_types.json` snapshot, and
+[Required Plugin Notification](notifications.md#required-plugin-notification) for the
+human install offer.
+
+Source: `src/sase/plugins/required.py`, `src/sase/config/sase.schema.json`
+
 ### mentor_profiles
 
 Defines mentor agents that run automated code reviews when a Patch's diff, changed
@@ -3127,22 +3170,24 @@ Configuration for the bead issue tracker.
 bead:
   big_epic_phase_threshold: 5 # minimum authored phase count for llm_provider.big_epic_lander_model
   task_triage:
-    min_plus_ones: 1 # +1 reports a ready task bead needs before it earns a TaskTriage gate
+    min_plus_ones: 1 # +1 reports a ready untyped/undeclared task needs before it earns a TaskTriage gate
     stale_after_days: 7 # age at which a still-sub-threshold ready task bead is stale
     stale_cleanup_min_beads: 10 # stale beads required before bead_stale_cleanup gates
+  task_types: [] # optional catalog overrides and project-local types
   epic_resume:
     settle_seconds: 120 # how long a newest clan-member failure must sit before epic_resume gates it
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
-| Field                                      | Type        | Default | Description                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------ | ----------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.big_epic_phase_threshold`            | int         | `5`     | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                                                                                             |
-| `bead.task_triage.min_plus_ones`           | int         | `1`     | `+1` reports a ready task bead needs before `bead_task_triage` raises its `TaskTriage` gate. Must be at least `0`; `0` restores the pre-threshold behavior of gating every ready task bead. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
-| `bead.task_triage.stale_after_days`        | int         | `7`     | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                              |
-| `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the chop does nothing. Must be at least `1`.                                                                                                                                                                                                                               |
-| `bead.epic_resume.settle_seconds`          | int         | `120`   | Seconds the newest clan-member failure must sit before the beta `epic_resume` chop treats the epic as stalled and eligible for an `EpicResume` gate. Guards against gating on a handoff race or a fast retry. Only takes effect once the `epic_resume_gate` [feature flag](#feature_flags) is enabled; see below.                                                                         |
-| `bead.push_after_commit`                   | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                  |
+| Field                                      | Type        | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bead.big_epic_phase_threshold`            | int         | `5`     | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                                                                                                                   |
+| `bead.task_triage.min_plus_ones`           | int         | `1`     | Fallback `+1` bar for untyped legacy beads and for types that declare no `triage.min_plus_ones`. A typed bead uses its own spec bar (`flake` ships as `1`; the other builtins ship as `0`). Must be at least `0`. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
+| `bead.task_types`                          | list        | `[]`    | Project catalog entries. `{use: <plugin>@<slug>, ...}` deep-merges sibling keys onto an installed type; a full spec without `use:` defines a new slug and may not shadow a builtin.                                                                                                                                                                                                                             |
+| `bead.task_triage.stale_after_days`        | int         | `7`     | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                                                    |
+| `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the chop does nothing. Must be at least `1`.                                                                                                                                                                                                                                                     |
+| `bead.epic_resume.settle_seconds`          | int         | `120`   | Seconds the newest clan-member failure must sit before the beta `epic_resume` chop treats the epic as stalled and eligible for an `EpicResume` gate. Guards against gating on a handoff race or a fast retry. Only takes effect once the `epic_resume_gate` [feature flag](#feature_flags) is enabled; see below.                                                                                               |
+| `bead.push_after_commit`                   | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                                        |
 
 Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
 above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land model
@@ -3533,6 +3578,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config xprompts.  |
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable plugin-provided artifact-reference specifications.               |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable plugin-provided file-hook templates.                             |
+| `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable plugin-provided task-type specifications.                        |
 
 ### State Root
 
@@ -4181,46 +4227,59 @@ initialization.
 
 With no subcommand, `sase bead` defaults to `sase bead list`.
 
-| Flag         | Values                                                                                                                                                                                                                       | Default | Description     |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
-| _subcommand_ | `blocked`, `close`, `create`, `dep`, `doctor`, `epic-symbols`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `stats`, `sync`, `update`, `work` | `list`  | Bead subcommand |
+| Flag         | Values                                                                                                                                                                                                                                    | Default | Description     |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
+| _subcommand_ | `blocked`, `close`, `create`, `dep`, `doctor`, `epic-symbols`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `stats`, `sync`, `task-type`, `update`, `work` | `list`  | Bead subcommand |
 
 #### `sase bead create`
 
-| Flag                           | Values                                         | Default    | Description                                                                                                         |
-| ------------------------------ | ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                         |
-| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, `flag(<key>,<date>,<release>)`, or standalone `task` |
-| `-d, --description`            | string                                         | -          | Issue description                                                                                                   |
-| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                       |
-| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                 |
-| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                            |
-| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                              |
-| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                    |
-| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                           |
-| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                 |
+| Flag                           | Values                                         | Default    | Description                                                                                                      |
+| ------------------------------ | ---------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                      |
+| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, `flag(<key>,<date>,<release>)`, or `task(<slug>)` |
+| `-f, --field`                  | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                         |
+| `-d, --description`            | string                                         | -          | Issue description                                                                                                |
+| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                    |
+| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                              |
+| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                         |
+| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                           |
+| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                 |
+| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                        |
+| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                              |
 
 #### `sase bead list`
 
-| Flag           | Values                                              | Default     | Description                                                          |
-| -------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| `-f, --format` | `compact`, `json`, `full`                           | `compact`   | Output format                                                        |
-| `-n, --limit`  | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all |
-| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                        |
-| `-r, --tier`   | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                |
-| `-t, --type`   | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                          |
+| Flag              | Values                                              | Default     | Description                                                          |
+| ----------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                        |
+| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all |
+| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                        |
+| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads     |
+| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                |
+| `-t, --type`      | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                          |
 
 #### `sase bead search`
 
-| Flag           | Values                                              | Default     | Description                                                         |
-| -------------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| `query`        | string                                              | (required)  | Literal non-empty text to search for                                |
-| `-c, --color`  | `auto`, `always`, `never`                           | `auto`      | Color mode for compact output                                       |
-| `-f, --format` | `compact`, `json`, `full`                           | `compact`   | Output format                                                       |
-| `-n, --limit`  | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                  |
-| `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
-| `-r, --tier`   | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                               |
-| `-t, --type`   | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                         |
+| Flag              | Values                                              | Default     | Description                                                         |
+| ----------------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| `query`           | string                                              | (required)  | Literal non-empty text to search for                                |
+| `-c, --color`     | `auto`, `always`, `never`                           | `auto`      | Color mode for compact output                                       |
+| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                       |
+| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                  |
+| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
+| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads    |
+| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                               |
+| `-t, --type`      | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                         |
+
+#### `sase bead task-type`
+
+With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`.
+
+| Flag / argument | Values | Default | Description                                            |
+| --------------- | ------ | ------- | ------------------------------------------------------ |
+| `list`          |        |         | Colored catalog table; `-a/--all` includes uncreatable |
+| `show <slug>`   |        |         | Full spec, fields, template, triage, and provenance    |
+| `-j, --json`    | flag   | -       | Machine-readable output on `list` and `show`           |
 
 #### `sase bead epic-symbols`
 
@@ -4363,10 +4422,11 @@ adds slower read-only checks.
 | `-p`, `--project`     | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout. |
 
 Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
-`runtime`, `llm.default`, `plugins.resources`, `project.junk_directories`,
-`workspace.missing_checkouts`, and `config.model_xprompts`. The two inventory checks
-report telemetry-only directories without ProjectSpecs and registered workspace paths
-missing from disk; both are read-only and provide cleanup/repair guidance.
+`runtime`, `llm.default`, `plugins.required`, `plugins.resources`, `beads.task_types`,
+`project.junk_directories`, `workspace.missing_checkouts`, and `config.model_xprompts`.
+The two inventory checks report telemetry-only directories without ProjectSpecs and
+registered workspace paths missing from disk; both are read-only and provide
+cleanup/repair guidance.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.

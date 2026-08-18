@@ -1008,8 +1008,9 @@ boundaries, and docs/tests:
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
 | `docs/`                        | MkDocs Material site source.                                                                           |
 | `sase/sase.yml`                | Repository-local SASE configuration.                                                                   |
+| `sase/task_types.json`         | Committed task-type catalog snapshot written by `sase memory init`.                                    |
 | `sase/xprompts/`               | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
-| `sase/memory/`                 | SASE memory files used by repository agents.                                                           |
+| `sase/memory/`                 | SASE memory files used by repository agents, including generated `task_types.md`.                      |
 | `sase/repos/`                  | Runtime-only linked, sidecar, and external repository checkouts.                                       |
 | `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
 

@@ -30,7 +30,7 @@ from sase.memory.paths import (
 )
 from sase.task_types import (
     BuiltinTaskTypes,
-    build_task_type_snapshot_entries,
+    build_committed_task_type_snapshot_entries,
     get_task_type_registry,
     render_task_type_snapshot_json,
 )
@@ -234,12 +234,14 @@ def _render_task_type_note_entries(specs: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
-    """Return every catalog member this machine's live registry discovers.
+    """Return the committed catalog this project's snapshot may document.
 
-    D6's committed-snapshot pipeline: the note and ``sase/task_types.json`` are
-    both rendered from this same validated, digested entry list.
+    Builtins, project-config types, and types from ``plugins.required``
+    distributions are included. Optional plugin types stay live-only so two
+    machines with different optional plugin sets render the same note and
+    ``sase/task_types.json``.
     """
-    return build_task_type_snapshot_entries(get_task_type_registry())
+    return build_committed_task_type_snapshot_entries(get_task_type_registry())
 
 
 def _home_task_type_specs() -> tuple[Mapping[str, Any], ...]:

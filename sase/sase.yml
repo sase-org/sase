@@ -68,9 +68,9 @@ memory:
         prompt. Builtin kinds are `@stitch`, `@patch`, `@bead`, `@agent`, and the
         special `@file`; artifact repos add document kinds such as `@plan` and
         `@research` through a project's `ref:` config, written inline or with
-        `use: <plugin>@<provider>` from an installed provider plugin. Every ref expands
-        to prompt text, is recorded against the agent that used it, and publishes as a
-        `[@kind:arg][N]` link.
+        `use: <plugin>@<provider>` from an installed provider plugin listed as a
+        Required Plugin. Every ref expands to prompt text, is recorded against the
+        agent that used it, and publishes as a `[@kind:arg][N]` link.
     Feature Flag:
       definition: >-
         A feature flag is a code-owned boolean route for SASE behavior that reaches
@@ -111,6 +111,17 @@ memory:
         A proc shell is a named supervised proc belonging to a sase agent, with durable
         output and lifecycle state. A family-attached proc shell is a monitor and may
         carry timeout, workspace-claim, and follow-up policy.
+    Required Plugin:
+      aliases:
+        - required plugin
+      definition: >-
+        A required plugin is a distribution listed under `plugins.required` in project
+        config as a PEP 508 requirement. A linked or sidecar checkout is not an
+        install: SASE checks the running environment's distributions. Every
+        non-`builtin` `<plugin>@` prefix used in that project — including Artifact
+        Reference, file-hook, and Task Type `use:` values — must appear in the list.
+        `sase memory init` and `sase validate` fail closed when a required plugin is
+        missing; interactive surfaces may offer to install.
     Sase Agent:
       aliases:
         - agent
@@ -181,6 +192,19 @@ memory:
         numeric stitch, but a stitch need not have a commit: proposals retain
         numeric-plus-letter IDs such as `(2a)`. The `sase commit` command and real
         Git/Mercurial commits are still called commits.
+    Task Type:
+      aliases:
+        - task type
+      definition: >-
+        A task type is the required, plugin-extensible flavor of a task bead — `bug`,
+        `ci`, `feature`, `flake`, `memory`, and plugin slugs such as `github`. It is
+        distinct from the bead's issue type (`plan`, `phase`, `task`, `flag`). New
+        tasks take `-T "task(<slug>)"` plus `-f/--field` values; the type is
+        immutable after create. The catalog is assembled from builtins,
+        `sase_task_types` plugins, and `bead.task_types` project config, then
+        snapshotted to `sase/task_types.json` so generated instructions stay a
+        function of committed files and Required Plugin entries rather than whichever
+        optional plugins happen to be installed.
     Xprompt:
       definition: >-
         Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory

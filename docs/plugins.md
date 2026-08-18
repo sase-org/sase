@@ -12,12 +12,13 @@ internal workflows, or integrations without changing the core package.
 
 ## Plugin Groups
 
-Sase defines eight entry point groups:
+Sase defines nine entry point groups:
 
 | Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
 | ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
 | `sase_artifact_refs`   | Provider class    | Declarative document artifact-reference providers   | third-party document provider   |
 | `sase_file_hooks`      | Provider class    | Reusable declarative file-hook templates            | third-party integration         |
+| `sase_task_types`      | Hook class        | Declarative task-type specs for typed task beads    | `sase-github` (`github`)        |
 | `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
 | `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
 | `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
@@ -36,7 +37,7 @@ An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 | Package         | Description                                                                             | Entry Points                                                                                                                                |
 | --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`                                      |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`           |
 | `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                       |
 | `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                                    |
 
@@ -479,10 +480,10 @@ supplies the contributed entry-point groups displayed by `sase plugin show`.
 
 There are two discovery paths:
 
-1. **Provider classes**: `sase_artifact_refs`, `sase_file_hooks`, `sase_vcs`,
-   `sase_workspace`, and `sase_llm` entry points resolve to classes. The relevant
-   registry loads the class, instantiates it, and registers the instance with a pluggy
-   `PluginManager`.
+1. **Provider classes**: `sase_artifact_refs`, `sase_file_hooks`, `sase_task_types`,
+   `sase_vcs`, `sase_workspace`, and `sase_llm` entry points resolve to classes. The
+   relevant registry loads the class, instantiates it, and registers the instance with a
+   pluggy `PluginManager`.
 2. **Package resources**: `sase_xprompts`, `sase_config`, and `sase_plugin_manifest`
    entry points resolve to modules. The shared helper in
    `src/sase/main/plugin_discovery.py` sorts config and xprompt entry points by name,
@@ -626,6 +627,72 @@ registry path, even when third-party provider entry points are disabled. Run
 `sase doctor -C config.repos` for sidecar provider problems and `sase file-hook list`
 for configured file hooks.
 
+### Task-Type Plugins
+
+The `sase_task_types` group contributes declarative task-type specs to the catalog that
+`sase bead create -T 'task(<slug>)'` and `sase bead task-type` read. The hook
+specification is `task_type_specs()` in `src/sase/task_types/_hookspec.py`; it returns
+one mapping or an iterable of mappings matching the Rust `TaskTypeSpecWire` shape
+(`schema_version: 1`).
+
+Three sources feed one validator. First wins, later duplicates are dropped with a
+diagnostic naming the winner:
+
+1. Builtin specs (`bug`, `ci`, `feature`, `flake`, `memory`) from
+   `src/sase/task_types/_builtin.py`. Builtin slugs are reserved against plugins.
+2. Plugin hooks, collected from `sase_task_types` entry points sorted by name.
+   Per-plugin load failures become `entry_point_load_failed` diagnostics rather than
+   aborting the catalog.
+3. Project config (`bead.task_types`). An entry with `use: <plugin>@<slug>` deep-merges
+   its sibling keys onto that slug and may override a builtin. An entry without `use:`
+   defines a new slug and may not shadow a builtin or reserved slug (`plan`, `phase`,
+   `task`, `flag`, `untyped`, `unknown`, `all`, `none`).
+
+Each spec declares `task_type`, `label`, `summary`, `when_to_use`, optional
+`glyph`/`accent_color`/`agent_creatable`/`default_size`, typed `fields` (`string`,
+`enum`, `integer`, `date`), an optional Jinja `body_template`, and optional
+`triage.min_plus_ones`. Rust validates the spec, its field values, and its digest;
+Python owns discovery and membership. `sase doctor -C beads.task_types` surfaces catalog
+diagnostics.
+
+A plugin-provided type such as `github` is usually `agent_creatable: false` and is
+stamped by the external-issue mirror rather than by agents. When the plugin is absent,
+reads degrade: `sase bead show` prints the raw fields under a
+`(not installed on this machine)` header, and create names the package plus
+`sase plugin install`.
+
+List the providing distribution in [`plugins.required`](configuration.md#plugins) so
+`sase memory init` can snapshot the type into `sase/task_types.json`. Optional plugins
+that contribute types stay live-only and do not change generated `AGENTS.md`.
+
+```toml
+# pyproject.toml
+[project.entry-points."sase_task_types"]
+github = "sase_github.task_types:GitHubTaskTypes"
+```
+
+```python
+from sase.task_types import hookimpl
+
+
+class GitHubTaskTypes:
+    @hookimpl
+    def task_type_specs(self) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "task_type": "github",
+            "label": "GitHub",
+            "summary": "A GitHub issue mirrored into a task bead.",
+            "when_to_use": "Agents never create this type.",
+            "glyph": "⑂",
+            "accent_color": "#B2B2B2",
+            "agent_creatable": False,
+            "fields": [],
+        }
+```
+
+See [Task Types](beads.md#task-types) for the create grammar and degraded render.
+
 ### Chop Script Packages
 
 Chop scripts are installed console scripts, not a pluggy entry-point group. Axe resolves
@@ -674,6 +741,7 @@ disabled via environment variables:
 | `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
+| `SASE_DISABLE_PLUGIN_TASK_TYPES`    | Disable task-type plugin entry points only                  |
 
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
 load their provider entry points directly and do not consult these switches. These

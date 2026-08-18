@@ -263,10 +263,11 @@ these SASE terms; it prints that term's definition plus every term the definitio
 depends on. Terms (aliases follow in parentheses): Agent Clan; Agent Family; Agent Hood
 (hood, agent neighborhood); Agent Instruction File (agents.md file); Agent Neighbor;
 Agent Node; Agent Shell; Agent Tribe; Artifact Reference (ref); Feature Flag; Flag Bead
-(flag bead); Patch; Proc (background task); Proc Shell; Sase Agent (agent); Sase Monitor
-(monitor); Sase Node (node); Sase Project (project); Sase Repo (repo); Sase Shell
-(shell); Sase Workspace (workspace); Stitch; Xprompt; Xprompt Memory (memory file);
-Xprompt Part; Xprompt Swarm; Xprompt Workflow
+(flag bead); Patch; Proc (background task); Proc Shell; Required Plugin (required
+plugin); Sase Agent (agent); Sase Monitor (monitor); Sase Node (node); Sase Project
+(project); Sase Repo (repo); Sase Shell (shell); Sase Workspace (workspace); Stitch;
+Task Type (task type); Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt
+Swarm; Xprompt Workflow
 
 ### 2.1 `sase/memory/cli_rules.md`
 

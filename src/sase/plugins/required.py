@@ -459,6 +459,19 @@ def _join_config_path(parent: str, key: object) -> str:
     return f"{parent}[{text!r}]"
 
 
+def required_plugin_distribution_names(
+    config: Mapping[str, Any] | None,
+) -> frozenset[str]:
+    """Return normalized distribution names declared in ``plugins.required``.
+
+    Parse errors stay out of this set: callers that need diagnostics should use
+    :func:`resolve_required_plugins` instead.
+    """
+
+    requirements, _issues = _parse_required_entries(config)
+    return frozenset(requirement.normalized_name for requirement in requirements)
+
+
 def load_project_required_plugins_config(
     root: Path,
 ) -> tuple[Mapping[str, Any] | None, Path | None, str | None]:
@@ -496,5 +509,6 @@ __all__ = [
     "load_project_required_plugins_config",
     "missing_required_plugin_message",
     "required_plugin_blockers",
+    "required_plugin_distribution_names",
     "resolve_required_plugins",
 ]

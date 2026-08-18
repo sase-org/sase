@@ -299,11 +299,32 @@ def _compare_expected_memory_files(
                 MemoryFileChange(
                     path=expected.path,
                     operation=expected.stale_operation,
-                    detail=expected.detail,
+                    detail=_expected_file_drift_detail(expected, current),
                     new_content=expected.content,
                 )
             )
     return tuple(changes)
+
+
+def _expected_file_drift_detail(
+    expected: MemoryExpectedFile, current: str | bytes
+) -> str:
+    """Return a digest-aware snapshot detail, else the generic expected-file note."""
+    if expected.path.name != "task_types.json":
+        return expected.detail
+    if not isinstance(current, str) or not isinstance(expected.content, str):
+        return expected.detail
+    from sase.task_types import (
+        describe_task_type_snapshot_drift,
+        get_task_type_registry,
+    )
+
+    detail = describe_task_type_snapshot_drift(
+        current,
+        expected.content,
+        registry=get_task_type_registry(),
+    )
+    return detail or expected.detail
 
 
 def _provider_shim_changes(plan: ProviderShimPlan) -> tuple[MemoryFileChange, ...]:

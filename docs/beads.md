@@ -15,6 +15,7 @@ DAG.
 - [Bead ID Arguments](#bead-id-arguments)
 - [Data Model](#data-model)
   - [Issue Types](#issue-types)
+  - [Task Types](#task-types)
   - [Status Lifecycle](#status-lifecycle)
   - [Flag Bead Lifecycle](#flag-bead-lifecycle)
   - [Bead Claim Lifecycle](#bead-claim-lifecycle)
@@ -123,6 +124,10 @@ ID, and a task cannot carry a plan tier or Patch metadata. Use a task for indepe
 follow-up work that one worker can own. Use an epic and phase beads when the work needs
 a validated plan, dependency waves, or a final land agent.
 
+New task beads also require a [task type](#task-types) from the project's catalog:
+`-T 'task(<slug>)'` plus any required `-f/--field` values. Bare `-T task` is an error
+that lists the agent-creatable slugs.
+
 The generic `sase bead update <task-id> --design <path>` command currently accepts
 design metadata on a task, even though task creation does not. That metadata does not
 give the task a parent or make task launch plan-backed: `sase bead work` still sends the
@@ -143,6 +148,48 @@ Epics use the plan syntax:
 ```bash
 sase bead create --title "Epic" --type "plan(${SASE_SDD_PLANS_DIR}/202605/epic.md)" --tier epic
 ```
+
+### Task Types
+
+`task_type` is an orthogonal flavor of discovered work. It is valid only on a task bead
+and is distinct from the bead's issue type (`plan`, `phase`, `task`, `flag`). New tasks
+require a catalog slug; existing untyped legacy tasks stay readable and render as a dim
+`untyped` chip.
+
+```bash
+sase bead create -T 'task(flake)' -t "Fix flaky retry" -z medium \
+  -f node_id=tests/foo.py::test_bar -f evidence=@evidence.md
+sase bead task-type                  # agent-creatable catalog
+sase bead task-type show flake       # fields, template, triage, provenance
+sase bead list --task-type flake
+sase bead list --task-type untyped   # legacy beads with no type
+```
+
+`-T 'task(<slug>)'` selects the type. Repeatable `-f/--field k=v` supplies declared
+fields; a value of `@<path>` is read from that file so long prose does not have to
+survive the shell. Duplicate field keys are an error. The stored `description` stays
+free text: the type's body template is rendered below it at display time, never merged
+in. `sase bead update` has no `--task-type`; the type is immutable once set — close the
+bead and recreate it to change the flavor.
+
+When this machine does not have the providing plugin, `sase bead show` still succeeds
+and prints the raw key/value pairs under a
+`Task type: <slug> (not installed on this machine)` header. Creating a type that only
+the committed snapshot knows names the package and the `sase plugin install` command.
+
+The catalog is assembled from three sources, first wins: builtin specs,
+`sase_task_types` plugin hooks, then `bead.task_types` project config. A
+`use: <plugin>@<slug>` config entry deep-merges its sibling keys onto that slug; an
+entry without `use:` defines a new slug and may not shadow a builtin. `sase memory init`
+writes the committed catalog to `sase/task_types.json` and generates the short
+`sase/memory/task_types.md` note from it, so generated agent instructions stay a
+function of committed files rather than whichever optional plugins happen to be
+installed. See [Required plugins](configuration.md#plugins) and
+[Task-type plugins](plugins.md#task-type-plugins).
+
+Every CLI, ACE, bead-page, and gate-preview surface routes the colored type chip through
+one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `✦` feature,
+`≈` flake, `▤` memory); a type that declares none gets a stable hash-derived color.
 
 ### Status Lifecycle
 
@@ -1056,7 +1103,8 @@ Create a new issue.
 | Flag                           | Required             | Description                                                                                                                                                                                                                                                         |
 | ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
-| `-T, --type`                   | yes                  | Bead type: `task`, `flag(<key>,<YYYY-MM-DD>,<release>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                      |
+| `-T, --type`                   | yes                  | Bead type: `task(<slug>)`, `flag(<key>,<YYYY-MM-DD>,<release>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand. New tasks require a catalog slug; list them with `sase bead task-type`                      |
+| `-f, --field`                  | no                   | Task-type field value as `k=v` (repeatable). A value of `@<path>` is read from that file. Valid only with `-T 'task(<slug>)'`                                                                                                                                       |
 | `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                                                   |
 | `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
 | `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
@@ -1275,25 +1323,28 @@ need closed history. When the default active query is empty and no explicit `--s
 was given, the command falls back to listing closed beads. `--status`, `--type`, and
 `--tier` are repeatable.
 
-Compact rows lead with aligned, colored type and size indicators ahead of the ID:
+Compact rows lead with aligned, colored type, task-type, and size indicators ahead of
+the ID:
 
 ```
-{type_glyph}<pad> {status_glyph} {size_token}<pad> {id} · {title}{ ← parent_id}{  ⧖ age}
+{type_glyph}<pad> {task_type_glyph}<pad> {status_glyph} {size_token}<pad> {id} · {title}{ ← parent_id}{  ⧖ age}
 ```
 
 ```
-▸ ◐    sase-bv · Attribute beads to the agent that created them  ⧖ 1d
-◆ ◐  S sase-bt · Fix xdist flake in artifact modal copy shortcut  ⧖ 1d
-↳ ◐  M sase-bv.3 · Record the creator on every bead creation path ← sase-bv  ⧖ 1d
+▸   ◐    sase-bv · Attribute beads to the agent that created them  ⧖ 1d
+◆ ≈ ◐  S sase-bt · Fix xdist flake in artifact modal copy shortcut  ⧖ 1d
+↳   ◐  M sase-bv.3 · Record the creator on every bead creation path ← sase-bv  ⧖ 1d
 ```
 
-The fixed first column is the bead type; the second glyph is status; the third fixed
-two-cell column is the stored phase/task size. The size column appears only when at
-least one listed bead has a stored size, stays blank for unsized rows, and collapses
-entirely for listings where no bead is sized. Type and size color are controlled by the
-same `-c, --color` option as the status and ID styles, and the icons and size tokens
-remain distinct without color. Tier (`plan` vs. `epic`) stays out of this column; it
-remains visible through `--tier`, `--format full`, and `--format json`.
+The fixed first column is the bead type. The second column is the task-type glyph for
+task beads (`≈` flake, `⨯` bug, `·` untyped, and so on) and is blank-padded for non-task
+beads so columns stay aligned. Status follows, then the stored phase/task size. The size
+column appears only when at least one listed bead has a stored size, stays blank for
+unsized rows, and collapses entirely for listings where no bead is sized. Type,
+task-type, and size color are controlled by the same `-c, --color` option as the status
+and ID styles, and the icons and size tokens remain distinct without color. Tier (`plan`
+vs. `epic`) stays out of this column; it remains visible through `--tier`,
+`--format full`, and `--format json`.
 
 | Type    | Icon | Description                                          |
 | ------- | ---- | ---------------------------------------------------- |
@@ -1338,16 +1389,17 @@ matching accents, counts stay plain, and the hidden clause is dim. `--format jso
 not print the prose line; its envelope carries the same printed-row counts in `by_type`
 and `by_status`, including zero buckets for every known type and status.
 
-| Flag           | Values                                                                | Description                                                                           |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                                             | Color mode for compact output                                                         |
-| `-f, --format` | `compact`, `json`, `full`                                             | Output format; defaults to `compact`                                                  |
-| `-n, --limit`  | integer                                                               | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
-| `-S, --since`  | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
-| `-s, --status` | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `-r, --tier`   | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
-| `-t, --type`   | `plan`, `phase`, `task`, `flag`                                       | Filter by type (repeatable)                                                           |
-| `-u, --until`  | `DATE`                                                                | Only beads created at or before `DATE`                                                |
+| Flag              | Values                                                                | Description                                                                           |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `-c, --color`     | `auto`, `always`, `never`                                             | Color mode for compact output                                                         |
+| `-f, --format`    | `compact`, `json`, `full`                                             | Output format; defaults to `compact`                                                  |
+| `-n, --limit`     | integer                                                               | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
+| `-S, --since`     | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
+| `-s, --status`    | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
+| `-T, --task-type` | catalog slug or `untyped`                                             | Filter by task type (repeatable); `untyped` selects legacy beads                      |
+| `-r, --tier`      | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
+| `-t, --type`      | `plan`, `phase`, `task`, `flag`                                       | Filter by type (repeatable)                                                           |
+| `-u, --until`     | `DATE`                                                                | Only beads created at or before `DATE`                                                |
 
 Active (`open`/`claimed`/`ready`/`snoozed`/`in_progress`) listings are unlimited by
 default. Whenever the final status scope includes `closed` and `--limit` is omitted,
@@ -1433,35 +1485,40 @@ sase bead search auth --status open --type phase
 sase bead search auth --type plan --tier epic
 ```
 
-| Flag           | Values                                                         | Description                                     |
-| -------------- | -------------------------------------------------------------- | ----------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`                                      | Color mode for compact output                   |
-| `-f, --format` | `compact`, `json`, `full`                                      | Output format; defaults to `compact`            |
-| `-n, --limit`  | non-negative integer                                           | Maximum results; omitted or `0` means unlimited |
-| `-e, --regex`  | flag                                                           | Interpret the query as a regular expression     |
-| `-s, --status` | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                   |
-| `--tier`       | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)           |
-| `-t, --type`   | `plan`, `phase`, `task`, `flag`                                | Filter by type (repeatable)                     |
+| Flag              | Values                                                         | Description                                                |
+| ----------------- | -------------------------------------------------------------- | ---------------------------------------------------------- |
+| `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for compact output                              |
+| `-f, --format`    | `compact`, `json`, `full`                                      | Output format; defaults to `compact`                       |
+| `-n, --limit`     | non-negative integer                                           | Maximum results; omitted or `0` means unlimited            |
+| `-e, --regex`     | flag                                                           | Interpret the query as a regular expression                |
+| `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                              |
+| `-T, --task-type` | catalog slug or `untyped`                                      | Filter by task type (repeatable); `untyped` selects legacy |
+| `--tier`          | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                      |
+| `-t, --type`      | `plan`, `phase`, `task`, `flag`                                | Filter by type (repeatable)                                |
 
 ### `sase bead show <id>`
 
-Display complete details for an issue including status, type, tier, parent lineage,
-dependencies, blockers, description, notes, Patch metadata, model, linked plan path,
-artifact references, external issue reference, creator, and the hosted page URL when one
-resolves locally. An `EXTERNAL` section (`Ref: <value>`) appears only when the bead has
-an external reference set via `-x/--external-ref`. The `CREATED BY` block localizes an
-agent's durable global name and links to its hosted agents-sidecar page when that URL
-resolves. A human-created bead shows the creator's email without a link.
-`sase bead list --format full` and `sase bead search --format full` share the same
-`CREATED BY` block but never resolve or print the hosted-agent link — only
-`sase bead show` does. Compact `sase bead list`/`sase bead search` rows never show the
-creator at all. Closed beads include their resolution, close reason, and close
-timestamp; legacy closures without a resolution show `(unrecorded)`. Phase and task
-detail views always print a size: they use the stored value when present and
-`small (default)` when it is absent. Legacy sizeless task launches use the same `@small`
-fallback. Any bead's children are grouped as phases (with status and size) and child
-epics (with tier and status), including child epics owned by a phase bead. Nested beads
-show their complete lineage back to the root plan. A `claimed` bead also prints
+Display complete details for an issue including status, type, task type, tier, parent
+lineage, dependencies, blockers, description, the rendered task-type body block, notes,
+Patch metadata, model, linked plan path, artifact references, external issue reference,
+creator, and the hosted page URL when one resolves locally. A typed task prints a
+`Task type` row and appends the spec's body template below the description. When the
+type is unknown on this machine, the raw field pairs print under a
+`(not installed on this machine)` header instead. An `EXTERNAL` section (`Ref: <value>`)
+appears only when the bead has an external reference set via `-x/--external-ref`. The
+`CREATED BY` block localizes an agent's durable global name and links to its hosted
+agents-sidecar page when that URL resolves. A human-created bead shows the creator's
+email without a link. `sase bead list --format full` and
+`sase bead search --format full` share the same `CREATED BY` block but never resolve or
+print the hosted-agent link — only `sase bead show` does. Compact
+`sase bead list`/`sase bead search` rows never show the creator at all. Closed beads
+include their resolution, close reason, and close timestamp; legacy closures without a
+resolution show `(unrecorded)`. Phase and task detail views always print a size: they
+use the stored value when present and `small (default)` when it is absent. Legacy
+sizeless task launches use the same `@small` fallback. Any bead's children are grouped
+as phases (with status and size) and child epics (with tier and status), including child
+epics owned by a phase bead. Nested beads show their complete lineage back to the root
+plan. A `claimed` bead also prints
 `Claimed by: <assignee> (agent has not started working yet)`. A flag bead additionally
 prints a `FLAG` section with the registry key, both `remove_by` thresholds, and derived
 due state.
@@ -1571,6 +1628,33 @@ Run one external tracker mirror pass — the same reconciliation path the
 | `-n, --dry-run` | Show exact planned creations and status transitions without mutating anything |
 | `-p, --project` | Only mirror one project by display name, alias, or canonical key              |
 
+### `sase bead task-type`
+
+Inspect the effective task-type catalog assembled from builtins, plugins, and project
+config. With no subcommand, `sase bead task-type` delegates to
+`sase bead task-type list`.
+
+```bash
+sase bead task-type
+sase bead task-type list
+sase bead task-type list -a
+sase bead task-type list -j
+sase bead task-type show flake
+sase bead task-type show flake -j
+```
+
+`list` prints a colored table of slug, label, summary, source, and whether agents may
+file the type. Agent-uncreatable types such as `github` are hidden unless `-a/--all` is
+passed. `show <slug>` prints the label, `when_to_use`, every field with type,
+requirement, role, help, and validators, the body template, the triage threshold, and
+provenance. Reads are not audited.
+
+| Subcommand | Flag         | Description                                             |
+| ---------- | ------------ | ------------------------------------------------------- |
+| `list`     | `-a, --all`  | Include agent-uncreatable types                         |
+| `list`     | `-j, --json` | Machine-readable catalog                                |
+| `show`     | `-j, --json` | Machine-readable spec, fields, template, and provenance |
+
 ### `sase bead update <id> [<id2> ...]`
 
 Update one or more fields on one or more issues. Every listed bead receives the same
@@ -1594,6 +1678,9 @@ unaffected — same syntax, output line, and commit message as before.
 | `-m, --model`              | Change the launch model. Pass an empty string to clear.                                                                                                      |
 | `-b, --remove-by`          | Extend one flag bead's removal thresholds as `<YYYY-MM-DD>/<release>`. Takes exactly one flag bead ID.                                                       |
 | `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
+
+`task_type` is immutable: `sase bead update` has no `--task-type`. An attempt is
+rejected with a message pointing at close-and-recreate.
 
 Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note`
 when recording progress that should accumulate with earlier notes.

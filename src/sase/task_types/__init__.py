@@ -25,7 +25,10 @@ from .registry import (
     validate_task_type_spec,
 )
 from .snapshot import (
+    build_committed_task_type_snapshot_entries,
     build_task_type_snapshot_entries,
+    committed_task_type_records,
+    describe_task_type_snapshot_drift,
     render_task_type_snapshot_json,
     task_type_snapshot_entry,
 )
@@ -42,7 +45,10 @@ __all__ = [
     "TaskTypeRegistry",
     "UNTYPED_TASK_TYPE",
     "assemble_task_type_registry",
+    "build_committed_task_type_snapshot_entries",
     "build_task_type_snapshot_entries",
+    "committed_task_type_records",
+    "describe_task_type_snapshot_drift",
     "format_agent_creatable_type_listing",
     "get_task_type_registry",
     "hookimpl",

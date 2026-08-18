@@ -14,6 +14,7 @@ from sase.plugins.required import (
     fail_closed_required_plugins,
     missing_required_plugin_message,
     required_plugin_blockers,
+    required_plugin_distribution_names,
     resolve_required_plugins,
 )
 from sase.project_management import load_local_config
@@ -30,6 +31,14 @@ def _config(
     if extra:
         data.update(extra)
     return data
+
+
+def test_required_plugin_distribution_names_normalizes_and_skips_invalid() -> None:
+    names = required_plugin_distribution_names(
+        _config(["sase-github", "Sase_Research_Artifacts>=0.2", "not a requirement!!!"])
+    )
+    assert names == frozenset({"sase-github", "sase-research-artifacts"})
+    assert required_plugin_distribution_names({}) == frozenset()
 
 
 def test_plugin_install_command_names_the_distribution() -> None:

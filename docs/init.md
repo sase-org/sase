@@ -175,9 +175,13 @@ before loading configuration and running the normal initializer. Despite the
 compatibility option name `--enable-project-memory`, this does not change ProjectSpec
 lifecycle state and is independent of `sase project enable`.
 
-- Project memory under `./sase/memory/`, including `sase/memory/README.md` and flat note
-  files with `type`/`parent` frontmatter, only when the project's own `sase/sase.yml`
-  contains `is_sase_managed: true`.
+- Project memory under `./sase/memory/`, including `sase/memory/README.md`, the
+  generated short `sase/memory/task_types.md` catalog note, the committed
+  `sase/task_types.json` snapshot, and flat note files with `type`/`parent` frontmatter,
+  only when the project's own `sase/sase.yml` contains `is_sase_managed: true`.
+  `plugins.required` is verified before any snapshot or note comparison, so a missing
+  required plugin is reported as an install error rather than as memory drift. When a
+  committed type's spec digest changes, `--check` names the type and its package.
 - Home memory under `~/sase/memory/`, or under
   `~/.local/share/chezmoi/home/sase/memory/` when `use_chezmoi: true`.
 - A managed project `AGENTS.md` only with that same explicit opt-in. `memory.h1_title`
