@@ -5180,7 +5180,7 @@ All motions accept a numeric count prefix (e.g., `3j` moves down 3 lines).
 | `D`   | Delete to end of line                                                                        |
 | `C`   | Change to end of line                                                                        |
 | `S`   | Change entire line                                                                           |
-| `Y`   | Yank entire line                                                                             |
+| `Y`   | Yank from the cursor to end of line (charwise, like `y$`)                                    |
 | `dd`  | Delete entire line                                                                           |
 | `cc`  | Change entire line                                                                           |
 | `yy`  | Yank entire line                                                                             |

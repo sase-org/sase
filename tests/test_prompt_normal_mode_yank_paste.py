@@ -58,15 +58,62 @@ async def test_yy_yanks_current_line_without_moving_cursor() -> None:
         assert page.cursor == (1, 2)
 
 
-async def test_Y_yanks_counted_lines() -> None:
-    """Y is a yy synonym and accepts a count prefix."""
+async def test_Y_yanks_from_cursor_to_end_of_line() -> None:
+    """Y yanks charwise from the cursor to the end of the line, like y$."""
+    async with PromptPage("aaa\n  bbb ccc\nddd", cursor=(1, 6)) as page:
+        await page.press("Y")
+
+        assert page.text == "aaa\n  bbb ccc\nddd"
+        assert page.ta._vim_register.text == "ccc"
+        assert page.ta._vim_register.kind == "charwise"
+        assert page.cursor == (1, 6)
+
+
+async def test_Y_at_column_zero_yanks_whole_line_charwise() -> None:
+    """Y at column zero yanks the whole line, but still charwise."""
+    async with PromptPage("aaa\n  bbb ccc\nddd", cursor=(1, 0)) as page:
+        await page.press("Y")
+
+        assert page.text == "aaa\n  bbb ccc\nddd"
+        assert page.ta._vim_register.text == "  bbb ccc"
+        assert page.ta._vim_register.kind == "charwise"
+        assert page.cursor == (1, 0)
+
+
+async def test_Y_with_count_spans_through_end_of_last_line() -> None:
+    """{count}Y == {count}y$: charwise through the end of the last line."""
     async with PromptPage("aaa\nbbb\nccc\nddd", cursor=(1, 0)) as page:
         await page.press("2", "Y")
 
         assert page.text == "aaa\nbbb\nccc\nddd"
         assert page.ta._vim_register.text == "bbb\nccc"
-        assert page.ta._vim_register.kind == "linewise"
+        assert page.ta._vim_register.kind == "charwise"
         assert page.cursor == (1, 0)
+
+
+async def test_Y_at_end_of_line_leaves_register_untouched() -> None:
+    """Y on an empty range is a no-op that does not clear the register."""
+    async with PromptPage("one two\n\nthree") as page:
+        await page.press("y", "w")
+        assert page.ta._vim_register.text == "one "
+
+        page.cursor = (1, 0)
+        await page.press("Y")
+
+        assert page.text == "one two\n\nthree"
+        assert page.ta._vim_register.text == "one "
+
+
+async def test_Y_register_pastes_inline() -> None:
+    """Y's charwise register pastes inline rather than opening a new line."""
+    async with PromptPage("abc def\nxyz", cursor=(0, 4)) as page:
+        await page.press("Y")
+        assert page.ta._vim_register.text == "def"
+
+        page.cursor = (1, 0)
+        await page.press("p")
+
+        assert page.text == "abc def\nxdefyz"
 
 
 async def test_p_pastes_charwise_after_cursor_with_count_and_undo() -> None:

@@ -50,6 +50,7 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
         ("one two three", (0, 0), ("y", "w"), (0, 4), "one "),
         ("hello world foo", (0, 7), ("y", "i", "w"), (6, 11), "world"),
         ("foo(bar) baz", (0, 3), ("y", "f", ")"), (3, 8), "(bar)"),
+        ("aaa\nbbb\nccc\nddd", (1, 0), ("2", "Y"), (4, 11), "bbb\nccc"),
     ],
 )
 async def test_charwise_yanks_flash_exact_copied_range(
@@ -74,7 +75,6 @@ async def test_charwise_yanks_flash_exact_copied_range(
     ("text", "cursor", "keys", "expected_span"),
     [
         ("aaa\nbbb\nccc", (1, 1), ("y", "y"), (4, 7)),
-        ("aaa\nbbb\nccc\nddd", (1, 0), ("2", "Y"), (4, 11)),
         ("aaa\nbbb\nccc\nddd", (1, 1), ("V", "j", "y"), (4, 11)),
     ],
 )

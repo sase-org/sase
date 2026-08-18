@@ -143,9 +143,14 @@ class VimNormalEditingMixin(VimNormalMotionsMixin):
             return True
 
         if key == "Y":
-            cur_row = self.cursor_location[0]
-            last_row = min(cur_row + count - 1, self.document.line_count - 1)
-            self._execute_linewise_operator(cur_row, last_row, "y")
+            # Vim/Neovim ``Y`` is ``y$``, not ``yy``: yank the tail of the line
+            # charwise so a following ``p`` pastes inline. ``yy`` remains the
+            # linewise whole-line yank.
+            row, col = self.cursor_location
+            last_row = min(row + count - 1, doc.line_count - 1)
+            self._execute_charwise_operator(
+                (row, col), (last_row, len(doc.get_line(last_row))), "y"
+            )
             return True
 
         if key in ("C", "D"):
