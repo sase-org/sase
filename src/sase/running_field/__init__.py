@@ -18,25 +18,25 @@ Two WORKFLOW label forms are reserved wrappers around an inner identity:
 marks a machine-owned operational workspace lease that is not an agent run.
 """
 
+from sase.running_field._claim import (
+    claim_next_axe_workspace,
+    claim_workspace,
+)
 from sase.running_field._claim_labels import (
     OPERATIONAL_LEASE_CLAIM_PREFIX,
     is_operational_lease_claim_workflow,
     operational_lease_claim_workflow,
 )
+from sase.running_field._hold import hold_workspace_claim
 from sase.running_field._model import (
     ClaimResult,
     WorkspaceClaim,
     WorkspaceClaimError,
 )
-from sase.running_field._operations import (
-    claim_next_axe_workspace,
-    claim_workspace,
-    get_claimed_workspaces,
-    hold_workspace_claim,
-    release_workspace,
-    transfer_workspace_claim,
-    update_running_field_cl_name,
-)
+from sase.running_field._query import get_claimed_workspaces
+from sase.running_field._release import release_workspace
+from sase.running_field._rename import update_running_field_cl_name
+from sase.running_field._transfer import transfer_workspace_claim
 from sase.running_field._workspace import (
     claim_next_axe_workspace_dir,
     get_first_available_axe_workspace,

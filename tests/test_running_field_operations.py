@@ -155,7 +155,7 @@ def test_hold_workspace_claim_preserves_identity_and_pins_atomically(
     )
     try:
         with patch(
-            "sase.running_field._operations.write_patch_atomic",
+            "sase.running_field._hold.write_patch_atomic",
             wraps=write_patch_atomic,
         ) as write_atomic:
             result = hold_workspace_claim(

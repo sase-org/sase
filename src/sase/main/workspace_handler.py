@@ -10,7 +10,7 @@ from sase.core.project_lifecycle_facade import (
     apply_project_lifecycle_update,
     read_project_lifecycle_from_content,
 )
-from sase.running_field._operations import get_claimed_workspaces
+from sase.running_field._query import get_claimed_workspaces
 from sase.workspace_provider.store import (
     WorkspaceStore,
 )

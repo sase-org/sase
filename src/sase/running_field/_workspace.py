@@ -1,7 +1,7 @@
 """Workspace number allocation and directory resolution."""
 
 from sase.running_field._model import WorkspaceClaimError
-from sase.running_field._operations import get_claimed_workspaces
+from sase.running_field._query import get_claimed_workspaces
 
 # Unified claim pool. ``#0`` is the primary checkout / deferred placeholder and
 # numbers ``#1``-``#9`` are reserved. Claim-backed workspaces (workflow shares
@@ -170,10 +170,8 @@ def claim_next_axe_workspace_dir(
         WorkspaceClaimError: If allocation fails or directory resolution
             fails after a successful claim.
     """
-    from sase.running_field._operations import (
-        claim_next_axe_workspace,
-        release_workspace,
-    )
+    from sase.running_field._claim import claim_next_axe_workspace
+    from sase.running_field._release import release_workspace
 
     workspace_num = claim_next_axe_workspace(
         project_file,

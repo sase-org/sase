@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.running_field._model import WorkspaceClaim
-from sase.running_field._operations import get_claimed_workspaces
+from sase.running_field._query import get_claimed_workspaces
 
 # Must come after the running_field imports above: sase.core.agent_launch_claims
 # and sase.running_field import each other, and running_field's own __init__
