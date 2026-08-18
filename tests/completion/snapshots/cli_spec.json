@@ -1754,7 +1754,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "847a6e435767eca3",
+            "description_digest": "54c7e1709f6bb270",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",

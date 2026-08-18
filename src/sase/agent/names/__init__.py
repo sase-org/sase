@@ -145,7 +145,12 @@ from sase.agent.names._templates import (
     require_latest_agent_name_template,
     resolve_agent_name_template_reference,
 )
-from sase.agent.names._wipe import AgentNameWipeResult, wipe_agent_name_for_reuse
+from sase.agent.names._wipe import (
+    AgentNameWipePreview,
+    AgentNameWipeResult,
+    preview_agent_name_wipe,
+    wipe_agent_name_for_reuse,
+)
 
 
 def resolve_agent_patch(name: str) -> str:
@@ -237,6 +242,7 @@ __all__ = [
     "AgentClan",
     "AgentClanMember",
     "AgentRefError",
+    "AgentNameWipePreview",
     "AgentNameWipeResult",
     "AgentFamily",
     "AgentFamilyMember",
@@ -351,5 +357,6 @@ __all__ = [
     "strip_dismissed_prefix",
     "validate_indexed_agent_name_template",
     "wait_agent_name_template",
+    "preview_agent_name_wipe",
     "wipe_agent_name_for_reuse",
 ]

@@ -143,6 +143,21 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/agent/restart.py:_write_recovery_files": Review(
+        mutation_calls=(
+            "copy2",
+            "write_text",
+            "write_text",
+            "copy2",
+            "write_text",
+            "write_text",
+        ),
+        exemption=(
+            "Writes a recovery snapshot under ~/.sase/restarts, including a "
+            "copy of agent_meta.json; the live artifact tree is not rewritten "
+            "and is not Tier 1 indexed from this context."
+        ),
+    ),
     "src/sase/agent/running.py:_remove_agent_state_markers": Review(
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),

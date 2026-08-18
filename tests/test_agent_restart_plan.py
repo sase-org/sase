@@ -8,13 +8,37 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.force_reuse_launch import ForceReuseLaunchPlan
+from sase.agent.names import AgentNameWipePreview
 from sase.agent.restart import AgentRestartError, plan_agent_restart
 from tests._agent_restart_helpers import (
     dummy_force_plan,
+    dummy_wipe_preview,
     make_restartable_agent,
     mutation_spies,
     named_agent_for,
 )
+
+
+def _force_cm(
+    *,
+    force_plan: ForceReuseLaunchPlan | None | object,
+    force_error: Exception | None,
+):
+    if force_error is not None:
+        return patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            side_effect=force_error,
+        )
+    if callable(force_plan):
+        return patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            side_effect=force_plan,
+        )
+    planned = dummy_force_plan() if force_plan is ... else force_plan
+    return patch(
+        "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+        return_value=planned,
+    )
 
 
 def _plan(
@@ -29,6 +53,8 @@ def _plan(
     force_plan: ForceReuseLaunchPlan | None | object = ...,
     force_error: Exception | None = None,
     model_override: str | None = None,
+    registered: dict[str, object] | None = None,
+    wipe_preview: AgentNameWipePreview | None = None,
 ):
     artifacts = make_restartable_agent(
         tmp_path,
@@ -41,21 +67,14 @@ def _plan(
     )
     agent = named_agent_for(artifacts, name=name, done=done)
     spies = mutation_spies()
-    planned = dummy_force_plan() if force_plan is ... else force_plan
-    force_cm = (
-        patch(
-            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
-            side_effect=force_error,
-        )
-        if force_error is not None
-        else patch(
-            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
-            return_value=planned,
-        )
+    preview = (
+        wipe_preview if wipe_preview is not None else dummy_wipe_preview(artifacts)
     )
     with (
         patch("sase.agent.names.find_named_agent", return_value=agent),
-        force_cm,
+        patch("sase.agent.names.lookup_registered_name", return_value=registered),
+        patch("sase.agent.names.preview_agent_name_wipe", return_value=preview),
+        _force_cm(force_plan=force_plan, force_error=force_error),
         patch("sase.agent.running.kill_named_agent", spies["kill"]),
         patch("sase.agent.running.dismiss_named_agent", spies["dismiss"]),
         patch("sase.agent.force_reuse_launch.apply_force_reuse_launch", spies["apply"]),
@@ -191,6 +210,7 @@ def test_plan_preflight_failure_surfaces_underlying_message(tmp_path: Path) -> N
     agent = named_agent_for(artifacts)
     with (
         patch("sase.agent.names.find_named_agent", return_value=agent),
+        patch("sase.agent.names.lookup_registered_name", return_value=None),
         patch(
             "sase.agent.force_reuse_launch.plan_force_reuse_launch",
             side_effect=RuntimeError("name '02p' is already reserved"),
@@ -212,6 +232,102 @@ def test_plan_name_not_reusable_when_force_marker_vanishes(tmp_path: Path) -> No
     with pytest.raises(AgentRestartError) as caught:
         _plan(tmp_path, force_plan=None)
     assert caught.value.reason == "name_not_reusable"
+
+
+def test_plan_injects_forced_id_for_plain_prompt(tmp_path: Path) -> None:
+    raw = "#gh:gh_bobs-org__bob-cli Describe this repo. #m_sonnet"
+
+    def fake_force(prompt: str) -> ForceReuseLaunchPlan | None:
+        if "%id:!061" in prompt:
+            return dummy_force_plan(prompt, owner_names=["061"])
+        return None
+
+    plan, _artifacts, spies = _plan(
+        tmp_path,
+        name="061",
+        raw_prompt=raw,
+        force_plan=fake_force,
+    )
+    assert plan.name_reuse_source == "injected"
+    assert "injected" in plan.preview.name_reuse
+    assert "%id:!061" in plan.rewritten_prompt
+    assert plan.rewritten_prompt.startswith("%id:!061")
+    from sase.xprompt import extract_vcs_workflow_tag
+
+    tag = extract_vcs_workflow_tag(plan.rewritten_prompt)
+    assert tag is not None
+    assert "gh_bobs-org__bob-cli" in tag
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
+def test_plan_name_reuse_source_is_prompt_when_id_already_present(
+    tmp_path: Path,
+) -> None:
+    from sase.agent.relaunch_prompt import prepare_kill_and_edit_prompt
+
+    raw = "%id:02p\n#gh:sase\nDo the work"
+    plan, _artifacts, spies = _plan(tmp_path, raw_prompt=raw)
+    assert plan.name_reuse_source == "prompt"
+    assert "from prompt" in plan.preview.name_reuse
+    assert plan.rewritten_prompt == prepare_kill_and_edit_prompt(raw, "02p")
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
+def test_plan_family_member_is_not_double_rewritten(tmp_path: Path) -> None:
+    plan, _artifacts, spies = _plan(
+        tmp_path,
+        name="sase-oc.4--plan",
+        raw_prompt="Do work",
+        agent_family="sase-oc.4",
+        role_suffix="--plan",
+        extra_meta={"phase_bead_id": "sase-oc.4"},
+    )
+    assert plan.name_reuse_source == "prompt"
+    assert plan.rewritten_prompt.count("%id") == 1
+    assert "family=" in plan.rewritten_prompt
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
+def test_plan_fanout_prompt_raises_fanout_not_preflight(tmp_path: Path) -> None:
+    with pytest.raises(AgentRestartError) as caught:
+        _plan(
+            tmp_path,
+            raw_prompt="%{First | Second}\n#gh:sase\nDo the work",
+            force_plan=None,
+        )
+    assert caught.value.reason == "fanout"
+    assert "preflight" not in caught.value.reason
+    assert "fan-out" in caught.value.message
+
+
+def test_plan_container_name_raises_before_mutation(tmp_path: Path) -> None:
+    spies = mutation_spies()
+    artifacts = make_restartable_agent(tmp_path, name="fam")
+    agent = named_agent_for(artifacts, name="fam")
+    with (
+        patch("sase.agent.names.find_named_agent", return_value=agent),
+        patch(
+            "sase.agent.names.lookup_registered_name",
+            return_value={"name": "fam", "container_kind": "family"},
+        ),
+        patch("sase.agent.names.preview_agent_name_wipe") as preview,
+        patch("sase.agent.force_reuse_launch.plan_force_reuse_launch") as force,
+        patch("sase.agent.running.kill_named_agent", spies["kill"]),
+        patch("sase.agent.running.dismiss_named_agent", spies["dismiss"]),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch", spies["apply"]),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", spies["launch"]),
+        pytest.raises(AgentRestartError) as caught,
+    ):
+        plan_agent_restart("fam")
+    assert caught.value.reason == "container"
+    assert "family" in caught.value.message
+    preview.assert_not_called()
+    force.assert_not_called()
+    for spy in spies.values():
+        spy.assert_not_called()
 
 
 def test_plan_collects_file_change_and_home_warnings(tmp_path: Path) -> None:

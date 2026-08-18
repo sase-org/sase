@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.agent.force_reuse_launch import ForceReuseLaunchPlan
-from sase.agent.names import NamedAgent
+from sase.agent.names import AgentNameWipePreview, NamedAgent
 from sase.agent.running import KillResult
 from sase.core.time import get_timezone
+
+NameReuseSource = Literal["prompt", "injected"]
 
 ProgressFn = Callable[[str, str, str], None]
 
@@ -31,6 +35,10 @@ _CHANGES_WARNING = (
 )
 _HOME_WARNING = (
     "The stored prompt has no VCS tag; the restart will run as a home agent."
+)
+_DELETION_NOTE = (
+    "The previous run's artifacts are deleted; the chat transcript under "
+    "~/.sase/chats is kept."
 )
 
 
@@ -87,6 +95,8 @@ class AgentRestartPlan:
     force_reuse_plan: ForceReuseLaunchPlan
     model_override: str | None
     preview: AgentRestartPreview
+    name_reuse_source: NameReuseSource
+    wipe_preview: AgentNameWipePreview
 
 
 @dataclass(frozen=True)
@@ -102,6 +112,9 @@ class AgentRestartOutcome:
     launched_artifacts_dir: str | None = None
     error: str | None = None
     recovery_command: str | None = None
+    recovery_dir: str | None = None
+    recovery_prompt: str | None = None
+    renamed_to: str | None = None
 
 
 def plan_agent_restart(
@@ -112,8 +125,15 @@ def plan_agent_restart(
     """Read the named agent and build a restart plan, or raise."""
     from sase.agent.force_reuse_launch import plan_force_reuse_launch
     from sase.agent.multi_prompt import parse_multi_prompt
-    from sase.agent.names import find_named_agent
-    from sase.agent.relaunch_prompt import prepare_kill_and_edit_prompt
+    from sase.agent.names import (
+        find_named_agent,
+        lookup_registered_name,
+        preview_agent_name_wipe,
+    )
+    from sase.agent.relaunch_prompt import (
+        ensure_forced_name_reuse,
+        prepare_kill_and_edit_prompt,
+    )
     from sase.core.agent_artifact_paths import parse_agent_artifact_path
     from sase.core.agent_identity_facade import present_agent_name
     from sase.project_display_names import (
@@ -170,6 +190,7 @@ def plan_agent_restart(
 
     meta_name = _optional_str(meta.get("name")) or agent.name
     presented_name = present_agent_name(meta_name)
+    _refuse_container_name(meta_name, presented_name, lookup_registered_name)
     family_name, role_suffix = _family_rewrite_args(meta)
     rewritten = prepare_kill_and_edit_prompt(
         raw_prompt,
@@ -183,23 +204,14 @@ def plan_agent_restart(
 
         rewritten = set_prompt_model(rewritten, model_override)
 
-    try:
-        force_reuse_plan = plan_force_reuse_launch(rewritten)
-    except Exception as exc:
-        raise AgentRestartError(
-            reason="preflight",
-            message=str(exc),
-            hint="Fix the stored prompt and retry.",
-        ) from exc
-    if force_reuse_plan is None:
-        raise AgentRestartError(
-            reason="name_not_reusable",
-            message=(
-                "Forced name reuse did not survive prompt rewrite; the stored "
-                "prompt has no reusable %id."
-            ),
-            hint="Add an explicit %id or use ACE's ,x.",
-        )
+    force_reuse_plan, rewritten, name_reuse_source = _plan_name_reuse(
+        rewritten,
+        meta_name=meta_name,
+        presented_name=presented_name,
+        plan_force_reuse_launch=plan_force_reuse_launch,
+        ensure_forced_name_reuse=ensure_forced_name_reuse,
+    )
+    wipe_preview = preview_agent_name_wipe(meta_name)
 
     vcs_tag = extract_vcs_workflow_tag(raw_prompt) or find_vcs_workflow_tag(raw_prompt)
     is_live = not agent.is_done
@@ -213,6 +225,10 @@ def plan_agent_restart(
         project=project,
         vcs_tag=vcs_tag,
     )
+    related_warning = related_wipe_warning(presented_name, artifacts_dir, wipe_preview)
+    if related_warning:
+        warnings = (*warnings, related_warning)
+    reuse_label = "injected" if name_reuse_source == "injected" else "from prompt"
     original_model = _optional_str(meta.get("model"))
     override_label = None
     if model_override:
@@ -245,7 +261,7 @@ def plan_agent_restart(
             if vcs_tag
             else "home (prompt has no VCS tag)"
         ),
-        name_reuse=f"forced (%id(!{presented_name}))",
+        name_reuse=f"forced (%id(!{presented_name})) · {reuse_label}",
         model_override_label=override_label,
         warnings=warnings,
         is_live=is_live,
@@ -265,6 +281,8 @@ def plan_agent_restart(
         force_reuse_plan=force_reuse_plan,
         model_override=model_override,
         preview=preview,
+        name_reuse_source=name_reuse_source,
+        wipe_preview=wipe_preview,
     )
 
 
@@ -279,37 +297,46 @@ def execute_agent_restart(
     from sase.agent.running import dismiss_named_agent, kill_named_agent
 
     emit = progress or (lambda _step, _status, _detail: None)
+    recovery_dir, recovery_command, recovery_prompt = _prepare_recovery(plan, emit)
+
     if not plan.agent.is_done:
         stop = kill_named_agent(plan.name, exact_name=True)
         stop_action = "killed"
-        if not stop.success:
-            emit("stopped", "fail", stop.message)
-            return AgentRestartOutcome(
-                status="kill_failed",
-                name=plan.name,
-                stop_action=stop_action,
-                stop_result=stop,
-                error=stop.message,
-            )
-        emit("stopped", "ok", _stopped_detail(stop, plan, killed=True))
+        killed = True
     else:
         stop = dismiss_named_agent(plan.name, exact_name=True)
         stop_action = "dismissed"
-        if not stop.success:
-            emit("stopped", "fail", stop.message)
-            return AgentRestartOutcome(
-                status="kill_failed",
-                name=plan.name,
-                stop_action=stop_action,
-                stop_result=stop,
-                error=stop.message,
-            )
-        emit("stopped", "ok", _stopped_detail(stop, plan, killed=False))
+        killed = False
+    if not stop.success:
+        emit("stopped", "fail", stop.message)
+        return AgentRestartOutcome(
+            status="kill_failed",
+            name=plan.name,
+            stop_action=stop_action,
+            stop_result=stop,
+            error=stop.message,
+            recovery_command=recovery_command,
+            recovery_dir=recovery_dir,
+            recovery_prompt=recovery_prompt,
+        )
+    emit("stopped", "ok", _stopped_detail(stop, plan, killed=killed))
 
-    apply_force_reuse_launch(plan.force_reuse_plan)
+    try:
+        apply_force_reuse_launch(plan.force_reuse_plan)
+    except Exception as exc:
+        emit("name", "fail", str(exc))
+        return AgentRestartOutcome(
+            status="wipe_failed",
+            name=plan.name,
+            stop_action=stop_action,
+            stop_result=stop,
+            error=str(exc),
+            recovery_command=recovery_command,
+            recovery_dir=recovery_dir,
+            recovery_prompt=recovery_prompt,
+        )
     emit("name", "ok", f"released '{plan.presented_name}' for reuse")
 
-    recovery = f'sase run "$(cat {plan.artifacts_dir}/raw_xprompt.md)"'
     try:
         with contextlib.chdir(Path.home()):
             results = launch_agents_from_cwd(
@@ -318,27 +345,32 @@ def execute_agent_restart(
             )
     except Exception as exc:
         emit("launched", "fail", str(exc))
-        return AgentRestartOutcome(
-            status="partial",
-            name=plan.name,
+        return _partial_outcome(
+            plan,
             stop_action=stop_action,
-            stop_result=stop,
+            stop=stop,
             error=str(exc),
-            recovery_command=recovery,
+            recovery_command=recovery_command,
+            recovery_dir=recovery_dir,
+            recovery_prompt=recovery_prompt,
         )
     if not results:
         emit("launched", "fail", "agent launch produced no results")
-        return AgentRestartOutcome(
-            status="partial",
-            name=plan.name,
+        return _partial_outcome(
+            plan,
             stop_action=stop_action,
-            stop_result=stop,
+            stop=stop,
             error="agent launch produced no results",
-            recovery_command=recovery,
+            recovery_command=recovery_command,
+            recovery_dir=recovery_dir,
+            recovery_prompt=recovery_prompt,
         )
 
     launched = results[0]
     emit("launched", "ok", _launched_detail(launched.pid, launched.workspace_num))
+    renamed_to = _renamed_to(plan.name, getattr(launched, "agent_name", None))
+    if renamed_to is not None:
+        emit("name", "warn", f"launched as '{renamed_to}', not '{plan.name}'")
     return AgentRestartOutcome(
         status="ok",
         name=plan.name,
@@ -347,7 +379,239 @@ def execute_agent_restart(
         launched_pid=launched.pid,
         launched_workspace_num=launched.workspace_num,
         launched_artifacts_dir=launched.artifacts_dir or None,
+        recovery_command=recovery_command,
+        recovery_dir=recovery_dir,
+        recovery_prompt=recovery_prompt,
+        renamed_to=renamed_to,
     )
+
+
+def restart_needs_confirmation(plan: AgentRestartPlan) -> bool:
+    """Return True when a restart is live or the wipe reaches related agents."""
+    return plan.preview.is_live or bool(_related_wipe_artifact_dirs(plan))
+
+
+def _related_wipe_artifact_dirs(plan: AgentRestartPlan) -> tuple[str, ...]:
+    """Return wipe artifact dirs that are not the target's own artifacts dir."""
+    own = _resolved_path(plan.artifacts_dir)
+    return tuple(
+        raw for raw in plan.wipe_preview.artifact_dirs if _resolved_path(raw) != own
+    )
+
+
+def related_wipe_warning(
+    presented_name: str,
+    artifacts_dir: Path,
+    wipe_preview: AgentNameWipePreview,
+) -> str | None:
+    """Describe a wipe that also deletes related agents' artifacts."""
+    own = _resolved_path(artifacts_dir)
+    related = tuple(
+        raw for raw in wipe_preview.artifact_dirs if _resolved_path(raw) != own
+    )
+    if not related:
+        return None
+    count = len(related)
+    noun = "agent's" if count == 1 else "agents'"
+    return (
+        f"Releasing '{presented_name}' also deletes {count} related "
+        f"{noun} artifacts: {', '.join(related)}."
+    )
+
+
+def deletion_note() -> str:
+    """Standing note that artifacts go away and the chat transcript stays."""
+    return _DELETION_NOTE
+
+
+def wipe_deletes_label(wipe_preview: AgentNameWipePreview) -> str:
+    """Return the preview ``Deletes`` row value for *wipe_preview*."""
+    dir_count = len(wipe_preview.artifact_dirs)
+    bundle_count = len(wipe_preview.bundle_paths)
+    dir_word = "dir" if dir_count == 1 else "dirs"
+    bundle_word = "bundle" if bundle_count == 1 else "bundles"
+    summary = f"{dir_count} artifact {dir_word} · {bundle_count} {bundle_word}"
+    paths = [*wipe_preview.artifact_dirs, *wipe_preview.bundle_paths]
+    if not paths:
+        return summary
+    shown = paths[:3]
+    extra = len(paths) - 3
+    listed = ", ".join(shown)
+    if extra > 0:
+        listed = f"{listed} +{extra} more"
+    return f"{summary} · {listed}"
+
+
+def _refuse_container_name(
+    meta_name: str,
+    presented_name: str,
+    lookup: Callable[[str], dict[str, Any] | None],
+) -> None:
+    record = lookup(meta_name)
+    if record is None:
+        return
+    kind = record.get("container_kind")
+    if not isinstance(kind, str) or not kind:
+        return
+    raise AgentRestartError(
+        reason="container",
+        message=(
+            f"'{presented_name}' is a {kind} container; only concrete "
+            "members can be restarted."
+        ),
+        hint=f"Restart a member of the {kind}, not the container name.",
+    )
+
+
+def _plan_name_reuse(
+    rewritten: str,
+    *,
+    meta_name: str,
+    presented_name: str,
+    plan_force_reuse_launch: Callable[[str], ForceReuseLaunchPlan | None],
+    ensure_forced_name_reuse: Callable[[str, str], str],
+) -> tuple[ForceReuseLaunchPlan, str, NameReuseSource]:
+    force_reuse_plan = _plan_force_reuse(plan_force_reuse_launch, rewritten)
+    if force_reuse_plan is not None:
+        return force_reuse_plan, rewritten, "prompt"
+    if _prompt_fans_out(rewritten):
+        raise AgentRestartError(
+            reason="fanout",
+            message=(
+                f"Agent '{presented_name}' stored a fan-out prompt; it has "
+                "no single agent to restart."
+            ),
+            hint="Relaunch the variants separately, or use ACE's ,x.",
+        )
+    injected = ensure_forced_name_reuse(rewritten, meta_name)
+    force_reuse_plan = _plan_force_reuse(plan_force_reuse_launch, injected)
+    if force_reuse_plan is None:
+        raise AgentRestartError(
+            reason="name_not_reusable",
+            message=(
+                f"Could not establish forced name reuse for agent "
+                f"'{presented_name}' after injecting %id."
+            ),
+            hint="This is an internal restart invariant; retry or use `sase run`.",
+        )
+    return force_reuse_plan, injected, "injected"
+
+
+def _plan_force_reuse(
+    plan_force_reuse_launch: Callable[[str], ForceReuseLaunchPlan | None],
+    prompt: str,
+) -> ForceReuseLaunchPlan | None:
+    try:
+        return plan_force_reuse_launch(prompt)
+    except Exception as exc:
+        raise AgentRestartError(
+            reason="preflight",
+            message=str(exc),
+            hint="Fix the stored prompt and retry.",
+        ) from exc
+
+
+def _prompt_fans_out(prompt: str) -> bool:
+    from sase.xprompt.directives import plan_prompt_fanout_variants
+
+    return plan_prompt_fanout_variants(prompt) is not None
+
+
+def _prepare_recovery(
+    plan: AgentRestartPlan,
+    emit: ProgressFn,
+) -> tuple[str | None, str | None, str | None]:
+    dest = _persist_recovery_bundle(plan)
+    if dest is None:
+        emit("recovery", "warn", "could not persist a recovery bundle")
+        return None, None, plan.rewritten_prompt
+    rewritten = dest / "rewritten.md"
+    command = f'sase run "$(cat {rewritten})"'
+    return str(dest), command, None
+
+
+def _persist_recovery_bundle(plan: AgentRestartPlan) -> Path | None:
+    from sase.core.paths import sase_subdir
+
+    try:
+        dest = _new_recovery_dir(plan, sase_subdir("restarts"))
+        dest.mkdir(parents=True, exist_ok=True)
+        _write_recovery_files(plan, dest)
+    except Exception:
+        return None
+    if not (dest / "rewritten.md").is_file():
+        return None
+    return dest
+
+
+def _new_recovery_dir(plan: AgentRestartPlan, root: Path) -> Path:
+    stamp = datetime.now(get_timezone()).strftime("%Y%m%d%H%M%S")
+    safe = plan.presented_name.replace("/", "-").replace(os.sep, "-")
+    dest = root / f"{stamp}-{safe}"
+    if dest.exists():
+        dest = root / f"{stamp}-{safe}-{os.getpid()}"
+    return dest
+
+
+def _write_recovery_files(plan: AgentRestartPlan, dest: Path) -> None:
+    raw_src = plan.artifacts_dir / "raw_xprompt.md"
+    if raw_src.is_file():
+        shutil.copy2(raw_src, dest / "raw_xprompt.md")
+    else:
+        (dest / "raw_xprompt.md").write_text(plan.original_prompt, encoding="utf-8")
+    (dest / "rewritten.md").write_text(plan.rewritten_prompt, encoding="utf-8")
+    meta_src = plan.artifacts_dir / "agent_meta.json"
+    if meta_src.is_file():
+        shutil.copy2(meta_src, dest / "agent_meta.json")
+    else:
+        (dest / "agent_meta.json").write_text(
+            json.dumps(plan.meta, indent=2) + "\n", encoding="utf-8"
+        )
+    restarted_at = datetime.now(get_timezone()).isoformat()
+    payload = {
+        "name": plan.name,
+        "project": plan.project,
+        "artifacts_dir": str(plan.artifacts_dir),
+        "timestamps": {
+            "restarted_at": restarted_at,
+            "source": plan.artifacts_dir.name,
+        },
+    }
+    (dest / "restart.json").write_text(
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def _partial_outcome(
+    plan: AgentRestartPlan,
+    *,
+    stop_action: str,
+    stop: KillResult,
+    error: str,
+    recovery_command: str | None,
+    recovery_dir: str | None,
+    recovery_prompt: str | None,
+) -> AgentRestartOutcome:
+    return AgentRestartOutcome(
+        status="partial",
+        name=plan.name,
+        stop_action=stop_action,
+        stop_result=stop,
+        error=error,
+        recovery_command=recovery_command,
+        recovery_dir=recovery_dir,
+        recovery_prompt=recovery_prompt,
+    )
+
+
+def _renamed_to(expected: str, launched_name: object) -> str | None:
+    if not isinstance(launched_name, str) or not launched_name:
+        return None
+    return launched_name if launched_name != expected else None
+
+
+def _resolved_path(path: Path | str) -> Path:
+    return Path(path).expanduser().resolve(strict=False)
 
 
 def _family_rewrite_args(meta: dict[str, Any]) -> tuple[str | None, str | None]:

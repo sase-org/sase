@@ -607,12 +607,18 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Stop the named agent and immediately relaunch its stored prompt "
             "under the same name. Planning finishes before anything is killed. "
-            "A live agent asks for confirmation unless -y is given; --dry-run "
-            "prints the preview and exits 0. Exit 0 means restarted or "
-            "previewed, 2 means refused with nothing changed, and 1 means the "
-            "old run was stopped but the relaunch failed."
+            "Restart deletes the previous run's artifacts; the chat transcript "
+            "is kept. A live agent or a wipe that reaches related agents asks "
+            "for confirmation unless -y is given; --dry-run prints the preview "
+            "and exits 0. Exit 0 means restarted or previewed, 2 means refused "
+            "with nothing changed, and 1 means the old run was stopped but the "
+            "name wipe or relaunch failed."
         ),
         epilog=(
+            "Restart deletes the previous run's artifacts (the chat transcript "
+            "under ~/.sase/chats is kept). A failed relaunch writes a recovery "
+            "directory under ~/.sase/restarts/. -j/--json skips confirmation.\n"
+            "\n"
             "examples:\n"
             "  sase agent restart 02p\n"
             "  sase agent restart 02p --dry-run\n"
@@ -649,7 +655,10 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Skip the interactive confirmation for a live agent",
+        help=(
+            "Skip the interactive confirmation for a live agent or a wipe "
+            "that deletes related agents' artifacts"
+        ),
     )
     restart_parser.add_argument(
         "name",

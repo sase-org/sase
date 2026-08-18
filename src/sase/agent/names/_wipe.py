@@ -23,6 +23,16 @@ from sase.core.paths import sase_home, sase_projects_dir, sase_subdir
 
 
 @dataclass(frozen=True)
+class AgentNameWipePreview:
+    """Read-only view of the artifact closure a name wipe would remove."""
+
+    artifact_dirs: tuple[str, ...] = ()
+    bundle_paths: tuple[str, ...] = ()
+    names: tuple[str, ...] = ()
+    container_kind: str | None = None
+
+
+@dataclass(frozen=True)
 class AgentNameWipeResult:
     """Structured outcome for a forced-reuse name wipe."""
 
@@ -140,6 +150,25 @@ def wipe_agent_name_for_reuse(
         notifications_dismissed=notifications,
         killed_processes=killed,
         errors=tuple(errors),
+    )
+
+
+def preview_agent_name_wipe(name: str) -> AgentNameWipePreview:
+    """Return the wipe closure for *name* without mutating any state."""
+    owner = lookup_registered_name(name)
+    if owner is None:
+        return AgentNameWipePreview()
+
+    raw_kind = owner.get("container_kind")
+    container_kind = raw_kind if isinstance(raw_kind, str) and raw_kind else None
+    plan = _build_wipe_plan(owner, name)
+    if not plan.names:
+        plan.names.add(name)
+    return AgentNameWipePreview(
+        artifact_dirs=tuple(sorted(str(path) for path in plan.artifact_dirs)),
+        bundle_paths=tuple(sorted(str(path) for path in plan.bundle_paths)),
+        names=tuple(sorted(plan.names)),
+        container_kind=container_kind,
     )
 
 

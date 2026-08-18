@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +17,8 @@ from sase.agents.cli_restart import handle_agents_restart
 from sase.main.parser import create_parser
 from tests._agent_restart_helpers import (
     dummy_plan,
+    dummy_preview,
+    dummy_wipe_preview,
     failed_kill,
     make_restartable_agent,
     successful_kill,
@@ -117,7 +120,11 @@ def test_json_dry_run_envelope_shape(
     assert payload["project"] == "gh_sase-org__sase"
     assert payload["project_display"] == "sase"
     assert payload["prompt"]["source"] == "raw_xprompt.md"
-    assert payload["prompt"]["name_reuse"] == "forced"
+    assert payload["prompt"]["name_reuse"]["mode"] == "forced"
+    assert payload["prompt"]["name_reuse"]["source"] == "prompt"
+    assert "artifact_dirs" in payload["deletes"]
+    assert payload["recovery_dir"] is None
+    assert payload["renamed_to"] is None
     assert payload["stopped"] is None
     assert payload["launched"] is None
     assert payload["error"] is None
@@ -245,7 +252,27 @@ def test_json_success_envelope(
     assert payload["stopped"]["pid"] == 481920
     assert payload["launched"]["pid"] == 492011
     assert payload["launched"]["workspace_num"] == 14
+    assert payload["prompt"]["name_reuse"]["source"] == "prompt"
+    assert "artifact_dirs" in payload["deletes"]
+    assert payload["recovery_dir"] is None
+    assert payload["renamed_to"] is None
     assert payload["error"] is None
+
+
+def test_json_success_envelope_includes_renamed_to(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    plan = dummy_plan(make_restartable_agent(tmp_path))
+    outcome = replace(_ok_outcome(), renamed_to="062")
+    rc = handle_agents_restart(
+        _args(json_mode=True, yes=True),
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=lambda *_a, **_k: outcome,
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 2
+    assert payload["renamed_to"] == "062"
 
 
 def test_kill_failure_exits_2(
@@ -268,3 +295,116 @@ def test_kill_failure_exits_2(
     stderr = capsys.readouterr().err
     assert "Permission denied" in stderr
     assert "Nothing was changed" in stderr
+
+
+def test_wipe_failed_exits_1_and_prints_recovery_dir(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifacts = make_restartable_agent(tmp_path)
+    plan = dummy_plan(artifacts)
+    recovery = tmp_path / "sase-home" / "restarts" / "20260818120000-02p"
+    recovery.mkdir(parents=True)
+    (recovery / "rewritten.md").write_text(plan.rewritten_prompt, encoding="utf-8")
+    outcome = AgentRestartOutcome(
+        status="wipe_failed",
+        name="02p",
+        stop_action="killed",
+        stop_result=successful_kill(),
+        error="Failed to wipe agent name '02p': boom",
+        recovery_command=f'sase run "$(cat {recovery / "rewritten.md"})"',
+        recovery_dir=str(recovery),
+    )
+    rc = handle_agents_restart(
+        _args(yes=True),
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=lambda *_a, **_k: outcome,
+    )
+    assert rc == 1
+    stderr = capsys.readouterr().err
+    assert "boom" in stderr
+    assert "Recovery directory" in stderr
+    assert recovery.name in stderr
+    assert "never released" in stderr
+
+
+def test_related_wipe_requests_confirmation(tmp_path: Path) -> None:
+    artifacts = make_restartable_agent(tmp_path, done=True)
+    related = artifacts.parent / "20260818120001"
+    plan = dummy_plan(
+        artifacts,
+        done=True,
+        preview=dummy_preview(is_live=False, status="DONE", warnings=()),
+        wipe_preview=dummy_wipe_preview(
+            artifacts,
+            artifact_dirs=(str(artifacts), str(related)),
+            names=("02p", "other"),
+        ),
+    )
+    confirm_calls = {"n": 0}
+
+    def confirm(*_args: object, **_kwargs: object) -> bool:
+        confirm_calls["n"] += 1
+        return False
+
+    with patch("sase.agents.cli_restart.execute_agent_restart") as execute_fn:
+        rc = handle_agents_restart(
+            _args(),
+            plan_fn=lambda *_a, **_k: plan,
+            confirm_fn=confirm,
+            is_tty_fn=lambda: True,
+        )
+    assert rc == 2
+    assert confirm_calls["n"] == 1
+    execute_fn.assert_not_called()
+
+
+def test_self_only_done_wipe_skips_confirmation(tmp_path: Path) -> None:
+    artifacts = make_restartable_agent(tmp_path, done=True)
+    plan = dummy_plan(
+        artifacts,
+        done=True,
+        preview=dummy_preview(is_live=False, status="DONE", warnings=()),
+        wipe_preview=dummy_wipe_preview(artifacts),
+    )
+    confirm_calls = {"n": 0}
+
+    def confirm(*_args: object, **_kwargs: object) -> bool:
+        confirm_calls["n"] += 1
+        return False
+
+    rc = handle_agents_restart(
+        _args(),
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=lambda *_a, **_k: _ok_outcome(),
+        confirm_fn=confirm,
+        is_tty_fn=lambda: True,
+    )
+    assert rc == 0
+    assert confirm_calls["n"] == 0
+
+
+def test_preview_shows_deletes_row_and_related_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifacts = make_restartable_agent(tmp_path, done=True)
+    related = artifacts.parent / "20260818120001"
+    plan = dummy_plan(
+        artifacts,
+        done=True,
+        preview=dummy_preview(is_live=False, status="DONE", warnings=()),
+        wipe_preview=dummy_wipe_preview(
+            artifacts,
+            artifact_dirs=(str(artifacts), str(related)),
+            names=("02p", "other"),
+        ),
+    )
+    rc = handle_agents_restart(
+        _args(dry_run=True),
+        plan_fn=lambda *_a, **_k: plan,
+    )
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "Deletes" in output
+    assert "artifact" in output
+    assert "related" in output
+    assert related.name in output

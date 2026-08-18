@@ -16,16 +16,19 @@ from sase.agent.restart import (
     AgentRestartPlan,
     execute_agent_restart,
     plan_agent_restart,
+    restart_needs_confirmation,
 )
 from sase.agents._restart_render import (
     envelope_from_error,
     envelope_from_plan,
+    print_deletion_note,
     print_json,
     print_kill_failure,
     print_partial_failure,
     print_planning_error,
     print_preview_warnings,
     print_step,
+    print_wipe_failure,
     render_preview_panel,
     render_receipt_panel,
 )
@@ -67,10 +70,10 @@ def handle_agents_restart(
             print_json(envelope_from_plan(plan, dry_run=True))
         else:
             out.print(render_preview_panel(plan))
-            print_preview_warnings(out, plan.preview)
+            print_preview_warnings(out, plan)
         return 0
 
-    if plan.preview.is_live and not assume_yes and is_tty() and not as_json:
+    if restart_needs_confirmation(plan) and not assume_yes and is_tty() and not as_json:
         if not confirm(plan, out):
             if as_json:
                 print_json(
@@ -90,7 +93,8 @@ def handle_agents_restart(
             return 2
     elif not as_json:
         out.print(render_preview_panel(plan))
-        print_preview_warnings(out, plan.preview)
+        print_preview_warnings(out, plan)
+        print_deletion_note(out)
 
     def _progress(step: str, status: str, detail: str) -> None:
         if not as_json:
@@ -113,7 +117,7 @@ def handle_agents_restart(
         else:
             print_kill_failure(err, outcome)
         return 2
-    if outcome.status == "partial":
+    if outcome.status in {"partial", "wipe_failed"}:
         if as_json:
             print_json(
                 envelope_from_plan(
@@ -121,11 +125,18 @@ def handle_agents_restart(
                     dry_run=False,
                     outcome=outcome,
                     error={
-                        "reason": "partial",
-                        "message": outcome.error or "Relaunch failed.",
+                        "reason": outcome.status,
+                        "message": outcome.error
+                        or (
+                            "Failed to release the agent name."
+                            if outcome.status == "wipe_failed"
+                            else "Relaunch failed."
+                        ),
                     },
                 )
             )
+        elif outcome.status == "wipe_failed":
+            print_wipe_failure(err, outcome)
         else:
             print_partial_failure(err, outcome)
         return 1
@@ -171,7 +182,8 @@ def _stdin_is_tty() -> bool:
 
 def _confirm_interactively(plan: AgentRestartPlan, out: Console) -> bool:
     out.print(render_preview_panel(plan))
-    print_preview_warnings(out, plan.preview)
+    print_preview_warnings(out, plan)
+    print_deletion_note(out)
     try:
         answer = out.input(f"Restart agent '{plan.presented_name}'? [y/N] ")
     except EOFError:

@@ -16,11 +16,14 @@ from sase.agent.restart import (
     AgentRestartOutcome,
     AgentRestartPlan,
     AgentRestartPreview,
+    deletion_note,
+    related_wipe_warning,
+    wipe_deletes_label,
 )
 from sase.agents.status_style import agent_status_text
 from sase.llm_provider.model_label import model_value_text
 
-AGENT_RESTART_JSON_SCHEMA_VERSION = 1
+AGENT_RESTART_JSON_SCHEMA_VERSION = 2
 _BORDER_STYLE = "#5FAFFF"
 
 
@@ -55,6 +58,7 @@ def render_preview_panel(plan: AgentRestartPlan) -> Panel:
     rows.append(("Prompt", Text(preview.prompt_excerpt)))
     rows.append(("Target", Text(preview.target)))
     rows.append(("Name reuse", Text(preview.name_reuse)))
+    rows.append(("Deletes", Text(wipe_deletes_label(plan.wipe_preview))))
     if preview.model_override_label:
         rows.append(("Model override", Text(preview.model_override_label)))
 
@@ -69,10 +73,21 @@ def render_preview_panel(plan: AgentRestartPlan) -> Panel:
     )
 
 
-def print_preview_warnings(console: Console, preview: AgentRestartPreview) -> None:
+def print_preview_warnings(console: Console, plan: AgentRestartPlan) -> None:
     """Print any applicable yellow warning lines below the preview panel."""
-    for warning in preview.warnings:
+    warnings = list(plan.preview.warnings)
+    related = related_wipe_warning(
+        plan.presented_name, plan.artifacts_dir, plan.wipe_preview
+    )
+    if related is not None and related not in warnings:
+        warnings.append(related)
+    for warning in warnings:
         console.print(Text(warning, style="yellow"))
+
+
+def print_deletion_note(console: Console) -> None:
+    """Print the standing artifact-deletion note for a non-dry-run restart."""
+    console.print(Text(deletion_note(), style="yellow"))
 
 
 def print_step(console: Console, step: str, status: str, detail: str) -> None:
@@ -81,6 +96,8 @@ def print_step(console: Console, step: str, status: str, detail: str) -> None:
         mark = Text("✓", style="green")
     elif status == "fail":
         mark = Text("✗", style="red")
+    elif status == "warn":
+        mark = Text("!", style="yellow")
     else:
         mark = Text("•", style="dim")
     line = Text("  ")
@@ -151,9 +168,19 @@ def envelope_from_plan(
         "prompt": {
             "source": "raw_xprompt.md",
             "vcs_tag": _json_vcs_tag(plan),
-            "name_reuse": "forced",
+            "name_reuse": {
+                "mode": "forced",
+                "source": plan.name_reuse_source,
+            },
             "model_override": plan.model_override,
         },
+        "deletes": {
+            "artifact_dirs": list(plan.wipe_preview.artifact_dirs),
+            "bundle_paths": list(plan.wipe_preview.bundle_paths),
+            "names": list(plan.wipe_preview.names),
+        },
+        "recovery_dir": None if outcome is None else outcome.recovery_dir,
+        "renamed_to": None if outcome is None else outcome.renamed_to,
         "stopped": stopped,
         "launched": launched,
         "warnings": list(plan.preview.warnings),
@@ -176,6 +203,9 @@ def envelope_from_error(
         "project": None,
         "project_display": None,
         "prompt": None,
+        "deletes": None,
+        "recovery_dir": None,
+        "renamed_to": None,
         "stopped": None,
         "launched": None,
         "warnings": [],
@@ -219,9 +249,41 @@ def print_partial_failure(err: Console, outcome: AgentRestartOutcome) -> None:
             style="yellow",
         )
     )
+    _print_recovery(err, outcome)
+
+
+def print_wipe_failure(err: Console, outcome: AgentRestartOutcome) -> None:
+    """Print a wipe failure: the old agent is dead but the name is still taken."""
+    err.print(
+        Text(
+            outcome.error or "Failed to release the agent name.",
+            style="bold red",
+        )
+    )
+    err.print(
+        Text(
+            "The old run was stopped but the name was never released.",
+            style="yellow",
+        )
+    )
+    err.print(
+        Text(
+            "Inspect with `sase agent show` before retrying.",
+            style="dim",
+        )
+    )
+    _print_recovery(err, outcome)
+
+
+def _print_recovery(err: Console, outcome: AgentRestartOutcome) -> None:
     if outcome.recovery_command:
         err.print(Text("Recover with:", style="dim"))
         err.print(Text(f"  {outcome.recovery_command}", style="bold"))
+    elif outcome.recovery_prompt:
+        err.print(Text("Recover by relaunching this prompt:", style="dim"))
+        err.print(Text(outcome.recovery_prompt, style="bold"))
+    if outcome.recovery_dir:
+        err.print(Text(f"Recovery directory: {outcome.recovery_dir}", style="dim"))
 
 
 def _model_value(preview: AgentRestartPreview) -> Text | None:

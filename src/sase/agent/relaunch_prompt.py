@@ -64,6 +64,14 @@ def force_name_reuse_in_prompt(
     )
 
 
+def ensure_forced_name_reuse(prompt: str, agent_name: str) -> str:
+    """Return *prompt* with a forced-reuse ``%id`` for *agent_name*."""
+    from sase.xprompt.directive_edit import set_prompt_name
+
+    named = set_prompt_name(prompt, agent_name)
+    return force_name_reuse_in_prompt(named, replacement_name=agent_name)
+
+
 def prepare_kill_and_edit_prompt(
     raw_prompt: str,
     agent_name: str | None,

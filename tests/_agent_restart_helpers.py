@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from sase.agent.force_reuse_launch import ForceReuseLaunchPlan
-from sase.agent.names import NamedAgent
+from sase.agent.names import AgentNameWipePreview, NamedAgent
 from sase.agent.restart import (
     AgentRestartPlan,
     AgentRestartPreview,
@@ -86,7 +86,7 @@ def dummy_preview(**overrides: Any) -> AgentRestartPreview:
         "bead": None,
         "prompt_excerpt": "Do the work",
         "target": "#gh:sase",
-        "name_reuse": "forced (%id(!02p))",
+        "name_reuse": "forced (%id(!02p)) · from prompt",
         "model_override_label": None,
         "warnings": ("Restarting a running agent discards its in-flight work.",),
         "is_live": True,
@@ -94,6 +94,20 @@ def dummy_preview(**overrides: Any) -> AgentRestartPreview:
     }
     fields.update(overrides)
     return AgentRestartPreview(**fields)
+
+
+def dummy_wipe_preview(
+    artifacts_dir: Path | None = None,
+    **overrides: Any,
+) -> AgentNameWipePreview:
+    fields: dict[str, Any] = {
+        "artifact_dirs": (str(artifacts_dir),) if artifacts_dir is not None else (),
+        "bundle_paths": (),
+        "names": ("02p",),
+        "container_kind": None,
+    }
+    fields.update(overrides)
+    return AgentNameWipePreview(**fields)
 
 
 def dummy_plan(
@@ -122,6 +136,8 @@ def dummy_plan(
         "force_reuse_plan": dummy_force_plan(),
         "model_override": None,
         "preview": preview,
+        "name_reuse_source": "prompt",
+        "wipe_preview": dummy_wipe_preview(artifacts_dir),
     }
     fields.update(overrides)
     return AgentRestartPlan(**fields)
