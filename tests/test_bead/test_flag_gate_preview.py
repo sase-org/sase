@@ -89,6 +89,31 @@ def test_countdown_text_comes_from_pinned_due_as_of_and_release() -> None:
     assert "DUE" not in live.split("**Status:**")[1].splitlines()[0]
 
 
+def test_preview_renders_prose_fields_and_d2_answers() -> None:
+    preview = _render(
+        kind="sunset",
+        task_type="flag",
+        task_type_fields={
+            "key": "prettier_enabled",
+            "kind": "sunset",
+            "when_enabled": "Format Markdown with prettier.",
+            "when_disabled": "Skip prettier.",
+            "remove_when": "No escape hatch remains.",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.16.0",
+        },
+    )
+
+    assert "## Feature flag `prettier_enabled` · sunset" in preview
+    assert "Format Markdown with prettier." in preview
+    assert "Skip prettier." in preview
+    assert "No escape hatch remains." in preview
+    assert "**Remove** deletes the Off branch" in preview
+    assert "**Extend** pushes both thresholds out." in preview
+    assert "**Keep** means the behavior is permanent" in preview
+    assert "**Close** abandons the removal." in preview
+
+
 def test_presentation_note_matches_the_preview_countdown() -> None:
     note = flag_triage_presentation_note(
         "sase-flag.1",

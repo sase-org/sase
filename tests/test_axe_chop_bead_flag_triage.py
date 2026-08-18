@@ -14,8 +14,8 @@ from sase.bead.project import BeadProject
 from sase.scripts._bead_task_triage_state import gateable_beads
 
 from tests._axe_chop_bead_task_triage_helpers import (
+    flag_task_fields,
     make_due_flag,
-    make_live_flag,
     make_runtime,
     make_task,
     patch_active_launches,
@@ -61,7 +61,9 @@ def test_due_flag_bead_raises_exactly_one_pending_flag_triage_gate(
     assert len(created) == 1
     assert created[0]["bead_id"] == "sase-flag.1"
     assert created[0]["project"] == "sase"
-    assert created[0]["flag"] is due[0].flag
+    assert created[0]["flag"].key == due[0].task_type_fields["key"]
+    assert created[0]["kind"] == "sunset"
+    assert created[0]["task_type"] == "flag"
     assert created[0]["due_state"] == "due"
     assert created[0]["request_id"].startswith("bead-flag-triage-")
     state = task_triage._read_state(tmp_path / task_triage._STATE_FILENAME)["sase"]
@@ -72,16 +74,25 @@ def test_live_or_soon_flag_bead_is_not_gateable(tmp_path: Path) -> None:
     with BeadProject.init(tmp_path) as proj:
         live = proj.create(
             "Remove the live flag",
-            IssueType.FLAG,
-            flag=make_live_flag().flag,
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields=flag_task_fields(
+                key="live_flag",
+                remove_by_date="2099-01-01",
+                remove_by_release="99.0.0",
+            ),
         )
         soon = proj.create(
             "Remove the soon flag",
-            IssueType.FLAG,
-            flag=make_due_flag(
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields=flag_task_fields(
+                key="soon_flag",
                 remove_by_date="2020-01-01",
                 remove_by_release="99.0.0",
-            ).flag,
+            ),
         )
 
     gateable_ids = {
@@ -94,12 +105,33 @@ def test_live_or_soon_flag_bead_is_not_gateable(tmp_path: Path) -> None:
     assert soon.id not in gateable_ids
 
 
+def test_due_open_flag_task_bead_is_gateable(tmp_path: Path) -> None:
+    with BeadProject.init(tmp_path) as proj:
+        due = proj.create(
+            "Remove the due flag",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields=flag_task_fields(key="due_flag"),
+        )
+
+    gateable_ids = {
+        issue.id
+        for issue in gateable_beads(
+            proj.beads_dir, today=date(2026, 8, 16), release="0.16.0"
+        )
+    }
+    assert due.id in gateable_ids
+
+
 def test_due_flag_bead_is_gateable_only_while_open(tmp_path: Path) -> None:
     with BeadProject.init(tmp_path) as proj:
         due = proj.create(
             "Remove the due flag",
-            IssueType.FLAG,
-            flag=make_due_flag().flag,
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields=flag_task_fields(key="due_flag"),
         )
         proj.update(due.id, status="in_progress")
 
@@ -199,3 +231,33 @@ def test_task_bead_gate_is_not_duplicated_when_a_flag_bead_is_also_reconciled(
         task.id: task_triage.TASK_TRIAGE_KIND,
         flag.id: task_triage.FLAG_TRIAGE_KIND,
     }
+
+
+def test_legacy_flag_issue_type_bead_is_not_gateable(tmp_path: Path) -> None:
+    from sase.bead.model import FlagRecord
+
+    with BeadProject.init(tmp_path) as proj:
+        legacy = proj.create(
+            "Remove the legacy flag",
+            IssueType.FLAG,
+            flag=FlagRecord(
+                key="legacy_flag",
+                remove_by_date="2020-01-01",
+                remove_by_release="0.1.0",
+            ),
+        )
+
+    gateable_ids = {
+        issue.id
+        for issue in gateable_beads(
+            proj.beads_dir, today=date(2026, 8, 16), release="0.16.0"
+        )
+    }
+    assert legacy.id not in gateable_ids
+
+
+def test_expected_gate_kind_is_flag_triage_for_flag_task_type() -> None:
+    from sase.scripts._bead_task_triage_gates import expected_gate_kind
+
+    assert expected_gate_kind(make_due_flag()) == task_triage.FLAG_TRIAGE_KIND
+    assert expected_gate_kind(make_task()) == task_triage.TASK_TRIAGE_KIND

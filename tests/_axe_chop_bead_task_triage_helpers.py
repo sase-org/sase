@@ -12,7 +12,6 @@ import pytest
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import (
-    FlagRecord,
     Issue,
     IssueType,
     PhaseSize,
@@ -83,6 +82,25 @@ def future_instant(*, days: int) -> str:
     return (datetime.now(get_timezone()) + timedelta(days=days)).isoformat()
 
 
+def flag_task_fields(
+    *,
+    key: str = "prettier_enabled",
+    kind: str = "sunset",
+    remove_by_date: str = "2026-01-01",
+    remove_by_release: str = "0.1.0",
+) -> dict[str, str]:
+    """Return the seven-field map a ``flag`` task bead carries."""
+    return {
+        "key": key,
+        "kind": kind,
+        "when_enabled": "Markdown is formatted with prettier when it is installed.",
+        "when_disabled": "Markdown formatting skips prettier entirely.",
+        "remove_when": "No workflow still needs a prettier escape hatch.",
+        "remove_by_date": remove_by_date,
+        "remove_by_release": remove_by_release,
+    }
+
+
 def make_due_flag(
     bead_id: str = "sase-flag.1",
     *,
@@ -91,17 +109,18 @@ def make_due_flag(
     remove_by_release: str = "0.1.0",
     created_by: str = "claude_coder",
 ) -> Issue:
-    """Return an ``open`` flag bead whose thresholds have both passed."""
+    """Return an ``open`` flag task bead whose thresholds have both passed."""
     return Issue(
         id=bead_id,
         title=f"Remove the {key} flag",
         status=Status.OPEN,
-        issue_type=IssueType.FLAG,
+        issue_type=IssueType.TASK,
         description="Routes prettier formatting.",
         notes="Discovered while landing sase-bg.",
         created_at="2026-01-01T00:00:00Z",
         created_by=created_by,
-        flag=FlagRecord(
+        task_type="flag",
+        task_type_fields=flag_task_fields(
             key=key,
             remove_by_date=remove_by_date,
             remove_by_release=remove_by_release,

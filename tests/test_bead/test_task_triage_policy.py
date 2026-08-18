@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from sase.bead.model import (
-    FlagRecord,
     Issue,
     IssueType,
     SnoozeRecord,
@@ -86,13 +85,18 @@ def _make_due_flag() -> Issue:
         id="sase-flag.1",
         title="Remove the prettier_enabled flag",
         status=Status.OPEN,
-        issue_type=IssueType.FLAG,
+        issue_type=IssueType.TASK,
         created_at="2026-08-01T09:14:02-04:00",
-        flag=FlagRecord(
-            key="prettier_enabled",
-            remove_by_date="2026-01-01",
-            remove_by_release="0.1.0",
-        ),
+        task_type="flag",
+        task_type_fields={
+            "key": "prettier_enabled",
+            "kind": "sunset",
+            "when_enabled": "On.",
+            "when_disabled": "Off.",
+            "remove_when": "When proven.",
+            "remove_by_date": "2026-01-01",
+            "remove_by_release": "0.1.0",
+        },
     )
 
 

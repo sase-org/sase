@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sase.bead.flag_due import flag_removal_due
+from sase.bead.flag_fields import flag_fields, is_flag_task_bead
 from sase.bead.model import Issue, IssueType, Status
 from sase.core import bead_read_facade as rust_beads
 
@@ -138,36 +139,39 @@ def write_state(path: Path, projects: dict[str, ProjectState]) -> None:
 
 
 def gateable_beads(beads_dir: Path, *, today: date, release: str) -> list[Issue]:
-    """Read every task or flag bead that owes the user a gate, in one store pass.
+    """Read every task bead that owes the user a gate, in one store pass.
 
-    A task bead is gateable while ``ready`` or ``snoozed``, unchanged from
-    before. A flag bead is gateable only while ``open`` and due -- both its
-    date and release removal thresholds have passed, per
+    A task bead of type ``flag`` is gateable while ``open`` and due -- both
+    its date and release removal thresholds have passed, per
     :func:`sase.bead.flag_due.flag_removal_due` -- so due-ness is never
-    persisted on the bead itself. *today* and *release* are explicit
-    arguments so tests never need to freeze the clock globally.
+    persisted on the bead itself. Every other task bead is gateable while
+    ``ready`` or ``snoozed``. ``OPEN`` stays in the store-status filter
+    because that is the stored status of a live flag task bead; the store
+    read itself no longer returns the retired ``flag`` issue type.
+    *today* and *release* are explicit arguments so tests never need to
+    freeze the clock globally.
     """
     issues = rust_beads.list_issues(
         beads_dir,
         statuses=list(_GATEABLE_STORE_STATUSES),
-        issue_types=[IssueType.TASK, IssueType.FLAG],
+        issue_types=[IssueType.TASK],
     )
     gateable: list[Issue] = []
     for issue in issues:
-        if issue.issue_type == IssueType.TASK:
-            if issue.status in _GATEABLE_TASK_STATUSES:
-                gateable.append(issue)
-        elif issue.issue_type == IssueType.FLAG:
+        if is_flag_task_bead(issue):
+            fields = flag_fields(issue)
             if (
                 issue.status == Status.OPEN
-                and issue.flag is not None
+                and fields is not None
                 and flag_removal_due(
-                    issue.flag.remove_by_date,
-                    issue.flag.remove_by_release,
+                    fields.remove_by_date,
+                    fields.remove_by_release,
                     today=today,
                     release=release,
                 )
                 == "due"
             ):
                 gateable.append(issue)
+        elif issue.status in _GATEABLE_TASK_STATUSES:
+            gateable.append(issue)
     return gateable

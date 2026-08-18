@@ -2,11 +2,11 @@
 """Raise and reconcile the one pending gate each live bead may have.
 
 A task bead is either ready — awaiting a ``TaskTriage`` decision — or snoozed,
-awaiting a ``BeadSnooze`` wake. A flag bead whose removal thresholds have both
-passed awaits a ``FlagTriage`` decision. All three gate kinds are reconciled
-here, in one lane state and under one lock, because "which gate does this bead
-have" is a single question: a second chop owning a second kind could only race
-this one into giving a bead two pending gates.
+awaiting a ``BeadSnooze`` wake. A task bead of type ``flag`` whose removal
+thresholds have both passed awaits a ``FlagTriage`` decision. All three gate
+kinds are reconciled here, in one lane state and under one lock, because
+"which gate does this bead have" is a single question: a second chop owning a
+second kind could only race this one into giving a bead two pending gates.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from pathlib import Path
 
 import sase
 from sase.bead.config import get_task_triage_min_plus_ones
+from sase.bead.flag_fields import flag_fields
 from sase.bead.flag_gate import FLAG_TRIAGE_KIND, create_flag_triage_gate
 from sase.bead.gate_lookup import find_pending_bead_gates
 from sase.bead.model import Issue, SnoozeRecord
@@ -63,7 +64,7 @@ _LOCK_FILENAME = "bead_task_triage.lock"
 
 # Bumped whenever a gate preview or notification-note renderer changes shape, so
 # the reconciler replaces pending gates still advertising the superseded one.
-_PRESENTATION_FORMAT_VERSION = 4
+_PRESENTATION_FORMAT_VERSION = 5
 
 # Bumped whenever the trusted TaskTriage, BeadSnooze, or FlagTriage interaction
 # contract changes shape, so pending gates still exposing old option inputs are
@@ -124,7 +125,7 @@ def _presentation_fingerprint(
         # Gateable flag beads are always due (see `_gateable_beads`), so this
         # is not a second due-ness comparison -- just threading the one
         # already-known state into the fingerprint.
-        flag_due_state="due" if issue.flag is not None else None,
+        flag_due_state="due" if flag_fields(issue) is not None else None,
         task_type_display=_task_type_display_payload(issue, registry),
     )
 

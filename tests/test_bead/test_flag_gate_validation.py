@@ -106,6 +106,10 @@ def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:
             "invalid_flag_triage_presentation",
         ),
         (
+            lambda spec: spec["presentation"]["chip"].update(glyph="?"),
+            "invalid_flag_triage_presentation",
+        ),
+        (
             lambda spec: spec["presentation"].update(origin_agent="forged-agent"),
             "invalid_flag_triage_preview",
         ),

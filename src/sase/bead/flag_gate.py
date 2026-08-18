@@ -10,12 +10,13 @@ implementation lives in focused siblings:
 - :mod:`sase.bead._flag_gate_response` — persisted response → trusted decision
 - :mod:`sase.bead._flag_gate_actions` — the host effects a decision authorizes
 
-A live task bead is either ready or snoozed; a live flag bead is either not
-yet due or ``due`` (see :func:`sase.bead.flag_due.flag_removal_due`). This
-gate is raised only for the latter, and its four options -- Remove, Extend,
-Keep, and Close -- are the only honest answers to "this flag's removal is
-overdue": ship the winning branch, push the deadline out with a reason,
-declare the flag permanent, or abandon the removal work.
+A live task bead is either ready or snoozed; a live flag task bead is
+either not yet due or ``due`` (see
+:func:`sase.bead.flag_due.flag_removal_due`). This gate is raised only for
+the latter, and its four options -- Remove, Extend, Keep, and Close -- are
+the only honest answers to "this flag's removal is overdue": delete the Off
+branch, push both thresholds out, declare the behavior a config field, or
+abandon the removal.
 """
 
 from __future__ import annotations
@@ -55,10 +56,13 @@ from sase.bead._flag_gate_spec import (
     FlagTriageAction,
     build_flag_triage_gate_spec,
     execute_flag_triage_gate_command,
+    flag_triage_flag_payload,
     flag_triage_gate_command_script,
     flag_triage_option_spec,
+    flag_triage_presentation,
     flag_triage_result_schema,
 )
+from sase.bead.flag_fields import FLAG_TASK_TYPE
 from sase.bead.model import FlagRecord
 
 
@@ -79,6 +83,9 @@ def create_flag_triage_gate(
     created_at: str = "",
     size: str | None = None,
     refs: Sequence[str] = (),
+    kind: str = "",
+    task_type: str = FLAG_TASK_TYPE,
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only removal-triage gate for a due flag bead."""
@@ -101,6 +108,9 @@ def create_flag_triage_gate(
             created_at=created_at,
             size=size,
             refs=refs,
+            kind=kind,
+            task_type=task_type,
+            task_type_fields=task_type_fields,
             producer=producer,
         )
     )
@@ -128,8 +138,10 @@ __all__ = [
     "create_flag_triage_gate",
     "execute_flag_triage_gate_command",
     "extend_flag_triage",
+    "flag_triage_flag_payload",
     "flag_triage_gate_command_script",
     "flag_triage_option_spec",
+    "flag_triage_presentation",
     "flag_triage_presentation_note",
     "flag_triage_result_schema",
     "keep_flag_triage",

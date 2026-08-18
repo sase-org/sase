@@ -43,6 +43,16 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
         notes="Discovered while landing sase-bg.",
         created_by="claude_coder",
         created_at="2026-01-01T00:00:00Z",
+        kind="sunset",
+        task_type_fields={
+            "key": "prettier_enabled",
+            "kind": "sunset",
+            "when_enabled": "On branch.",
+            "when_disabled": "Off branch.",
+            "remove_when": "When proven.",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.16.0",
+        },
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -50,23 +60,17 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert request["query"] == "remove OR extend OR keep OR close"
     assert request["branches"] == [["remove"], ["extend"], ["keep"], ["close"]]
     assert request["primary_branch"] == ["remove"]
-    assert request["payload"] == {
-        "bead_id": "sase-flag.1",
-        "project": "sase",
-        "title": "Remove the prettier_enabled flag",
-        "created_at": "2026-01-01T00:00:00Z",
-        "size": None,
-        "refs": [],
-        "flag": {
-            "key": "prettier_enabled",
-            "remove_by_date": "2026-08-01",
-            "remove_by_release": "0.16.0",
-        },
-        "due_state": "due",
-        "due_as_of": "2026-08-16",
-        "release": "0.16.0",
-        "definition": {"kind": "sunset", "description": "Routes prettier formatting."},
+    assert request["payload"]["bead_id"] == "sase-flag.1"
+    assert request["payload"]["flag"] == {
+        "key": "prettier_enabled",
+        "kind": "sunset",
+        "remove_by_date": "2026-08-01",
+        "remove_by_release": "0.16.0",
     }
+    assert request["payload"]["due_state"] == "due"
+    assert request["payload"]["task_type"] == "flag"
+    assert request["payload"]["task_type_display"]["glyph"] == "⚑"
+    assert request["payload"]["task_type_display"]["name"] == "Feature flag"
     assert [(option["id"], option["feedback"]) for option in request["options"]] == [
         ("remove", "optional"),
         ("extend", "required"),
@@ -87,11 +91,17 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert all(field["required"] is True for field in extend_option["inputs"])
     assert request["presentation"]["sender"] == "bead"
     assert request["presentation"]["icon"] == "⚑"
-    assert request["presentation"]["notes"] == [
+    assert request["presentation"]["notes"][0] == (
         "sase-flag.1 [⚑ prettier_enabled] — Remove the prettier_enabled flag "
         "· DUE ⧗ +15d"
-    ]
-    assert request["presentation"]["tags"] == ["bead", "flag"]
+    )
+    assert request["presentation"]["notes"][1].startswith("Feature flag ·")
+    assert request["presentation"]["tags"] == ["bead", "task", "flag"]
+    assert request["presentation"]["chip"] == {
+        "glyph": "⚑",
+        "label": "flag",
+        "color": "#FF875F",
+    }
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["panel_icon"] == "⚑"
     assert request["presentation"]["origin_agent"] == "claude_coder"
@@ -100,21 +110,31 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert "`prettier_enabled` is due for removal" in preview
     assert "**Remove by:** 2026-08-01 · v0.16.0" in preview
     assert "**Kind:** `sunset`" in preview
+    assert "**Task type:** ⚑ `flag`" in preview
     assert "## What this flag does" in preview
     assert "Routes prettier formatting." in preview
     assert "## Description" in preview
     assert "Roll out the new formatter by default." in preview
     assert "## Notes" in preview
     assert "Discovered while landing sase-bg." in preview
+    assert "## Feature flag `prettier_enabled` · sunset" in preview
+    assert "**On:**" in preview
+    assert "**Off:**" in preview
+    assert "**Remove when:**" in preview
+    assert "**Remove** deletes the Off branch" in preview
+    assert "**Keep** means the behavior is permanent" in preview
 
     [notification] = load_notifications()
     assert notification.action == "FlagTriage"
     assert notification.sender == "bead"
     assert notification.icon == "⚑"
-    assert notification.tags == ["bead", "flag"]
+    assert notification.tags == ["bead", "task", "flag"]
     assert notification.action_data["panel"] == "beads"
     assert notification.action_data["panel_icon"] == "⚑"
     assert notification.action_data["origin_agent"] == "claude_coder"
+    assert notification.action_data["gate_chip_glyph"] == "⚑"
+    assert notification.action_data["gate_chip_label"] == "flag"
+    assert notification.action_data["gate_chip_color"] == "#FF875F"
     [entry] = pending_actions.read_pending_action_store()["actions"].values()
     assert entry["action_kind"] == "flag_triage"
     assert adapter_for_kind("flag_triage").auto_policy == "forbidden"

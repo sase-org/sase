@@ -10,8 +10,9 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from sase.bead.flag_due import flag_removal_due
+from sase.bead.flag_fields import FLAG_TASK_TYPE, flag_fields
 from sase.bead.flag_gate import FLAG_TRIAGE_KIND
-from sase.bead.model import Issue, IssueType, SnoozeRecord, Status
+from sase.bead.model import FlagRecord, Issue, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND
 from sase.bead.task_gate import TASK_TRIAGE_KIND
 from sase.core.time import get_timezone
@@ -32,7 +33,7 @@ REQUEST_ID_PREFIXES = {
 
 def expected_gate_kind(issue: Issue) -> str:
     """Return the one gate kind a live bead's status and type call for."""
-    if issue.issue_type == IssueType.FLAG:
+    if issue.task_type == FLAG_TASK_TYPE:
         return FLAG_TRIAGE_KIND
     return BEAD_SNOOZE_KIND if issue.status == Status.SNOOZED else TASK_TRIAGE_KIND
 
@@ -58,11 +59,12 @@ def presentation_fingerprint(
     The snooze record is part of it because both the wake gate's notification
     note and its preview render the wake conditions: a re-snooze must replace
     the pending gate rather than leave it advertising the old wake time. A
-    flag block -- key, both thresholds, and *flag_due_state* -- is added only
-    when ``issue.flag`` is not ``None``, so no existing task gate's
-    fingerprint changes. ``due_as_of`` and ``release`` are deliberately not
-    part of it: they are presentation pinning, and including them would
-    cancel and recreate every pending flag gate daily.
+    flag block -- key, kind, both thresholds, and *flag_due_state* -- is
+    added only when :func:`~sase.bead.flag_fields.flag_fields` can read the
+    bead, so no existing task gate's fingerprint changes. ``due_as_of`` and
+    ``release`` are deliberately not part of it: they are presentation
+    pinning, and including them would cancel and recreate every pending
+    flag gate daily.
 
     A ``task_type_display`` block is added only when the caller supplies the
     frozen glyph/name/accent/facts mapping, so an untyped bead's fingerprint
@@ -118,11 +120,13 @@ def presentation_fingerprint(
             for record in issue.close_history
         ],
     }
-    if issue.flag is not None:
+    fields = flag_fields(issue)
+    if fields is not None:
         payload["flag"] = {
-            "key": issue.flag.key,
-            "remove_by_date": issue.flag.remove_by_date,
-            "remove_by_release": issue.flag.remove_by_release,
+            "key": fields.key,
+            "kind": fields.kind,
+            "remove_by_date": fields.remove_by_date,
+            "remove_by_release": fields.remove_by_release,
             "due_state": flag_due_state,
         }
     if task_type_display is not None:
@@ -254,7 +258,8 @@ def create_gate(
 ) -> None:
     """Create the one gate this bead's status and type call for."""
     if kind == FLAG_TRIAGE_KIND:
-        if issue.flag is None:
+        fields = flag_fields(issue)
+        if fields is None:
             raise ValueError(f"flag bead {bead_id} has no flag metadata")
         import sase
         from sase.core import time as core_time
@@ -263,18 +268,23 @@ def create_gate(
         today = core_time.local_now().date()
         release = sase.__version__
         due_state = flag_removal_due(
-            issue.flag.remove_by_date,
-            issue.flag.remove_by_release,
+            fields.remove_by_date,
+            fields.remove_by_release,
             today=today,
             release=release,
         )
-        definition = feature_flag_definitions().get(issue.flag.key)
+        definition = feature_flag_definitions().get(fields.key)
         flag_gate_factory(
             request_id=request_id,
             bead_id=bead_id,
             project=project_name,
             title=issue.title,
-            flag=issue.flag,
+            flag=FlagRecord(
+                key=fields.key,
+                remove_by_date=fields.remove_by_date,
+                remove_by_release=fields.remove_by_release,
+            ),
+            kind=fields.kind,
             due_state=due_state,
             due_as_of=today.isoformat(),
             release=release,
@@ -289,6 +299,8 @@ def create_gate(
             created_at=issue.created_at,
             size=issue.size.value if issue.size else None,
             refs=issue.refs,
+            task_type=issue.task_type or FLAG_TASK_TYPE,
+            task_type_fields=dict(issue.task_type_fields),
             producer={"chop": "bead_task_triage", "project": project_name},
         )
         return

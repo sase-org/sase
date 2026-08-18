@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sase.notification_gates.kind_validation.flag_triage_payload import (
     FlagTriagePayload,
@@ -142,32 +143,22 @@ def _validate_flag_triage_resources(spec: GateSpec) -> str | None:
 def _validate_flag_triage_presentation(
     spec: GateSpec, payload: FlagTriagePayload
 ) -> None:
-    from sase.bead.flag_gate import (
-        FLAG_TRIAGE_PREVIEW_PATH,
-        flag_triage_presentation_note,
-    )
+    from sase.bead.flag_gate import flag_triage_presentation
 
-    expected_note = flag_triage_presentation_note(
-        payload.bead_id,
-        payload.title,
-        payload.flag,
+    origin_agent = _presentation_origin_agent(
+        spec.presentation, "invalid_flag_triage_presentation"
+    )
+    expected = flag_triage_presentation(
+        bead_id=payload.bead_id,
+        title=payload.title,
+        flag=payload.flag,
         due_as_of=payload.due_as_of,
         release=payload.release,
+        origin_agent=origin_agent,
+        task_type=payload.task_type,
+        task_type_display=payload.task_type_display,
     )
-    presentation = spec.presentation
-    origin_agent = presentation.get("origin_agent")
-    if (
-        presentation.get("sender") != "bead"
-        or presentation.get("icon") != "⚑"
-        or presentation.get("notes") != [expected_note]
-        or presentation.get("tags") != ["bead", "flag"]
-        or presentation.get("panel") != "beads"
-        or presentation.get("panel_icon") != "⚑"
-        or (origin_agent is not None and not isinstance(origin_agent, str))
-        or (isinstance(origin_agent, str) and not origin_agent)
-        or presentation.get("files") != [FLAG_TRIAGE_PREVIEW_PATH]
-        or presentation.get("preview") != FLAG_TRIAGE_PREVIEW_PATH
-    ):
+    if spec.presentation != expected:
         raise GateError(
             "invalid_flag_triage_presentation",
             "presentation",
@@ -202,9 +193,13 @@ def _validate_flag_triage_preview(
             due_as_of=payload.due_as_of,
             release=payload.release,
             definition=payload.definition,
+            kind=payload.kind,
             created_by=created_by,
             created_at=payload.created_at,
             size=payload.size,
+            task_type=payload.task_type,
+            task_type_fields=payload.task_type_fields,
+            task_type_display=payload.task_type_display,
         )
 
     matches = preview_matches_renderer(
@@ -219,3 +214,16 @@ def _validate_flag_triage_preview(
             FLAG_TRIAGE_PREVIEW_PATH,
             "flag triage preview does not match the registered adapter",
         )
+
+
+def _presentation_origin_agent(presentation: Mapping[str, Any], code: str) -> str:
+    origin_agent = presentation.get("origin_agent")
+    if origin_agent is None:
+        return ""
+    if not isinstance(origin_agent, str) or not origin_agent:
+        raise GateError(
+            code,
+            "presentation",
+            "flag triage presentation does not match the registered adapter",
+        )
+    return origin_agent

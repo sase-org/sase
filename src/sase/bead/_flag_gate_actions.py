@@ -85,14 +85,10 @@ def extend_flag_triage(decision: FlagTriageResponse) -> None:
         )
     from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
     from sase.bead.flag_codec import flag_to_dict
-    from sase.bead.model import FlagRecord
+    from sase.bead.flag_fields import is_flag_task_bead, replace_flag_thresholds
+    from sase.bead.model import FlagRecord, IssueType
     from sase.bead.mutation_commit import require_mutation_commit_message
 
-    record = FlagRecord(
-        key=decision.key,
-        remove_by_date=decision.remove_by_date,
-        remove_by_release=decision.remove_by_release,
-    )
     note = (
         f"Flag removal extended from {decision.old_remove_by_date} "
         f"(v{decision.old_remove_by_release}) to {decision.remove_by_date} "
@@ -101,7 +97,33 @@ def extend_flag_triage(decision: FlagTriageResponse) -> None:
     cwd = _resolve_flag_triage_project_cwd(decision.project)
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
         actor = bead_gate_actor(mutation.project)
-        mutation.project.update(decision.bead_id, flag=flag_to_dict(record))
+        issue = mutation.project.show(decision.bead_id)
+        if is_flag_task_bead(issue):
+            mutation.project.update(
+                decision.bead_id,
+                task_type_fields=replace_flag_thresholds(
+                    issue.task_type_fields,
+                    remove_by_date=decision.remove_by_date,
+                    remove_by_release=decision.remove_by_release,
+                ),
+            )
+        elif issue.issue_type == IssueType.FLAG:
+            mutation.project.update(
+                decision.bead_id,
+                flag=flag_to_dict(
+                    FlagRecord(
+                        key=decision.key,
+                        remove_by_date=decision.remove_by_date,
+                        remove_by_release=decision.remove_by_release,
+                    )
+                ),
+            )
+        else:
+            raise GateError(
+                "invalid_flag_action",
+                decision.action,
+                f"{decision.bead_id} is not a flag bead",
+            )
         mutation.project.append_note(decision.bead_id, note, author=actor)
         mutation.commit(require_mutation_commit_message("update", [decision.bead_id]))
 
@@ -133,10 +155,9 @@ def keep_flag_triage(
         mutation.commit(require_mutation_commit_message("note", [decision.bead_id]))
     brief = (
         f"This is a feature-flag removal bead for the `{decision.key}` flag, "
-        "kept rather than removed. Promote its registry definition to "
-        'kind: "ops" with the rationale below, or convert it to an ordinary '
-        f"config field, then close this bead. Reviewer rationale: "
-        f"{decision.feedback}"
+        "kept rather than removed. The behavior is permanent and belongs in a "
+        "config field, not a feature flag: convert it, then close this bead. "
+        f"Reviewer rationale: {decision.feedback}"
     )
     return submit_task_launch_task(
         decision.bead_id,

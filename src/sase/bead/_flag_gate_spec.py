@@ -18,15 +18,20 @@ from sase.bead._flag_gate_preview import (
     flag_triage_presentation_note,
     render_flag_triage_preview,
 )
-from sase.bead.flag_codec import flag_to_dict
+from sase.bead.flag_fields import FLAG_TASK_TYPE
 from sase.bead.flag_gate_input import (
     flag_triage_extend_inputs,
     resolve_flag_triage_extend,
 )
 from sase.bead.model import FlagRecord
 from sase.bead.snooze_time import SnoozeTimeError
-from sase.bead.task_gate import bounded_gate_title
+from sase.bead.task_gate import apply_task_type_gate_presentation, bounded_gate_title
 from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.task_type_gate_presentation import (
+    TaskTypeGateDisplay,
+    resolve_task_type_gate_display,
+    task_type_gate_display_payload,
+)
 
 FlagTriageAction = Literal["remove", "extend", "keep", "close"]
 
@@ -70,6 +75,55 @@ _FLAG_TRIAGE_WINNER_FIELD_ID = "winner"
 _FLAG_TRIAGE_WINNER_CHOICES = ("enabled", "disabled")
 
 
+def flag_triage_flag_payload(flag: FlagRecord, kind: str) -> dict[str, str]:
+    """Return the persisted flag identity block: key, kind, and thresholds."""
+    return {
+        "key": flag.key,
+        "kind": kind,
+        "remove_by_date": flag.remove_by_date,
+        "remove_by_release": flag.remove_by_release,
+    }
+
+
+def flag_triage_presentation(
+    *,
+    bead_id: str,
+    title: str,
+    flag: FlagRecord,
+    due_as_of: str,
+    release: str,
+    origin_agent: str = "",
+    task_type: str = "",
+    task_type_display: TaskTypeGateDisplay | None = None,
+) -> dict[str, Any]:
+    """Return the only presentation mapping a FlagTriage gate is accepted with."""
+    presentation: dict[str, Any] = {
+        "sender": "bead",
+        "icon": "⚑",
+        "title": bounded_gate_title(bead_id, title),
+        "notes": [
+            flag_triage_presentation_note(
+                bead_id,
+                title,
+                flag,
+                due_as_of=due_as_of,
+                release=release,
+            )
+        ],
+        "tags": ["bead", "task"],
+        "panel": "beads",
+        "panel_icon": "⚑",
+        "files": [FLAG_TRIAGE_PREVIEW_PATH],
+        "preview": FLAG_TRIAGE_PREVIEW_PATH,
+    }
+    if origin_agent:
+        presentation["origin_agent"] = origin_agent
+    apply_task_type_gate_presentation(
+        presentation, task_type=task_type, display=task_type_display
+    )
+    return presentation
+
+
 def build_flag_triage_gate_spec(
     *,
     request_id: str,
@@ -87,50 +141,52 @@ def build_flag_triage_gate_spec(
     created_at: str = "",
     size: str | None = None,
     refs: Sequence[str] = (),
+    kind: str = "",
+    task_type: str = FLAG_TASK_TYPE,
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the FlagTriage adapter."""
+    stored_fields = dict(task_type_fields or {})
+    resolved_kind = (
+        kind or stored_fields.get("kind", "") or _definition_kind(definition)
+    )
     origin_agent = created_by.strip()
-    presentation: dict[str, Any] = {
-        "sender": "bead",
-        "icon": "⚑",
-        "title": bounded_gate_title(bead_id, title),
-        "notes": [
-            flag_triage_presentation_note(
-                bead_id,
-                title,
-                flag,
-                due_as_of=due_as_of,
-                release=release,
-            )
-        ],
-        "tags": ["bead", "flag"],
-        "panel": "beads",
-        "panel_icon": "⚑",
-        "files": [FLAG_TRIAGE_PREVIEW_PATH],
-        "preview": FLAG_TRIAGE_PREVIEW_PATH,
+    display = resolve_task_type_gate_display(task_type, stored_fields)
+    presentation = flag_triage_presentation(
+        bead_id=bead_id,
+        title=title,
+        flag=flag,
+        due_as_of=due_as_of,
+        release=release,
+        origin_agent=origin_agent,
+        task_type=task_type,
+        task_type_display=display,
+    )
+    payload: dict[str, Any] = {
+        "bead_id": bead_id,
+        "project": project,
+        "title": title,
+        "created_at": created_at,
+        "size": size,
+        "refs": list(refs),
+        "flag": flag_triage_flag_payload(flag, resolved_kind),
+        "due_state": due_state,
+        "due_as_of": due_as_of,
+        "release": release,
+        "definition": dict(definition) if definition is not None else None,
+        "task_type": task_type,
+        "task_type_fields": stored_fields,
     }
-    if origin_agent:
-        presentation["origin_agent"] = origin_agent
+    if display is not None:
+        payload["task_type_display"] = task_type_gate_display_payload(display)
     return {
         "schema_version": 3,
         "kind": FLAG_TRIAGE_KIND,
         "request_id": request_id,
         "producer": dict(producer or {}),
         "continuation_mode": FLAG_TRIAGE_CONTINUATION_MODE,
-        "payload": {
-            "bead_id": bead_id,
-            "project": project,
-            "title": title,
-            "created_at": created_at,
-            "size": size,
-            "refs": list(refs),
-            "flag": flag_to_dict(flag),
-            "due_state": due_state,
-            "due_as_of": due_as_of,
-            "release": release,
-            "definition": dict(definition) if definition is not None else None,
-        },
+        "payload": payload,
         "presentation": presentation,
         "query": FLAG_TRIAGE_QUERY,
         "primary_branch": list(FLAG_TRIAGE_PRIMARY_BRANCH),
@@ -158,14 +214,24 @@ def build_flag_triage_gate_spec(
                     due_as_of=due_as_of,
                     release=release,
                     definition=definition,
+                    kind=resolved_kind,
                     created_by=origin_agent,
                     created_at=created_at,
                     size=size,
+                    task_type=task_type,
+                    task_type_fields=stored_fields,
+                    task_type_display=display,
                 ),
             },
         ],
         "auto": False,
     }
+
+
+def _definition_kind(definition: Mapping[str, str] | None) -> str:
+    if definition is None:
+        return ""
+    return definition.get("kind", "")
 
 
 def flag_triage_option_spec(option_id: FlagTriageAction) -> dict[str, Any]:

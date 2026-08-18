@@ -17,6 +17,7 @@ from sase.bead.flag_gate import (
     keep_flag_triage,
     remove_flag_triage,
 )
+from sase.bead.model import Issue, IssueType, Status
 from sase.notification_gates.models import GateError
 
 
@@ -106,6 +107,22 @@ def test_remove_flag_triage_requires_remove_action_and_winner() -> None:
 
 def test_extend_flag_triage_rewrites_thresholds_and_records_reason() -> None:
     project, mutation, mutation_scope = _mutation_double()
+    project.show.return_value = Issue(
+        id="sase-flag.1",
+        title="Remove the prettier_enabled flag",
+        status=Status.OPEN,
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "prettier_enabled",
+            "kind": "sunset",
+            "when_enabled": "On branch.",
+            "when_disabled": "Off branch.",
+            "remove_when": "When proven.",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.16.0",
+        },
+    )
     decision = _response(
         action="extend",
         remove_by_date="2026-12-01",
@@ -125,8 +142,12 @@ def test_extend_flag_triage_rewrites_thresholds_and_records_reason() -> None:
 
     project.update.assert_called_once_with(
         "sase-flag.1",
-        flag={
+        task_type_fields={
             "key": "prettier_enabled",
+            "kind": "sunset",
+            "when_enabled": "On branch.",
+            "when_disabled": "Off branch.",
+            "remove_when": "When proven.",
             "remove_by_date": "2026-12-01",
             "remove_by_release": "0.17.0",
         },
@@ -174,7 +195,7 @@ def test_keep_flag_triage_records_rationale_and_launches_promotion_worker() -> N
     mutation.commit.assert_called_once_with("chore(beads): note sase-flag.1")
     submit.assert_called_once()
     brief = submit.call_args.kwargs["feedback"]
-    assert 'kind: "ops"' in brief
+    assert "config field" in brief
     assert "Permanent ops toggle." in brief
 
 

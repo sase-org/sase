@@ -24,6 +24,7 @@ from sase.task_types._models import (
 )
 
 from tests._axe_chop_bead_task_triage_helpers import (
+    make_due_flag,
     make_runtime,
     make_snoozed_task,
     make_task,
@@ -311,6 +312,72 @@ def test_untyped_pending_gate_is_stable_across_registry_changes(
 
     assert result.reason == "no_triage_changes"
     assert result.counters["skipped"] == 1
+
+
+def test_format_version_5_replaces_flag_gates_fingerprinted_at_version_4(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Pending FlagTriage gates still carrying the old payload must be replaced."""
+    flag = make_due_flag()
+    patch_project(monkeypatch, tmp_path, [flag])
+    monkeypatch.setattr(task_triage, "_PRESENTATION_FORMAT_VERSION", 4)
+    old_fingerprint = task_triage._presentation_fingerprint(flag)
+    monkeypatch.setattr(task_triage, "_PRESENTATION_FORMAT_VERSION", 5)
+    request_id = task_triage._request_id(
+        "sase", flag.id, 1, task_triage.FLAG_TRIAGE_KIND
+    )
+    task_triage._write_state(
+        tmp_path / task_triage._STATE_FILENAME,
+        {
+            "sase": task_triage._ProjectState(
+                gates={flag.id: request_id},
+                generations={flag.id: 1},
+                fingerprints={flag.id: old_fingerprint},
+                kinds={flag.id: task_triage.FLAG_TRIAGE_KIND},
+            )
+        },
+    )
+    created: list[dict[str, Any]] = []
+    canceled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_flag_triage_gate",
+        lambda **kwargs: created.append(kwargs),
+    )
+    monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
+    monkeypatch.setattr(
+        task_triage,
+        "_cancel_pending_gate",
+        lambda kind, request_id, *, reason: (
+            canceled.append((request_id, reason)) or True
+        ),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 1,
+        "canceled": 1,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert canceled == [(request_id, "task_triage_presentation_changed")]
+    assert created[0]["request_id"].endswith("-g2")
+    assert created[0]["kind"] == "sunset"
+
+
+def test_presentation_fingerprint_covers_flag_kind() -> None:
+    sunset = make_due_flag()
+    beta = make_due_flag()
+    beta.task_type_fields = {**beta.task_type_fields, "kind": "beta"}
+    assert task_triage._presentation_fingerprint(
+        sunset
+    ) != task_triage._presentation_fingerprint(beta)
 
 
 def test_format_version_4_replaces_gates_fingerprinted_at_version_3(
