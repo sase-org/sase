@@ -215,14 +215,44 @@ def _reset_derived_config_caches() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _clear_config_caches(_isolate_sase_home: None) -> Iterator[None]:
+def _isolate_plugin_config(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Keep plugin-contributed ``sase_config`` layers out of default tests.
+
+    Tests assert bundled defaults. A required plugin's ``default_config.yml``
+    (for example ``ace.tribes.research`` from sase-research-artifacts) must
+    not change suite expectations just because that plugin is installed.
+    Request ``real_plugin_config`` to exercise the production merge.
+    """
+    if "real_plugin_config" not in request.fixturenames:
+        monkeypatch.setenv("SASE_DISABLE_PLUGIN_CONFIG", "1")
+
+
+@pytest.fixture
+def real_plugin_config(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Load installed plugin ``sase_config`` layers into merged config."""
+    monkeypatch.delenv("SASE_DISABLE_PLUGIN_CONFIG", raising=False)
+    monkeypatch.delenv("SASE_DISABLE_PLUGINS", raising=False)
+    _reset_derived_config_caches()
+    yield
+    _reset_derived_config_caches()
+
+
+@pytest.fixture(autouse=True)
+def _clear_config_caches(
+    _isolate_sase_home: None,
+    _isolate_plugin_config: None,
+) -> Iterator[None]:
     """Isolate the process-global config cache around each test.
 
-    Setup runs after ``_isolate_sase_home`` has redirected ``CONFIG_DIR`` so
-    a leftover reader cannot install a host-path token into the successor's
-    generation. Teardown stops orphaned ``sase-ace-proc-observer`` threads,
-    drains ``sase-config-token-refresh``, and clears derived caches again
-    before monkeypatch restores host paths.
+    Setup runs after ``_isolate_sase_home`` has redirected ``CONFIG_DIR`` and
+    ``_isolate_plugin_config`` has decided whether plugin ``sase_config``
+    layers belong, so a leftover reader cannot install a host-path token or
+    a plugin layer into the successor's generation. Teardown stops orphaned
+    ``sase-ace-proc-observer`` threads, drains ``sase-config-token-refresh``,
+    and clears derived caches again before monkeypatch restores host paths.
     """
     _reset_derived_config_caches()
     yield

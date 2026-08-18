@@ -362,7 +362,10 @@ def test_prepare_lsp_environment_swallows_glossary_catalog_failure(
     assert not catalog_path.exists()
 
 
-def test_prepare_lsp_environment_emits_plugin_metadata(tmp_path: Path) -> None:
+def test_prepare_lsp_environment_emits_plugin_metadata(
+    tmp_path: Path,
+    real_plugin_config: None,
+) -> None:
     xprompt_module = ModuleType("fake_plugin.prompts")
     config_module = ModuleType("fake_plugin.config")
     xprompts_dir = tmp_path / "plugin" / "xprompts"

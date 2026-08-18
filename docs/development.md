@@ -448,16 +448,20 @@ deliberate test-only escape hatch for a genuine exception. SASE preserves pytest
 isolation marker when it starts runner and daemon subprocesses. These guards are not a
 substitute for isolation: tests that exercise persistence should point `SASE_HOME` at a
 per-test temporary directory and create bead stores under `tmp_path` or another path
-inside the published sandbox. Run `just test-bead-store-soak` when changing bead
-resolution or mutation paths; it runs the default suite and verifies the legacy
-production plans sidecar's `beads/issues.jsonl` digest, bead-state git status, and git
-HEAD are unchanged. The current guard still targets `SASE_SDD_PLANS_DIR/beads` and never
-resolves the dedicated beads role. On a cleaned schema-3 project it exits with a
-missing-file error instead of running the suite; if a legacy `beads/` copy remains under
-`--plans`, the helper guards that stale copy rather than the active `--beads` store. If
-an older test run already polluted the telemetry store, preview the exact-label cleanup
-with `sase telemetry cleanup-test-data --dry-run` before deciding whether to rerun it
-with `--yes`.
+inside the published sandbox. The default fixture also sets
+`SASE_DISABLE_PLUGIN_CONFIG=1` so tests assert bundled defaults rather than whichever
+plugins happen to be installed. Request the `real_plugin_config` fixture when the
+subject is production merge of a plugin `sase_config` layer. Run
+`just test-bead-store-soak` when changing bead resolution or mutation paths; it runs the
+default suite and verifies the legacy production plans sidecar's `beads/issues.jsonl`
+digest, bead-state git status, and git HEAD are unchanged. The current guard still
+targets `SASE_SDD_PLANS_DIR/beads` and never resolves the dedicated beads role. On a
+cleaned schema-3 project it exits with a missing-file error instead of running the
+suite; if a legacy `beads/` copy remains under `--plans`, the helper guards that stale
+copy rather than the active `--beads` store. If an older test run already polluted the
+telemetry store, preview the exact-label cleanup with
+`sase telemetry cleanup-test-data --dry-run` before deciding whether to rerun it with
+`--yes`.
 
 `just test`, `just test-slow`, `just test-visual`, and `just test-cov` share a
 host-global pytest-xdist worker-token pool with every other checkout owned by the same

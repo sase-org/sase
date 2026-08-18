@@ -348,6 +348,8 @@ async def test_agents_task_bead_notes_png_snapshot(
         assert "Description:" in svg_plain
         assert "Notes:" in svg_plain
         assert "Size:" in svg_plain
+        assert "Task Type:" in svg_plain
+        assert "untyped" in svg_plain
         assert "Created:" in svg_plain
         assert "2026-07-03" in svg_plain
         assert "alice" in svg_plain

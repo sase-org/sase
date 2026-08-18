@@ -377,7 +377,11 @@ class FakeyRetryHarness:
 
         def capture_spawn(**kwargs: Any) -> SimpleNamespace:
             spawned.update(kwargs)
-            return SimpleNamespace(pid=os.getpid())
+            # spawn_retry_agent reads pid and timestamp off the launch result.
+            return SimpleNamespace(
+                pid=os.getpid(),
+                timestamp=child_launch_timestamp,
+            )
 
         child_launch_timestamp = _launch_timestamp(child_artifacts_timestamp)
         with (
