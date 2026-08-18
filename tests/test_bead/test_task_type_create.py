@@ -248,8 +248,13 @@ def test_create_rejects_agent_uncreatable_type() -> None:
     )
     registry = TaskTypeRegistry(records=(record,), diagnostics=())
 
-    with pytest.raises(TaskTypeCreateError, match="cannot be created by agents"):
+    with pytest.raises(
+        TaskTypeCreateError, match="cannot be created by agents"
+    ) as exc_info:
         resolve_created_task_type("github", {}, registry=registry)
+
+    assert "Agents never create this type." in str(exc_info.value)
+    assert "reserved for the providing plugin" not in str(exc_info.value)
 
 
 def test_show_appends_rendered_body_below_description(

@@ -70,6 +70,12 @@ def test_every_known_task_type_accent_is_pairwise_distinct_from_every_bead_type(
         value: presentation.accent_color
         for value, presentation in BEAD_TYPE_PRESENTATIONS.items()
     }
+    # The project-local `flag` task type reuses the flag issue-type accent so a
+    # migrated flag bead looks identical. No other task type may share it.
+    flag_accent = task_type_accents.pop("flag", None)
+    if flag_accent is not None:
+        assert flag_accent == bead_type_accents["flag"]
+        assert flag_accent not in task_type_accents.values()
 
     all_accents = list(task_type_accents.values()) + list(bead_type_accents.values())
     assert len(all_accents) == len(set(all_accents)), (

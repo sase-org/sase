@@ -111,6 +111,7 @@ def test_new_project_type_defines_new_slug(monkeypatch: Any) -> None:
     assert len(records) == 1
     assert records[0].task_type == "incident"
     assert records[0].provenance.source == "project"
+    assert records[0].provenance.package == "sase"
 
 
 def test_new_project_type_cannot_shadow_builtin(monkeypatch: Any) -> None:

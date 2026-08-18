@@ -229,7 +229,7 @@ def _apply_new_project_type(
         provenance=TaskTypeProvenance(
             source="project",
             name=source_layer,
-            package="project",
+            package="sase",
             version=_PROJECT_PROVENANCE_VERSION,
         ),
     )

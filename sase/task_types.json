@@ -137,6 +137,102 @@
       "digest": "3169592d767ec44de72a46f2ba3dd1e1ab88e120a07275bfacf1991e187058b7"
     },
     {
+      "task_type": "flag",
+      "label": "Feature flag",
+      "summary": "A SASE feature flag's removal bead: the dossier for one temporary boolean route.",
+      "when_to_use": "Agents never create this type with `sase bead create` or `/sase_new_task`. Run `sase flag new <key>`, which creates this bead, validates its fields, and prints the registry entry to paste. One bead per registered flag; close it only in the change that deletes the flag's disabled branch and its registry entry.",
+      "glyph": "⚑",
+      "accent_color": "#FF875F",
+      "agent_creatable": false,
+      "fields": [
+        {
+          "name": "key",
+          "label": "Key",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "The snake_case registry key, e.g. prettier_enabled",
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        },
+        {
+          "name": "kind",
+          "label": "Kind",
+          "type": "enum",
+          "required": true,
+          "role": [
+            "data",
+            "template"
+          ],
+          "help": "beta is off by default; sunset is on by default and guards a doomed branch",
+          "values": [
+            "beta",
+            "sunset"
+          ]
+        },
+        {
+          "name": "when_enabled",
+          "label": "On",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "What the code does with this flag enabled"
+        },
+        {
+          "name": "when_disabled",
+          "label": "Off",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "What the code does with this flag disabled; this branch is deleted at removal"
+        },
+        {
+          "name": "remove_when",
+          "label": "Remove when",
+          "type": "string",
+          "required": true,
+          "role": [
+            "template"
+          ],
+          "help": "What must be true before the disabled branch can be deleted"
+        },
+        {
+          "name": "remove_by_date",
+          "label": "Remove by date",
+          "type": "date",
+          "required": true,
+          "role": [
+            "data"
+          ],
+          "help": "Calendar removal threshold, YYYY-MM-DD"
+        },
+        {
+          "name": "remove_by_release",
+          "label": "Remove by release",
+          "type": "string",
+          "required": true,
+          "role": [
+            "data"
+          ],
+          "help": "Release removal threshold, e.g. 0.18.0",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      ],
+      "body_template": "## Feature flag `{{ key }}` · {{ kind }}\n\n- **On:** {{ when_enabled }}\n- **Off:** {{ when_disabled }}\n\n**Remove when:** {{ remove_when }}\n\nRemoval deletes the **Off** branch and makes the **On** branch unconditional.\n",
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "project",
+      "package": "sase",
+      "digest": "55edc2bb5ad3a376756cd7bab4cc3fae1de5907f02c98282eb0016686421bbbc"
+    },
+    {
       "task_type": "flake",
       "label": "Flaky test",
       "summary": "A test that fails and then passes on an unchanged tree.",

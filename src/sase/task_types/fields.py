@@ -62,10 +62,12 @@ def resolve_created_task_type(
     if record is None:
         raise TaskTypeCreateError(_unknown_task_type_message(slug, resolved))
     if not record.agent_creatable:
-        raise TaskTypeCreateError(
-            f"task type '{slug}' cannot be created by agents; "
-            "it is reserved for the providing plugin"
-        )
+        when_to_use = str(record.spec.get("when_to_use") or "").strip()
+        if when_to_use:
+            raise TaskTypeCreateError(
+                f"task type '{slug}' cannot be created by agents.\n{when_to_use}"
+            )
+        raise TaskTypeCreateError(f"task type '{slug}' cannot be created by agents")
     problems = _field_value_problems(record.spec, stored_fields)
     if problems:
         details = "\n".join(f"  {name}: {message}" for name, message in problems)
