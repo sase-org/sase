@@ -83,7 +83,7 @@ def _normalized_description_lines(lines: Iterable[str]) -> str:
     return "\n".join(collapsed_lines)
 
 
-def normalize_long_memory_description_lines(lines: Iterable[str]) -> str:
+def _normalize_long_memory_description_lines(lines: Iterable[str]) -> str:
     """Normalize an AGENTS.md long-memory description without flattening it."""
     normalized = _normalized_description_lines(lines)
     if not normalized:
@@ -141,10 +141,10 @@ def _short_memory_paths(
 
 
 def _description_text(lines: list[str]) -> str:
-    return normalize_long_memory_description_lines(lines)
+    return _normalize_long_memory_description_lines(lines)
 
 
-def long_memory_entry_path(line: str) -> str | None:
+def _long_memory_entry_path(line: str) -> str | None:
     """Return the canonical path if *line* starts a long-memory entry."""
     stripped = line.strip()
     section_match = _LONG_MEMORY_SECTION_RE.match(stripped)
@@ -183,7 +183,7 @@ def collect_long_memory_entries(
             index += 1
             continue
 
-        path = long_memory_entry_path(raw_line)
+        path = _long_memory_entry_path(raw_line)
         if path is None:
             index += 1
             continue
@@ -214,7 +214,7 @@ def collect_long_memory_entries(
                 description_lines.append(candidate)
                 index += 1
                 continue
-            if long_memory_entry_path(candidate) is not None:
+            if _long_memory_entry_path(candidate) is not None:
                 break
             if heading_level(candidate) is not None:
                 break
@@ -263,7 +263,5 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
 
 __all__ = [
     "collect_long_memory_entries",
-    "long_memory_entry_path",
-    "normalize_long_memory_description_lines",
     "parse_amd_agents_document",
 ]

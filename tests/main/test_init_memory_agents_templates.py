@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import sase.config.core as config_core
-from sase.amd._agents_doc import long_memory_entry_path, parse_amd_agents_document
+from sase.amd._agents_doc import _long_memory_entry_path, parse_amd_agents_document
 from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     long_note,
@@ -116,18 +116,18 @@ def test_amd_parser_reads_mixed_legacy_and_section_long_memory_entries() -> None
 
 def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
     assert (
-        long_memory_entry_path("### `sase/memory/cli_rules.md`")
+        _long_memory_entry_path("### `sase/memory/cli_rules.md`")
         == "sase/memory/cli_rules.md"
     )
     assert (
-        long_memory_entry_path("### 2.1 `memory/cli_rules.md`")
+        _long_memory_entry_path("### 2.1 `memory/cli_rules.md`")
         == "sase/memory/cli_rules.md"
     )
     assert (
-        long_memory_entry_path("**`memory/cli_rules.md`**  Details.")
+        _long_memory_entry_path("**`memory/cli_rules.md`**  Details.")
         == "sase/memory/cli_rules.md"
     )
-    assert long_memory_entry_path("### Extra (extra)") is None
+    assert _long_memory_entry_path("### Extra (extra)") is None
 
 
 def _managed_template(marker: str) -> str:
