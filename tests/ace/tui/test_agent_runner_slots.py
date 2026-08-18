@@ -229,19 +229,21 @@ def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None
     assert second.runner_slot_queue_size == 2
 
 
-def test_refresh_runner_slot_context_counts_parallel_family_children_only() -> None:
+def test_refresh_runner_slot_context_counts_one_lane_per_sequential_family() -> None:
+    """A live serial child rides its root's slot instead of adding a second one.
+
+    The root's own status already mirrors its newest live descendant (the
+    generic family status-propagation pass covered by
+    ``test_monitor_family_root_projection.py``), so a bare root plus a live
+    serial child is exactly the shape ``refresh_runner_slot_context`` sees
+    once the loader has run that propagation.
+    """
+    root = _agent("root", status="RUNNING")
     serial_child = _agent(
         "serial-child",
         status="RUNNING",
         run_start_time=datetime(2026, 7, 12, 11, 59),
-        parent_timestamp="parent",
-    )
-    parallel_child = _agent(
-        "parallel-child",
-        status="RUNNING",
-        run_start_time=datetime(2026, 7, 12, 11, 58),
-        parent_timestamp="parent",
-        agent_family_parallel=True,
+        parent_timestamp="root",
     )
     axe = _agent(
         "axe",
@@ -256,11 +258,70 @@ def test_refresh_runner_slot_context_counts_parallel_family_children_only() -> N
     )
 
     capacity = refresh_runner_slot_context(
-        [serial_child, parallel_child, axe, waiter], effective_limit=10
+        [root, serial_child, axe, waiter], effective_limit=10
     )
 
     _assert_capacity_metrics(capacity, (10, 1, 1))
     assert waiter.runner_slots_in_use == 1
+
+
+def test_refresh_runner_slot_context_counts_each_parallel_clan_member() -> None:
+    """Each live parallel family member holds its own slot, individually."""
+    first = _agent(
+        "parallel.first",
+        status="RUNNING",
+        agent_clan="parallel",
+        agent_clan_generation="20260712120000",
+    )
+    second = _agent(
+        "parallel.second",
+        status="RUNNING",
+        agent_clan="parallel",
+        agent_clan_generation="20260712120000",
+    )
+    projected = project_clan_tree([first, second])
+
+    capacity = refresh_runner_slot_context(projected, effective_limit=10)
+
+    _assert_capacity_metrics(capacity, (10, 2, 0))
+
+
+def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> None:
+    """A family whose root died mid-handoff still holds one slot via its monitor.
+
+    ``root`` stands in for a family container whose status already mirrors
+    its live monitor member (see ``test_monitor_family_root_projection.py``
+    for the propagation this simulates); the monitor's own row is a family
+    child and never adds a second lane.
+    """
+    root = _agent("root", status="MONITORING", status_bucket="Running")
+    monitor = _agent(
+        "monitor",
+        status="MONITORING",
+        status_bucket="Running",
+        parent_timestamp="root",
+        agent_family_role="monitor",
+    )
+
+    capacity = refresh_runner_slot_context([root, monitor], effective_limit=10)
+
+    _assert_capacity_metrics(capacity, (10, 1, 0))
+
+
+def test_refresh_runner_slot_context_counts_post_handoff_followup_family_slot() -> None:
+    """A family whose monitor settled and launched a follow-up still holds one slot."""
+    root = _agent("root", status="RUNNING")
+    followup = _agent(
+        "followup",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        parent_timestamp="root",
+        agent_family_role="code",
+    )
+
+    capacity = refresh_runner_slot_context([root, followup], effective_limit=10)
+
+    _assert_capacity_metrics(capacity, (10, 1, 0))
 
 
 def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
@@ -519,16 +580,18 @@ def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
 
 
 def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -> None:
+    """The loader has already PID-filtered active rows before this runs.
+
+    ``refresh_runner_slot_context`` derives ``R`` from each row's own
+    ``status``/``status_bucket`` (via ``sase_agent_status_counts``), not from
+    re-checking ``pid`` liveness -- that check already happened upstream, so
+    a dead waiter's queue-eligibility (still pid-gated, unchanged) and a
+    yielded QUESTION row are what this covers now.
+    """
     live_holder = _agent(
         "live-holder",
         status="RUNNING",
         run_start_time=datetime(2026, 7, 12, 11, 59),
-    )
-    dead_holder = _agent(
-        "dead-holder",
-        status="RUNNING",
-        run_start_time=datetime(2026, 7, 12, 11, 58),
-        pid=None,
     )
     dead_waiter = _agent(
         "dead-waiter",
@@ -546,7 +609,7 @@ def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -
     )
 
     capacity = refresh_runner_slot_context(
-        [dead_waiter, yielded_question, dead_holder, live_holder],
+        [dead_waiter, yielded_question, live_holder],
         effective_limit=10,
     )
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sase.agent.status_buckets import (
     PRE_RUN_WAIT_STATUSES,
+    agent_status_bucket,
     runner_slot_display_status,
 )
 from sase.core.runner_slots import (
@@ -16,6 +17,7 @@ from sase.core.runner_slots import (
 )
 
 from .agent import Agent, AgentType
+from .agent_status import DISMISSABLE_STATUSES
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,8 +56,48 @@ def refresh_runner_slot_context(
     and consistent across full and selective refreshes. When the caller does
     not supply an effective limit, row context is still refreshed while the
     returned capacity snapshot remains the deterministic neutral fallback.
+
+    ``running_count`` reuses the same "one sase agent" lane projection the
+    Agents tab total already computes (:func:`sase_agent_status_counts`)
+    instead of a second occupancy predicate: a standalone agent or a
+    sequential family is one running lane regardless of which shell (root,
+    serial child, monitor, or post-handoff follow-up) is currently live, and
+    each live parallel family member still counts individually. This keeps
+    the capacity chip's ``R`` equal to what the admission gate would compute
+    for the same snapshot. A pre-filter still scopes candidate root rows to
+    ``_is_ace_run_root()``: the lane projection trusts whatever root-shaped
+    rows it is given, so a non-participating row (a workflow python/bash
+    step, an axe-spawned Patch runner) must not reach it just because it
+    happens to carry a "Running"-mapping status.
+
+    A narrow supplement covers the one gap the display status cannot: a
+    sequential family container's own status can be overwritten to mirror a
+    terminal newest child while the container's own shell is still alive (a
+    runner PID shared across phases settling on the older phase; see
+    ``test_agent_loader_dedup_pid_families.py``). For a container whose
+    bucket does not already read as running, raw liveness on its own row is
+    the fallback signal instead of losing the slot it still holds.
     """
-    running_count = sum(1 for agent in agents if _holds_runner_slot(agent))
+    from ._agent_clan import (
+        aggregate_clan_status,
+        clan_members,
+        sase_agent_status_counts,
+    )
+
+    lane_candidates = [
+        agent
+        for agent in agents
+        if agent.is_clan_container or agent.is_child_row or _is_ace_run_root(agent)
+    ]
+    running_count = sase_agent_status_counts(lane_candidates, ()).running
+    running_count += sum(
+        1
+        for agent in lane_candidates
+        if not agent.is_clan_container
+        and not agent.is_child_row
+        and not _agent_lane_bucket_counts_as_running(agent)
+        and _container_is_genuinely_occupying(agent)
+    )
     waiters = sorted(
         (agent for agent in agents if _is_live_slot_waiter(agent)),
         key=lambda agent: _waiter_sort_key(agent, running_count=running_count),
@@ -93,7 +135,6 @@ def refresh_runner_slot_context(
                 parked=running_count > threshold,
             )
         )
-    from ._agent_clan import aggregate_clan_status, clan_members
 
     for agent in agents:
         if agent.slot_requested_at:
@@ -128,6 +169,39 @@ def refresh_runner_slot_context(
     )
 
 
+def _agent_lane_bucket_counts_as_running(agent: Agent) -> bool:
+    """Return whether a top-level (non-clan) lane's own bucket reads running.
+
+    Mirrors the "Running" branch of ``_status_counts_for_projections`` for a
+    node that is not itself projected from a container (``projected_from_container``
+    is always ``False`` for a plain top-level loop entry), so this must stay
+    in lockstep with that function's Running-bucket condition.
+    """
+    return (
+        agent_status_bucket(agent) == "Running"
+        and agent.status not in DISMISSABLE_STATUSES
+    )
+
+
+def _container_is_genuinely_occupying(agent: Agent) -> bool:
+    """Return whether *agent*'s own shell is live, ignoring its display status.
+
+    A sequential family container's displayed status can be overwritten to
+    mirror a terminal newest child while the container's own process is
+    still running, so raw liveness -- not the mirrored status string -- is
+    the fallback signal for that narrow gap. The three literal terminal
+    statuses are still honored: a genuinely done or failed root has no slot
+    left to hold regardless of stale pid bookkeeping.
+    """
+    return (
+        agent.pid is not None
+        and agent.run_start_time is not None
+        and agent.stop_time is None
+        and not agent.runner_slot_yielded
+        and agent.status not in {"DONE", "FAILED", "FAILED (RETRIED)"}
+    )
+
+
 def _is_ace_run_root(agent: Agent) -> bool:
     if agent.is_clan_container or agent.is_child_row:
         return False
@@ -144,17 +218,6 @@ def _is_ace_run_root(agent: Agent) -> bool:
 def _participates_in_runner_slots(agent: Agent) -> bool:
     return _is_ace_run_root(agent) or (
         agent.is_family_member_child and agent.agent_family_parallel
-    )
-
-
-def _holds_runner_slot(agent: Agent) -> bool:
-    return (
-        _participates_in_runner_slots(agent)
-        and agent.pid is not None
-        and agent.run_start_time is not None
-        and agent.stop_time is None
-        and not agent.runner_slot_yielded
-        and agent.status not in {"DONE", "FAILED", "FAILED (RETRIED)"}
     )
 
 

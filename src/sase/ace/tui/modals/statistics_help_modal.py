@@ -272,9 +272,11 @@ class StatisticsHelpModal(ModalScreen[None]):
         rows = (
             (
                 "Eligibility",
-                "Root agents and eligible parallel family agents that participate "
-                "in max_running_agents admission count as runners; serial bookkeeping "
-                "and non-agent workflow steps do not.",
+                "A standalone agent or a live parallel family member each hold "
+                "one runner slot; a serial family — root, live serial child, "
+                "monitor, or post-handoff follow-up — holds one slot for as "
+                "long as any of its shells is live. Non-agent workflow steps "
+                "do not.",
             ),
             (
                 "Overlap",

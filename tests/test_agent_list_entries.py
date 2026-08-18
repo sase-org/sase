@@ -206,7 +206,10 @@ def test_agent_list_includes_live_monitor_family_child(
 
     assert info.status == "MONITORING"
     assert info.status_bucket == "Running"
-    assert info.holds_runner_slot is False
+    # The monitor is the only live shell for its family (the starter that
+    # handed off to it is dead), so it now holds the family's slot -- that
+    # coverage gap is exactly the bug this occupancy rule fixes.
+    assert info.holds_runner_slot is True
     assert info.monitor_id == "m123"
     assert entry.is_monitor is True
     assert entry.monitor_label == "just check"

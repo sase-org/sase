@@ -32,7 +32,8 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     "runners": (
         _MetricLegend(
             "Runner",
-            "root or eligible parallel agent admitted by max_running_agents",
+            "the live shell holding a sase agent's slot -- root, serial "
+            "child, monitor, or follow-up -- plus each live parallel member",
         ),
         _MetricLegend(
             "Window",

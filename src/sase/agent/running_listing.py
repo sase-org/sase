@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 
 from sase.agent.names import is_process_alive
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS, valid_status_bucket
@@ -22,7 +22,9 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
+    group_records_by_runner_slot_family,
     is_root_user_agent_record,
+    is_runner_slot_occupying_record,
     is_runner_slot_user_agent_record,
 )
 from sase.core.time import get_timezone
@@ -151,6 +153,46 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return parsed
 
 
+def _record_is_live(record: AgentArtifactRecordWire) -> bool:
+    meta = record.agent_meta
+    pid = None if meta is None else meta.pid
+    if pid is None and record.running is not None:
+        pid = record.running.pid
+    return is_process_alive(
+        {"pid": pid, "stopped_at": None if meta is None else meta.stopped_at},
+        Path(record.artifact_dir),
+    )
+
+
+def _runner_slot_holder_dirs(
+    records: Iterable[AgentArtifactRecordWire],
+) -> frozenset[str]:
+    """Return the artifact_dir of each shell credited with holding a slot.
+
+    Mirrors `running_agent_slot_count`'s per-family dedup so this listing's
+    summed `holds_runner_slot` flags match the admission gate's occupancy
+    count for the same snapshot: a serial family holds one slot no matter
+    how many of its shells are simultaneously live (an overlapping root and
+    a successor mid-handoff, for instance), so only one representative
+    shell is credited per family. Each live parallel member still holds its
+    own slot and is credited individually.
+    """
+    holders: set[str] = set()
+    for group in group_records_by_runner_slot_family(records).values():
+        serial_holder: str | None = None
+        for candidate in group:
+            if not is_runner_slot_occupying_record(candidate, _record_is_live):
+                continue
+            meta = candidate.agent_meta
+            if meta is not None and meta.agent_family_parallel:
+                holders.add(candidate.artifact_dir)
+            elif serial_holder is None:
+                serial_holder = candidate.artifact_dir
+        if serial_holder is not None:
+            holders.add(serial_holder)
+    return frozenset(holders)
+
+
 def _is_monitor_member_meta(meta: object | None) -> bool:
     return bool(
         meta is not None
@@ -220,6 +262,7 @@ def _running_info_from_running_record(
     now: datetime,
     workspace_cache: dict[str, list],
     clan_contexts: Mapping[ClanContextKey, AgentClanContextWire],
+    holder_dirs: frozenset[str],
 ) -> RunningAgentInfo | None:
     """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
     meta = record.agent_meta
@@ -229,11 +272,7 @@ def _running_info_from_running_record(
     if wf_state is not None and not wf_state.appears_as_agent:
         return None
 
-    pid = meta.pid
-    if pid is None and record.running is not None:
-        pid = record.running.pid
-    meta_dict: dict[str, object] = {"pid": pid, "stopped_at": meta.stopped_at}
-    if not is_process_alive(meta_dict, Path(record.artifact_dir)):
+    if not _record_is_live(record):
         return None
 
     status = active_status_for_record(record)
@@ -289,11 +328,7 @@ def _running_info_from_running_record(
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
-        holds_runner_slot=(
-            False
-            if _is_monitor_member_meta(meta)
-            else bool(meta.run_started_at) and record.pending_question is None
-        ),
+        holds_runner_slot=record.artifact_dir in holder_dirs,
         agent_clan=meta.agent_clan,
         agent_clan_generation=meta.agent_clan_generation,
         clan_tribe=clan_tribe,
@@ -320,6 +355,7 @@ def _running_from_snapshot(
     now = datetime.now(get_timezone())
     workspace_cache: dict[str, list] = {}
     clan_contexts = clan_context_by_key(snapshot.clan_context)
+    holder_dirs = _runner_slot_holder_dirs(snapshot.records)
     pairs: list[tuple[str, RunningAgentInfo]] = []
 
     for record in snapshot.records:
@@ -332,6 +368,7 @@ def _running_from_snapshot(
             continue
         info = _running_info_from_running_record(
             record,
+            holder_dirs=holder_dirs,
             now=now,
             workspace_cache=workspace_cache,
             clan_contexts=clan_contexts,
@@ -345,17 +382,27 @@ def _running_from_snapshot(
 
 
 def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
-    """Return whether a non-root slot participant needs its own active row."""
-    if not is_runner_slot_user_agent_record(record):
-        return False
+    """Return whether a non-root slot participant needs its own active row.
+
+    Visibility follows *occupancy*, not admission eligibility: a serial
+    child -- a monitor member, or a post-handoff follow-up agent whose
+    ``parent_timestamp`` names a dead starter -- can be the shell currently
+    holding its family's slot even though it never itself waits at the
+    admission gate (`is_runner_slot_user_agent_record` is False for it). A
+    live shell must never go missing from `sase agent list` just because it
+    is not the one that happened to claim the slot. The queued branch stays
+    admission-gated: only a root or a live parallel member ever waits.
+    """
     meta = record.agent_meta
     if meta is None or not meta.parent_timestamp:
         return False
-    holds_runner_slot = bool(meta.run_started_at) and record.pending_question is None
-    queued_for_runner_slot = bool(
-        record.waiting is not None and record.waiting.slot_requested_at
+    if is_runner_slot_occupying_record(record, _record_is_live):
+        return True
+    return bool(
+        is_runner_slot_user_agent_record(record)
+        and record.waiting is not None
+        and record.waiting.slot_requested_at
     )
-    return holds_runner_slot or queued_for_runner_slot
 
 
 def _is_visible_monitor_record(record: AgentArtifactRecordWire) -> bool:

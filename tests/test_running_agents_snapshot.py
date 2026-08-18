@@ -290,10 +290,20 @@ def test_list_running_agents_surfaces_slot_relevant_parallel_children(
         running = list_running_agents()
 
     by_name = {info.name: info for info in running}
-    assert set(by_name) == {"root", "running-phase", "queued-phase"}
+    # A live serial child -- a real agent shell doing work, not a monitor --
+    # must never go missing from the listing just because it never itself
+    # waits at the admission gate.
+    assert set(by_name) == {
+        "root",
+        "running-phase",
+        "serial-helper",
+        "queued-phase",
+    }
     assert by_name["root"].status == "WAITING"
     assert by_name["running-phase"].status == "RUNNING"
     assert by_name["running-phase"].holds_runner_slot is True
+    assert by_name["serial-helper"].status == "RUNNING"
+    assert by_name["serial-helper"].holds_runner_slot is True
     assert by_name["queued-phase"].status == "WAITING"
     assert by_name["queued-phase"].holds_runner_slot is False
 
