@@ -411,7 +411,7 @@ def test_config_schema_accepts_file_hooks() -> None:
                     "filters": {},
                 },
                 {
-                    "use": "research-highlights",
+                    "use": "sase-research-artifacts@research-highlights",
                     "command": "bob highlights create",
                     "filters": {"path_globs": ["reports/**/*.md"]},
                 },
@@ -441,6 +441,7 @@ def test_config_schema_accepts_file_hooks() -> None:
         {"name": "valid", "command": "run", "timeout": "2 days"},
         {"name": "valid", "command": "run", "unknown": True},
         {"name": "valid", "command": "run", "globs": ["*.md"]},
+        {"use": "research-highlights", "command": "run"},
     ],
 )
 def test_config_schema_rejects_invalid_file_hooks(hook: dict[str, Any]) -> None:

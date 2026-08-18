@@ -178,7 +178,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                     (
                         ("auto_clone", True),
                         ("auto_sync", True),
-                        ("ref", CommentedMap((("use", "plan"),))),
+                        ("ref", CommentedMap((("use", "builtin@plan"),))),
                     )
                 ),
             ),
@@ -206,7 +206,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
         if "plans" in existing_roles and isinstance(builtin_bucket, MutableMapping):
             plans_entry = builtin_bucket.get("plans")
             if isinstance(plans_entry, MutableMapping) and "ref" not in plans_entry:
-                plans_entry["ref"] = CommentedMap((("use", "plan"),))
+                plans_entry["ref"] = CommentedMap((("use", "builtin@plan"),))
                 updated_roles.append("plans")
         if not updated_roles:
             return ConfigUpdate(config_path, current_text, current_text)

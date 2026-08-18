@@ -34,6 +34,10 @@ _CHECKS = (
     _ValidationCheck("init repo --check", ("init", "repo", "--check")),
     _ValidationCheck("init skills --check", ("init", "skills", "--check")),
     _ValidationCheck(
+        "doctor config.file_hooks",
+        ("doctor", "-C", "config.file_hooks"),
+    ),
+    _ValidationCheck(
         "plan links validate",
         ("plan", "links", "validate"),
     ),

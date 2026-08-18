@@ -11,6 +11,11 @@ from sase._linked_repo_config import (
 )
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
+from sase.plugins.qualified_id import (
+    PluginQualifiedIdError,
+    parse_plugin_qualified_id,
+    plugin_qualified_id_matches,
+)
 from sase.sdd._store_types import RESERVED_SIDECAR_ROLES
 from sase.sidecar_ref_config import (
     REF_DETAIL_CONFIG_KEY,
@@ -283,31 +288,65 @@ def _ref_policy_problems(
 
     use = raw_ref.get(REF_USE_CONFIG_KEY)
     if use is not None:
+        use_key = f"{ref_key}.{REF_USE_CONFIG_KEY}"
         if not isinstance(use, str) or not use.strip():
             problems.append(
                 {
-                    "key": f"{ref_key}.{REF_USE_CONFIG_KEY}",
-                    "message": f"{ref_key}.{REF_USE_CONFIG_KEY} must be a nonempty string",
+                    "key": use_key,
+                    "message": f"{use_key} must be a nonempty string",
                 }
             )
         else:
             from sase.artifact_providers import get_artifact_provider_registry
 
-            registry = get_artifact_provider_registry()
-            provider_id = use.strip()
-            if provider_id not in registry.ref_providers_by_id:
+            use_value = use.strip()
+            try:
+                plugin, provider_id = parse_plugin_qualified_id(use_value)
+            except PluginQualifiedIdError:
                 problems.append(
                     {
-                        "key": f"{ref_key}.{REF_USE_CONFIG_KEY}",
+                        "key": use_key,
                         "message": (
-                            f"{ref_key}.{REF_USE_CONFIG_KEY} references missing "
-                            f"artifact ref provider {provider_id!r}. A cloned "
-                            "sidecar repo is not an installed plugin; install a "
-                            "plugin exposing the sase_artifact_refs entry point "
-                            "group, or replace this with an inline ref spec."
+                            f"{use_key}: {_missing_use_prefix_message(use_value)}"
                         ),
                     }
                 )
+            else:
+                registry = get_artifact_provider_registry()
+                provider = registry.ref_providers_by_id.get(provider_id)
+                if provider is None:
+                    problems.append(
+                        {
+                            "key": use_key,
+                            "message": (
+                                f"{use_key} references missing artifact ref "
+                                f"provider {provider_id!r}. A cloned sidecar repo "
+                                "is not an installed plugin; install a plugin "
+                                "exposing the sase_artifact_refs entry point "
+                                "group, or replace this with an inline ref spec."
+                            ),
+                        }
+                    )
+                elif not plugin_qualified_id_matches(
+                    plugin,
+                    builtin=provider.provenance.builtin,
+                    package=provider.provenance.package,
+                ):
+                    actual = (
+                        "builtin"
+                        if provider.provenance.builtin
+                        else provider.provenance.package
+                    )
+                    problems.append(
+                        {
+                            "key": use_key,
+                            "message": (
+                                f"{use_key}: artifact ref provider "
+                                f"{provider_id!r} is provided by {actual!r}, not "
+                                f"{plugin!r}; use {f'{actual}@{provider_id}'!r}"
+                            ),
+                        }
+                    )
 
     xprompt = raw_ref.get(REF_XPROMPT_CONFIG_KEY)
     if xprompt is not None:
@@ -396,6 +435,22 @@ def _ref_policy_problems(
                 }
             )
     return problems
+
+
+def _missing_use_prefix_message(value: str) -> str:
+    from sase.artifact_providers import get_artifact_provider_registry
+
+    provider = get_artifact_provider_registry().ref_providers_by_id.get(value)
+    if provider is not None:
+        prefix = (
+            "builtin" if provider.provenance.builtin else provider.provenance.package
+        )
+        return f"{value!r} is missing its plugin prefix; use {f'{prefix}@{value}'!r}"
+    return (
+        f"{value!r} is missing its required plugin prefix; use "
+        "'<plugin>@<id>' where <plugin> is 'builtin' or an installed "
+        "distribution name"
+    )
 
 
 _KNOWN_REF_FIELDS = frozenset(

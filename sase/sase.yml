@@ -68,8 +68,8 @@ memory:
         prompt. Builtin kinds are `@stitch`, `@patch`, `@bead`, `@agent`, and the
         special `@file`; artifact repos add document kinds such as `@plan` and
         `@research` through a project's `ref:` config, written inline or with
-        `use: <provider>` from an installed provider plugin. Every ref expands to prompt
-        text, is recorded against the agent that used it, and publishes as a
+        `use: <plugin>@<provider>` from an installed provider plugin. Every ref expands
+        to prompt text, is recorded against the agent that used it, and publishes as a
         `[@kind:arg][N]` link.
     Feature Flag:
       definition: >-
@@ -236,7 +236,7 @@ repos:
       plans:
         auto_clone: true
         ref:
-          use: plan
+          use: builtin@plan
       beads:
         auto_clone: true
       agents:
@@ -246,4 +246,4 @@ repos:
         description: >-
           Durable SASE research reports and generated media used by research workflows.
         ref:
-          use: research
+          use: sase-research-artifacts@research

@@ -74,7 +74,7 @@ def test_sidecar_ref_use_and_equivalent_inline_normalize_identically(
                     "builtin": {
                         "plans": {
                             "ref": {
-                                "use": "plan",
+                                "use": "builtin@plan",
                                 "inventory": {"globs": ["2026/**/*.md"]},
                             }
                         }
@@ -123,7 +123,7 @@ def test_sidecar_ref_pane_normalizes_without_changing_provider_digest(
         {
             "repos": {
                 "sidecar": {
-                    "builtin": {"plans": {"ref": {"use": "plan"}}},
+                    "builtin": {"plans": {"ref": {"use": "builtin@plan"}}},
                 }
             }
         },
@@ -134,7 +134,9 @@ def test_sidecar_ref_pane_normalizes_without_changing_provider_digest(
         {
             "repos": {
                 "sidecar": {
-                    "builtin": {"plans": {"ref": {"use": "plan", "pane": pane}}},
+                    "builtin": {
+                        "plans": {"ref": {"use": "builtin@plan", "pane": pane}}
+                    },
                 }
             }
         },
@@ -171,7 +173,7 @@ def test_sidecar_ref_icon_override_beats_provider_icon(tmp_path: Path) -> None:
                     "builtin": {
                         "plans": {
                             "ref": {
-                                "use": "plan",
+                                "use": "builtin@plan",
                                 "icon": "∴",
                             }
                         }
@@ -278,7 +280,7 @@ def test_sidecar_ref_invalid_provider_use_fails_soft(tmp_path: Path) -> None:
                     "custom": {
                         "research": {
                             "description": "Research docs.",
-                            "ref": {"use": "missing-provider"},
+                            "ref": {"use": "builtin@missing-provider"},
                         }
                     }
                 }
@@ -290,6 +292,46 @@ def test_sidecar_ref_invalid_provider_use_fails_soft(tmp_path: Path) -> None:
 
     assert "research" not in report.policies
     assert report.diagnostics[0].code == "missing_ref_provider"
+
+
+def test_sidecar_ref_use_without_plugin_prefix_fails_soft(tmp_path: Path) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {"plans": {"ref": {"use": "plan"}}},
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+
+    assert "plans" not in report.policies
+    assert report.diagnostics[0].code == "missing_use_prefix"
+    assert "builtin@plan" in report.diagnostics[0].message
+
+
+def test_sidecar_ref_use_with_mismatched_plugin_prefix_fails_soft(
+    tmp_path: Path,
+) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {
+                        "plans": {"ref": {"use": "sase-research-artifacts@plan"}}
+                    },
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+
+    assert "plans" not in report.policies
+    assert report.diagnostics[0].code == "mismatched_use_prefix"
+    assert "builtin@plan" in report.diagnostics[0].message
 
 
 def test_unconfigured_document_sidecar_defaults_to_path_bound_expansion(

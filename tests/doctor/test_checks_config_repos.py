@@ -247,6 +247,33 @@ def test_repos_reports_missing_sidecar_ref_provider(
                     "custom": {
                         "research": {
                             "description": "Durable research.",
+                            "ref": {"use": "builtin@missing-provider"},
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_repos()
+
+    problems = {row["key"]: row["message"] for row in check.data["problems"]}
+    message = problems["repos.sidecar.custom.research.ref.use"]
+    assert "missing artifact ref provider 'missing-provider'" in message
+    assert "cloned sidecar repo is not an installed plugin" in message
+
+
+def test_repos_reports_sidecar_ref_use_missing_plugin_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_config(
+        monkeypatch,
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Durable research.",
                             "ref": {"use": "research"},
                         }
                     }
@@ -259,8 +286,8 @@ def test_repos_reports_missing_sidecar_ref_provider(
 
     problems = {row["key"]: row["message"] for row in check.data["problems"]}
     message = problems["repos.sidecar.custom.research.ref.use"]
-    assert "missing artifact ref provider 'research'" in message
-    assert "cloned sidecar repo is not an installed plugin" in message
+    assert "is missing its" in message and "plugin prefix" in message
+    assert check.status == "WARN"
 
 
 def test_repos_reports_ok_when_sidecar_is_unset(

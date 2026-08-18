@@ -43,10 +43,10 @@ Canonical live categories are:
 | `@file:<source>:<digest>`      | Indexed file, where source is `explicit` or `default`                   |
 | `@<document-kind>:<repo-path>` | Document in a configured artifact sidecar, such as `plan` or `research` |
 
-The built-in plans sidecar exposes `@plan:<path>` through `ref: {use: plan}`. The
-`sase-research-artifacts` plugin exposes `@research:<path>` for the research content
+The built-in plans sidecar exposes `@plan:<path>` through `ref: {use: builtin@plan}`.
+The `sase-research-artifacts` plugin exposes `@research:<path>` for the research content
 sidecar. Other artifact sidecars can add their own document kind with an inline `ref:`
-spec or with `ref.use` from an installed provider plugin.
+spec or with `ref.use: <plugin>@<provider>` from an installed provider plugin.
 
 Compatibility readers preserve older persisted references. `@commit:` canonicalizes to
 `@stitch:` permanently. `@plans:` and the bare `plans:` machine-field spelling used by
@@ -126,7 +126,7 @@ repos:
     custom:
       research:
         ref:
-          use: research
+          use: sase-research-artifacts@research
 ```
 
 or define the same policy inline:

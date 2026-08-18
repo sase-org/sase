@@ -18,9 +18,9 @@ string; it may never assert a capability it has not earned.
 
 `patch` is a reserved kind and can never be a document provider. Patch consumes the
 contract from a built-in Python adapter table and never declares a `ref` spec. Do not
-"fix" that asymmetry: a sidecar `ref.use: patch` is invalid by design. Patch still earns
-capabilities the same way every other pane does; it just does not publish a provider
-spec for them.
+"fix" that asymmetry: a sidecar `ref.use: builtin@patch` is invalid by design. Patch
+still earns capabilities the same way every other pane does; it just does not publish a
+provider spec for them.
 
 ## Capability vocabulary
 

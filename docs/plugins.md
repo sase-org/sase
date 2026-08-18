@@ -610,13 +610,13 @@ provider host. A provider class can implement either or both hooks:
 - `artifact_ref_provider_specs()` returns one mapping or an iterable of mappings. Each
   schema-versioned specification has a unique provider ID and `ref.kind`, plus its
   Artifacts tab `ref.icon`, expansion, metadata, inventory, identity, and publication
-  policy. A sidecar selects it with `ref: {use: <provider-id>}`; local sidecar fields
-  deep-merge over the base. During the compatibility window, a ref provider spec without
-  `ref.icon` is admitted with a generic mark and a warning diagnostic.
+  policy. A sidecar selects it with `ref: {use: <plugin>@<provider-id>}`; local sidecar
+  fields deep-merge over the base. During the compatibility window, a ref provider spec
+  without `ref.icon` is admitted with a generic mark and a warning diagnostic.
 - `artifact_file_hook_provider_specs()` returns schema-versioned file-hook templates.
   Each template has a unique provider ID, a `file_hook` mapping, and an optional list of
-  required fields. A configured hook selects it with `use` and supplies the required
-  values.
+  required fields. A configured hook selects it with `use: <plugin>@<provider-id>` and
+  supplies the required values.
 
 SASE validates all returned specifications before adding them to the registry. Duplicate
 provider IDs, duplicate reference kinds, reserved kinds, invalid schemas, load errors,
@@ -848,11 +848,12 @@ has initialized configuration can hit a circular import, so a plugin module load
 entry point should construct the marker directly.
 
 The project can then select the document provider with
-`repos.sidecar.custom.design.ref.use: design` and instantiate the hook with a
-`file_hooks` entry containing `use: research-highlights` plus its required `command`.
-Provider and kind names must not collide with another installed provider or a reserved
-built-in kind. Use `sase doctor -C config.repos` and `sase file-hook list` to verify the
-effective configuration.
+`repos.sidecar.custom.design.ref.use: my_sase_plugin@design` and instantiate the hook
+with a `file_hooks` entry containing `use: my_sase_plugin@research-highlights` plus its
+required `command`. Provider and kind names must not collide with another installed
+provider or a reserved built-in kind. Use `sase doctor -C config.repos`,
+`sase doctor -C config.file_hooks`, and `sase file-hook list` to verify the effective
+configuration.
 
 ### Example: Chop Script Package
 

@@ -57,7 +57,7 @@ def test_custom_ref_kind_override_wins_over_a_used_provider(tmp_path: Path) -> N
                 "custom": {
                     "notebooks": {
                         "description": "Lab notebooks.",
-                        "ref": {"use": "plan", "kind": "note", "icon": "◆"},
+                        "ref": {"use": "builtin@plan", "kind": "note", "icon": "◆"},
                     },
                 },
             },

@@ -81,8 +81,8 @@
       "properties": {
         "use": {
           "type": "string",
-          "description": "Installed artifact-reference provider id to use as the base spec.",
-          "minLength": 1
+          "description": "Installed artifact-reference provider id to use as the base spec, qualified as <plugin>@<id> ('builtin' or an installed distribution name).",
+          "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$"
         },
         "kind": {
           "type": "string",
@@ -426,8 +426,8 @@
       "properties": {
         "use": {
           "type": "string",
-          "minLength": 1,
-          "description": "Installed file-hook provider id to use as the base template."
+          "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$",
+          "description": "Installed file-hook provider id to use as the base template, qualified as <plugin>@<id> ('builtin' or an installed distribution name)."
         },
         "name": {
           "type": "string",

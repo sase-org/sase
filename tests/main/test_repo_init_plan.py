@@ -168,7 +168,7 @@ repos:
     builtin:
       plans:
         ref:
-          use: plan
+          use: builtin@plan
       beads: {}
       agents: {}
     custom:

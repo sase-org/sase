@@ -49,7 +49,7 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "        auto_clone: true\n"
         "        auto_sync: true\n"
         "        ref:\n"
-        "          use: plan\n"
+        "          use: builtin@plan\n"
         "      beads:\n"
         "        auto_clone: true\n"
         "        auto_sync: true\n"
@@ -167,7 +167,7 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
         "      plans: # custom\n"
         "        disabled: true\n"
         "        ref:\n"
-        "          use: plan\n"
+        "          use: builtin@plan\n"
         "      beads: # migration opt-out\n"
         "        disabled: true\n"
         "      agents: # privacy opt-out\n"
@@ -218,7 +218,7 @@ def test_repo_init_sidecar_config_update_is_idempotent(
     assert "updated" not in second_output
     assert first.count("beads:") == 1
     assert first.count("agents:") == 1
-    assert first.count("use: plan") == 1
+    assert first.count("use: builtin@plan") == 1
 
 
 def test_repo_init_does_not_overwrite_existing_plans_ref(tmp_path: Path) -> None:
@@ -240,7 +240,7 @@ def test_repo_init_does_not_overwrite_existing_plans_ref(tmp_path: Path) -> None
 
     assert update.changed is True
     assert "kind: custom_plan" in update.updated_text
-    assert "use: plan" not in update.updated_text
+    assert "use: builtin@plan" not in update.updated_text
 
 
 def test_legacy_list_sidecar_config_is_refused_with_a_migration_error(

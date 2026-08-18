@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.diagnostics import CheckSpec
 from sase.doctor.checks_config_artifact_refs import check_config_artifact_refs
 from sase.doctor.checks_config_external_mirror import check_config_external_mirror
+from sase.doctor.checks_config_file_hooks import check_config_file_hooks
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.checks_config_keymap_actions import check_config_keymap_actions
 from sase.doctor.checks_config_layers import check_config_layers
@@ -73,6 +74,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_artifact_refs,
         ),
         CheckSpec(
+            id="config.file_hooks",
+            group="config",
+            title="File hook config",
+            runner=check_config_file_hooks,
+        ),
+        CheckSpec(
             id="config.external_mirror",
             group="config",
             title="External mirror filter config",
@@ -120,6 +127,7 @@ _check_config_keymap_actions = check_config_keymap_actions
 _check_config_notification_tabs = check_config_notification_tabs
 _check_config_repos = check_config_repos
 _check_config_artifact_refs = check_config_artifact_refs
+_check_config_file_hooks = check_config_file_hooks
 _check_config_external_mirror = check_config_external_mirror
 _check_config_tribes = check_config_tribes
 _check_config_model_xprompts = check_config_model_xprompts

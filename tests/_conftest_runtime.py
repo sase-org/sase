@@ -211,6 +211,7 @@ def _reset_derived_config_caches() -> None:
 
     file_hooks_config._file_hooks_cache_token = None
     file_hooks_config._file_hooks_cache_value = None
+    file_hooks_config._file_hook_diagnostics_cache_value = None
 
 
 @pytest.fixture(autouse=True)

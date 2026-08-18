@@ -60,6 +60,7 @@ def test_validate_suppresses_successful_child_output(
         [sys.executable, "-m", "sase", "init", "memory", "--check"],
         [sys.executable, "-m", "sase", "init", "repo", "--check"],
         [sys.executable, "-m", "sase", "init", "skills", "--check"],
+        [sys.executable, "-m", "sase", "doctor", "-C", "config.file_hooks"],
         [sys.executable, "-m", "sase", "plan", "links", "validate"],
         [sys.executable, "-m", "sase", "agent", "prompts", "validate"],
     ]
@@ -69,6 +70,7 @@ def test_validate_suppresses_successful_child_output(
         "  ok     init memory --check\n"
         "  ok     init repo --check\n"
         "  ok     init skills --check\n"
+        "  ok     doctor config.file_hooks\n"
         "  ok     plan links validate\n"
         "  ok     agent prompts validate\n"
     )
@@ -84,6 +86,7 @@ def test_validate_runs_both_checks_when_first_fails(
         (2, "init stdout\n", "init stderr\n"),
         (0, "repo success stdout\n", "repo success stderr\n"),
         (0, "skills success stdout\n", "skills success stderr\n"),
+        (0, "file hooks success stdout\n", "file hooks success stderr\n"),
         (0, "sdd success stdout\n", "sdd success stderr\n"),
         (0, "prompts success stdout\n", "prompts success stderr\n"),
     ]
@@ -108,6 +111,7 @@ def test_validate_runs_both_checks_when_first_fails(
         [sys.executable, "-m", "sase", "init", "memory", "--check"],
         [sys.executable, "-m", "sase", "init", "repo", "--check"],
         [sys.executable, "-m", "sase", "init", "skills", "--check"],
+        [sys.executable, "-m", "sase", "doctor", "-C", "config.file_hooks"],
         [sys.executable, "-m", "sase", "plan", "links", "validate"],
         [sys.executable, "-m", "sase", "agent", "prompts", "validate"],
     ]
@@ -115,6 +119,7 @@ def test_validate_runs_both_checks_when_first_fails(
     assert "  fail   init memory --check\n" in out
     assert "  ok     init repo --check\n" in out
     assert "  ok     init skills --check\n" in out
+    assert "  ok     doctor config.file_hooks\n" in out
     assert "  ok     plan links validate\n" in out
     assert "  ok     agent prompts validate\n" in out
     assert "init memory --check failed (exit 2)" in out
@@ -131,6 +136,7 @@ def test_validate_prints_output_for_each_failed_check(
 ) -> None:
     results = [
         (1, "", "init broken\n"),
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
         (3, "sdd broken\n", ""),
@@ -156,6 +162,7 @@ def test_validate_prints_output_for_each_failed_check(
     assert "  fail   init memory --check\n" in out
     assert "  ok     init repo --check\n" in out
     assert "  ok     init skills --check\n" in out
+    assert "  ok     doctor config.file_hooks\n" in out
     assert "  fail   plan links validate\n" in out
     assert "  ok     agent prompts validate\n" in out
     assert "init memory --check failed (exit 1)" in out
@@ -170,6 +177,7 @@ def test_validate_aggregates_prompt_archive_failure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     results = [
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
         (0, "", ""),
@@ -201,6 +209,7 @@ def test_validate_skips_unavailable_prompt_archive_context(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     results = [
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
         (0, "", ""),
@@ -253,6 +262,7 @@ def test_validate_prints_warnings_section_for_passing_checks(
             "after landing.\n",
             "",
         ),
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
     ]

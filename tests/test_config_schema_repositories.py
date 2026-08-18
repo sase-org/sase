@@ -151,6 +151,10 @@ def test_config_schema_rejects_invalid_sidecar_controls(
             ["repos", "sidecar", "custom", "research", "ref", "use"],
         ),
         (
+            {"ref": {"use": "research"}},
+            ["repos", "sidecar", "custom", "research", "ref", "use"],
+        ),
+        (
             {"ref": {"filters": "no"}},
             ["repos", "sidecar", "custom", "research", "ref", "filters"],
         ),

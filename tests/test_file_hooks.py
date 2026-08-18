@@ -13,6 +13,7 @@ from sase.config.file_hooks import (
     FileHookFilters,
     _load_file_hooks,
     get_all_file_hooks,
+    get_file_hook_diagnostics,
     hook_matches_event,
     match_events,
 )
@@ -200,7 +201,7 @@ def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
             "local",
             [
                 {
-                    "use": "research-highlights",
+                    "use": "sase-research-artifacts@research-highlights",
                     "command": "bob highlights create",
                     "filters": {"path_globs": ["final/**/*.md"]},
                 }
@@ -233,7 +234,13 @@ def test_loader_skips_provider_hook_missing_required_local_field(
     monkeypatch: Any,
     caplog: Any,
 ) -> None:
-    layers = [_layer("user", [{"use": "research-highlights"}], strategy="replace")]
+    layers = [
+        _layer(
+            "user",
+            [{"use": "sase-research-artifacts@research-highlights"}],
+            strategy="replace",
+        )
+    ]
     monkeypatch.setattr(
         "sase.config.file_hooks.current_config_token", lambda: ("token",)
     )
@@ -248,6 +255,62 @@ def test_loader_skips_provider_hook_missing_required_local_field(
 
     assert hooks == []
     assert "requires local field 'command'" in caplog.text
+
+
+def test_loader_rejects_use_without_plugin_prefix(
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [_layer("user", [{"use": "research-highlights"}], strategy="replace")]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        _registry_with_file_hook_provider,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert hooks == []
+    assert "sase-research-artifacts@research-highlights" in caplog.text
+
+    diagnostics = get_file_hook_diagnostics()
+    assert len(diagnostics) == 1
+    assert diagnostics[0].hook_name == "research-highlights"
+    assert "missing its plugin prefix" in diagnostics[0].message
+
+
+def test_loader_rejects_use_with_mismatched_plugin_prefix(
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [
+        _layer(
+            "user",
+            [{"use": "builtin@research-highlights", "command": "run"}],
+            strategy="replace",
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        _registry_with_file_hook_provider,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert hooks == []
+    assert "sase-research-artifacts@research-highlights" in caplog.text
+    diagnostics = get_file_hook_diagnostics()
+    assert len(diagnostics) == 1
+    assert "is provided by" in diagnostics[0].message
 
 
 def test_file_hook_filters_validate_direct_operation_names() -> None:

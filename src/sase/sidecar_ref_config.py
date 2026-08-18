@@ -12,6 +12,11 @@ from sase._linked_repo_config import (
     _SIDECAR_ROLE_KEY,
     merged_sidecar_entries_from_config,
 )
+from sase.plugins.qualified_id import (
+    PluginQualifiedIdError,
+    parse_plugin_qualified_id,
+    plugin_qualified_id_matches,
+)
 from sase.sdd._store_types import (
     AGENTS_SIDECAR_ROLE,
     BEADS_SIDECAR_ROLE,
@@ -333,7 +338,19 @@ def _normalize_document_ref_spec(
                     )
                 )
                 return None
-            provider_id = raw_use.strip()
+            raw_use_value = raw_use.strip()
+            try:
+                plugin, provider_id = parse_plugin_qualified_id(raw_use_value)
+            except PluginQualifiedIdError:
+                diagnostics.append(
+                    _diagnostic(
+                        role,
+                        "ref.use",
+                        _missing_use_prefix_message(raw_use_value, registry),
+                        code="missing_use_prefix",
+                    )
+                )
+                return None
             provider = registry.ref_providers_by_id.get(provider_id)
             if provider is None:
                 diagnostics.append(
@@ -347,6 +364,21 @@ def _normalize_document_ref_spec(
                             "point group or replace this with an inline ref spec"
                         ),
                         code="missing_ref_provider",
+                        provider=provider_id,
+                    )
+                )
+                return None
+            if not plugin_qualified_id_matches(
+                plugin,
+                builtin=provider.provenance.builtin,
+                package=provider.provenance.package,
+            ):
+                diagnostics.append(
+                    _diagnostic(
+                        role,
+                        "ref.use",
+                        _mismatched_use_prefix_message(plugin, provider_id, provider),
+                        code="mismatched_use_prefix",
                         provider=provider_id,
                     )
                 )
@@ -583,6 +615,28 @@ def _provider_id_for_role(role: str) -> str:
     if cleaned and cleaned[0].islower():
         return cleaned
     return f"sidecar-{cleaned or 'document'}"
+
+
+def _missing_use_prefix_message(value: str, registry: Any) -> str:
+    provider = registry.ref_providers_by_id.get(value)
+    if provider is not None:
+        prefix = (
+            "builtin" if provider.provenance.builtin else provider.provenance.package
+        )
+        return f"{value!r} is missing its plugin prefix; use {f'{prefix}@{value}'!r}"
+    return (
+        f"{value!r} is missing its required plugin prefix; use "
+        "'<plugin>@<id>' where <plugin> is 'builtin' or an installed "
+        "distribution name"
+    )
+
+
+def _mismatched_use_prefix_message(plugin: str, provider_id: str, provider: Any) -> str:
+    actual = "builtin" if provider.provenance.builtin else provider.provenance.package
+    return (
+        f"artifact ref provider '{provider_id}' is provided by {actual!r}, not "
+        f"{plugin!r}; use {f'{actual}@{provider_id}'!r}"
+    )
 
 
 def _diagnostic(
