@@ -6,12 +6,14 @@ from collections.abc import Sequence
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Label
 
+from sase.ace.tui.widgets.secret_vim_text_area import SecretVimTextArea
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.typed_input_form import (
     TypedFormField,
     TypedInputForm,
+    _MultilineInput,
     _PathField,
 )
 from sase.xprompt.models import UNSET, InputArg, InputChoice, InputType
@@ -214,7 +216,7 @@ async def test_repeatable_field_splits_newlines_and_converts_each_line() -> None
     async with app.run_test() as pilot:
         await pilot.pause()
         form = app.query_one(TypedInputForm)
-        editor = app.query_one("#field-input-0", SingleLineVimTextArea)
+        editor = app.query_one("#field-input-0", _MultilineInput)
         editor.text = "alpha\nbeta\n\ngamma"
         await pilot.pause()
 
@@ -222,20 +224,99 @@ async def test_repeatable_field_splits_newlines_and_converts_each_line() -> None
         assert form.typed_values() == {"tags": ["alpha", "beta", "gamma"]}
 
 
+async def test_text_field_accepts_newline_and_preserves_it() -> None:
+    app = _FormApp([_field("notes", InputType.TEXT)])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        editor = app.query_one("#field-input-0", _MultilineInput)
+        editor.focus()
+        await pilot.press("a", "enter", "b")
+        await pilot.pause()
+
+        assert "\n" in editor.text
+        assert form.typed_values() == {"notes": "a\nb"}
+
+
+async def test_repeatable_line_field_typed_as_two_lines_converts_to_list() -> None:
+    app = _FormApp([_field("tags", InputType.LINE, repeatable=True)])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        form = app.query_one(TypedInputForm)
+        editor = app.query_one("#field-input-0", _MultilineInput)
+        editor.focus()
+        await pilot.press("a", "l", "p", "h", "a", "enter", "b", "e", "t", "a")
+        await pilot.pause()
+
+        assert form.typed_values() == {"tags": ["alpha", "beta"]}
+
+
+async def test_escape_in_multiline_field_enters_normal_mode_and_motion_works() -> None:
+    app = _FormApp([_field("notes", InputType.TEXT)])
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        editor = app.query_one("#field-input-0", _MultilineInput)
+        editor.text = "hello world"
+        editor.cursor_location = (0, 11)
+        editor.focus()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert editor._vim_mode == "normal"
+
+        await pilot.press("b")
+        await pilot.pause()
+        assert editor.cursor_location == (0, 6)
+
+
+async def test_tab_from_multiline_field_moves_focus() -> None:
+    app = _FormApp(
+        [
+            _field("notes", InputType.TEXT),
+            _field("name", InputType.WORD),
+        ],
+        optional_toggle=False,
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        notes = app.query_one("#field-input-0", _MultilineInput)
+        name = app.query_one("#field-input-1", SingleLineVimTextArea)
+        notes.focus()
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert name.has_focus
+        assert "\t" not in notes.text
+
+
 # -- secret -------------------------------------------------------------------
 
 
 async def test_secret_field_renders_masked_input_and_never_leaks_raw_text() -> None:
-    app = _FormApp([_field("token", InputType.LINE, secret=True)])
+    app = _FormApp(
+        [
+            TypedFormField(
+                arg=InputArg(name="token", type=InputType.LINE),
+                secret=True,
+                placeholder="API token",
+            )
+        ]
+    )
     async with app.run_test() as pilot:
         await pilot.pause()
-        editor = app.query_one("#field-input-0", Input)
-        assert editor.password is True
+        editor = app.query_one("#field-input-0", SecretVimTextArea)
 
-        editor.value = "hunter2"
+        empty_rendered = "".join(segment.text for segment in editor.render_line(0))
+        assert "API token" in empty_rendered
+        assert "•" not in empty_rendered
+
+        editor.text = "hunter2"
         await pilot.pause()
+        assert editor.text == "hunter2"
+        assert editor.value == "hunter2"
         rendered = "".join(segment.text for segment in editor.render_line(0))
         assert "hunter2" not in rendered
+        assert "•" in rendered
 
 
 # -- optional reveal ----------------------------------------------------------

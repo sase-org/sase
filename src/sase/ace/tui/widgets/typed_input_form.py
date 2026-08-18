@@ -17,15 +17,23 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Input, Label, TextArea
+from textual.widgets import Button, Label, TextArea
 
 from sase.xprompt.models import UNSET, InputArg, InputType, XPromptValidationError
 
+from .secret_vim_text_area import SecretVimTextArea
 from .single_line_vim_text_area import SingleLineVimTextArea
+from .vim_text_area import VimTextArea
 
 __all__ = ["TypedFormField", "TypedInputForm"]
 
 _ENUM_SENTINEL = "— select —"
+_MODE_LABELS = {
+    "insert": "INSERT",
+    "normal": "NORMAL",
+    "visual": "VISUAL",
+    "visual_line": "V-LINE",
+}
 
 
 @dataclass(frozen=True)
@@ -46,12 +54,67 @@ class TypedFormField:
         return self.arg.default is UNSET
 
 
-class _InputCollectionInput(SingleLineVimTextArea):
+class _FormVimModeMixin:
+    """Route a form editor's vim mode to the host screen when it wants it."""
+
+    def _update_vim_mode_display(self, indicator: str = "") -> None:
+        try:
+            setter = getattr(
+                getattr(self, "screen", None), "_set_editor_mode_label", None
+            )
+        except Exception:
+            setter = None
+        if not callable(setter):
+            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
+            return
+        mode = _MODE_LABELS.get(getattr(self, "_vim_mode", ""), "")
+        try:
+            setter(mode, indicator)
+        except Exception:
+            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
+
+
+class _InputCollectionInput(_FormVimModeMixin, SingleLineVimTextArea):
     """Single-line vim editor for typed input values."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         kwargs.setdefault("soft_wrap", True)
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+
+
+class _SecretInput(_FormVimModeMixin, SecretVimTextArea):
+    """Form-hosted secret editor; stays single-line even when the type is text."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("soft_wrap", True)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+
+
+class _MultilineInput(_FormVimModeMixin, VimTextArea):
+    """Multi-line vim editor for text-typed and repeatable fields."""
+
+    DEFAULT_CSS = """
+    _MultilineInput {
+        width: 100%;
+        height: 8;
+    }
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        kwargs.setdefault("soft_wrap", True)
+        kwargs.setdefault("show_line_numbers", False)
+        kwargs.setdefault("tab_behavior", "focus")
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self.show_line_numbers = False
+
+    @property
+    def value(self) -> str:
+        """Compatibility alias matching :class:`SingleLineVimTextArea`."""
+        return self.text
+
+    @value.setter
+    def value(self, new_value: str) -> None:
+        self.text = new_value
 
 
 class _PathField(_InputCollectionInput):
@@ -228,10 +291,13 @@ class TypedInputForm(Vertical):
         if arg.type is InputType.ENUM:
             return _EnumField(arg, id=field_id)
         placeholder = self._placeholder_text(field)
+        # A secret stays single-line and masked even when its type is text.
         if field.secret:
-            return Input(id=field_id, password=True, placeholder=placeholder)
+            return _SecretInput(id=field_id, placeholder=placeholder)
         if arg.type is InputType.PATH:
             return _PathField(id=field_id, placeholder=placeholder)
+        if arg.type is InputType.TEXT or arg.repeatable:
+            return _MultilineInput(id=field_id, placeholder=placeholder)
         return _InputCollectionInput(id=field_id, placeholder=placeholder)
 
     # -- labels ---------------------------------------------------------------
@@ -448,21 +514,11 @@ class TypedInputForm(Vertical):
             self._validate_field(index)
         self.post_message(self.Changed())
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        index = self._index_of_widget(event.input)
-        if index is not None:
-            self._validate_field(index)
-        self.post_message(self.Changed())
-
     def on_single_line_vim_text_area_submitted(
         self, event: SingleLineVimTextArea.Submitted
     ) -> None:
         event.stop()
         self._advance_from(self._index_of_widget(event.text_area))
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        event.stop()
-        self._advance_from(self._index_of_widget(event.input))
 
     def _advance_from(self, index: int | None) -> None:
         if index is not None and self.focus_next_after(index):

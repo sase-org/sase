@@ -196,9 +196,11 @@ class InputCollectionModal(ModalScreen["PromptInputValues | None"]):
     def on_mount(self) -> None:
         self._refresh_confirm_enabled()
         try:
-            editor = self.query_one("#field-input-0", SingleLineVimTextArea)
+            editor = self.query_one("#field-input-0")
             editor.focus()
-            editor._update_vim_mode_display()
+            update_display = getattr(editor, "_update_vim_mode_display", None)
+            if callable(update_display):
+                update_display()
         except Exception:
             pass
 
