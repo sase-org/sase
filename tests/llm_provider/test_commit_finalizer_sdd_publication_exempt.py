@@ -1,20 +1,26 @@
-"""Coverage for the discarded-work guard's machine-managed publication exemption.
+"""Coverage for the discarded-work guard's shared machine-wide clone exemption.
 
-A machine-managed (``kind == "sdd"``) sidecar can go clean because its
-managed sync rebase absorbed the dirty content into a commit some other
-agent already published upstream — the sidecar's own HEAD then carries no
-locally-attributed commit, even though nothing was actually discarded. The
-guard exempts that case, but only when the sidecar is not left ahead of its
-upstream, so a genuine local discard of unpublished work still fails.
+A machine-wide clone this agent does not exclusively own — machine-managed
+store state (``kind == "sdd"``) or a repo merely opened via ``/sase_repo``
+(``kind == "external"``) — can go clean with no locally-attributed commit for
+reasons that have nothing to do with this agent discarding anything: a
+managed sync rebase absorbed the content into a commit some other agent
+already published, the commit is queued for a push that has not landed yet,
+or a concurrent agent committed it first. The
+``commit_finalizer_shared_clone_exempt`` flag (default on) exempts all of
+these; disabling it restores the strict, pre-flag classification that only
+exempted ``kind == "sdd"`` state not ahead of its upstream.
 """
 
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_git_progress import (
     discarded_dirty_work_evidence,
@@ -72,7 +78,12 @@ def _push_foreign_commit(repo: Path, tmp_path: Path) -> None:
     subprocess.run(["git", "push", "-q", "origin", branch], cwd=clone, check=True)
 
 
-def _dirty_state(repo: Path, changed_files: tuple[str, ...]) -> DirtyState:
+def _dirty_state(
+    repo: Path,
+    changed_files: tuple[str, ...],
+    *,
+    kind: Literal["main", "sibling", "external", "sdd"] = "sdd",
+) -> DirtyState:
     return DirtyState(
         project_dir=finalizer_git.normalize_path(str(repo)),
         repos=(
@@ -80,7 +91,7 @@ def _dirty_state(repo: Path, changed_files: tuple[str, ...]) -> DirtyState:
                 name="research",
                 path=finalizer_git.normalize_path(str(repo)),
                 changed_files=changed_files,
-                kind="sdd",
+                kind=kind,
             ),
         ),
         details="",
@@ -120,7 +131,7 @@ def test_sync_rebase_absorbed_sdd_state_is_not_discarded(
     assert evidence == ()
 
 
-def test_sdd_state_ahead_of_upstream_still_fails(
+def test_sdd_state_ahead_of_upstream_is_pending_publication_not_a_discard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -131,7 +142,10 @@ def test_sdd_state_ahead_of_upstream_still_fails(
     monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
 
     # A local, unattributed commit that is never pushed: the clone is left
-    # ahead of its upstream, so the exemption must not apply.
+    # ahead of its upstream. That is a queued/deferred push, a different
+    # condition from the work being destroyed, so the guard exempts it and
+    # leaves honest reporting of the unpublished state to the dedicated
+    # unpublished-bead-state check.
     _run_git(repo, "add", "-A")
     _run_git(repo, "commit", "-q", "-m", "local unattributed commit")
 
@@ -142,10 +156,34 @@ def test_sdd_state_ahead_of_upstream_still_fails(
         fingerprint_before=fingerprint_before,
     )
 
+    assert evidence == ()
+
+
+def test_sdd_state_ahead_of_upstream_still_fails_with_flag_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo_with_upstream(tmp_path, "research")
+    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
+    before = _dirty_state(repo, ("README.md",))
+    fingerprint_before = progress_fingerprint(before)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "local unattributed commit")
+
+    assert _run_git(repo, "rev-list", "--count", "@{upstream}..HEAD").strip() == "1"
+    with override_flags(commit_finalizer_shared_clone_exempt=False):
+        evidence = discarded_dirty_work_evidence(
+            before,
+            _clean_state(repo),
+            fingerprint_before=fingerprint_before,
+        )
+
     assert [item.reason for item in evidence] == ["missing_agent_provenance"]
 
 
-def test_sdd_state_without_upstream_still_fails(
+def test_sdd_state_without_upstream_and_foreign_agent_is_a_race_not_a_discard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,5 +204,81 @@ def test_sdd_state_without_upstream_still_fails(
         _clean_state(repo),
         fingerprint_before=fingerprint_before,
     )
+
+    assert evidence == ()
+
+
+def test_sdd_state_without_upstream_still_fails_with_flag_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "research"
+    init_git_repo(repo)
+    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
+    before = _dirty_state(repo, ("README.md",))
+    fingerprint_before = progress_fingerprint(before)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+
+    _run_git(repo, "add", "-A")
+    _run_git(
+        repo, "commit", "-q", "-m", "commit dirty payload\n\nSASE_AGENT=other-agent"
+    )
+
+    with override_flags(commit_finalizer_shared_clone_exempt=False):
+        evidence = discarded_dirty_work_evidence(
+            before,
+            _clean_state(repo),
+            fingerprint_before=fingerprint_before,
+        )
+
+    assert [item.reason for item in evidence] == ["missing_agent_provenance"]
+
+
+def test_external_kind_sync_absorbed_state_is_not_discarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The exemption now also covers ``kind == "external"`` opened repos."""
+    repo = _init_repo_with_upstream(tmp_path, "widget")
+    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
+    before = _dirty_state(repo, ("README.md",), kind="external")
+    fingerprint_before = progress_fingerprint(before)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+
+    _push_foreign_commit(repo, tmp_path)
+    branch = _current_branch(repo)
+    _run_git(repo, "fetch", "-q", "origin")
+    _run_git(repo, "reset", "-q", "--hard", f"origin/{branch}")
+
+    evidence = discarded_dirty_work_evidence(
+        before,
+        _clean_state(repo),
+        fingerprint_before=fingerprint_before,
+    )
+
+    assert evidence == ()
+
+
+def test_external_kind_still_requires_ahead_zero_with_flag_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo_with_upstream(tmp_path, "widget")
+    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
+    before = _dirty_state(repo, ("README.md",), kind="external")
+    fingerprint_before = progress_fingerprint(before)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+
+    _push_foreign_commit(repo, tmp_path)
+    branch = _current_branch(repo)
+    _run_git(repo, "fetch", "-q", "origin")
+    _run_git(repo, "reset", "-q", "--hard", f"origin/{branch}")
+
+    with override_flags(commit_finalizer_shared_clone_exempt=False):
+        evidence = discarded_dirty_work_evidence(
+            before,
+            _clean_state(repo),
+            fingerprint_before=fingerprint_before,
+        )
 
     assert [item.reason for item in evidence] == ["missing_agent_provenance"]

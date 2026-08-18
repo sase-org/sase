@@ -19,6 +19,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
+    commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
     completion_refresh_on_update = "completion_refresh_on_update"
     epic_resume_gate = "epic_resume_gate"
     prettier_enabled = "prettier_enabled"
@@ -35,6 +36,20 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         default=False,
         scope="global",
         bead="sase-nw",
+    ),
+    FeatureFlag.commit_finalizer_shared_clone_exempt: FeatureFlagDefinition(
+        key=FeatureFlag.commit_finalizer_shared_clone_exempt,
+        kind="sunset",
+        description=(
+            "Classify foreign-agent commits and already-published/"
+            "pending-publication transitions in machine-wide shared clones "
+            "(opened-external and sdd-kind repos) as races rather than "
+            "discards in the commit finalizer's dirty-work guard. Disable to "
+            "fall back to strict single-owner classification."
+        ),
+        default=True,
+        scope="global",
+        bead="sase-pk",
     ),
     FeatureFlag.completion_refresh_on_update: FeatureFlagDefinition(
         key=FeatureFlag.completion_refresh_on_update,

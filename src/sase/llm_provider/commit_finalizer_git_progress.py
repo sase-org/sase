@@ -128,14 +128,63 @@ def _published_store_state_is_exempt(
     before_head: str,
     after_head: str,
 ) -> bool:
-    """Whether *repo* is machine-managed store state a sync rebase absorbed.
+    """Whether *repo* is shared, machine-wide clone state a race absorbed.
 
-    A sidecar that went clean with no locally-attributed commit is only
-    exempt from the discarded-work guard when it is machine-managed
-    (``kind == "sdd"``) and its clone is not ahead of its configured
-    upstream — i.e. the store's content is already published and the clone
-    matches the canonical remote, rather than a local discard of unpublished
-    work.
+    A repo that went clean with no locally-attributed commit is only exempt
+    from the discarded-work guard when it is a machine-wide clone this run
+    does not exclusively own — either machine-managed store state
+    (``kind == "sdd"``) or a repo merely opened via ``/sase_repo``
+    (``kind == "external"``). ``kind == "main"`` and ``kind == "sibling"``
+    repos are this agent's own workspace and are never exempt: nobody else
+    should be committing there, so an unattributed change is still a
+    discard.
+    """
+    if repo.kind not in ("sdd", "external"):
+        return False
+    if not _shared_clone_exemption_enabled():
+        return _legacy_published_store_state_is_exempt(repo, before_head, after_head)
+
+    foreign_agent = _foreign_agent_of_new_commits(repo.path, before_head, after_head)
+    if foreign_agent:
+        _logger.warning(
+            "commit finalizer: treating %s (%s) as a concurrent-agent race "
+            "rather than a discard — HEAD moved %s -> %s under agent %r's "
+            "commit in this machine-wide clone; changed files: %s",
+            repo.name,
+            repo.path,
+            before_head,
+            after_head,
+            foreign_agent,
+            ", ".join(repo.changed_files),
+        )
+        return True
+
+    ahead = git_upstream_ahead_count(repo.path)
+    _logger.warning(
+        "commit finalizer: treating %s (%s) as published rather than "
+        "discarded — HEAD moved %s -> %s with no locally-attributed commit "
+        "in a machine-wide clone (upstream-ahead=%s); changed files: %s",
+        repo.name,
+        repo.path,
+        before_head,
+        after_head,
+        ahead,
+        ", ".join(repo.changed_files),
+    )
+    return True
+
+
+def _legacy_published_store_state_is_exempt(
+    repo: DirtyRepo,
+    before_head: str,
+    after_head: str,
+) -> bool:
+    """Strict, pre-``commit_finalizer_shared_clone_exempt`` classification.
+
+    Kept as the flag's kill-switch fallback: only machine-managed
+    (``kind == "sdd"``) state that is not ahead of its configured upstream is
+    exempt, and a foreign agent's footer is never on its own a reason to
+    exempt a repo.
     """
     if repo.kind != "sdd":
         return False
@@ -153,6 +202,36 @@ def _published_store_state_is_exempt(
         ", ".join(repo.changed_files),
     )
     return True
+
+
+def _shared_clone_exemption_enabled() -> bool:
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+
+        return current_flags().enabled(FeatureFlag.commit_finalizer_shared_clone_exempt)
+    except Exception:
+        return True
+
+
+def _foreign_agent_of_new_commits(
+    repo_dir: str,
+    before_head: str,
+    after_head: str,
+) -> str | None:
+    """Return the first well-formed, non-empty ``SASE_AGENT=`` value found.
+
+    By the time this is consulted, ``_new_commits_are_attributable`` has
+    already established that no commit in this range matches the current
+    agent, carries the agents-sync auto-commit type, or matches the run-owned
+    ledger — so any remaining well-formed agent tag names someone else.
+    """
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
+
+    for _, _, message in _new_commit_records(repo_dir, before_head, after_head):
+        agent = parse_trailing_commit_tags(message).get("AGENT")
+        if agent:
+            return agent
+    return None
 
 
 def discarded_dirty_work_message(
