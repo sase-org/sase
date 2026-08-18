@@ -4307,11 +4307,20 @@ ace:
       toggle_option: "space"
       submit_primary: "enter"
       submit_branch: "ctrl+enter"
+      open_inputs: "o"
+      next_input: "ctrl+n"
+      previous_input: "ctrl+p"
 ```
 
 These bindings dispatch only while a branch-driven gate modal is open, and its footer
-shows the effective keys. The retired `activate_control` setting is accepted as a
-deprecated alias for `submit_primary`.
+shows the effective keys. The example remaps navigation, `submit_branch`, and the input
+panel keys, and repeats the defaults for `toggle_option` and `submit_primary`.
+`open_inputs` (default `i`) opens the input panel for the focused option's note or
+declared fields, including an optional note that would otherwise skip the panel.
+`next_input` and `previous_input` (defaults `tab` and `shift+tab`) walk the panel's
+fields and buttons; they are inactive on the gate modal itself. Confirming the panel
+submits the branch; cancelling it returns to the gate without answering. The retired
+`activate_control` setting is accepted as a deprecated alias for `submit_primary`.
 
 ### Remapping Glossary Panel Keys
 

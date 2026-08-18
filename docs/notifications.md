@@ -1065,10 +1065,31 @@ without adding per-surface action or kind allowlists. Singleton branches are but
 AND branches expose one toggle per option and a configurable submit control; the primary
 AND branch starts expanded. Top-level branches have fixed one-based digit selectors in
 canonical query order, while AND members remain unnumbered and use Space to toggle.
-Enter submits the declared primary branch, Ctrl+S submits the active branch, and `q` or
-Escape cancels the modal. Surfaces submit `selected_option_ids`, feedback, and each
-selected option's declared input (see [Gate inputs](#gate-inputs) below), and the shared
-executor runs the selected commands in query order.
+ACE's Decision column shows those branches and toggles only — typed fields live in a
+dedicated input panel, not in the left pane. Enter submits the declared primary branch,
+Ctrl+S submits the active branch, and `q` or Escape cancels the modal. A selection that
+needs typed input — any declared `inputs` field, a raw `input_schema` with a property
+the host does not already collect, or `feedback: required` — opens the panel first;
+confirming the panel submits the branch, and cancelling returns to the gate with the
+selection and whatever was typed intact. An option that declares only
+`feedback: optional`, or nothing at all, still answers on Enter or its digit. Press `i`
+on the focused option first to open the same panel for an optional note. For an AND
+group, the panel opens when the group's submit control is activated, not when a member
+is toggled, and then shows one section per selected option that declares input. Surfaces
+submit `selected_option_ids`, feedback, and each selected option's declared input (see
+[Gate inputs](#gate-inputs) below), and the shared executor runs the selected commands
+in query order.
+
+| Key             | Action                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `j` / `k`       | Focus the next / previous branch control                                                       |
+| Space           | Toggle the focused AND member                                                                  |
+| Enter           | Submit the declared primary branch; opens the input panel first when the selection needs input |
+| Ctrl+S          | Submit the active branch; same panel rule as Enter. Inside the panel, submit from anywhere     |
+| `i`             | Open the input panel for the focused option's note or declared fields                          |
+| `1`–`9`         | Submit the matching top-level branch                                                           |
+| Tab / Shift+Tab | In the input panel, walk the next / previous field (wraps; includes the buttons)               |
+| `q` / Escape    | Cancel the review modal. In the panel, Escape leaves INSERT, then closes without submitting    |
 
 Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and
 commit options start selected, the group submit is labeled **Tale**, and the two
@@ -1180,17 +1201,29 @@ builds the richest value a client could actually submit and checks that the sche
 accept it. For an option declaring `inputs`, that value is `{}` plus every declared
 field's default plus `feedback` when the option's feedback mode allows it, validated
 against the compiled schema. For an option declaring a raw `input_schema` and no
-`inputs`, the reviewer types the value into a raw-schema editor — ACE's YAML editor,
-`sase gate answer --option-input`, or the mobile bridge's `option_inputs` — so every
-property declared under `properties` is producible and the schema's own constraints on
-those properties (patterns, bounds, types) are the reviewer's to satisfy. What still
-fails closed is a `required` name that nothing renders a control for: a name absent from
-`properties`, or `feedback` on an option whose feedback mode is `disabled`. An option
-that could never be answered by any surface fails `sase gate create` with
-`unanswerable_option`, naming the offending required property, instead of being accepted
-and dying silently on first submission. Every input value is also bounded, both at
-creation and at submission: canonical JSON at most 64 KiB, nesting depth at most 16, at
-most 128 properties in one object, and at most 512 items in one array.
+`inputs`, the reviewer types the value into a raw-schema editor — ACE's input panel (one
+YAML editor under that option's section), `sase gate answer --option-input`, or the
+mobile bridge's `option_inputs` — so every property declared under `properties` is
+producible and the schema's own constraints on those properties (patterns, bounds,
+types) are the reviewer's to satisfy. What still fails closed is a `required` name that
+nothing renders a control for: a name absent from `properties`, or `feedback` on an
+option whose feedback mode is `disabled`. An option that could never be answered by any
+surface fails `sase gate create` with `unanswerable_option`, naming the offending
+required property, instead of being accepted and dying silently on first submission.
+Every input value is also bounded, both at creation and at submission: canonical JSON at
+most 64 KiB, nesting depth at most 16, at most 128 properties in one object, and at most
+512 items in one array.
+
+ACE collects typed values in that input panel. Each selected option that declares
+`inputs` or a raw schema gets its own section, headed by that option's icon and label.
+When two selected AND options declare the same field id compatibly, the field is
+collected once — it renders in the first declaring option's section, annotated
+`also sent to` the other option's label — and `option_inputs` still carries the value
+under every option that declared the id. An incompatible duplicate blocks submit and the
+panel shows the conflict. Confirming the panel always submits; cancelling never does,
+and the next open of the same selection restores the draft. Every freeform box in the
+panel is a vim editor (insert and normal modes). Tab and Shift+Tab walk the fields;
+Ctrl+S submits; a `path` field also accepts Ctrl+T to cycle filesystem completions.
 
 **Feedback is one rule everywhere.** The reviewer's free-text note is injected as
 `input.feedback` for a selected option **iff that option's effective `input_schema`

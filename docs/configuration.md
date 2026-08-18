@@ -963,18 +963,24 @@ taking effect.
 All TUI keybindings are configurable. The `keymaps` section has five scopes:
 
 **`gate`** — Bindings active in the shared branch controls used by plan and custom gate
-modals:
+modals, plus the input panel those modals open when a selection needs typed input:
 
-| Field              | Default  | Description                                      |
-| ------------------ | -------- | ------------------------------------------------ |
-| `next_control`     | `j`      | Focus the next branch control.                   |
-| `previous_control` | `k`      | Focus the previous branch control.               |
-| `toggle_option`    | `space`  | Toggle the focused option in an AND group.       |
-| `submit_primary`   | `enter`  | Submit the gate's declared primary branch.       |
-| `submit_branch`    | `ctrl+s` | Submit the currently active branch and feedback. |
+| Field              | Default     | Description                                                            |
+| ------------------ | ----------- | ---------------------------------------------------------------------- |
+| `next_control`     | `j`         | Focus the next branch control.                                         |
+| `previous_control` | `k`         | Focus the previous branch control.                                     |
+| `toggle_option`    | `space`     | Toggle the focused option in an AND group.                             |
+| `submit_primary`   | `enter`     | Submit the gate's declared primary branch.                             |
+| `submit_branch`    | `ctrl+s`    | Submit the currently active branch and feedback.                       |
+| `open_inputs`      | `i`         | Open the input panel for the focused option's note or declared fields. |
+| `next_input`       | `tab`       | Focus the next field in the gate input panel.                          |
+| `previous_input`   | `shift+tab` | Focus the previous field in the gate input panel.                      |
 
 Gate keys are scoped to the active modal and may overlap app-level bindings.
-`activate_control` remains accepted as a deprecated alias for `submit_primary`.
+`open_inputs` is bound on the gate modal and opens the panel even when the selection
+would otherwise submit immediately, unless the option takes no input. `next_input` and
+`previous_input` dispatch only while that panel is open. `activate_control` remains
+accepted as a deprecated alias for `submit_primary`.
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is
 focused. The available actions are:
