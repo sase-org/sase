@@ -145,19 +145,12 @@ def init_late_startup_state(
     )
 
     commits_default = resolve_commits_default_query(ace_cfg)
-    try:
-        from sase.main.utils import ensure_project_file_and_get_workspace_num
-
-        _project_file, _workspace_num, current_project = (
-            ensure_project_file_and_get_workspace_num(create_missing=False)
-        )
-    except Exception:
-        current_project = None
-        log.debug("Stitches current-project inference failed", exc_info=True)
+    # Stitches no longer reads cwd synchronously. The async Artifacts
+    # inventory is the single owner of the current-project fallback.
     commits_startup_filter = merge_commits_startup_project(
         commits_default.values,
         explicit_project=self.artifacts_project_scope,
-        current_project=current_project,
+        current_project=None,
     )
     self._commits_default_filter = _project_commits_startup_display_name(
         commits_startup_filter

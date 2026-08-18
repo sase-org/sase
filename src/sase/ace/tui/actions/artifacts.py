@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -29,7 +30,10 @@ from .artifacts_navigation import ArtifactsNavigationActionsMixin
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
+    from ..current_project_settings import CurrentProjectSettings
     from ..modals.inventory_project_picker import InventoryProjectChoice
+
+log = logging.getLogger(__name__)
 
 
 # When a non-PR pane is active, the top-level internal id is still
@@ -108,6 +112,7 @@ class _ArtifactsProjectChoices:
     project_ref_display: ProjectRefDisplaySnapshot = field(
         default_factory=ProjectRefDisplaySnapshot
     )
+    current_project: str | None = None
 
     def __post_init__(self) -> None:
         if not self.project_ref_display.display_snapshot and self.display_names:
@@ -188,7 +193,60 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
         display_names=display_names,
         project_files=project_files,
         project_ref_display=ProjectRefDisplaySnapshot.from_records(project_records),
+        current_project=_artifacts_current_project_key(),
     )
+
+
+def _artifacts_current_project_key() -> str | None:
+    """Resolve the current project on a worker thread.
+
+    Prefer the VCS xprompt MRU derivation. When that store is empty, fall
+    back to the cwd-derived project so a first-run user still gets today's
+    scope. Never call this on the UI thread.
+    """
+    try:
+        from sase.current_project import resolve_current_project
+
+        resolved = resolve_current_project()
+    except Exception:
+        log.debug("Current-project resolve failed", exc_info=True)
+        resolved = None
+    if resolved is not None:
+        return resolved.project_key
+    try:
+        from sase.main.utils import ensure_project_file_and_get_workspace_num
+
+        _project_file, _workspace_num, current_project = (
+            ensure_project_file_and_get_workspace_num(create_missing=False)
+        )
+    except Exception:
+        log.debug("Artifacts cwd-project inference failed", exc_info=True)
+        return None
+    return current_project
+
+
+def _resolve_artifacts_scope_seed(
+    result: _ArtifactsProjectChoices,
+    *,
+    seed_filters: bool,
+) -> str | None:
+    """Pick a first-open scope when no explicit query or session pick exists.
+
+    Precedence is the current project when it is enabled, then the sole
+    enabled project, then all projects. ``seed_filters: false`` skips the
+    current-project step so today's sole-enabled fallback remains.
+    """
+    if seed_filters:
+        current = result.current_project
+        if current is not None:
+            normalized = (
+                result.project_ref_display.project_key_for_ref(current) or current
+            )
+            if normalized in result.enabled_projects:
+                return normalized
+    if len(result.enabled_projects) == 1:
+        return result.enabled_projects[0]
+    return None
 
 
 class ArtifactsMixin(
@@ -207,6 +265,7 @@ class ArtifactsMixin(
     _artifacts_project_choices_loading: bool
     _artifacts_project_picker_pending: bool
     _artifacts_scope_was_picked: bool
+    _current_project_settings: CurrentProjectSettings
 
     def _resolve_initial_artifacts_scope(self) -> str | None:
         return get_sole_project_filter(self.parsed_query)
@@ -277,10 +336,12 @@ class ArtifactsMixin(
                 self.artifacts_project_scope is None
                 and not self._artifacts_scope_was_picked
                 and get_sole_project_filter(self.parsed_query) is None
-                and len(result.enabled_projects) == 1
             ):
                 self._set_artifacts_project_scope(
-                    result.enabled_projects[0],
+                    _resolve_artifacts_scope_seed(
+                        result,
+                        seed_filters=self._current_project_settings.seed_filters,
+                    ),
                     picked=False,
                 )
             else:
@@ -381,4 +442,5 @@ __all__ = [
     "PLANS_ARTIFACT_ACTIONS",
     "_ArtifactsProjectChoices",
     "_collect_artifacts_project_choices",
+    "_resolve_artifacts_scope_seed",
 ]

@@ -85,7 +85,14 @@ def merge_commits_startup_project(
     explicit_project: str | None,
     current_project: str | None,
 ) -> CommitLogFilterValues:
-    """Apply startup project precedence to an already parsed default query."""
+    """Apply startup project precedence to an already parsed default query.
+
+    Precedence is the Artifacts-tab explicit scope, then a ``project:`` term
+    in ``ace.artifacts.stitches.default_query``, then ``current_project``.
+    ACE startup passes ``current_project=None`` so the async Artifacts seed
+    owns the Stitches fallback. An explicit default-query project still wins
+    because ``values.project`` is preferred over that fallback.
+    """
     project = explicit_project or values.project or current_project
     if project == values.project:
         return values

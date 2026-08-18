@@ -127,7 +127,7 @@ def test_missing_runtime_query_uses_bundled_value_without_warning() -> None:
     assert resolved.diagnostic is None
 
 
-def test_startup_project_precedence_is_explicit_then_config_then_cwd() -> None:
+def test_startup_project_precedence_is_explicit_then_config_then_current() -> None:
     configured = parse_commit_filter_query("project:configured sidecar:false")
 
     assert (
@@ -169,7 +169,7 @@ def test_startup_project_remains_absent_without_any_known_project() -> None:
     )
 
 
-@pytest.mark.parametrize("source", ("inferred", "configured", "ace-query"))
+@pytest.mark.parametrize("source", ("configured", "ace-query"))
 async def test_known_startup_project_is_displayed_before_first_collection(
     source: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -201,24 +201,13 @@ async def test_known_startup_project_is_displayed_before_first_collection(
     configured_query = (
         f"project:{project_display_case.project_key} sidecar:false"
         if source == "configured"
-        else (
-            "project:configured sidecar:false"
-            if source == "ace-query"
-            else "sidecar:false"
-        )
+        else "project:configured sidecar:false"
     )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
         lambda: {
             "ace": {"artifacts": {"commits": {"default_query": configured_query}}}
         },
-    )
-    current_project = (
-        project_display_case.project_key if source == "inferred" else "cwd-project"
-    )
-    monkeypatch.setattr(
-        "sase.main.utils.ensure_project_file_and_get_workspace_num",
-        lambda **_kwargs: ("/tmp/current.sase", 1, current_project),
     )
     monkeypatch.setattr(
         commits_module,
@@ -245,3 +234,69 @@ async def test_known_startup_project_is_displayed_before_first_collection(
             collection_calls[0]["project_scope"] == project_display_case.project_label
         )
         assert startup_load_calls == 1
+
+
+async def test_inferred_current_project_scopes_stitches_after_async_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+    project_display_case: ProjectDisplayCase,
+) -> None:
+    from typing import Any
+
+    from sase.ace.testing import AcePage
+    from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
+    from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
+    from sase.ace.tui.widgets.artifacts import CommitsPane
+    from sase.ace.tui.widgets.single_line_vim_text_area import (
+        SingleLineVimTextArea,
+    )
+    import sase.ace.tui.widgets.artifacts.commits as commits_module
+    from tests.ace.tui._commits_pane_helpers import _result
+
+    collection_calls: list[dict[str, Any]] = []
+    choices = _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice(
+                project_display_case.project_key,
+                project_display_case.project_label,
+                "enabled",
+            ),
+            InventoryProjectChoice("other", "Other", "enabled"),
+        ),
+        enabled_projects=(project_display_case.project_key, "other"),
+        display_names={
+            project_display_case.project_key: project_display_case.project_label,
+            "other": "Other",
+        },
+        current_project=project_display_case.project_key,
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"artifacts": {"commits": {"default_query": "sidecar:false"}}}},
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: collection_calls.append(kwargs) or _result(),
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="patches") as page:
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
+        await page.wait_for(
+            lambda _state: pane.filters.project == project_display_case.project_label
+        )
+        assert (
+            editor.text
+            == f"project:{project_display_case.project_label} sidecar:false merges:hide"
+        )
+        await page.wait_for(
+            lambda _state: any(
+                call["project_scope"] == project_display_case.project_label
+                for call in collection_calls
+            )
+        )

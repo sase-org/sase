@@ -10,6 +10,7 @@ import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
 from sase.ace.tui.modals.artifact_files_modal import ArtifactFileSelectionModal
+from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.core.artifact_file_types import ArtifactFile
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
@@ -45,7 +46,18 @@ def _patch_commits(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        lambda: _ArtifactsProjectChoices(
+            choices=(
+                InventoryProjectChoice(
+                    project_key="sase",
+                    display_name="sase",
+                    state="enabled",
+                ),
+            ),
+            enabled_projects=("sase",),
+            display_names={"sase": "sase"},
+            current_project="sase",
+        ),
     )
     return result
 
@@ -57,7 +69,9 @@ async def _open_commits_palette(
     await wait_for_startup(page)
     await page.expect_state("artifacts_subtab", "stitches")
     pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-    await page.wait_for(lambda _state: pane.result is result)
+    await page.wait_for(
+        lambda _state: pane.filters.project == "sase" and pane.result is result
+    )
     await page.press("%")
     await page.expect_modal("CopyAsModal")
     await wait_for_svg_contains(page, "Copy as")

@@ -11,6 +11,7 @@ from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
+from sase.ace.tui.modals.inventory_project_picker import InventoryProjectChoice
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
@@ -36,6 +37,21 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
+def _pinned_sase_project_choices() -> _ArtifactsProjectChoices:
+    return _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice(
+                project_key="sase",
+                display_name="sase",
+                state="enabled",
+            ),
+        ),
+        enabled_projects=("sase",),
+        display_names={"sase": "sase"},
+        current_project="sase",
+    )
+
+
 @pytest.fixture(autouse=True)
 def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin rolling-query and remote-fetch clocks for stable visual output."""
@@ -43,6 +59,10 @@ def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.main.utils.ensure_project_file_and_get_workspace_num",
         lambda **_kwargs: ("/tmp/sase.sase", 1, "sase"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _pinned_sase_project_choices,
     )
     monkeypatch.setattr(
         "sase.ace.query.profile_reference_support.normalize_reference_time",
@@ -61,7 +81,9 @@ async def _open_commits(
     await wait_for_startup(page)
     await page.expect_state("artifacts_subtab", "stitches")
     pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-    await page.wait_for(lambda _state: pane.result is result)
+    await page.wait_for(
+        lambda _state: pane.filters.project == "sase" and pane.result is result
+    )
     return pane, pane.query_one(CommitFilterBar)
 
 
@@ -108,7 +130,7 @@ async def test_commits_timeline_and_detail_png_snapshot(
     )
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        _pinned_sase_project_choices,
     )
 
     async with AcePage(
@@ -119,7 +141,9 @@ async def test_commits_timeline_and_detail_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: pane.result is result)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
             == "project:sase sidecar:false merges:hide since:24h"
@@ -173,7 +197,7 @@ async def test_commits_origin_legend_png_snapshot(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        _pinned_sase_project_choices,
     )
 
     async with AcePage(
@@ -184,7 +208,9 @@ async def test_commits_origin_legend_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: pane.result is result)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
         await wait_for_svg_contains(page, "✦")
         await wait_for_svg_contains(page, "↻")
         await wait_for_svg_contains(page, "✎")
@@ -221,7 +247,7 @@ async def test_commits_merge_row_png_snapshot(
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        _pinned_sase_project_choices,
     )
 
     async with AcePage(
@@ -232,7 +258,9 @@ async def test_commits_merge_row_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: pane.result is result)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
             == "project:sase sidecar:false merges:show since:24h"
@@ -259,7 +287,7 @@ async def test_commits_empty_png_snapshot(
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        _pinned_sase_project_choices,
     )
 
     async with AcePage(
@@ -270,7 +298,9 @@ async def test_commits_empty_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: pane.result is result)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
         timeline = pane.query_one("#stitches-timeline", CommitsTimeline)
         await page.wait_for(
             lambda _state: (
@@ -357,7 +387,7 @@ async def test_commits_jump_hints_png_snapshot(
     )
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
-        lambda: _ArtifactsProjectChoices((), (), {}),
+        _pinned_sase_project_choices,
     )
 
     async with AcePage(
@@ -368,7 +398,9 @@ async def test_commits_jump_hints_png_snapshot(
         await wait_for_startup(page)
         await page.expect_state("artifacts_subtab", "stitches")
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: pane.result is result)
+        await page.wait_for(
+            lambda _state: pane.filters.project == "sase" and pane.result is result
+        )
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await page.press("apostrophe")
         await wait_for_svg_contains(page, "JUMP")

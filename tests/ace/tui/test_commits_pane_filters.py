@@ -107,10 +107,19 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
         assert calls[0]["all_projects"] is False
 
 
-async def test_inferred_project_is_visible_before_first_collection(
+async def test_inferred_project_scopes_stitches_after_async_inventory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, Any]] = []
+    choices = _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice("cwd-project", "cwd-project", "enabled"),
+            InventoryProjectChoice("other", "Other", "enabled"),
+        ),
+        enabled_projects=("cwd-project", "other"),
+        display_names={"cwd-project": "cwd-project", "other": "Other"},
+        current_project="cwd-project",
+    )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
         lambda: {
@@ -120,8 +129,8 @@ async def test_inferred_project_is_visible_before_first_collection(
         },
     )
     monkeypatch.setattr(
-        "sase.main.utils.ensure_project_file_and_get_workspace_num",
-        lambda **_kwargs: ("/tmp/cwd-project.sase", 1, "cwd-project"),
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
     )
     monkeypatch.setattr(
         commits_module,
@@ -136,13 +145,16 @@ async def test_inferred_project_is_visible_before_first_collection(
             "#commit-filter-input",
             SingleLineVimTextArea,
         )
+        await page.wait_for(lambda _state: pane.filters.project == "cwd-project")
         assert editor.text == (
             "project:cwd-project sidecar:false merges:hide since:24h"
         )
-        await page.wait_for(lambda _state: bool(calls))
+        await page.wait_for(
+            lambda _state: any(call["project_scope"] == "cwd-project" for call in calls)
+        )
 
-        assert calls[0]["project_scope"] == "cwd-project"
-        assert calls[0]["all_projects"] is False
+        assert calls[-1]["project_scope"] == "cwd-project"
+        assert calls[-1]["all_projects"] is False
 
 
 async def test_absent_project_token_collects_all_projects(

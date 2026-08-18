@@ -8822,7 +8822,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "efa8d71a3d020af7",
+            "description_digest": "bebc50f4c03bd8c8",
             "hidden": false,
             "mutex_groups": [],
             "name": "new",
@@ -8854,9 +8854,7 @@
               {
                 "choices": [
                   "beta",
-                  "ops",
-                  "sunset",
-                  "wip"
+                  "sunset"
                 ],
                 "dest": "kind",
                 "hidden": false,
@@ -8870,6 +8868,39 @@
               },
               {
                 "choices": null,
+                "dest": "when_enabled",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "--when-enabled"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "when_disabled",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "--when-disabled"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "remove_when",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "--remove-when"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
                 "dest": "remove_by",
                 "hidden": false,
                 "kind": null,
@@ -8877,21 +8908,6 @@
                 "strings": [
                   "-r",
                   "--remove-by"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": [
-                  "global",
-                  "project"
-                ],
-                "dest": "scope",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-s",
-                  "--scope"
                 ],
                 "takes_value": true
               },
