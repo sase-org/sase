@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
 import hashlib
 import json
@@ -51,6 +51,7 @@ def presentation_fingerprint(
     format_version: int,
     gate_contract_version: int,
     flag_due_state: str | None = None,
+    task_type_display: Mapping[str, object] | None = None,
 ) -> str:
     """Hash every persisted field and contract version that changes a gate.
 
@@ -63,11 +64,18 @@ def presentation_fingerprint(
     part of it: they are presentation pinning, and including them would
     cancel and recreate every pending flag gate daily.
 
+    A ``task_type_display`` block is added only when the caller supplies the
+    frozen glyph/name/accent/facts mapping, so an untyped bead's fingerprint
+    keeps the same keys. The block is hashed rather than the raw
+    ``task_type`` slug: installing, upgrading, or removing a plugin -- or
+    editing ``bead.task_types`` -- changes a pending gate's presentation
+    without mutating the bead.
+
     The supplied versions cover renderer and trusted-interaction changes whose
     outputs cannot be inferred from the bead fields alone.
     """
     snooze = issue.snooze
-    payload = {
+    payload: dict[str, Any] = {
         "format_version": format_version,
         "gate_contract_version": gate_contract_version,
         "status": issue.status.value,
@@ -117,6 +125,8 @@ def presentation_fingerprint(
             "remove_by_release": issue.flag.remove_by_release,
             "due_state": flag_due_state,
         }
+    if task_type_display is not None:
+        payload["task_type_display"] = task_type_display
     encoded = json.dumps(
         payload,
         ensure_ascii=False,

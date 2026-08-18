@@ -52,14 +52,18 @@ from sase.scripts._bead_task_triage_state import (
     write_state as _write_state_impl,
 )
 from sase.scripts._bead_task_triage_state import read_state as _read_state_impl
-from sase.task_types.registry import get_task_type_registry
+from sase.task_type_gate_presentation import (
+    resolve_task_type_gate_display,
+    task_type_gate_display_payload,
+)
+from sase.task_types.registry import TaskTypeRegistry, get_task_type_registry
 
 _STATE_FILENAME = "bead_task_triage.json"
 _LOCK_FILENAME = "bead_task_triage.lock"
 
 # Bumped whenever a gate preview or notification-note renderer changes shape, so
 # the reconciler replaces pending gates still advertising the superseded one.
-_PRESENTATION_FORMAT_VERSION = 3
+_PRESENTATION_FORMAT_VERSION = 4
 
 # Bumped whenever the trusted TaskTriage, BeadSnooze, or FlagTriage interaction
 # contract changes shape, so pending gates still exposing old option inputs are
@@ -90,7 +94,29 @@ def _request_id(project_name: str, bead_id: str, generation: int, kind: str) -> 
     return _request_id_impl(project_name, bead_id, generation, kind)
 
 
-def _presentation_fingerprint(issue: Issue) -> str:
+def _task_type_display_payload(
+    issue: Issue,
+    registry: TaskTypeRegistry | None,
+) -> dict[str, object] | None:
+    """Return the frozen display mapping for a typed bead, or ``None`` if untyped."""
+    if not (issue.task_type or "").strip():
+        return None
+    catalog = get_task_type_registry() if registry is None else registry
+    display = resolve_task_type_gate_display(
+        issue.task_type,
+        issue.task_type_fields,
+        registry=catalog,
+    )
+    if display is None:
+        return None
+    return task_type_gate_display_payload(display)
+
+
+def _presentation_fingerprint(
+    issue: Issue,
+    *,
+    registry: TaskTypeRegistry | None = None,
+) -> str:
     return _presentation_fingerprint_impl(
         issue,
         format_version=_PRESENTATION_FORMAT_VERSION,
@@ -99,6 +125,7 @@ def _presentation_fingerprint(issue: Issue) -> str:
         # is not a second due-ness comparison -- just threading the one
         # already-known state into the fingerprint.
         flag_due_state="due" if issue.flag is not None else None,
+        task_type_display=_task_type_display_payload(issue, registry),
     )
 
 
@@ -361,7 +388,9 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 # gate asks the wrong question entirely, so its fingerprint is
                 # not worth comparing.
                 wrong_kind = kind != _expected_gate_kind(issue)
-                fingerprint = _presentation_fingerprint(issue)
+                fingerprint = _presentation_fingerprint(
+                    issue, registry=task_type_registry
+                )
                 if (
                     not wrong_kind
                     and project_state.fingerprints.get(bead_id) == fingerprint
@@ -447,7 +476,9 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 continue
             project_state.gates[bead_id] = request_id
             project_state.generations[bead_id] = generation
-            project_state.fingerprints[bead_id] = _presentation_fingerprint(issue)
+            project_state.fingerprints[bead_id] = _presentation_fingerprint(
+                issue, registry=task_type_registry
+            )
             project_state.kinds[bead_id] = kind
             gated += 1
             state_changed = True

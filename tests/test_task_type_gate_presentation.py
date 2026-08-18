@@ -22,6 +22,11 @@ from sase.task_type_presentation import (
     task_type_chip,
     task_type_presentation,
 )
+from sase.task_types._models import (
+    TaskTypeProvenance,
+    TaskTypeRecord,
+    TaskTypeRegistry,
+)
 
 _FLAKE_FIELDS = {
     "node_id": "tests/x.py::test_y",
@@ -72,6 +77,38 @@ def test_resolve_each_builtin_type(
 def test_untyped_bead_resolves_to_none() -> None:
     assert resolve_task_type_gate_display("", {"node_id": "x"}) is None
     assert resolve_task_type_gate_display("   ", {}) is None
+
+
+def test_resolve_uses_the_supplied_registry_instead_of_the_live_catalog() -> None:
+    registry = TaskTypeRegistry(
+        records=(
+            TaskTypeRecord(
+                task_type="flake",
+                spec={"task_type": "flake", "label": "Renamed flake"},
+                digest="a" * 64,
+                provenance=TaskTypeProvenance(
+                    source="builtin",
+                    name="sase",
+                    package="sase",
+                    version="1.0.0",
+                    builtin=True,
+                ),
+                resolved_glyph="!",
+                resolved_accent_color="#ABCDEF",
+            ),
+        ),
+        diagnostics=(),
+    )
+
+    display = resolve_task_type_gate_display("flake", {}, registry=registry)
+    live = resolve_task_type_gate_display("flake", {})
+
+    assert display is not None
+    assert display.glyph == "!"
+    assert display.name == "Renamed flake"
+    assert display.accent_color == "#ABCDEF"
+    assert live is not None
+    assert live.glyph == "≈"
 
 
 def test_unresolved_slug_degrades_to_question_mark_and_raw_field_names() -> None:

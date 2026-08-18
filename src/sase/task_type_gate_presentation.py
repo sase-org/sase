@@ -25,7 +25,7 @@ from rich.cells import cell_len
 
 from sase.task_type_presentation import format_task_type_chip, task_type_presentation
 from sase.task_types._snapshot import task_type_snapshot_entry
-from sase.task_types.registry import get_task_type_registry
+from sase.task_types.registry import TaskTypeRegistry, get_task_type_registry
 
 _MAX_FACTS = 3
 _MAX_FACT_CELLS = 80
@@ -49,23 +49,28 @@ class TaskTypeGateDisplay:
 def resolve_task_type_gate_display(
     task_type: str,
     task_type_fields: Mapping[str, str] | None = None,
+    *,
+    registry: TaskTypeRegistry | None = None,
 ) -> TaskTypeGateDisplay | None:
     """Resolve one stored task type into persistable gate presentation.
 
     Returns ``None`` for an untyped bead. A typed slug always produces a
     record: an unresolved type degrades to the ``?`` glyph, the slug as its
     name, the neutral grey accent, and raw field names as fact labels.
+
+    Pass *registry* to resolve against an already-loaded catalog instead of
+    calling :func:`get_task_type_registry` again.
     """
     slug = task_type.strip()
     if not slug:
         return None
-    presentation = task_type_presentation(slug)
+    presentation = task_type_presentation(slug, registry=registry)
     fields = task_type_fields or {}
     return TaskTypeGateDisplay(
         glyph=presentation.glyph,
         name=presentation.label,
         accent_color=presentation.accent_color,
-        facts=_resolve_facts(slug, fields),
+        facts=_resolve_facts(slug, fields, registry=registry),
     )
 
 
@@ -130,8 +135,13 @@ def task_type_gate_markdown_fact(display: TaskTypeGateDisplay, slug: str) -> str
     return f"**Task type:** {format_task_type_chip(display.glyph, f'`{escaped}`')}"
 
 
-def _resolve_facts(slug: str, fields: Mapping[str, str]) -> tuple[tuple[str, str], ...]:
-    spec_fields = _spec_fields(slug)
+def _resolve_facts(
+    slug: str,
+    fields: Mapping[str, str],
+    *,
+    registry: TaskTypeRegistry | None = None,
+) -> tuple[tuple[str, str], ...]:
+    spec_fields = _spec_fields(slug, registry=registry)
     if spec_fields is None:
         pairs = (
             (_clean_fact_text(name), _clean_fact_value(value))
@@ -155,8 +165,11 @@ def _resolve_facts(slug: str, fields: Mapping[str, str]) -> tuple[tuple[str, str
     return _capped_facts(facts)
 
 
-def _spec_fields(slug: str) -> Sequence[object] | None:
-    record = get_task_type_registry().by_slug.get(slug)
+def _spec_fields(
+    slug: str, *, registry: TaskTypeRegistry | None = None
+) -> Sequence[object] | None:
+    catalog = get_task_type_registry() if registry is None else registry
+    record = catalog.by_slug.get(slug)
     if record is not None:
         return _as_field_list(record.spec.get("fields"))
     snapshot = task_type_snapshot_entry(slug)

@@ -26,7 +26,7 @@ from sase.ansi_style import ANSI_RESET as _ANSI_RESET
 from sase.ansi_style import ansi_sgr, xterm256_foreground_style
 from sase.task_types._snapshot import task_type_snapshot_entry
 from sase.task_types.fields import UNTYPED_TASK_TYPE, issue_task_type_slug
-from sase.task_types.registry import get_task_type_registry
+from sase.task_types.registry import TaskTypeRegistry, get_task_type_registry
 
 #: Glyph shown for a legacy task bead that carries no ``task_type`` at all.
 UNTYPED_TASK_TYPE_GLYPH = "·"
@@ -67,13 +67,20 @@ class _TaskTypePresentation:
         return xterm256_foreground_style(self.accent_color)
 
 
-def task_type_presentation(slug: str) -> _TaskTypePresentation:
+def task_type_presentation(
+    slug: str,
+    *,
+    registry: TaskTypeRegistry | None = None,
+) -> _TaskTypePresentation:
     """Resolve presentation for one stored ``task_type`` slug.
 
     Never raises: an empty slug is the dim ``untyped`` presentation, and a
     slug this machine cannot resolve through the live registry or the
     committed snapshot degrades to a dim ``unknown`` presentation that still
     names the slug, per D3 ("a missing plugin is never a read failure").
+
+    Pass *registry* to resolve against an already-loaded catalog instead of
+    calling :func:`get_task_type_registry` again.
     """
     if not slug:
         return _TaskTypePresentation(
@@ -84,7 +91,8 @@ def task_type_presentation(slug: str) -> _TaskTypePresentation:
             known=False,
         )
 
-    record = get_task_type_registry().by_slug.get(slug)
+    catalog = get_task_type_registry() if registry is None else registry
+    record = catalog.by_slug.get(slug)
     if record is not None:
         accent = record.resolved_accent_color or _DEGRADED_ACCENT_COLOR
         return _TaskTypePresentation(
