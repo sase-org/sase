@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
-import json
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.feature_flags import FeatureFlag, current_flags
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
@@ -22,6 +20,14 @@ from sase.axe.run_agent_exec_plan_accept_models import (
     resolve_followup_model as _resolve_followup_model,
     resolve_model_alias_provenance as _resolve_model_alias_provenance,
     resolve_model_meta as _resolve_model_meta,
+)
+
+# Re-exported so successor model-meta writers honor accept-module test doubles.
+from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.axe.run_agent_successor import (
+    SuccessorRequest,
+    continue_as_successor,
+    write_followup_model_meta as _write_followup_model_meta,
 )
 from sase.axe.run_agent_exec_plan_accept_sdd import (
     accepted_plan_action_for_meta as _accepted_plan_action_for_meta,
@@ -46,7 +52,8 @@ from sase.axe.run_agent_helpers import (
     promote_to_workflow,
     update_meta_field,
 )
-from sase.axe.agent_meta import write_agent_meta_atomic
+
+# Re-exported so successor model-meta writers honor accept-module test doubles.
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -73,65 +80,6 @@ def _commit_sdd_files(
         plan_tier=plan_tier,
         logger=logger,
         subprocess_run=subprocess.run,
-    )
-
-
-def _write_followup_model_alias_meta(
-    artifacts_dir: str,
-    model_alias: str | None,
-    model_alias_trail: tuple[str, ...],
-    model_alias_origin: str | None,
-) -> None:
-    """Set or clear the follow-up agent's launch-time alias provenance."""
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        with meta_path.open(encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return
-    if not isinstance(meta, dict):
-        return
-    if model_alias:
-        meta["model_alias"] = model_alias
-    else:
-        meta.pop("model_alias", None)
-    if model_alias_trail:
-        meta["model_alias_trail"] = list(model_alias_trail)
-        if model_alias_origin:
-            meta["model_alias_origin"] = model_alias_origin
-        else:
-            meta.pop("model_alias_origin", None)
-    elif model_alias:
-        meta.pop("model_alias_trail", None)
-        if model_alias_origin:
-            meta["model_alias_origin"] = model_alias_origin
-        else:
-            meta.pop("model_alias_origin", None)
-    else:
-        meta.pop("model_alias_trail", None)
-        meta.pop("model_alias_origin", None)
-    write_agent_meta_atomic(
-        artifacts_dir,
-        meta,
-        index_updater=update_agent_artifact_index_for_marker_mutation,
-    )
-
-
-def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> None:
-    """Record the follow-up agent's resolved model in its ``agent_meta.json``."""
-    if followup.meta is None:
-        return
-    resolved_provider, resolved_model = followup.meta
-    update_meta_field(state.current_artifacts_dir, "model", resolved_model)
-    if resolved_provider:
-        update_meta_field(
-            state.current_artifacts_dir, "llm_provider", resolved_provider
-        )
-    _write_followup_model_alias_meta(
-        state.current_artifacts_dir,
-        followup.model_alias,
-        followup.model_alias_trail,
-        followup.model_alias_origin,
     )
 
 
@@ -419,9 +367,6 @@ def handle_accepted_plan(
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
 
-    # Approve: spawn coder with plan as prompt
-    state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
-
     # Point SASE_PLAN at the committed in-repo plan file only when the approval
     # committed that file. No-commit approvals must hand off the archived plan
     # because VCS workflow pre-steps may stash local SDD files.
@@ -430,38 +375,9 @@ def handle_accepted_plan(
     else:
         os.environ["SASE_PLAN"] = plan_result.plan_file
 
-    state.agent_step += 1
-    if state.agent_step == 2 and ctx.agent_name:
-        promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
-    state.current_artifacts_dir = create_followup_artifacts(
-        ctx.project_name,
-        followup_base_meta,
-        state.current_role_suffix,
-        convert_timestamp_to_artifacts_format(ctx.timestamp),
-        workspace_num=ctx.workspace_num,
-        agent_name_override=plan_chain_agent_name(
-            ctx.agent_name,
-            state.current_role_suffix,
-        )
-        if ctx.agent_name
-        else None,
-        workflow_name=ctx.agent_name,
-        relationships={
-            "plan_path": plan_result.plan_file,
-            "sdd_prompt_path": str(state.sdd_spec_path)
-            if state.sdd_spec_path
-            else None,
-            "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
-            "plan_committed": plan_committed,
-            "patch_name": ctx.cl_name,
-            "changespec_name": ctx.cl_name,
-            "source_plan_agent_name": source_plan_agent_name,
-        },
-    )
     coder_extra = ""
     if plan_result.coder_prompt:
         coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
-    _write_followup_model_meta(state, followup_model)
     # By default the coder starts with a fresh context window; the plan file
     # itself is the hand-off artifact. Enable coder_inherits_planner_chat to
     # prepend #fork:<base>--plan so the coder inherits the planner's full chat.
@@ -484,18 +400,38 @@ def handle_accepted_plan(
     else:
         coder_plan_ref = plan_result.plan_file
 
-    state.current_prompt = (
-        f"{model_prefix}{resume_prefix}{vcs_prefix}"
-        f"@{coder_plan_ref}\n\n"
-        "The above plan has been reviewed and approved. "
-        f"Implement it now.{coder_extra}\n{embedded_refs}"
+    continue_as_successor(
+        ctx,
+        state,
+        SuccessorRequest(
+            base_meta=followup_base_meta,
+            prompt=(
+                f"{model_prefix}{resume_prefix}{vcs_prefix}"
+                f"@{coder_plan_ref}\n\n"
+                "The above plan has been reviewed and approved. "
+                f"Implement it now.{coder_extra}\n{embedded_refs}"
+            ),
+            suffix=PLAN_CHAIN_CODER_SUFFIX,
+            relationships={
+                "plan_path": plan_result.plan_file,
+                "sdd_prompt_path": str(state.sdd_spec_path)
+                if state.sdd_spec_path
+                else None,
+                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "plan_committed": plan_committed,
+                "patch_name": ctx.cl_name,
+                "changespec_name": ctx.cl_name,
+                "source_plan_agent_name": source_plan_agent_name,
+            },
+            prompt_artifact_label="Full coder prompt",
+            model=followup_model,
+        ),
+        create_artifacts=create_followup_artifacts,
+        promote=promote_to_workflow,
+        store_prompt=_store_followup_prompt_artifact,
+        write_model_meta=_write_followup_model_meta,
     )
     _write_followup_effort_meta(state, state.current_prompt)
-    _store_followup_prompt_artifact(
-        state.current_artifacts_dir,
-        state.current_prompt,
-        label="Full coder prompt",
-    )
 
     # A ``/sase_questions`` interruption from this follow-up phase must rebuild
     # from the exact code prompt (with its resolved ``%model`` directive), not

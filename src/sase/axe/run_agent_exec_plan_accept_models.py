@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.axe.run_agent_successor import FollowupModel
 from sase.llm_provider.config import (
     format_model_directive_value,
     normalize_model_alias_reference,
@@ -14,24 +14,6 @@ from sase.tale_followup_routing import validated_tale_followup_model_directive
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext
-
-
-@dataclass(frozen=True)
-class FollowupModel:
-    """The follow-up agent's model directive prefix and metadata.
-
-    ``model_prefix`` is prepended to the generated follow-up prompt (for
-    example, ``"%model:codex/gpt-5.6-sol\n"``). ``meta`` is the
-    ``(provider_or_none, model)`` written to the follow-up's
-    ``agent_meta.json``. It is ``None`` when the inherited planner metadata is
-    already correct and does not need to be rewritten.
-    """
-
-    model_prefix: str
-    meta: tuple[str | None, str] | None = None
-    model_alias: str | None = None
-    model_alias_trail: tuple[str, ...] = ()
-    model_alias_origin: str | None = None
 
 
 def resolve_model_meta(model_directive: str) -> tuple[str | None, str]:

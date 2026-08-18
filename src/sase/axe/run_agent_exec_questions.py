@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.agent.names import render_agent_name_template
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -27,17 +27,16 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
+from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.run_agent_wait_slots import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
 from sase.core.runner_slots import normalize_wait_priority
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
-    allocate_agent_family_child_suffix,
     agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
     is_root_question_suffix,
-    plan_chain_agent_name,
     question_followup_suffix_template,
 )
 
@@ -72,13 +71,6 @@ def _interrupted_phase_meta(
 def _meta_family_role(meta: dict[str, Any]) -> str | None:
     role = meta.get("agent_family_role")
     return role if isinstance(role, str) and role else None
-
-
-def _fallback_question_suffix(template: str, *, root_sequence: bool) -> str:
-    from sase.agent.names import render_agent_name_template
-
-    token = "1" if root_sequence else "0"
-    return render_agent_name_template(template, token)
 
 
 def _update_sdd_prompt_snapshot_qa(
@@ -226,13 +218,6 @@ def handle_questions_marker(
     update_meta_field(state.current_artifacts_dir, "chat_path", _q_chat)
     update_step_marker_chat_path(state.current_artifacts_dir, _q_chat)
 
-    state.agent_step += 1
-    if first_family_agent_question and state.agent_step == 2 and ctx.agent_name:
-        promote_to_workflow(
-            ctx.artifacts_dir,
-            ctx.agent_name,
-            role_suffix=interrupted_suffix,
-        )
     root_sequence = (
         first_family_agent_question and not first_plan_agent_question
     ) or is_root_question_suffix(
@@ -247,62 +232,43 @@ def handle_questions_marker(
             agent_family_role=interrupted_role,
         )
     )
-    followup_suffix = (
-        allocate_agent_family_child_suffix(
-            ctx.agent_name,
-            suffix_template,
-            extra_reserved_suffixes=(
-                *[suffix for suffix, _path in state.saved_chat_paths if suffix],
-                interrupted_suffix,
-            ),
-        )
-        if ctx.agent_name
-        else _fallback_question_suffix(
-            suffix_template,
-            root_sequence=root_sequence,
-        )
-    )
-    state.current_role_suffix = followup_suffix
     followup_role = (
         "q"
         if root_sequence
         else agent_family_role_for_suffix(
-            followup_suffix,
+            render_agent_name_template(suffix_template, "0"),
             agent_family_role=interrupted_role,
         )
     )
-    # Inherit the interrupted phase's concrete model/provider (e.g. the worker
-    # model that ``handle_accepted_plan`` wrote for the code phase) instead of
-    # the initial planner metadata in ``ctx.agent_meta``.
-    state.current_artifacts_dir = create_followup_artifacts(
-        ctx.project_name,
-        base_meta,
-        followup_suffix,
-        convert_timestamp_to_artifacts_format(ctx.timestamp),
-        workspace_num=ctx.workspace_num,
-        agent_name_override=plan_chain_agent_name(
-            ctx.agent_name,
-            followup_suffix,
-        )
-        if ctx.agent_name
-        else None,
-        workflow_name=ctx.agent_name,
-        agent_family_role=followup_role,
-        relationships={
-            **question_relationships,
-            "source_plan_agent_name": _q_agent,
-        },
-    )
     # Rebuild from the current phase base (code/feedback/planner prompt) so a
     # code-phase question keeps the code prompt and its ``%model`` directive.
-    state.current_prompt = assemble_question_followup_prompt(
+    followup_prompt = assemble_question_followup_prompt(
         state.question_base_prompt,
         state.qa_rounds,
     )
-    _store_followup_prompt_artifact(
-        state.current_artifacts_dir,
-        state.current_prompt,
-        label="Full question prompt",
+    continue_as_successor(
+        ctx,
+        state,
+        SuccessorRequest(
+            base_meta=base_meta,
+            prompt=followup_prompt,
+            suffix_template=suffix_template,
+            extra_reserved_suffixes=(
+                *(suffix for suffix, _path in state.saved_chat_paths if suffix),
+                interrupted_suffix,
+            ),
+            agent_family_role=followup_role,
+            relationships={
+                **question_relationships,
+                "source_plan_agent_name": _q_agent,
+            },
+            prompt_artifact_label="Full question prompt",
+            promote_role_suffix=interrupted_suffix,
+            fallback_token="1" if root_sequence else "0",
+        ),
+        create_artifacts=create_followup_artifacts,
+        promote=promote_to_workflow,
+        store_prompt=_store_followup_prompt_artifact,
     )
 
     # Update the recorded prompt artifact with the merged Q&A section so the
