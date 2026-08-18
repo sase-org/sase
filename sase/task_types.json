@@ -188,6 +188,22 @@
       "digest": "f50350ab60ca76042bc5e1fde68ce76f40238b8a889c3cbdf5c55fdab6d72b8c"
     },
     {
+      "task_type": "github",
+      "label": "GitHub",
+      "summary": "A GitHub issue mirrored into a task bead; agents never create this type.",
+      "when_to_use": "Agents never create this type. Beads of it are created by the external issue mirror when it covers a GitHub issue. Do not file one from `sase bead create` or `/sase_new_task`.",
+      "glyph": "⑂",
+      "accent_color": "#B2B2B2",
+      "agent_creatable": false,
+      "fields": [],
+      "triage": {
+        "min_plus_ones": 0
+      },
+      "source": "plugin",
+      "package": "sase-github",
+      "digest": "e5ea683352cca7b42136a0f1b5197e355c69dbb0beeca71174346dfaeef41ce3"
+    },
+    {
       "task_type": "memory",
       "label": "Memory",
       "summary": "A sase memory note or skill that is out of date.",

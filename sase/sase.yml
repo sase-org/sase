@@ -250,6 +250,12 @@ repos:
     - name: sase-nvim
       path: ../sase-nvim
       description: Neovim integration plugin for SASE syntax, completion, and editor support.
+    # No auto_clone: unlike sase-core, nothing here builds a native extension
+    # from this checkout, and tools/setup_required_plugins already installs
+    # the plugin from PyPI or (until sase-p3.15.3 publishes it) the sase-org
+    # git repo without needing a persistent local checkout. Auto-cloning
+    # would only add clone overhead to every ephemeral workspace for the rare
+    # agent that needs to develop against this plugin's own source.
     - name: sase-research-artifacts
       path: ../sase-research-artifacts
       description: >-
@@ -274,5 +280,5 @@ repos:
 
 plugins:
   required:
-    - sase-github
+    - sase-github>=0.2.5
     - sase-research-artifacts

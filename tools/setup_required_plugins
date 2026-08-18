@@ -1,0 +1,357 @@
+#!/usr/bin/env python3
+"""Install this project's ``plugins.required`` into the active interpreter, verified.
+
+Invoked as ``{{ venv_bin }}/python tools/setup_required_plugins`` from the
+Justfile's ``_setup-required-plugins`` recipe, which every ``just`` recipe
+re-enters via ``_setup``/``install``. The loop is driven by ``plugins.required``
+in ``sase/sase.yml`` (through :func:`sase.plugins.required.
+required_plugin_requirement_strings`) instead of a hard-coded name list, so it
+cannot drift from the declaration ``sase doctor -C plugins.required`` enforces.
+
+Each PEP 508 entry is resolved from, in order:
+
+1. A linked or sibling checkout with a ``pyproject.toml`` (editable, ``--no-deps``).
+2. PyPI, honoring the entry's version specifier so a stale install is upgraded
+   instead of treated as already satisfied.
+3. Only when PyPI does not carry the distribution at all (not merely an
+   unsatisfiable version), the public sase-org git repository.
+
+``uv pip install <name-or-spec>`` no-ops whenever any matching distribution is
+already present, which lets a dangling editable ``.pth`` (files gone, metadata
+still advertised) or a stale version pass silently. This script never trusts
+that fast path: after every install attempt it spawns the target interpreter
+to import the distribution's top-level module (a fresh subprocess, because a
+newly written ``.pth`` is only processed by ``site`` at interpreter start and
+would not be picked up by re-importing in this same process). A failed import
+forces exactly one ``--reinstall-package`` attempt before giving up, so a
+healthy environment costs one cheap import check per plugin and nothing else.
+
+This intentionally skips `sase.plugins.catalog`'s live GitHub-search catalog
+for the git-fallback URL: that lookup shells out to `gh api` with a ~20s
+timeout and needs `gh` authentication, both unwelcome on every `just`
+invocation. sase-org plugin repos are 1:1 with their distribution name
+(`sase-github` -> github.com/sase-org/sase-github), so only the org name
+constant is reused from the catalog module, not its network lookup.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+from packaging.requirements import Requirement
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+#: uv's message when a distribution name has no matching PyPI project at all,
+#: as opposed to one whose version specifier no release satisfies. Reproduced
+#: verbatim from a real `uv pip install sase-research-artifacts` failure.
+_NOT_FOUND_MARKER = "was not found in the package registry"
+
+_ENV_NAME_RE = re.compile(r"[^A-Za-z0-9]+")
+
+RunFn = Callable[..., "subprocess.CompletedProcess[str]"]
+
+
+@dataclass(frozen=True)
+class InstallOutcome:
+    """Result of one install attempt for one requirement."""
+
+    ok: bool
+    source: str
+    detail: str = ""
+    not_found: bool = False
+
+
+@dataclass(frozen=True)
+class RequirementPlan:
+    """One ``plugins.required`` entry, resolved to a source strategy."""
+
+    raw: str
+    name: str
+    module: str
+    checkout: Path | None
+    is_linked: bool
+
+
+def env_name(name: str) -> str:
+    """Mirror ``sase.linked_repos._sanitize_env_name``: upper snake case."""
+    return _ENV_NAME_RE.sub("_", name).strip("_").upper() or "REPO"
+
+
+def import_module_name(distribution_name: str) -> str:
+    """The conventional top-level import module for a PEP 503 name."""
+    return re.sub(r"[-_.]+", "_", distribution_name.strip().lower())
+
+
+def linked_checkout_dir(
+    name: str, *, repo_root: Path = REPO_ROOT, env: Mapping[str, str] = os.environ
+) -> Path | None:
+    """Return a local checkout directory for *name*, if one exists.
+
+    Checks the env vars SASE's own linked-repo launcher infra sets
+    (``SASE_LINKED_REPO_<ENV_NAME>_DIR`` / ``SASE_SIBLING_REPO_<ENV_NAME>_DIR``),
+    then the workspace-materialized path, then the peer sibling default.
+    """
+    name_env = env_name(name)
+    for prefix in ("SASE_LINKED_REPO_", "SASE_SIBLING_REPO_"):
+        value = env.get(f"{prefix}{name_env}_DIR")
+        if value and (Path(value) / "pyproject.toml").is_file():
+            return Path(value)
+
+    workspace_dir = repo_root / "sase" / "repos" / "linked" / name
+    if (workspace_dir / "pyproject.toml").is_file():
+        return workspace_dir
+
+    sibling_dir = repo_root.parent / name
+    if (sibling_dir / "pyproject.toml").is_file():
+        return sibling_dir
+
+    return None
+
+
+def linked_repo_names(config: object) -> frozenset[str]:
+    """Distribution names declared under ``repos.linked`` in *config*."""
+    repos = (config if isinstance(config, dict) else {}).get("repos")
+    linked = (repos if isinstance(repos, dict) else {}).get("linked")
+    if not isinstance(linked, list):
+        return frozenset()
+    return frozenset(
+        entry["name"]
+        for entry in linked
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    )
+
+
+def _uv_install(
+    python: str,
+    args: list[str],
+    *,
+    run_fn: RunFn = subprocess.run,
+) -> subprocess.CompletedProcess[str]:
+    return run_fn(
+        ["uv", "pip", "install", "--python", python, "--no-deps", *args],
+        capture_output=True,
+        text=True,
+    )
+
+
+def _tail(result: subprocess.CompletedProcess[str], limit: int = 6) -> str:
+    text = result.stderr.strip() or result.stdout.strip()
+    lines = [line for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[-limit:])
+
+
+def install_editable(
+    python: str,
+    name: str,
+    checkout: Path,
+    *,
+    reinstall: bool,
+    run_fn: RunFn = subprocess.run,
+) -> InstallOutcome:
+    reinstall_flags = ["--reinstall-package", name] if reinstall else []
+    args = [*reinstall_flags, "-e", str(checkout)]
+    result = _uv_install(python, args, run_fn=run_fn)
+    source = f"editable checkout at {checkout}"
+    if result.returncode != 0:
+        return InstallOutcome(ok=False, source=source, detail=_tail(result))
+    return InstallOutcome(ok=True, source=source)
+
+
+def install_from_pypi(
+    python: str,
+    raw: str,
+    name: str,
+    *,
+    reinstall: bool,
+    run_fn: RunFn = subprocess.run,
+) -> InstallOutcome:
+    args = (["--reinstall-package", name] if reinstall else []) + [raw]
+    result = _uv_install(python, args, run_fn=run_fn)
+    if result.returncode == 0:
+        return InstallOutcome(ok=True, source="PyPI")
+    not_found = _NOT_FOUND_MARKER in result.stderr
+    return InstallOutcome(
+        ok=False, source="PyPI", detail=_tail(result), not_found=not_found
+    )
+
+
+def install_from_git(
+    python: str,
+    name: str,
+    *,
+    reinstall: bool,
+    run_fn: RunFn = subprocess.run,
+) -> InstallOutcome:
+    from sase.plugins.catalog import SASE_PLUGIN_ORG
+
+    url = f"git+https://github.com/{SASE_PLUGIN_ORG}/{name}@master"
+    args = (["--reinstall-package", name] if reinstall else []) + [url]
+    result = _uv_install(python, args, run_fn=run_fn)
+    if result.returncode != 0:
+        return InstallOutcome(ok=False, source=url, detail=_tail(result))
+    return InstallOutcome(ok=True, source=url)
+
+
+def install_requirement(
+    plan: RequirementPlan,
+    python: str,
+    *,
+    reinstall: bool,
+    run_fn: RunFn = subprocess.run,
+) -> InstallOutcome:
+    """Install *plan* from its checkout, else PyPI, else the sase-org git repo."""
+    if plan.checkout is not None:
+        return install_editable(
+            python, plan.name, plan.checkout, reinstall=reinstall, run_fn=run_fn
+        )
+    outcome = install_from_pypi(
+        python, plan.raw, plan.name, reinstall=reinstall, run_fn=run_fn
+    )
+    if outcome.ok or not outcome.not_found:
+        return outcome
+    print(
+        f"[setup] {plan.name} is not on PyPI yet; installing from the sase-org "
+        "git repository (see sase-p3.15 phase 3 to retire this fallback).",
+        file=sys.stderr,
+    )
+    return install_from_git(python, plan.name, reinstall=reinstall, run_fn=run_fn)
+
+
+def verify_import(
+    python: str, module: str, *, run_fn: RunFn = subprocess.run
+) -> str | None:
+    """Import *module* in a fresh *python* subprocess; None on success.
+
+    A fresh subprocess is required, not an in-process ``importlib.import_module``:
+    an editable install just wrote a ``.pth`` file that only ``site`` processes at
+    interpreter start, so re-importing in this already-running process could
+    misreport success or failure independent of what a real invocation sees.
+    """
+    result = run_fn(
+        [python, "-c", f"import {module}"], capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        return None
+    return _tail(result)
+
+
+def build_plan(raw: str, linked_names: frozenset[str]) -> RequirementPlan:
+    requirement = Requirement(raw)
+    name = requirement.name
+    return RequirementPlan(
+        raw=raw,
+        name=name,
+        module=import_module_name(name),
+        checkout=linked_checkout_dir(name),
+        is_linked=name in linked_names,
+    )
+
+
+def failure_message(plan: RequirementPlan, attempts: list[InstallOutcome]) -> str:
+    lines = [f"error: could not satisfy required plugin `{plan.raw}`."]
+    for outcome in attempts:
+        lines.append(f"  - {outcome.source}: {outcome.detail or 'failed'}")
+    if plan.is_linked:
+        lines.append(
+            f'Run `sase repo open {plan.name} -r "install plugins.required"` to '
+            "materialize a linked checkout, then rerun `just install`."
+        )
+    else:
+        lines.append(
+            f"Run `uv pip install --python {sys.executable} '{plan.raw}'` once it "
+            f"is published, or confirm the sase-org/{plan.name} git repository "
+            "exists and is reachable."
+        )
+    return "\n".join(lines)
+
+
+def ensure_requirement(
+    plan: RequirementPlan, python: str, *, run_fn: RunFn = subprocess.run
+) -> str | None:
+    """Install and verify *plan*. Returns an error message, or None on success."""
+    attempts: list[InstallOutcome] = []
+
+    if plan.checkout is not None:
+        print(
+            f"[setup] Installing required plugin {plan.name} from {plan.checkout}.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"[setup] Installing required plugin {plan.raw}.",
+            file=sys.stderr,
+        )
+
+    outcome = install_requirement(plan, python, reinstall=False, run_fn=run_fn)
+    attempts.append(outcome)
+    if not outcome.ok:
+        return failure_message(plan, attempts)
+
+    error = verify_import(python, plan.module, run_fn=run_fn)
+    if error is None:
+        return None
+
+    print(
+        f"[setup] {plan.name} installed from {outcome.source} but "
+        f"`import {plan.module}` failed; forcing a reinstall.",
+        file=sys.stderr,
+    )
+    repair = install_requirement(plan, python, reinstall=True, run_fn=run_fn)
+    attempts.append(repair)
+    if not repair.ok:
+        return failure_message(plan, attempts)
+
+    error = verify_import(python, plan.module, run_fn=run_fn)
+    if error is not None:
+        attempts.append(
+            InstallOutcome(
+                ok=False,
+                source=repair.source,
+                detail=f"`import {plan.module}` still fails: {error}",
+            )
+        )
+        return failure_message(plan, attempts)
+
+    return None
+
+
+def main() -> int:
+    from sase.plugins.required import (
+        load_project_required_plugins_config,
+        required_plugin_requirement_strings,
+    )
+
+    config, _config_path, load_error = load_project_required_plugins_config(REPO_ROOT)
+    if load_error is not None:
+        print(
+            f"[setup] error: could not read plugins.required: {load_error}",
+            file=sys.stderr,
+        )
+        return 1
+
+    requirements = required_plugin_requirement_strings(config)
+    if not requirements:
+        return 0
+
+    linked_names = linked_repo_names(config)
+    python = sys.executable
+
+    for raw in requirements:
+        plan = build_plan(raw, linked_names)
+        error = ensure_requirement(plan, python)
+        if error is not None:
+            print(error, file=sys.stderr)
+            return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

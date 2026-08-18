@@ -472,6 +472,23 @@ def required_plugin_distribution_names(
     return frozenset(requirement.normalized_name for requirement in requirements)
 
 
+# symvision: tools/setup_required_plugins
+def required_plugin_requirement_strings(
+    config: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    """Return raw PEP 508 ``plugins.required`` strings, in declared order.
+
+    Unlike :func:`required_plugin_distribution_names`, this keeps each entry's
+    version specifier so callers (the install path) can drive `uv` off the
+    same requirement the doctor check enforces. Parse errors stay out of the
+    result; callers that need diagnostics should use
+    :func:`resolve_required_plugins` instead.
+    """
+
+    requirements, _issues = _parse_required_entries(config)
+    return tuple(requirement.raw for requirement in requirements)
+
+
 def load_project_required_plugins_config(
     root: Path,
 ) -> tuple[Mapping[str, Any] | None, Path | None, str | None]:
@@ -510,5 +527,6 @@ __all__ = [
     "missing_required_plugin_message",
     "required_plugin_blockers",
     "required_plugin_distribution_names",
+    "required_plugin_requirement_strings",
     "resolve_required_plugins",
 ]

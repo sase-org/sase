@@ -41,11 +41,6 @@ workspace_sase_github_dir := "sase/repos/linked/sase-github"
 fallback_sase_github_dir := if path_exists(workspace_sase_github_dir) == "true" { workspace_sase_github_dir } else { "../sase-github" }
 sase_github_dir := env_var_or_default("SASE_GITHUB_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_GITHUB_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_GITHUB_DIR", fallback_sase_github_dir)))
 
-# Same lookup for the research-artifacts plugin that sase/sase.yml requires.
-workspace_sase_research_artifacts_dir := "sase/repos/linked/sase-research-artifacts"
-fallback_sase_research_artifacts_dir := if path_exists(workspace_sase_research_artifacts_dir) == "true" { workspace_sase_research_artifacts_dir } else { "../sase-research-artifacts" }
-sase_research_artifacts_dir := env_var_or_default("SASE_RESEARCH_ARTIFACTS_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_RESEARCH_ARTIFACTS_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_RESEARCH_ARTIFACTS_DIR", fallback_sase_research_artifacts_dir)))
-
 # Dev installs build sase_core_rs from the local checkout or install the
 # SASE_CORE_WHEEL supplied by CI, so the published sase-core-rs version window
 # in pyproject.toml must not constrain (or downgrade) that build during
@@ -178,25 +173,14 @@ install: _venv
     uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev]"
     @just --set venv_dir "{{ venv_dir }}" _setup-required-plugins
 
-# Install this project's plugins.required into the active venv.
-# --no-deps avoids a plugin pyproject pulling a published sase pin over the
-# editable checkout. Prefer a linked/sibling source tree when one exists.
+# Install this project's plugins.required into the active venv, verified.
+# Reads plugins.required from sase/sase.yml (not a hard-coded name list) and
+# resolves each entry from a linked/sibling checkout, PyPI, or (only when PyPI
+# does not carry the distribution) the public sase-org git repo, then imports
+# it in the target interpreter to catch a dangling or stale install that uv's
+# already-satisfied fast path would otherwise let slide. See its docstring.
 _setup-required-plugins:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    install_one() {
-        local name="$1"
-        local dir="$2"
-        if [ -f "${dir}/pyproject.toml" ]; then
-            printf "[setup] Installing required plugin %s from %s.\n" "${name}" "${dir}"
-            uv pip install --python {{ venv_bin }}/python --no-deps -e "${dir}"
-        else
-            printf "[setup] Installing required plugin %s from PyPI.\n" "${name}"
-            uv pip install --python {{ venv_bin }}/python --no-deps "${name}"
-        fi
-    }
-    install_one sase-github "{{ sase_github_dir }}"
-    install_one sase-research-artifacts "{{ sase_research_artifacts_dir }}"
+    {{ venv_bin }}/python tools/setup_required_plugins
 
 # Install in editable mode with dev and visual-test dependencies.
 install-visual: _venv

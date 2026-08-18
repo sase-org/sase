@@ -65,8 +65,15 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # split by test domain. The two added paths redistribute the same 25 validator
 # tests rather than expanding contract membership. The whole 43-entry set
 # measured 26.1 s under the command above, still inside the 30 s serial budget.
-_MANIFEST_ENTRY_BUDGET = 43
-_MEASURED_SERIAL_COST = "26.1 serial seconds across 43 entries"
+#
+# Re-curated to 44 on 2026-08-18 (sase-p3.15.1) for
+# `test_setup_required_plugins_tool.py`, the guard for `tools/setup_required_plugins`.
+# Like the other `tools/` script guards already in this set, the script is not a node
+# in the import graph, so a change that touches only it contributes no seeds and the
+# contract set is the only thing that would catch a regression. The whole 44-entry set
+# measured 27.8 s under the command above, still inside the 30 s serial budget.
+_MANIFEST_ENTRY_BUDGET = 44
+_MEASURED_SERIAL_COST = "27.8 serial seconds across 44 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

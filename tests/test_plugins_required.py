@@ -15,6 +15,7 @@ from sase.plugins.required import (
     missing_required_plugin_message,
     required_plugin_blockers,
     required_plugin_distribution_names,
+    required_plugin_requirement_strings,
     resolve_required_plugins,
 )
 from sase.project_management import load_local_config
@@ -39,6 +40,15 @@ def test_required_plugin_distribution_names_normalizes_and_skips_invalid() -> No
     )
     assert names == frozenset({"sase-github", "sase-research-artifacts"})
     assert required_plugin_distribution_names({}) == frozenset()
+
+
+def test_required_plugin_requirement_strings_keeps_version_specifiers() -> None:
+    assert required_plugin_requirement_strings(
+        _config(
+            ["sase-github>=0.2.5", "sase-research-artifacts", "not a requirement!!!"]
+        )
+    ) == ("sase-github>=0.2.5", "sase-research-artifacts")
+    assert required_plugin_requirement_strings({}) == ()
 
 
 def test_plugin_install_command_names_the_distribution() -> None:
@@ -229,4 +239,7 @@ def test_project_sase_yml_required_covers_its_use_prefixes() -> None:
     required = {item.normalized_name for item in report.requirements}
     assert prefixes <= required
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert raw["plugins"]["required"] == ["sase-github", "sase-research-artifacts"]
+    assert raw["plugins"]["required"] == [
+        "sase-github>=0.2.5",
+        "sase-research-artifacts",
+    ]
