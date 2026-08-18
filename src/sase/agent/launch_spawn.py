@@ -303,6 +303,38 @@ def spawn_agent_subprocess(
     resolved_project_name = project_name or (
         "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
     )
+    planned_agent_name_for_occupant = (extra_env or {}).get(
+        "SASE_AGENT_PLANNED_NAME"
+    ) or None
+
+    def _record_workspace_occupant(
+        *, pid: int, workspace_num: int, artifacts_timestamp: str
+    ) -> None:
+        # Skip the primary checkout / deferred placeholder (#0, legacy #1):
+        # markers and occupant records are only meaningful for managed,
+        # claim-backed checkouts (see write_marker's identical exemption).
+        if workspace_num <= 1:
+            return
+        # Best-effort: written at the same funnel that owns the RUNNING-field
+        # claim/transfer, so a live occupant record always names the current
+        # legitimate holder by the time any destructive prep checks it.
+        from sase.workspace_provider.occupant import (
+            new_occupant_record,
+            write_occupant_record,
+        )
+
+        write_occupant_record(
+            workspace_dir,
+            new_occupant_record(
+                pid=pid,
+                workflow=workflow_name,
+                project=resolved_project_name,
+                workspace_num=workspace_num,
+                artifacts_timestamp=artifacts_timestamp,
+                agent_name=planned_agent_name_for_occupant,
+                cl_name=cl_name,
+            ),
+        )
 
     def _claim_spawned_child(pid: int) -> bool:
         # Claim workspace so agent appears in Agents tab while running.
@@ -354,6 +386,11 @@ def spawn_agent_subprocess(
                         f"{result.error or 'unknown reason'}",
                         workspace_num=claim_num,
                     )
+            _record_workspace_occupant(
+                pid=pid,
+                workspace_num=claim_num,
+                artifacts_timestamp=artifacts_timestamp,
+            )
         else:
             # Ensure home project directory and file exist
             from sase.ace.patch.project_spec_path import (

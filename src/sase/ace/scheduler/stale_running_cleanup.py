@@ -4,7 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
-from sase.running_field import WorkspaceClaim, get_claimed_workspaces, release_workspace
+from sase.running_field import (
+    WorkspaceClaim,
+    get_claimed_workspaces,
+    get_workspace_directory_for_num,
+    release_workspace,
+)
+from sase.workspace_provider.occupant import clear_occupant_record
 
 from ..hooks.processes import is_process_running
 
@@ -112,6 +118,7 @@ def cleanup_stale_running_entries(
                 claim.cl_name,
                 caller_tag="stale-cleanup",
             )
+            _clear_stale_occupant_record(project_file, claim.workspace_num)
             released_count += 1
 
             if log_fn:
@@ -124,6 +131,20 @@ def cleanup_stale_running_entries(
                 )
 
     return released_count
+
+
+def _clear_stale_occupant_record(project_file: str, workspace_num: int) -> None:
+    """Best-effort clear of a stale claim's checkout occupant marker."""
+    if workspace_num <= 1:
+        return
+    try:
+        project_name = Path(project_file).parent.name
+        workspace_dir, _ = get_workspace_directory_for_num(
+            workspace_num, project_name, clean=False
+        )
+    except Exception:
+        return
+    clear_occupant_record(workspace_dir)
 
 
 def _get_all_project_files() -> list[str]:

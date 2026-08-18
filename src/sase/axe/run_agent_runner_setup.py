@@ -67,6 +67,40 @@ def _without_hidden_sidecars(
     return LinkedRepoResolution(visible, resolution.warnings)
 
 
+def _guard_workspace_not_occupied(
+    *,
+    checkout_dir: str,
+    project_file: str,
+    workspace_num: int,
+    project_name: str,
+    workflow_name: str,
+    artifacts_timestamp: str | None,
+) -> None:
+    """Refuse to destructively prepare *checkout_dir* if another live agent
+    holds it.
+
+    Raises ``WorkspaceOccupiedError`` (a ``RuntimeError``) on conflict,
+    which flows into the runner's normal failure/done-marker path like any
+    other setup exception.
+    """
+    from sase.core.occupancy_guard import (
+        OccupancyCaller,
+        ensure_workspace_not_occupied,
+    )
+
+    ensure_workspace_not_occupied(
+        checkout_dir,
+        project_file=project_file,
+        caller=OccupancyCaller(
+            pid=os.getpid(),
+            workspace_num=workspace_num,
+            project=project_name,
+            workflow=workflow_name,
+            artifacts_timestamp=artifacts_timestamp,
+        ),
+    )
+
+
 def prepare_workspace_if_needed(
     *,
     workspace_dir: str,
@@ -76,6 +110,9 @@ def prepare_workspace_if_needed(
     project_name: str,
     is_home_mode: bool,
     retry_handoff: object | None,
+    project_file: str = "",
+    workflow_name: str = "",
+    artifacts_timestamp: str | None = None,
 ) -> frozenset[str]:
     """Prepare a non-home workspace unless this runner must preserve it."""
     if not update_target or is_home_mode:
@@ -88,6 +125,15 @@ def prepare_workspace_if_needed(
         )
         print()
         return frozenset()
+
+    _guard_workspace_not_occupied(
+        checkout_dir=workspace_dir,
+        project_file=project_file,
+        workspace_num=workspace_num,
+        project_name=project_name,
+        workflow_name=workflow_name,
+        artifacts_timestamp=artifacts_timestamp,
+    )
 
     print("=== Preparing Workspace ===")
     if not prepare_workspace(
@@ -109,6 +155,12 @@ def prepare_linked_repo_workspaces_if_needed(
     resolution: "LinkedRepoResolution",
     cl_name: str,
     fresh_sidecar_paths: frozenset[str] = frozenset(),
+    primary_workspace_dir: str = "",
+    workspace_num: int = 0,
+    project_name: str = "",
+    project_file: str = "",
+    workflow_name: str = "",
+    artifacts_timestamp: str | None = None,
 ) -> None:
     """Materialize and prepare host-scoped linked repo workspaces for a launch."""
     resolution = _without_hidden_sidecars(resolution)
@@ -154,6 +206,16 @@ def prepare_linked_repo_workspaces_if_needed(
         if sidecar_was_missing:
             print(f"Using freshly cloned sidecar {name}: {workspace_dir}")
             continue
+        # Linked-repo checkouts share their parent workspace's claim and
+        # occupant record — there is no separate per-repo claim to check.
+        _guard_workspace_not_occupied(
+            checkout_dir=primary_workspace_dir,
+            project_file=project_file,
+            workspace_num=workspace_num,
+            project_name=project_name,
+            workflow_name=workflow_name,
+            artifacts_timestamp=artifacts_timestamp,
+        )
         print(f"Preparing linked repo {name}: {workspace_dir}")
         if not prepare_workspace(
             workspace_dir,

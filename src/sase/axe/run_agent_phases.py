@@ -145,6 +145,23 @@ def claim_deferred_workspace(
             materialize=False,
         ),
     )
+    if workspace_num > 1:
+        from sase.workspace_provider.occupant import (
+            new_occupant_record,
+            write_occupant_record,
+        )
+
+        write_occupant_record(
+            workspace_dir,
+            new_occupant_record(
+                pid=os.getpid(),
+                workflow=workflow_name,
+                project=project_name,
+                workspace_num=workspace_num,
+                artifacts_timestamp=artifacts_timestamp,
+                cl_name=cl_name,
+            ),
+        )
     print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
     return workspace_num, workspace_dir
 

@@ -1,3 +1,5 @@
+import os
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,7 +9,20 @@ from sase.axe.run_agent_runner_setup import (
     capture_sdd_base_sha,
     prepare_workspace_if_needed,
 )
+from sase.core.occupancy_guard import WorkspaceOccupiedError
+from sase.running_field import WorkspaceClaim
 from sase.sdd.store import SddStore
+from sase.workspace_provider.occupant import new_occupant_record, write_occupant_record
+
+
+def _project_file_with_claim(tmp_path: Path, claim: WorkspaceClaim) -> str:
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
+        f.write("# Test Project\n\nRUNNING:\n")
+        f.write(claim.to_line() + "\n")
+        f.write("NAME: Test Feature\nDESCRIPTION:\n  Test\nSTATUS: Ready\n")
+        return f.name
 
 
 def test_prepare_workspace_if_needed_invokes_strict_sdd_clone_after_clear() -> None:
@@ -96,6 +111,101 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
     prepare.assert_not_called()
     clear_repos.assert_not_called()
     ensure_clone.assert_not_called()
+
+
+def test_prepare_workspace_if_needed_refuses_when_checkout_is_occupied(
+    tmp_path: Path,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    other_pid = os.getppid()
+    project_file = _project_file_with_claim(
+        tmp_path,
+        WorkspaceClaim(
+            workspace_num=7,
+            workflow="ace(run)-other",
+            cl_name="feature",
+            pid=other_pid,
+            artifacts_timestamp="ts",
+        ),
+    )
+    write_occupant_record(
+        str(workspace_dir),
+        new_occupant_record(
+            pid=other_pid,
+            workflow="ace(run)-other",
+            project="sase",
+            workspace_num=7,
+            agent_name="rival-agent",
+        ),
+    )
+
+    with (
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        pytest.raises(WorkspaceOccupiedError, match="rival-agent"),
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir=str(workspace_dir),
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            project_file=project_file,
+            workflow_name="ace(run)-mine",
+            artifacts_timestamp="mine-ts",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    prepare.assert_not_called()
+
+
+def test_prepare_workspace_if_needed_proceeds_when_occupant_is_caller(
+    tmp_path: Path,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    project_file = _project_file_with_claim(
+        tmp_path,
+        WorkspaceClaim(
+            workspace_num=7,
+            workflow="ace(run)-mine",
+            cl_name="feature",
+            pid=os.getpid(),
+            artifacts_timestamp="mine-ts",
+        ),
+    )
+    write_occupant_record(
+        str(workspace_dir),
+        new_occupant_record(
+            pid=os.getpid(),
+            workflow="ace(run)-mine",
+            project="sase",
+            workspace_num=7,
+        ),
+    )
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace", return_value=True
+        ) as prepare,
+        patch("sase.sdd.store.ensure_workspace_sdd_clone"),
+        patch("sase.linked_repos.clear_workspace_repos"),
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir=str(workspace_dir),
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            project_file=project_file,
+            workflow_name="ace(run)-mine",
+            artifacts_timestamp="mine-ts",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    prepare.assert_called_once()
 
 
 def test_capture_sdd_base_sha_for_sidecar_repo(tmp_path: Path) -> None:

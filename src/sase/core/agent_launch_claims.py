@@ -67,3 +67,30 @@ def allocate_and_claim_workspace_from_content(
             agent_launch_wire_to_json_dict(request),
         )
     )
+
+
+def decide_workspace_occupant_conflict(
+    occupant: dict[str, Any] | None,
+    caller: dict[str, Any],
+    occupant_pid_alive: bool,
+    running_claim: dict[str, Any] | None,
+    running_claim_pid_alive: bool,
+) -> dict[str, Any]:
+    """Decide whether a destructive workspace prep may proceed via Rust.
+
+    ``occupant`` and ``running_claim`` are the wire-dict shapes of
+    ``OccupantRecordWire`` / ``WorkspaceClaimWire`` (or ``None`` when
+    absent); ``caller`` is an ``OccupancyCallerWire`` dict. Liveness of the
+    occupant's and running claim's pids is computed by the caller.
+    """
+
+    binding = require_rust_binding("decide_workspace_occupant_conflict")
+    return dict(
+        binding(
+            occupant,
+            caller,
+            occupant_pid_alive,
+            running_claim,
+            running_claim_pid_alive,
+        )
+    )

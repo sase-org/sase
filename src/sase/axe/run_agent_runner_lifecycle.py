@@ -213,6 +213,7 @@ def finalize_runner_shutdown(
                     )
             else:
                 from sase.running_field import release_workspace
+                from sase.workspace_provider.occupant import clear_occupant_record
 
                 release_workspace(
                     context.project_file,
@@ -221,6 +222,7 @@ def finalize_runner_shutdown(
                     context.cl_name,
                     caller_tag="agent-finalize",
                 )
+                clear_occupant_record(state.workspace_dir)
                 print("Workspace released")
         except Exception as e:
             print(f"Error updating workspace claim: {e}", file=sys.stderr)

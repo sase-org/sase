@@ -238,6 +238,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     install_workspace_release_sigterm_handler(
         project_file=state.project_file,
         workspace_num=state.workspace_num,
+        workspace_dir=state.workspace_dir,
         workflow_name=state.workflow_name,
         cl_name=state.cl_name,
         is_home_mode=state.is_home_mode,

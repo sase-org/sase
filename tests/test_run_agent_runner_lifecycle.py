@@ -202,6 +202,61 @@ def test_finalize_releases_failed_workspace_without_visible_notification(
     send_notification.assert_not_called()
 
 
+def test_finalize_clears_occupant_record_on_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A released workspace must no longer name this agent as occupant."""
+    from sase.workspace_provider.occupant import (
+        new_occupant_record,
+        read_occupant_record,
+        write_occupant_record,
+    )
+
+    monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
+    workspace_dir = tmp_path / "workspace-17"
+    workspace_dir.mkdir()
+    write_occupant_record(
+        str(workspace_dir),
+        new_occupant_record(pid=1234, workflow="run", project="sase", workspace_num=17),
+    )
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=False,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=False),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with (
+        patch("sase.running_field.hold_workspace_claim"),
+        patch("sase.running_field.release_workspace"),
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                workspace_dir=str(workspace_dir),
+                error_summary=None,
+                suppress_completion_notification=False,
+            ),
+            deps=deps,
+        )
+
+    assert read_occupant_record(str(workspace_dir)) is None
+
+
 def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
     context = RunnerShutdownContext(
         project_file="/tmp/project.sase",

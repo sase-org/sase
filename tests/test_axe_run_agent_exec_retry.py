@@ -417,6 +417,82 @@ class TestHandleWorkflowErrorPreserveWorkspace:
         mock_prepare.assert_called_once()
 
 
+class TestHandleWorkflowErrorOccupancyGuard:
+    """A retry re-prep must refuse rather than clobber a live occupant."""
+
+    def test_refuses_when_workspace_is_occupied_by_another_live_agent(
+        self, tmp_path: Path
+    ) -> None:
+        import dataclasses
+        import tempfile
+
+        from sase.core.occupancy_guard import WorkspaceOccupiedError
+        from sase.running_field import WorkspaceClaim
+        from sase.workspace_provider.occupant import (
+            new_occupant_record,
+            write_occupant_record,
+        )
+
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        other_pid = os.getppid()
+        with tempfile.NamedTemporaryFile(
+            dir=tmp_path, mode="w", delete=False, suffix=".sase"
+        ) as f:
+            f.write("# Test Project\n\nRUNNING:\n")
+            f.write(
+                WorkspaceClaim(
+                    workspace_num=7,
+                    workflow="ace(run)-other",
+                    cl_name="test-cl",
+                    pid=other_pid,
+                    artifacts_timestamp="ts",
+                ).to_line()
+                + "\n"
+            )
+            f.write("NAME: Test Feature\nDESCRIPTION:\n  Test\nSTATUS: Ready\n")
+            project_file = f.name
+        write_occupant_record(
+            str(workspace_dir),
+            new_occupant_record(
+                pid=other_pid,
+                workflow="ace(run)-other",
+                project="sase",
+                workspace_num=7,
+                agent_name="rival-agent",
+            ),
+        )
+
+        ctx = dataclasses.replace(
+            _make_ctx_with_update_target(tmp_path),
+            workspace_dir=str(workspace_dir),
+            workspace_num=7,
+            project_file=project_file,
+            workflow_name="ace(run)-mine",
+        )
+        state = _make_state("Do the work.")
+        tracker = RetryTracker(
+            retry_cfg=ProviderRetryConfig(
+                max_retries=2,
+                error_patterns=["rate limit"],
+                wait_times=[0],
+            )
+        )
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep", MagicMock()),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.prepare_workspace",
+                MagicMock(),
+            ) as mock_prepare,
+            pytest.raises(WorkspaceOccupiedError, match="rival-agent"),
+        ):
+            handle_workflow_error(RuntimeError("hit a rate limit"), tracker, ctx, state)
+
+        mock_prepare.assert_not_called()
+
+
 class TestHandleWorkflowErrorUsageLimitPrecedence:
     """A usage-limit failure takes precedence over ordinary retry classification.
 

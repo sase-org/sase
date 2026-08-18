@@ -67,6 +67,40 @@ class TestDeferredWorkspacePreparation:
         claim_next.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))
 
+    def test_claim_deferred_workspace_writes_occupant_record(
+        self, tmp_path: Path
+    ) -> None:
+        """A successful deferred claim must name itself as the occupant."""
+        from sase.axe.run_agent_phases import claim_deferred_workspace
+        from sase.workspace_provider.occupant import read_occupant_record
+
+        workspace_dir = tmp_path / "ws7"
+
+        with (
+            patch("sase.running_field.release_workspace"),
+            patch("sase.running_field.claim_next_axe_workspace", return_value=7),
+            patch(
+                "sase.running_field.get_workspace_directory_for_num",
+                return_value=(str(workspace_dir), None),
+            ),
+            patch("sase.axe.run_agent_phases.os.chdir"),
+        ):
+            claim_deferred_workspace(
+                str(tmp_path / "project.sase"),
+                "test-project",
+                "test-workflow",
+                "test-cl",
+                "20260316_120000",
+            )
+
+        occupant = read_occupant_record(str(workspace_dir))
+        assert occupant is not None
+        assert occupant.pid == os.getpid()
+        assert occupant.workspace_num == 7
+        assert occupant.workflow == "test-workflow"
+        assert occupant.project == "test-project"
+        assert occupant.cl_name == "test-cl"
+
     def test_claim_deferred_workspace_sets_active_project_dir_on_chdir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

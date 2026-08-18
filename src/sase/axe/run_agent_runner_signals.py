@@ -31,6 +31,7 @@ def install_workspace_release_sigterm_handler(
     workflow_name: str,
     cl_name: str,
     is_home_mode: bool,
+    workspace_dir: str = "",
     artifacts_dir_getter: Callable[[], str | None] | None = None,
 ) -> None:
     """Release this runner's workspace claim promptly on SIGTERM."""
@@ -58,8 +59,10 @@ def install_workspace_release_sigterm_handler(
         ):
             return
         from sase.running_field import release_workspace
+        from sase.workspace_provider.occupant import clear_occupant_record
 
         release_workspace(project_file, workspace_num, workflow_name, cl_name)
+        clear_occupant_record(workspace_dir)
 
     install_sigterm_handler("agent", soft=True, on_signal=_release_workspace_claim)
 

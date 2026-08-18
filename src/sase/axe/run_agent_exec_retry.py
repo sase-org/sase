@@ -39,6 +39,32 @@ logger = logging.getLogger(__name__)
 _RetryAction = Literal["continue", "break", "raise"]
 
 
+def _guard_retry_prep_not_occupied(ctx: AgentExecContext) -> None:
+    """Refuse a retry re-prep if this checkout is no longer this agent's.
+
+    Same in-process guard used at initial launch prep — see
+    ``run_agent_runner_setup._guard_workspace_not_occupied``. This is
+    ordinarily a same-pid self-check, but it also catches the case where
+    something else clobbered the claim mid-run.
+    """
+    from sase.core.occupancy_guard import (
+        OccupancyCaller,
+        ensure_workspace_not_occupied,
+    )
+
+    ensure_workspace_not_occupied(
+        ctx.workspace_dir,
+        project_file=ctx.project_file,
+        caller=OccupancyCaller(
+            pid=os.getpid(),
+            workspace_num=ctx.workspace_num,
+            project=ctx.project_name,
+            workflow=ctx.workflow_name,
+            artifacts_timestamp=ctx.artifacts_timestamp,
+        ),
+    )
+
+
 @dataclass
 class RetryTracker:
     """Mutable retry state across loop iterations."""
@@ -320,6 +346,7 @@ def handle_workflow_error(
             and not ctx.is_home_mode
             and not active_retry_cfg.preserve_workspace
         ):
+            _guard_retry_prep_not_occupied(ctx)
             prepare_workspace(
                 ctx.workspace_dir,
                 ctx.cl_name,
@@ -367,6 +394,7 @@ def handle_workflow_error(
             and not ctx.is_home_mode
             and not active_retry_cfg.preserve_workspace
         ):
+            _guard_retry_prep_not_occupied(ctx)
             prepare_workspace(
                 ctx.workspace_dir,
                 ctx.cl_name,

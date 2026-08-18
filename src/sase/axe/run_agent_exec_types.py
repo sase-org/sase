@@ -34,6 +34,7 @@ class AgentExecContext:
     multi_agent_prompt_file: str | None = None
     wait_chats: list[str] = field(default_factory=list)
     output_variable_namespaces: dict[str, Any] = field(default_factory=dict)
+    workflow_name: str = ""
 
 
 @dataclass

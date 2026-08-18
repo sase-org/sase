@@ -71,6 +71,9 @@ def _prepare_workspace_and_repos(
         cl_name=state.cl_name,
         update_target=state.update_target,
         project_name=state.project_name,
+        project_file=state.project_file,
+        workflow_name=state.workflow_name,
+        artifacts_timestamp=state.artifacts_timestamp,
         is_home_mode=state.is_home_mode,
         retry_handoff=bootstrap.retry_handoff,
     )
@@ -94,6 +97,12 @@ def _prepare_workspace_and_repos(
         prepare_linked_repo_workspaces_if_needed(
             resolution=linked_repo_resolution,
             cl_name=state.cl_name,
+            primary_workspace_dir=state.workspace_dir,
+            workspace_num=state.workspace_num,
+            project_name=state.project_name,
+            project_file=state.project_file,
+            workflow_name=state.workflow_name,
+            artifacts_timestamp=state.artifacts_timestamp,
             fresh_sidecar_paths=fresh_sidecar_paths,
         )
 
@@ -180,6 +189,7 @@ def _build_exec_context(
         output_path=state.output_path,
         workspace_num=state.workspace_num,
         timestamp=state.timestamp,
+        workflow_name=state.workflow_name,
         update_target=state.update_target,
         project_name=state.project_name,
         is_home_mode=state.is_home_mode,
