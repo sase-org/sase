@@ -594,7 +594,9 @@ Every surface that shows a bead's status also shows its reopen history:
   primary fact.
 - The `TaskTriage` gate preview — the highest-value surface, since **Launch** is its
   default decision — renders one `> [!WARNING]` callout per record above the
-  description, newest first, and adds the `↺N` badge to its notification note.
+  description, newest first, and adds the `↺N` badge to its notification note. A typed
+  task's preview also includes a `**Task type:**` fact in the metadata block above
+  `## Description`, for example `**Task type:** ≈ \`flake\``.
 
 ### Dependencies
 
@@ -649,12 +651,16 @@ or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
 unregistered type. A sub-threshold task is withheld from triage without any change to
 its stored status, and a gate already raised for a task that later falls below the bar
 is canceled and its notification dismissed. The compact `[bead] <bead-id> — <title>`
-notification lands in the `Beads` panel, and the filing agent travels with the gate into
-its Markdown preview when that attribution is known. The chop records pending gates in
-lane state so later ticks do not repeat the notification, cancels a pending gate if the
-bead leaves `ready` or falls below the `+1` bar, defers re-gating while that task bead's
-detached launch is still in flight, and uses a new deterministic generation if the same
-task becomes ready again or its pending gate needs a presentation-contract refresh.
+notification lands in the `Beads` panel. Every gate whose subject is a typed task bead
+also carries a type chip (glyph + slug) and a second note with the compact typed facts
+line. The Markdown preview's metadata block includes a **Task type** fact such as
+`**Task type:** ≈ flake` next to **Size** and **References**. The filing agent travels
+with the gate into its Markdown preview when that attribution is known. The chop records
+pending gates in lane state so later ticks do not repeat the notification, cancels a
+pending gate if the bead leaves `ready` or falls below the `+1` bar, defers re-gating
+while that task bead's detached launch is still in flight, and uses a new deterministic
+generation if the same task becomes ready again or its pending gate needs a
+presentation-contract refresh.
 
 The hourly `bead_stale_cleanup` chop is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once

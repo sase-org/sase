@@ -16,6 +16,7 @@ from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.bead.model import TaskPlusOneEvidence
 from sase.notification_gates.models import GateOption
+from sase.notification_gates.presentation import normalize_gate_chip
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notifications import Notification
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -32,6 +33,33 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
+_BUG_CHIP = {
+    "gate_chip_glyph": "⨯",
+    "gate_chip_label": "bug",
+    "gate_chip_color": "#FF5F5F",
+}
+_CI_CHIP = {
+    "gate_chip_glyph": "⚙",
+    "gate_chip_label": "ci",
+    "gate_chip_color": "#D7D700",
+}
+_FEATURE_CHIP = {
+    "gate_chip_glyph": "✦",
+    "gate_chip_label": "feature",
+    "gate_chip_color": "#5FD75F",
+}
+_FLAKE_CHIP = {
+    "gate_chip_glyph": "≈",
+    "gate_chip_label": "flake",
+    "gate_chip_color": "#00D7D7",
+}
+_MEMORY_CHIP = {
+    "gate_chip_glyph": "▤",
+    "gate_chip_label": "memory",
+    "gate_chip_color": "#8787FF",
+}
+
+
 def _task_notification(
     notification_id: str,
     timestamp: str,
@@ -39,17 +67,25 @@ def _task_notification(
     title: str,
     *,
     origin_agent: str | None = "bbugyi200.athena.claude_coder",
+    chip: dict[str, str] | None = None,
+    typed_note: str | None = None,
+    extra_tags: tuple[str, ...] = (),
 ) -> Notification:
     action_data = {"panel": "beads"}
     if origin_agent is not None:
         action_data["origin_agent"] = origin_agent
+    if chip is not None:
+        action_data.update(chip)
+    notes = [f"{bead_id} — {title}"]
+    if typed_note is not None:
+        notes.append(typed_note)
     return Notification(
         id=notification_id,
         timestamp=timestamp,
         sender="bead",
         icon="✦",
-        notes=[f"{bead_id} — {title}"],
-        tags=["bead", "task"],
+        notes=notes,
+        tags=["bead", "task", *extra_tags],
         action="TaskTriage",
         action_data=action_data,
     )
@@ -73,24 +109,36 @@ def _notifications() -> list[Notification]:
                 "fails only under full parallel suite"
             ),
             origin_agent=None,
+            chip=_FLAKE_CHIP,
+            typed_note="Flaky test · Test node ID: tests/x.py::test_y",
+            extra_tags=("flake",),
         ),
         _task_notification(
             "visual-task-with-filer",
             "2026-08-01T09:43:00-04:00",
             "sase-cy",
             "Add mobile bridge retry badge",
+            chip=_BUG_CHIP,
+            typed_note="Bug · Location: src/sase/integrations/mobile.py",
+            extra_tags=("bug",),
         ),
         _task_notification(
             "visual-task-docs",
             "2026-08-01T09:42:00-04:00",
             "sase-cz",
             "Update task triage task page",
+            chip=_FEATURE_CHIP,
+            typed_note="Feature · Proposal: document the type chip",
+            extra_tags=("feature",),
         ),
         _task_notification(
             "visual-task-cleanup",
             "2026-08-01T09:41:00-04:00",
             "sase-da",
             "Restore pending gate cleanup",
+            chip=_CI_CHIP,
+            typed_note="CI failure · Test node ID: tests/test_cleanup.py",
+            extra_tags=("ci",),
         ),
         Notification(
             id="visual-error",
@@ -158,6 +206,7 @@ async def test_notification_beads_tab_png_snapshot(
         assert_page_svg_contains(page, "Beads")
         assert_page_svg_contains(page, "[bead]")
         assert_page_svg_contains(page, "sase-cx")
+        assert_page_svg_contains(page, "≈")
         ace_png_visual.assert_page_png(
             page,
             "notification_beads_tab_120x40",
@@ -184,10 +233,96 @@ async def test_notification_filed_by_png_snapshot(
         assert_page_svg_contains(page, "sase-cy")
         assert_page_svg_contains(page, "filed by")
         assert_page_svg_contains(page, "@claude_coder")
+        assert_page_svg_contains(page, "⨯")
         ace_png_visual.assert_page_png(
             page,
             "notification_filed_by_120x40",
             title="ACE notification Filed by meta line",
+        )
+
+
+def _typed_palette_notifications() -> list[Notification]:
+    return [
+        _task_notification(
+            "visual-typed-bug",
+            "2026-08-01T09:44:00-04:00",
+            "sase-bug",
+            "Ctrl+] hint is wrong",
+            chip=_BUG_CHIP,
+            typed_note="Bug · Location: src/sase/ace/help.py",
+            extra_tags=("bug",),
+        ),
+        _task_notification(
+            "visual-typed-ci",
+            "2026-08-01T09:43:00-04:00",
+            "sase-ci",
+            "lint job failed on main",
+            chip=_CI_CHIP,
+            typed_note="CI failure · Test node ID: tests/test_lint.py::test_ruff",
+            extra_tags=("ci",),
+        ),
+        _task_notification(
+            "visual-typed-feature",
+            "2026-08-01T09:42:00-04:00",
+            "sase-feat",
+            "Add typed gate chips",
+            chip=_FEATURE_CHIP,
+            typed_note="Feature · Proposal: show the type on every gate surface",
+            extra_tags=("feature",),
+        ),
+        _task_notification(
+            "visual-typed-flake",
+            "2026-08-01T09:41:00-04:00",
+            "sase-flake",
+            "test_x flakes in parallel",
+            chip=_FLAKE_CHIP,
+            typed_note="Flaky test · Test node ID: tests/x.py::test_y",
+            extra_tags=("flake",),
+        ),
+        _task_notification(
+            "visual-typed-memory",
+            "2026-08-01T09:40:00-04:00",
+            "sase-mem",
+            "Update generated skills note",
+            chip=_MEMORY_CHIP,
+            typed_note="Memory · Path: sase/memory/generated_skills.md",
+            extra_tags=("memory",),
+        ),
+    ]
+
+
+def _typed_palette_modal() -> NotificationModal:
+    modal = NotificationModal(_typed_palette_notifications())
+    modal._active_notification_tag = "beads"
+    return modal
+
+
+async def test_notification_beads_typed_gates_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_modal_determinism(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(_typed_palette_modal())
+        await page.expect_modal("NotificationModal")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Beads")
+        assert_page_svg_contains(page, "sase-bug")
+        assert_page_svg_contains(page, "⨯")
+        assert_page_svg_contains(page, "⚙")
+        assert_page_svg_contains(page, "≈")
+        assert_page_svg_contains(page, "▤")
+        ace_png_visual.assert_page_png(
+            page,
+            "notification_beads_typed_gates_120x40",
+            title="ACE notification Beads typed-gate palette",
         )
 
 
@@ -217,6 +352,14 @@ def _task_triage_modal_data() -> CustomGateModalData:
                 refs=("research:202608/flaky-renderer.md",),
             ),
         ),
+        task_type="flake",
+        task_type_fields={
+            "node_id": (
+                "tests/ace/tui/visual/test_ace_png_snapshots.py::"
+                "test_agents_slow_tool_calls_fold_levels_png_snapshots"
+            ),
+            "evidence": "fails only under the full parallel suite",
+        },
         producer={"agent": "bead_task_triage"},
     )
     adapter = adapter_for_kind("task_triage")
@@ -254,6 +397,7 @@ def _task_triage_modal_data() -> CustomGateModalData:
         ),
         origin_agent=str(presentation["origin_agent"]),
         gate_title=str(presentation["title"]),
+        chip=normalize_gate_chip(presentation.get("chip")),
     )
 
 
@@ -286,6 +430,9 @@ async def test_custom_gate_task_triage_png_snapshot(
         assert_page_svg_contains(page, "Launch")
         assert_page_svg_contains(page, "Close")
         assert_page_svg_contains(page, "Snooze")
+        assert_page_svg_contains(page, "≈")
+        assert_page_svg_contains(page, "flake")
+        assert_page_svg_contains(page, "Task type")
         ace_png_visual.assert_page_png(
             page,
             "custom_gate_task_triage_120x40",

@@ -326,10 +326,16 @@ notifications dismissed automatically on the first `checks`-lane tick. Run
 `sase axe chop run bead_task_triage` to force that tick immediately. To see the matching
 cleanup gate without waiting for the hour, run `sase axe chop run bead_stale_cleanup`.
 
-Its compact notification note is `<bead-id> — <title>` and it lands in the `Beads` panel
-while retaining the `bead` and `task` tags. The filing agent, when known, appears as a
-**Filed by** line in the Markdown preview above the task's description and notes; the
-notes section is present only when the bead has notes. The gate offers three branches:
+Its compact notification note (`notes[0]`) is `<bead-id> — <title>` and it lands in the
+`Beads` panel while retaining the `bead` and `task` tags. Every gate whose subject is a
+typed task bead also declares a [`presentation.chip`](#command-backed-interaction-gates)
+— the type glyph, the slug as its label, and the type accent — plus a second note
+(`notes[1]`) with the compact typed facts line, for example
+`Flaky test · Test node ID: tests/x.py::test_y · Evidence: 3/50 under -n 8`. The type
+slug is appended as a display tag. An untyped bead's notification stays a single note
+with no chip. The filing agent, when known, appears as a **Filed by** line in the
+Markdown preview above the task's description and notes; the notes section is present
+only when the bead has notes. The gate offers three branches:
 
 - **Launch** is the default. It submits an unattributed proc that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker
@@ -368,9 +374,13 @@ it with `presentation.panel: "beads"` and `presentation.snooze_until` set to the
 wake time, so the notification is muted with that deadline in one atomic step — there is
 no window where it appears unread. It sits in the `Snoozed` tab for the whole deferral
 (see [Tabs and Ordering](#tabs-and-ordering)) and resurfaces in the `Beads` panel tab,
-unmuted, exactly like any other snooze expiry once its wake time arrives. The preview
-shows who snoozed the bead, when, why, the wake time, and `+1` progress toward any
-configured target.
+unmuted, exactly like any other snooze expiry once its wake time arrives. The compact
+notification note (`notes[0]`) is still `<bead-id> — <title>`. Every gate whose subject
+is a typed task bead also declares the same
+[`presentation.chip`](#command-backed-interaction-gates) and typed facts `notes[1]` as a
+typed triage gate; an untyped bead stays a single note with no chip. The preview shows
+who snoozed the bead, when, why, the wake time, and `+1` progress toward any configured
+target.
 
 The gate offers three branches:
 
@@ -806,6 +816,7 @@ rejection branch:
     "panel": "deployments",
     "panel_icon": "🚀",
     "origin_agent": "maintenance.agent",
+    "chip": { "glyph": "🚀", "label": "deploy", "color": "#5FD75F" },
     "preview": "preview.md"
   },
   "query": "(restart AND verify) OR reject",
@@ -878,6 +889,21 @@ it is stripped, limited to 128 characters, and stored without consulting the loc
 registry so remote agent names remain valid. All three fields are projected into
 notification `action_data` as `panel`, `panel_icon`, and `origin_agent`; producers may
 not write those protected keys directly through `presentation.action_data`.
+
+`presentation.chip` is an optional subject chip: an object with `glyph` (required, one
+grapheme), `label` (required, stripped, non-empty, single-line, free of control
+characters, and at most 32 characters), and `color` (optional `#RRGGBB`). A declared
+chip is projected into notification `action_data` as `gate_chip_glyph`,
+`gate_chip_label`, and `gate_chip_color`; a colourless chip writes only the first two
+keys. Those keys are protected: producers may not write them through
+`presentation.action_data`. Every render surface — the ACE toast, the notification row,
+the gate detail pane, the review modal, and the mobile bridge row — reads the stored
+keys only and never resolves a task type. A stored colour that is not `#RRGGBB` is
+ignored so the glyph and label still render; a missing glyph or label drops the chip.
+
+Every gate whose subject is a typed task bead declares this chip from the presentation
+frozen at gate creation (the type glyph, the slug as the label, and the type accent) and
+adds the compact typed facts line as `notes[1]`. An untyped bead declares no chip.
 
 `presentation.title` is the one-line decision headline shown in the notification panel's
 [gate detail pane](#gate-detail-pane) and in the custom gate review modal's header. It
