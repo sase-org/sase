@@ -98,6 +98,9 @@ def _match_substring_property(prop: PropertyMatch, agent: Agent) -> bool:
     if prop.key == "cl":
         return needle in (agent.cl_name or "").lower()
     if prop.key == "project":
+        display = (getattr(agent, "project_display_name", None) or "").lower()
+        if display and needle in display:
+            return True
         return needle in _project_basename(agent).lower()
     if prop.key == "name":
         # agent_name first, fall back to display_name (the property table).

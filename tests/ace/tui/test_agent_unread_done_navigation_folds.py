@@ -283,6 +283,31 @@ def test_unread_jump_does_not_reveal_member_hidden_by_inner_family_fold() -> Non
     assert app.refilter_calls == 0
 
 
+def test_unread_jump_respects_seeded_project_query() -> None:
+    """A seeded ``project:`` query hides unread targets from other projects."""
+    target = make_agent(
+        name="research.done",
+        status="DONE",
+        raw_suffix="target",
+        stop_time=datetime(2026, 7, 18, 12, 0, 0),
+    )
+    target.agent_name = "research.done"
+    target.agent_clan = "research"
+    target.agent_clan_generation = "generation"
+    target.project_file = "/tmp/projects/gh_acme__widgets/widgets.sase"
+    target.project_display_name = "widgets"
+    app = _CollapsedClanUnreadJumpApp(project_clan_tree([target]))
+    app._agent_search_query = "project:sase"
+    app._agent_query_cache = None
+    app._agent_query_parse_error = None
+    app._agent_content_search_index = None
+    app._unread_completed_agent_ids.add(target.identity)
+
+    assert not app._has_unread_completed_agent()
+    assert not app._jump_to_next_unread_done_agent()
+    assert app.refilter_calls == 0
+
+
 def test_unread_jump_respects_active_search_filter() -> None:
     target = make_agent(
         name="research.done",

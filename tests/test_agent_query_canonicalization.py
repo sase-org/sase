@@ -83,3 +83,16 @@ def test_bare_word_canonicalizes_to_quoted() -> None:
 
 def test_implicit_and_canonicalizes_to_explicit() -> None:
     assert to_canonical_string(parse_agent_query("a b")) == '"a" AND "b"'
+
+
+def test_property_value_with_spaces_canonicalizes_quoted() -> None:
+    from sase.ace.agent_query import PropertyMatch, project_query_term
+
+    assert (
+        to_canonical_string(PropertyMatch("project", "Internal Tools"))
+        == 'project:"Internal Tools"'
+    )
+    assert project_query_term("Internal Tools") == 'project:"Internal Tools"'
+    assert project_query_term("sase") == "project:sase"
+    parsed = parse_agent_query(project_query_term("Internal Tools"))
+    assert to_canonical_string(parsed) == 'project:"Internal Tools"'

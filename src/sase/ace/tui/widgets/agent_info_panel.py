@@ -43,6 +43,7 @@ class AgentInfoPanel(Static):
         self._view_mode: str = ""
         self._grouping_mode: str = ""
         self._search_query: str = ""
+        self._search_query_seeded: bool = False
         self._loading: bool = False
         self._registry = load_keymap_registry({})
 
@@ -151,13 +152,16 @@ class AgentInfoPanel(Static):
         self._grouping_mode = label
         self._update_display()
 
-    def update_search_query(self, query: str) -> None:
+    def update_search_query(self, query: str, *, seeded: bool = False) -> None:
         """Update the search query filter display.
 
         Args:
             query: The current search query string. Empty string hides the filter.
+            seeded: When True, the query is the unedited current-project seed
+                and a dim ``seeded`` tag is shown beside it.
         """
         self._search_query = query
+        self._search_query_seeded = seeded
         self._update_display()
 
     def update_state(
@@ -179,6 +183,7 @@ class AgentInfoPanel(Static):
         view_mode: str,
         grouping_mode: str,
         search_query: str,
+        search_query_seeded: bool = False,
         runner_limit: int = 0,
         runner_queue_count: int = 0,
     ) -> None:
@@ -206,6 +211,7 @@ class AgentInfoPanel(Static):
             view_mode,
             grouping_mode,
             search_query,
+            search_query_seeded,
         )
         old_stable = (
             self._position,
@@ -224,6 +230,7 @@ class AgentInfoPanel(Static):
             self._view_mode,
             self._grouping_mode,
             self._search_query,
+            self._search_query_seeded,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
@@ -245,6 +252,7 @@ class AgentInfoPanel(Static):
             self._view_mode,
             self._grouping_mode,
             self._search_query,
+            self._search_query_seeded,
         ) = new_stable
         self._countdown = countdown
         self._interval = interval
@@ -369,6 +377,8 @@ class AgentInfoPanel(Static):
             text.append("   ")
             text.append("filter: ", style="dim italic")
             text.append(self._search_query, style="bold #FFD700")
+            if self._search_query_seeded:
+                text.append(" seeded", style="dim")
         if self._view_mode:
             text.append("   ")
             text.append("[", style="dim")

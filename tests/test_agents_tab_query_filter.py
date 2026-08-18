@@ -24,6 +24,7 @@ class _FilterActionApp(AgentFilterActionsMixin):
     def __init__(self) -> None:
         self.hide_non_run_agents = False
         self._agent_search_query = ""
+        self._agent_search_query_seeded = True
         self.refilter_calls = 0
         self.async_refresh_calls: list[str] = []
         self.pushed_callback: Any = None
@@ -59,6 +60,7 @@ def test_agent_search_query_refilters_without_async_agents_refresh() -> None:
     app.pushed_callback("status:done")
 
     assert app._agent_search_query == "status:done"
+    assert app._agent_search_query_seeded is False
     assert app.refilter_calls == 1
     assert app.async_refresh_calls == []
 

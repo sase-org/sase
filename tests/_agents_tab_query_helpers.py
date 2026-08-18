@@ -68,6 +68,8 @@ class FakeAgentApp(AgentLoadingMixin):
             tuple[AgentType, str, str | None], str | None
         ] = {}
         self._agent_search_query = query
+        self._agent_search_query_seeded = False
+        self._agent_search_query_seed_attempted = False
         self._agent_content_search_cache = _FakeContentCache()  # type: ignore[assignment]
         self._agent_content_search_index = None
         self._agent_content_search_source_generation = 0

@@ -109,6 +109,16 @@ def test_project_uses_basename_not_full_path() -> None:
     assert not _eval("project:tmp", agent)
 
 
+def test_project_matches_display_name_when_it_differs_from_key() -> None:
+    agent = _make_agent(
+        project_file="/tmp/projects/gh_acme__internal-tools/internal-tools.sase",
+        project_display_name="Internal Tools",
+    )
+    assert _eval('project:"Internal Tools"', agent)
+    assert _eval("project:internal", agent)
+    assert not _eval("project:sase", agent)
+
+
 def test_name_matches_agent_name_first() -> None:
     agent = _make_agent(agent_name="my_agent_name", cl_name="cl_abc")
     assert _eval("name:my_agent", agent)

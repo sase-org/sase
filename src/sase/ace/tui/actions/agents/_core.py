@@ -126,6 +126,8 @@ class AgentsMixinCore(
 
     # Agent search/filter query
     _agent_search_query: str
+    _agent_search_query_seeded: bool
+    _agent_search_query_seed_attempted: bool
 
     # Debouncer for j/k navigation detail panel updates
     _agent_detail_debouncer: DetailPanelDebouncer

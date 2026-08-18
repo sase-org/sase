@@ -89,6 +89,8 @@ class AgentLoadingStateMixin:
 
     # Agent search/filter query
     _agent_search_query: str
+    _agent_search_query_seeded: bool
+    _agent_search_query_seed_attempted: bool
     _agent_content_search_cache: AgentContentSearchCache
     _agent_content_search_index: AgentContentSearchIndex | None
     _agent_content_search_source_generation: int

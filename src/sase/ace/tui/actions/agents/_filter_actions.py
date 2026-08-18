@@ -8,6 +8,7 @@ class AgentFilterActionsMixin:
 
     hide_non_run_agents: bool
     _agent_search_query: str
+    _agent_search_query_seeded: bool
 
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
@@ -28,6 +29,7 @@ class AgentFilterActionsMixin:
             if new_query is None:
                 return
             self._agent_search_query = new_query
+            self._agent_search_query_seeded = False
             self._refilter_agents()  # type: ignore[attr-defined]
 
         def _validator(value: str) -> None:

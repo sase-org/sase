@@ -25,6 +25,7 @@ from ._loading_disk_support import (
     compute_external_dismissal_merge as _compute_external_dismissal_merge,
     ExternalDismissalMergeResult as _ExternalDismissalMergeResult,
 )
+from ._search_query_seed import AgentSearchQuerySeedMixin
 from ._refresh_trace import (
     classify_agents_data_cost,
     normalize_refresh_source,
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_loader import AgentLoadState
+    from sase.current_project import CurrentProject
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +52,30 @@ def _resolve_load_agents_from_disk_with_state() -> Callable[..., Any]:
     return cast(Callable[..., Any], loader)
 
 
-class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
+def _disk_load_with_optional_current_project(
+    dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    *,
+    resolve_current: bool,
+    **load_kwargs: Any,
+) -> tuple[Any, CurrentProject | None]:
+    """Load agents and, when requested, resolve the current project.
+
+    Both reads belong on a worker thread: ``resolve_current_project``
+    parses the MRU JSON plus project records and the Patch cache.
+    """
+    load_result = _resolve_load_agents_from_disk_with_state()(
+        dismissed_snapshot,
+        **load_kwargs,
+    )
+    current: CurrentProject | None = None
+    if resolve_current:
+        from sase.current_project import resolve_current_project
+
+        current = resolve_current_project()
+    return load_result, current
+
+
+class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
 
     def _load_agents(
@@ -87,8 +112,10 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         self._merge_external_dismissals()
         dismissed_snapshot = set(self._dismissed_agents)
         patch_snapshot = find_all_patches_cached(include_states="all")
-        load_result = _resolve_load_agents_from_disk_with_state()(
+        need_seed = self._should_seed_agent_search_query()
+        load_result, current_project = _disk_load_with_optional_current_project(
             dismissed_snapshot,
+            resolve_current=need_seed,
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
@@ -97,6 +124,8 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             index_freshness=index_freshness,
             source=source,
         )
+        if need_seed:
+            self._maybe_seed_agent_search_query(current_project)
         dismissed_bundle_snapshot = set(
             getattr(load_result, "dismissed_bundle_identities", set())
         )
@@ -180,9 +209,11 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             include_states="all",
         )
         disk_start = time.perf_counter()
-        load_result = await asyncio.to_thread(
-            _resolve_load_agents_from_disk_with_state(),
+        need_seed = self._should_seed_agent_search_query()
+        load_result, current_project = await asyncio.to_thread(
+            _disk_load_with_optional_current_project,
             dismissed_snapshot,
+            resolve_current=need_seed,
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=not getattr(
@@ -191,6 +222,8 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             index_freshness=index_freshness,
             source=source,
         )
+        if need_seed:
+            self._maybe_seed_agent_search_query(current_project)
         dismissed_bundle_snapshot = set(
             getattr(load_result, "dismissed_bundle_identities", set())
         )

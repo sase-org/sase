@@ -26,6 +26,7 @@ class AgentInfoDisplayMixin:
     _agents: list[Agent]
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_search_query: str
+    _agent_search_query_seeded: bool
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
     _countdown_remaining: int
@@ -169,6 +170,9 @@ class AgentInfoDisplayMixin:
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
                 search_query=self._agent_search_query,
+                search_query_seeded=bool(
+                    getattr(self, "_agent_search_query_seeded", False)
+                ),
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
                 runner_limit=runner_capacity.effective_limit,
@@ -198,6 +202,9 @@ class AgentInfoDisplayMixin:
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval
         )
-        agent_info_panel.update_search_query(self._agent_search_query)
+        agent_info_panel.update_search_query(
+            self._agent_search_query,
+            seeded=bool(getattr(self, "_agent_search_query_seeded", False)),
+        )
         agent_info_panel.update_grouping_mode(grouping_mode)
         agent_info_panel.update_view_mode(view_mode)

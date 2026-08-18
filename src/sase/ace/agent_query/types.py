@@ -94,6 +94,28 @@ def _format_duration(seconds: int) -> str:
     return f"{seconds}s"
 
 
+def _is_bare_property_value(value: str) -> bool:
+    """Return whether *value* can appear unquoted after ``key:``."""
+    return bool(value) and all(ch.isalnum() or ch in "_.-" for ch in value)
+
+
+def _format_property_value(value: str) -> str:
+    """Render a property value, quoting when the tokenizer requires it."""
+    if _is_bare_property_value(value):
+        return value
+    return f'"{_escape_string_value(value)}"'
+
+
+def project_query_term(display_name: str) -> str:
+    """Build a ``project:`` term through the agent-query grammar.
+
+    Uses the configured project display name (``project_query_name``
+    semantics), not a directory key, and quotes values the tokenizer
+    cannot accept as a bare word.
+    """
+    return to_canonical_string(PropertyMatch(key="project", value=display_name))
+
+
 def to_canonical_string(expr: QueryExpr) -> str:
     """Convert a query expression to its canonical string representation.
 
@@ -112,7 +134,7 @@ def to_canonical_string(expr: QueryExpr) -> str:
         return f'"{escaped}"'
 
     if isinstance(expr, PropertyMatch):
-        return f"{expr.key}:{expr.value}"
+        return f"{expr.key}:{_format_property_value(expr.value)}"
 
     if isinstance(expr, DurationCompare):
         return f"{expr.key}{expr.op}{_format_duration(expr.seconds)}"

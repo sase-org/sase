@@ -67,6 +67,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     _agents: list[Agent]
     _fold_counts: dict[str, tuple[int, int]]
     _agent_search_query: str
+    _agent_search_query_seeded: bool
 
     # Debouncer for j/k navigation detail panel updates
     _agent_detail_debouncer: DetailPanelDebouncer
