@@ -40,6 +40,8 @@ class _DiscardedDirtyWorkEvidence:
     before_head: str
     after_head: str
     reason: str
+    new_commits: tuple[tuple[str, str, str | None], ...] = ()
+    ledger_entry_count: int | None = None
 
 
 def progress_fingerprint(
@@ -118,6 +120,12 @@ def discarded_dirty_work_evidence(
                     before_head=before_head,
                     after_head=after_head,
                     reason="missing_agent_provenance",
+                    new_commits=_new_commit_summaries(
+                        repo.path, before_head, after_head
+                    ),
+                    ledger_entry_count=(
+                        len(ledger) if artifacts_dir is not None else None
+                    ),
                 )
             )
     return tuple(evidence)
@@ -252,10 +260,44 @@ def discarded_dirty_work_message(
             else "no newly reachable commit was attributed to this agent"
         )
         lines.append(f"- {item.repo_name}: {item.repo_path} ({reason})")
+        lines.append(f"  - HEAD: {item.before_head} -> {item.after_head}")
+        if item.reason == "head_not_advanced":
+            lines.append(
+                "  - next step: no commit exists anywhere in this repo's history "
+                "for the changed files below — this agent's work was reset or "
+                "never committed; recover or redo the changes."
+            )
+        else:
+            if item.new_commits:
+                lines.append("  - newly reachable commits:")
+                for sha, subject, agent in item.new_commits:
+                    attribution = (
+                        f"SASE_AGENT={agent}" if agent else "no SASE_AGENT tag"
+                    )
+                    lines.append(f"    - {sha} {subject!r} ({attribution})")
+            else:
+                lines.append("  - newly reachable commits: none")
+            lines.append(
+                "  - run-owned ledger: "
+                + (
+                    f"{item.ledger_entry_count} entrie(s) checked, no match"
+                    if item.ledger_entry_count is not None
+                    else "not consulted (no artifacts directory)"
+                )
+            )
+            lines.append(
+                "  - next step: if a commit above is this agent's own work, its "
+                "SASE_AGENT= footer was lost or never written — resolve any "
+                "conflict and re-run `sase stitch create --resume` to re-stamp "
+                "provenance. If it belongs to a different agent in a shared "
+                "clone, this may be a concurrent-agent race rather than a "
+                "discard."
+            )
+        lines.append(f"  - changed files ({len(item.changed_files)}):")
         for path in item.changed_files[:20]:
-            lines.append(f"  - {path}")
+            lines.append(f"    - {path}")
         if len(item.changed_files) > 20:
-            lines.append(f"  - ... ({len(item.changed_files)} total)")
+            lines.append(f"    - ... ({len(item.changed_files)} total)")
     return "\n".join(lines)
 
 
@@ -299,6 +341,28 @@ def _new_commit_records(
         else f"{before_head}..{after_head}"
     )
     return git_log_commit_records(repo_dir, revision)
+
+
+def _new_commit_summaries(
+    repo_dir: str,
+    before_head: str,
+    after_head: str,
+) -> tuple[tuple[str, str, str | None], ...]:
+    """Summarize newly reachable commits for an operator-facing diagnostic.
+
+    Each entry is ``(short_sha, subject, agent_or_none)`` — the agent is
+    whatever well-formed ``SASE_AGENT=``/``AGENT=`` tag the commit carries (if
+    any), independent of whether it matched the current run.
+    """
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
+
+    summaries: list[tuple[str, str, str | None]] = []
+    for sha, _tree, message in _new_commit_records(repo_dir, before_head, after_head):
+        subject_lines = message.splitlines()
+        subject = subject_lines[0] if subject_lines else ""
+        agent = parse_trailing_commit_tags(message).get("AGENT")
+        summaries.append((sha[:12], subject, agent))
+    return tuple(summaries)
 
 
 def _load_run_owned_commit_ledger(

@@ -228,6 +228,13 @@ def test_foreign_agent_commit_does_not_satisfy_clean_after_pass(
     message = str(exc_info.value)
     assert "dirty work vanished without an attributable commit" in message
     assert "no newly reachable commit was attributed to this agent" in message
+    # Operator-actionable diagnostics: which commit was found, who it was
+    # attributed to, whether the ledger was consulted, and what to do next.
+    assert "commit dirty file" in message
+    assert "SASE_AGENT=other-agent" in message
+    assert "run-owned ledger: 0 entrie(s) checked, no match" in message
+    assert "sase stitch create --resume" in message
+    assert "concurrent-agent race" in message
     result = read_result_json(artifacts_dir)
     assert result["status"] == "failed"
     assert result["reason"] == "dirty_work_discarded"

@@ -562,9 +562,14 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 3. Verify the commit at `HEAD` matches the subject line from the checkpointed message.
    If it doesn't, abort with `FAILED`; the user is expected to re-run
    `sase stitch create` from scratch rather than resume into a foreign commit.
-4. If dispatch was not already completed, call the provider's `vcs_finalize_commit` hook
-   to replay idempotent post-commit work (bead amend, push with retry), then checkpoint
-   dispatch completion.
+4. If dispatch was not already completed, re-stamp `HEAD`'s `SASE_*` provenance footer
+   (`SASE_AGENT`, `SASE_TYPE`, `SASE_BEAD`) when it is missing or stale compared to the
+   checkpointed payload, then call the provider's `vcs_finalize_commit` hook to replay
+   idempotent post-commit work (bead amend, push with retry), then checkpoint dispatch
+   completion. See [Discarded-Work Guard](#discarded-work-guard) below for why this
+   restamp matters: manual conflict resolution can rewrite the message body and drop the
+   footer even when the subject survives unchanged, and an unattributed commit is what
+   the discarded-work guard reads as a discard.
 5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
    checkpointed.
 6. Re-run the tracking steps (STITCHES entry append, Patch creation) using the
@@ -657,6 +662,59 @@ The result artifact records `reason: "auto_committed_done_plan_status"`.
 The obsolete provider-native commit hook scripts are no longer shipped. Active
 SASE-launched runs rely on the provider-neutral finalizer instead of runtime-specific
 commit hook configuration.
+
+### Discarded-Work Guard
+
+Each finalizer pass snapshots every dirty repo before and after the pass
+(`src/sase/llm_provider/commit_finalizer_git_progress.py`). A repo that was dirty before
+the pass and clean after it must be explained by an attributable commit — otherwise the
+finalizer refuses to treat the pass as successful and raises `status: "failed"`,
+`reason: "dirty_work_discarded"` instead of silently accepting work that may have been
+reset or claimed by someone else.
+
+A repo that went clean is attributable when **any** of these hold for a commit newly
+reachable between the before/after `HEAD`:
+
+1. It carries a `SASE_AGENT=` footer tag matching the current run (reads both the
+   current `SASE_AGENT=` and legacy `AGENT=` spellings).
+2. It carries the agents-sync auto-commit `TYPE`.
+3. Its SHA — or, if a rebase moved it, its tree — matches an entry in this run's own
+   commit ledger (`commit_results.json` in the agent artifacts directory). This covers a
+   footer lost to a rewrite the run itself performed, independent of whether the message
+   still carries it.
+
+When none of those hold, evidence distinguishes two reasons:
+
+- `head_not_advanced` — `HEAD` never moved. No commit exists anywhere in the repo's
+  history for the changed files; this is the guard's true-positive case (a reset, stash,
+  or `git checkout --` of the agent's own work).
+- `missing_agent_provenance` — `HEAD` moved, but no newly reachable commit could be
+  attributed by any of the three signals above.
+
+For a machine-wide shared clone this agent does not exclusively own (`kind == "sdd"`
+machine-managed store state, or `kind == "external"` — a repo merely opened via
+`/sase_repo`), `missing_agent_provenance` is narrowed further before it is reported:
+
+- A newly reachable commit carrying a well-formed `SASE_AGENT=` tag naming a
+  **different** agent is a concurrent-agent race, not a discard — some other agent
+  published into the shared clone while this pass ran.
+- A clone that is ahead of its configured upstream (a push still pending, not destroyed
+  work) is treated as published rather than discarded; genuinely unpublished bead state
+  is reported separately through
+  [Publication Verification](beads.md#publication-verification) instead of this guard.
+
+This relaxation lives behind the `commit_finalizer_shared_clone_exempt` feature flag
+(default on). Disabling it restores the strict, pre-flag classification: only
+`kind == "sdd"` state not ahead of its upstream is exempt, and a foreign agent's footer
+alone is never a reason to exempt a repo. `kind == "main"` and `kind == "sibling"` repos
+— this agent's own workspace — are never exempt under either classification; nobody else
+should be committing there, so an unattributed change there is always a discard.
+
+The failure message names the repo, whether `HEAD` advanced, the newly reachable commits
+found and who (if anyone) they were attributed to, whether a run-owned ledger entry was
+found, and the concrete next step — resolve any conflict and re-run
+`sase stitch create --resume` to re-stamp provenance if the commit is this agent's own,
+or note the race if it belongs to a different agent in a shared clone.
 
 ## Diff Storage
 
