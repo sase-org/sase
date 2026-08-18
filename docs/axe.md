@@ -236,12 +236,13 @@ a chop failure ever leaves the tick-driven hint unconsumed. Setting
 
 Lower-frequency status checks:
 
-| Chop                    | Description                                                  |
-| ----------------------- | ------------------------------------------------------------ |
-| `bead_task_triage`      | Reconcile the one pending gate each task or flag bead owns   |
-| `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
-| `pr_submitted_checks`   | Start PR submission status checks                            |
-| `stale_running_cleanup` | Backstop dead-process claim cleanup                          |
+| Chop                    | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `bead_task_triage`      | Reconcile the one pending gate each task or flag bead owns            |
+| `epic_resume`           | Raise one `EpicResume` gate per epic stalled by a failed phase (beta) |
+| `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins          |
+| `pr_submitted_checks`   | Start PR submission status checks                                     |
+| `stale_running_cleanup` | Backstop dead-process claim cleanup                                   |
 
 **A live task or flag bead has at most one pending gate**, and `bead_task_triage` is the
 single owner of that invariant. It scans enabled non-home projects for task beads whose
@@ -336,6 +337,23 @@ satisfied. Lane state holds the pending request, a generation counter, and a fin
 over the missing set, so a re-run does not duplicate a notification. Run
 `sase axe chop run plugins_required` to raise or refresh those gates without waiting for
 the next five-minute checks tick.
+
+The `epic_resume` chop is behind the `epic_resume_gate` beta
+[feature flag](configuration.md#feature_flags) and does nothing while that flag is off.
+When enabled, it scans enabled projects for epic agent clans (`clan_tribe == "epic"`),
+evaluating only each clan's newest generation, and detects a stall when at least one
+member's outcome is `failed`, no member is still live, and the newest failure's
+`finished_at` is at least [`bead.epic_resume.settle_seconds`](configuration.md#bead) old
+— a settle window that absorbs a handoff race or a fast retry instead of gating on it.
+An epic with an active resume launch already in flight is deferred rather than re-gated.
+Lane state keyed by `(project, epic_id)` carries a fingerprint over the failed-member
+roster and clan generation: an answered or dismissed stall's fingerprint is remembered
+so that exact failed-member set never gates again, and only a genuinely new failure or a
+newer clan generation produces a fresh fingerprint and re-gates. The pending gate is
+canceled the moment the epic resumes (a live member reappears in a newer generation) or
+its bead closes, and lane state for epics that no longer exist is pruned on every pass.
+Run `sase axe chop run epic_resume` to raise or refresh a gate without waiting for the
+next five-minute checks tick.
 
 ### external_mirror (15-minute interval)
 

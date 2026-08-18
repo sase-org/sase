@@ -80,16 +80,16 @@ fixed precedence, so the panel, the top-bar indicator, and the mobile snapshot a
 agree; see [Tags](#tags) below for that precedence in full. The tabs, in the panel's
 display order:
 
-| Tab       | Icon | Contents                                                                                                                                                                                                             |
-| --------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Gates`   | `⚑`  | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                                                                        |
-| Panel     | `◆`  | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel (`◈`), and woken `BeadSnooze`, due `FlagTriage`, and `BeadStaleCleanup` gates land there too. |
-| `Errors`  | `✖`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                                                                      |
-| `General` | `✉`  | Untagged, unmuted notifications with no other classification.                                                                                                                                                        |
-| `Done`    | `#`  | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                                                              |
-| Custom    | `#`  | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                                                              |
-| `Snoozed` | `☾`  | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                                                                  |
-| `Muted`   | `⊘`  | Muted notifications with no wake time.                                                                                                                                                                               |
+| Tab       | Icon | Contents                                                                                                                                                                                                                           |
+| --------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Gates`   | `⚑`  | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                                                                                      |
+| Panel     | `◆`  | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel (`◈`), and woken `BeadSnooze`, due `FlagTriage`, `BeadStaleCleanup`, and `EpicResume` gates land there too. |
+| `Errors`  | `✖`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                                                                                    |
+| `General` | `✉`  | Untagged, unmuted notifications with no other classification.                                                                                                                                                                      |
+| `Done`    | `#`  | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                                                                            |
+| Custom    | `#`  | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                                                                            |
+| `Snoozed` | `☾`  | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                                                                                |
+| `Muted`   | `⊘`  | Muted notifications with no wake time.                                                                                                                                                                                             |
 
 Each tab's icon resolves through the same chain as its color; see
 [Tab icons](#tab-icons) below.
@@ -286,7 +286,7 @@ and the intermediate post-approval handoff remain silent. Task triage, stale-cle
 questions, launch/custom/HITL gates, errors, agent completions, and ordinary
 notifications retain their arrival bell. Priority actions include `PlanApproval`,
 `EpicApproval`, `UserQuestion`, `LaunchApproval`, `TaskTriage`, `BeadSnooze`,
-`FlagTriage`, `BeadStaleCleanup`, and `JumpToMentorReview`.
+`FlagTriage`, `BeadStaleCleanup`, `EpicResume`, and `JumpToMentorReview`.
 
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every
 notification class, including a snoozed tale or epic review.
@@ -295,20 +295,20 @@ notification class, including a snoozed tale or epic review.
 
 The following events generate notifications:
 
-| Sender                         | Event                                                                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                |
-| `bead`                         | A task bead needs triage, a snoozed task woke, a due flag bead needs `FlagTriage`, or stale uncorroborated tasks need `BeadStaleCleanup` |
-| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                |
-| `launch`                       | A running agent requested a new agent launch for approval                                                                                |
-| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                           |
-| `hitl`                         | A workflow HITL step is waiting for user input                                                                                           |
-| `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                    |
-| `sync`                         | A sync operation completed for a Patch                                                                                                   |
-| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                        |
-| `file-hooks`                   | A configured per-file hook completed or failed                                                                                           |
-| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                 |
-| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                 |
+| Sender                         | Event                                                                                                                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                                                                           |
+| `bead`                         | A task bead needs triage, a snoozed task woke, a due flag bead needs `FlagTriage`, stale uncorroborated tasks need `BeadStaleCleanup`, or a failed phase agent stalled an epic (`EpicResume`, beta) |
+| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                                                                           |
+| `launch`                       | A running agent requested a new agent launch for approval                                                                                                                                           |
+| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                                                                      |
+| `hitl`                         | A workflow HITL step is waiting for user input                                                                                                                                                      |
+| `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                                                                               |
+| `sync`                         | A sync operation completed for a Patch                                                                                                                                                              |
+| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                                                                                   |
+| `file-hooks`                   | A configured per-file hook completed or failed                                                                                                                                                      |
+| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                            |
+| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                                                                            |
 
 ### Task Triage Notification
 
@@ -420,6 +420,27 @@ subset as `canceled`. Selecting nothing fails the command and leaves the gate pe
 The chop keeps at most one of these gates at a time and cancels it when the backlog
 drops below the bar. Run `sase axe chop run bead_stale_cleanup` to raise or refresh that
 gate without waiting for the next hourly housekeeping tick.
+
+### Stalled Epic Notification
+
+The five-minute `epic_resume` chop raises one human-only `EpicResume` gate for an epic
+agent clan that has a failed member, no live member, and whose newest failure has sat
+for at least [`bead.epic_resume.settle_seconds`](configuration.md#bead) — the same stall
+an owner used to notice by eye in ACE as a clan row like `(FAILED) [W8 F1] sase-p1`. It
+is behind the `epic_resume_gate` beta [feature flag](configuration.md#feature_flags) and
+does nothing while that flag is off. The notification lands in the `Beads` panel with
+`bead`, `epic`, and `resume` tags. Its preview names the epic and its title, lists each
+failed agent with its phase bead and finish time, counts the phases still waiting, and
+shows the exact `sase bead work <epic_id> --yes-to-all` command the option will run.
+
+The gate offers one branch, **Resume epic**, which submits that command as a detached
+leased proc, reusing an already in-flight resume instead of double-launching. Dismissing
+the notification declines the stall: the same failed-member set never gates again unless
+a genuinely new failure occurs or a newer clan generation appears. The chop cancels a
+pending gate once the epic resumes (a live member reappears) or closes, and defers
+gating entirely while a resume for that epic is already in flight. Run
+`sase axe chop run epic_resume` to raise or refresh that gate without waiting for the
+next five-minute checks tick.
 
 ### Required Plugin Notification
 
@@ -611,7 +632,7 @@ Each notification contains:
 | `notes`         | list[string] | Human-readable message lines                                                                                                                                                                                        |
 | `files`         | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                                                                |
 | `tags`          | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                                                             |
-| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational                   |
+| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `BeadStaleCleanup`, `EpicResume`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational     |
 | `action_data`   | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                                                               |
 | `read`          | bool         | Whether the notification has been read                                                                                                                                                                              |
 | `dismissed`     | bool         | Whether the notification has been dismissed                                                                                                                                                                         |
@@ -755,8 +776,9 @@ sase notify create -s my_sender --tag review --tag handoff < notification.json
 Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional
 `#RRGGBB` JSON `color` (see [Tab colors](#tab-colors)), and the JSON `silent` field. It
 rejects registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`,
-`BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`,
-`CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
+`BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `EpicResume`, `UserQuestion`,
+`LaunchApproval`, `CustomGate`, and `HITL`) because a raw row has no trusted command
+bundle.
 
 The first-class gate API reads a versioned gate specification from stdin:
 
@@ -1034,6 +1056,7 @@ map kinds to notification actions:
 | `task_triage`        | `TaskTriage`        | AXE's built-in `bead_task_triage` chop            |
 | `flag_triage`        | `FlagTriage`        | AXE's built-in `bead_task_triage` chop            |
 | `bead_stale_cleanup` | `BeadStaleCleanup`  | AXE's built-in `bead_stale_cleanup` chop          |
+| `epic_resume`        | `EpicResume`        | AXE's built-in `epic_resume` chop (beta)          |
 | `plugins_required`   | `PluginsRequired`   | AXE's built-in `plugins_required` chop            |
 | `question`           | `UserQuestion`      | `sase questions`                                  |
 | `launch`             | `LaunchApproval`    | Agent-initiated `sase launch request`             |

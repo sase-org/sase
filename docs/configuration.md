@@ -3123,6 +3123,8 @@ bead:
     min_plus_ones: 1 # +1 reports a ready task bead needs before it earns a TaskTriage gate
     stale_after_days: 7 # age at which a still-sub-threshold ready task bead is stale
     stale_cleanup_min_beads: 10 # stale beads required before bead_stale_cleanup gates
+  epic_resume:
+    settle_seconds: 120 # how long a newest clan-member failure must sit before epic_resume gates it
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
@@ -3132,6 +3134,7 @@ bead:
 | `bead.task_triage.min_plus_ones`           | int         | `1`     | `+1` reports a ready task bead needs before `bead_task_triage` raises its `TaskTriage` gate. Must be at least `0`; `0` restores the pre-threshold behavior of gating every ready task bead. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
 | `bead.task_triage.stale_after_days`        | int         | `7`     | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                              |
 | `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the chop does nothing. Must be at least `1`.                                                                                                                                                                                                                               |
+| `bead.epic_resume.settle_seconds`          | int         | `120`   | Seconds the newest clan-member failure must sit before the beta `epic_resume` chop treats the epic as stalled and eligible for an `EpicResume` gate. Guards against gating on a handoff race or a fast retry. Only takes effect once the `epic_resume_gate` [feature flag](#feature_flags) is enabled; see below.                                                                         |
 | `bead.push_after_commit`                   | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                  |
 
 Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
@@ -3141,9 +3144,24 @@ remains authoritative over both.
 See [`bead_task_triage`](axe.md#checks-5-minute-interval) for how the `task_triage`
 fields gate `TaskTriage` notifications,
 [Task Triage Notification](notifications.md#task-triage-notification) for the
-post-upgrade dismissal of already-raised sub-threshold gates, and
+post-upgrade dismissal of already-raised sub-threshold gates,
 [Discovered Follow-Up Capture and Triage](beads.md#discovered-follow-up-capture-and-triage)
-for the human-facing triage lifecycle.
+for the human-facing triage lifecycle, and
+[`epic_resume`](axe.md#checks-5-minute-interval) plus
+[Stalled Epic Notification](notifications.md#stalled-epic-notification) for how
+`settle_seconds` gates a stalled epic once the beta flag is on.
+
+The `epic_resume_gate` feature flag is off by default while the stall detector soaks
+against real epics. Enable the beta with:
+
+```bash
+sase flag show epic_resume_gate                        # inspect current resolution
+sase -f epic_resume_gate axe chop run epic_resume       # force one gated pass without editing config
+```
+
+or set `feature_flags.epic_resume_gate: true` in `sase.yml` to enable it durably for the
+running axe daemon; see [`feature_flags`](#feature_flags) below for the full resolution
+order.
 
 In Launch Control (`,m`), the `big epic starts at` row shows this effective threshold
 next to the two epic-lander rows. `e` or Enter opens a focused positive-integer editor,
