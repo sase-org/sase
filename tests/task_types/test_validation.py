@@ -47,7 +47,12 @@ def test_validate_task_type_spec_returns_stable_digest() -> None:
 
 def test_validate_task_type_spec_rejects_reserved_slug() -> None:
     with pytest.raises(Exception, match="reserved"):
-        validate_task_type_spec(_spec(task_type="flag"))
+        validate_task_type_spec(_spec(task_type="task"))
+
+
+def test_validate_task_type_spec_accepts_flag_slug() -> None:
+    digest = validate_task_type_spec(_spec(task_type="flag"))
+    assert len(digest) == 64
 
 
 def test_candidates_accepts_valid_spec_with_provenance() -> None:
