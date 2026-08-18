@@ -224,6 +224,12 @@ def _spec_text(value: object, key: str) -> str:
     return raw.strip() if isinstance(raw, str) else ""
 
 
+def plain_task_type_spec(value: Mapping[Any, Any]) -> dict[str, Any]:
+    """Return a JSON-ready copy of a task-type spec mapping."""
+
+    return _plain_mapping(value)
+
+
 def _plain_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, item in value.items():
@@ -243,6 +249,7 @@ def _plain_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
 __all__ = [
     "DEFAULT_TASK_TYPE_GLYPH",
     "TASK_TYPE_ACCENT_PALETTE",
+    "plain_task_type_spec",
     "resolve_task_type_presentation",
     "validate_task_type_candidates",
     "validate_task_type_spec",

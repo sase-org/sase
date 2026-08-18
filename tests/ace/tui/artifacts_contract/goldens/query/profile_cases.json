@@ -196,7 +196,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: assignee, bug, due, has, label, model, owner, project, since, size, status, tier, type, until) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: assignee, bug, due, has, label, model, owner, project, since, size, status, task_type, tier, type, until) (at position 0)"
         },
         "type:": {
           "position": 0,

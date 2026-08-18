@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.bead.model import Issue
+from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     POST_CLOSE_EVIDENCE_MARKER,
@@ -14,6 +15,23 @@ from sase.bead.reopen_presentation import (
     close_record_label,
     close_record_reopened_label,
 )
+
+
+def description_markdown(issue: Issue) -> list[str]:
+    """Render the stored description plus the appended task-type body."""
+
+    description = issue.description or ""
+    body = render_task_type_display_block(issue)
+    lines = ["## Description", ""]
+    if description:
+        lines.append(description)
+        if body:
+            lines.extend(["", TASK_TYPE_BODY_SEPARATOR, "", body])
+    elif body:
+        lines.append(body)
+    else:
+        lines.append("_No description._")
+    return lines
 
 
 def close_history_markdown(issue: Issue) -> list[str]:
@@ -74,6 +92,7 @@ def _inline_code(value: str) -> str:
 
 __all__ = [
     "close_history_markdown",
+    "description_markdown",
     "flag_markdown",
     "plus_one_evidence_markdown",
 ]

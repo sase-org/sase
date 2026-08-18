@@ -32,6 +32,7 @@ from sase.bead.snooze_presentation import (
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
+from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, PLAN_REFERENCE_PREFIX
 
 MAX_RENDERED_PROSE_CHARS = 10_000
@@ -112,10 +113,20 @@ def render_prose_sections(issue: Issue) -> list[str]:
     """Render bounded free-form prose without allowing structural injection."""
 
     lines: list[str] = []
-    for heading, value in (("Description", issue.description), ("Notes", issue.notes)):
-        if not value.strip():
-            continue
-        lines.extend(["", f"## {heading}", "", _bounded_prose(value)])
+    description = issue.description
+    body = render_task_type_display_block(issue)
+    if description.strip() or body:
+        lines.extend(["", "## Description"])
+        if description.strip():
+            lines.extend(["", _bounded_prose(description)])
+        if body:
+            if description.strip():
+                lines.extend(["", TASK_TYPE_BODY_SEPARATOR, ""])
+            else:
+                lines.append("")
+            lines.append(_bounded_prose(body))
+    if issue.notes.strip():
+        lines.extend(["", "## Notes", "", _bounded_prose(issue.notes)])
     return lines
 
 

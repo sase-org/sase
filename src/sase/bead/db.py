@@ -14,6 +14,7 @@ from sase.bead._db_codec import (
     plus_one_evidence_from_json,
     plus_one_evidence_json,
     snooze_json,
+    task_type_fields_json,
 )
 from sase.bead._db_migrations import run_migrations
 from sase.bead._db_rows import load_dependencies, row_to_issue, rows_to_issues
@@ -48,10 +49,11 @@ def create_issue(
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
         "description, notes, design, refs, plus_one_evidence, close_history, "
-        "snooze, flag, model, size, is_ready_to_work, "
+        "snooze, flag, model, size, task_type, task_type_fields, "
+        "is_ready_to_work, "
         "changespec_name, changespec_bug_id, external_ref) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?)",
+        "?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -77,6 +79,8 @@ def create_issue(
             flag_json(issue.flag),
             issue.model,
             issue.size.value if issue.size else None,
+            issue.task_type or None,
+            task_type_fields_json(issue.task_type_fields),
             int(issue.is_ready_to_work),
             issue.changespec_name,
             issue.changespec_bug_id,

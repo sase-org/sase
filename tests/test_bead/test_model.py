@@ -203,6 +203,39 @@ class TestIssueValidation:
         with pytest.raises(ValueError, match="Only plan issues"):
             issue.validate()
 
+    def test_non_task_cannot_carry_task_type(self) -> None:
+        issue = Issue(
+            id="test-1",
+            title="A plan",
+            issue_type=IssueType.PLAN,
+            task_type="flake",
+        )
+
+        with pytest.raises(ValueError, match="Only task issues can carry task_type"):
+            issue.validate()
+
+    def test_task_type_fields_require_task_type(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A task",
+            issue_type=IssueType.TASK,
+            task_type_fields={"node_id": "tests/foo.py::test_bar"},
+        )
+
+        with pytest.raises(ValueError, match="task_type_fields requires task_type"):
+            issue.validate()
+
+    def test_typed_task_is_valid(self) -> None:
+        issue = Issue(
+            id="test-task",
+            title="A task",
+            issue_type=IssueType.TASK,
+            task_type="flake",
+            task_type_fields={"node_id": "tests/foo.py::test_bar"},
+        )
+
+        issue.validate()
+
     def test_ready_status_requires_task_type(self) -> None:
         issue = Issue(
             id="test-1",

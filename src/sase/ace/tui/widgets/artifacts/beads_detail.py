@@ -29,6 +29,7 @@ from .beads_data import BeadsSnapshot, PendingTriage
 from .beads_data_models import ExternalIssueLink
 from .beads_detail_body import (
     close_history_markdown as _close_history_markdown,
+    description_markdown as _description_markdown,
     flag_markdown as _flag_markdown,
     plus_one_evidence_markdown as _plus_one_evidence_markdown,
 )
@@ -167,7 +168,7 @@ def bead_body_markdown(
     lines.extend(_close_history_markdown(issue))
     lines.extend(_flag_markdown(issue))
     lines.extend(_external_issue_markdown(issue, external_links))
-    lines.extend(["## Description", "", issue.description or "_No description._"])
+    lines.extend(_description_markdown(issue))
     lines.extend(_plus_one_evidence_markdown(issue))
     if issue.notes.strip():
         lines.extend(["", "## Notes", "", issue.notes])

@@ -140,11 +140,14 @@ def register_bead_create_parser(
         description=(
             "Create a plan, phase, or standalone task bead. New task beads "
             "require an explicit size; plan beads reject size, while raw phase "
-            "creation accepts it optionally."
+            "creation accepts it optionally. Typed tasks use -T 'task(<slug>)' "
+            "and repeatable -f/--field values."
         ),
         epilog=(
             "Examples:\n"
             '  sase bead create -T task -t "Fix retry race" -z medium\n'
+            "  sase bead create -T 'task(flake)' -t \"Flaky retry\" -z medium "
+            "-f node_id=tests/foo.py::test_bar -f evidence=@notes.txt\n"
             '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small\n'
             "  sase bead create -T plan(plan:202608/feature.md) "
             '-t "Feature" -r epic'
@@ -169,6 +172,16 @@ def register_bead_create_parser(
         "-x",
         "--external-ref",
         help="Project-qualified external issue identity, e.g. bug:sase#42",
+    )
+    parser.add_argument(
+        "-f",
+        "--field",
+        action="append",
+        metavar="K=V",
+        help=(
+            "Task-type field value (repeatable). A value of @<path> is read "
+            "from that file"
+        ),
     )
     parser.add_argument(
         "-m",
@@ -206,8 +219,8 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or task; "
-            "parent IDs may be full or shorthand"
+            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), task, or "
+            "task(<slug>); parent IDs may be full or shorthand"
         ),
     )
 
@@ -505,4 +518,11 @@ def register_bead_update_parser(
         ),
     )
     parser.add_argument("-r", "--tier", choices=["plan", "epic"])
+    parser.add_argument(
+        "-T",
+        "--task-type",
+        dest="task_type",
+        metavar="SLUG",
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("-t", "--title")

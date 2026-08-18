@@ -60,6 +60,8 @@ def create(
     model: str = "",
     size: PhaseSize | str | None = None,
     created_by: str | None = None,
+    task_type: str = "",
+    task_type_fields: dict[str, str] | None = None,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
     _guard_bead_store_write(beads_dir, "create")
@@ -96,6 +98,8 @@ def create(
             "model": model,
             "size": None if size is None else phase_size_value(size),
             "created_by": created_by,
+            "task_type": task_type or None,
+            "task_type_fields": dict(task_type_fields or {}),
             "now": now,
         },
     )

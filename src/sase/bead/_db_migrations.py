@@ -294,3 +294,15 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     # Runs after snoozed status: its rebuild copies the snooze column, which
     # that migration is what creates.
     _migrate_flag_type(conn)
+    # After every rebuild: those copy an explicit legacy column list that
+    # predates task_type, so a column added before them would be dropped.
+    _migrate_add_task_type(conn)
+
+
+def _migrate_add_task_type(conn: sqlite3.Connection) -> None:
+    """Add optional task-type columns using the Rust migration policy."""
+    needs_migration = require_rust_binding("bead_needs_task_type_migration")
+    if not needs_migration(_create_table_sql(conn)):
+        return
+    migration_sql = require_rust_binding("bead_task_type_migration_sql")
+    conn.executescript(migration_sql())

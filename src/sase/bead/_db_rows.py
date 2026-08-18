@@ -9,6 +9,7 @@ from sase.bead._db_codec import (
     flag_from_json,
     plus_one_evidence_from_json,
     snooze_from_json,
+    task_type_fields_from_json,
 )
 from sase.bead.model import (
     BeadTier,
@@ -51,7 +52,23 @@ def row_to_issue(row: sqlite3.Row) -> Issue:
         changespec_name=row["changespec_name"] or "",
         changespec_bug_id=row["changespec_bug_id"] or "",
         external_ref=row["external_ref"] or "",
+        task_type=_row_optional_text(row, "task_type"),
+        task_type_fields=task_type_fields_from_json(
+            _row_optional_value(row, "task_type_fields")
+        ),
     )
+
+
+def _row_optional_value(row: sqlite3.Row, key: str) -> object:
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
+
+
+def _row_optional_text(row: sqlite3.Row, key: str) -> str:
+    value = _row_optional_value(row, key)
+    return "" if value is None else str(value)
 
 
 def load_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependency]:

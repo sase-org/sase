@@ -51,7 +51,15 @@ def _parse_remove_by_arg(value: str, existing_key: str) -> FlagRecord:
     return record
 
 
+_TASK_TYPE_IMMUTABLE_MESSAGE = (
+    "task_type is immutable; close this bead and recreate it with -T 'task(<slug>)'"
+)
+
+
 def handle_bead_update(args: argparse.Namespace) -> None:
+    if getattr(args, "task_type", None) is not None:
+        print(f"Error: {_TASK_TYPE_IMMUTABLE_MESSAGE}", file=sys.stderr)
+        sys.exit(1)
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
         fields: dict[str, Any] = {}

@@ -115,6 +115,7 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
         "type:task,phase -status:closed tier:epic size:medium project:Alpha "
         'assignee:"alpha agent" owner:owner@example.com model:gpt-5 has:triage '
         "bug:open -bug:stale label:priority -label:wontfix due:soon -due:live "
+        "task_type:flake -task_type:untyped "
         'since:2026-07-01 until:2026-07-31 "ready for" -ordinary',
         now=datetime(2026, 7, 29, tzinfo=UTC),
     )
@@ -134,6 +135,8 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     assert values.excluded_labels == ("wontfix",)
     assert values.due == ("soon",)
     assert values.excluded_due == ("live",)
+    assert values.task_types == ("flake",)
+    assert values.excluded_task_types == ("untyped",)
     assert values.since_texts == ("2026-07-01",)
     assert values.until_texts == ("2026-07-31",)
     assert values.text == ("ready for",)
@@ -186,6 +189,18 @@ def test_filter_terms_match_bead_metadata_and_derived_labels(tmp_path: Path) -> 
         "alpha-1.2",
     ]
     assert _matched_ids(tmp_path, '"Render the tree" -deps') == []
+    assert _matched_ids(tmp_path, "task_type:untyped") == [
+        "alpha-ready",
+        "alpha-open",
+    ]
+
+
+def test_task_type_filter_matches_stored_slug(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[0].issue.task_type = "flake"
+    assert [
+        record.bead_id for record in _matched_records(value, "task_type:flake")
+    ] == [value.tasks[0].issue.id]
 
 
 def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:

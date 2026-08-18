@@ -45,6 +45,7 @@ from sase.bead_summary_presentation import (
 )
 from sase.main.parser_bead_common import resolve_wrap_width
 from sase.markdown_width import markdown_print_width
+from sase.task_types import issue_matches_task_types
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -75,19 +76,28 @@ def handle_bead_list(args: argparse.Namespace) -> None:
         )
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
-        issues = _filter_by_created_window(
-            view.list_issues(statuses=statuses, issue_types=issue_types, tiers=tiers),
-            window=window,
+        task_types = getattr(args, "task_type", None)
+        issues = _filter_by_task_type(
+            _filter_by_created_window(
+                view.list_issues(
+                    statuses=statuses, issue_types=issue_types, tiers=tiers
+                ),
+                window=window,
+            ),
+            task_types,
         )
         implicit_closed = False
         if not issues and not explicit_statuses:
-            issues = _filter_by_created_window(
-                view.list_issues(
-                    statuses=[Status.CLOSED],
-                    issue_types=issue_types,
-                    tiers=tiers,
+            issues = _filter_by_task_type(
+                _filter_by_created_window(
+                    view.list_issues(
+                        statuses=[Status.CLOSED],
+                        issue_types=issue_types,
+                        tiers=tiers,
+                    ),
+                    window=window,
                 ),
-                window=window,
+                task_types,
             )
             statuses = [Status.CLOSED]
             implicit_closed = bool(issues)
@@ -191,6 +201,19 @@ def _resolve_created_window(args: argparse.Namespace) -> tuple[int | None, int |
         print("Error: --since must not be later than --until", file=sys.stderr)
         sys.exit(2)
     return (since, until)
+
+
+def _filter_by_task_type(
+    issues: list[Issue],
+    task_types: list[str] | None,
+) -> list[Issue]:
+    if not task_types:
+        return issues
+    return [
+        issue
+        for issue in issues
+        if issue_matches_task_types(issue.task_type, task_types)
+    ]
 
 
 def _filter_by_created_window(
@@ -305,13 +328,15 @@ def handle_bead_search(args: argparse.Namespace) -> None:
         statuses = [Status(s) for s in args.status] if args.status else None
         issue_types = [IssueType(t) for t in args.type] if args.type else None
         tiers = [BeadTier(t) for t in args.tier] if args.tier else None
+        task_types = getattr(args, "task_type", None)
+        requested_limit = args.limit
         try:
             matches = view.search(
                 args.query,
                 statuses=statuses,
                 issue_types=issue_types,
                 tiers=tiers,
-                limit=args.limit,
+                limit=None if task_types else requested_limit,
                 regex=regex,
             )
         except ValueError as exc:
@@ -319,6 +344,15 @@ def handle_bead_search(args: argparse.Namespace) -> None:
                 print(f"Error: {message}", file=sys.stderr)
                 sys.exit(2)
             raise
+
+        if task_types:
+            matches = [
+                match
+                for match in matches
+                if issue_matches_task_types(match.issue.task_type, task_types)
+            ]
+            if requested_limit:
+                matches = matches[:requested_limit]
 
         match args.format:
             case "compact":

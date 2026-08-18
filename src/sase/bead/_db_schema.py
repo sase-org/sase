@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS issues (
                     (issue_type IN ('phase', 'task') AND
                      size IN ('xsmall', 'small', 'medium', 'large', 'xlarge'))
                   ),
+    task_type   TEXT,
+    task_type_fields TEXT NOT NULL DEFAULT '{}',
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
@@ -62,7 +64,8 @@ CREATE TABLE IF NOT EXISTS issues (
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
     ),
-    CHECK(changespec_name != '' OR changespec_bug_id = '')
+    CHECK(changespec_name != '' OR changespec_bug_id = ''),
+    CHECK(task_type IS NULL OR issue_type = 'task')
 );
 
 CREATE TABLE IF NOT EXISTS dependencies (
@@ -79,6 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
 CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
 CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
+CREATE INDEX IF NOT EXISTS idx_issues_task_type ON issues(task_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
     WHERE external_ref IS NOT NULL AND external_ref != ''

@@ -45,6 +45,12 @@ def _optional_str_list(value: object) -> list[str]:
     return [str(entry) for entry in value if entry is not None]
 
 
+def _task_type_fields_from_data(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): "" if item is None else str(item) for key, item in value.items()}
+
+
 def _optional_aliased_str(
     data: dict[str, object],
     canonical_key: str,
@@ -132,6 +138,12 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         **({"external_ref": issue.external_ref} if issue.external_ref else {}),
+        **({"task_type": issue.task_type} if issue.task_type else {}),
+        **(
+            {"task_type_fields": dict(issue.task_type_fields)}
+            if issue.task_type_fields
+            else {}
+        ),
         "dependencies": [
             {
                 "issue_id": d.issue_id,
@@ -189,6 +201,8 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
             data, "patch_bug_id", "changespec_bug_id"
         ),
         external_ref=_optional_str(data.get("external_ref", "")),
+        task_type=_optional_str(data.get("task_type", "")),
+        task_type_fields=_task_type_fields_from_data(data.get("task_type_fields")),
         dependencies=deps,
     )
     issue.validate()

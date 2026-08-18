@@ -36,22 +36,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     WHERE external_ref IS NOT NULL AND external_ref != ''
       AND issue_type != 'flag';
 """
+_TASK_TYPE_COLUMN_DEFINITION = "    task_type   TEXT,\n"
+_TASK_TYPE_FIELDS_COLUMN_DEFINITION = (
+    "    task_type_fields TEXT NOT NULL DEFAULT '{}',\n"
+)
+_TASK_TYPE_INDEX_DEFINITION = (
+    "CREATE INDEX IF NOT EXISTS idx_issues_task_type ON issues(task_type);\n"
+)
 
 
 def _assert_columns_survive_rebuild(
     conn: sqlite3.Connection, expected_columns: list[str]
 ) -> None:
-    """Assert a table rebuild kept every column, in its declared position.
+    """Assert a table rebuild kept every pre-existing column.
 
     Earlier rebuild migrations copy an explicit column list that predates
     close_history, so they drop that column and ``_migrate_add_close_history``
-    re-appends it. The snoozed-status rebuild runs last and copies the modern
-    column list, which restores every column to its declared position.
+    re-appends it. The snoozed-status rebuild copies close_history. Task-type
+    columns are added after those rebuilds, so they may move to the end.
     """
     migrated_columns = [
         row["name"] for row in conn.execute("PRAGMA table_info(issues)")
     ]
-    assert migrated_columns == expected_columns
+    added = {"task_type", "task_type_fields"}
+    assert [name for name in migrated_columns if name not in added] == [
+        name for name in expected_columns if name not in added
+    ]
+    assert added.issubset(migrated_columns)
 
 
 class TestMigrationAddsColumn:
@@ -241,6 +252,40 @@ class TestMigrationAddsColumn:
                     (NOW, NOW, "bug:sase#42"),
                 )
             conn.commit()
+        finally:
+            conn.close()
+
+    def test_pre_task_type_db_gets_migrated(self, tmp_path) -> None:
+        db_path = tmp_path / "old_task_type.db"
+        old = sqlite3.connect(str(db_path))
+        schema_without = (
+            SCHEMA_SQL.replace(_TASK_TYPE_COLUMN_DEFINITION, "")
+            .replace(_TASK_TYPE_FIELDS_COLUMN_DEFINITION, "")
+            .replace(_TASK_TYPE_INDEX_DEFINITION, "")
+            .replace(",\n    CHECK(task_type IS NULL OR issue_type = 'task')", "")
+        )
+        assert schema_without != SCHEMA_SQL
+        old.executescript(schema_without)
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, status, issue_type, created_at, updated_at) "
+            "VALUES ('t-old', 'Old', 'open', 'task', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "t-old")
+            assert issue is not None
+            assert issue.task_type == ""
+            assert issue.task_type_fields == {}
+            indexes = {
+                row["name"]
+                for row in conn.execute("PRAGMA index_list(issues)").fetchall()
+            }
+            assert "idx_issues_task_type" in indexes
         finally:
             conn.close()
 

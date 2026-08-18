@@ -10,6 +10,7 @@ from types import MappingProxyType
 from sase.bead.plus_one_presentation import plus_one_evidence_search_text
 from sase.bead.reopen_presentation import close_history_search_text
 from sase.bug_links import normalize_external_ref
+from sase.task_types import issue_task_type_slug
 
 from .beads_data import BeadsSnapshot, ProjectBead
 from .beads_data_models import ExternalIssueLink
@@ -23,6 +24,7 @@ class _BeadFilterRecord:
     project_display_name: str
     project_labels: frozenset[str]
     type_labels: frozenset[str]
+    task_type_labels: frozenset[str]
     tier_labels: frozenset[str]
     status_labels: frozenset[str]
     size_labels: frozenset[str]
@@ -85,6 +87,11 @@ def _record(
     issue_key = (project, issue.id)
     display_name = snapshot.display_names.get(project, project)
     type_labels = _fold_labels((issue.issue_type.value,))
+    task_type_labels = _fold_labels(
+        (issue_task_type_slug(issue.task_type),)
+        if issue.issue_type.value == "task"
+        else ()
+    )
     tier_labels = _fold_labels(() if issue.tier is None else (issue.tier.value,))
     status_labels = set(_fold_labels((issue.status.value,)))
     if issue_key in snapshot.blocked_ids:
@@ -154,6 +161,7 @@ def _record(
                 )
             ),
             *type_labels,
+            *task_type_labels,
             *tier_labels,
             *folded_statuses,
             *size_labels,
@@ -169,6 +177,7 @@ def _record(
         project_display_name=display_name,
         project_labels=project_labels,
         type_labels=type_labels,
+        task_type_labels=task_type_labels,
         tier_labels=tier_labels,
         status_labels=folded_statuses,
         size_labels=size_labels,

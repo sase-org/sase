@@ -58,6 +58,8 @@ class BeadProjectMutationMixin:
         model: str = "",
         size: PhaseSize | str | None = None,
         created_by: str | None = None,
+        task_type: str = "",
+        task_type_fields: dict[str, str] | None = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -92,6 +94,8 @@ class BeadProjectMutationMixin:
             model=model,
             size=size,
             created_by=created_by,
+            task_type=task_type,
+            task_type_fields=task_type_fields or {},
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)
@@ -504,6 +508,11 @@ def _normalize_patch_fields(
 
 
 def _validate_issue_update(issue: Issue, fields: dict[str, str | int | None]) -> None:
+    if "task_type" in fields or "task_type_fields" in fields:
+        raise ValueError(
+            "task_type is immutable; close this bead and recreate it "
+            "with -T 'task(<slug>)'"
+        )
     if "changespec_name" not in fields and "changespec_bug_id" not in fields:
         return
     candidate = replace(

@@ -92,6 +92,22 @@ def close_history_from_json(value: object) -> list[CloseRecord]:
     return close_history_from_dicts(records)
 
 
+def task_type_fields_json(fields: dict[str, str]) -> str:
+    return json.dumps(fields, separators=(",", ":"), ensure_ascii=False, sort_keys=True)
+
+
+def task_type_fields_from_json(value: object) -> dict[str, str]:
+    if value in (None, ""):
+        return {}
+    try:
+        parsed = json.loads(str(value))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(key): "" if item is None else str(item) for key, item in parsed.items()}
+
+
 def plus_one_evidence_from_json(value: object) -> list[TaskPlusOneEvidence]:
     try:
         records = json.loads(str(value or "[]"))

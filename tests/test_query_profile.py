@@ -394,6 +394,7 @@ def test_beads_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "has": "plan",
         "bug": "none",
         "label": "bug",
+        "task_type": "flake",
         "since": "1d",
         "until": "1h",
     }
@@ -429,7 +430,15 @@ def test_beads_profile_string_fields_accept_arbitrary_values() -> None:
         for item in profile.fields
         if item.filterable and item.value_kind == "string"
     }
-    assert string_keys == {"project", "assignee", "owner", "model", "bug", "label"}
+    assert string_keys == {
+        "project",
+        "assignee",
+        "owner",
+        "model",
+        "bug",
+        "label",
+        "task_type",
+    }
     for key in string_keys:
         parse_bead_filter_query(f"{key}:anything-goes")  # must not raise
 

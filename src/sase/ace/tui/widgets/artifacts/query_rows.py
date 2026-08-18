@@ -130,6 +130,7 @@ def build_commits_query_index(
 def _bead_query_entry(record: Any) -> dict[str, Any]:
     fields: dict[str, object] = {
         "type": tuple(record.type_labels),
+        "task_type": tuple(record.task_type_labels),
         "tier": tuple(record.tier_labels),
         "status": tuple(record.status_labels),
         "size": tuple(record.size_labels),

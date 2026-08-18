@@ -40,6 +40,7 @@ def test_parse_type_arg_accepts_the_flag_form() -> None:
         FlagRecord(
             key="demo_key", remove_by_date="2026-12-01", remove_by_release="0.19.0"
         ),
+        "",
     )
 
 

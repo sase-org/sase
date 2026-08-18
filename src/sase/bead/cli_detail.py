@@ -73,6 +73,7 @@ from sase.phase_size_presentation import (
     PHASE_SIZE_DEFAULT_MARKER,
     phase_size_cli_style,
 )
+from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 
 
 def render_issue_detail(
@@ -301,19 +302,9 @@ def render_issue_detail(
                     f"{palette.accent(f'[{blocked.status.value.upper()}]', blocked_status.cli_style)}"
                 )
 
-    if issue.description:
-        lines.extend(
-            [
-                "",
-                palette.section("DESCRIPTION"),
-                *_prose_lines(
-                    issue.description,
-                    style=style,
-                    wrap=wrap,
-                    indent="  ",
-                ),
-            ]
-        )
+    description_lines = _description_and_task_type_lines(issue, style=style, wrap=wrap)
+    if description_lines:
+        lines.extend(["", palette.section("DESCRIPTION"), *description_lines])
     if issue.notes.strip():
         lines.extend(
             [
@@ -394,6 +385,30 @@ def render_issue_detail(
         )
 
     return "\n".join(lines) + "\n"
+
+
+def _description_and_task_type_lines(
+    issue: Issue,
+    *,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    lines: list[str] = []
+    if issue.description:
+        lines.extend(
+            _prose_lines(
+                issue.description,
+                style=style,
+                wrap=wrap,
+                indent="  ",
+            )
+        )
+    body = render_task_type_display_block(issue)
+    if body:
+        if lines:
+            lines.extend(["", f"  {TASK_TYPE_BODY_SEPARATOR}", ""])
+        lines.extend(_prose_lines(body, style=style, wrap=wrap, indent="  "))
+    return lines
 
 
 def _render_snooze_lines(

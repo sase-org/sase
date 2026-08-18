@@ -139,6 +139,10 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             if data.get("external_ref") is None
             else str(data.get("external_ref", ""))
         ),
+        task_type=""
+        if data.get("task_type") is None
+        else str(data.get("task_type", "")),
+        task_type_fields=_task_type_fields_from_data(data.get("task_type_fields")),
         dependencies=[
             Dependency(
                 issue_id=str(dep["issue_id"]),
@@ -153,6 +157,12 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             for dep in data.get("dependencies", [])
         ],
     )
+
+
+def _task_type_fields_from_data(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): "" if item is None else str(item) for key, item in value.items()}
 
 
 def issues_from_list(items: list[dict[str, Any]]) -> list[Issue]:

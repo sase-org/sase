@@ -96,6 +96,12 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
         "external_ref": issue.external_ref,
+        **({"task_type": issue.task_type} if issue.task_type else {}),
+        **(
+            {"task_type_fields": dict(issue.task_type_fields)}
+            if issue.task_type_fields
+            else {}
+        ),
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
     }
     return payload

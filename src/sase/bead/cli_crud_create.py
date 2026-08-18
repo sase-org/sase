@@ -16,6 +16,17 @@ from sase.bead.cli_common import (
 )
 from sase.bead.model import BeadTier, FlagRecord, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.task_types import (
+    TaskTypeCreateError,
+    parse_field_args,
+    resolve_created_task_type,
+)
+
+_TYPE_ARG_USAGE = (
+    "plan(<plan_file>), plan(<plan_file>,<parent_id>), "
+    "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), "
+    "task, or task(<slug>)"
+)
 
 
 def handle_bead_init(args: argparse.Namespace) -> None:
@@ -30,25 +41,26 @@ def handle_bead_init(args: argparse.Namespace) -> None:
 
 def parse_type_arg(
     value: str,
-) -> tuple[IssueType, str | None, str | None, FlagRecord | None]:
-    """Parse the ``--type`` argument into (issue_type, plan_path, parent_id, flag).
+) -> tuple[IssueType, str | None, str | None, FlagRecord | None, str]:
+    """Parse the ``--type`` argument into type metadata.
+
+    Returns ``(issue_type, plan_path, parent_id, flag, task_type)``.
 
     Accepted forms:
-    - ``task``                              -> TASK
+    - ``task``                              -> TASK, untyped
+    - ``task(<slug>)``                      -> TASK, task_type=slug
     - ``plan(<path>)``                      -> PLAN, design=path
     - ``plan(<path>,<parent_id>)``          -> PLAN, design=path, parent_id
     - ``phase(<parent_id>)``                -> PHASE, parent_id
     - ``flag(<key>,<YYYY-MM-DD>,<release>)`` -> FLAG, flag=FlagRecord(...)
     """
     if value == "task":
-        return IssueType.TASK, None, None, None
+        return IssueType.TASK, None, None, None, ""
 
-    m = re.match(r"^(plan|phase|flag)\((.+)\)$", value)
+    m = re.match(r"^(plan|phase|flag|task)\((.+)\)$", value)
     if not m:
         print(
-            f"Error: invalid --type value: {value}\n"
-            "Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or task",
+            f"Error: invalid --type value: {value}\nExpected: {_TYPE_ARG_USAGE}",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -58,41 +70,60 @@ def parse_type_arg(
 
     if kind == "plan":
         if len(parts) == 1:
-            return IssueType.PLAN, parts[0], None, None
+            return IssueType.PLAN, parts[0], None, None, ""
         if len(parts) == 2:
-            return IssueType.PLAN, parts[0], parts[1], None
+            return IssueType.PLAN, parts[0], parts[1], None, ""
         print(
             f"Error: plan() expects 1 or 2 arguments, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
-    elif kind == "phase":
+    if kind == "phase":
         if len(parts) == 1:
-            return IssueType.PHASE, None, parts[0], None
+            return IssueType.PHASE, None, parts[0], None, ""
         print(
             f"Error: phase() expects exactly 1 argument, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
-    else:  # flag
-        if len(parts) == 3:
-            return (
-                IssueType.FLAG,
-                None,
-                None,
-                FlagRecord(
-                    key=parts[0], remove_by_date=parts[1], remove_by_release=parts[2]
-                ),
-            )
+    if kind == "task":
+        if len(parts) == 1 and parts[0]:
+            return IssueType.TASK, None, None, None, parts[0]
         print(
-            f"Error: flag() expects exactly 3 arguments, got {len(parts)}",
+            f"Error: task() expects exactly 1 argument, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
+    if len(parts) == 3:
+        return (
+            IssueType.FLAG,
+            None,
+            None,
+            FlagRecord(
+                key=parts[0], remove_by_date=parts[1], remove_by_release=parts[2]
+            ),
+            "",
+        )
+    print(
+        f"Error: flag() expects exactly 3 arguments, got {len(parts)}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
-    issue_type, plan_path, parent_id, flag_record = parse_type_arg(args.type)
+    issue_type, plan_path, parent_id, flag_record, task_type = parse_type_arg(args.type)
+    try:
+        field_values = parse_field_args(getattr(args, "field", None))
+        if field_values and issue_type != IssueType.TASK:
+            raise TaskTypeCreateError(
+                "-f/--field can only be set on task beads created with "
+                "-T 'task(<slug>)'"
+            )
+        task_type, field_values = resolve_created_task_type(task_type, field_values)
+    except TaskTypeCreateError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     changespec_name = (
         getattr(args, "patch", None)
         or getattr(args, "changespec", None)  # legacy CLI alias
@@ -174,6 +205,8 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 model=getattr(args, "model", None) or "",
                 size=size,
                 created_by=creator,
+                task_type=task_type,
+                task_type_fields=field_values,
             )
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)

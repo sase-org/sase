@@ -230,7 +230,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
             hint="+1, plan, bug, deps, notes, triage",
         ),
     )
-    _exact_string_fields = frozenset({"project", "bug", "label"})
+    _exact_string_fields = frozenset({"project", "bug", "label", "task_type"})
     string_fields = tuple(
         QueryFieldSpec(
             key=key,
@@ -246,6 +246,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
             ("model", "work model"),
             ("bug", "none, open, #42"),
             ("label", "provider issue label"),
+            ("task_type", "task type slug, or untyped"),
         )
     )
     date_fields = tuple(

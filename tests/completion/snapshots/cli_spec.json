@@ -4658,7 +4658,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "68c6c5f925bac9dc",
+            "description_digest": "764b7fb2b309a14c",
             "hidden": false,
             "mutex_groups": [],
             "name": "create",
@@ -4733,6 +4733,18 @@
                 "strings": [
                   "-x",
                   "--external-ref"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "field",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-f",
+                  "--field"
                 ],
                 "takes_value": true
               },
@@ -5464,7 +5476,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "71c001153303f4f1",
+            "description_digest": "091d8981eed6766b",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -5554,6 +5566,18 @@
                 "strings": [
                   "-s",
                   "--status"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "task_type",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-T",
+                  "--task-type"
                 ],
                 "takes_value": true
               },
@@ -6142,7 +6166,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b12b183b9d1c76a3",
+            "description_digest": "391b8af40f70fb4c",
             "hidden": false,
             "mutex_groups": [],
             "name": "search",
@@ -6231,6 +6255,18 @@
                 "strings": [
                   "-s",
                   "--status"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "task_type",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-T",
+                  "--task-type"
                 ],
                 "takes_value": true
               },
@@ -6732,7 +6768,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b75bc1d8c4a6e927",
+            "description_digest": "a83e38061d5ce607",
             "hidden": false,
             "mutex_groups": [
               [
@@ -6898,6 +6934,18 @@
                 "strings": [
                   "-r",
                   "--tier"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "task_type",
+                "hidden": true,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-T",
+                  "--task-type"
                 ],
                 "takes_value": true
               },

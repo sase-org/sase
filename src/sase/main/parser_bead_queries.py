@@ -140,6 +140,8 @@ def register_bead_list_parser(
             "  sase bead list\n"
             "  sase bead list --status open --type phase\n"
             "  sase bead list --type task --since 1w --status all\n"
+            "  sase bead list --task-type flake\n"
+            "  sase bead list --task-type untyped\n"
             "  sase bead list --format json\n"
             "  sase bead list --format full --limit 3\n"
             "  sase bead list --status closed --limit 0\n\n"
@@ -196,6 +198,14 @@ def register_bead_list_parser(
         help="Filter by status; 'all' selects every status (repeatable)",
     )
     parser.add_argument(
+        "-T",
+        "--task-type",
+        dest="task_type",
+        action="append",
+        metavar="SLUG",
+        help=("Filter by task type slug; 'untyped' selects legacy beads (repeatable)"),
+    )
+    parser.add_argument(
         "-r",
         "--tier",
         choices=["plan", "epic"],
@@ -247,7 +257,8 @@ def register_bead_search_parser(
             "  sase bead search '^sase-g' --regex\n"
             "  sase bead search auth --format json\n"
             "  sase bead search auth --format full --limit 3\n"
-            "  sase bead search auth --status open --type phase"
+            "  sase bead search auth --status open --type phase\n"
+            "  sase bead search flake --task-type flake"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -295,6 +306,14 @@ def register_bead_search_parser(
         ],
         action="append",
         help="Filter by status (repeatable)",
+    )
+    parser.add_argument(
+        "-T",
+        "--task-type",
+        dest="task_type",
+        action="append",
+        metavar="SLUG",
+        help=("Filter by task type slug; 'untyped' selects legacy beads (repeatable)"),
     )
     parser.add_argument(
         "-r",

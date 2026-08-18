@@ -272,6 +272,8 @@ class Issue:
     changespec_name: str = ""
     changespec_bug_id: str = ""
     external_ref: str = ""
+    task_type: str = ""
+    task_type_fields: dict[str, str] = field(default_factory=dict)
     dependencies: list[Dependency] = field(default_factory=list)
 
     @property
@@ -359,6 +361,12 @@ class Issue:
             raise ValueError("changespec_bug_id requires changespec_name")
         if self.status != Status.CLOSED and self.resolution is not None:
             raise ValueError("Only closed issues can carry resolution metadata")
+        if self.issue_type != IssueType.TASK and (
+            self.task_type or self.task_type_fields
+        ):
+            raise ValueError("Only task issues can carry task_type metadata")
+        if self.task_type_fields and not self.task_type:
+            raise ValueError("task_type_fields requires task_type")
 
 
 @dataclass
