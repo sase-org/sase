@@ -1,4 +1,10 @@
-"""Shared branch-driven controls for ACE notification-gate modals."""
+"""Shared branch-driven controls for ACE notification-gate modals.
+
+The Decision column owns only the choose beat: OR buttons, AND toggles, and
+group submits. Typed collection lives on :class:`GateInputPanel`, which this
+widget opens when a selection needs input and then posts the same
+:class:`Resolved` message the host modals already consume.
+"""
 
 from __future__ import annotations
 
@@ -8,26 +14,25 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button
 
-from sase.ace.tui.widgets.typed_input_form import TypedInputForm
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.models import GateFeedbackMode, GateOption
 
-from .gate_branch_input_section import (
-    GateBranchInputError,
-    GateBranchInputSection,
-)
-from .gate_input_panel_model import (
-    DEFAULT_HOST_COLLECTED_PROPERTIES,
-    gate_declares_inputs,
-)
 from .gate_branch_layout import (
     GateControlButton,
     compose_group,
     compose_singleton_row,
     parse_option_control_id,
     toggle_label,
+)
+from .gate_input_panel import GateInputPanel, GateInputPanelResult
+from .gate_input_panel_model import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
+    GateInputDraft,
+    GateInputRequest,
+    build_gate_input_request,
+    gate_declares_inputs,
 )
 
 
@@ -79,9 +84,9 @@ class GateBranchControls(VerticalScroll):
             if len(branch) > 1
         }
         self._active_branch_index = 0
-        self._feedback_by_branch: dict[int, str] = {}
+        self._draft_by_branch: dict[int, GateInputDraft] = {}
         self._submission_block: str | None = None
-        self._sections: dict[int, GateBranchInputSection] = {}
+        self._panel_open = False
 
     def compose(self) -> ComposeResult:
         branch_index = 0
@@ -99,8 +104,6 @@ class GateBranchControls(VerticalScroll):
                     [self._branch_options(index)[0] for index in singleton_indices],
                     primary_branch_index=self._primary_branch_index,
                 )
-                for index in singleton_indices:
-                    yield from self._compose_branch_inputs(index)
                 continue
 
             branch = self.data.branches[branch_index]
@@ -112,11 +115,7 @@ class GateBranchControls(VerticalScroll):
                 primary=branch_index == self._primary_branch_index,
                 selected=self._selected_by_branch.get(branch_index, set()),
             )
-            yield from self._compose_branch_inputs(branch_index)
             branch_index += 1
-
-        yield Static("", id="gate-feedback-label", classes="hidden")
-        yield Input(id="gate-feedback-input", classes="hidden")
 
     def _branch_options(self, branch_index: int) -> list[GateOption]:
         return [
@@ -124,26 +123,17 @@ class GateBranchControls(VerticalScroll):
             for option_id in self.data.branches[branch_index]
         ]
 
-    def _compose_branch_inputs(self, branch_index: int) -> ComposeResult:
-        section = GateBranchInputSection(
-            branch_index,
-            self._branch_options(branch_index),
-            host_collected_properties=self._host_collected_properties,
-        )
-        if section.is_empty:
-            return
-        self._sections[branch_index] = section
-        yield section
+    def _branch_label(self, branch_index: int) -> str:
+        branch = self.data.branches[branch_index]
+        if len(branch) == 1:
+            return self._options_by_id[branch[0]].label
+        group = self._groups_by_members[frozenset(branch)]
+        return group.label or "Submit"
 
     # -- events ---------------------------------------------------------------
 
     def on_mount(self) -> None:
-        self._update_feedback_controls()
-        for branch_index, branch in enumerate(self.data.branches):
-            if len(branch) > 1:
-                self._sync_branch_input_visibility(branch_index)
-            else:
-                self._update_submit_state(branch_index)
+        self._refresh_submit_states()
 
     def on_gate_control_button_control_focused(
         self, event: GateControlButton.ControlFocused
@@ -153,10 +143,6 @@ class GateBranchControls(VerticalScroll):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id or ""
         if not button_id.startswith("gate-"):
-            return
-        if "-field-" in button_id:
-            # Owned by a nested TypedInputForm (e.g. an enum-cycling button),
-            # which stops the event itself before it would reach here.
             return
         event.stop()
         if button_id.startswith("gate-singleton-"):
@@ -171,24 +157,6 @@ class GateBranchControls(VerticalScroll):
         indices = parse_option_control_id(button_id)
         if indices is not None:
             self.toggle_option(*indices)
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "gate-feedback-input":
-            return
-        self._feedback_by_branch[self._active_branch_index] = event.value
-        self._update_submit_state(self._active_branch_index)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "gate-feedback-input":
-            self._resolve_branch(self._active_branch_index)
-
-    def on_gate_branch_input_section_validated(
-        self, event: GateBranchInputSection.Validated
-    ) -> None:
-        self._update_submit_state(event.branch_index)
-
-    def on_typed_input_form_changed(self, event: TypedInputForm.Changed) -> None:
-        self._refresh_submit_states()
 
     # -- reviewer actions -----------------------------------------------------
 
@@ -226,8 +194,7 @@ class GateBranchControls(VerticalScroll):
             f"#gate-option-{branch_index}-{option_index}", Button
         ).label = toggle_label(option, option_id in selected)
         self._set_active_branch(branch_index)
-        self._update_feedback_controls()
-        self._sync_branch_input_visibility(branch_index)
+        self._update_submit_state(branch_index)
 
     def toggle_focused_option(self) -> None:
         focused = self.screen.focused
@@ -239,10 +206,6 @@ class GateBranchControls(VerticalScroll):
 
     def submit_primary_branch(self) -> None:
         """Submit the declared primary branch without resetting its UI selection."""
-        focused = self.screen.focused
-        if isinstance(focused, Input) and focused.id == "gate-feedback-input":
-            self._resolve_branch(self._active_branch_index)
-            return
         self._resolve_branch(self._primary_branch_index)
 
     def submit_active_branch(self) -> None:
@@ -253,6 +216,31 @@ class GateBranchControls(VerticalScroll):
         if not 0 <= branch_index < len(self.data.branches):
             return
         self._resolve_branch(branch_index)
+
+    def open_inputs_for_focused_control(self) -> None:
+        """Open the input panel for the focused control's branch.
+
+        Used by the gate modal's ``open_inputs`` key. Opens even when the
+        selection would otherwise submit immediately, unless there is nothing
+        to collect.
+        """
+        if self._submission_block is not None:
+            self.notify(self._submission_block, severity="warning")
+            return
+        selected = self.selected_option_ids(self._active_branch_index)
+        if not selected:
+            self.notify(
+                "Select at least one option before submitting", severity="warning"
+            )
+            return
+        request = self._request_for_branch(self._active_branch_index, selected)
+        if request.conflict is not None:
+            self.notify(request.conflict, severity="warning")
+            return
+        if request.is_empty:
+            self.notify("This option takes no input", severity="warning")
+            return
+        self._open_input_panel(request)
 
     def selected_option_ids(self, branch_index: int) -> tuple[str, ...]:
         branch = self.data.branches[branch_index]
@@ -274,7 +262,7 @@ class GateBranchControls(VerticalScroll):
                     self.query_one(
                         f"#gate-option-{branch_index}-{option_index}", Button
                     ).label = toggle_label(option, option_id in selected)
-                self._sync_branch_input_visibility(branch_index)
+                self._update_submit_state(branch_index)
             return
 
     def visible_control_ids(self) -> list[str]:
@@ -291,9 +279,6 @@ class GateBranchControls(VerticalScroll):
                 ids.append(f"gate-group-submit-{branch_index}")
             else:
                 ids.append(f"gate-group-expand-{branch_index}")
-            section = self._sections.get(branch_index)
-            if section is not None:
-                ids.extend(section.control_ids())
         return ids
 
     def block_submission(self, reason: str | None) -> None:
@@ -309,24 +294,8 @@ class GateBranchControls(VerticalScroll):
 
     # -- selection state ------------------------------------------------------
 
-    def _sync_branch_input_visibility(self, branch_index: int) -> None:
-        """Reveal only the currently selected options' fields, for AND branches."""
-        section = self._sections.get(branch_index)
-        if section is not None and len(self.data.branches[branch_index]) > 1:
-            section.set_visible_options(self.selected_option_ids(branch_index))
-        self._update_submit_state(branch_index)
-
     def _set_active_branch(self, branch_index: int) -> None:
-        if branch_index == self._active_branch_index:
-            self._update_feedback_controls()
-            return
-        if self.is_mounted:
-            current = self.query_one("#gate-feedback-input", Input)
-            self._feedback_by_branch[self._active_branch_index] = current.value
         self._active_branch_index = branch_index
-        self._update_feedback_controls()
-        if len(self.data.branches[branch_index]) > 1:
-            self._sync_branch_input_visibility(branch_index)
 
     # -- submission -----------------------------------------------------------
 
@@ -334,13 +303,22 @@ class GateBranchControls(VerticalScroll):
         for branch_index in range(len(self.data.branches)):
             self._update_submit_state(branch_index)
 
+    def _request_for_branch(
+        self, branch_index: int, selected: Sequence[str]
+    ) -> GateInputRequest:
+        return build_gate_input_request(
+            self._branch_options(branch_index),
+            selected,
+            branch_index=branch_index,
+            branch_label=self._branch_label(branch_index),
+            feedback_mode=self._feedback_mode(branch_index),
+            host_collected_properties=self._host_collected_properties,
+            draft=self._draft_by_branch.get(branch_index, GateInputDraft()),
+        )
+
     def _resolve_branch(self, branch_index: int) -> None:
         if self._submission_block is not None:
             self.notify(self._submission_block, severity="warning")
-            return
-        section = self._sections.get(branch_index)
-        if section is not None and section.conflict is not None:
-            self.notify(section.conflict, severity="warning")
             return
         self._set_active_branch(branch_index)
         selected = self.selected_option_ids(branch_index)
@@ -349,27 +327,51 @@ class GateBranchControls(VerticalScroll):
                 "Select at least one option before submitting", severity="warning"
             )
             return
-        feedback = self._feedback_value(branch_index)
-        if self._feedback_mode(branch_index) == "required" and feedback is None:
-            self.notify("Feedback is required for this option", severity="warning")
-            self.query_one("#gate-feedback-input", Input).focus()
+        request = self._request_for_branch(branch_index, selected)
+        if request.conflict is not None:
+            self.notify(request.conflict, severity="warning")
             return
-        if not self._branch_inputs_valid(branch_index):
-            # The submit control is already disabled for this, but a numbered
-            # or primary-key shortcut reaches here without going through it.
-            active_section = self._sections.get(branch_index)
-            if active_section is not None and active_section.focus_first_invalid():
-                return
-            self.notify(
-                "Fix the highlighted inputs before submitting", severity="warning"
+        if not request.requires_panel:
+            self.post_message(
+                self.Resolved(selected, self._feedback_value(branch_index), {})
             )
             return
-        try:
-            option_inputs = {} if section is None else section.collect(selected)
-        except GateBranchInputError as exc:
-            self.notify(str(exc), severity="error")
+        self._open_input_panel(request)
+
+    def _open_input_panel(self, request: GateInputRequest) -> None:
+        if self._panel_open:
             return
-        self.post_message(self.Resolved(selected, feedback, option_inputs))
+        focused = self.screen.focused
+        originating_id = focused.id if focused is not None else None
+        panel = GateInputPanel(request)
+        self._panel_open = True
+
+        def on_done(result: GateInputPanelResult | None) -> None:
+            if not self.is_mounted:
+                return
+            self._panel_open = False
+            self._draft_by_branch[request.branch_index] = panel.draft
+            if result is None:
+                self._refocus_control(originating_id)
+                return
+            option_inputs = result.option_inputs if request.sections else {}
+            self.post_message(
+                self.Resolved(
+                    request.selected_option_ids,
+                    result.feedback,
+                    option_inputs,
+                )
+            )
+
+        self.app.push_screen(panel, on_done)
+
+    def _refocus_control(self, control_id: str | None) -> None:
+        if not control_id:
+            return
+        try:
+            self.query_one(f"#{control_id}").focus()
+        except Exception:
+            return
 
     def _feedback_mode(self, branch_index: int) -> GateFeedbackMode:
         ranks: dict[GateFeedbackMode, int] = {
@@ -385,62 +387,23 @@ class GateBranchControls(VerticalScroll):
         )
 
     def _feedback_value(self, branch_index: int) -> str | None:
-        if branch_index == self._active_branch_index and self.is_mounted:
-            value = self.query_one("#gate-feedback-input", Input).value
-        else:
-            value = self._feedback_by_branch.get(branch_index, "")
-        normalized = value.strip()
+        draft = self._draft_by_branch.get(branch_index)
+        if draft is None:
+            return None
+        normalized = draft.feedback.strip()
         return normalized or None
-
-    def _update_feedback_controls(self) -> None:
-        if not self.is_mounted:
-            return
-        mode = self._feedback_mode(self._active_branch_index)
-        label = self.query_one("#gate-feedback-label", Static)
-        field = self.query_one("#gate-feedback-input", Input)
-        if mode == "disabled":
-            label.add_class("hidden")
-            field.add_class("hidden")
-        else:
-            label.update(
-                "Feedback (required)" if mode == "required" else "Feedback (optional)"
-            )
-            label.remove_class("hidden")
-            field.remove_class("hidden")
-            field.placeholder = (
-                "Explain your decision before submitting…"
-                if mode == "required"
-                else "Add context for the sender…"
-            )
-        value = self._feedback_by_branch.get(self._active_branch_index, "")
-        if field.value != value:
-            field.value = value
-        self._update_submit_state(self._active_branch_index)
-
-    def _branch_inputs_valid(self, branch_index: int) -> bool:
-        section = self._sections.get(branch_index)
-        return section is None or section.is_valid()
 
     def _update_submit_state(self, branch_index: int) -> None:
         # No `is_mounted` guard: every caller runs after compose() has
         # produced this branch's controls (including `on_mount` itself,
         # where `is_mounted` is still False even though the DOM exists).
         branch = self.data.branches[branch_index]
-        blocked = self._submission_block is not None or not self._branch_inputs_valid(
-            branch_index
-        )
+        blocked = self._submission_block is not None
         if len(branch) <= 1:
             self.query_one(f"#gate-singleton-{branch_index}", Button).disabled = blocked
             return
         button = self.query_one(f"#gate-group-submit-{branch_index}", Button)
-        button.disabled = (
-            blocked
-            or not self.selected_option_ids(branch_index)
-            or (
-                self._feedback_mode(branch_index) == "required"
-                and self._feedback_value(branch_index) is None
-            )
-        )
+        button.disabled = blocked or not self.selected_option_ids(branch_index)
 
 
 __all__ = [

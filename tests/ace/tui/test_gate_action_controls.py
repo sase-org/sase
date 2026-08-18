@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from textual.app import App
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Static
 
 from sase.ace.tui.keymaps import GateModalKeymaps
 from sase.ace.tui.modals.custom_gate_modal import (
@@ -270,8 +270,6 @@ async def test_accepted_edit_keeps_the_modal_and_the_reviewers_work() -> None:
         controls.toggle_option(0, 1)
         await pilot.pause()
         assert controls.selected_option_ids(0) == ("approve",)
-        feedback = modal.query_one("#gate-feedback-input", Input)
-        feedback.value = "looks good"
         await pilot.pause()
 
         await pilot.press("e")
@@ -281,7 +279,6 @@ async def test_accepted_edit_keeps_the_modal_and_the_reviewers_work() -> None:
         assert runner.edited == ["edit_plan"]
         assert pilot.app.screen is modal
         assert controls.selected_option_ids(0) == ("approve",)
-        assert modal.query_one("#gate-feedback-input", Input).value == "looks good"
         assert "Revised plan" in _preview_text(modal)
         assert results == []
 

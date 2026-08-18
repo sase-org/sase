@@ -296,21 +296,15 @@ async def test_vertical_stack_navigation_cycles_every_control(tmp_path) -> None:
             "gate-singleton-2",
         ]
         focused_ids: list[str | None] = []
-        feedback_became_visible = False
         for _ in expected_ids:
             focused_ids.append(modal.focused.id if modal.focused is not None else None)
-            if modal.focused is not None and modal.focused.id == "gate-singleton-2":
-                feedback_became_visible = not modal.query_one(
-                    "#gate-feedback-input"
-                ).has_class("hidden")
             await pilot.press("j")
             await pilot.pause()
 
         assert focused_ids == expected_ids
-        assert feedback_became_visible
         assert modal.focused is not None
         assert modal.focused.id == expected_ids[0]
-        assert modal.query_one(".gate-review-actions").query_one("#gate-feedback-input")
+        assert not modal.query("#gate-feedback-input")
 
 
 async def test_enter_submits_untouched_tale_primary_without_toggling(tmp_path) -> None:

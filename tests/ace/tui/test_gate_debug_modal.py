@@ -10,18 +10,17 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 from textual.app import App
 from textual.screen import ModalScreen
-from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
 )
-from sase.ace.tui.modals.gate_debug_modal import GateDebugModal, _context_kind
 from sase.ace.tui.modals.gate_branch_controls import (
     GateBranchControls,
     GateBranchData,
 )
+from sase.ace.tui.modals.gate_debug_modal import GateDebugModal, _context_kind
 from sase.ace.tui.modals.launch_approval_modal import LaunchApprovalModal
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
@@ -142,10 +141,10 @@ async def test_closing_debug_preserves_custom_gate_form_state(tmp_path: Path) ->
     async with _TestApp().run_test(size=(110, 36)) as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
-        feedback = modal.query_one("#gate-feedback-input", Input)
-        feedback.value = "Keep this answer"
         controls = modal.query_one(GateBranchControls)
-        assert controls.selected_option_ids(0) == ("approve", "audit")
+        controls.toggle_option(0, 1)
+        await pilot.pause()
+        assert controls.selected_option_ids(0) == ("approve",)
 
         modal.action_debug_view()
         await pilot.pause()
@@ -154,8 +153,7 @@ async def test_closing_debug_preserves_custom_gate_form_state(tmp_path: Path) ->
         await pilot.pause()
 
         assert pilot.app.screen is modal
-        assert feedback.value == "Keep this answer"
-        assert controls.selected_option_ids(0) == ("approve", "audit")
+        assert controls.selected_option_ids(0) == ("approve",)
 
 
 async def test_notification_row_opens_debug_even_without_gate_bundle() -> None:

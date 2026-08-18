@@ -11,7 +11,7 @@ from rich.text import Text
 from textual.app import App
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Static
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.keymaps import (
@@ -27,8 +27,10 @@ from sase.ace.tui.modals.gate_branch_controls import (
     GateBranchControls,
     GateBranchData,
 )
-from sase.bead._task_gate_spec import build_task_triage_gate_spec
+from sase.ace.tui.modals.gate_input_panel import GateInputPanel
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
+from sase.bead._task_gate_spec import build_task_triage_gate_spec
 from sase.notification_gates.models import GateGroup, GateOption
 from sase.notification_gates.presentation import GateChip
 
@@ -113,6 +115,12 @@ def _data(
         gate_title=gate_title,
         chip=chip,
     )
+
+
+def _open_panel(app: App[None]) -> GateInputPanel:
+    screen = app.screen
+    assert isinstance(screen, GateInputPanel)
+    return screen
 
 
 def _task_triage_data() -> CustomGateModalData:
@@ -243,11 +251,14 @@ async def test_declared_input_value_reaches_resolved_option_inputs() -> None:
     async with _TestApp().run_test(size=(100, 40)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        field = modal.query_one("#gate-branch-0-field-input-0", SingleLineVimTextArea)
+        await pilot.press("1")
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        panel = _open_panel(pilot.app)
+        field = panel.query_one("#gate-input-deploy-input-0", SingleLineVimTextArea)
         field.text = "staging"
         await pilot.pause()
-        await pilot.press("1")
-        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await wait_for(pilot, lambda: bool(results))
 
     assert results == [
         CustomGateModalResult(
@@ -301,20 +312,14 @@ async def test_numbered_shortcut_focuses_required_enum_then_submits() -> None:
         await pilot.pause()
         await pilot.press("j")
         assert modal.query_one("#gate-singleton-1", Button).has_focus
-        scroll = modal.query_one(".gate-review-actions", VerticalScroll)
-        initial_scroll_y = scroll.scroll_offset.y
 
         await pilot.press("3")
-        await pilot.pause()
-        wake_after = modal.query_one("#gate-branch-2-field-input-0", Button)
-        await wait_for(
-            pilot,
-            lambda: wake_after.has_focus and scroll.scroll_offset.y > initial_scroll_y,
-        )
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        panel = _open_panel(app)
+        wake_after = panel.query_one("#gate-input-snooze-input-0", Button)
 
         assert results == []
         assert wake_after.has_focus
-        assert scroll.scroll_offset.y > initial_scroll_y
         assert (
             "Fix the highlighted inputs before submitting",
             "warning",
@@ -322,8 +327,8 @@ async def test_numbered_shortcut_focuses_required_enum_then_submits() -> None:
 
         wake_after.press()
         await pilot.pause()
-        await pilot.press("3")
-        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await wait_for(pilot, lambda: bool(results))
 
     assert results == [
         CustomGateModalResult(
@@ -344,10 +349,9 @@ async def test_task_triage_shortcut_focuses_duration_line_then_submits() -> None
         await pilot.pause()
 
         await pilot.press("3")
-        await pilot.pause()
-        duration = modal.query_one(
-            "#gate-branch-2-field-input-0", SingleLineVimTextArea
-        )
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        panel = _open_panel(app)
+        duration = panel.query_one("#gate-input-snooze-input-0", SingleLineVimTextArea)
         await wait_for(pilot, lambda: duration.has_focus)
 
         assert results == []
@@ -358,7 +362,7 @@ async def test_task_triage_shortcut_focuses_duration_line_then_submits() -> None
 
         duration.text = "3d +2"
         await pilot.press("ctrl+s")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     assert results == [
         CustomGateModalResult(
@@ -411,15 +415,14 @@ async def test_required_feedback_blocks_until_entered() -> None:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
         await pilot.press("1")
-        await pilot.pause()
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        panel = _open_panel(pilot.app)
         assert results == []
-        feedback = modal.query_one("#gate-feedback-input", Input)
+        feedback = panel.query_one("#gate-input-note", VimTextArea)
         assert feedback.has_focus
-        await pilot.press("1", "2", "3")
-        assert feedback.value == "123"
-        feedback.value += " Please revise the rollout."
-        await pilot.press("enter")
-        await pilot.pause()
+        feedback.text = "123 Please revise the rollout."
+        await pilot.press("ctrl+s")
+        await wait_for(pilot, lambda: bool(results))
 
     assert results == [
         CustomGateModalResult(("revise",), "123 Please revise the rollout.")

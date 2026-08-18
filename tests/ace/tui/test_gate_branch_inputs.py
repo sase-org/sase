@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.widgets import Button, Static, TextArea
+from textual.widgets import Button, Static
 
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls, GateBranchData
-from sase.ace.tui.modals.gate_branch_input_section import GateBranchInputSection
+from sase.ace.tui.modals.gate_input_panel import GateInputPanel
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.notification_gates.models import GateGroup, GateOption
 
 
@@ -20,11 +21,13 @@ def _option(
     inputs: list[dict[str, Any]] | None = None,
     input_schema: dict[str, Any] | None = None,
     default_selected: bool = True,
+    feedback: str = "disabled",
 ) -> GateOption:
     payload: dict[str, Any] = {
         "id": option_id,
         "label": label or option_id.title(),
         "default_selected": default_selected,
+        "feedback": feedback,
         "command": {"argv": [f"commands/{option_id}"]},
     }
     if inputs is not None:
@@ -43,8 +46,8 @@ def _controls(
     data = GateBranchData(
         query="test query",
         options=options,
-        groups=groups,
         branches=branches,
+        groups=groups,
         primary_branch=branches[0],
     )
     return GateBranchControls(data)
@@ -57,14 +60,30 @@ class _ControlsApp(App[None]):
         super().__init__()
         self._controls = controls
         self.resolved: list[GateBranchControls.Resolved] = []
+        self.pushed: list[object] = []
 
     def compose(self) -> ComposeResult:
         yield self._controls
+
+    def push_screen(self, screen: object, *args: object, **kwargs: object) -> object:
+        self.pushed.append(screen)
+        return super().push_screen(screen, *args, **kwargs)  # type: ignore[misc]
 
     def on_gate_branch_controls_resolved(
         self, event: GateBranchControls.Resolved
     ) -> None:
         self.resolved.append(event)
+
+
+def _panel(app: _ControlsApp) -> GateInputPanel:
+    screen = app.screen
+    assert isinstance(screen, GateInputPanel)
+    return screen
+
+
+def _plain(widget: object) -> str:
+    rendered = widget.render()  # type: ignore[attr-defined]
+    return rendered.plain if hasattr(rendered, "plain") else str(rendered)
 
 
 async def test_branch_without_declared_inputs_renders_no_container() -> None:
@@ -75,9 +94,26 @@ async def test_branch_without_declared_inputs_renders_no_container() -> None:
         await pilot.pause()
         assert not controls.query("#gate-inputs-0")
         assert not controls.query(".gate-review-section-title")
+        assert not controls.query("#gate-feedback-input")
 
 
-async def test_toggling_and_member_reveals_and_hides_exactly_its_fields() -> None:
+async def test_no_input_branch_submits_immediately_without_opening_the_panel() -> None:
+    controls = _controls(options=(_option("proceed"),), branches=(("proceed",),))
+    app = _ControlsApp(controls)
+
+    async with app.run_test(size=(100, 34)) as pilot:
+        await pilot.pause()
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+
+    assert not any(isinstance(screen, GateInputPanel) for screen in app.pushed)
+    [event] = app.resolved
+    assert event.selected_option_ids == ("proceed",)
+    assert event.feedback is None
+    assert event.option_inputs == {}
+
+
+async def test_toggling_and_member_does_not_open_the_panel() -> None:
     build = _option(
         "build",
         inputs=[
@@ -100,23 +136,14 @@ async def test_toggling_and_member_reveals_and_hides_exactly_its_fields() -> Non
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        profile_block = controls.query_one("#gate-branch-0-field-block-0")
-        channel_block = controls.query_one("#gate-branch-0-field-block-1")
-        assert profile_block.display is True  # build is selected by default
-        assert channel_block.display is False  # publish is not
-
-        controls.toggle_option(0, 1)  # select publish
+        controls.toggle_option(0, 1)
         await pilot.pause()
-        assert profile_block.display is True
-        assert channel_block.display is True
-
-        controls.toggle_option(0, 0)  # deselect build
-        await pilot.pause()
-        assert profile_block.display is False
-        assert channel_block.display is True
+        assert not any(isinstance(screen, GateInputPanel) for screen in app.pushed)
+        assert controls.selected_option_ids(0) == ("build", "publish")
+        assert not controls.query(".gate-input-section")
 
 
-async def test_focus_first_invalid_skips_deselected_and_member_fields() -> None:
+async def test_group_submit_opens_panel_for_selected_options_only() -> None:
     build = _option(
         "build",
         inputs=[
@@ -133,29 +160,25 @@ async def test_focus_first_invalid_skips_deselected_and_member_fields() -> None:
     controls = _controls(
         options=(build, publish),
         branches=(("build", "publish"),),
-        groups=(GateGroup(("build", "publish")),),
+        groups=(GateGroup(("build", "publish"), "Ship"),),
     )
     app = _ControlsApp(controls)
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        section = controls.query_one(GateBranchInputSection)
-        hidden_build_editor = controls.query_one(
-            "#gate-branch-0-field-input-0", SingleLineVimTextArea
-        )
-        visible_publish_editor = controls.query_one(
-            "#gate-branch-0-field-input-1", SingleLineVimTextArea
-        )
-
-        assert controls.query_one("#gate-branch-0-field-block-0").display is False
-        assert controls.query_one("#gate-branch-0-field-block-1").display is True
-        assert section.focus_first_invalid() is True
+        controls.query_one("#gate-group-submit-0", Button).press()
         await pilot.pause()
-        assert visible_publish_editor.has_focus
-        assert not hidden_build_editor.has_focus
+        panel = _panel(app)
+        assert panel.query("#gate-input-section-publish")
+        assert not panel.query("#gate-input-section-build")
+        titles = [_plain(widget) for widget in panel.query(".gate-input-section-title")]
+        assert any("Publish" in title for title in titles)
+        assert all("Build" not in title for title in titles)
 
 
-async def test_required_field_blocks_singleton_and_group_submit_until_filled() -> None:
+async def test_required_field_does_not_disable_the_control_that_opens_the_panel() -> (
+    None
+):
     solo = _option(
         "solo",
         inputs=[
@@ -180,23 +203,16 @@ async def test_required_field_blocks_singleton_and_group_submit_until_filled() -
         await pilot.pause()
         singleton = controls.query_one("#gate-singleton-0", Button)
         group_submit = controls.query_one("#gate-group-submit-1", Button)
-        assert singleton.disabled is True
-        assert group_submit.disabled is True
-
-        solo_editor = controls.query_one(
-            "#gate-branch-0-field-input-0", SingleLineVimTextArea
-        )
-        solo_editor.text = "staging"
-        await pilot.pause()
         assert singleton.disabled is False
-        assert group_submit.disabled is True  # build's required field still empty
-
-        build_editor = controls.query_one(
-            "#gate-branch-1-field-input-0", SingleLineVimTextArea
-        )
-        build_editor.text = "release"
-        await pilot.pause()
         assert group_submit.disabled is False
+
+        singleton.press()
+        await pilot.pause()
+        panel = _panel(app)
+        assert panel.query_one("#gate-input-submit", Button).disabled is True
+        panel.action_cancel()
+        await pilot.pause()
+        assert app.resolved == []
 
 
 async def test_and_members_each_receive_only_their_own_declared_fields() -> None:
@@ -223,18 +239,18 @@ async def test_and_members_each_receive_only_their_own_declared_fields() -> None
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        controls.query_one(
-            "#gate-branch-0-field-input-0", SingleLineVimTextArea
+        controls.query_one("#gate-group-submit-0", Button).press()
+        await pilot.pause()
+        panel = _panel(app)
+        panel.query_one(
+            "#gate-input-build-input-0", SingleLineVimTextArea
         ).text = "release"
-        controls.query_one(
-            "#gate-branch-0-field-input-1", SingleLineVimTextArea
-        ).text = "hi"
-        controls.query_one(
-            "#gate-branch-0-field-input-2", SingleLineVimTextArea
+        panel.query_one("#gate-input-build-input-1", SingleLineVimTextArea).text = "hi"
+        panel.query_one(
+            "#gate-input-publish-input-0", SingleLineVimTextArea
         ).text = "beta"
         await pilot.pause()
-
-        controls.query_one("#gate-group-submit-0", Button).press()
+        panel.action_submit()
         await pilot.pause()
 
     [event] = app.resolved
@@ -244,9 +260,7 @@ async def test_and_members_each_receive_only_their_own_declared_fields() -> None
     }
 
 
-async def test_conflicting_declared_field_types_render_message_and_block_submit() -> (
-    None
-):
+async def test_conflicting_declared_field_types_notify_and_do_not_open_panel() -> None:
     build = _option(
         "build",
         inputs=[{"id": "value", "label": "Value", "type": "word", "required": True}],
@@ -264,17 +278,15 @@ async def test_conflicting_declared_field_types_render_message_and_block_submit(
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        message = controls.query_one(".gate-input-conflict", Static)
-        assert "value" in message.render().plain
-        assert controls.query_one("#gate-group-submit-0", Button).disabled is True
-
+        assert controls.query_one("#gate-group-submit-0", Button).disabled is False
         controls._resolve_branch(0)
         await pilot.pause()
 
     assert app.resolved == []
+    assert not any(isinstance(screen, GateInputPanel) for screen in app.pushed)
 
 
-async def test_raw_input_schema_renders_yaml_editor_validates_and_delivers() -> None:
+async def test_raw_input_schema_opens_panel_validates_and_delivers() -> None:
     option = _option(
         "rotate",
         input_schema={
@@ -289,29 +301,30 @@ async def test_raw_input_schema_renders_yaml_editor_validates_and_delivers() -> 
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        editor = controls.query_one("#gate-branch-0-raw-rotate", TextArea)
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+        panel = _panel(app)
+        editor = panel.query_one("#gate-input-rotate-raw", VimTextArea)
 
         editor.text = "reason: 5\n"  # schema requires a string
         await pilot.pause()
-        assert controls._branch_inputs_valid(0) is False
-        assert controls.query_one(GateBranchInputSection).focus_first_invalid() is True
-        await pilot.pause()
-        assert editor.has_focus
-        error = controls.query_one("#gate-branch-0-raw-rotate-error", Static)
+        assert panel.query_one("#gate-input-submit", Button).disabled is True
+        error = panel.query_one("#gate-input-rotate-raw-error", Static)
         assert error.display is True
 
         editor.text = "reason: rotate quarterly\n"
         await pilot.pause()
-        assert controls._branch_inputs_valid(0) is True
-
-        controls._resolve_branch(0)
+        assert panel.query_one("#gate-input-submit", Button).disabled is False
+        panel.action_submit()
         await pilot.pause()
 
     [event] = app.resolved
     assert event.option_inputs == {"rotate": {"reason": "rotate quarterly"}}
 
 
-async def test_raw_schema_with_only_host_collected_property_renders_nothing() -> None:
+async def test_raw_schema_with_only_host_collected_property_submits_immediately() -> (
+    None
+):
     option = _option(
         "accept",
         input_schema={
@@ -326,9 +339,16 @@ async def test_raw_schema_with_only_host_collected_property_renders_nothing() ->
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
         assert not controls.query("#gate-inputs-0")
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+
+    assert not any(isinstance(screen, GateInputPanel) for screen in app.pushed)
+    [event] = app.resolved
+    assert event.selected_option_ids == ("accept",)
+    assert event.option_inputs == {}
 
 
-async def test_raw_schema_with_no_properties_renders_nothing() -> None:
+async def test_raw_schema_with_no_properties_submits_immediately() -> None:
     option = _option(
         "log", input_schema={"type": "object", "additionalProperties": False}
     )
@@ -338,3 +358,45 @@ async def test_raw_schema_with_no_properties_renders_nothing() -> None:
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
         assert not controls.query("#gate-inputs-0")
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+
+    assert not any(isinstance(screen, GateInputPanel) for screen in app.pushed)
+    [event] = app.resolved
+    assert event.selected_option_ids == ("log",)
+
+
+async def test_cancelling_the_panel_restores_typed_values_on_reopen() -> None:
+    option = _option(
+        "deploy",
+        inputs=[
+            {"id": "target_env", "label": "Target", "type": "line", "required": True}
+        ],
+    )
+    controls = _controls(options=(option,), branches=(("deploy",),))
+    app = _ControlsApp(controls)
+
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+        first = _panel(app)
+        first.query_one(
+            "#gate-input-deploy-input-0", SingleLineVimTextArea
+        ).text = "staging"
+        first.action_cancel()
+        await pilot.pause()
+        assert app.resolved == []
+
+        controls.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
+        second = _panel(app)
+        assert (
+            second.query_one("#gate-input-deploy-input-0", SingleLineVimTextArea).text
+            == "staging"
+        )
+        second.action_submit()
+        await pilot.pause()
+
+    [event] = app.resolved
+    assert event.option_inputs == {"deploy": {"target_env": "staging"}}

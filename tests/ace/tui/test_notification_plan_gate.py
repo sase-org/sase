@@ -19,11 +19,13 @@ from sase.ace.tui.actions.agents._notification_modals import (
     handle_plan_approval,
     submit_neutral_plan_response,
 )
+from sase.ace.tui.modals.gate_input_panel import GateInputPanel
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
 )
 from sase.ace.tui.modals.plan_approval_results import plan_approval_result_for_choice
+from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.notification_gates import paths
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -170,6 +172,7 @@ async def test_tale_plan_modal_renders_no_raw_editor_for_host_collected_properti
             if widget.id and "-raw-" in widget.id
         ]
         assert raw_ids == []
+        assert not modal.query("#gate-feedback-input")
 
 
 async def test_epic_plan_modal_renders_canonical_singleton_label(
@@ -195,6 +198,34 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
         assert epic_label.startswith("1 ")
         assert "✅" in epic_label
         assert "Epic" in epic_label
+
+
+async def test_tale_feedback_option_opens_the_input_panel(gate_home: Path) -> None:
+    plan = gate_home / "tale-feedback.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-feedback-panel")
+    [notification] = load_notifications()
+
+    async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
+        assert handle_plan_approval(pilot.app, notification) is True
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
+        modal = pilot.app.screen
+        assert isinstance(modal, PlanApprovalModal)
+        await wait_for(pilot, lambda: _has_button(modal, "#gate-singleton-2"))
+        await pilot.press("3")
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        panel = pilot.app.screen
+        assert isinstance(panel, GateInputPanel)
+        assert panel.query("#gate-input-note")
+        raw_ids = [
+            widget.id
+            for widget in panel.query("*")
+            if widget.id and "-raw-" in widget.id
+        ]
+        assert raw_ids == []
+        panel.query_one("#gate-input-note", VimTextArea).text = "needs more detail"
+        panel.action_cancel()
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
 
 
 @pytest.mark.parametrize(
