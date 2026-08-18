@@ -9,6 +9,7 @@ from textual.app import App
 from textual.widgets import OptionList, Static
 
 from sase.ace.patch import Patch
+from sase.ace.tui.modals import project_select_modal as psm
 from sase.ace.tui.modals.project_discovery import (
     is_launchable_project,
     list_launchable_projects,
@@ -18,6 +19,7 @@ from sase.ace.tui.modals.project_select_modal import (
     ProjectSelectModal,
     ProjectSelectResult,
 )
+from sase.current_project import CurrentProject
 from sase.project_display_names import ProjectDisplayProjection, ProjectDisplaySnapshot
 from tests._project_display_case import ProjectDisplayCase
 
@@ -34,6 +36,7 @@ def _data(
     *,
     projects: tuple[tuple[str, str], ...] = (("home", "home"), ("valid", "valid")),
     patches: tuple[Patch, ...] = (),
+    current_project_key: str | None = None,
 ) -> _ProjectSelectData:
     snapshot = ProjectDisplaySnapshot(dict(projects))
     return _ProjectSelectData(
@@ -43,6 +46,7 @@ def _data(
         ),
         patches=patches,
         project_display_snapshot=snapshot,
+        current_project_key=current_project_key,
     )
 
 
@@ -215,6 +219,103 @@ async def test_filter_updates_match_count_and_highlights_first() -> None:
         # "valid" matches the project and its PR.
         assert "2 matches" in _static_text(modal, "#project-select-title")
         assert option_list.option_count == 2
+        assert option_list.highlighted == 0
+
+
+def test_load_project_select_data_seeds_current_project_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        psm,
+        "load_launchable_project_snapshot",
+        lambda: (
+            ProjectDisplaySnapshot({"valid": "valid"}),
+            (ProjectDisplayProjection(project_key="valid", project_label="valid"),),
+        ),
+    )
+    monkeypatch.setattr(psm, "find_all_patches", lambda: [])
+    monkeypatch.setattr(
+        psm,
+        "resolve_current_project",
+        lambda: CurrentProject(
+            project_key="valid",
+            display_name="valid",
+            origin="project",
+            origin_ref="valid",
+            workflow_type="gh",
+        ),
+    )
+
+    data = psm._load_project_select_data()
+
+    assert data.current_project_key == "valid"
+
+
+def test_load_project_select_data_skips_resolve_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        psm,
+        "load_launchable_project_snapshot",
+        lambda: (ProjectDisplaySnapshot({}), ()),
+    )
+    monkeypatch.setattr(psm, "find_all_patches", lambda: [])
+    calls: list[int] = []
+
+    def fake_resolve() -> CurrentProject | None:
+        calls.append(1)
+        return None
+
+    monkeypatch.setattr(psm, "resolve_current_project", fake_resolve)
+
+    data = psm._load_project_select_data(seed_from_current_project=False)
+
+    assert data.current_project_key is None
+    assert calls == []
+
+
+async def test_mount_highlights_current_project_row() -> None:
+    modal = ProjectSelectModal(_data(current_project_key="valid"))
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#selection-list", OptionList)
+        # "[P] home" is row 0, "[P] valid" (the current project) is row 1.
+        assert option_list.highlighted == 1
+
+
+async def test_mount_without_current_project_leaves_default_highlight() -> None:
+    modal = ProjectSelectModal(_data())
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#selection-list", OptionList)
+        assert option_list.highlighted == 0
+
+
+async def test_filtering_resets_a_seeded_highlight_to_first_match() -> None:
+    modal = ProjectSelectModal(
+        _data(
+            patches=(_patch("valid_active", "Ready"),),
+            current_project_key="valid",
+        )
+    )
+
+    async with _TestApp().run_test() as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#selection-list", OptionList)
+        # Seeded on mount: "valid" sits at row 1, ahead of its own PR row.
+        assert option_list.highlighted == 1
+
+        modal._apply_filter("valid_active")
+        await pilot.pause()
+
         assert option_list.highlighted == 0
 
 

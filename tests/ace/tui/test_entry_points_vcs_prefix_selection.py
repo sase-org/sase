@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -151,7 +152,7 @@ def test_start_custom_agent_selector_hides_home_project_row(
 ) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_select_modal._load_project_select_data",
-        lambda: _ProjectSelectData(
+        lambda **_kwargs: _ProjectSelectData(
             projects=(
                 ProjectDisplayProjection("home", "home"),
                 ProjectDisplayProjection("sase", "sase"),
@@ -171,6 +172,33 @@ def test_start_custom_agent_selector_hides_home_project_row(
     assert isinstance(modal, ProjectSelectModal)
     assert callback is not None
     assert [item.display_name for item in modal.all_items] == ["[P] sase"]
+
+
+def test_start_custom_agent_reads_seed_filters_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.current_project_settings import CurrentProjectSettings
+
+    captured: list[bool] = []
+
+    def fake_load(**kwargs: Any) -> _ProjectSelectData:
+        captured.append(kwargs["seed_from_current_project"])
+        return _ProjectSelectData(
+            projects=(),
+            patches=(),
+            project_display_snapshot=ProjectDisplaySnapshot({}),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_select_modal._load_project_select_data",
+        fake_load,
+    )
+    app = _App()
+    app._current_project_settings = CurrentProjectSettings(seed_filters=False)
+
+    app.action_start_custom_agent()
+
+    assert captured == [False]
 
 
 def test_selecting_non_launchable_project_notifies_without_persisting(

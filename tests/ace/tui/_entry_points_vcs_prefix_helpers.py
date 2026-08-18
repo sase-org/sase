@@ -54,6 +54,7 @@ class _App(EntryPointsMixin):
         self.current_idx = 0
         self._prompt_context = None
         self.pushed_screens: list[tuple[Any, Any]] = []
+        self._current_project_settings: Any = None
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))

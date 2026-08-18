@@ -183,11 +183,14 @@ class GlossaryPanel(
         self._update_header()
         self._render_definition_card()
         self._update_footer()
+        settings = getattr(self.app, "_current_project_settings", None)
+        seed_from_current_project = getattr(settings, "seed_filters", True)
 
         def task() -> GlossaryPanelInitialLoad:
             return load_glossary_panel_initial_state(
                 launch_workspace=self._launch_workspace,
                 initial_project_key=self._initial_project_key,
+                seed_from_current_project=seed_from_current_project,
             )
 
         self._load_worker = self.run_worker(

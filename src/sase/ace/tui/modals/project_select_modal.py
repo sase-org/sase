@@ -17,6 +17,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.core.paths import sase_projects_dir
+from sase.current_project import resolve_current_project
 from sase.project_display_names import (
     ProjectDisplayProjection,
     ProjectDisplaySnapshot,
@@ -41,6 +42,7 @@ class _ProjectSelectData:
     projects: tuple[ProjectDisplayProjection, ...]
     patches: tuple[Patch, ...]
     project_display_snapshot: ProjectDisplaySnapshot
+    current_project_key: str | None
 
     def __init__(
         self,
@@ -49,6 +51,7 @@ class _ProjectSelectData:
         project_display_snapshot: ProjectDisplaySnapshot,
         patches: tuple[Patch, ...] = (),
         changespecs: tuple[Patch, ...] = (),  # legacy compatibility alias
+        current_project_key: str | None = None,
     ) -> None:
         object.__setattr__(self, "projects", projects)
         object.__setattr__(
@@ -61,15 +64,27 @@ class _ProjectSelectData:
             "project_display_snapshot",
             project_display_snapshot,
         )
+        object.__setattr__(self, "current_project_key", current_project_key)
 
 
-def _load_project_select_data() -> _ProjectSelectData:
+def _load_project_select_data(
+    *, seed_from_current_project: bool = True
+) -> _ProjectSelectData:
     """Load all picker inputs off the Textual UI thread."""
     project_display_snapshot, projects = load_launchable_project_snapshot()
+    current_project_key: str | None = None
+    if seed_from_current_project:
+        try:
+            current_project = resolve_current_project()
+        except Exception:  # noqa: BLE001 - a seed failure must not sink the load.
+            current_project = None
+        if current_project is not None:
+            current_project_key = current_project.project_key
     return _ProjectSelectData(
         projects=projects,
         patches=tuple(find_all_patches()),
         project_display_snapshot=project_display_snapshot,
+        current_project_key=current_project_key,
     )
 
 
@@ -82,9 +97,14 @@ def show_project_select_modal(
 ) -> None:
     """Worker-load picker data, then mount the pure presentation modal."""
     exclusions = tuple(exclude_project_names)
+    settings = getattr(owner, "_current_project_settings", None)
+    seed_from_current_project = getattr(settings, "seed_filters", True)
 
     async def _load_and_show() -> None:
-        data = await asyncio.to_thread(_load_project_select_data)
+        data = await asyncio.to_thread(
+            _load_project_select_data,
+            seed_from_current_project=seed_from_current_project,
+        )
         owner.push_screen(  # type: ignore[attr-defined]
             ProjectSelectModal(
                 data,
@@ -108,7 +128,9 @@ def show_project_select_modal(
         # worker path above.
         owner.push_screen(  # type: ignore[attr-defined]
             ProjectSelectModal(
-                _load_project_select_data(),
+                _load_project_select_data(
+                    seed_from_current_project=seed_from_current_project
+                ),
                 include_all=include_all,
                 exclude_project_names=exclusions,
             ),
@@ -146,6 +168,7 @@ class ProjectSelectModal(
         self._include_all = include_all
         self._exclude_project_names = frozenset(exclude_project_names)
         self._data = data
+        self._current_project_key = data.current_project_key
         self._load_items()
 
     def _load_items(self) -> None:
@@ -294,7 +317,24 @@ class ProjectSelectModal(
         """Focus the input on mount."""
         filter_input = self.query_one("#filter-input", FilterInput)
         filter_input.focus()
+        self._seed_current_project_highlight()
         self._refresh_empty_visibility()
+
+    def _seed_current_project_highlight(self) -> None:
+        """Start the cursor on the current project's row, when it is listed.
+
+        Cursor placement only: no filtering, no selection, no dismissal
+        behavior changes.
+        """
+        if self._current_project_key is None:
+            return
+        for index, item in enumerate(self.all_items):
+            if (
+                item.item_type == "project"
+                and item.project_name == self._current_project_key
+            ):
+                self.query_one("#selection-list", OptionList).highlighted = index
+                return
 
     def _apply_filter(self, query: str) -> None:
         """Rebuild the option list and chrome for the current filter query."""

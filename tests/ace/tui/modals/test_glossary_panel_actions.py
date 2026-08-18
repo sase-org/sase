@@ -193,7 +193,10 @@ def _install_fixed_load(
     snapshots: dict[str, GlossaryProjectSnapshot],
 ) -> None:
     def fake_initial_load(
-        *, launch_workspace: str | None = None, initial_project_key: str | None = None
+        *,
+        launch_workspace: str | None = None,
+        initial_project_key: str | None = None,
+        seed_from_current_project: bool = True,
     ) -> GlossaryPanelInitialLoad:
         if not ring:
             return GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None)

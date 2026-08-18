@@ -179,9 +179,12 @@ def _install_panel_load(
     snapshot: GlossaryProjectSnapshot,
 ) -> None:
     def fake_initial_load(
-        *, launch_workspace: str | None = None, initial_project_key: str | None = None
+        *,
+        launch_workspace: str | None = None,
+        initial_project_key: str | None = None,
+        seed_from_current_project: bool = True,
     ) -> GlossaryPanelInitialLoad:
-        del launch_workspace, initial_project_key
+        del launch_workspace, initial_project_key, seed_from_current_project
         return GlossaryPanelInitialLoad(ring=(ref,), project_index=0, snapshot=snapshot)
 
     def fake_project_load(project: GlossaryProjectRef) -> GlossaryProjectSnapshot:

@@ -171,7 +171,10 @@ def install_fixed_load(
     off_main_thread: list[bool] = []
 
     def fake_initial_load(
-        *, launch_workspace: str | None = None, initial_project_key: str | None = None
+        *,
+        launch_workspace: str | None = None,
+        initial_project_key: str | None = None,
+        seed_from_current_project: bool = True,
     ) -> GlossaryPanelInitialLoad:
         off_main_thread.append(
             threading.current_thread() is not threading.main_thread()

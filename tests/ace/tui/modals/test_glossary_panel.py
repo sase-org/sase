@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import wait_for
+from sase.ace.tui.current_project_settings import CurrentProjectSettings
+from sase.ace.tui.modals import glossary_panel as glossary_panel_module
 from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals.glossary_panel_load import GlossaryPanelInitialLoad
 from tests.ace.tui.modals.glossary_panel_test_helpers import (
     GlossaryPanelTestApp,
     glossary_entry,
@@ -41,6 +44,33 @@ async def test_panel_mounts_and_selects_first_term(
         ]
         assert off_main_thread == [True]
         assert "Agent Hood" in panel_static_text(panel, "glossary-panel-card-title")
+
+
+async def test_seed_filters_setting_reaches_initial_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[bool] = []
+
+    def fake_initial_load(
+        *,
+        launch_workspace: str | None = None,
+        initial_project_key: str | None = None,
+        seed_from_current_project: bool = True,
+    ) -> GlossaryPanelInitialLoad:
+        captured.append(seed_from_current_project)
+        return GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None)
+
+    monkeypatch.setattr(
+        glossary_panel_module, "load_glossary_panel_initial_state", fake_initial_load
+    )
+
+    panel = GlossaryPanel()
+    app = GlossaryPanelTestApp(panel)
+    app._current_project_settings = CurrentProjectSettings(seed_filters=False)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+
+    assert captured == [False]
 
 
 async def test_next_term_updates_card_after_debounce(

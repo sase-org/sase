@@ -58,6 +58,7 @@ class ProjectsSessionState:
     workspaces: SelectionBookmark = field(default_factory=SelectionBookmark)
     repos_project_filter: str | None = None
     workspaces_project_filter: str | None = None
+    project_filter_seeded: bool = False
 
 
 @dataclass

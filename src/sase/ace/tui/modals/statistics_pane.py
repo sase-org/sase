@@ -20,6 +20,7 @@ from sase.ace.tui.keymaps import (
 )
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
+from sase.current_project import CurrentProject, resolve_current_project
 from sase.stats.ranges import (
     DEFAULT_PRESET,
     PRESET_ORDER,
@@ -122,6 +123,11 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._perf_group_by: PerfGroupBy = "subsystem"
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
+        self._project_filter_options_ready = False
+        self._project_filter_seeded = False
+        self._current_project_resolved = False
+        self._current_project_key: str | None = None
+        self._current_project_seed_worker: Worker[Any] | None = None
         self._xprompt_focus: str | None = None
         self._xprompt_focus_options: tuple[str, ...] = ()
         self._auto_load = auto_load
@@ -220,6 +226,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         )
         if self._is_active_tab():
             self._ensure_loaded()
+        self._maybe_start_current_project_seed()
 
     def on_unmount(self) -> None:
         if self._load_debouncer is not None:
@@ -229,6 +236,8 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._refresh_timer = None
         if self._worker is not None:
             self._worker.cancel()
+        if self._current_project_seed_worker is not None:
+            self._current_project_seed_worker.cancel()
 
     def on_resize(self, event: Resize) -> None:
         """Repaint only presentation whose responsive threshold changed."""
@@ -425,6 +434,9 @@ class StatisticsPane(StatisticsPanePresentationBase):
 
     def _cycle_project_filter(self, delta: int) -> None:
         """Cycle projects in ``delta`` direction or escape an empty filter."""
+        # A manual cycle is an explicit choice: settle the seed guard so a
+        # current-project resolve that lands afterward cannot override it.
+        self._project_filter_seeded = True
         if (
             self._project_filter is not None
             and self._last_result is not None
@@ -635,7 +647,48 @@ class StatisticsPane(StatisticsPanePresentationBase):
             exit_on_error=False,
         )
 
+    def _maybe_start_current_project_seed(self) -> None:
+        """Kick a one-shot worker resolving the current project, if enabled."""
+        settings = getattr(self.app, "_current_project_settings", None)
+        if settings is not None and not getattr(settings, "seed_filters", True):
+            self._current_project_resolved = True
+            return
+        self._current_project_seed_worker = self.run_worker(
+            resolve_current_project,
+            thread=True,
+            exclusive=False,
+            exit_on_error=False,
+            group="current-project-seed",
+        )
+
+    def _maybe_seed_project_filter(self) -> None:
+        """Adopt the current project once, before the user has cycled away."""
+        if self._project_filter_seeded:
+            return
+        if not self._current_project_resolved or not self._project_filter_options_ready:
+            return
+        self._project_filter_seeded = True
+        if (
+            self._current_project_key is None
+            or self._project_filter is not None
+            or self._current_project_key not in self._project_filter_options
+        ):
+            return
+        self._project_filter = self._current_project_key
+        self._selection_changed(reload=True)
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._current_project_seed_worker:
+            if event.state in (WorkerState.SUCCESS, WorkerState.ERROR):
+                self._current_project_resolved = True
+                result = (
+                    event.worker.result if event.state == WorkerState.SUCCESS else None
+                )
+                self._current_project_key = (
+                    result.project_key if isinstance(result, CurrentProject) else None
+                )
+                self._maybe_seed_project_filter()
+            return
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
@@ -665,6 +718,8 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 self._project_filter_options = tuple(
                     row.project_key for row in result.views.projects.projects
                 )
+                self._project_filter_options_ready = True
+                self._maybe_seed_project_filter()
             if result.xprompt_focus is None:
                 self._xprompt_focus_options = tuple(
                     row.name for row in result.views.xprompts.rows

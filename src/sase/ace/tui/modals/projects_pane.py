@@ -14,6 +14,7 @@ from textual.widgets import ContentSwitcher, OptionList, Static
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.core.paths import sase_projects_dir
+from sase.current_project import CurrentProject, resolve_current_project
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.main.project_handler import (
@@ -164,6 +165,7 @@ class ProjectsPane(
         self._inventory_loading = False
         self._inventory_error = ""
         self._inventory_worker: Worker[Any] | None = None
+        self._current_project_seed_worker: Worker[Any] | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -220,10 +222,13 @@ class ProjectsPane(
         self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._refresh_options()
         self._start_inventory_load()
+        self._maybe_start_current_project_seed()
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        if self._current_project_seed_worker is not None:
+            self._current_project_seed_worker.cancel()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
@@ -338,7 +343,51 @@ class ProjectsPane(
             exit_on_error=False,
         )
 
+    def _maybe_start_current_project_seed(self) -> None:
+        """Kick a one-shot worker seeding the inventory filters, if enabled."""
+        if self._session_state.project_filter_seeded:
+            return
+        settings = getattr(self.app, "_current_project_settings", None)
+        if settings is not None and not getattr(settings, "seed_filters", True):
+            self._session_state.project_filter_seeded = True
+            return
+        self._current_project_seed_worker = self.run_worker(
+            resolve_current_project,
+            thread=True,
+            exclusive=False,
+            exit_on_error=False,
+            group="current-project-seed",
+        )
+
+    def _apply_current_project_seed(self, event: Worker.StateChanged) -> None:
+        if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
+            return
+        if self._session_state.project_filter_seeded:
+            return
+        self._session_state.project_filter_seeded = True
+        result = event.worker.result if event.state == WorkerState.SUCCESS else None
+        if not isinstance(result, CurrentProject):
+            return
+        project_key = result.project_key
+        if project_key not in {record.project_name for record in self._records}:
+            return
+        try:
+            repos_pane = self.query_one(RepoInventoryPane)
+            if repos_pane.project_filter is None:
+                repos_pane.set_project_filter(project_key)
+        except Exception:
+            pass
+        try:
+            workspaces_pane = self.query_one(WorkspaceInventoryPane)
+            if workspaces_pane.project_filter is None:
+                workspaces_pane.set_project_filter(project_key)
+        except Exception:
+            pass
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._current_project_seed_worker:
+            self._apply_current_project_seed(event)
+            return
         if event.worker is not self._inventory_worker:
             return
         if event.state == WorkerState.SUCCESS:
