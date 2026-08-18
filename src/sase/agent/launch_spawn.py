@@ -327,6 +327,7 @@ def spawn_agent_subprocess(
                     new_workflow=claim_request.workflow_name,
                     new_artifacts_timestamp=artifacts_timestamp,
                     cl_name=claim_request.cl_name,
+                    caller_tag="retry-transfer",
                 )
                 if not result.success:
                     timer.finish(outcome="claim_failed")
@@ -344,6 +345,7 @@ def spawn_agent_subprocess(
                     pid,
                     claim_request.cl_name,
                     artifacts_timestamp=artifacts_timestamp,
+                    caller_tag="spawn-claim",
                 )
                 if not result.success:
                     timer.finish(outcome="claim_failed")

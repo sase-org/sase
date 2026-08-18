@@ -46,6 +46,7 @@ def _release_held_workspace_claims(
             claim.workspace_num,
             claim.workflow,
             claim.cl_name,
+            caller_tag="dismiss",
         )
         if result.success:
             released += 1
@@ -111,13 +112,19 @@ def persist_cleanup_side_effect_intents(
             and agent is not None
             and agent.agent_type.value == "workflow"
         ):
-            release_workspace(intent.project_file, workspace, f"workflow({workflow})")
+            release_workspace(
+                intent.project_file,
+                workspace,
+                f"workflow({workflow})",
+                caller_tag="dismiss",
+            )
         else:
             release_workspace(
                 intent.project_file,
                 workspace,
                 workflow if agent is None else agent.workflow,
                 intent.cl_name if agent is None else agent.cl_name,
+                caller_tag="dismiss",
             )
 
     artifact_delete_paths = [
@@ -213,6 +220,7 @@ def _release_workspace_for(agent: Agent) -> None:
         agent.project_file,
         workspace_num,
         f"workflow({workflow_name})",
+        caller_tag="dismiss",
     )
 
 

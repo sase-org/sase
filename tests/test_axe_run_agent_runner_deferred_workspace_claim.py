@@ -41,7 +41,11 @@ class TestDeferredWorkspacePreparation:
         assert workspace_num == 7
         assert actual_workspace_dir == str(workspace_dir)
         release_mock.assert_called_once_with(
-            str(tmp_path / "project.sase"), 0, "test-workflow", "test-cl"
+            str(tmp_path / "project.sase"),
+            0,
+            "test-workflow",
+            "test-cl",
+            caller_tag="deferred-placeholder-release",
         )
         claim_mock.assert_called_once()
         chdir_mock.assert_called_once_with(str(workspace_dir))

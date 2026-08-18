@@ -75,7 +75,9 @@ def test_release_held_workspace_claims_matches_timestamp_cl_and_dead_pid() -> No
         )
 
     assert released == 1
-    assert release.call_args_list == [call(project_file, 17, "run", "feature")]
+    assert release.call_args_list == [
+        call(project_file, 17, "run", "feature", caller_tag="dismiss")
+    ]
 
 
 def test_dismiss_fallback_releases_hold_before_deleting_artifacts(tmp_path) -> None:

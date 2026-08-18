@@ -14,6 +14,7 @@ from sase.core.agent_launch_claims import (
 from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
 from sase.core.project_lifecycle_facade import read_project_lifecycle_from_content
 from sase.core.project_lifecycle_wire import is_disabled_project_lifecycle_state
+from sase.logs.workspace_claim_ledger import record_running_field_mutation
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
@@ -77,6 +78,7 @@ def claim_workspace(
     cl_name: str | None = None,
     artifacts_timestamp: str | None = None,
     pinned: bool = False,
+    caller_tag: str | None = None,
 ) -> ClaimResult:
     """Claim a workspace by adding it to the RUNNING field.
 
@@ -90,6 +92,8 @@ def claim_workspace(
         cl_name: Optional Patch name being worked on
         artifacts_timestamp: Optional timestamp of the artifacts directory (YYYYmmddHHMMSS)
         pinned: If True, the claim is pinned and won't be cleaned up as stale
+        caller_tag: Optional short tag naming the calling code path, recorded
+            in the workspace-claim mutation ledger.
 
     Returns:
         ClaimResult.  ``success`` is True on a successful claim.  On failure
@@ -115,6 +119,19 @@ def claim_workspace(
 
                 lifecycle_error = _new_work_lifecycle_error(project_file, content)
                 if lifecycle_error is not None:
+                    record_running_field_mutation(
+                        operation="claim",
+                        project_file=project_file,
+                        workspace_num=workspace_num,
+                        success=False,
+                        before_content=content,
+                        workflow=workflow,
+                        cl_name=cl_name,
+                        artifacts_timestamp=artifacts_timestamp,
+                        claim_pid=pid,
+                        error=lifecycle_error,
+                        caller_tag=caller_tag,
+                    )
                     return ClaimResult(success=False, error=lifecycle_error)
 
                 plan = plan_claim_workspace_from_content(
@@ -134,13 +151,40 @@ def claim_workspace(
                     reason = outcome.get("error") or (
                         f"workspace #{workspace_num} claim rejected by core"
                     )
+                    record_running_field_mutation(
+                        operation="claim",
+                        project_file=project_file,
+                        workspace_num=workspace_num,
+                        success=False,
+                        before_content=content,
+                        workflow=workflow,
+                        cl_name=cl_name,
+                        artifacts_timestamp=artifacts_timestamp,
+                        claim_pid=pid,
+                        error=str(reason),
+                        caller_tag=caller_tag,
+                    )
                     return ClaimResult(success=False, error=str(reason))
 
                 cl_part = f" for {cl_name}" if cl_name else ""
+                new_content = str(plan["content"])
                 write_patch_atomic(
                     project_file,
-                    str(plan["content"]),
+                    new_content,
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
+                )
+                record_running_field_mutation(
+                    operation="claim",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=True,
+                    before_content=content,
+                    after_content=new_content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    claim_pid=pid,
+                    caller_tag=caller_tag,
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]
                 WORKSPACE_ACTIVE.labels(project=project).inc()
@@ -162,6 +206,7 @@ def release_workspace(
     workspace_num: int,
     workflow: str | None = None,
     cl_name: str | None = None,
+    caller_tag: str | None = None,
 ) -> ClaimResult:
     """Release a workspace by removing it from the RUNNING field.
 
@@ -172,6 +217,8 @@ def release_workspace(
         workspace_num: Workspace number to release
         workflow: Optional workflow name to match (for more specific release)
         cl_name: Optional Patch name to match (for more specific release)
+        caller_tag: Optional short tag naming the calling code path, recorded
+            in the workspace-claim mutation ledger.
 
     Returns:
         ClaimResult.  ``success`` is True on a successful release; on
@@ -252,6 +299,31 @@ def release_workspace(
                 result_content,
                 f"Release workspace #{workspace_num}",
             )
+            released_claim = next(
+                (
+                    item
+                    for item in list_workspace_claims_from_content(content)
+                    if item.workspace_num == workspace_num
+                    and (workflow is None or item.workflow == workflow)
+                    and (cl_name is None or item.cl_name == cl_name)
+                ),
+                None,
+            )
+            record_running_field_mutation(
+                operation="release",
+                project_file=project_file,
+                workspace_num=workspace_num,
+                success=True,
+                before_content=content,
+                after_content=result_content,
+                workflow=workflow,
+                cl_name=cl_name,
+                artifacts_timestamp=(
+                    released_claim.artifacts_timestamp if released_claim else None
+                ),
+                claim_pid=released_claim.pid if released_claim else None,
+                caller_tag=caller_tag,
+            )
             project = os.path.splitext(os.path.basename(project_file))[0]
             WORKSPACE_ACTIVE.labels(project=project).dec()
             return ClaimResult(success=True)
@@ -265,6 +337,7 @@ def hold_workspace_claim(
     workflow: str,
     cl_name: str,
     artifacts_timestamp: str,
+    caller_tag: str | None = None,
 ) -> ClaimResult:
     """Atomically pin the existing workspace claim for a failed agent run.
 
@@ -295,14 +368,37 @@ def hold_workspace_claim(
                 None,
             )
             if claim is None:
-                return ClaimResult(
-                    success=False,
-                    error=(
-                        f"workspace #{workspace_num} claim for {workflow}/{cl_name} "
-                        f"at {artifacts_timestamp} was not found"
-                    ),
+                error = (
+                    f"workspace #{workspace_num} claim for {workflow}/{cl_name} "
+                    f"at {artifacts_timestamp} was not found"
                 )
+                record_running_field_mutation(
+                    operation="hold",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=False,
+                    before_content=content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    error=error,
+                    caller_tag=caller_tag,
+                )
+                return ClaimResult(success=False, error=error)
             if claim.pinned:
+                record_running_field_mutation(
+                    operation="hold",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=True,
+                    before_content=content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    claim_pid=claim.pid,
+                    error="already pinned (no-op)",
+                    caller_tag=caller_tag,
+                )
                 return ClaimResult(success=True)
 
             from sase.core.agent_cleanup_execution import (
@@ -316,10 +412,21 @@ def hold_workspace_claim(
                 cl_name,
             )
             if released is None or not bool(released.get("removed")):
-                return ClaimResult(
+                error = f"workspace #{workspace_num} claim could not be held"
+                record_running_field_mutation(
+                    operation="hold",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
                     success=False,
-                    error=f"workspace #{workspace_num} claim could not be held",
+                    before_content=content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    claim_pid=claim.pid,
+                    error=error,
+                    caller_tag=caller_tag,
                 )
+                return ClaimResult(success=False, error=error)
 
             plan = plan_claim_workspace_from_content(
                 str(released["content"]),
@@ -338,12 +445,39 @@ def hold_workspace_claim(
                 reason = outcome.get("error") or (
                     f"workspace #{workspace_num} hold rejected by core"
                 )
+                record_running_field_mutation(
+                    operation="hold",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=False,
+                    before_content=content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    claim_pid=claim.pid,
+                    error=str(reason),
+                    caller_tag=caller_tag,
+                )
                 return ClaimResult(success=False, error=str(reason))
 
+            new_content = str(plan["content"])
             write_patch_atomic(
                 project_file,
-                str(plan["content"]),
+                new_content,
                 f"Hold workspace #{workspace_num} for failed agent run",
+            )
+            record_running_field_mutation(
+                operation="hold",
+                project_file=project_file,
+                workspace_num=workspace_num,
+                success=True,
+                before_content=content,
+                after_content=new_content,
+                workflow=workflow,
+                cl_name=cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+                claim_pid=claim.pid,
+                caller_tag=caller_tag,
             )
             return ClaimResult(success=True)
     except (OSError, BlockingIOError) as exc:
@@ -359,6 +493,7 @@ def transfer_workspace_claim(
     new_workflow: str,
     new_artifacts_timestamp: str | None,
     cl_name: str | None = None,
+    caller_tag: str | None = None,
 ) -> ClaimResult:
     """Atomically transfer ownership of an existing workspace claim to a new PID.
 
@@ -401,12 +536,39 @@ def transfer_workspace_claim(
                     f"transfer of workspace #{workspace_num} from pid {from_pid} "
                     "rejected by core"
                 )
+                record_running_field_mutation(
+                    operation="transfer",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=False,
+                    before_content=content,
+                    workflow=new_workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=new_artifacts_timestamp,
+                    claim_pid=to_pid,
+                    error=str(reason),
+                    caller_tag=caller_tag,
+                )
                 return ClaimResult(success=False, error=str(reason))
 
+            new_content = str(plan["content"])
             write_patch_atomic(
                 project_file,
-                str(plan["content"]),
+                new_content,
                 f"Transfer workspace #{workspace_num} from pid {from_pid} to {to_pid}",
+            )
+            record_running_field_mutation(
+                operation="transfer",
+                project_file=project_file,
+                workspace_num=workspace_num,
+                success=True,
+                before_content=content,
+                after_content=new_content,
+                workflow=new_workflow,
+                cl_name=cl_name,
+                artifacts_timestamp=new_artifacts_timestamp,
+                claim_pid=to_pid,
+                caller_tag=caller_tag,
             )
             return ClaimResult(success=True)
     except (OSError, BlockingIOError) as exc:
@@ -495,6 +657,7 @@ def claim_next_axe_workspace(
     pinned: bool = False,
     min_workspace: int | None = None,
     max_workspace: int | None = None,
+    caller_tag: str | None = None,
 ) -> int:
     """Atomically find and claim the next available axe workspace.
 
@@ -517,6 +680,8 @@ def claim_next_axe_workspace(
         pinned: If True, the claim is pinned and won't be cleaned up as stale.
         min_workspace: Minimum workspace number to consider (default: 10).
         max_workspace: Maximum workspace number to consider (default: 999).
+        caller_tag: Optional short tag naming the calling code path, recorded
+            in the workspace-claim mutation ledger.
 
     Returns:
         The claimed workspace number.
@@ -570,19 +735,47 @@ def claim_next_axe_workspace(
                 outcome = dict(plan["outcome"])
                 if not bool(outcome["success"]):
                     error = outcome.get("error")
-                    if error:
-                        raise WorkspaceClaimError(f"{error} in {project_file}")
-                    raise WorkspaceClaimError(
+                    message = error or (
                         f"All axe workspaces ({min_workspace}-{max_workspace}) "
                         f"are claimed in {project_file}"
                     )
+                    record_running_field_mutation(
+                        operation="claim_next_axe",
+                        project_file=project_file,
+                        workspace_num=None,
+                        success=False,
+                        before_content=content,
+                        workflow=workflow,
+                        cl_name=cl_name,
+                        artifacts_timestamp=artifacts_timestamp,
+                        claim_pid=pid,
+                        error=str(message),
+                        caller_tag=caller_tag,
+                    )
+                    if error:
+                        raise WorkspaceClaimError(f"{error} in {project_file}")
+                    raise WorkspaceClaimError(message)
                 workspace_num = int(outcome["workspace_num"])
 
                 cl_part = f" for {cl_name}" if cl_name else ""
+                new_content = str(plan["content"])
                 write_patch_atomic(
                     project_file,
-                    str(plan["content"]),
+                    new_content,
                     f"Claim workspace #{workspace_num} ({workflow}){cl_part}",
+                )
+                record_running_field_mutation(
+                    operation="claim_next_axe",
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    success=True,
+                    before_content=content,
+                    after_content=new_content,
+                    workflow=workflow,
+                    cl_name=cl_name,
+                    artifacts_timestamp=artifacts_timestamp,
+                    claim_pid=pid,
+                    caller_tag=caller_tag,
                 )
                 project = os.path.splitext(os.path.basename(project_file))[0]
                 WORKSPACE_ACTIVE.labels(project=project).inc()

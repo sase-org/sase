@@ -53,7 +53,13 @@ def claim_deferred_workspace(
     )
 
     # Release the placeholder workspace_num=0 claim.
-    release_workspace(project_file, 0, workflow_name, cl_name)
+    release_workspace(
+        project_file,
+        0,
+        workflow_name,
+        cl_name,
+        caller_tag="deferred-placeholder-release",
+    )
 
     vcs_wf_type = os.environ.get("SASE_AGENT_VCS_WORKFLOW_TYPE")
     prefix = None
@@ -98,6 +104,7 @@ def claim_deferred_workspace(
                 os.getpid(),
                 cl_name,
                 artifacts_timestamp=artifacts_timestamp,
+                caller_tag="deferred-claim",
             )
             if claim_result.success:
                 if prefix:

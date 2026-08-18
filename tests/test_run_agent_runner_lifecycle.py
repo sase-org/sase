@@ -134,6 +134,7 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
         "ace(run)-260712_120000",
         "feature",
         "20260712120000",
+        caller_tag="agent-finalize",
     )
     release.assert_not_called()
     assert write_error_report.call_args.kwargs["held_workspace_num"] == 17
@@ -194,7 +195,9 @@ def test_finalize_releases_failed_workspace_without_visible_notification(
         )
 
     hold.assert_not_called()
-    release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
+    release.assert_called_once_with(
+        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+    )
     all_steps_hidden.assert_called_once_with("/tmp/artifacts")
     send_notification.assert_not_called()
 
@@ -233,7 +236,9 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
         )
 
     hold.assert_not_called()
-    release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
+    release.assert_called_once_with(
+        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+    )
 
 
 def test_finalize_does_not_touch_workspace_for_monitored_handoff(
@@ -328,7 +333,9 @@ def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
         )
 
     hold.assert_not_called()
-    release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
+    release.assert_called_once_with(
+        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+    )
 
 
 def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:

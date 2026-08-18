@@ -106,7 +106,11 @@ def cleanup_stale_running_entries(
                 continue
 
             release_workspace(
-                project_file, claim.workspace_num, claim.workflow, claim.cl_name
+                project_file,
+                claim.workspace_num,
+                claim.workflow,
+                claim.cl_name,
+                caller_tag="stale-cleanup",
             )
             released_count += 1
 

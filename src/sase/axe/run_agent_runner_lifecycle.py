@@ -197,6 +197,7 @@ def finalize_runner_shutdown(
                     context.workflow_name,
                     context.cl_name,
                     context.artifacts_timestamp,
+                    caller_tag="agent-finalize",
                 )
                 workspace_held = result.success
                 if workspace_held:
@@ -218,6 +219,7 @@ def finalize_runner_shutdown(
                     state.workspace_num,
                     context.workflow_name,
                     context.cl_name,
+                    caller_tag="agent-finalize",
                 )
                 print("Workspace released")
         except Exception as e:

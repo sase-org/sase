@@ -159,8 +159,20 @@ def test_cleanup_releases_each_dead_claim_by_identity() -> None:
 
     assert released == 2
     assert release.call_args_list == [
-        call(project_file, 10, "ace(run)-260101_120000", "feature_a"),
-        call(project_file, 11, "ace(run)-260101_120001", "feature_b"),
+        call(
+            project_file,
+            10,
+            "ace(run)-260101_120000",
+            "feature_a",
+            caller_tag="stale-cleanup",
+        ),
+        call(
+            project_file,
+            11,
+            "ace(run)-260101_120001",
+            "feature_b",
+            caller_tag="stale-cleanup",
+        ),
     ]
 
 
@@ -213,6 +225,7 @@ def test_cleanup_skips_pinned_entries() -> None:
             2,
             "run",
             "unpinned_feature",
+            caller_tag="stale-cleanup",
         )
         # is_process_running should only be called for the unpinned entry
         mock_is_running.assert_called_once_with(22222)
@@ -321,7 +334,9 @@ def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
         patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 1
-    release.assert_called_once_with(project_file, 10, "ace-monitor", "feature")
+    release.assert_called_once_with(
+        project_file, 10, "ace-monitor", "feature", caller_tag="stale-cleanup"
+    )
 
 
 def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> None:
@@ -362,7 +377,9 @@ def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> No
         released = cleanup_stale_running_entries(skip_monitor_claims=True)
 
     assert released == 1
-    release.assert_called_once_with(project_file, 11, "run", "other")
+    release.assert_called_once_with(
+        project_file, 11, "run", "other", caller_tag="stale-cleanup"
+    )
     read_marker.assert_not_called()
 
 
@@ -396,4 +413,6 @@ def test_cleanup_releases_held_workspace_after_artifacts_are_deleted() -> None:
         patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
     ):
         assert cleanup_stale_running_entries() == 1
-    release.assert_called_once_with(project_file, 17, "run", "feature")
+    release.assert_called_once_with(
+        project_file, 17, "run", "feature", caller_tag="stale-cleanup"
+    )
