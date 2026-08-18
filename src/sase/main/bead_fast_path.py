@@ -35,6 +35,11 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     # is a Python working-tree scan, not a bead-store query.
     if argv[0] in {"close", "create", "epic-symbols", "task-type"}:
         return None
+    # ``@<path>`` free-text expansion lives in the Python handlers. The Rust
+    # update/note fast path stores the raw token, so those verbs must fall
+    # through whenever argv might name a file (or the ``@@`` escape).
+    if argv[0] in {"update", "note"} and _argv_requests_at_path(argv):
+        return None
     if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None
 
@@ -166,6 +171,18 @@ def _resolve_materialized_context() -> _FastPathContext | None:
         relativize_design_paths=location.beads_dirname == _BEADS_DIRNAME,
         read_only=location.read_only,
     )
+
+
+def _argv_requests_at_path(argv: list[str]) -> bool:
+    """Return whether *argv* may carry an ``@<path>`` or ``@@`` free-text value."""
+
+    for arg in argv[1:]:
+        if arg.startswith("@") and arg != "@":
+            return True
+        separator = arg.find("=")
+        if separator > 0 and arg[separator + 1 :].startswith("@"):
+            return True
+    return False
 
 
 def _search_uses_full_format(argv: list[str]) -> bool:

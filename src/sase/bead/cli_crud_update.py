@@ -11,6 +11,7 @@ from sase.bead.cli_crud_common import mutation_outcome_ids
 from sase.bead.flag_codec import flag_to_dict
 from sase.bead.model import FlagRecord, Issue, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 
 
 def _print_update_results(
@@ -60,6 +61,20 @@ def handle_bead_update(args: argparse.Namespace) -> None:
     if getattr(args, "task_type", None) is not None:
         print(f"Error: {_TASK_TYPE_IMMUTABLE_MESSAGE}", file=sys.stderr)
         sys.exit(1)
+    try:
+        description = (
+            read_at_path_value(args.description, target="--description")
+            if args.description is not None
+            else None
+        )
+        notes = (
+            read_at_path_value(args.notes, target="--notes")
+            if args.notes is not None
+            else None
+        )
+    except CliFileValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
         fields: dict[str, Any] = {}
@@ -67,10 +82,10 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["status"] = args.status
         if args.title:
             fields["title"] = args.title
-        if args.description is not None:
-            fields["description"] = args.description
-        if args.notes is not None:
-            fields["notes"] = args.notes
+        if description is not None:
+            fields["description"] = description
+        if notes is not None:
+            fields["notes"] = notes
         if args.design is not None:
             fields["design"] = args.design
         if args.assignee is not None:

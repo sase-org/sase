@@ -98,8 +98,13 @@ def test_parse_field_args_rejects_duplicate_keys() -> None:
 
 def test_parse_field_args_rejects_missing_file(tmp_path: Path) -> None:
     missing = tmp_path / "gone.txt"
-    with pytest.raises(TaskTypeCreateError, match="file not found"):
+    with pytest.raises(TaskTypeCreateError, match="file not found") as exc_info:
         parse_field_args([f"evidence=@{missing}"])
+    assert isinstance(exc_info.value, TaskTypeCreateError)
+
+
+def test_parse_field_args_double_at_stores_literal() -> None:
+    assert parse_field_args(["evidence=@@literal"]) == {"evidence": "@literal"}
 
 
 def test_create_typed_task_stores_fields_not_description(

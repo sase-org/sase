@@ -154,6 +154,39 @@ def test_note_defaults_author_from_store_owner_without_agent_identity(
     assert issue.notes == "[2026-01-01T00:01:00Z · owner@example.com] owner note"
 
 
+def test_note_single_token_at_path_expands(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    note_file = tmp_path / "note.md"
+    note_file.write_text("from file", encoding="utf-8")
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+
+    _run_note([issue_id, "--author", "alice", f"@{note_file}"], capsys)
+
+    with BeadProject(project_dir) as project:
+        issue = project.show(issue_id)
+    assert issue.notes == "[2026-01-01T00:01:00Z · alice] from file"
+
+
+def test_note_multi_token_text_still_joins_with_spaces(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue_id = _create_issue(project_dir)
+    monkeypatch.setattr("sase.bead.project._now", lambda: "2026-01-01T00:01:00Z")
+
+    _run_note([issue_id, "--author", "alice", "@not-a-file", "and", "more"], capsys)
+
+    with BeadProject(project_dir) as project:
+        issue = project.show(issue_id)
+    assert issue.notes == "[2026-01-01T00:01:00Z · alice] @not-a-file and more"
+
+
 def test_handle_bead_note_auto_commit_message(project_dir: Path) -> None:
     issue_id = _create_issue(project_dir)
 

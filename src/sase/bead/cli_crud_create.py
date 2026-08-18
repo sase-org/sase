@@ -16,6 +16,7 @@ from sase.bead.cli_common import (
 )
 from sase.bead.model import BeadTier, FlagRecord, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 from sase.task_types import (
     TaskTypeCreateError,
     format_agent_creatable_type_listing,
@@ -121,7 +122,12 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 "-f/--field can only be set on task beads created with "
                 "-T 'task(<slug>)'"
             )
-    except TaskTypeCreateError as exc:
+        description = (
+            read_at_path_value(args.description, target="--description")
+            if args.description is not None
+            else ""
+        )
+    except (TaskTypeCreateError, CliFileValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     changespec_name = (
@@ -208,7 +214,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 title=args.title,
                 issue_type=issue_type,
                 parent_id=parent_id,
-                description=args.description or "",
+                description=description,
                 assignee=args.assignee or "",
                 design=design,
                 refs=getattr(args, "ref", None) or (),

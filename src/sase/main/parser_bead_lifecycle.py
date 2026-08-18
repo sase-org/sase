@@ -4,6 +4,17 @@ from __future__ import annotations
 
 import argparse
 
+from sase.cli_file_values import AT_PATH_PREFIX
+
+_AT_PATH_READS_IT = (
+    f"{AT_PATH_PREFIX}<path> reads it from that file, "
+    f"{AT_PATH_PREFIX * 2} escapes a literal leading {AT_PATH_PREFIX}"
+)
+_AT_PATH_READS_THEM = (
+    f"{AT_PATH_PREFIX}<path> reads them from that file, "
+    f"{AT_PATH_PREFIX * 2} escapes a literal leading {AT_PATH_PREFIX}"
+)
+
 
 def register_bead_plus_one_parser(
     subparsers: argparse._SubParsersAction,
@@ -141,10 +152,14 @@ def register_bead_create_parser(
             "Create a plan, phase, or standalone task bead. New task beads "
             "require an explicit size and -T 'task(<slug>)'; plan beads reject "
             "size, while raw phase creation accepts it optionally. Typed tasks "
-            "take repeatable -f/--field values for the type's declared fields."
+            "take repeatable -f/--field values for the type's declared fields. "
+            f"Free-text values accept {AT_PATH_PREFIX}<path>."
         ),
         epilog=(
             "Examples:\n"
+            "  sase bead create -T 'task(bug)' -t \"Fix retry race\" -z medium "
+            "-d @/tmp/diagnosis.md -f location=src/retry.py "
+            "-f repro='fails on retry'\n"
             "  sase bead create -T 'task(bug)' -t \"Fix retry race\" -z medium "
             "-f location=src/retry.py -f repro='fails on retry'\n"
             "  sase bead create -T 'task(flake)' -t \"Flaky retry\" -z medium "
@@ -168,7 +183,11 @@ def register_bead_create_parser(
         dest="patch",
         help="Attach a Patch name to a plan bead",
     )
-    parser.add_argument("-d", "--description", help="Issue description")
+    parser.add_argument(
+        "-d",
+        "--description",
+        help=f"Issue description; {_AT_PATH_READS_IT}",
+    )
     parser.add_argument(
         "-x",
         "--external-ref",
@@ -236,7 +255,11 @@ def register_bead_note_parser(
     parser.add_argument(
         "text",
         nargs="+",
-        help="Note text to append",
+        help=(
+            f"Note text to append; a single-token {AT_PATH_PREFIX}<path> is "
+            f"read from that file, {AT_PATH_PREFIX * 2} escapes a literal "
+            f"leading {AT_PATH_PREFIX}"
+        ),
     )
     parser.add_argument(
         "-a",
@@ -473,7 +496,11 @@ def register_bead_update_parser(
     )
     parser.add_argument("-a", "--assignee")
     parser.add_argument("-D", "--design")
-    parser.add_argument("-d", "--description")
+    parser.add_argument(
+        "-d",
+        "--description",
+        help=f"Issue description; {_AT_PATH_READS_IT}",
+    )
     external_ref_group = parser.add_mutually_exclusive_group()
     external_ref_group.add_argument(
         "-x",
@@ -494,7 +521,11 @@ def register_bead_update_parser(
             "codex/gpt-5.6-sol) or local alias (e.g. #pro). Pass '' to clear."
         ),
     )
-    parser.add_argument("-n", "--notes")
+    parser.add_argument(
+        "-n",
+        "--notes",
+        help=f"Issue notes; {_AT_PATH_READS_THEM}",
+    )
     parser.add_argument(
         "-b",
         "--remove-by",

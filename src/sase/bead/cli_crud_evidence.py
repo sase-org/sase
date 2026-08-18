@@ -13,6 +13,7 @@ from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
 from sase.bead.cli_crud_common import resolve_mutation_author
 from sase.bead.model import Status
 from sase.bead.mutation_commit import require_mutation_commit_message
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 
 
 def _withheld_reopen_note(reporter: str, closed_at: str) -> str:
@@ -104,7 +105,15 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
 def handle_bead_note(args: argparse.Namespace) -> None:
     text = args.text
     if isinstance(text, list):
-        text = " ".join(text)
+        try:
+            text = (
+                read_at_path_value(text[0], target="note text")
+                if len(text) == 1
+                else " ".join(text)
+            )
+        except CliFileValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
             author = args.author

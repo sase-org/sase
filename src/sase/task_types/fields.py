@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any
 
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 from sase.core.rust import require_rust_binding
 from sase.task_types._snapshot import task_type_snapshot_entry as _snapshot_entry
 from sase.task_types._validation import plain_task_type_spec
@@ -14,7 +14,6 @@ from sase.task_types.registry import get_task_type_registry
 UNTYPED_TASK_TYPE = "untyped"
 
 _FIELD_ASSIGNMENT_SEP = "="
-_FILE_VALUE_PREFIX = "@"
 
 
 class TaskTypeCreateError(ValueError):
@@ -24,8 +23,9 @@ class TaskTypeCreateError(ValueError):
 def parse_field_args(raw_fields: Sequence[str] | None) -> dict[str, str]:
     """Parse repeatable ``k=v`` ``--field`` values.
 
-    A value of the form ``@<path>`` is read from that file. Duplicate keys are
-    an error rather than a silent last-wins.
+    A value of the form ``@<path>`` is read from that file; ``@@`` stores a
+    literal leading ``@``. Duplicate keys are an error rather than a silent
+    last-wins.
     """
 
     parsed: dict[str, str] = {}
@@ -105,15 +105,14 @@ def resolve_field_value(key: str, value: str, *, option: str = "--field") -> str
 
     *option* names the CLI flag to cite in the error when *value* is an
     ``@<path>`` reference to a file that does not exist. Pass an empty *key*
-    when *option* already identifies exactly one field.
+    when *option* already identifies exactly one field. ``@@`` stores a
+    literal leading ``@``.
     """
-    if not value.startswith(_FILE_VALUE_PREFIX) or value == _FILE_VALUE_PREFIX:
-        return value
-    path = Path(value[len(_FILE_VALUE_PREFIX) :]).expanduser()
-    if not path.is_file():
-        label = f"{option} {key}" if key else option
-        raise TaskTypeCreateError(f"{label}: file not found: {path}")
-    return path.read_text(encoding="utf-8")
+    label = f"{option} {key}" if key else option
+    try:
+        return read_at_path_value(value, target=label)
+    except CliFileValueError as exc:
+        raise TaskTypeCreateError(str(exc)) from exc
 
 
 def task_type_field_problems(

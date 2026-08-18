@@ -250,6 +250,99 @@ def test_status_closed_succeeds_across_parent_and_child_in_either_order(
         assert proj.show(child.id).status is Status.CLOSED
 
 
+def test_update_description_and_notes_read_at_path(
+    project_dir: Path,
+    tmp_path: Path,
+) -> None:
+    issue = _create_issue(project_dir, "Needs prose")
+    desc = tmp_path / "desc.md"
+    notes = tmp_path / "notes.md"
+    desc.write_text("description from file\n", encoding="utf-8")
+    notes.write_text("notes from file\n", encoding="utf-8")
+
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(
+            [
+                "bead",
+                "update",
+                issue.id,
+                "-d",
+                f"@{desc}",
+                "-n",
+                f"@{notes}",
+            ]
+        )
+    )
+
+    with BeadProject(project_dir) as proj:
+        updated = proj.show(issue.id)
+    assert updated.description == "description from file\n"
+    assert updated.notes == "notes from file\n"
+
+
+def test_update_empty_description_still_clears(project_dir: Path) -> None:
+    issue = _create_issue(project_dir, "Has a description")
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(
+            ["bead", "update", issue.id, "-d", "existing description"]
+        )
+    )
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(["bead", "update", issue.id, "-d", ""])
+    )
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(issue.id).description == ""
+
+
+def test_update_missing_description_file_leaves_bead_unmodified(
+    project_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = _create_issue(project_dir, "Unmodified")
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(
+            ["bead", "update", issue.id, "-d", "keep this description"]
+        )
+    )
+    jsonl_path = _issues_jsonl(project_dir)
+    before = jsonl_path.read_bytes()
+    missing = tmp_path / "gone.md"
+
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit) as excinfo:
+            bead_cli.handle_bead_update(
+                create_parser().parse_args(
+                    ["bead", "update", issue.id, "-d", f"@{missing}"]
+                )
+            )
+
+    assert excinfo.value.code == 1
+    auto_commit.assert_not_called()
+    assert "file not found" in capsys.readouterr().err
+    assert jsonl_path.read_bytes() == before
+    with BeadProject(project_dir) as proj:
+        assert proj.show(issue.id).description == "keep this description"
+
+
+def test_update_design_at_path_is_stored_literally(
+    project_dir: Path,
+    tmp_path: Path,
+) -> None:
+    issue = _create_issue(project_dir, "Plan path")
+    plan = tmp_path / "plan.md"
+    plan.write_text("# should not be read\n", encoding="utf-8")
+    literal = f"@{plan}"
+
+    bead_cli.handle_bead_update(
+        create_parser().parse_args(["bead", "update", issue.id, "-D", literal])
+    )
+
+    with BeadProject(project_dir) as proj:
+        assert proj.show(issue.id).design == literal
+
+
 def test_status_closed_rejects_batch_with_out_of_batch_descendant(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

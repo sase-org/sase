@@ -350,6 +350,27 @@ def test_repo_log_help_documents_filters_lookup_and_examples() -> None:
     assert "sase repo log --id <open-id> --json" in log_help
 
 
+def test_bead_create_and_update_help_document_at_path() -> None:
+    """Free-text bead options document ``@<path>`` and the ``@@`` escape."""
+
+    create_help = flat_help(parser_for(("sase", "bead", "create")).format_help())
+    update_help = flat_help(parser_for(("sase", "bead", "update")).format_help())
+    note_help = flat_help(parser_for(("sase", "bead", "note")).format_help())
+
+    _assert_metavar_option_documented(create_help, "-d", "--description", "DESCRIPTION")
+    assert "@<path> reads it from that file" in create_help
+    assert "@@ escapes a literal leading @" in create_help
+    assert "Free-text values accept @<path>." in create_help
+    assert "-d @/tmp/diagnosis.md" in create_help
+
+    _assert_metavar_option_documented(update_help, "-d", "--description", "DESCRIPTION")
+    assert "@<path> reads it from that file" in update_help
+    _assert_metavar_option_documented(update_help, "-n", "--notes", "NOTES")
+    assert "@<path> reads them from that file" in update_help
+
+    assert "single-token @<path>" in note_help
+
+
 def test_workspace_help_hides_deprecated_open_alias() -> None:
     """The compatibility parser remains addressable but is not advertised."""
 
