@@ -13,7 +13,7 @@ from rich.text import Text
 
 from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
-from sase.ace.tui.project_styles import project_accent, project_accent_map
+from sase.ace.tui.project_styles import project_accent
 from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
@@ -594,10 +594,7 @@ def _origin_display(current: CurrentProject) -> str:
 
 
 def _accent_for(project_key: str) -> str:
-    enabled = _enabled_project_keys()
-    if enabled:
-        return project_accent_map([*enabled, project_key])[project_key]
-    return project_accent(project_key)
+    return project_accent(project_key, among=_enabled_project_keys())
 
 
 def _print_current_human(
