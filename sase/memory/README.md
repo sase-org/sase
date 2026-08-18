@@ -153,7 +153,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
   private misuse, pragmas, and epic whitelists.
 - Parent: `AGENTS.md`
 - Lines: 105
-- Approx. tokens: 1250
+- Approx. tokens: 1251
 
 ### `sase/memory/tui_perf.md`
 
@@ -180,7 +180,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Short notes: 6
 - Long notes: 8
 - Total lines: 883
-- Total approx. tokens: 11044
+- Total approx. tokens: 11045
 
 ## Commands
 
