@@ -103,3 +103,8 @@ sdd/plans/202604/perf_artifacts/local_only/
 # PyPI release smoke-test reports
 smoke/pypi/results/*
 !smoke/pypi/results/.gitignore
+
+# Temporary Test Files
+.tmp/
+.pytest-tmp/
+.sase-check-tmp.*/

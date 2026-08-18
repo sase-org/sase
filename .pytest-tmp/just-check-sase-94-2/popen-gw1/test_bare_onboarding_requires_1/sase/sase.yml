@@ -1,9 +1,0 @@
-is_sase_managed: true
-repos:
-  sidecar:
-    - name: plans
-      auto_clone: true
-    - name: research
-      description: Durable SASE research reports and generated media.
-    - name: agents
-      description: Hidden sidecar that stores commit-associated sase agent data for this project.

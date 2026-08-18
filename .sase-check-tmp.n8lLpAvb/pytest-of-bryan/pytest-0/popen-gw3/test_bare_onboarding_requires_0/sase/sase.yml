@@ -1,7 +1,0 @@
-is_sase_managed: true
-repos:
-  sidecar:
-    - name: plans
-      auto_clone: true
-    - name: research
-      description: Durable SASE research reports and generated media.
