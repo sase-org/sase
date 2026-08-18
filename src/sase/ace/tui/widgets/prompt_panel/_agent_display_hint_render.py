@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING
+
+from rich.text import Text
 
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
@@ -35,6 +37,13 @@ from ._agent_display_header_summary import (
     publish_opened_workspaces_cache,
 )
 from ._agent_display_state import AgentHintRender, HeaderHintState
+from ._agent_monitor_section import (
+    MONITOR_SECTION_ID,
+    MonitorTextAnnotator,
+    build_monitor_output,
+    build_monitor_section,
+    monitor_phase_text,
+)
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._file_path_hints import resolve_agent_workspace_dir
 from ._helpers import append_section_heading, format_output
@@ -93,6 +102,29 @@ def _render_reply_with_hints(
             workspace_dir,
         )
     return hint_counter
+
+
+def _hint_monitor_annotator(
+    hint_counter: int,
+    hint_mappings: dict[int, str],
+    workspace_dir: str | None,
+) -> tuple[MonitorTextAnnotator, Callable[[], int]]:
+    """Annotate free-form monitor text and expose the updated hint counter."""
+
+    def annotate(content: str | Text) -> Text:
+        nonlocal hint_counter
+        target = Text(end="")
+        raw = content.plain if isinstance(content, Text) else content
+        hint_counter = append_bounded_text_with_file_hints(
+            target,
+            raw,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
+        )
+        return target
+
+    return annotate, lambda: hint_counter
 
 
 class AgentHintRenderMixin:
@@ -239,6 +271,40 @@ class AgentHintRenderMixin:
                 workspace_dir,
             )
 
+        if agent.is_monitor:
+            annotate, hint_count = _hint_monitor_annotator(
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+            section_level = (
+                lane_fold_overrides.get(MONITOR_SECTION_ID, lane_fold_level)
+                if isinstance(lane_fold_overrides, Mapping)
+                else lane_fold_level
+            )
+            for part in build_monitor_section(
+                agent,
+                panel_level=section_level,
+                annotate=annotate,
+            ):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
+            for part in build_monitor_output(agent, annotate=annotate):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
+            hint_counter = hint_count()
+            self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+            if summary is None:
+                self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
+            return AgentHintRender(
+                file_hints=hint_mappings,
+                tool_call_reports=tool_call_reports,
+                commit_views=header_hint_state.commit_views,
+                header_enrichment_pending=not detail_header_summary_is_complete(
+                    summary
+                ),
+            )
+
         # AGENT XPROMPT section (with file path hints)
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
@@ -315,6 +381,17 @@ class AgentHintRenderMixin:
 
                 # Follow-up phases
                 for followup in agent.followup_agents:
+                    if followup.is_monitor:
+                        annotate, hint_count = _hint_monitor_annotator(
+                            hint_counter,
+                            hint_mappings,
+                            workspace_dir,
+                        )
+                        header_text.append_text(
+                            monitor_phase_text(followup, annotate=annotate)
+                        )
+                        hint_counter = hint_count()
+                        continue
                     header_text.append_text(
                         render_phase_divider(
                             get_phase_label(followup),

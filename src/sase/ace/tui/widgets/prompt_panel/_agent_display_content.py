@@ -33,6 +33,9 @@ _PHASE_SUFFIX_TOKENS = {
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
 }
 
+MONITOR_PHASE_LABEL = "MONITOR"
+PHASE_DIVIDER_ACCENT = "#AF87FF"
+
 
 def _agent_role_label(token: str | None) -> str:
     """Format one family member's phase header as ``AGENT (<role>)``."""
@@ -55,7 +58,11 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 
 
 def get_phase_label(agent: Agent) -> str:
-    """Map a member's family role to its ``AGENT (<role>)`` phase header."""
+    """Map a member's family role to its phase header.
+
+    Agent shells render as ``AGENT (<role>)``. A monitor is a proc shell and
+    keeps ``MONITOR``.
+    """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
         agent.role_suffix,
@@ -71,7 +78,7 @@ def get_phase_label(agent: Agent) -> str:
     if role == "commit":
         return _agent_role_label("commit")
     if role == "monitor":
-        return _agent_role_label("monitor")
+        return MONITOR_PHASE_LABEL
     if role == "plan":
         return _agent_role_label("plan")
     if suffix in _PHASE_SUFFIX_TOKENS:
@@ -131,7 +138,13 @@ def render_attempt_divider(
     return divider
 
 
-def render_phase_divider(label: str, start_time: datetime | None) -> Text:
+def render_phase_divider(
+    label: str,
+    start_time: datetime | None,
+    *,
+    accent: str = PHASE_DIVIDER_ACCENT,
+    glyph: str | None = None,
+) -> Text:
     """Create a styled phase divider: ``--- LABEL --- HH:MM:SS ---...---``."""
     if start_time:
         try:
@@ -144,12 +157,16 @@ def render_phase_divider(label: str, start_time: datetime | None) -> Text:
     else:
         time_str = "??:??:??"
     divider = Text()
-    divider.append("\u2500\u2500\u2500 ", style="dim #AF87FF")
-    divider.append(label, style="bold #AF87FF")
-    divider.append(f" \u2500\u2500\u2500 {time_str} ", style="dim #AF87FF")
+    divider.append("\u2500\u2500\u2500 ", style=f"dim {accent}")
+    if glyph is not None:
+        divider.append(f"{glyph} ", style=f"bold {accent}")
+    divider.append(label, style=f"bold {accent}")
+    divider.append(f" \u2500\u2500\u2500 {time_str} ", style=f"dim {accent}")
     used = 4 + len(label) + 5 + len(time_str) + 1
+    if glyph is not None:
+        used += len(glyph) + 1
     remaining = max(50 - used, 3)
-    divider.append("\u2500" * remaining + "\n", style="dim #AF87FF")
+    divider.append("\u2500" * remaining + "\n", style=f"dim {accent}")
     return divider
 
 

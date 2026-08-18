@@ -49,11 +49,15 @@ class TestGetPhaseLabel:
 
     def test_monitor(self) -> None:
         agent = make_agent(role_suffix="--mon")
-        assert get_phase_label(agent) == "AGENT (monitor)"
+        assert get_phase_label(agent) == "MONITOR"
 
     def test_monitor_numbered_suffix(self) -> None:
         agent = make_agent(role_suffix="--mon-1")
-        assert get_phase_label(agent) == "AGENT (monitor)"
+        assert get_phase_label(agent) == "MONITOR"
+
+    def test_monitor_stored_role_unrecognized_suffix(self) -> None:
+        agent = make_agent(role_suffix="--weird", agent_family_role="monitor")
+        assert get_phase_label(agent) == "MONITOR"
 
     def test_feedback_round_2(self) -> None:
         agent = make_agent(role_suffix=".2")

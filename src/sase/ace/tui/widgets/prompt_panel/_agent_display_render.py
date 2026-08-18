@@ -46,6 +46,7 @@ from ._agent_display_header_summary import (
 )
 from ._agent_display_hints import clear_agent_hint_render_cache
 from ._agent_display_step_render import AgentStepDisplayMixin
+from ._agent_monitor_section import build_monitor_phase
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
@@ -344,6 +345,9 @@ class AgentDisplayRenderMixin(
 
                 # Follow-up phases
                 for followup in agent.followup_agents:
+                    if followup.is_monitor:
+                        renderables.extend(build_monitor_phase(followup))
+                        continue
                     renderables.append(
                         render_phase_divider(
                             get_phase_label(followup),

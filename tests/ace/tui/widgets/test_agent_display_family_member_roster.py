@@ -244,7 +244,7 @@ def test_family_roster_labels_monitor_members() -> None:
 
     assert [(entry.label, entry.kind, entry.status) for entry in entries] == [
         ("--0", "AGENT (0)", "DONE"),
-        ("--mon", "AGENT (monitor)", "MONITORING"),
+        ("--mon", "MONITOR", "MONITORING"),
     ]
 
 

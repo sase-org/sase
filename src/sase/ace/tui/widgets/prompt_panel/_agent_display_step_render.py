@@ -12,9 +12,12 @@ from rich.text import Text
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
 from ...util.lazy_syntax import lazy_renderable
-from ...util.axe_log_renderer import render_axe_output
 from ._agent_display_header import AgentHeader
-from ._agent_monitor_section import MONITOR_SECTION_ID, build_monitor_section
+from ._agent_monitor_section import (
+    MONITOR_SECTION_ID,
+    build_monitor_output,
+    build_monitor_section,
+)
 from ._helpers import append_section_heading, format_output
 
 
@@ -108,27 +111,6 @@ class AgentStepDisplayMixin:
         if error_tb_syntax:
             renderables.append(error_tb_syntax)
         renderables.extend(build_monitor_section(agent, panel_level=section_level))
-
-        output_header = Text()
-        output_header.append("\n")
-        output_header.append("─" * 50 + "\n", style="dim")
-        output_header.append("\n")
-        append_section_heading(output_header, "OUTPUT")
-
-        output = agent.get_live_reply_content()
-        if output:
-            renderables.append(output_header)
-            if agent.monitor_output_truncated:
-                renderables.append(
-                    Text(
-                        "… output truncated (head + tail retained) …\n",
-                        style="yellow",
-                    )
-                )
-            source_id = f"monitor:{agent.monitor_id or agent.identity}"
-            renderables.append(render_axe_output(source_id, output, "ansi"))
-        else:
-            output_header.append("No output yet.\n", style="dim italic")
-            renderables.append(output_header)
+        renderables.extend(build_monitor_output(agent))
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]

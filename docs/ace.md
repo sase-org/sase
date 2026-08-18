@@ -3831,13 +3831,15 @@ pinned attempt view resets the cursor.
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between
   each agent turn. For agents with follow-up phases (planner, feedback rounds, coder),
   the AGENT REPLY section consolidates replies from all phases into a single view with
-  purple phase dividers showing each phase's label and start time. Every phase label
-  follows one rule, `AGENT (<role>)`, derived from the member's family role: `--plan`
-  renders as `AGENT (plan)`, `--code` as `AGENT (code)`, `--q` as `AGENT (q)`, `--epic`
-  as `AGENT (epic)`, `--commit` as `AGENT (commit)`, `--mon` as `AGENT (monitor)`, and
-  numeric feedback suffixes such as `--2` as `AGENT (plan round 2)`. Custom family
-  members render the same way with their suffix token, e.g. `AGENT (bar)`. Legacy dotted
-  and single-dash suffixes render the same way.
+  phase dividers showing each phase's label and start time. Agent-shell members follow
+  one rule, `AGENT (<role>)`, derived from the member's family role: `--plan` renders as
+  `AGENT (plan)`, `--code` as `AGENT (code)`, `--q` as `AGENT (q)`, `--epic` as
+  `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback suffixes such as
+  `--2` as `AGENT (plan round 2)`. Custom family members render the same way with their
+  suffix token, e.g. `AGENT (bar)`. A monitor member is a proc shell, so its phase
+  renders as an amber `⚙ MONITOR` divider followed by the monitor's command, its
+  recorded detail fields, and its full captured output — the same block the monitor's
+  own panel shows. Legacy dotted and single-dash suffixes render the same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
   additional `meta_*` keys are grouped under a dedicated header. The special routing
   keys `meta_project`, `meta_patch`, and `meta_workspace` are promoted into the normal

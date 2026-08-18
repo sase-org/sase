@@ -53,6 +53,7 @@ def _family_agents(
     *,
     member_count: int,
     with_content: bool,
+    with_monitor: bool = False,
 ) -> list[Agent]:
     assert member_count >= 2
     root_dir = tmp_path / "family-plan"
@@ -115,6 +116,40 @@ def _family_agents(
                 workspace_num=4 + index,
                 llm_provider="codex",
                 model="gpt-5",
+            )
+        )
+    if with_monitor:
+        mon_dir = tmp_path / "family-monitor"
+        mon_dir.mkdir()
+        (mon_dir / "live_reply.md").write_text(
+            "✓ lint (ruff)\nFAILED tests/ace/tui/test_x.py::test_y\n",
+            encoding="utf-8",
+        )
+        mon_started = _STARTED + timedelta(minutes=member_count * 2)
+        rows.append(
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name="visual-family-mon",
+                project_file="/workspace/sase/visual_project.sase",
+                status="MONITORED",
+                start_time=mon_started,
+                stop_time=mon_started + timedelta(minutes=1),
+                raw_suffix="20260718131200-family-mon",
+                parent_timestamp=root.raw_suffix,
+                artifacts_dir=str(mon_dir),
+                role_suffix="--mon",
+                agent_name=f"{_FAMILY_NAME}--mon",
+                agent_family=_FAMILY_NAME,
+                agent_family_role="monitor",
+                monitor_id="gh6fddk5v3g9",
+                monitor_state="completed",
+                monitor_command="just check-full",
+                monitor_cwd="/workspace/sase",
+                monitor_reason="Full-suite verification before landing",
+                monitor_next_action="Report pass/fail to the user.",
+                monitor_exit_code=1,
+                monitor_timeout_seconds=2700.0,
+                workspace_num=4 + member_count,
             )
         )
     _apply_status_overrides(rows)
@@ -316,4 +351,45 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
             lambda _state: (
                 page.app._agents[page.app.current_idx].identity == container_identity
             )
+        )
+
+
+async def test_family_conversation_monitor_phase_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_family_agents(
+            tmp_path,
+            member_count=2,
+            with_content=False,
+            with_monitor=True,
+        ),
+    )
+
+    async with AcePage(query='"visual-family"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_family_container_row is True
+        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
+        for _ in range(20):
+            await page.press("ctrl+j")
+            if panel.active_section_identity == "agent-reply":
+                break
+        assert panel.active_section_identity == "agent-reply"
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "MONITOR")
+        assert_page_svg_contains(page, "just check-full")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_conversation_monitor_120x40",
+            title="ACE family conversation with monitor phase",
         )

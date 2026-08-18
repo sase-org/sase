@@ -25,6 +25,7 @@ from ._agent_display_family import (
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
+from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._container_hint_text import container_text_with_file_hints
 from ._fold_language import fold_count_style
@@ -156,6 +157,20 @@ class AgentFamilyDisplayMixin:
         append_section_heading(reply_header, reply_heading)
         renderables.append(reply_header)
         for phase in phases:
+            if phase.is_monitor:
+                renderables.extend(
+                    build_monitor_phase(
+                        phase,
+                        annotate=(
+                            None
+                            if hint_state is None
+                            else self._monitor_phase_annotator(
+                                phase, hint_state, hint_budget
+                            )
+                        ),
+                    )
+                )
+                continue
             renderables.append(
                 render_phase_divider(
                     get_phase_label(phase),
@@ -241,6 +256,25 @@ class AgentFamilyDisplayMixin:
             agent.project_file,
             agent.workspace_dir,
         )
+
+    def _monitor_phase_annotator(
+        self,
+        phase: Agent,
+        hint_state: HeaderHintState,
+        budget: HintContentBudget | None,
+    ) -> MonitorTextAnnotator:
+        """Annotate a monitor command or log against the phase workspace."""
+
+        def annotate(content: str | Text) -> Text:
+            text = content if isinstance(content, Text) else Text(content)
+            return self._family_text_with_hints(
+                text,
+                hint_state,
+                workspace_dir=self._family_member_hint_workspace(phase, text.plain),
+                budget=budget,
+            )
+
+        return annotate
 
     def _family_reply_renderables_with_hints(
         self,
