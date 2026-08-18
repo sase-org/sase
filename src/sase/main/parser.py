@@ -275,7 +275,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "project",
-        "List enabled projects and manage disabled work.",
+        "List enabled projects, inspect the current project, and manage disabled work.",
     ),
     _CompactRootCommand(
         "stitch",

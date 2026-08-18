@@ -3934,6 +3934,7 @@ means `enabled`.
 | ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------ |
 | `sase project list`                        | `-s, --state enabled\|disabled\|sibling\|all` | List records in one state; default is true enabled projects.                   |
 | `sase project list`                        | `-j, --json`                                  | Emit machine-readable lifecycle and derived project/VCS fields.                |
+| `sase project current`                     | `-j, --json`                                  | Show the current project derived from the VCS xprompt MRU.                     |
 | `sase project show <project>`              | `-j, --json`                                  | Show state, source, project/archive files, workspace, launchability, warnings. |
 | `sase project set-state <project> <state>` | `-f, --force`                                 | Set `enabled`, `disabled`, or internal backing marker `sibling`.               |
 | `sase project enable <project>`            | `-f, --force`                                 | Enable a project; `--force` has no effect when enabling.                       |

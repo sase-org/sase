@@ -1,14 +1,15 @@
 ---
 name: sase_project
 description: >-
-  Inspect and manage SASE projects with `sase project` (list, show, enable, disable,
-  alias). Use when you need the set of enabled projects, one project's lifecycle record,
-  or machine-readable project data — e.g. to fan out one agent per enabled project.
+  Inspect and manage SASE projects with `sase project` (list, show, current, enable,
+  disable, alias). Use when you need the set of enabled projects, the current project,
+  one project's lifecycle record, or machine-readable project data — e.g. to fan out one
+  agent per enabled project.
 skill: true
 ---
 
-Use this skill to inspect project lifecycle records, manage project state and aliases,
-or select projects for a multi-project workflow.
+Use this skill to inspect project lifecycle records, the current project, manage project
+state and aliases, or select projects for a multi-project workflow.
 
 ## Inspect Projects
 
@@ -18,6 +19,9 @@ or select projects for a multi-project workflow.
   `effective_project_name`, `state`, and `launchable`.
 - `sase project show <project>` shows one project's state, aliases, workspace, active
   claims, launchability, and warnings. Add `--json` for machine-readable data.
+- `sase project current` prints the current project derived from the VCS xprompt MRU
+  head, colored with that project's accent. Add `--json` for machine-readable data.
+  Launching an agent on a project is how you change it.
 
 ## Manage Projects
 

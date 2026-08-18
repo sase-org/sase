@@ -23,11 +23,15 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_parser = subparsers.add_parser(
         "project",
         help="Inspect and mutate project lifecycle state",
+        description=(
+            "Inspect project lifecycle state and the current project. "
+            "Running `sase project` defaults to `sase project list`."
+        ),
     )
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{alias,disable,enable,list,set-state,show}",
+        metavar="{alias,current,disable,enable,list,set-state,show}",
     )
 
     alias_parser = project_sub.add_parser(
@@ -72,6 +76,32 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     alias_remove_parser.add_argument("project", help="Project name")
     alias_remove_parser.add_argument("alias", help="Alias name")
+
+    current_parser = project_sub.add_parser(
+        "current",
+        help="Show the current project derived from the VCS xprompt MRU",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print the current project: the first VCS xprompt MRU entry that "
+            "resolves to an enabled SASE project.\n\n"
+            "The current project is a pure read of the VCS xprompt MRU store "
+            "(~/.sase/vcs_xprompt_mru.json). Launch an agent on a project, or "
+            "on a Patch owned by that project, to make it current. There is "
+            "no separate set command.\n\n"
+            "Human output colors the project name with that project's accent "
+            "and reports the canonical directory key, the origin (project or "
+            "patch, naming the Patch when applicable), and the MRU ref that "
+            "produced it. When nothing resolves, the command explains how to "
+            "set a current project and exits 0."
+        ),
+        epilog=("examples:\n  sase project current\n  sase project current --json"),
+    )
+    current_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
 
     for command, help_text in (
         ("disable", "Disable a project"),

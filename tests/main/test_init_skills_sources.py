@@ -344,6 +344,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             (
                 "sase project list --json",
                 "effective_project_name",
+                "sase project current",
                 "sase project disable <project>",
                 "sase project alias list",
                 "/sase_run",

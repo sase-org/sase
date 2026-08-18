@@ -8,8 +8,12 @@ import shutil
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.text import Text
+
 from sase.ace.patch import patch_lock, write_patch_atomic
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
+from sase.ace.tui.project_styles import project_accent, project_accent_map
 from sase.running_field._model import WorkspaceClaim
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
@@ -26,6 +30,7 @@ from sase.core.project_lifecycle_wire import (
     normalize_project_lifecycle_state_filter,
     project_lifecycle_wire_to_json_dict,
 )
+from sase.current_project import CurrentProject, resolve_current_project
 from sase.project_aliases import (
     ProjectAliasError,
     add_project_alias_locked as _add_project_alias_locked,
@@ -33,6 +38,10 @@ from sase.project_aliases import (
     remove_project_alias_locked as _remove_project_alias_locked,
     resolve_project_alias_ref,
     set_project_aliases_locked,
+)
+
+_NO_CURRENT_PROJECT_MESSAGE = (
+    "No current project.\nLaunch an agent on a project to make it current."
 )
 
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
@@ -549,8 +558,87 @@ def _handle_close(args: argparse.Namespace) -> int:
     return _handle_disable(args)
 
 
+def _mru_ref_for(current: CurrentProject) -> str:
+    if current.workflow_type:
+        return f"#{current.workflow_type}:{current.origin_ref}"
+    return current.origin_ref
+
+
+def _current_json_payload(current: CurrentProject) -> dict[str, object]:
+    return {
+        "display_name": current.display_name,
+        "mru_ref": _mru_ref_for(current),
+        "origin": current.origin,
+        "origin_ref": current.origin_ref,
+        "project_key": current.project_key,
+        "workflow_type": current.workflow_type,
+    }
+
+
+def _enabled_project_keys() -> list[str]:
+    try:
+        records = list_project_records(
+            sase_projects_dir(),
+            "enabled",
+            include_home=False,
+        )
+    except (OSError, ValueError, ImportError, AttributeError):
+        return []
+    return [record.project_name for record in records if record.is_project]
+
+
+def _origin_display(current: CurrentProject) -> str:
+    if current.origin == "patch":
+        return f"patch ({current.origin_ref})"
+    return current.origin
+
+
+def _accent_for(project_key: str) -> str:
+    enabled = _enabled_project_keys()
+    if enabled:
+        return project_accent_map([*enabled, project_key])[project_key]
+    return project_accent(project_key)
+
+
+def _print_current_human(
+    current: CurrentProject,
+    *,
+    console: Console | None = None,
+) -> None:
+    output = console or Console()
+    accent = _accent_for(current.project_key)
+    title = Text()
+    title.append("+", style=f"dim {accent}")
+    title.append(current.display_name, style=f"bold {accent}")
+    output.print(title)
+    output.print(f"Directory key: {current.project_key}")
+    output.print(f"Origin: {_origin_display(current)}")
+    output.print(f"MRU ref: {_mru_ref_for(current)}")
+
+
+def _handle_current(args: argparse.Namespace) -> int:
+    try:
+        current = resolve_current_project()
+    except (OSError, ValueError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if args.json:
+        payload = None if current is None else _current_json_payload(current)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    if current is None:
+        print(_NO_CURRENT_PROJECT_MESSAGE)
+        return 0
+
+    _print_current_human(current)
+    return 0
+
+
 _HANDLERS = {
     "alias": _handle_alias,
+    "current": _handle_current,
     "list": _handle_list,
     "show": _handle_show,
     "set-state": _handle_set_state,
@@ -569,7 +657,7 @@ def handle_project_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase project {alias,disable,enable,list,set-state,show}",
+            "Usage: sase project {alias,current,disable,enable,list,set-state,show}",
             file=sys.stderr,
         )
         sys.exit(2)

@@ -99,6 +99,25 @@ def test_agent_tribe_help_uses_public_tribe_vocabulary() -> None:
     assert args.tribe == "review"
 
 
+def test_project_current_help_documents_resolution_and_json() -> None:
+    project_parser = parser_for(("sase", "project"))
+    current_help = flat_help(parser_for(("sase", "project", "current")).format_help())
+
+    assert (
+        "{alias,current,disable,enable,list,set-state,show}"
+        in project_parser.format_help()
+    )
+    assert "current" in help_subcommand_rows(
+        project_parser.format_help(),
+        {"alias", "current", "disable", "enable", "list", "set-state", "show"},
+    )
+    assert "-j, --json" in current_help
+    assert "current project" in current_help
+    assert "VCS xprompt MRU" in current_help
+    assert "Launch an agent" in current_help
+    assert "sase project current --json" in current_help
+
+
 def test_agent_show_takes_name_positionally(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

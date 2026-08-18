@@ -164,6 +164,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                                                                  | [Beads](beads.md#rust-backend)                                    |
 | `sase bead work`                             | Launch one or more plan, epic, or task targets in order.                                                                          | [Beads](beads.md#sase-bead-work-target)                           |
 | `sase project list`                          | List enabled projects by default, or inspect disabled/internal backing records with `--state`.                                    | [Project lifecycle](project_spec.md#project-lifecycle)            |
+| `sase project current`                       | Show the current project derived from the VCS xprompt MRU, colored by project accent; `--json` for machine-readable output.       | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                                                    | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project enable` / `disable`            | Apply the normal user-facing `PROJECT_STATE` transitions under lock.                                                              | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project set-state`                     | Set a lifecycle or internal backing state under the ProjectSpec lock.                                                             | [Project lifecycle](project_spec.md#project-lifecycle)            |
@@ -184,7 +185,12 @@ Beads add git-portable dependency tracking and executable epics on top of those
 artifacts.
 
 `sase project` defaults to `sase project list`, and `sase project list` defaults to
-enabled true projects. Use `sase project list --state all --json` to inspect disabled
+enabled true projects. `sase project current` prints the current project derived from
+the VCS xprompt MRU head — the project name in that project's accent color, its
+canonical directory key, whether it came from a project ref or a Patch, and the MRU ref
+that produced it. Launch an agent on a project (or on a Patch owned by that project) to
+change it; there is no separate set command. When nothing resolves, the command explains
+that and exits 0. Use `sase project list --state all --json` to inspect disabled
 projects and internal `sibling` backing records, `sase project disable <project>` to
 hide a dormant project from default launch views, and `sase project enable <project>` to
 make it launchable again. Disabling refuses projects with live `RUNNING` claims or
