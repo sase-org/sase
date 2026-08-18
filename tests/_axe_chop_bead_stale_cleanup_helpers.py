@@ -53,6 +53,7 @@ def make_task(
     title: str = "Follow up on cache invalidation",
     status: Status = Status.READY,
     size: PhaseSize | None = PhaseSize.SMALL,
+    task_type: str = "",
 ) -> Issue:
     issue = Issue(
         id=bead_id,
@@ -63,6 +64,7 @@ def make_task(
         created_at=created_at,
         created_by="claude_coder",
         size=size,
+        task_type=task_type,
     )
     issue.plus_one_evidence = [
         TaskPlusOneEvidence(
@@ -143,6 +145,11 @@ def patch_projects(
         lambda: stale_cleanup_min_beads,
     )
     monkeypatch.setattr(stale_cleanup, "_gate_state", lambda _request_id: gate_state)
+
+
+def patch_task_type_registry(monkeypatch: pytest.MonkeyPatch, registry: Any) -> None:
+    """Stub the task-type registry the chop consults for per-type +1 bars."""
+    monkeypatch.setattr(stale_cleanup, "get_task_type_registry", lambda: registry)
 
 
 def capture_created(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:

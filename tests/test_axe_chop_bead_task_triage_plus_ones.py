@@ -9,6 +9,11 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.bead.model import TaskPlusOneEvidence
+from sase.task_types._models import (
+    TaskTypeProvenance,
+    TaskTypeRecord,
+    TaskTypeRegistry,
+)
 
 from tests._axe_chop_bead_task_triage_helpers import (
     _default_task_triage_min_plus_ones,  # noqa: F401 (registers the min_plus_ones fixture)
@@ -18,7 +23,20 @@ from tests._axe_chop_bead_task_triage_helpers import (
     make_task,
     patch_project,
     patch_snooze_gate,
+    patch_task_type_registry,
 )
+
+
+def _flake_task_type_registry(*, min_plus_ones: int) -> TaskTypeRegistry:
+    record = TaskTypeRecord(
+        task_type="flake",
+        spec={"task_type": "flake", "triage": {"min_plus_ones": min_plus_ones}},
+        digest="a" * 64,
+        provenance=TaskTypeProvenance(
+            source="builtin", name="sase", package="sase", version="1.0.0", builtin=True
+        ),
+    )
+    return TaskTypeRegistry(records=(record,), diagnostics=())
 
 
 def test_ready_task_below_plus_one_bar_gets_no_gate_and_is_counted_suppressed(
@@ -172,6 +190,66 @@ def test_min_plus_ones_zero_reproduces_pre_epic_gating(
     tmp_path: Path,
 ) -> None:
     patch_project(monkeypatch, tmp_path, [make_task()], min_plus_ones=0)
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 1,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert len(created) == 1
+
+
+def test_typed_task_below_its_own_type_bar_is_suppressed_despite_low_global_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(
+        monkeypatch, tmp_path, [make_task(task_type="flake")], min_plus_ones=0
+    )
+    patch_task_type_registry(monkeypatch, _flake_task_type_registry(min_plus_ones=1))
+    created: list[str] = []
+    monkeypatch.setattr(
+        task_triage,
+        "create_task_triage_gate",
+        lambda **kwargs: created.append(kwargs["request_id"]),
+    )
+
+    result = task_triage._run(make_runtime(tmp_path))
+
+    assert result.counters == {
+        "gated": 0,
+        "canceled": 0,
+        "skipped": 0,
+        "deferred": 0,
+        "resnoozed": 0,
+        "suppressed": 1,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
+    }
+    assert created == []
+
+
+def test_typed_task_above_high_global_default_still_gates_at_its_own_lower_bar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_project(
+        monkeypatch, tmp_path, [make_task(task_type="flake")], min_plus_ones=5
+    )
+    patch_task_type_registry(monkeypatch, _flake_task_type_registry(min_plus_ones=0))
     created: list[str] = []
     monkeypatch.setattr(
         task_triage,

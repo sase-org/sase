@@ -80,7 +80,7 @@ def _render_show(record: TaskTypeRecord, *, console: Console) -> None:
         console.print("  (none)")
     console.print()
     console.print("[bold]TRIAGE[/bold]")
-    console.print(f"  min_plus_ones: {_min_plus_ones(record.spec)}")
+    console.print(f"  min_plus_ones: {record.min_plus_ones}")
     console.print()
     console.print("[bold]PROVENANCE[/bold]")
     console.print(f"  source:       {record.provenance.label}")
@@ -108,7 +108,7 @@ def _show_json(record: TaskTypeRecord) -> dict[str, Any]:
         "schema_version": _SHOW_JSON_SCHEMA_VERSION,
         "summary": record.spec.get("summary") or "",
         "task_type": record.task_type,
-        "triage": {"min_plus_ones": _min_plus_ones(record.spec)},
+        "triage": {"min_plus_ones": record.min_plus_ones},
         "when_to_use": record.spec.get("when_to_use") or "",
     }
 
@@ -168,14 +168,6 @@ def _field_json(field: Mapping[str, Any]) -> dict[str, Any]:
         if key in field:
             payload[key] = field[key]
     return payload
-
-
-def _min_plus_ones(spec: Mapping[str, Any]) -> int:
-    triage = spec.get("triage")
-    if not isinstance(triage, Mapping):
-        return 0
-    raw = triage.get("min_plus_ones", 0)
-    return raw if isinstance(raw, int) else 0
 
 
 __all__ = [

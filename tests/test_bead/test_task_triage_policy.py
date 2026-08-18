@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone, UTC
+from types import MappingProxyType
+from typing import Any
 
 import pytest
 
@@ -14,7 +16,34 @@ from sase.bead.model import (
     Status,
     TaskPlusOneEvidence,
 )
-from sase.bead.task_triage_policy import stale_task_bead, task_gate_suppressed
+from sase.bead.task_triage_policy import (
+    effective_min_plus_ones,
+    stale_task_bead,
+    task_gate_suppressed,
+)
+from sase.task_types._models import (
+    TaskTypeProvenance,
+    TaskTypeRecord,
+    TaskTypeRegistry,
+)
+
+
+def _task_type_record(slug: str, *, min_plus_ones: int | None) -> TaskTypeRecord:
+    spec: dict[str, Any] = {"task_type": slug, "label": slug}
+    if min_plus_ones is not None:
+        spec["triage"] = {"min_plus_ones": min_plus_ones}
+    return TaskTypeRecord(
+        task_type=slug,
+        spec=MappingProxyType(spec),
+        digest="a" * 64,
+        provenance=TaskTypeProvenance(
+            source="builtin", name="sase", package="sase", version="1.0.0", builtin=True
+        ),
+    )
+
+
+def _registry(*records: TaskTypeRecord) -> TaskTypeRegistry:
+    return TaskTypeRegistry(records=records, diagnostics=())
 
 
 def _make_task(
@@ -22,6 +51,7 @@ def _make_task(
     status: Status = Status.READY,
     plus_ones: int = 0,
     created_at: str = "2026-08-01T09:14:02-04:00",
+    task_type: str = "",
 ) -> Issue:
     issue = Issue(
         id="sase-task.1",
@@ -29,6 +59,7 @@ def _make_task(
         status=status,
         issue_type=IssueType.TASK,
         created_at=created_at,
+        task_type=task_type,
     )
     issue.plus_one_evidence = [
         # `plus_one_count` is `len(plus_one_evidence)`; the field contents
@@ -137,3 +168,37 @@ def test_stale_task_bead_false_for_naive_created_at() -> None:
     issue = _make_task(plus_ones=0, created_at="2026-08-01T09:14:02")
 
     assert stale_task_bead(issue, min_plus_ones=1, stale_after_days=7, now=now) is False
+
+
+def test_effective_min_plus_ones_uses_the_type_spec_bar() -> None:
+    issue = _make_task(task_type="flake")
+    registry = _registry(_task_type_record("flake", min_plus_ones=1))
+
+    assert effective_min_plus_ones(issue, registry=registry, global_default=9) == 1
+
+
+def test_effective_min_plus_ones_defaults_a_typed_bead_with_no_triage_key_to_zero() -> (
+    None
+):
+    issue = _make_task(task_type="bug")
+    registry = _registry(_task_type_record("bug", min_plus_ones=None))
+
+    assert effective_min_plus_ones(issue, registry=registry, global_default=9) == 0
+
+
+def test_effective_min_plus_ones_falls_back_to_global_default_for_untyped_bead() -> (
+    None
+):
+    issue = _make_task(task_type="")
+    registry = _registry(_task_type_record("flake", min_plus_ones=1))
+
+    assert effective_min_plus_ones(issue, registry=registry, global_default=9) == 9
+
+
+def test_effective_min_plus_ones_falls_back_to_global_default_for_unregistered_type() -> (
+    None
+):
+    issue = _make_task(task_type="not_installed_here")
+    registry = _registry(_task_type_record("flake", min_plus_ones=1))
+
+    assert effective_min_plus_ones(issue, registry=registry, global_default=9) == 9

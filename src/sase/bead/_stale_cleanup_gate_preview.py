@@ -64,7 +64,8 @@ def render_bead_stale_cleanup_preview(payload: Any) -> str:
     day_noun = "day" if stale_after_days == 1 else "days"
     bead_noun = "bead" if stale_cleanup_min_beads == 1 else "beads"
     intro = (
-        f"Ready task beads with fewer than {min_plus_ones} +1 {plus_noun} "
+        f"Ready task beads below their +1 bar (default: fewer than "
+        f"{min_plus_ones} +1 {plus_noun}; a task type may set its own bar) "
         f"for at least {stale_after_days} {day_noun} are eligible; this "
         f"gate is raised once at least {stale_cleanup_min_beads} such "
         f"{bead_noun} exist."

@@ -16,6 +16,12 @@ from sase.bead.model import Issue, IssueType, Status
 from sase.chops.sdk import ChopLogger
 from sase.scripts._bead_gate_projects import enabled_project_stores
 
+from sase.task_types._models import (
+    TaskTypeProvenance,
+    TaskTypeRecord,
+    TaskTypeRegistry,
+)
+
 from tests._axe_chop_bead_stale_cleanup_helpers import (
     NOW,
     capture_canceled,
@@ -26,7 +32,20 @@ from tests._axe_chop_bead_stale_cleanup_helpers import (
     make_snoozed_task,
     make_task,
     patch_projects,
+    patch_task_type_registry,
 )
+
+
+def _flake_task_type_registry(*, min_plus_ones: int) -> TaskTypeRegistry:
+    record = TaskTypeRecord(
+        task_type="flake",
+        spec={"task_type": "flake", "triage": {"min_plus_ones": min_plus_ones}},
+        digest="a" * 64,
+        provenance=TaskTypeProvenance(
+            source="builtin", name="sase", package="sase", version="1.0.0", builtin=True
+        ),
+    )
+    return TaskTypeRegistry(records=(record,), diagnostics=())
 
 
 def _state(tmp_path: Path) -> dict[str, Any]:
@@ -124,6 +143,38 @@ def test_non_stale_beads_are_never_counted(
 
     assert result.counters == expected_counters(gated=1, stale=1, offered=1)
     assert [bead["bead_id"] for bead in created[0]["beads"]] == ["sase-task.stale"]
+
+
+def test_typed_bead_below_its_own_higher_type_bar_is_stale_despite_global_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    typed = make_task("sase-task.flake", task_type="flake")
+    patch_projects(
+        monkeypatch, tmp_path, [typed], min_plus_ones=0, stale_cleanup_min_beads=1
+    )
+    patch_task_type_registry(monkeypatch, _flake_task_type_registry(min_plus_ones=1))
+    created = capture_created(monkeypatch)
+
+    result = stale_cleanup._run(make_runtime(tmp_path))
+
+    assert result.counters == expected_counters(gated=1, stale=1, offered=1)
+    assert [bead["bead_id"] for bead in created[0]["beads"]] == ["sase-task.flake"]
+
+
+def test_typed_bead_at_its_own_lower_type_bar_is_not_stale_despite_global_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    typed = make_task("sase-task.flake", task_type="flake")
+    patch_projects(
+        monkeypatch, tmp_path, [typed], min_plus_ones=5, stale_cleanup_min_beads=1
+    )
+    patch_task_type_registry(monkeypatch, _flake_task_type_registry(min_plus_ones=0))
+    created = capture_created(monkeypatch)
+
+    result = stale_cleanup._run(make_runtime(tmp_path))
+
+    assert result.counters == expected_counters(stale=0)
+    assert created == []
 
 
 def test_roster_larger_than_cap_offers_oldest_and_reports_omitted(

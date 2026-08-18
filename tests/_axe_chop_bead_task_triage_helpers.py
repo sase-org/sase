@@ -46,6 +46,7 @@ def make_task(
     bead_id: str = "sase-task.1",
     *,
     created_by: str = "claude_coder",
+    task_type: str = "",
 ) -> Issue:
     return Issue(
         id=bead_id,
@@ -57,6 +58,7 @@ def make_task(
         created_at="2026-01-01T00:00:00Z",
         created_by=created_by,
         size=PhaseSize.SMALL,
+        task_type=task_type,
     )
 
 
@@ -149,6 +151,11 @@ def patch_min_plus_ones(monkeypatch: pytest.MonkeyPatch, min_plus_ones: int) -> 
     monkeypatch.setattr(
         task_triage, "get_task_triage_min_plus_ones", lambda: min_plus_ones
     )
+
+
+def patch_task_type_registry(monkeypatch: pytest.MonkeyPatch, registry: Any) -> None:
+    """Stub the task-type registry the chop consults for per-type +1 bars."""
+    monkeypatch.setattr(task_triage, "get_task_type_registry", lambda: registry)
 
 
 @pytest.fixture(autouse=True)

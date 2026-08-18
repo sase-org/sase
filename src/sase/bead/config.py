@@ -68,7 +68,12 @@ def _task_triage_config() -> dict[str, object]:
 
 
 def get_task_triage_min_plus_ones() -> int:
-    """Return the configured +1 bar a ready task bead needs for a TaskTriage gate.
+    """Return the global +1 bar a ready task bead needs for a TaskTriage gate.
+
+    This is the fallback bar: an untyped task bead, or one whose task type
+    this machine does not have registered, uses this value; a bead with a
+    known task type uses that type's own ``triage.min_plus_ones`` instead
+    (see :func:`sase.bead.task_triage_policy.effective_min_plus_ones`).
 
     Missing or malformed values fall back to the shipped default. Booleans are
     rejected explicitly because ``bool`` is a subclass of ``int`` in Python.

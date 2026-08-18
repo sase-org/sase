@@ -784,9 +784,10 @@ axe:
             Raise one human gate for each ready or snoozed task bead, and for each due flag bead
 
             Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
-            gate: a TaskTriage gate while a task bead is ready and has at least bead.task_triage.min_plus_ones +1
-            reports, a BeadSnooze wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
-            release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
+            gate: a TaskTriage gate while a task bead is ready and has at least its effective +1 bar in reports
+            (its own task type's triage.min_plus_ones, else the global bead.task_triage.min_plus_ones), a BeadSnooze
+            wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and release removal
+            thresholds have both passed. A ready task bead below the +1 bar is withheld from
             triage without changing its stored status, and a gate already raised for a bead that falls below the
             bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
             duplicate notifications, a gate of the wrong kind is replaced when its bead's status or due-ness
@@ -926,7 +927,8 @@ axe:
             Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate
 
             Reads every enabled project's ready task beads and offers those that have sat below
-            bead.task_triage.min_plus_ones for bead.task_triage.stale_after_days once at least
+            their effective +1 bar (their own task type's triage.min_plus_ones, else the global
+            bead.task_triage.min_plus_ones) for bead.task_triage.stale_after_days once at least
             bead.task_triage.stale_cleanup_min_beads such beads exist. One pending gate at a time
             carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
@@ -1136,8 +1138,10 @@ bead:
   # accumulating forever.
   task_triage:
     # +1 reports a ready task bead needs before bead_task_triage raises its
-    # TaskTriage gate. 0 restores the pre-threshold behavior of gating every
-    # ready task bead.
+    # TaskTriage gate. Applies to untyped legacy beads and to task types that
+    # declare no triage.min_plus_ones of their own; a typed bead's own bar
+    # always takes precedence. 0 restores the pre-threshold behavior of
+    # gating every such ready task bead.
     min_plus_ones: 1
     # Days after creation at which a still-sub-threshold ready task bead is
     # considered stale and eligible for the cleanup gate.

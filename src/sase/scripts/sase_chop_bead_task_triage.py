@@ -21,7 +21,7 @@ from sase.bead.model import Issue, SnoozeRecord
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
 from sase.bead.task_gate import TASK_TRIAGE_KIND, create_task_triage_gate
 from sase.bead.task_launch import active_task_launch_bead_ids
-from sase.bead.task_triage_policy import task_gate_suppressed
+from sase.bead.task_triage_policy import effective_min_plus_ones, task_gate_suppressed
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import time as core_time
@@ -52,6 +52,7 @@ from sase.scripts._bead_task_triage_state import (
     write_state as _write_state_impl,
 )
 from sase.scripts._bead_task_triage_state import read_state as _read_state_impl
+from sase.task_types.registry import get_task_type_registry
 
 _STATE_FILENAME = "bead_task_triage.json"
 _LOCK_FILENAME = "bead_task_triage.lock"
@@ -309,6 +310,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     today = core_time.local_now().date()
     release = sase.__version__
     min_plus_ones = get_task_triage_min_plus_ones()
+    task_type_registry = get_task_type_registry()
     for project_name, beads_dir in inventory.stores:
         try:
             gateable = _gateable_beads(beads_dir, today=today, release=release)
@@ -323,7 +325,14 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         suppressed = {
             issue.id
             for issue in gateable
-            if task_gate_suppressed(issue, min_plus_ones=min_plus_ones)
+            if task_gate_suppressed(
+                issue,
+                min_plus_ones=effective_min_plus_ones(
+                    issue,
+                    registry=task_type_registry,
+                    global_default=min_plus_ones,
+                ),
+            )
         }
         suppressed_total += len(suppressed)
         live_tasks = {

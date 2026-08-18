@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Raise and reconcile the one pending BeadStaleCleanup gate.
 
-An hourly housekeeping chop. Ready task beads below the +1 bar accumulate
-until ``bead.task_triage.stale_cleanup_min_beads`` of them have sat there for
-``bead.task_triage.stale_after_days``; this pass then offers the oldest
-``BEAD_STALE_CLEANUP_MAX_BEADS`` of them in one gate. Lane state holds the
-pending request, a generation counter, and a fingerprint over the offered
-roster plus the three thresholds (never ``stale_as_of``).
+An hourly housekeeping chop. Ready task beads below their effective +1 bar --
+their own task type's ``triage.min_plus_ones``, or the global
+``bead.task_triage.min_plus_ones`` for an untyped bead or an unregistered
+type, via :func:`sase.bead.task_triage_policy.effective_min_plus_ones` --
+accumulate until ``bead.task_triage.stale_cleanup_min_beads`` of them have
+sat there for ``bead.task_triage.stale_after_days``; this pass then offers
+the oldest ``BEAD_STALE_CLEANUP_MAX_BEADS`` of them in one gate. Lane state
+holds the pending request, a generation counter, and a fingerprint over the
+offered roster plus the three thresholds (never ``stale_as_of``).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from sase.bead.stale_cleanup_gate import (
     BEAD_STALE_CLEANUP_MAX_BEADS,
     create_bead_stale_cleanup_gate,
 )
-from sase.bead.task_triage_policy import stale_task_bead
+from sase.bead.task_triage_policy import effective_min_plus_ones, stale_task_bead
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
 from sase.core import bead_read_facade as rust_beads
@@ -50,6 +53,7 @@ from sase.scripts._bead_gate_projects import (
     project_display_name as _project_display_name,
 )
 from sase.scripts._bead_task_triage_gates import gate_state as _gate_state_impl
+from sase.task_types.registry import TaskTypeRegistry, get_task_type_registry
 
 _STATE_FILENAME = "bead_stale_cleanup.json"
 _LOCK_FILENAME = "bead_stale_cleanup.lock"
@@ -255,6 +259,7 @@ def _collect_stale(
     min_plus_ones: int,
     stale_after_days: int,
     now: datetime,
+    task_type_registry: TaskTypeRegistry,
 ) -> tuple[list[_StaleEntry], set[str], int]:
     skipped_projects = set(inventory.skipped_projects)
     entries: list[_StaleEntry] = []
@@ -273,7 +278,11 @@ def _collect_stale(
         for issue in issues:
             if stale_task_bead(
                 issue,
-                min_plus_ones=min_plus_ones,
+                min_plus_ones=effective_min_plus_ones(
+                    issue,
+                    registry=task_type_registry,
+                    global_default=min_plus_ones,
+                ),
                 stale_after_days=stale_after_days,
                 now=now,
             ):
@@ -357,6 +366,7 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         min_plus_ones=min_plus_ones,
         stale_after_days=stale_after_days,
         now=now,
+        task_type_registry=get_task_type_registry(),
     )
     incomplete = bool(skipped_projects)
     stale = len(entries)

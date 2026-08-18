@@ -57,6 +57,17 @@ class TaskTypeRecord:
     def agent_creatable(self) -> bool:
         return bool(self.spec.get("agent_creatable", True))
 
+    @property
+    def min_plus_ones(self) -> int:
+        """This type's ``triage.min_plus_ones`` corroboration bar, spec default 0."""
+        triage = self.spec.get("triage")
+        if not isinstance(triage, Mapping):
+            return 0
+        raw = triage.get("min_plus_ones", 0)
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            return 0
+        return raw
+
 
 @dataclass(frozen=True)
 class TaskTypeRegistry:
