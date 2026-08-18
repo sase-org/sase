@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -11,12 +12,14 @@ from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
 from textual.widgets import ContentSwitcher, OptionList, Static
 
+from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.core.paths import sase_projects_dir
 from sase.current_project import CurrentProject, resolve_current_project
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.xprompt.loader import get_known_project_workspaces
 from sase.main.project_handler import (
     ProjectLifecycleBlockedError,
     delete_project_locked,
@@ -64,6 +67,31 @@ _SUBTABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, tab.title(), "#FFAF5F") for tab in _SUBTAB_ORDER
 )
 _PendingForce = tuple[tuple[str, ...], str]
+_CURRENT_PROJECT_RESOLVE_GROUP = "current-project-resolve"
+
+
+@dataclass(frozen=True, slots=True)
+class _CurrentProjectSnapshot:
+    """Resolved current project plus the accent computed off-thread."""
+
+    project: CurrentProject | None
+    accent: str
+
+
+def _resolve_current_project_snapshot() -> _CurrentProjectSnapshot:
+    """Resolve the current project and its accent off the UI thread."""
+
+    try:
+        project = resolve_current_project()
+        accent = ""
+        if project is not None:
+            accent = project_accent(
+                project.project_key,
+                among=tuple(get_known_project_workspaces()),
+            )
+    except Exception:  # noqa: BLE001 - display reads always degrade.
+        return _CurrentProjectSnapshot(project=None, accent="")
+    return _CurrentProjectSnapshot(project=project, accent=accent)
 
 
 class _ProjectsFilterInput(FilterInput):
@@ -165,7 +193,14 @@ class ProjectsPane(
         self._inventory_loading = False
         self._inventory_error = ""
         self._inventory_worker: Worker[Any] | None = None
-        self._current_project_seed_worker: Worker[Any] | None = None
+        self._current_project: CurrentProject | None = None
+        self._current_project_key = self._session_state.current_project_key
+        self._current_project_name = self._session_state.current_project_name
+        self._current_project_accent = self._session_state.current_project_accent
+        self._current_project_loaded = bool(
+            self._current_project_key or self._current_project_name
+        )
+        self._current_project_resolve_worker: Worker[Any] | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -222,13 +257,13 @@ class ProjectsPane(
         self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._refresh_options()
         self._start_inventory_load()
-        self._maybe_start_current_project_seed()
+        self._start_current_project_resolve()
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
-        if self._current_project_seed_worker is not None:
-            self._current_project_seed_worker.cancel()
+        if self._current_project_resolve_worker is not None:
+            self._current_project_resolve_worker.cancel()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
@@ -343,21 +378,56 @@ class ProjectsPane(
             exit_on_error=False,
         )
 
-    def _maybe_start_current_project_seed(self) -> None:
-        """Kick a one-shot worker seeding the inventory filters, if enabled."""
-        if self._session_state.project_filter_seeded:
-            return
+    def _start_current_project_resolve(self) -> None:
+        """Resolve the current project off-thread for display (and first seed)."""
+
         settings = getattr(self.app, "_current_project_settings", None)
-        if settings is not None and not getattr(settings, "seed_filters", True):
+        if (
+            not self._session_state.project_filter_seeded
+            and settings is not None
+            and not getattr(settings, "seed_filters", True)
+        ):
             self._session_state.project_filter_seeded = True
-            return
-        self._current_project_seed_worker = self.run_worker(
-            resolve_current_project,
+        if self._current_project_resolve_worker is not None:
+            self._current_project_resolve_worker.cancel()
+        self._current_project_resolve_worker = self.run_worker(
+            _resolve_current_project_snapshot,
             thread=True,
             exclusive=False,
             exit_on_error=False,
-            group="current-project-seed",
+            group=_CURRENT_PROJECT_RESOLVE_GROUP,
         )
+
+    def _store_current_project_session(self) -> None:
+        self._session_state.current_project_key = self._current_project_key
+        self._session_state.current_project_name = self._current_project_name
+        self._session_state.current_project_accent = self._current_project_accent
+
+    def _apply_current_project_display(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.CANCELLED:
+            return
+        if event.state != WorkerState.SUCCESS:
+            if not self._current_project_loaded:
+                self._current_project_loaded = True
+                self._refresh_options()
+            return
+        result = event.worker.result
+        if isinstance(result, _CurrentProjectSnapshot):
+            project = result.project
+            self._current_project = project
+            self._current_project_key = None if project is None else project.project_key
+            self._current_project_name = (
+                None if project is None else project.display_name
+            )
+            self._current_project_accent = result.accent
+        else:
+            self._current_project = None
+            self._current_project_key = None
+            self._current_project_name = None
+            self._current_project_accent = ""
+        self._current_project_loaded = True
+        self._store_current_project_session()
+        self._refresh_options()
 
     def _apply_current_project_seed(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -366,9 +436,12 @@ class ProjectsPane(
             return
         self._session_state.project_filter_seeded = True
         result = event.worker.result if event.state == WorkerState.SUCCESS else None
-        if not isinstance(result, CurrentProject):
+        project = (
+            result.project if isinstance(result, _CurrentProjectSnapshot) else None
+        )
+        if not isinstance(project, CurrentProject):
             return
-        project_key = result.project_key
+        project_key = project.project_key
         if project_key not in {record.project_name for record in self._records}:
             return
         try:
@@ -385,7 +458,8 @@ class ProjectsPane(
             pass
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.worker is self._current_project_seed_worker:
+        if event.worker is self._current_project_resolve_worker:
+            self._apply_current_project_display(event)
             self._apply_current_project_seed(event)
             return
         if event.worker is not self._inventory_worker:
@@ -550,11 +624,13 @@ class ProjectsPane(
             self._pending_force = None
             self._refresh_options(preferred_project=selected)
             self.notify(self._status_message, severity="error")
+            self._start_current_project_resolve()
             return
         self._pending_force = None
         self._set_status("Reloaded")
         self._refresh_options(preferred_project=selected)
         self._start_inventory_load()
+        self._start_current_project_resolve()
 
 
 __all__ = [

@@ -175,6 +175,14 @@ def _patch_project_records(
         "sase.ace.tui.modals.project_inventory_panes.time.time",
         lambda: _INVENTORY_NOW,
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.resolve_current_project",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.get_known_project_workspaces",
+        lambda **_kwargs: {},
+    )
 
 
 __all__ = [

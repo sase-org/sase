@@ -9,10 +9,14 @@ from pathlib import Path
 from rich.text import Text
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.current_project import CurrentProject
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 # Shared widths keep the fixed-width header and project rows aligned.
 _MARK_WIDTH = 5
+# Four columns so the header reads "CUR NAME" instead of the jammed
+# "CURNAME" that a three-character "CUR" label would produce.
+_CUR_WIDTH = 4
 _NAME_WIDTH = 36
 _VCS_WIDTH = 6
 _STATE_WIDTH = 13
@@ -85,11 +89,75 @@ def _project_label(record: ProjectRecordWire) -> str:
     return f"{display} ({record.project_name})"
 
 
-def column_header_text() -> Text:
+def _name_style(*, is_current: bool, accent: str) -> str:
+    if is_current and accent:
+        return f"bold {accent}"
+    return "bold"
+
+
+def _is_current_project(
+    record: ProjectRecordWire,
+    *,
+    current_project: CurrentProject | None,
+    current_project_key: str | None,
+) -> bool:
+    resolved_key = (
+        current_project.project_key
+        if current_project is not None
+        else current_project_key
+    )
+    return resolved_key is not None and record.project_name == resolved_key
+
+
+def _current_project_via_text(current_project: CurrentProject) -> str:
+    ref = f"#{current_project.workflow_type}:{current_project.origin_ref}"
+    if current_project.origin == "patch":
+        return f"via Patch {current_project.origin_ref} ({ref})"
+    return f"via {ref}"
+
+
+def _current_project_detail_reason(record: ProjectRecordWire) -> str:
+    display = effective_project_name(record)
+    if record.state != "enabled":
+        return f"enable {display} first (a), then press c"
+    if not record.launchable:
+        return f"{display} has no launchable ProjectSpec"
+    return f"press c to make {display} current"
+
+
+def _append_current_project_summary(
+    text: Text,
+    *,
+    current_project_key: str | None,
+    current_project_name: str | None,
+    current_project_accent: str,
+    current_project_loaded: bool,
+) -> None:
+    text.append("  ·  current:", style="dim")
+    if not current_project_loaded:
+        text.append("…", style="dim")
+        return
+    name = current_project_name or current_project_key
+    if not name:
+        text.append("none", style="dim")
+        return
+    plus_style = f"dim {current_project_accent}" if current_project_accent else "dim"
+    name_style = f"bold {current_project_accent}" if current_project_accent else "bold"
+    text.append("+", style=plus_style)
+    text.append(name, style=name_style)
+
+
+def column_header_text(
+    *,
+    current_project_key: str | None = None,
+    current_project_accent: str = "",
+) -> Text:
     """Return the fixed-width project table header."""
 
+    del current_project_key, current_project_accent
     text = Text(style="bold dim")
     text.append(f"{'MARK':<{_MARK_WIDTH}}")
+    text.append(f"{'CUR':<{_CUR_WIDTH}}")
     text.append(f"{'NAME':<{_NAME_WIDTH}}")
     text.append(f"{'VCS':<{_VCS_WIDTH}}")
     text.append(f"{'STATE':<{_STATE_WIDTH}}")
@@ -104,6 +172,9 @@ def record_label(
     record: ProjectRecordWire,
     marked_projects: set[str],
     counts: ProjectInventoryCounts | None = None,
+    *,
+    current_project_key: str | None = None,
+    current_project_accent: str = "",
 ) -> Text:
     """Render one project row using the new project/repo/workspace taxonomy."""
 
@@ -113,8 +184,23 @@ def record_label(
         text.append(f"{'[✓]':<{_MARK_WIDTH}}", style="bold #00D700")
     else:
         text.append(" " * _MARK_WIDTH)
+    is_current = _is_current_project(
+        record,
+        current_project=None,
+        current_project_key=current_project_key,
+    )
+    if is_current:
+        plus_style = (
+            f"bold {current_project_accent}" if current_project_accent else "bold"
+        )
+        text.append(f"{'+':<{_CUR_WIDTH}}", style=plus_style)
+    else:
+        text.append(" " * _CUR_WIDTH)
     label = _project_label(record)
-    text.append(f"{label:<{_NAME_WIDTH}.{_NAME_WIDTH}}", style="bold")
+    text.append(
+        f"{label:<{_NAME_WIDTH}.{_NAME_WIDTH}}",
+        style=_name_style(is_current=is_current, accent=current_project_accent),
+    )
     vcs_kind = record.vcs_kind or "-"
     text.append(
         f"{vcs_kind:<{_VCS_WIDTH}.{_VCS_WIDTH}}",
@@ -144,6 +230,10 @@ def summary_text(
     *,
     inventory_loading: bool = False,
     inventory_error: str = "",
+    current_project_key: str | None = None,
+    current_project_accent: str = "",
+    current_project_name: str | None = None,
+    current_project_loaded: bool = False,
 ) -> Text:
     """Render project lifecycle counts and transient load/action status."""
 
@@ -157,6 +247,13 @@ def summary_text(
     text.append("  ·  marked:", style="dim")
     mark_count = len(marked_projects)
     text.append(str(mark_count), style="bold #00D700" if mark_count else "dim")
+    _append_current_project_summary(
+        text,
+        current_project_key=current_project_key,
+        current_project_name=current_project_name,
+        current_project_accent=current_project_accent,
+        current_project_loaded=current_project_loaded,
+    )
     if text_filter:
         text.append(f"  ·  search:{text_filter}", style="dim")
     if inventory_loading:
@@ -197,6 +294,10 @@ def detail_text(
     record: ProjectRecordWire | None,
     marked_projects: set[str],
     counts: ProjectInventoryCounts | None = None,
+    *,
+    current_project: CurrentProject | None = None,
+    current_project_key: str | None = None,
+    current_project_accent: str = "",
 ) -> Text:
     """Render the selected project's details and inventory aggregates."""
 
@@ -207,6 +308,11 @@ def detail_text(
 
     resolved_counts = counts or ProjectInventoryCounts()
     display = effective_project_name(record)
+    is_current = _is_current_project(
+        record,
+        current_project=current_project,
+        current_project_key=current_project_key,
+    )
     text.append(display, style="bold")
     if display != record.project_name:
         text.append(f" ({record.project_name})", style="dim")
@@ -214,6 +320,11 @@ def detail_text(
     text.append(_state_badge(record.state), style=_state_style(record.state))
     text.append("    VCS: ", style="dim")
     text.append(record.vcs_kind or "-", style=_vcs_style(record.vcs_kind))
+    if is_current:
+        badge_style = (
+            f"bold {current_project_accent}" if current_project_accent else "bold"
+        )
+        text.append("    +CURRENT", style=badge_style)
     text.append("\nProject file:  ", style="dim")
     text.append(str(record.project_file))
     text.append("\nPrimary repo:  ", style="dim")
@@ -240,6 +351,16 @@ def detail_text(
     text.append(display)
     text.append("    Launchable: ", style="dim")
     text.append(_launch_label(record))
+    if is_current:
+        yes_line = "Current project: yes"
+        if current_project is not None:
+            yes_line = f"{yes_line}  ·  {_current_project_via_text(current_project)}"
+        text.append(f"\n{yes_line}", style="#87D7FF")
+    else:
+        text.append(
+            f"\nCurrent project: no   ·  {_current_project_detail_reason(record)}",
+            style="#87D7FF",
+        )
     if marked_projects:
         row_state = "marked" if record.project_name in marked_projects else "not marked"
         text.append(

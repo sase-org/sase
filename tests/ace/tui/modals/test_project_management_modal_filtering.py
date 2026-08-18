@@ -113,6 +113,7 @@ def test_projects_subtab_renders_new_columns_and_alias_detail(
     pane = ProjectsPane(projects_root=tmp_path)
 
     header = column_header_text().plain
+    assert "CUR" in header
     assert "VCS" in header
     assert "WS" in header
     assert "REPOS" in header

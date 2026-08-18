@@ -40,6 +40,7 @@ async def _open_projects_modal(
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#projects-list")))
     pane = modal.query_one("#projects", ProjectsPane)
+    await page.wait_for(lambda _s: pane._current_project_loaded)
     await wait_for_visual_idle(page)
     return modal, pane
 

@@ -27,6 +27,7 @@ from .project_management_rendering import (
 )
 
 if TYPE_CHECKING:
+    from sase.current_project import CurrentProject
     from textual.containers import Vertical as _MixinBase
 else:
     _MixinBase = object
@@ -49,6 +50,11 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
         _detail_debouncer: DetailPanelDebouncer | None
         _project_selection_guard: ProgrammaticSelectionGuard
         _session_state: ProjectsSessionState
+        _current_project: CurrentProject | None
+        _current_project_key: str | None
+        _current_project_name: str | None
+        _current_project_accent: str
+        _current_project_loaded: bool
 
         def action_default_project_action(self) -> None: ...
 
@@ -111,6 +117,8 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
             record,
             self._marked_projects,
             self._counts_for(record),
+            current_project_key=self._current_project_key,
+            current_project_accent=self._current_project_accent,
         )
 
     def _summary_text(self) -> Text:
@@ -121,6 +129,10 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
             self._marked_projects,
             inventory_loading=self._inventory_loading,
             inventory_error=self._inventory_error,
+            current_project_key=self._current_project_key,
+            current_project_accent=self._current_project_accent,
+            current_project_name=self._current_project_name,
+            current_project_loaded=self._current_project_loaded,
         )
 
     def _hints_text(self) -> str:
@@ -275,7 +287,14 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
 
     def _detail_text(self, record: ProjectRecordWire | None) -> Text:
         counts = self._counts_for(record) if record is not None else None
-        return detail_text(record, self._marked_projects, counts)
+        return detail_text(
+            record,
+            self._marked_projects,
+            counts,
+            current_project=self._current_project,
+            current_project_key=self._current_project_key,
+            current_project_accent=self._current_project_accent,
+        )
 
     def _update_detail(self) -> None:
         try:

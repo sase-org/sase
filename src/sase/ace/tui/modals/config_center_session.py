@@ -59,6 +59,9 @@ class ProjectsSessionState:
     repos_project_filter: str | None = None
     workspaces_project_filter: str | None = None
     project_filter_seeded: bool = False
+    current_project_key: str | None = None
+    current_project_name: str | None = None
+    current_project_accent: str = ""
 
 
 @dataclass

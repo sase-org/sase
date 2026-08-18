@@ -21,6 +21,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
+from sase.current_project import CurrentProject
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -69,6 +70,14 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_inventory_panes.collect_workspace_inventory",
         lambda *_args, **_kwargs: WorkspaceInventory((), ()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.resolve_current_project",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.get_known_project_workspaces",
+        lambda **_kwargs: {},
     )
 
 
@@ -132,6 +141,46 @@ async def test_projects_session_restores_project_by_identity(
 
         assert option_list.highlighted == 1
         assert state.projects.projects.identity == "beta"
+
+
+async def test_projects_session_round_trips_current_project_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.resolve_current_project",
+        lambda **_kwargs: CurrentProject(
+            project_key="beta",
+            display_name="beta",
+            origin="project",
+            origin_ref="beta",
+            workflow_type="gh",
+        ),
+    )
+    state = AdminCenterSessionState()
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects", session_state=state)
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: modal._active_tab == "projects")
+        pane = modal.query_one("#projects", ProjectsPane)
+        await page.wait_for(lambda _s: pane._current_project_key == "beta")
+
+        assert state.projects.current_project_key == "beta"
+        assert state.projects.current_project_name == "beta"
+        assert "current:+beta" in pane._summary_text().plain
+
+        page.app.pop_screen()
+        await page.pause()
+
+        modal2 = ConfigCenterModal(initial_tab="projects", session_state=state)
+        page.app.push_screen(modal2)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal2.query("#projects")))
+        pane2 = modal2.query_one("#projects", ProjectsPane)
+        assert pane2._current_project_loaded is True
+        assert "current:+beta" in pane2._summary_text().plain
 
 
 @pytest.mark.parametrize("pending_digit", [None, "1"])
