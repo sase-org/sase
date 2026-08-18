@@ -340,6 +340,10 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-p2.2(lookup_repo_mention)" \
         --epic-symbol "sase-p2.2(scan_repo_mentions)" \
         --epic-symbol "sase-p2.3(RepoMention)" \
+        --epic-symbol "sase-p4.3(active_epic_resume)" \
+        --epic-symbol "sase-p4.3(build_epic_resume_argv)" \
+        --epic-symbol "sase-p4.3(epic_resume_origin_from_gate_source)" \
+        --epic-symbol "sase-p4.3(submit_epic_resume_task)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
