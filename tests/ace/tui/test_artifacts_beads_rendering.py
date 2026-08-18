@@ -287,7 +287,7 @@ def test_detail_drops_empty_property_rows_for_a_sparse_task(tmp_path: Path) -> N
 
     properties = _capture_properties(issue, value)
 
-    for label in ("ID", "Type", "Status", "Readiness", "Project", "Created"):
+    for label in ("ID", "Type", "Status", "Project", "Created"):
         assert _has_property_label(properties, label)
     for label in (
         "Assignee",
@@ -295,6 +295,7 @@ def test_detail_drops_empty_property_rows_for_a_sparse_task(tmp_path: Path) -> N
         "Closed",
         "Dependencies",
         "External issue",
+        "Readiness",
         "References",
         "Patch",
         "External bug",

@@ -17,7 +17,6 @@ from sase.bead.reopen_presentation import (
 from sase.bead.snooze_presentation import (
     SNOOZE_ACCENT,
     snooze_plus_one_label,
-    snooze_readiness_label,
     snooze_until_label,
 )
 from sase.bead_status_presentation import bead_status_presentation
@@ -230,57 +229,6 @@ def snooze_text(issue: Issue) -> Text:
     return Text(" · ".join(parts), style=SNOOZE_ACCENT, overflow="fold")
 
 
-def readiness_chip(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> Text:
-    label = readiness_label(issue, snapshot, project=project)
-    if issue.status in {
-        Status.CLOSED,
-        Status.CLAIMED,
-        Status.READY,
-        Status.SNOOZED,
-        Status.IN_PROGRESS,
-    }:
-        presentation = bead_status_presentation(issue.status)
-        return _chip(label, presentation.rich_color, glyph=presentation.tui_glyph)
-    color, glyph = {
-        "blocked": ("#FF5F5F", "×"),
-        "ready": ("#5FD787", "✓"),
-        "waiting": ("#87D7FF", "○"),
-        "unknown": ("#878787", "?"),
-    }[label]
-    return _chip(label, color, glyph=glyph)
-
-
-def readiness_label(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> str:
-    if issue.status is Status.CLOSED:
-        return "closed"
-    if issue.status is Status.CLAIMED:
-        return "claimed"
-    if issue.status is Status.READY:
-        return "ready"
-    if issue.status is Status.SNOOZED:
-        return snooze_readiness_label(issue.snooze)
-    if issue.status is Status.IN_PROGRESS:
-        return "in progress"
-    if snapshot is None:
-        return "unknown"
-    key = (project, issue.id)
-    if key in snapshot.blocked_ids:
-        return "blocked"
-    if key in snapshot.ready_ids:
-        return "ready"
-    return "waiting"
-
-
 def _property_text(value: str | Text) -> Text:
     if isinstance(value, Text):
         return value
@@ -305,8 +253,6 @@ __all__ = [
     "plan_reference_properties",
     "previously_closed_text",
     "properties_header",
-    "readiness_chip",
-    "readiness_label",
     "references_text",
     "resolved_plan_path",
     "snooze_text",

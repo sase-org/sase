@@ -103,22 +103,6 @@ def snooze_wake_chip(
     return f"{SNOOZE_GLYPH} in {remaining}"
 
 
-def snooze_readiness_label(
-    record: SnoozeRecord | None,
-    *,
-    now: datetime | None = None,
-) -> str:
-    """Return the readiness wording a snoozed bead shows in the TUI."""
-    if record is None:
-        return "snoozed"
-    remaining = _snooze_remaining_label(record.until, now=now)
-    if not remaining:
-        return "snoozed"
-    if remaining == _WAKE_NOW_LABEL:
-        return f"snoozed · due {_WAKE_NOW_LABEL}"
-    return f"snoozed · wakes in {remaining}"
-
-
 def snooze_plus_ones_remaining(issue: Issue) -> int | None:
     """Return how many more +1s would wake *issue*, or ``None`` for no target.
 
@@ -162,7 +146,6 @@ __all__ = [
     "SNOOZE_SECTION_LABEL",
     "snooze_plus_one_label",
     "snooze_plus_ones_remaining",
-    "snooze_readiness_label",
     "snooze_summary",
     "snooze_until_label",
     "snooze_wake_chip",

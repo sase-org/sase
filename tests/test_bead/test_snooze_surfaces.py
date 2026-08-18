@@ -158,14 +158,15 @@ def test_the_beads_pane_detail_carries_a_wake_chip_and_a_snooze_property() -> No
 
     assert "◈ in 3d" in rendered
     assert "Snooze" in rendered
-    assert "snoozed · wakes in 3d" in rendered
+    assert "· in 3d" in rendered
+    assert "Readiness" not in rendered
 
 
 def test_the_beads_pane_preview_repeats_the_snooze_line() -> None:
     preview = bead_preview_markdown(_snoozed_task(), None, project="alpha")
 
     assert "**Snooze:** 2026-08-09 12:00:00 EDT · in 3d" in preview
-    assert "**Readiness:** snoozed · wakes in 3d" in preview
+    assert "**Readiness:**" not in preview
 
 
 def test_the_filter_query_derives_its_snoozed_token_from_the_status_order() -> None:

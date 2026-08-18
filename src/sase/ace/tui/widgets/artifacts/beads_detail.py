@@ -50,8 +50,6 @@ from .beads_detail_properties import (
     plan_reference_properties as _plan_reference_properties,
     previously_closed_text as _previously_closed_text,
     properties_header as _properties_header,
-    readiness_chip as _readiness_chip,
-    readiness_label as _readiness_label,
     references_text as _references_text,
     resolved_plan_path,
     snooze_text as _snooze_text,
@@ -82,7 +80,6 @@ def bead_properties_header(
         ("ID", issue.id),
         ("Type", bead_type_chip(issue.issue_type)),
         ("Status", _status_chip(issue.status)),
-        ("Readiness", _readiness_chip(issue, snapshot, project=project)),
     ]
     if issue.issue_type is IssueType.TASK:
         properties.append(("Task type", task_type_chip(issue.task_type)))
@@ -195,7 +192,6 @@ def bead_preview_markdown(
         "",
         f"**Type:** {issue.issue_type.value}  ",
         f"**Status:** {issue.status.value}  ",
-        f"**Readiness:** {_readiness_label(issue, snapshot, project=project)}  ",
     ]
     if issue.tier is not None:
         lines.append(f"**Tier:** {issue.tier.value}  ")
