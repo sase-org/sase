@@ -60,6 +60,12 @@ def bead_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Published bead pages",
             runner=lambda: _check_bead_page_commit_links(context),
         ),
+        CheckSpec(
+            id="beads.task_types",
+            group="beads",
+            title="Task-type catalog",
+            runner=_check_task_types,
+        ),
     )
 
 
@@ -146,6 +152,41 @@ def _bead_pages_audit_inputs(
         return pages_root, resolve_origin_remote_url(primary_root)
     except Exception:  # noqa: BLE001 - a doctor check never breaks the report.
         return None, None
+
+
+def _check_task_types() -> DiagnosticCheck:
+    """Surface task-type catalog assembly diagnostics."""
+    from sase.task_types import get_task_type_registry
+
+    registry = get_task_type_registry()
+    errors = [d for d in registry.diagnostics if d.severity == "error"]
+    warnings = [d for d in registry.diagnostics if d.severity == "warning"]
+    status: CheckStatus = "ERROR" if errors else ("WARN" if warnings else "OK")
+    details = tuple(
+        f"[{d.severity}] {d.code}: {d.message}"
+        for d in (*errors, *warnings)[:_MAX_DETAIL_ROWS]
+    )
+    return DiagnosticCheck(
+        id="beads.task_types",
+        group="beads",
+        status=status,
+        title="Task-type catalog",
+        summary=(
+            f"{len(registry.records)} task type(s), {len(errors)} error(s), "
+            f"{len(warnings)} warning(s)"
+        ),
+        details=details,
+        next_steps=(
+            ("Run `sase bead task-type list -a` to inspect the assembled catalog.",)
+            if errors or warnings
+            else ()
+        ),
+        data={
+            "task_types": sorted(registry.by_slug),
+            "error_count": len(errors),
+            "warning_count": len(warnings),
+        },
+    )
 
 
 def _check_project_beads(context: DoctorContext) -> DiagnosticCheck:

@@ -14,8 +14,9 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
 )
-from sase.doctor.checks_beads import _check_project_beads
+from sase.doctor.checks_beads import _check_project_beads, _check_task_types
 from sase.doctor.runner import DoctorContext
+from sase.task_types import TaskTypeDiagnostic, TaskTypeRegistry
 from tests.sdd_policy_helpers import set_sdd_policy
 
 
@@ -618,3 +619,39 @@ def test_project_beads_ignores_promoted_and_dead_bead_owners(
     )
 
     assert _check_project_beads(_context(tmp_path)).status == "OK"
+
+
+def test_check_task_types_ok_when_catalog_is_clean(monkeypatch) -> None:
+    import sase.task_types as task_types_pkg
+
+    monkeypatch.setattr(
+        task_types_pkg,
+        "get_task_type_registry",
+        lambda: TaskTypeRegistry(records=(), diagnostics=()),
+    )
+    result = _check_task_types()
+    assert result.status == "OK"
+    assert result.data["error_count"] == 0
+    assert result.data["warning_count"] == 0
+
+
+def test_check_task_types_reports_errors_and_warnings(monkeypatch) -> None:
+    import sase.task_types as task_types_pkg
+
+    registry = TaskTypeRegistry(
+        records=(),
+        diagnostics=(
+            TaskTypeDiagnostic(
+                code="duplicate_task_type", message="dup", severity="error"
+            ),
+            TaskTypeDiagnostic(
+                code="duplicate_task_type_color", message="color", severity="warning"
+            ),
+        ),
+    )
+    monkeypatch.setattr(task_types_pkg, "get_task_type_registry", lambda: registry)
+    result = _check_task_types()
+    assert result.status == "ERROR"
+    assert result.data["error_count"] == 1
+    assert result.data["warning_count"] == 1
+    assert result.next_steps

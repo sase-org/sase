@@ -490,6 +490,144 @@
         }
       }
     },
+    "taskTypeConfigEntry": {
+      "type": "object",
+      "description": "One bead.task_types entry: either 'use' (override an installed task type's spec) or a full new task-type spec.",
+      "anyOf": [
+        { "required": ["use"] },
+        { "required": ["schema_version", "task_type", "label", "summary", "when_to_use"] }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "use": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+@[a-z0-9][a-z0-9_-]*$",
+          "description": "Installed task type id to use as the base spec, qualified as <plugin>@<id> ('builtin' or an installed distribution name). Sibling keys deep-merge over the referenced spec."
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 1,
+          "description": "Task-type spec wire schema version; currently always 1."
+        },
+        "task_type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Immutable snake_case slug identifying this task type."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Chip and picker label."
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "One-line summary inlined into every agent's Tier 1 context."
+        },
+        "when_to_use": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "Agent-facing guidance on when to file this task type, inlined into every agent's Tier 1 context."
+        },
+        "glyph": {
+          "type": "string",
+          "description": "Optional single-terminal-cell glyph shown in chips and CLI cells."
+        },
+        "accent_color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$",
+          "description": "Optional #RRGGBB accent color; a type without one is assigned a stable hash-derived color."
+        },
+        "agent_creatable": {
+          "type": "boolean",
+          "description": "Whether agents may file this task type through 'sase bead create'.",
+          "default": true
+        },
+        "default_size": {
+          "type": "string",
+          "description": "Optional default --size for this task type; unset keeps sizing an intentional choice."
+        },
+        "fields": {
+          "type": "array",
+          "description": "Declared field values this task type accepts.",
+          "items": { "$ref": "#/definitions/taskTypeFieldSpec" }
+        },
+        "body_template": {
+          "type": "string",
+          "description": "Optional Jinja2 template rendered below the bead description from field values with the 'template' role."
+        },
+        "triage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min_plus_ones": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Per-type +1 corroboration bar; 0 (the spec default) gates every ready task bead of this type."
+            }
+          }
+        }
+      }
+    },
+    "taskTypeFieldSpec": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Snake_case field name, referenced by body_template placeholders."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional human-readable field label."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "enum", "integer", "date"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "role": {
+          "type": "array",
+          "description": "Non-empty subset of {data, template}; defaults to both.",
+          "items": { "type": "string", "enum": ["data", "template"] }
+        },
+        "help": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional field-level help text."
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex validator; string fields only."
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum character length; string fields only."
+        },
+        "values": {
+          "type": "array",
+          "description": "Allowed values; required and non-empty for enum fields.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "minimum": {
+          "type": "integer",
+          "description": "Minimum value; integer fields only."
+        },
+        "maximum": {
+          "type": "integer",
+          "description": "Maximum value; integer fields only."
+        }
+      }
+    },
     "externalMirrorIssueFilters": {
       "type": "object",
       "description": "Selection criteria for external_mirror.issues; an issue must pass every configured criterion to be mirrored into a bead. An empty criterion accepts everything; *_globs entries may be !-prefixed to exclude. Setting a criterion replaces the shipped defaults for that criterion rather than appending to them.",
@@ -2623,6 +2761,11 @@
           "type": "boolean",
           "description": "When true, run `git push` after `sase bead work` commits sdd/beads/issues.jsonl. Push failures only warn; the local commit is preserved.",
           "default": true
+        },
+        "task_types": {
+          "type": "array",
+          "description": "Project-declared task-type catalog entries: an override of an installed task type (via 'use') or a brand-new project-local task type.",
+          "items": { "$ref": "#/definitions/taskTypeConfigEntry" }
         }
       }
     },
