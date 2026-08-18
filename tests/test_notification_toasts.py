@@ -6,6 +6,11 @@ from sase.ace.tui.actions.agents._toasts import (
     format_batch_toasts,
     _format_notification_toast,
 )
+from sase.notification_gates.presentation import (
+    GATE_CHIP_COLOR_ACTION_DATA_KEY,
+    GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+    GATE_CHIP_LABEL_ACTION_DATA_KEY,
+)
 
 from tests._notification_toasts_helpers import _make, _plain
 
@@ -357,6 +362,117 @@ class TestFormatNotificationToast:
         assert msg == "Something happened"
         assert sev == "information"
 
+    def test_typed_task_triage_toasts_chip_and_detail_as_warning(self) -> None:
+        n = _make(
+            action="TaskTriage",
+            notes=[
+                "sase-cx [+2] — Flaky: test_x fails only under the parallel suite · 2026-08-01",
+                "Flaky test · Test node ID: tests/x.py::test_y",
+            ],
+            action_data={
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF",
+            },
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == (
+            "[bold #AF87FF]≈ flake[/]  "
+            "sase-cx \\[+2] — Flaky: test_x fails only under the parallel suite · 2026-08-01\n"
+            "[dim]Flaky test · Test node ID: tests/x.py::test_y[/]"
+        )
+        assert _plain(msg) == (
+            "≈ flake  sase-cx [+2] — Flaky: test_x fails only under the parallel suite · 2026-08-01\n"
+            "Flaky test · Test node ID: tests/x.py::test_y"
+        )
+        assert sev == "warning"
+
+    def test_typed_bead_snooze_toasts_chip_and_detail_as_warning(self) -> None:
+        n = _make(
+            action="BeadSnooze",
+            notes=[
+                "sase-cx — Flaky: test_x fails only under the parallel suite",
+                "Flaky test · Test node ID: tests/x.py::test_y",
+            ],
+            action_data={
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF",
+            },
+        )
+        msg, sev = _format_notification_toast(n)
+        assert _plain(msg) == (
+            "≈ flake  sase-cx — Flaky: test_x fails only under the parallel suite\n"
+            "Flaky test · Test node ID: tests/x.py::test_y"
+        )
+        assert sev == "warning"
+        assert "[bold #AF87FF]≈ flake[/]" in msg
+
+    def test_untyped_task_triage_toasts_note_as_warning(self) -> None:
+        n = _make(
+            action="TaskTriage",
+            notes=["sase-cx — Flaky: test_x fails only under the parallel suite"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "sase-cx — Flaky: test_x fails only under the parallel suite"
+        assert sev == "warning"
+
+    def test_untyped_bead_snooze_toasts_note_as_warning(self) -> None:
+        n = _make(
+            action="BeadSnooze",
+            notes=["sase-cx — Flaky: test_x fails only under the parallel suite"],
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "sase-cx — Flaky: test_x fails only under the parallel suite"
+        assert sev == "warning"
+
+    def test_untyped_task_triage_without_notes_uses_fallback(self) -> None:
+        msg, sev = _format_notification_toast(_make(action="TaskTriage"))
+        assert msg == "New notification"
+        assert sev == "warning"
+
+    def test_junk_chip_color_renders_uncolored_chip(self) -> None:
+        n = _make(
+            action="TaskTriage",
+            notes=["sase-cx — title"],
+            action_data={
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "not-a-color",
+            },
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "[bold]≈ flake[/]  sase-cx — title"
+        assert _plain(msg) == "≈ flake  sase-cx — title"
+        assert sev == "warning"
+
+    def test_bracket_chip_glyph_survives_markup_round_trip(self) -> None:
+        n = _make(
+            action="TaskTriage",
+            notes=["sase-cx — title"],
+            action_data={
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "[",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF",
+            },
+        )
+        msg, sev = _format_notification_toast(n)
+        assert msg == "[bold #AF87FF]\\[ flake[/]  sase-cx — title"
+        assert _plain(msg) == "[ flake  sase-cx — title"
+        assert sev == "warning"
+
+    def test_second_note_is_truncated_to_max_note_len(self) -> None:
+        n = _make(
+            action="TaskTriage",
+            notes=["sase-cx — title", "x" * 200],
+            action_data={
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+        )
+        msg, _sev = _format_notification_toast(n)
+        assert _plain(msg).split("\n", 1)[1] == "x" * 59 + "…"
+
 
 class TestFormatBatchToasts:
     def test_empty(self) -> None:
@@ -424,3 +540,11 @@ class TestFormatBatchToasts:
         toasts = format_batch_toasts(notifs)
         assert len(toasts) == 1
         assert toasts[0][1] == "warning"
+
+    def test_task_triage_and_bead_snooze_group_as_warnings(self) -> None:
+        notifs = [_make(action="TaskTriage", notes=[f"t{i}"]) for i in range(3)] + [
+            _make(action="BeadSnooze", notes=["s"])
+        ]
+        assert format_batch_toasts(notifs) == [
+            ("4 warnings: 3 task triages, 1 snoozed task", "warning")
+        ]

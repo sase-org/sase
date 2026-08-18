@@ -7,9 +7,11 @@ notification(s)" line. Also handles grouping for large batches.
 A plan/epic toast's tier and epic phase/wave/size counts are read from
 ``Notification.action_data`` (see ``sase.sdd.plan_summary`` for the codec),
 not recomputed here: this module does zero I/O and cannot fail on the render
-path. One accepted limitation follows from that: a snoozed-then-resurfaced
-notification re-toasts the counts recorded when the gate was created, even if
-the reviewer has since edited the plan inside the gate bundle.
+path. TaskTriage and BeadSnooze chips are read the same way, through
+``gate_chip_from_action_data``. One accepted limitation follows from that: a
+snoozed-then-resurfaced notification re-toasts the counts recorded when the
+gate was created, even if the reviewer has since edited the plan inside the
+gate bundle.
 """
 
 from __future__ import annotations
@@ -17,6 +19,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Literal, TYPE_CHECKING
 
+from sase.notification_gates.presentation import (
+    GateChip,
+    gate_chip_from_action_data,
+)
 from sase.phase_size_presentation import (
     PHASE_SIZE_ABBREVIATIONS,
     PHASE_SIZE_ACCENTS,
@@ -83,6 +89,19 @@ def _first_note(n: Notification) -> str:
     if n.notes:
         return _humanize_text(n.notes[0].strip())
     return ""
+
+
+def _second_note(n: Notification) -> str:
+    if len(n.notes) < 2:
+        return ""
+    return _humanize_text(n.notes[1].strip())
+
+
+def _chip_toast_markup(chip: GateChip) -> str:
+    body = f"{_markup_safe(chip.glyph)} {_markup_safe(chip.label)}"
+    if chip.color is not None:
+        return f"[bold {chip.color}]{body}[/]"
+    return f"[bold]{body}[/]"
 
 
 def _severity_from_keywords(text: str, default: Severity = "information") -> Severity:
@@ -184,6 +203,25 @@ def _plan_toast(n: Notification) -> tuple[str, Severity]:
     return (message, "warning")
 
 
+def _bead_gate_toast(n: Notification) -> tuple[str, Severity]:
+    """Build the chip-aware toast for ``TaskTriage`` and ``BeadSnooze``."""
+    note = _first_note(n)
+    chip = gate_chip_from_action_data(n.action_data)
+    if chip is not None:
+        message = _chip_toast_markup(chip)
+        if note:
+            message = f"{message}  {_markup_safe(note)}"
+    elif note:
+        message = _markup_safe(note)
+    else:
+        message = _FALLBACK_MESSAGE
+
+    detail = _second_note(n)
+    if detail:
+        message = f"{message}\n[dim]{_markup_safe(_truncate(detail))}[/]"
+    return (message, "warning")
+
+
 def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     """Return ``(message, severity)`` for a single new notification.
 
@@ -220,6 +258,9 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
             _markup_safe(note) if note else "Launch approval requested",
             "warning",
         )
+
+    if action in {"TaskTriage", "BeadSnooze"}:
+        return _bead_gate_toast(n)
 
     if action == "ViewErrorReport":
         return (f"Axe: {_markup_safe(note)}" if note else "Axe errors", "error")

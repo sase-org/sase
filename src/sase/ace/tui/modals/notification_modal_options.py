@@ -11,6 +11,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
 from sase.notification_gates import PRIVILEGED_GATE_ACTIONS
+from sase.notification_gates.presentation import gate_chip_from_action_data
 from sase.notifications import (
     Notification,
     format_relative_time,
@@ -83,6 +84,11 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             text.append("  ", style="")
 
         text.append(f"{notification_icon(notification.action, notification.icon)} ")
+
+        chip = gate_chip_from_action_data(notification.action_data)
+        if chip is not None:
+            chip_style = f"bold {chip.color}" if chip.color is not None else "bold"
+            text.append(f"{chip.glyph} ", style=chip_style)
 
         body_style = "dim" if notification.muted else ""
         bold_style = "dim" if notification.muted else "bold"

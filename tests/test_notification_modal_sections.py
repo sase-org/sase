@@ -5,12 +5,25 @@ and the guards that run when no row is selected. Tab taxonomy lives in
 ``test_notification_modal_tab_routing`` and ``test_notification_modal_tab_order``.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import MUTED_TAB_KEY
+from sase.notification_gates.presentation import (
+    GATE_CHIP_COLOR_ACTION_DATA_KEY,
+    GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+    GATE_CHIP_LABEL_ACTION_DATA_KEY,
+)
 
 from tests._notification_modal_helpers import _make_notification, _option_ids
+
+
+def _style_for(text: Any, fragment: str) -> str | None:
+    for start, end, style in text.spans:
+        if text.plain[start:end] == fragment:
+            return str(style)
+    return None
 
 
 def test_active_tab_renders_flat_newest_first_without_section_rows() -> None:
@@ -150,6 +163,88 @@ def test_styled_label_includes_compact_tag_badges() -> None:
     assert "#done" in label.plain
     assert "#really-long..." in label.plain
     assert "+1" in label.plain
+
+
+def test_styled_label_inserts_chip_glyph_after_action_icon() -> None:
+    """A declared chip paints its glyph after the action icon, not its label."""
+    notification = _make_notification(
+        "n1",
+        action="TaskTriage",
+        action_data={
+            GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+            GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF",
+        },
+    )
+    notification.notes = [
+        "sase-cx [+2] — title",
+        "Flaky test · Test node ID: tests/x.py::test_y",
+    ]
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+
+    assert "* ✦ ≈ [test] sase-cx [+2] — title" in label.plain
+    assert "flake" not in label.plain
+    assert "Flaky test" not in label.plain
+    assert "Test node ID" not in label.plain
+    assert _style_for(label, "≈ ") == "bold #AF87FF"
+
+
+def test_styled_label_without_chip_matches_chipless_render() -> None:
+    """A row with no usable chip stays byte-identical to today's layout."""
+    chipless = _make_notification("n1", action="TaskTriage")
+    chipless.notes = ["sase-cx — title"]
+    incomplete = _make_notification(
+        "n2",
+        action="TaskTriage",
+        action_data={GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF"},
+    )
+    incomplete.notes = ["sase-cx — title"]
+    modal = NotificationModal([chipless, incomplete])
+
+    chipless_label = modal._create_styled_label(chipless)
+    incomplete_label = modal._create_styled_label(incomplete)
+
+    assert chipless_label.plain == incomplete_label.plain
+    assert "* ✦ [test] sase-cx — title" in chipless_label.plain
+    assert "≈" not in chipless_label.plain
+
+
+def test_styled_label_junk_chip_color_still_renders_glyph() -> None:
+    """A stored junk colour drops the accent but keeps the glyph."""
+    notification = _make_notification(
+        "n1",
+        action="TaskTriage",
+        action_data={
+            GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+            GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            GATE_CHIP_COLOR_ACTION_DATA_KEY: "red",
+        },
+    )
+    notification.notes = ["sase-cx — title"]
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+
+    assert "* ✦ ≈ [test] sase-cx — title" in label.plain
+    assert _style_for(label, "≈ ") == "bold"
+
+
+def test_styled_label_bracket_chip_glyph_is_literal() -> None:
+    """A '[' glyph is appended as text, not parsed as Rich markup."""
+    notification = _make_notification(
+        "n1",
+        action="TaskTriage",
+        action_data={
+            GATE_CHIP_GLYPH_ACTION_DATA_KEY: "[",
+            GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+        },
+    )
+    notification.notes = ["sase-cx — title"]
+    modal = NotificationModal([notification])
+    label = modal._create_styled_label(notification)
+
+    assert "* ✦ [ [test] sase-cx — title" in label.plain
+    assert _style_for(label, "[ ") == "bold"
 
 
 def test_get_selected_index_returns_none_for_legacy_header_like_option() -> None:
