@@ -307,8 +307,8 @@ def test_plan_injects_forced_id_for_plain_prompt(tmp_path: Path) -> None:
         raw_prompt=raw,
         force_plan=fake_force,
     )
-    assert plan.name_reuse_source == "prompt"
-    assert "from prompt" in plan.preview.name_reuse
+    assert plan.name_reuse_source == "injected"
+    assert "injected" in plan.preview.name_reuse
     assert "%id:!061" in plan.rewritten_prompt
     assert plan.rewritten_prompt.startswith("%id:!061")
     from sase.xprompt import extract_vcs_workflow_tag

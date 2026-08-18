@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from typing import Literal
 
 
@@ -30,40 +31,26 @@ def rewrite_retry_prompt_name(
     )
 
 
+def prompt_has_id_directive(prompt: str) -> bool:
+    """Whether *prompt* explicitly declares a top-level ``%id``/``%i`` with a name."""
+    for match, _protected, _restore in _iter_top_level_id_directives(prompt):
+        return match.group(2) is not None or match.group(3) is not None
+    return False
+
+
 def force_name_reuse_in_prompt(
     raw_prompt: str,
     *,
     replacement_name: str | None = None,
 ) -> str:
     """Mark the first explicit top-level ``%id`` directive for forced reuse."""
-    if "%i" not in raw_prompt:
-        return raw_prompt
-
     from sase.agent.names import is_agent_name_template
-    from sase.xprompt._directive_types import (
-        _DIRECTIVE_ALIASES,
-        _DIRECTIVE_PATTERN,
-    )
-    from sase.xprompt._disabled_regions import (
-        protect_disabled_regions,
-        unprotect_disabled_regions,
-    )
-    from sase.xprompt._fenced_blocks import (
-        protect_fenced_blocks,
-        unprotect_fenced_blocks,
-    )
     from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
 
-    fenced: list[str] = []
-    protected = protect_fenced_blocks(raw_prompt, fenced)
-    disabled: list[str] = []
-    protected = protect_disabled_regions(protected, disabled)
-
-    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+    scan: tuple[str, Callable[[str], str]] | None = None
+    for match, protected, restore in _iter_top_level_id_directives(raw_prompt):
+        scan = (protected, restore)
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
-            continue
-
         insertion_index: int | None = None
         directive_value: str | None = None
         replacement_span: tuple[int, int] | None = None
@@ -112,16 +99,59 @@ def force_name_reuse_in_prompt(
             rewritten = (
                 f"{protected[:start]}%{raw_name}:!{replacement_name}{protected[end:]}"
             )
-            rewritten = unprotect_disabled_regions(rewritten, disabled)
-            return unprotect_fenced_blocks(rewritten, fenced)
+            return restore(rewritten)
 
         rewritten = (
             f"{protected[:insertion_index]}!{protected[insertion_index:]}"
             if insertion_index is not None
             else protected
         )
-        rewritten = unprotect_disabled_regions(rewritten, disabled)
-        return unprotect_fenced_blocks(rewritten, fenced)
+        return restore(rewritten)
 
-    protected = unprotect_disabled_regions(protected, disabled)
-    return unprotect_fenced_blocks(protected, fenced)
+    if scan is None:
+        return raw_prompt
+    protected, restore = scan
+    return restore(protected)
+
+
+def _iter_top_level_id_directives(
+    prompt: str,
+) -> Iterator[tuple[re.Match[str], str, Callable[[str], str]]]:
+    """Yield each top-level ``%id``/``%i`` on a fence- and disabled-protected scan.
+
+    Both :func:`prompt_has_id_directive` and :func:`force_name_reuse_in_prompt`
+    must walk the same protected text so the kill-and-edit gate cannot fire on
+    a directive the rewriter would ignore.
+    """
+    if "%i" not in prompt:
+        return
+
+    from sase.xprompt._directive_types import (
+        _DIRECTIVE_ALIASES,
+        _DIRECTIVE_PATTERN,
+    )
+    from sase.xprompt._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+
+    def restore(text: str) -> str:
+        return unprotect_fenced_blocks(
+            unprotect_disabled_regions(text, disabled),
+            fenced,
+        )
+
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
+            continue
+        yield match, protected, restore

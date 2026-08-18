@@ -357,7 +357,7 @@ async def test_family_root_relaunch_keeps_clan_and_not_self_family(
     assert app.notifications == []
 
 
-async def test_plain_plan_root_relaunch_forces_family_name_reuse(
+async def test_plain_plan_root_relaunch_keeps_prompt(
     tmp_path: Path,
 ) -> None:
     root = _plain_plan_root(tmp_path)
@@ -368,7 +368,7 @@ async def test_plain_plan_root_relaunch_forces_family_name_reuse(
         await wait_for(pilot, lambda: _prompt_bar_ready(app))
 
         seeded = app.query_one(PromptInputBar).all_prompt_texts()[0]
-        assert seeded.startswith("%id:!06d")
+        assert seeded == "#gh:gh_sase-org__sase #plan"
         assert "family=" not in seeded
 
     assert app.dismissed == [root]

@@ -2060,7 +2060,9 @@ after the `<clan>.` prefix, or the family role segment — not the full agent na
 membership keyword supplies the rest. An existing `bead=` value is carried across, and a
 standalone `clan:` declaration is dropped in favor of the `clan=` keyword. The last row
 is not a failure: a prompt that never named its agent has nothing to reuse, so it simply
-relaunches under a newly allocated name.
+relaunches under a newly allocated name. A serial family member is the one case where a
+prompt with no `%id` is still rewritten, because its `family=` attachment comes from the
+row rather than the prompt; family roots are not treated that way.
 
 ACE is the surface that confirms that reuse, and it carries the authorization through to
 the launch, so no second confirmation is asked for. Forced reuse cannot be combined with

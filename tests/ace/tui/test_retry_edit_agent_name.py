@@ -278,8 +278,9 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
         (
             "#gh:gh_sase-org__sase Describe this repo.",
             "068",
-            "%id:!068\n#gh:gh_sase-org__sase Describe this repo.",
+            "#gh:gh_sase-org__sase Describe this repo.",
         ),
+        ("Do work", None, "Do work"),
     ],
 )
 def test_prepare_kill_and_edit_prompt_contract(
@@ -332,7 +333,7 @@ def test_prepare_kill_and_edit_epic_root_without_flag_still_keeps_clan() -> None
     assert rewritten == _EPIC_ROOT_RELAUNCH
 
 
-def test_prepare_kill_and_edit_prompt_plain_family_root_forces_reuse() -> None:
+def test_prepare_kill_and_edit_prompt_plain_family_root_keeps_prompt() -> None:
     rewritten = prepare_kill_and_edit_prompt(
         "#gh:gh_sase-org__sase #plan",
         "06d--plan",
@@ -340,14 +341,12 @@ def test_prepare_kill_and_edit_prompt_plain_family_root_forces_reuse() -> None:
         role_suffix="--plan",
         is_family_root=True,
     )
-    assert rewritten == "%id:!06d\n#gh:gh_sase-org__sase #plan"
+    assert rewritten == "#gh:gh_sase-org__sase #plan"
     assert "family=" not in rewritten
 
 
-def test_prepare_kill_and_edit_prompt_refuses_missing_identity() -> None:
-    with pytest.raises(KillAndEditPromptError, match="no %id identity") as caught:
-        prepare_kill_and_edit_prompt("Do work", None)
-    assert caught.value.produced == "Do work"
+def test_prepare_kill_and_edit_prompt_keeps_prompt_without_identity() -> None:
+    assert prepare_kill_and_edit_prompt("Do work", None) == "Do work"
 
 
 def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
@@ -683,18 +682,50 @@ def test_kill_and_edit_agent_replaces_template_with_concrete_name() -> None:
     assert app.notifications == []
 
 
-def test_kill_and_edit_agent_injects_forced_id_when_prompt_has_none() -> None:
+def test_kill_and_edit_agent_keeps_prompt_when_it_has_no_id() -> None:
     app = _App(_Agent("#gh:gh_sase-org__sase Describe this repo.", agent_name="068"))
 
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%id:!068\n#gh:gh_sase-org__sase Describe this repo.",
+        "#gh:gh_sase-org__sase Describe this repo.",
         "/tmp/proj/proj.sase",
         "branch",
         False,
     )
     assert app.notifications == []
+
+
+_06Y_PROMPT = (
+    "#gh:gh_sase-org__sase Did we ever fix the issue where "
+    "`@/path/to/file` references in bead notes / descriptions were not "
+    "being expanded (see sase-pv.7 bead for context)? #if_not_plan"
+)
+
+
+@pytest.mark.parametrize("agent_name", ["foo", None])
+def test_prepare_kill_and_edit_prompt_keeps_bare_id(agent_name: str | None) -> None:
+    assert prepare_kill_and_edit_prompt("%id\nDo work", agent_name) == "%id\nDo work"
+
+
+@pytest.mark.parametrize(
+    "agent_name",
+    ["06y", "bbugyi200.athena.06y", None],
+)
+def test_prepare_kill_and_edit_prompt_keeps_06y_unnamed_prompt(
+    agent_name: str | None,
+) -> None:
+    assert prepare_kill_and_edit_prompt(_06Y_PROMPT, agent_name) == _06Y_PROMPT
+
+
+def test_prepare_kill_and_edit_prompt_keeps_fenced_only_id() -> None:
+    prompt = "```\n%id:fenced\n```\nDo work"
+    assert prepare_kill_and_edit_prompt(prompt, "foo") == prompt
+
+
+def test_prepare_kill_and_edit_prompt_tolerates_unparseable_prompt_without_id() -> None:
+    prompt = "%model:@no_such_alias\nDo work"
+    assert prepare_kill_and_edit_prompt(prompt, "foo") == prompt
 
 
 def test_kill_and_edit_family_root_keeps_clan_identity() -> None:

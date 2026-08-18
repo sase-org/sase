@@ -284,7 +284,7 @@ def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
     app._bulk_kill_marked_agents_and_edit()
     _confirm(app)
 
-    assert app.edit_calls[0]["prompts"] == ["%id:!solo\nJust do it"]
+    assert app.edit_calls[0]["prompts"] == ["Just do it"]
 
 
 def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
@@ -348,7 +348,7 @@ def test_bulk_kill_and_edit_does_not_split_embedded_separator() -> None:
     _confirm(app)
 
     # The embedded ``---`` stays inside the single pane for this one agent.
-    assert app.edit_calls[0]["prompts"] == ["%id:!multi\npart one\n---\npart two"]
+    assert app.edit_calls[0]["prompts"] == ["part one\n---\npart two"]
 
 
 # --- cancel / no-op paths --------------------------------------------------
@@ -423,7 +423,7 @@ def test_bulk_kill_and_edit_prunes_stale_marks() -> None:
     _confirm(app)
 
     # Only the live marked agent becomes a pane.
-    assert app.edit_calls[0]["prompts"] == ["%id:!live\nWork live"]
+    assert app.edit_calls[0]["prompts"] == ["Work live"]
 
 
 def test_bulk_kill_and_edit_missing_prompt_aborts_before_kill() -> None:
@@ -470,6 +470,9 @@ def test_bulk_kill_and_edit_unverified_identity_aborts_before_kill() -> None:
         cl_name="bad",
         raw_suffix="20240101130000",
         raw_prompt="Do work",
+        agent_name="sase-pw.1",
+        agent_family="sase-pw.1",
+        role_suffix="--code",
         status="RUNNING",
         pid=222,
     )

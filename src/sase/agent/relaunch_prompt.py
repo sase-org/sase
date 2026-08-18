@@ -113,12 +113,25 @@ def prepare_kill_and_edit_prompt(
     aliases, templates, and already-forced directives cannot drift between
     the single- and multi-pane workflows.
 
-    Family roots are named under the family reference and forced to reuse
-    that name. Non-root serial-family members keep the exact-member
-    ``family=`` rewrite. A rewrite that would drop clan membership without a
-    parent to inherit from, self-attach ``family=`` to the relaunched agent,
-    or omit forced name reuse raises :class:`KillAndEditPromptError`.
+    A prompt that never declared a named ``%id``/``%i`` is returned
+    unchanged so the relaunch allocates a fresh name. Serial non-root family
+    members are the exception: their ``family=`` attachment is reconstructed
+    from row metadata even when the stored prompt has no ``%id``. Family
+    roots get no such rewrite.
+
+    Family roots that declared ``%id`` are named under the family reference
+    and forced to reuse that name. Non-root serial-family members keep the
+    exact-member ``family=`` rewrite. A rewrite that would drop clan
+    membership without a parent to inherit from, self-attach ``family=`` to
+    the relaunched agent, or omit forced name reuse raises
+    :class:`KillAndEditPromptError`.
     """
+    from sase.agent.retry_prompt import prompt_has_id_directive
+
+    serial_family_member = bool(family_name and role_suffix and not is_family_root)
+    if not serial_family_member and not prompt_has_id_directive(raw_prompt):
+        return raw_prompt
+
     facing_agent = _facing_name(agent_name)
     facing_family = _facing_name(family_name)
     if is_family_root:
