@@ -244,6 +244,10 @@ def init_late_startup_state(
     self._prompt_glossary_catalogs_by_context = {}
     self._prompt_glossary_diagnostics_by_context = {}
     self._prompt_glossary_warming_contexts = set()
+    self._prompt_repo_mention_generation = 0
+    self._prompt_repo_mention_catalogs_by_context = {}
+    self._prompt_repo_mention_diagnostics_by_context = {}
+    self._prompt_repo_mention_warming_contexts = set()
     self._prompt_source_watcher = None
     self._prompt_source_watcher_active = False
     self._prompt_source_watched_projects = set()

@@ -11,16 +11,19 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
+from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
+from sase.repo_inventory import RepoRecord
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
+from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 from sase.xprompt._literal_zones import code_literal_ranges
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
@@ -107,6 +110,9 @@ GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT = (
     "Ask the Agent\n"
     "  Clan to review the Patch glossary wiring\n"
     "Keep xprompt references and @plan:notes.md distinct."
+)
+REPO_MENTION_HIGHLIGHT_PROMPT = (
+    "Ask the Agent Clan to inspect sase-core before the Patch handoff"
 )
 
 CODEBLOCK_HIGHLIGHT_SOLO = (
@@ -302,6 +308,33 @@ def patch_visual_glossary_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(AceApp, "warm_prompt_glossary_catalog", _warm)
 
 
+def patch_visual_repo_mention_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    catalog = _visual_repo_mention_catalog()
+
+    def _catalog(
+        _app: AceApp,
+        _context: PromptRepoMentionContext,
+        *,
+        schedule: bool = True,
+    ) -> EditorRepoMentionCatalog:
+        del schedule
+        return catalog
+
+    def _warm(
+        _app: AceApp,
+        _context: PromptRepoMentionContext,
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(AceApp, "get_prompt_repo_mention_catalog", _catalog)
+    monkeypatch.setattr(
+        AceApp,
+        "is_prompt_repo_mention_catalog_warm",
+        lambda _app, _context: True,
+    )
+    monkeypatch.setattr(AceApp, "warm_prompt_repo_mention_catalog", _warm)
+
+
 class _VisualCompiledGlossary:
     def __init__(self, entries: tuple[GlossaryEntry, ...]) -> None:
         self._entries = entries
@@ -398,6 +431,126 @@ def _visual_glossary_catalog() -> EditorGlossaryCatalog:
         catalog=GlossaryCatalog(schema_version=1, entries=entries),
         compiled=_VisualCompiledGlossary(entries),
     )
+
+
+class _VisualCompiledRepoMentions:
+    def __init__(self, mentions: tuple[RepoMention, ...]) -> None:
+        self._mentions = mentions
+
+    def scan(self, text: str) -> list[dict[str, Any]]:
+        literal_ranges = (
+            code_literal_ranges(text) if "`" in text or "~~~" in text else []
+        )
+        spans: list[dict[str, Any]] = []
+        for mention in self._mentions:
+            identifier = mention.identifier
+            start = 0
+            literal_index = 0
+            while True:
+                found = text.find(identifier, start)
+                if found == -1:
+                    break
+                end = found + len(identifier)
+                while (
+                    literal_index < len(literal_ranges)
+                    and literal_ranges[literal_index][1] <= found
+                ):
+                    literal_index += 1
+                if (
+                    literal_index < len(literal_ranges)
+                    and literal_ranges[literal_index][0] < end
+                ):
+                    start = end
+                    continue
+                spans.append(_visual_repo_mention_span_wire(text, mention, found, end))
+                start = end
+        return spans
+
+    def lookup(
+        self,
+        text: str,
+        line: int,
+        character: int,
+    ) -> dict[str, Any] | None:
+        for span in self.scan(text):
+            editor_range = span["range"]
+            start = editor_range["start"]
+            end = editor_range["end"]
+            if (
+                start["line"] <= line <= end["line"]
+                and (line > start["line"] or character >= start["character"])
+                and (line < end["line"] or character < end["character"])
+            ):
+                return span
+        return None
+
+
+def _visual_repo_mention_catalog() -> EditorRepoMentionCatalog:
+    config_path = Path("/workspace/sase/sase.yml")
+    record = RepoRecord(
+        name="sase-core",
+        kind="linked",
+        project="sase",
+        project_key="sase",
+        path="/workspace/sase/repos/linked/sase-core",
+        exists=True,
+        auto_clone=True,
+        description="Shared Rust core backend.",
+        source="test",
+        env_name="SASE_CORE",
+        slug=None,
+    )
+    mention = RepoMention(
+        identifier="sase-core",
+        kind="linked",
+        record=record,
+        index=0,
+        config_path=str(config_path),
+        config_line=216,
+        config_col=7,
+    )
+    return EditorRepoMentionCatalog(
+        schema_version=1,
+        project=EditorGlossaryProject(
+            key="sase",
+            name="sase",
+            aliases=("sase-org",),
+            workspace_dir=Path("/workspace/sase"),
+        ),
+        mentions=(mention,),
+        compiled=_VisualCompiledRepoMentions((mention,)),
+    )
+
+
+def _visual_repo_mention_span_wire(
+    text: str,
+    mention: RepoMention,
+    start: int,
+    end: int,
+) -> dict[str, Any]:
+    return {
+        "term": mention.identifier,
+        "entry_index": mention.index,
+        "alias_index": 0,
+        "alias": mention.identifier,
+        "matched_text": text[start:end],
+        "byte_start": len(text[:start].encode("utf-8")),
+        "byte_end": len(text[:end].encode("utf-8")),
+        "range": {
+            "start": _visual_editor_position(text, start),
+            "end": _visual_editor_position(text, end),
+        },
+        "segments": [
+            {
+                "byte_start": len(text[:start].encode("utf-8")),
+                "byte_end": len(text[:end].encode("utf-8")),
+                "range": {
+                    "start": _visual_editor_position(text, start),
+                    "end": _visual_editor_position(text, end),
+                },
+            }
+        ],
+    }
 
 
 def _visual_glossary_entry(

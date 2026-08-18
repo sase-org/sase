@@ -29,12 +29,14 @@ if TYPE_CHECKING:
     from ...query_record import QueryRecord
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
+    from ..repo_mention_catalog import PromptRepoMentionContext
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
     from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+    from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
     from sase.history.prompt_placeholders import (
         CommonPlaceholderIndex,
         CommonPlaceholderSourceToken,
@@ -150,6 +152,16 @@ class StartupMixin(
         tuple[str, ...],
     ]
     _prompt_glossary_warming_contexts: set[PromptGlossaryContext]
+    _prompt_repo_mention_generation: int
+    _prompt_repo_mention_catalogs_by_context: dict[
+        PromptRepoMentionContext,
+        EditorRepoMentionCatalog | None,
+    ]
+    _prompt_repo_mention_diagnostics_by_context: dict[
+        PromptRepoMentionContext,
+        tuple[str, ...],
+    ]
+    _prompt_repo_mention_warming_contexts: set[PromptRepoMentionContext]
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]

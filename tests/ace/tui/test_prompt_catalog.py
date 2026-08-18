@@ -551,3 +551,60 @@ def test_config_watcher_burst_carries_dirty_signal_to_rebuild() -> None:
 
     assert app._prompt_catalog_generation == 2
     assert scheduled == [{"reason": "prompt_source_change", "config_dirty": True}]
+
+
+def test_config_watcher_invalidates_repo_mention_catalogs() -> None:
+    invalidated: list[str] = []
+
+    class _Timer:
+        def stop(self) -> None:
+            pass
+
+    class WatcherApp(StartupWatchersMixin):
+        def set_timer(self, *_args: object, **_kwargs: object) -> _Timer:
+            return _Timer()
+
+        def _schedule_prompt_catalog_rebuild(self, **_kwargs: object) -> None:
+            return None
+
+        def _invalidate_prompt_glossary_catalogs(self, *, reason: str) -> None:
+            invalidated.append(f"glossary:{reason}")
+
+        def _invalidate_prompt_repo_mention_catalogs(self, *, reason: str) -> None:
+            invalidated.append(f"repo:{reason}")
+
+    app = WatcherApp()
+    app._prompt_source_debounce_timer = None
+    app._prompt_source_debounce_config_dirty = False
+    app._prompt_catalog_generation = 1
+
+    app._on_prompt_source_change((Path("/tmp/config/sase.yml"),))
+    app._fire_prompt_source_debounce()
+
+    assert invalidated == [
+        "glossary:prompt_source_change",
+        "repo:prompt_source_change",
+    ]
+
+
+def test_warm_prompt_repo_mention_catalog_schedules_once() -> None:
+    from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
+
+    workers: list[object] = []
+
+    class CatalogApp(StartupPromptCatalogMixin):
+        def run_worker(self, callback: object, **_kwargs: object) -> None:
+            workers.append(callback)
+
+    app = CatalogApp()
+    app._prompt_repo_mention_generation = 0
+    app._prompt_repo_mention_catalogs_by_context = {}
+    app._prompt_repo_mention_diagnostics_by_context = {}
+    app._prompt_repo_mention_warming_contexts = set()
+    context = PromptRepoMentionContext(project_ref="sase", launch_workspace=None)
+
+    app.warm_prompt_repo_mention_catalog(context)
+    app.warm_prompt_repo_mention_catalog(context)
+
+    assert len(workers) == 1
+    assert context in app._prompt_repo_mention_warming_contexts

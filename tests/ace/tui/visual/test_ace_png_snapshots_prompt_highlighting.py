@@ -21,6 +21,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     CODEBLOCK_HIGHLIGHT_STACK,
     GLOSSARY_HIGHLIGHT_PROMPT,
     GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT,
+    REPO_MENTION_HIGHLIGHT_PROMPT,
     MISSPELLING_HIGHLIGHT_PROMPT,
     ORDERED_HIGHLIGHT_SOLO,
     SEARCH_PROMPT,
@@ -31,6 +32,7 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
     mount_prompt_bar,
     patch_visual_artifact_ref_kinds,
     patch_visual_glossary_catalog,
+    patch_visual_repo_mention_catalog,
     patch_visual_skill_catalog,
     seed_visual_artifact_ref_kinds,
 )
@@ -389,6 +391,46 @@ async def test_prompt_glossary_wrapped_highlight_png_snapshot(
             page,
             "prompt_glossary_wrapped_highlight_dark_120x40",
             title="ACE prompt input — wrapped glossary highlighting, dark theme",
+        )
+
+
+async def test_prompt_repo_mention_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    patch_visual_glossary_catalog(monkeypatch)
+    patch_visual_repo_mention_catalog(monkeypatch)
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_warm_current_artifact_ref_completion_catalog",
+        lambda _self: None,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, REPO_MENTION_HIGHLIGHT_PROMPT)
+        text_area = bar.active_text_area()
+        text_area._refresh_prompt_glossary_context(schedule=False)
+        text_area._refresh_prompt_repo_mention_context(schedule=False)
+        text_area._build_highlight_map()
+        await wait_for_visual_idle(page)
+
+        names = [
+            name for row in text_area._highlights.values() for *_range, name in row
+        ]
+        assert "glossary.term" in names
+        assert "repo.mention" in names
+        glossary = text_area._theme.syntax_styles["glossary.term"]
+        repo = text_area._theme.syntax_styles["repo.mention"]
+        assert glossary.color != repo.color
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_repo_mention_highlight_120x40",
+            title="ACE prompt input — repo mention vs glossary highlighting",
         )
 
 

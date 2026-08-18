@@ -4848,12 +4848,13 @@ project when the prompt does not select one.
 
 Project glossary entries are authored in `sase/sase.yml`; see
 [glossary configuration](configuration.md#memoryglossary). ACE highlights matched
-glossary phrases in the prompt after the catalog is warm, rendering them bold, in the
-theme accent, and underlined to mark a term you can preview with `K` or jump to with
-`Ctrl+]`. Matching skips inline code and fenced code and uses the shared longest-match
-rules from the xprompt LSP. Loading, validation, and matcher compilation run off the
-render path and are cached per project/config signature. Config edits, project changes,
-and watched `sase.yml` changes invalidate the cache.
+glossary phrases in the prompt after the catalog is warm, rendering them bold,
+underlined, and in a muted blue so they read apart from the lavender repo-name highlight
+— the same "you can preview this with `K` or jump to it with `Ctrl+]`" affordance, a
+different hue. Matching skips inline code and fenced code and uses the shared
+longest-match rules from the xprompt LSP. Loading, validation, and matcher compilation
+run off the render path and are cached per project/config signature. Config edits,
+project changes, and watched `sase.yml` changes invalidate the cache.
 
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
@@ -4871,6 +4872,22 @@ The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver be
 `sase glossary show`/`read` (see [Glossary](memory.md#glossary)): both walk outgoing
 reference spans from the shared `sase.glossary.resolution` module, so the preview card
 and the CLI can never disagree about which terms a definition references.
+
+#### Repo names
+
+ACE highlights the unambiguous identifier of every non-primary repo in the active
+project — linked names (`sase-core`), sidecar slugs (`sase--beads`), and external names
+(`gh:owner/repo`) — after the catalog is warm. Matches are bold, underlined, and
+lavender. The project's own primary name, sidecar role words (`beads`, `plans`), and any
+name the project glossary already claims are left as ordinary text so the two overlays
+never fight over the same characters.
+
+Matching skips inline and fenced code, ignores path-adjacent hits (`../sase-core`,
+`sase-core/crates`), and drops the matcher's derived plurals so the highlighted
+characters always equal a real identifier. Loading and compilation run off the render
+path and are cached per project. Config edits, project changes, and watched `sase.yml`
+changes invalidate the cache. A repo opened with `sase repo open` during a live ACE
+session does not appear until the next config-driven invalidation.
 
 #### Word definitions & spellcheck
 
@@ -4890,22 +4907,23 @@ installation hint.
 Every word `K` proves misspelled is remembered durably and gets a red underline in every
 prompt input from that moment on, in every `sase ace` session -- no live spell-checking
 runs on every keystroke; only what `K` has already checked is ever squiggled. This is
-distinct from the bold theme-accent glossary underline, which marks a definable project
-term rather than a spelling issue. The correction panel offers two ways to stop fighting
-a word, at two different scopes. Press `a` to accept a word for SASE only: it is
-recorded in `prompt_misspellings.json`, `K` on it no longer opens the panel, but
-`aspell` itself -- and every other consumer of it on the machine -- still rejects the
-word. Press `d` to add the word to your `aspell` personal dictionary instead (usually
-`~/.aspell.en.pws`, though `aspell` configuration can relocate it), so it stops being
-flagged everywhere on the machine, not just in ACE; this is reversible by editing that
-file directly. The add is verified by re-checking the word in a fresh `aspell` process
-afterwards, so the squiggle clears only once `aspell` genuinely accepts it -- a failure
-leaves the word flagged and reports `aspell`'s own explanation. Case follows `aspell`: a
-word added capitalized (`Bugyi`) stays flagged in lowercase (`bugyi`). Hyphenated words
-cannot be added with `d` -- `aspell` does not permit `-` inside a personal-dictionary
-entry -- and the panel reports that explicitly rather than pretending the add worked. A
-`K` press on a now-correctly-spelled remembered word clears its squiggle automatically.
-The remembered words are stored at `sase_home()/prompt_misspellings.json`; see
+distinct from the bold blue glossary underline and the bold lavender repo-name
+underline, which mark a definable project term or repo rather than a spelling issue. The
+correction panel offers two ways to stop fighting a word, at two different scopes. Press
+`a` to accept a word for SASE only: it is recorded in `prompt_misspellings.json`, `K` on
+it no longer opens the panel, but `aspell` itself -- and every other consumer of it on
+the machine -- still rejects the word. Press `d` to add the word to your `aspell`
+personal dictionary instead (usually `~/.aspell.en.pws`, though `aspell` configuration
+can relocate it), so it stops being flagged everywhere on the machine, not just in ACE;
+this is reversible by editing that file directly. The add is verified by re-checking the
+word in a fresh `aspell` process afterwards, so the squiggle clears only once `aspell`
+genuinely accepts it -- a failure leaves the word flagged and reports `aspell`'s own
+explanation. Case follows `aspell`: a word added capitalized (`Bugyi`) stays flagged in
+lowercase (`bugyi`). Hyphenated words cannot be added with `d` -- `aspell` does not
+permit `-` inside a personal-dictionary entry -- and the panel reports that explicitly
+rather than pretending the add worked. A `K` press on a now-correctly-spelled remembered
+word clears its squiggle automatically. The remembered words are stored at
+`sase_home()/prompt_misspellings.json`; see
 [`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the
 highlight or change how many words are retained.
 

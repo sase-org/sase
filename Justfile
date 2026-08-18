@@ -332,13 +332,13 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-p1.4(build_glossary_project_ring)" \
         --epic-symbol "sase-p1.4(load_glossary_project_snapshot)" \
         --epic-symbol "sase-p1.5(glossary_entry_relations)" \
+        --epic-symbol "sase-p1.6(GlossaryConflictError)" \
+        --epic-symbol "sase-p1.6(GlossaryMutationError)" \
+        --epic-symbol "sase-p1.6(GlossaryMutationOutcome)" \
+        --epic-symbol "sase-p1.6(GlossaryValidationError)" \
+        --epic-symbol "sase-p1.6(add_glossary_term)" \
+        --epic-symbol "sase-p1.6(delete_glossary_term)" \
         --epic-symbol "sase-p1.6(invalidate_glossary_project)" \
-        --epic-symbol "sase-p2.2(EditorRepoMentionCatalog)" \
-        --epic-symbol "sase-p2.2(EditorRepoMentionCatalogResult)" \
-        --epic-symbol "sase-p2.2(RepoMentionSpan)" \
-        --epic-symbol "sase-p2.2(editor_repo_mention_catalog_for_project)" \
-        --epic-symbol "sase-p2.2(lookup_repo_mention)" \
-        --epic-symbol "sase-p2.2(scan_repo_mentions)" \
         --epic-symbol "sase-p2.3(RepoMention)" \
         --epic-symbol "sase-p4.3(active_epic_resume)" \
         --epic-symbol "sase-p4.3(build_epic_resume_argv)" \

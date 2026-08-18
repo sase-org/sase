@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
+    from ..repo_mention_catalog import PromptRepoMentionContext
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
         PromptSpellcheckSettings,
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
     from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+    from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +48,16 @@ class StartupPromptCatalogMixin:
         tuple[str, ...],
     ]
     _prompt_glossary_warming_contexts: set[PromptGlossaryContext]
+    _prompt_repo_mention_generation: int
+    _prompt_repo_mention_catalogs_by_context: dict[
+        PromptRepoMentionContext,
+        EditorRepoMentionCatalog | None,
+    ]
+    _prompt_repo_mention_diagnostics_by_context: dict[
+        PromptRepoMentionContext,
+        tuple[str, ...],
+    ]
+    _prompt_repo_mention_warming_contexts: set[PromptRepoMentionContext]
 
     def get_snippets(self: Any) -> dict[str, str]:
         """Return the memory-only xprompt + user snippet registry."""
@@ -235,6 +247,113 @@ class StartupPromptCatalogMixin:
             except Exception:
                 log.debug("Failed to refresh prompt glossary surface", exc_info=True)
 
+    def get_prompt_repo_mention_catalog(
+        self: Any,
+        context: PromptRepoMentionContext,
+        *,
+        schedule: bool = True,
+    ) -> EditorRepoMentionCatalog | None:
+        """Return the memory-only repo-mention catalog selected by *context*."""
+        if context in self._prompt_repo_mention_catalogs_by_context:
+            return self._prompt_repo_mention_catalogs_by_context[context]
+        if schedule:
+            self.warm_prompt_repo_mention_catalog(context)
+        return None
+
+    def is_prompt_repo_mention_catalog_warm(
+        self: Any,
+        context: PromptRepoMentionContext,
+    ) -> bool:
+        """Return whether *context* has a completed repo-mention lookup."""
+        return context in self._prompt_repo_mention_catalogs_by_context
+
+    def warm_prompt_repo_mention_catalog(
+        self: Any,
+        context: PromptRepoMentionContext,
+    ) -> None:
+        """Schedule an off-thread repo-mention warm for *context*."""
+        if context in self._prompt_repo_mention_catalogs_by_context:
+            return
+        if context in self._prompt_repo_mention_warming_contexts:
+            return
+        self._prompt_repo_mention_warming_contexts.add(context)
+        generation = self._prompt_repo_mention_generation
+
+        async def run_warm() -> None:
+            await self._run_prompt_repo_mention_warm(context, generation)
+
+        try:
+            self.run_worker(
+                cast(Any, run_warm),
+                name=f"prompt-repo-mentions:{generation}:{hash(context)}",
+                group="prompt-repo-mentions",
+                exclusive=False,
+            )
+        except Exception:
+            self._prompt_repo_mention_warming_contexts.discard(context)
+            log.exception("Failed to schedule prompt repo-mention warm")
+
+    async def _run_prompt_repo_mention_warm(
+        self: Any,
+        context: PromptRepoMentionContext,
+        generation: int,
+    ) -> None:
+        """Load one repo-mention context off-thread and publish it if current."""
+        import asyncio
+
+        from ..repo_mention_catalog import load_prompt_repo_mention_context
+
+        try:
+            result = await asyncio.to_thread(
+                load_prompt_repo_mention_context,
+                context,
+                generation=generation,
+            )
+        except Exception:
+            log.exception("Prompt repo-mention warm failed")
+            if generation == self._prompt_repo_mention_generation:
+                self._prompt_repo_mention_catalogs_by_context[context] = None
+                self._prompt_repo_mention_diagnostics_by_context[context] = (
+                    "prompt repo-mention warm failed",
+                )
+            return
+        finally:
+            self._prompt_repo_mention_warming_contexts.discard(context)
+
+        if result.generation != self._prompt_repo_mention_generation:
+            return
+        self._prompt_repo_mention_catalogs_by_context[context] = result.catalog
+        self._prompt_repo_mention_diagnostics_by_context[context] = result.diagnostics
+        self._refresh_visible_prompt_repo_mention_surfaces()
+
+    def _invalidate_prompt_repo_mention_catalogs(self: Any, *, reason: str) -> None:
+        """Drop warm repo-mention catalogs after config/project source changes."""
+        del reason
+        self._prompt_repo_mention_generation += 1
+        self._prompt_repo_mention_catalogs_by_context = {}
+        self._prompt_repo_mention_diagnostics_by_context = {}
+        self._prompt_repo_mention_warming_contexts = set()
+        self._refresh_visible_prompt_repo_mention_surfaces()
+
+    def _refresh_visible_prompt_repo_mention_surfaces(self: Any) -> None:
+        """Refresh mounted prompt panes that may show repo-mention spans."""
+        try:
+            from ..widgets.prompt_text_area import PromptTextArea
+
+            text_areas = list(self.query(PromptTextArea))
+        except Exception:
+            return
+        for text_area in text_areas:
+            if not getattr(text_area, "is_mounted", False):
+                continue
+            try:
+                text_area._build_highlight_map()
+                text_area.refresh()
+            except Exception:
+                log.debug(
+                    "Failed to refresh prompt repo-mention surface", exc_info=True
+                )
+
     def _ensure_prompt_catalog_project(self: Any, project: str | None) -> None:
         """Track requested project catalogs and expand watches when needed."""
         if project in self._prompt_catalog_projects:
@@ -365,6 +484,7 @@ class StartupPromptCatalogMixin:
         """Invalidate in-flight work and request a fresh config-backed build."""
         self._prompt_catalog_generation += 1
         self._invalidate_prompt_glossary_catalogs(reason=reason)
+        self._invalidate_prompt_repo_mention_catalogs(reason=reason)
         self._schedule_prompt_catalog_rebuild(
             reason=reason,
             force=True,
