@@ -22,6 +22,8 @@ from tests.ace.tui.visual._ace_models_panel_alias_history_png_snapshot_fixtures 
     populated_alias_history_view,
     single_alias_entry,
     truncated_alias_history_view,
+    usage_pool_entry,
+    usage_pool_history_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -190,4 +192,26 @@ async def test_models_panel_alias_history_empty_png_snapshot(
             page,
             "models_panel_alias_history_empty_120x40",
             title="ACE Launch Control - empty alias history",
+        )
+
+
+async def test_models_panel_alias_history_usage_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    view = usage_pool_history_view()
+    _patch_history_modal(monkeypatch, view)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _open_alias_history(page, entry=usage_pool_entry(), view=view)
+        await wait_for_svg_contains(page, "Model usage")
+        await wait_for_svg_contains(page, "unused")
+        await wait_for_svg_contains(page, "members used")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_alias_history_usage_120x40",
+            title="ACE Launch Control - alias history model usage",
         )

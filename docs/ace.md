@@ -2922,6 +2922,18 @@ nothing is invented for a field the query did not return. The returned window is
 display limit, not the full retention history; the title's recorded/shown counts and the
 footer's "more available" hint make the difference visible.
 
+Below the detail strip, a compact model-usage region ranks the models the currently
+shown runs actually used. Counts cover the loaded window only, after deduplicating the
+same artifact directory when a bucket lists one run under more than one member alias; a
+dim `(deduped)` marker appears when that filter removed rows. Bar color follows the same
+provider palette as the `PROVIDER(model)` badges above. Configured selector members with
+no runs in the window render as `unused`; a model that ran but is not in the current
+pool is tagged `off-pool`; runs with no recorded model collapse to one `unrecorded` row.
+When every counted run for a model shares one effort the row shows `@ <effort>`; mixed
+efforts show a dim `@ mixed`. At most four rows render; a `+N more` overflow row carries
+the leftover count and percent so the shown shares still total 100%. `Ctrl+K`, `r`, and
+`.` recompute the strip with the new window; `j`/`k` never do.
+
 | Key                                 | Action                                                                             |
 | ----------------------------------- | ---------------------------------------------------------------------------------- |
 | `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                           |

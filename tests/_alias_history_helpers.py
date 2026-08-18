@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.modals.alias_history_state import AliasHistoryEntryRequest
+from sase.llm_provider.alias_history_usage import AliasHistoryPoolMember
 from sase.llm_provider.alias_history import (
     AliasHistoryGroup,
     _AliasHistoryProvenance,
@@ -70,6 +71,23 @@ def make_view(groups: list[AliasHistoryGroup], **overrides: object) -> AliasHist
     }
     payload.update(overrides)
     return AliasHistoryView(**payload)  # type: ignore[arg-type]
+
+
+def make_pool_member(
+    provider: str | None = "claude",
+    model: str = "opus",
+    *,
+    effort: str | None = None,
+    weight: int = 1,
+    available: bool = True,
+) -> AliasHistoryPoolMember:
+    return AliasHistoryPoolMember(
+        provider=provider,
+        model=model,
+        effort=effort,
+        weight=weight,
+        available=available,
+    )
 
 
 def make_entry(

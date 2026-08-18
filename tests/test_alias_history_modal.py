@@ -50,6 +50,8 @@ async def test_modal_paints_loading_option_before_worker_completes(monkeypatch) 
         assert option_list.option_count == 1
         assert option_list.get_option_at_index(0).disabled is True
         assert "Loading" in str(option_list.get_option_at_index(0).prompt)
+        usage = str(modal.query_one("#alias-history-usage", Static).content)
+        assert "Model usage · loading…" in usage
 
         release.set()
         await wait_for(pilot, lambda: modal._view is not None)
@@ -377,6 +379,119 @@ async def test_modal_y_warns_when_agent_has_no_durable_name(monkeypatch) -> None
         copy_mock.assert_not_called()
         modal.notify.assert_called_once()
         assert modal.notify.call_args.kwargs.get("severity") == "warning"
+
+
+# -- model-usage strip --------------------------------------------------------
+
+
+async def test_modal_usage_strip_shows_counts_after_load(monkeypatch) -> None:
+    runs = [
+        make_run(artifact_dir="/tmp/a", model="opus", llm_provider="claude"),
+        make_run(artifact_dir="/tmp/b", model="opus", llm_provider="claude"),
+        make_run(artifact_dir="/tmp/c", model="sonnet", llm_provider="claude"),
+    ]
+    _stub_load(monkeypatch, make_view([make_group("large", runs)]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._usage is not None)
+
+        usage = str(modal.query_one("#alias-history-usage", Static).content)
+        assert "Model usage" in usage
+        assert "3 runs" in usage
+        assert "opus" in usage
+        assert modal._usage is not None
+        assert modal._usage.counted_runs == 3
+
+
+async def test_modal_load_more_refresh_and_hidden_repaint_usage(monkeypatch) -> None:
+    def load(aliases, *, limit_per_alias=None, include_hidden=False, **kwargs):
+        del aliases, kwargs
+        if include_hidden:
+            runs = [
+                make_run(artifact_dir="/tmp/a", model="opus"),
+                make_run(artifact_dir="/tmp/hidden", model="haiku", hidden=True),
+            ]
+            return make_view(
+                [make_group("large", runs)], include_hidden=True, limit_per_alias=10
+            )
+        count = 10 if limit_per_alias is None or limit_per_alias <= 10 else 20
+        runs = [
+            make_run(artifact_dir=f"/tmp/{index}", model="opus")
+            for index in range(count)
+        ]
+        return make_view(
+            [make_group("large", runs)],
+            include_hidden=False,
+            limit_per_alias=count,
+        )
+
+    call = MagicMock(side_effect=load)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._usage is not None)
+        assert modal._usage is not None
+        assert modal._usage.counted_runs == 10
+        first = modal._usage
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await wait_for(
+            pilot, lambda: modal._usage is not None and modal._usage is not first
+        )
+        assert modal._usage is not None
+        assert modal._usage.counted_runs == 20
+        more_text = str(modal.query_one("#alias-history-usage", Static).content)
+        assert "20 runs" in more_text
+        after_more = modal._usage
+
+        await pilot.press("r")
+        await wait_for(pilot, lambda: call.call_count == 3)
+        await wait_for(
+            pilot, lambda: modal._usage is not None and modal._usage is not after_more
+        )
+        assert modal._usage is not None
+        assert modal._usage.counted_runs == 20
+        after_refresh = modal._usage
+
+        await pilot.press(".")
+        await wait_for(pilot, lambda: call.call_count == 4)
+        await wait_for(
+            pilot,
+            lambda: modal._usage is not None and modal._usage is not after_refresh,
+        )
+        assert modal._usage is not None
+        assert modal._usage.counted_runs == 2
+        hidden_text = str(modal.query_one("#alias-history-usage", Static).content)
+        assert "2 runs" in hidden_text
+
+
+async def test_modal_highlight_move_does_not_recompute_usage(monkeypatch) -> None:
+    runs = [
+        make_run(artifact_dir="/tmp/a", model="opus"),
+        make_run(artifact_dir="/tmp/b", model="sonnet"),
+    ]
+    _stub_load(monkeypatch, make_view([make_group("large", runs)]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._usage is not None)
+        usage_before = modal._usage
+
+        await pilot.press("j")
+        await pilot.pause()
+        await pilot.press("k")
+        await pilot.pause()
+
+        assert modal._usage is usage_before
 
 
 # -- close --------------------------------------------------------------------

@@ -26,6 +26,10 @@ from sase.llm_provider.alias_history import (
     AliasHistoryView,
     load_alias_history,
 )
+from sase.llm_provider.alias_history_usage import (
+    AliasHistoryUsageSummary,
+    summarize_alias_history_usage,
+)
 from sase.llm_provider.config import get_model_alias_history_limit
 
 from ..actions.clipboard import schedule_copy_delivery
@@ -37,6 +41,7 @@ from .alias_history_rendering import (
     alias_history_title_text,
     build_alias_history_rows,
 )
+from .alias_history_usage_rendering import alias_history_usage_text
 from .alias_history_state import (
     AliasHistoryEntryRequest,
     AliasHistoryLoadRequest,
@@ -86,12 +91,20 @@ class AliasHistoryModal(
         self._include_hidden = False
         self._limit = get_model_alias_history_limit()
         self._view: AliasHistoryView | None = None
+        self._usage: AliasHistoryUsageSummary | None = None
         self._error: str | None = None
         self._updating_highlight = False
         self._pending_keep: str | None = None
-        self._load_worker: Worker[tuple[AliasHistoryView | None, str | None]] | None = (
-            None
-        )
+        self._load_worker: (
+            Worker[
+                tuple[
+                    AliasHistoryView | None,
+                    AliasHistoryUsageSummary | None,
+                    str | None,
+                ]
+            ]
+            | None
+        ) = None
         self._prompt_worker: Worker[tuple[str | None, str | None]] | None = None
         self._prompt_context: tuple[str | None, str] | None = None
 
@@ -102,6 +115,7 @@ class AliasHistoryModal(
             yield Static(self._title_text(), id="alias-history-title")
             yield OptionList(*self._build_options(), id="alias-history-list")
             yield Static(self._detail_text(), id="alias-history-detail")
+            yield Static(self._usage_text(), id="alias-history-usage")
             yield Static(self._footer_markup(), id="alias-history-footer")
 
     def on_mount(self) -> None:
@@ -123,6 +137,9 @@ class AliasHistoryModal(
         if self._view is None:
             return Text(self._error or "Loading history…", style="dim italic")
         return alias_history_detail_text(self._selected_run(), entry=self._entry)
+
+    def _usage_text(self) -> Text:
+        return alias_history_usage_text(self._usage, error=self._error)
 
     def _footer_markup(self) -> str:
         if self.jump_mode_active:
@@ -161,6 +178,7 @@ class AliasHistoryModal(
                 self._footer_markup()
             )
             self.query_one("#alias-history-detail", Static).update(self._detail_text())
+            self.query_one("#alias-history-usage", Static).update(self._usage_text())
         except Exception:
             pass
 
@@ -280,19 +298,20 @@ class AliasHistoryModal(
         if self._load_worker is not None and not self._load_worker.is_finished:
             self._load_worker.cancel()
 
-        def task() -> tuple[AliasHistoryView | None, str | None]:
+        def task() -> tuple[
+            AliasHistoryView | None, AliasHistoryUsageSummary | None, str | None
+        ]:
             try:
-                return (
-                    load_alias_history(
-                        request.aliases,
-                        limit_per_alias=request.limit_per_alias,
-                        include_hidden=request.include_hidden,
-                        freshness=request.freshness,
-                    ),
-                    None,
+                view = load_alias_history(
+                    request.aliases,
+                    limit_per_alias=request.limit_per_alias,
+                    include_hidden=request.include_hidden,
+                    freshness=request.freshness,
                 )
+                summary = summarize_alias_history_usage(view, pool=self._entry.pool)
+                return view, summary, None
             except Exception as exc:
-                return None, str(exc)
+                return None, None, str(exc)
 
         self._pending_keep = (
             self._highlighted_option_id() if self._view is not None else None
@@ -323,14 +342,16 @@ class AliasHistoryModal(
             self._error = (
                 str(event.worker.error) if event.worker.error else "history load failed"
             )
+            self._usage = None
             self.notify(
                 f"Could not load alias history: {self._error}", severity="warning"
             )
             self._replace_display(keep=keep)
             return
-        view, error = event.worker.result or (None, None)
+        view, summary, error = event.worker.result or (None, None, None)
         if error is not None or view is None:
             self._error = error or "history load failed"
+            self._usage = None
             self.notify(
                 f"Could not load alias history: {self._error}", severity="warning"
             )
@@ -338,6 +359,7 @@ class AliasHistoryModal(
             return
         self._error = None
         self._view = view
+        self._usage = summary
         self._limit = view.limit_per_alias
         self._include_hidden = view.include_hidden
         self._replace_display(keep=keep)

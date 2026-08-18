@@ -15,6 +15,7 @@ from sase.llm_provider.alias_history import (
 )
 
 from sase.ace.tui.modals.alias_history_state import AliasHistoryEntryRequest
+from sase.llm_provider.alias_history_usage import AliasHistoryPoolMember
 
 FROZEN_ALIAS_HISTORY_NOW = 1_786_881_600.0
 VISUAL_INDEX_PATH = "/tmp/sase-visual-agent-artifacts.sqlite3"
@@ -193,6 +194,76 @@ def empty_alias_history_view() -> AliasHistoryView:
     )
 
 
+def usage_pool_entry() -> AliasHistoryEntryRequest:
+    return AliasHistoryEntryRequest(
+        aliases=("pool",),
+        title_label="@pool",
+        is_user_owned=False,
+        effective_provider="grok",
+        effective_model="grok-4.6",
+        effective_effort="xhigh",
+        pool=(
+            AliasHistoryPoolMember("grok", "grok-4.6", "xhigh"),
+            AliasHistoryPoolMember("claude", "sonnet", "xhigh"),
+            AliasHistoryPoolMember("claude", "opus", "xhigh"),
+        ),
+    )
+
+
+def usage_pool_history_view() -> AliasHistoryView:
+    return _view(
+        aliases=("pool",),
+        limit_per_alias=10,
+        groups=(
+            _group(
+                "pool",
+                total_count=3,
+                runs=(
+                    _direct_run(
+                        alias="pool",
+                        agent_name="pool.11a",
+                        model="grok-4.6",
+                        provider="grok",
+                        effort="xhigh",
+                        started_at="2026-08-16T11:00:00+00:00",
+                        artifact_dir="/visual/agents/pool_11a",
+                        prompt_snippet="Rank the models this pool actually used.",
+                        bead_id=None,
+                        cl_name=None,
+                        workspace_num=None,
+                        used_xprompts=(),
+                    ),
+                    _direct_run(
+                        alias="pool",
+                        agent_name="pool.10z",
+                        model="grok-4.6",
+                        provider="grok",
+                        effort="xhigh",
+                        started_at="2026-08-16T10:10:00+00:00",
+                        artifact_dir="/visual/agents/pool_10z",
+                        prompt_snippet="Second grok win in the same window.",
+                        bead_id=None,
+                        cl_name=None,
+                        workspace_num=None,
+                        used_xprompts=(),
+                    ),
+                    _default_run(
+                        alias="pool",
+                        agent_name="pool.09f",
+                        project_name="sase",
+                        model="sonnet",
+                        provider="claude",
+                        effort="xhigh",
+                        started_at="2026-08-16T09:20:00+00:00",
+                        artifact_dir="/visual/agents/pool_09f",
+                        prompt_snippet="Failed sonnet member still counts.",
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
 def _direct_run(
     *,
     alias: str = "large",
@@ -200,6 +271,19 @@ def _direct_run(
     project_name: str = "sase",
     started_at: str = "2026-08-16T10:00:00+00:00",
     artifact_dir: str = "/visual/agents/sase_n7_land",
+    model: str = "opus",
+    provider: str = "claude",
+    effort: str | None = "xhigh",
+    prompt_snippet: str | None = (
+        "Refactor Launch Control's model-alias ownership module into focused "
+        "siblings and keep the UI state stable while the modal is open."
+    ),
+    bead_id: str | None = "sase-n7.6",
+    cl_name: str | None = "sase-n7",
+    workspace_num: int | None = 15,
+    used_xprompts: tuple[UsedXPromptWire, ...] = (
+        UsedXPromptWire(name="work_phase_bead", kind="workflow"),
+    ),
 ) -> AliasHistoryRun:
     return _run(
         alias=alias,
@@ -210,6 +294,9 @@ def _direct_run(
         status="done",
         has_done_marker=True,
         rollup_status="done",
+        model=model,
+        provider=provider,
+        effort=effort,
         provenance=_AliasHistoryProvenance(
             kind="direct",
             label="direct",
@@ -218,14 +305,11 @@ def _direct_run(
         model_alias_origin="directive",
         model_alias_trail=(alias,),
         alias_position=0,
-        prompt_snippet=(
-            "Refactor Launch Control's model-alias ownership module into focused "
-            "siblings and keep the UI state stable while the modal is open."
-        ),
-        bead_id="sase-n7.6",
-        cl_name="sase-n7",
-        workspace_num=15,
-        used_xprompts=(UsedXPromptWire(name="work_phase_bead", kind="workflow"),),
+        prompt_snippet=prompt_snippet,
+        bead_id=bead_id,
+        cl_name=cl_name,
+        workspace_num=workspace_num,
+        used_xprompts=used_xprompts,
         duration_seconds=38 * 60 + 12,
     )
 
@@ -270,6 +354,12 @@ def _default_run(
     project_name: str = "bob",
     started_at: str = "2026-08-15T12:00:00+00:00",
     artifact_dir: str = "/visual/agents/bobo_w3",
+    model: str = "opus",
+    provider: str = "claude",
+    effort: str | None = "xhigh",
+    prompt_snippet: str | None = (
+        "Run the daily vault maintenance pass with the configured default."
+    ),
 ) -> AliasHistoryRun:
     return _run(
         alias=alias,
@@ -280,6 +370,9 @@ def _default_run(
         status="failed",
         workflow_status="failed",
         rollup_status="failed",
+        model=model,
+        provider=provider,
+        effort=effort,
         provenance=_AliasHistoryProvenance(
             kind="default",
             label="default",
@@ -287,8 +380,8 @@ def _default_run(
         ),
         model_alias_origin="default_model",
         model_alias_trail=(alias,),
+        prompt_snippet=prompt_snippet,
         alias_position=0,
-        prompt_snippet="Run the daily vault maintenance pass with the configured default.",
         bead_id="bob-18",
         cl_name="bob-maintenance",
         workspace_num=7,
@@ -306,6 +399,9 @@ def _unrecorded_run(
     effort: str | None = "high",
     started_at: str = "2026-08-13T11:30:00+00:00",
     artifact_dir: str = "/visual/agents/tmp_260813",
+    prompt_snippet: str | None = (
+        "Summarize a pre-migration launch whose alias origin is unknown."
+    ),
 ) -> AliasHistoryRun:
     return _run(
         alias=alias,
@@ -326,7 +422,7 @@ def _unrecorded_run(
         model_alias_origin=None,
         model_alias_trail=(alias,),
         alias_position=0,
-        prompt_snippet="Summarize a pre-migration launch whose alias origin is unknown.",
+        prompt_snippet=prompt_snippet,
         workspace_num=12,
         duration_seconds=11 * 60,
     )
@@ -451,4 +547,6 @@ __all__ = [
     "populated_alias_history_view",
     "single_alias_entry",
     "truncated_alias_history_view",
+    "usage_pool_entry",
+    "usage_pool_history_view",
 ]

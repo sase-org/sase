@@ -2486,15 +2486,23 @@ AliasHistoryModal {
 
 #alias-history-list {
     height: auto;
-    max-height: 18;
+    max-height: 14;
     margin-top: 1;
 }
 
 #alias-history-detail {
     height: auto;
     min-height: 6;
-    max-height: 14;
+    max-height: 13;
     color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
+#alias-history-usage {
+    height: auto;
+    max-height: 6;
     border-top: solid $secondary;
     padding-top: 1;
     margin-top: 1;
@@ -2504,8 +2512,6 @@ AliasHistoryModal {
     height: auto;
     text-align: center;
     color: $text-muted;
-    border-top: solid $secondary;
-    padding-top: 1;
     margin-top: 1;
 }
 

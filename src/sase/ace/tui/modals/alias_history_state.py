@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sase.llm_provider.alias_history import AliasHistoryFreshness, AliasHistoryRun
+from sase.llm_provider.alias_history_usage import AliasHistoryPoolMember
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +25,7 @@ class AliasHistoryEntryRequest:
     effective_provider: str | None = None
     effective_model: str | None = None
     effective_effort: str | None = None
+    pool: tuple[AliasHistoryPoolMember, ...] = ()
 
     @property
     def is_single_alias(self) -> bool:

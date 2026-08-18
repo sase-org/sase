@@ -348,7 +348,7 @@ def _effective_provider_model(
     )
 
 
-def _selector_member_provider_model_effort(
+def selector_member_provider_model_effort(
     member: ModelAliasSelectorMember,
 ) -> tuple[str | None, str, str | None]:
     """Return display fields derived from one already-resolved selector member."""
@@ -407,7 +407,7 @@ def build_alias_views(
             else None
         )
         if override is None and selected_member is not None:
-            provider, model, effort = _selector_member_provider_model_effort(
+            provider, model, effort = selector_member_provider_model_effort(
                 selected_member
             )
         else:
@@ -477,3 +477,20 @@ def build_models_panel_rows(
         *buckets,
         *sorted(ungrouped, key=lambda view: view.name),
     ]
+
+
+__all__ = [
+    "AliasKind",
+    "AliasView",
+    "BUILTIN_MODEL_ALIAS_BUCKET_NAMES",
+    "BucketView",
+    "ModelsPanelOwnership",
+    "ModelsPanelRow",
+    "ModelsPanelSection",
+    "build_alias_views",
+    "build_models_panel_rows",
+    "is_user_owned",
+    "selector_member_provider_model_effort",
+    "split_bucket_members",
+    "split_models_panel_rows",
+]

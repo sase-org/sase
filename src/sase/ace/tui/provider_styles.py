@@ -164,6 +164,11 @@ def provider_name_style(provider: str | None) -> str:
     return _provider_style_for(provider).name_style
 
 
+def provider_bar_style(provider: str | None) -> str:
+    """Return the un-bolded model hue used for provider-colored usage bars."""
+    return _provider_style_for(provider).model_style
+
+
 def _resolve_provider_and_model(
     llm_provider: str | None,
     model: str | None,

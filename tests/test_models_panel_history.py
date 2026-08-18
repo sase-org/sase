@@ -12,6 +12,11 @@ import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_
 import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 from sase.ace.tui.modals.alias_history_modal import AliasHistoryModal
 from sase.ace.tui.modals.models_panel import ModelsPanel
+from sase.ace.tui.modals.models_panel_history import (
+    ModelsPanelHistoryMixin,
+    _alias_history_request,
+    _bucket_history_request,
+)
 from sase.ace.tui.modals.models_panel_rows import (
     BigEpicPhaseThresholdSettingRow,
     LaunchModelSettingRow,
@@ -20,6 +25,7 @@ from sase.llm_provider.alias_history import (
     _AliasHistoryStatusRollup,
     AliasHistoryView,
 )
+from sase.llm_provider import BucketView
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
     LaunchModelSettingSnapshot,
@@ -30,6 +36,7 @@ from tests._models_panel_helpers import (
     highlight_row,
     make_alias_view,
     make_bucketed_views,
+    make_pool_members,
     patch_alias_views,
 )
 
@@ -39,6 +46,7 @@ def _launch_setting_row(
     label: str,
     *,
     referenced_alias: str | None,
+    selector_members=(),
 ) -> LaunchModelSettingRow:
     return LaunchModelSettingRow(
         field=field,
@@ -54,8 +62,13 @@ def _launch_setting_row(
             provenance="shipped",
             referenced_alias=referenced_alias,
             override_key=f"setting:{field}",
+            selector_members=selector_members,
         ),
     )
+
+
+def _pool_keys(entry) -> list[tuple[str | None, str, str | None]]:
+    return [(member.provider, member.model, member.effort) for member in entry.pool]
 
 
 def _patch_launch_model_rows(
@@ -303,3 +316,103 @@ async def test_h_on_scalar_setting_only_warns(
         assert pilot.app.screen is panel
         panel.notify.assert_called_once()
         assert expected_snippet in panel.notify.call_args.args[0]
+
+
+def test_round_robin_alias_captures_every_pool_member() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus@medium | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=make_pool_members(),
+        provider="claude",
+        model="opus",
+        effort="medium",
+    )
+    entry = _alias_history_request(view)
+    assert _pool_keys(entry) == [
+        ("claude", "opus", "medium"),
+        ("codex", "gpt-5.5", None),
+    ]
+
+
+def test_fallback_alias_captures_every_candidate() -> None:
+    view = make_alias_view(
+        "safe",
+        "user",
+        configured=True,
+        configured_value="claude/opus@medium || codex/gpt-5.5",
+        selector_mode="fallback",
+        selector_members=make_pool_members(),
+        provider="claude",
+        model="opus",
+        effort="medium",
+    )
+    entry = _alias_history_request(view)
+    assert _pool_keys(entry) == [
+        ("claude", "opus", "medium"),
+        ("codex", "gpt-5.5", None),
+    ]
+
+
+def test_plain_alias_captures_one_member_from_effective_target() -> None:
+    view = make_alias_view(
+        "large",
+        "role",
+        provider="claude",
+        model="opus",
+        effort="xhigh",
+    )
+    entry = _alias_history_request(view)
+    assert _pool_keys(entry) == [("claude", "opus", "xhigh")]
+
+
+def test_bucket_captures_deduped_union_of_member_targets() -> None:
+    bucket = BucketView(
+        name="research",
+        description=None,
+        members=(
+            make_alias_view(
+                "research_a",
+                "user",
+                provider="codex",
+                model="gpt-5.6-sol",
+                effort="high",
+            ),
+            make_alias_view(
+                "research_b",
+                "user",
+                provider="claude",
+                model="opus",
+                effort="high",
+            ),
+            make_alias_view(
+                "research_c",
+                "user",
+                provider="claude",
+                model="opus",
+                effort="high",
+            ),
+        ),
+    )
+    entry = _bucket_history_request(bucket)
+    assert _pool_keys(entry) == [
+        ("codex", "gpt-5.6-sol", "high"),
+        ("claude", "opus", "high"),
+    ]
+
+
+def test_alias_backed_launch_setting_captures_snapshot_members() -> None:
+    row = _launch_setting_row(
+        DEFAULT_MODEL_FIELD,
+        "default model",
+        referenced_alias="pool",
+        selector_members=make_pool_members(),
+    )
+    request = ModelsPanelHistoryMixin()._launch_setting_history_request(row)
+    assert request is not None
+    assert _pool_keys(request) == [
+        ("claude", "opus", "medium"),
+        ("codex", "gpt-5.5", None),
+    ]
