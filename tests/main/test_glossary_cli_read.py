@@ -208,3 +208,45 @@ def test_read_scopes_event_to_resolved_project(
     assert events[0].terms == ("Alpha",)
     assert events[0].related_terms == ()
     assert events[0].depth_limit == 0
+
+
+def test_read_multi_term_records_one_event_with_disjoint_related(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolved = diamond_resolved_glossary_project()
+    _patch_resolved(monkeypatch, resolved)
+    _patch_read_store(monkeypatch, tmp_path)
+    args = create_parser().parse_args(
+        ["glossary", "read", "Alpha", "Gamma", "-r", "Need both"]
+    )
+
+    cli_read.handle_glossary_read_command(args, console=_console(StringIO()))
+
+    events = read_glossary_read_events(log_path=glossary_read_log_path("sase"))
+    assert len(events) == 1
+    assert events[0].terms == ("Alpha", "Gamma")
+    assert events[0].related_terms == ("Beta", "Delta")
+    assert set(events[0].terms).isdisjoint(events[0].related_terms)
+
+
+def test_read_batch_unknown_term_records_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _patch_resolved(monkeypatch, diamond_resolved_glossary_project())
+    _patch_read_store(monkeypatch, tmp_path)
+    args = create_parser().parse_args(
+        ["glossary", "read", "Alpha", "Zzz", "-r", "Need both"]
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_read.handle_glossary_read_command(args)
+
+    captured = capsys.readouterr()
+    assert exc.value.code == 1
+    assert captured.out == ""
+    assert "1 of 2 glossary references did not resolve" not in captured.err
+    assert "unknown glossary term: Zzz" in captured.err
+    assert read_glossary_read_events(log_path=glossary_read_log_path("sase")) == ()

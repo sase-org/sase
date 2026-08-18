@@ -143,7 +143,8 @@ memory:
     note_index = tier2.index("#### 2.1.")
     glossary_index = tier2.index("### 2.2 Glossary Terms")
     assert files_index < intro_index < note_index < glossary_index
-    assert '`sase glossary read <term> -r "<why>"`' in tier2
+    assert '`sase glossary read <term> [<term> ...] -r "<why>"`' in tier2
+    assert "in one command" in tier2
     assert "Aliases follow in parentheses." in " ".join(tier2.split())
     assert "- Agent Clan (clan)" in tier2
     assert "- Workspace" in tier2

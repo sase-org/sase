@@ -17,6 +17,7 @@ from sase.core.glossary_facade import (
 )
 from sase.glossary.resolution import (
     GlossaryLookupError,
+    _GlossaryLookupFailure,
     normalize_glossary_reference,
     resolve_glossary_closure,
 )
@@ -88,6 +89,71 @@ def test_lookup_unknown_and_ambiguous_references_include_candidates() -> None:
         "Delta Foo",
         "Epsilon Foo",
     )
+    assert crowded.value.failures == (
+        _GlossaryLookupFailure(reference="foo", candidates=crowded.value.candidates),
+    )
+
+
+def test_batch_lookup_raises_once_with_every_unresolved_reference() -> None:
+    catalog = _catalog(
+        _entry(0, "Alpha"),
+        _entry(1, "Widget Box"),
+        _entry(2, "Gamma"),
+        _entry(3, "Delta"),
+        _entry(4, "Epsilon"),
+    )
+
+    with pytest.raises(GlossaryLookupError) as caught:
+        resolve_glossary_closure(
+            catalog,
+            None,
+            ("Alpha", "Bogus", "Gamma", "box", "Delta"),
+            depth=0,
+        )
+
+    exc = caught.value
+    assert str(exc) == (
+        "2 of 5 glossary references did not resolve:\n"
+        "  Bogus — no close matches\n"
+        "  box — did you mean: Widget Box"
+    )
+    assert exc.reference == "Bogus"
+    assert exc.candidates == ()
+    assert exc.failures == (
+        _GlossaryLookupFailure(reference="Bogus", candidates=()),
+        _GlossaryLookupFailure(reference="box", candidates=("Widget Box",)),
+    )
+
+
+def test_one_element_failing_batch_keeps_legacy_lookup_message() -> None:
+    catalog = _catalog(_entry(0, "Widget Box"))
+
+    with pytest.raises(GlossaryLookupError) as caught:
+        resolve_glossary_closure(catalog, None, ("box",), depth=0)
+
+    exc = caught.value
+    assert str(exc) == "unknown glossary term: box (did you mean: Widget Box)"
+    assert exc.failures == (
+        _GlossaryLookupFailure(reference="box", candidates=("Widget Box",)),
+    )
+
+
+def test_glossary_lookup_error_constructor_populates_failures() -> None:
+    exc = GlossaryLookupError("xyzzy")
+    assert str(exc) == "unknown glossary term: xyzzy"
+    assert exc.failures == (_GlossaryLookupFailure(reference="xyzzy", candidates=()),)
+
+
+def test_requested_references_counts_pre_dedup_alias_batch() -> None:
+    catalog = _catalog(
+        _entry(0, "Agent Hood", effective=("Agent Hood", "hood")),
+    )
+
+    closure = resolve_glossary_closure(catalog, None, ("Agent Hood", "hood"), depth=0)
+
+    assert closure.requested_references == 2
+    assert len(closure.roots) == 1
+    assert closure.roots[0].term == "Agent Hood"
 
 
 def test_closure_over_diamond_records_both_referrers() -> None:

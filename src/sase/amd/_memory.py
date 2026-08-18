@@ -37,9 +37,11 @@ _GLOSSARY_TERMS_TITLE = "Glossary Terms"
 _LONG_MEMORY_FILES_HEADING = f"### {_LONG_MEMORY_FILES_TITLE}"
 _GLOSSARY_TERMS_HEADING = f"### {_GLOSSARY_TERMS_TITLE}"
 _GLOSSARY_TERMS_INTRO = (
-    'Run `sase glossary read <term> -r "<why>"` before relying on any of these '
-    "SASE terms; it prints that term's definition plus every term the "
-    "definition depends on. Aliases follow in parentheses."
+    'Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on '
+    "any of these SASE terms; it prints each term's definition plus every term "
+    "those definitions depend on. Pass every term you need in one command — one "
+    "batched read costs far fewer tokens than one read per term, because terms "
+    "shared between definitions are printed once. Aliases follow in parentheses."
 )
 _LONG_MEMORY_FILES_INTRO = (
     "The below files contain detailed reference material. When working in "

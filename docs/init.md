@@ -207,14 +207,14 @@ during memory initialization, but it no longer generates a note. `sase memory in
 instead renders a `Glossary Terms` H3 section inside Tier 2 of `AGENTS.md` and the
 provider instruction files, after the `Long-Term Memory Files` H3. It lists every
 displayed glossary term with its aliases in parentheses and points agents at
-`sase glossary read <term> -r "<why>"` to fetch a definition plus the terms its
-definition depends on. An empty or absent glossary emits no section. If an earlier run
-of this project left behind a marked `sase/memory/glossary.md` (frontmatter
-`sase_generated: glossary`), initialization deletes it as part of the same migration; an
-unmarked, hand-authored `sase/memory/glossary.md` is left alone as an ordinary long
-note. See [glossary configuration](configuration.md#memoryglossary) for the schema and
-matching behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command
-group.
+`sase glossary read <term> [<term> ...] -r "<why>"` to fetch those definitions plus the
+terms they depend on. Pass every term you need in one command. An empty or absent
+glossary emits no section. If an earlier run of this project left behind a marked
+`sase/memory/glossary.md` (frontmatter `sase_generated: glossary`), initialization
+deletes it as part of the same migration; an unmarked, hand-authored
+`sase/memory/glossary.md` is left alone as an ordinary long note. See
+[glossary configuration](configuration.md#memoryglossary) for the schema and matching
+behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command group.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
 and numbers every heading in the generated document, renders Tier 2 as one numbered

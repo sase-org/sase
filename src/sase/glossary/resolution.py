@@ -20,8 +20,18 @@ _SEPARATOR_RE = re.compile(r"[-_\s]+")
 _MAX_LOOKUP_CANDIDATES = 5
 
 
+@dataclass(frozen=True, slots=True)
+class _GlossaryLookupFailure:
+    """One reference that did not resolve, with its near-miss candidates."""
+
+    reference: str
+    candidates: tuple[str, ...]
+
+
 class GlossaryLookupError(ValueError):
     """Raised when a glossary reference cannot be resolved uniquely."""
+
+    failures: tuple[_GlossaryLookupFailure, ...]
 
     def __init__(
         self,
@@ -36,6 +46,27 @@ class GlossaryLookupError(ValueError):
         else:
             message = f"unknown glossary term: {reference}"
         super().__init__(message)
+        self.failures = (
+            _GlossaryLookupFailure(reference=reference, candidates=candidates),
+        )
+
+    @classmethod
+    def from_failures(
+        cls,
+        failures: Sequence[_GlossaryLookupFailure],
+        *,
+        total: int,
+    ) -> GlossaryLookupError:
+        """Build one error covering every unresolved reference in a batch."""
+        if not failures:
+            raise ValueError("glossary lookup failures must not be empty")
+        first = failures[0]
+        if len(failures) == 1:
+            return cls(first.reference, first.candidates)
+        exc = cls(first.reference, first.candidates)
+        exc.failures = tuple(failures)
+        exc.args = (_format_batch_lookup_message(failures, total=total),)
+        return exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +97,7 @@ class GlossaryClosure:
     roots: tuple[GlossaryEntry, ...]
     depth_limit: int | None
     truncated: bool
+    requested_references: int = 0
 
 
 @dataclass
@@ -179,6 +211,7 @@ def resolve_glossary_closure(
             roots=(),
             depth_limit=depth,
             truncated=False,
+            requested_references=len(roots),
         )
 
     builders: list[_NodeBuilder] = []
@@ -235,6 +268,7 @@ def resolve_glossary_closure(
         roots=resolved_roots,
         depth_limit=depth,
         truncated=truncated,
+        requested_references=len(roots),
     )
 
 
@@ -244,13 +278,45 @@ def _resolve_roots(
 ) -> tuple[GlossaryEntry, ...]:
     resolved: list[GlossaryEntry] = []
     seen: set[int] = set()
+    failures: list[_GlossaryLookupFailure] = []
     for root in roots:
-        entry = root if isinstance(root, GlossaryEntry) else index.lookup(root)
+        if isinstance(root, GlossaryEntry):
+            entry = root
+        else:
+            try:
+                entry = index.lookup(root)
+            except GlossaryLookupError as exc:
+                failures.append(
+                    _GlossaryLookupFailure(
+                        reference=exc.reference,
+                        candidates=exc.candidates,
+                    )
+                )
+                continue
         if entry.index in seen:
             continue
         seen.add(entry.index)
         resolved.append(entry)
+    if failures:
+        raise GlossaryLookupError.from_failures(failures, total=len(roots))
     return tuple(resolved)
+
+
+def _format_batch_lookup_message(
+    failures: Sequence[_GlossaryLookupFailure], *, total: int
+) -> str:
+    lines = [
+        f"{len(failures)} of {total} glossary references did not resolve:",
+        *(_format_batch_lookup_line(failure) for failure in failures),
+    ]
+    return "\n".join(lines)
+
+
+def _format_batch_lookup_line(failure: _GlossaryLookupFailure) -> str:
+    if failure.candidates:
+        hint = ", ".join(failure.candidates)
+        return f"  {failure.reference} — did you mean: {hint}"
+    return f"  {failure.reference} — no close matches"
 
 
 def _spans_for(

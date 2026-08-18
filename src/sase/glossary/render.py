@@ -7,6 +7,7 @@ arguments, so both route through :func:`render_glossary_closure`.
 
 from __future__ import annotations
 
+from io import StringIO
 import json
 import sys
 from typing import Literal
@@ -50,7 +51,41 @@ def render_glossary_closure(
         return
 
     target = console or Console()
-    target.print(_glossary_closure_renderable(closure, project_name=project_name))
+    _print_rich_without_trailing_whitespace(
+        target,
+        _glossary_closure_renderable(closure, project_name=project_name),
+    )
+
+
+def _print_rich_without_trailing_whitespace(
+    console: Console, renderable: RenderableType
+) -> None:
+    """Print *renderable* with wrap-padding stripped from every line.
+
+    Rich wraps long definition ``Text`` to the console width and pads each
+    wrapped line out to that width. Those spaces are invisible in a terminal
+    and waste tokens in captured agent output.
+    """
+    buffer = StringIO()
+    capture = Console(
+        file=buffer,
+        width=console.width,
+        force_terminal=console.is_terminal,
+        color_system=console.color_system,
+        highlight=False,
+        markup=False,
+    )
+    capture.print(renderable)
+    console.file.write(_rstrip_output_lines(buffer.getvalue()))
+
+
+def _rstrip_output_lines(text: str) -> str:
+    if not text:
+        return text
+    stripped = "\n".join(line.rstrip() for line in text.splitlines())
+    if text.endswith("\n"):
+        return stripped + "\n"
+    return stripped
 
 
 # --- rich ---------------------------------------------------------------
@@ -68,12 +103,20 @@ def _glossary_closure_renderable(
         _build_header(
             project_name, total=len(closure.nodes), requested=requested, related=related
         ),
-        Text(""),
     ]
+    if closure.requested_references > len(closure.roots):
+        blocks.append(
+            Text(
+                f"{closure.requested_references} references resolved to "
+                f"{len(closure.roots)} terms (duplicates and aliases collapsed)",
+                style="dim",
+            )
+        )
+    blocks.append(Text(""))
     for node in closure.nodes:
-        blocks.append(_build_node_block(node, printed_indices=printed_indices))
+        blocks.extend(_build_node_blocks(node, printed_indices=printed_indices))
         blocks.append(Text(""))
-    blocks.append(
+    blocks.extend(
         _build_footer(
             related=related,
             truncated=closure.truncated,
@@ -102,9 +145,9 @@ def _build_header(
     return grid
 
 
-def _build_node_block(
+def _build_node_blocks(
     node: GlossaryClosureNode, *, printed_indices: set[int]
-) -> RenderableType:
+) -> list[RenderableType]:
     indent = min(node.depth, _MAX_INDENT_DEPTH) * _INDENT_STEP
 
     title = Text()
@@ -122,7 +165,7 @@ def _build_node_block(
     header_row.add_column(justify="right", no_wrap=True)
     header_row.add_row(title, Text(tag, style=tag_style))
 
-    lines: list[RenderableType] = [header_row]
+    lines: list[RenderableType] = []
 
     if node.referrer is not None:
         provenance = Text()
@@ -145,7 +188,12 @@ def _build_node_block(
 
     lines.append(_highlighted_definition(node, printed_indices=printed_indices))
 
-    return Padding(Group(*lines), (0, 0, 0, indent))
+    # Keep the tag table out of a Group with the body lines. Grouping them
+    # right-pads every shorter body line to the header width.
+    return [
+        Padding(header_row, (0, 0, 0, indent)),
+        *(Padding(line, (0, 0, 0, indent), expand=False) for line in lines),
+    ]
 
 
 def _highlighted_definition(
@@ -172,17 +220,10 @@ def _highlighted_definition(
 
 def _build_footer(
     *, related: int, truncated: bool, depth_limit: int | None
-) -> RenderableType:
+) -> list[RenderableType]:
     lines: list[RenderableType] = []
-    if related > 0:
-        lines.append(
-            Text(
-                "Related terms were printed because the definitions above "
-                "mention them.",
-                style="dim",
-            )
-        )
-    lines.append(Text("Use -d 0 to print only the requested terms.", style="dim"))
+    if related > 0 and depth_limit != 0:
+        lines.append(Text("Use -d 0 to print only the requested terms.", style="dim"))
     if truncated:
         lines.append(
             Text(
@@ -190,7 +231,7 @@ def _build_footer(
                 style="dim",
             )
         )
-    return Group(*lines)
+    return lines
 
 
 def _char_offset_from_byte(text: str, byte_offset: int) -> int | None:
@@ -243,6 +284,7 @@ def _glossary_closure_json_payload(
         "project": project_name,
         "depth_limit": closure.depth_limit,
         "truncated": closure.truncated,
+        "requested_references": closure.requested_references,
         "nodes": [_node_json(node) for node in closure.nodes],
     }
 

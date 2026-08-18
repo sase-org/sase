@@ -145,8 +145,10 @@ every term with its aliases in parentheses. Agents fetch a definition on demand 
 ```bash
 sase glossary list
 sase glossary list hood -f names
+sase glossary show Stitch Patch "Agent Hood"
 sase glossary show "Agent Hood"
 sase glossary show Stitch -d 0 -f markdown
+sase glossary read Stitch Patch "Agent Hood" -r "Need the patch/stitch vocabulary"
 sase glossary read "Agent Hood" -r "Need the hood/agent distinction"
 sase glossary log
 sase glossary log -t Stitch -a agent-a
@@ -175,23 +177,25 @@ definition, reference terms, and source location).
 
 `sase glossary show TERM [TERM ...]` resolves one or more terms — by canonical term,
 alias, or an unambiguous prefix — and prints each definition plus the recursive closure
-of terms its definition depends on. Every related term shows why it appeared: which
-requesting term's definition mentioned it, and the exact matched phrase. `-d/--depth N`
-caps the recursion (`-d 0` prints only the requested terms; the default is unlimited).
-`-f/--format` selects `rich` (the default terminal rendering), `markdown` (plain
-Markdown for pasting into a prompt), or `json` (the closure with full provenance). An
-unresolvable term exits 1 with near-miss candidates.
+of terms those definitions depend on. Pass every term you need in one command: shared
+related terms are printed once, and a batch that names an unknown term reports every
+unresolved reference at once, prints nothing, and exits 1. Every related term shows why
+it appeared: which requesting term's definition mentioned it, and the exact matched
+phrase. `-d/--depth N` caps the recursion (`-d 0` prints only the requested terms; the
+default is unlimited). `-f/--format` selects `rich` (the default terminal rendering),
+`markdown` (plain Markdown for pasting into a prompt), or `json` (the closure with full
+provenance).
 
 `sase glossary read TERM [TERM ...] -r/--reason TEXT` is identical to `show` in every
-other respect, except it requires a non-empty reason and records an audited read before
+other respect, except it requires a non-empty reason and records one audited read before
 printing — the same audited-read discipline as [`sase memory read`](#audited-reads).
 Agents should always use `read`, not `show`, when consulting the glossary to accomplish
-a task; nothing is printed unless the read was recorded. Reads are attributed the same
-way as memory reads (`SASE_AGENT_NAME`, `SASE_AGENT`, or
-`SASE_ARTIFACTS_DIR/agent_meta.json`), and each event records the requested terms, every
-related term the closure added, the depth limit, and the total bytes of definition
-served. The read also appears in the `GLOSSARY` lane of the agent metadata panel in
-[ACE](ace.md#agents-tab-metadata-panel).
+a task, and should pass every needed term in that one command. Nothing is printed unless
+the read was recorded. Reads are attributed the same way as memory reads
+(`SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`), and each
+event records the requested terms, every related term the closure added, the depth
+limit, and the total bytes of definition served. The read also appears in the `GLOSSARY`
+lane of the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel).
 
 `sase glossary log` summarizes recorded reads: with no selector, a dashboard shows
 totals plus by-term and by-agent breakdowns and recent events. `-t/--term` and

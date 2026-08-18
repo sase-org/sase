@@ -24,9 +24,12 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase glossary list\n"
             "  sase glossary list agent -f names\n"
+            '  sase glossary show Stitch Patch "Agent Hood"\n'
             '  sase glossary show "Agent Hood"\n'
             "  sase glossary show Stitch -d 0 -f markdown\n"
             "  sase glossary -p sase show Stitch\n"
+            '  sase glossary read Stitch Patch "Agent Hood" '
+            '-r "Need the patch/stitch vocabulary"\n'
             '  sase glossary read "Agent Hood" -r "Need the hood/agent distinction"\n'
             "  sase glossary log\n"
             "  sase glossary log -t Stitch -a agent-a\n"
@@ -210,11 +213,15 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Resolve one or more glossary terms exactly like "
             "`sase glossary show`, then append one attributable audit event "
-            "before printing. A non-empty -r/--reason is required; a "
-            "definition is never printed unless the read was recorded."
+            "before printing. Pass every term you need in one command so "
+            "shared related terms are printed once. A non-empty -r/--reason "
+            "is required; a definition is never printed unless the read was "
+            "recorded."
         ),
         epilog=(
             "examples:\n"
+            '  sase glossary read Stitch Patch "Agent Hood" '
+            '-r "Need the patch/stitch vocabulary"\n'
             '  sase glossary read "Agent Hood" -r "Need the hood/agent distinction"\n'
             '  sase glossary read Stitch -d 0 -r "Confirm stitch vs commit"\n'
             '  sase glossary read Stitch -p sase -f markdown -r "Prompt context"'
@@ -228,11 +235,14 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Resolve one or more glossary terms and print each term's "
-            "definition plus the recursive closure of terms its definition "
-            "depends on, with provenance for every related term."
+            "definition plus the recursive closure of terms those "
+            "definitions depend on, with provenance for every related term. "
+            "Pass every term you need in one command so shared related terms "
+            "are printed once."
         ),
         epilog=(
             "examples:\n"
+            '  sase glossary show Stitch Patch "Agent Hood"\n'
             '  sase glossary show "Agent Hood"\n'
             "  sase glossary show Stitch -d 0\n"
             "  sase glossary show Stitch -f markdown\n"
