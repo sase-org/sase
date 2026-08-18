@@ -6,9 +6,13 @@ finally the current project's config.  Local config can be disabled with
 ``set_include_local_config(False)`` for processes such as ``sase ace``.
 
 Low-level source IO and merging live in :mod:`sase.config.loading`; raw owner
-selection lives in :mod:`sase.config.identity`.  This facade owns the public API
-and process-wide caches, including stale-while-revalidate freshness checks that
-keep stat/glob IO off latency-sensitive render paths.
+selection lives in :mod:`sase.config.identity`; owner projections live in
+:mod:`sase.config._owner` and per-value accessors in
+:mod:`sase.config._settings`.  This facade owns the public API and
+process-wide caches, including stale-while-revalidate freshness checks that
+keep stat/glob IO off latency-sensitive render paths.  The submodules above
+read back through this module rather than binding its state at import time, so
+``sase.config.core`` remains the single patch point for every config read.
 """
 
 from __future__ import annotations
@@ -20,6 +24,45 @@ import time
 from pathlib import Path
 from typing import Any
 
+from sase.config._owner import (
+    discover_machine_names,
+    get_agent_owner_identity,
+    get_machine_name,
+    require_agent_owner_identity,
+    require_machine_name,
+    selected_overlay_paths,
+)
+from sase.config._settings import (
+    DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES,
+    DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN,
+    DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT,
+    DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES,
+    DEFAULT_ARTIFACT_RETENTION_ENABLED,
+    DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL,
+    DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS,
+    DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS,
+    DEFAULT_MAX_AGENT_PIPE_CHAIN,
+    DEFAULT_MAX_RUNNING_AGENTS,
+    DEFAULT_PROC_HISTORY_LIMIT,
+    DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS,
+    DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP,
+    get_artifact_capture_max_file_size_bytes,
+    get_artifact_capture_max_history_scan,
+    get_artifact_capture_max_stored_per_agent,
+    get_artifact_capture_pool_max_bytes,
+    get_artifact_retention_enabled,
+    get_artifact_retention_keep_per_label,
+    get_artifact_retention_max_age_days,
+    get_artifact_retention_trash_grace_days,
+    get_configured_max_running_agents,
+    get_markdown_print_width,
+    get_max_agent_pipe_chain,
+    get_proc_history_limit,
+    get_runner_slot_deference_max_seconds,
+    get_runner_slot_deference_seconds_per_step,
+    get_task_history_limit,
+    get_use_chezmoi,
+)
 from sase.config.identity import (
     AgentOwnerConfigSnapshot,
     RawOverlayIdentity,
@@ -49,10 +92,8 @@ from sase.config.xprompt_sources import (
     load_xprompts_by_source as _load_xprompts_by_source,
 )
 from sase.content_layout import discover_project_root, resolve_project_layout
-from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.core.paths import machine_name_path
 from sase.markdown_width import DEFAULT_MARKDOWN_PRINT_WIDTH
-from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH
 
 
 log = logging.getLogger(__name__)
@@ -234,294 +275,9 @@ def clear_config_cache() -> None:
         _reset_current_config_token_cache()
 
 
-def get_use_chezmoi() -> bool:
-    """Return whether chezmoi path remapping is enabled."""
-    return bool(load_merged_config().get("use_chezmoi", False))
-
-
-def get_agent_owner_identity() -> AgentOwnerIdentity | None:
-    """Return the complete owner configured by the selected raw overlay.
-
-    Identity is resolved outside the ordinary merge chain so defaults, plugins,
-    the user base file, ordinary overlays, and project-local config cannot
-    change its provenance.
-    """
-    return get_agent_owner_config_snapshot().owner
-
-
-def require_agent_owner_identity() -> AgentOwnerIdentity:
-    """Return the complete owner or raise with an actionable initializer hint."""
-    snapshot = get_agent_owner_config_snapshot()
-    if snapshot.owner is None:
-        raise RuntimeError(
-            "SASE agent owner identity is not configured "
-            f"({snapshot.detail}); run `sase config init`."
-        )
-    return snapshot.owner
-
-
-def get_machine_name() -> str | None:
-    """Compatibility projection of a complete configured owner identity."""
-    owner = get_agent_owner_identity()
-    return owner.machine_name if owner is not None else None
-
-
-def require_machine_name() -> str:
-    """Compatibility projection requiring a complete configured owner."""
-    return require_agent_owner_identity().machine_name
-
-
-DEFAULT_MAX_RUNNING_AGENTS = 10
-DEFAULT_MAX_AGENT_PIPE_CHAIN = 8
-DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
-DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
-DEFAULT_PROC_HISTORY_LIMIT = 100
-DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
-DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
-DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
-DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES = 1024 * 1024 * 1024
-DEFAULT_ARTIFACT_RETENTION_ENABLED = False
-DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
-DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
-DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
-
-
-def get_configured_max_running_agents() -> int:
-    """Return the validated configured global runner limit.
-
-    The merged-config cache lets admission callers poll this accessor without
-    reparsing unchanged YAML while still observing live edits.
-    """
-    value = load_merged_config().get("max_running_agents", DEFAULT_MAX_RUNNING_AGENTS)
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_MAX_RUNNING_AGENTS
-
-
-def get_max_agent_pipe_chain() -> int:
-    """Return the configured ``sase pipe`` family-chain bound.
-
-    The original agent is depth 0. A pipe is refused when the next link
-    would exceed this value. Malformed configuration falls back to the
-    package default rather than allowing an unbounded chain.
-    """
-    value = load_merged_config().get(
-        "max_agent_pipe_chain", DEFAULT_MAX_AGENT_PIPE_CHAIN
-    )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_MAX_AGENT_PIPE_CHAIN
-
-
-def get_runner_slot_deference_seconds_per_step() -> int:
-    """Return the configured per-priority-step delay, falling back on errors.
-
-    Unlike the effective runner limit, deference is a politeness optimization:
-    malformed or unavailable configuration must never strand a runner.
-    """
-    try:
-        runner_slots = load_merged_config().get("runner_slots", {})
-    except Exception:  # noqa: BLE001 - deference configuration is fail-open.
-        return DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
-    value = (
-        runner_slots.get(
-            "deference_seconds_per_step",
-            DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP,
-        )
-        if isinstance(runner_slots, dict)
-        else DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
-    )
-    if type(value) is int and value >= 0:
-        return value
-    return DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP
-
-
-def get_runner_slot_deference_max_seconds() -> int:
-    """Return the configured deference cap, falling back on errors.
-
-    Unlike the effective runner limit, deference is a politeness optimization:
-    malformed or unavailable configuration must never strand a runner.
-    """
-    try:
-        runner_slots = load_merged_config().get("runner_slots", {})
-    except Exception:  # noqa: BLE001 - deference configuration is fail-open.
-        return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
-    value = (
-        runner_slots.get(
-            "deference_max_seconds",
-            DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS,
-        )
-        if isinstance(runner_slots, dict)
-        else DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
-    )
-    if type(value) is int and value >= 0:
-        return value
-    return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
-
-
-def get_proc_history_limit() -> int:
-    """Return the validated configured finished-proc retention limit."""
-    merged = load_merged_config()
-    procs = merged.get("procs", {})
-    if isinstance(procs, dict) and "history_limit" in procs:
-        value = procs["history_limit"]
-    else:
-        tasks = merged.get("tasks", {})
-        value = (
-            tasks.get("history_limit", DEFAULT_PROC_HISTORY_LIMIT)
-            if isinstance(tasks, dict)
-            else DEFAULT_PROC_HISTORY_LIMIT
-        )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_PROC_HISTORY_LIMIT
-
-
-# Legacy accessor alias; retire after every caller moves to the proc spelling.
-get_task_history_limit = get_proc_history_limit
-
-
-def get_markdown_print_width() -> int:
-    """Return the validated configured Markdown prose width.
-
-    Formatting must never hard-fail: a malformed ``~/.config/sase/sase.yml``
-    turning ``sase plan propose`` into a traceback would be far worse than
-    wrapping at the shipped default, so this accessor is fail-open.
-    """
-    try:
-        markdown = load_merged_config().get("markdown", {})
-    except Exception:  # noqa: BLE001 - prose width is fail-open.
-        return DEFAULT_MARKDOWN_PRINT_WIDTH
-    value = (
-        markdown.get("print_width", DEFAULT_MARKDOWN_PRINT_WIDTH)
-        if isinstance(markdown, dict)
-        else DEFAULT_MARKDOWN_PRINT_WIDTH
-    )
-    # Below ``MIN_PROSE_WRAP_WIDTH`` ``wrap_markdown()`` silently returns text
-    # unwrapped, so the floor is the schema's ``minimum`` too.
-    if type(value) is int and value >= MIN_PROSE_WRAP_WIDTH:
-        return value
-    return DEFAULT_MARKDOWN_PRINT_WIDTH
-
-
-def get_artifact_capture_max_stored_per_agent() -> int:
-    """Return the validated per-run automatic artifact byte-copy cap."""
-    artifacts = load_merged_config().get("artifacts", {})
-    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
-    value = (
-        capture.get(
-            "max_stored_per_agent",
-            DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT,
-        )
-        if isinstance(capture, dict)
-        else DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT
-    )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT
-
-
-def get_artifact_capture_max_history_scan() -> int:
-    """Return the validated VCS history-search bound for artifact capture."""
-    artifacts = load_merged_config().get("artifacts", {})
-    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
-    value = (
-        capture.get(
-            "max_history_scan",
-            DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN,
-        )
-        if isinstance(capture, dict)
-        else DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
-    )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN
-
-
-def get_artifact_capture_max_file_size_bytes() -> int:
-    """Return the maximum size of one pooled prompt artifact."""
-    artifacts = load_merged_config().get("artifacts", {})
-    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
-    value = (
-        capture.get(
-            "max_file_size_bytes",
-            DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES,
-        )
-        if isinstance(capture, dict)
-        else DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES
-    )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES
-
-
-def get_artifact_capture_pool_max_bytes() -> int:
-    """Return the workspace-local prompt-artifact pool budget."""
-    artifacts = load_merged_config().get("artifacts", {})
-    capture = artifacts.get("capture", {}) if isinstance(artifacts, dict) else {}
-    value = (
-        capture.get(
-            "pool_max_bytes",
-            DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES,
-        )
-        if isinstance(capture, dict)
-        else DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES
-    )
-    if type(value) is int and value >= 1:
-        return value
-    return DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES
-
-
-def _artifact_retention_config() -> dict[str, Any]:
-    artifacts = load_merged_config().get("artifacts", {})
-    retention = artifacts.get("retention", {}) if isinstance(artifacts, dict) else {}
-    return retention if isinstance(retention, dict) else {}
-
-
-def get_artifact_retention_enabled() -> bool:
-    """Return whether automatic artifact retention is enabled."""
-    value = _artifact_retention_config().get(
-        "enabled",
-        DEFAULT_ARTIFACT_RETENTION_ENABLED,
-    )
-    if type(value) is bool:
-        return value
-    return DEFAULT_ARTIFACT_RETENTION_ENABLED
-
-
-def get_artifact_retention_keep_per_label() -> int:
-    """Return the validated automatic artifact generations kept per label."""
-    value = _artifact_retention_config().get(
-        "keep_per_label",
-        DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL,
-    )
-    if type(value) is int and value >= 0:
-        return value
-    return DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
-
-
-def get_artifact_retention_max_age_days() -> int:
-    """Return the validated automatic artifact age bound in days."""
-    value = _artifact_retention_config().get(
-        "max_age_days",
-        DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS,
-    )
-    if type(value) is int and value >= 0:
-        return value
-    return DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS
-
-
-def get_artifact_retention_trash_grace_days() -> int:
-    """Return the validated artifact trash grace period in days."""
-    value = _artifact_retention_config().get(
-        "trash_grace_days",
-        DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS,
-    )
-    if type(value) is int and value >= 0:
-        return value
-    return DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS
-
-
+# Unlike its configured counterpart in :mod:`sase.config._settings`, this one
+# stays on the facade so it resolves ``get_configured_max_running_agents``
+# through this module's namespace, which callers patch.
 def get_max_running_agents(now: float | None = None) -> int:
     """Return the live admission limit, preferring a temporary override.
 
@@ -583,36 +339,6 @@ def get_agent_owner_config_snapshot() -> AgentOwnerConfigSnapshot:
     return snapshot
 
 
-def discover_machine_names() -> tuple[str, ...]:
-    """Return valid nested-first machine discriminators from raw overlays."""
-    return tuple(
-        sorted(
-            {
-                name
-                for overlay in get_agent_owner_config_snapshot().overlays
-                if (name := overlay.discriminator) is not None
-                and is_valid_machine_name(name)
-            }
-        )
-    )
-
-
-def _get_selected_overlay_paths() -> list[Path]:
-    """Return ordinary overlays plus the overlay selected for this machine.
-
-    Freshness tokens still stat all overlays, so edits to foreign overlays
-    invalidate the cached view without parsing them on render-path reads.
-    """
-    snapshot = get_agent_owner_config_snapshot()
-    selected: list[Path] = []
-    for overlay in snapshot.overlays:
-        if not overlay.declares_machine_overlay:
-            selected.append(overlay.path)
-        elif overlay.discriminator == snapshot.selector:
-            selected.append(overlay.path)
-    return selected
-
-
 def get_local_config_path() -> Path | None:
     """Return the selected project-local config path, if one exists.
 
@@ -643,7 +369,7 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
         config_dir=CONFIG_DIR,
         default_loader=_load_default_config,
         yaml_loader=_load_yaml_file,
-        overlay_paths=_get_selected_overlay_paths(),
+        overlay_paths=selected_overlay_paths(),
         local_path=get_local_config_path(),
         resource_files=importlib.resources.files,
     )
@@ -674,7 +400,7 @@ def load_merged_config() -> dict[str, Any]:
         default_config=_default_config_cache,
         plugin_configs=_plugin_configs_cache,
         user_base_path=CONFIG_DIR / "sase.yml",
-        overlay_paths=_get_selected_overlay_paths(),
+        overlay_paths=selected_overlay_paths(),
         selected_identity_snapshot=get_agent_owner_config_snapshot(),
         local_path=get_local_config_path(),
         yaml_loader=_load_yaml_file,
@@ -696,7 +422,7 @@ def load_config_layers() -> list[ConfigLayer]:
     return _load_config_layers(
         config_dir=CONFIG_DIR,
         default_loader=_load_default_config,
-        overlay_paths=_get_selected_overlay_paths(),
+        overlay_paths=selected_overlay_paths(),
         local_path=local_path,
         local_fallback_path=fallback,
         resource_files=importlib.resources.files,
