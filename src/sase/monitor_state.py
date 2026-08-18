@@ -31,6 +31,17 @@ def monitor_state_bucket(monitor_state: str | None) -> str:
     return MONITOR_STATE_BUCKETS.get(monitor_state or "", "Running")
 
 
+def monitor_state_is_terminal(monitor_state: str | None) -> bool:
+    """Return whether ``monitor_state`` has reached a terminal bucket.
+
+    Delegates to :func:`monitor_state_bucket` so the terminal-state set can
+    never drift from the bucket map: an unrecognized or missing state
+    buckets as ``Running`` and is therefore not terminal, so a monitor that
+    has not (yet) reported never reads as finished.
+    """
+    return monitor_state_bucket(monitor_state) != "Running"
+
+
 def is_monitor_member_role(
     agent_family_role: str | None,
     role_suffix: str | None = None,
@@ -56,4 +67,5 @@ __all__ = [
     "MONITOR_TIMEOUT_GLYPH",
     "is_monitor_member_role",
     "monitor_state_bucket",
+    "monitor_state_is_terminal",
 ]

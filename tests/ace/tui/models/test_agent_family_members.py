@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_family_members import (
+    MonitorLaneCounts,
     _concrete_agent_rows,
     concrete_agent_statuses,
     concrete_family_member_rows,
     family_member_status_buckets,
     is_sequential_family_container,
-    running_monitor_count,
+    monitor_lane_counts,
 )
 
 _STARTED = datetime(2026, 7, 19, 9, 0, 0)
@@ -345,76 +346,118 @@ def test_running_non_final_family_member_keeps_running_bucket() -> None:
     )
 
 
-def test_running_monitor_count_counts_only_the_running_monitor() -> None:
-    root = _agent("alpha--0", role="root")
-    running = _agent(
-        "alpha--mon1",
+def _monitor_member(
+    name: str,
+    *,
+    root: Agent,
+    monitor_id: str,
+    monitor_state: str | None,
+    stop_offset: int | None = None,
+) -> Agent:
+    monitor = _agent(
+        name,
         role="monitor",
         parent_timestamp=root.raw_suffix,
-        status="MONITORING",
-        status_bucket="Running",
+        status="MONITORING" if monitor_state == "running" else "MONITORED",
+        status_bucket="Running" if monitor_state == "running" else "Done",
+        stop_offset=stop_offset,
     )
-    running.monitor_id = "m1"
-    running.monitor_state = "running"
-    completed = _agent(
-        "alpha--mon2",
-        role="monitor",
-        parent_timestamp=root.raw_suffix,
-        status="MONITORED",
-        status_bucket="Done",
+    monitor.monitor_id = monitor_id
+    monitor.monitor_state = monitor_state
+    return monitor
+
+
+def test_monitor_lane_counts_partitions_running_and_every_terminal_state() -> None:
+    root = _agent("alpha--0", role="root")
+    running = _monitor_member(
+        "alpha--mon-running", root=root, monitor_id="m1", monitor_state="running"
+    )
+    monitors = [running] + [
+        _monitor_member(
+            f"alpha--mon-{state}",
+            root=root,
+            monitor_id=state,
+            monitor_state=state,
+            stop_offset=5,
+        )
+        for state in ("completed", "stopped", "failed", "timeout", "lost")
+    ]
+    root.followup_agents = monitors
+
+    lanes = monitor_lane_counts(root)
+
+    assert lanes == MonitorLaneCounts(running=1, settled=5)
+    assert lanes.running + lanes.settled == len(monitors)
+
+
+def test_monitor_lane_counts_unknown_state_without_stop_time_counts_running() -> None:
+    root = _agent("alpha--0", role="root")
+    monitor = _monitor_member(
+        "alpha--mon", root=root, monitor_id="m1", monitor_state=None
+    )
+    root.followup_agents = [monitor]
+
+    assert monitor_lane_counts(root) == MonitorLaneCounts(running=1, settled=0)
+
+
+def test_monitor_lane_counts_unknown_state_with_stop_time_counts_settled() -> None:
+    root = _agent("alpha--0", role="root")
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m1",
+        monitor_state=None,
         stop_offset=5,
     )
-    completed.monitor_id = "m2"
-    completed.monitor_state = "completed"
-    root.followup_agents = [running, completed]
+    root.followup_agents = [monitor]
 
-    assert running_monitor_count(root) == 1
+    assert monitor_lane_counts(root) == MonitorLaneCounts(running=0, settled=1)
 
 
-def test_running_monitor_count_aggregates_clan_members_at_depth_two() -> None:
+def test_monitor_lane_counts_running_state_with_stop_time_counts_settled() -> None:
+    root = _agent("alpha--0", role="root")
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m1",
+        monitor_state="running",
+        stop_offset=5,
+    )
+    root.followup_agents = [monitor]
+
+    assert monitor_lane_counts(root) == MonitorLaneCounts(running=0, settled=1)
+
+
+def test_monitor_lane_counts_aggregates_clan_members_at_depth_two() -> None:
     clan = _agent("workers", role="root")
     clan.is_clan_container = True
 
     family_a = _agent("alpha--0", role="root")
-    monitor_a = _agent(
-        "alpha--mon",
-        role="monitor",
-        parent_timestamp=family_a.raw_suffix,
-        status="MONITORING",
-        status_bucket="Running",
+    monitor_a = _monitor_member(
+        "alpha--mon", root=family_a, monitor_id="ma", monitor_state="running"
     )
-    monitor_a.monitor_id = "ma"
-    monitor_a.monitor_state = "running"
     family_a.followup_agents = [monitor_a]
 
     family_b = _agent("beta--0", role="root")
-    monitor_b = _agent(
+    monitor_b = _monitor_member(
         "beta--mon",
-        role="monitor",
-        parent_timestamp=family_b.raw_suffix,
-        status="MONITORING",
-        status_bucket="Running",
+        root=family_b,
+        monitor_id="mb",
+        monitor_state="completed",
+        stop_offset=5,
     )
-    monitor_b.monitor_id = "mb"
-    monitor_b.monitor_state = "running"
     family_b.followup_agents = [monitor_b]
 
     clan.runtime_children = [family_a, family_b]
 
-    assert running_monitor_count(clan) == 2
+    assert monitor_lane_counts(clan) == MonitorLaneCounts(running=1, settled=1)
 
 
-def test_running_monitor_count_dedupes_overlap_and_terminates_on_cycles() -> None:
+def test_monitor_lane_counts_dedupes_overlap_and_terminates_on_cycles() -> None:
     root = _agent("alpha--0", role="root")
-    monitor = _agent(
-        "alpha--mon",
-        role="monitor",
-        parent_timestamp=root.raw_suffix,
-        status="MONITORING",
-        status_bucket="Running",
+    monitor = _monitor_member(
+        "alpha--mon", root=root, monitor_id="m1", monitor_state="running"
     )
-    monitor.monitor_id = "m1"
-    monitor.monitor_state = "running"
     # Real family rows attach the same member to both lists.
     root.runtime_children = [monitor]
     root.followup_agents = [monitor]
@@ -422,13 +465,13 @@ def test_running_monitor_count_dedupes_overlap_and_terminates_on_cycles() -> Non
     # forever.
     monitor.runtime_children = [root]
 
-    assert running_monitor_count(root) == 1
+    assert monitor_lane_counts(root) == MonitorLaneCounts(running=1, settled=0)
 
 
-def test_running_monitor_count_returns_zero_for_plain_agent() -> None:
+def test_monitor_lane_counts_returns_zero_for_plain_agent() -> None:
     agent = _agent("alpha--code", role="code")
 
-    assert running_monitor_count(agent) == 0
+    assert monitor_lane_counts(agent) == MonitorLaneCounts()
 
 
 def test_monitor_only_child_does_not_make_starter_a_family_container() -> None:

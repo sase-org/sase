@@ -18,7 +18,12 @@ from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
-from ..models.agent_family_members import running_monitor_count
+from ..models.agent_family_members import (
+    NO_MONITOR_LANES,
+    MonitorLaneCounts,
+    is_sequential_family_container,
+    monitor_lane_counts,
+)
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
@@ -153,7 +158,7 @@ def agent_render_key(
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    running_monitors: int | None = None,
+    monitor_lanes: MonitorLaneCounts | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -192,8 +197,11 @@ def agent_render_key(
         )
         for tribe in semantic_tribes
     )
-    monitor_count = (
-        running_monitor_count(agent) if running_monitors is None else running_monitors
+    is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
+    lanes = (
+        (monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES)
+        if monitor_lanes is None
+        else monitor_lanes
     )
     return (
         agent.identity,
@@ -256,7 +264,7 @@ def agent_render_key(
         agent.cl_name,
         tier_styles,
         _runtime_signature(agent, now),
-        monitor_count,
+        lanes,
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -84,6 +84,91 @@ def waiting_family_child_agents() -> list[Agent]:
     )
     parent.followup_agents = [child]
     return [parent, child]
+
+
+def settled_monitor_family_agents() -> list[Agent]:
+    """Return a collapsed family mixing one running and three finished monitors.
+
+    Finished monitors mix a clean completion, a failure, and an explicit stop
+    so the grey settled badge is proven to read as "finished", not merely
+    "succeeded".
+    """
+    started = datetime(2026, 7, 26, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-monitor-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="20260726-090000-root",
+        agent_name="visual-monitor-family--0",
+        agent_family="visual-monitor-family",
+        agent_family_role="root",
+        role_suffix="--0",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+
+    def _monitor(
+        suffix: str,
+        *,
+        monitor_state: str,
+        minute_offset: int,
+        stop_offset: int | None,
+        exit_code: int | None = None,
+    ) -> Agent:
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-monitor-family--{suffix}",
+            project_file="/workspace/sase/visual_project.sase",
+            status="MONITORING" if monitor_state == "running" else "MONITORED",
+            start_time=started + timedelta(minutes=minute_offset),
+            stop_time=(
+                started + timedelta(minutes=stop_offset)
+                if stop_offset is not None
+                else None
+            ),
+            raw_suffix=f"20260726-0901{minute_offset:02d}-{suffix}",
+            parent_timestamp=root.raw_suffix,
+            agent_name=f"visual-monitor-family--{suffix}",
+            agent_family="visual-monitor-family",
+            agent_family_role="monitor",
+            role_suffix=f"--{suffix}",
+            monitor_id=f"mon-{suffix}",
+            monitor_state=monitor_state,
+            monitor_label=f"visual {suffix}",
+            monitor_exit_code=exit_code,
+            llm_provider="codex",
+            model="gpt-5",
+        )
+
+    running_monitor = _monitor(
+        "mon1", monitor_state="running", minute_offset=1, stop_offset=None
+    )
+    completed_monitor = _monitor(
+        "mon2",
+        monitor_state="completed",
+        minute_offset=2,
+        stop_offset=6,
+        exit_code=0,
+    )
+    failed_monitor = _monitor(
+        "mon3",
+        monitor_state="failed",
+        minute_offset=3,
+        stop_offset=7,
+        exit_code=1,
+    )
+    stopped_monitor = _monitor(
+        "mon4", monitor_state="stopped", minute_offset=4, stop_offset=8, exit_code=0
+    )
+    root.followup_agents = [
+        running_monitor,
+        completed_monitor,
+        failed_monitor,
+        stopped_monitor,
+    ]
+    return [root, running_monitor, completed_monitor, failed_monitor, stopped_monitor]
 
 
 def parent_navigation_family_agents() -> list[Agent]:

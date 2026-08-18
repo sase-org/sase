@@ -34,8 +34,10 @@ from ..models.agent import (
     wait_remaining_seconds,
 )
 from ..models.agent_family_members import (
+    NO_MONITOR_LANES,
+    MonitorLaneCounts,
     is_sequential_family_container,
-    running_monitor_count,
+    monitor_lane_counts,
 )
 from ..models.agent_status import (
     RUNNING_COLOR,
@@ -85,6 +87,7 @@ from ._agent_list_styling import (
     _MONITOR_GLYPH,
     _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
+    _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
     _MONITOR_STALLED_GLYPH,
     _MONITOR_STALLED_GLYPH_STYLE,
     _REVERTED_GLYPH,
@@ -154,7 +157,7 @@ def format_agent_option(
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    running_monitors: int | None = None,
+    monitor_lanes: MonitorLaneCounts | None = None,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = render_tier_gutter(tier_styles)
@@ -476,13 +479,21 @@ def format_agent_option(
             text.append_text(clan_chip)
 
     is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
-    monitor_count = (
-        running_monitor_count(agent) if running_monitors is None else running_monitors
+    lanes = (
+        (monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES)
+        if monitor_lanes is None
+        else monitor_lanes
     )
-    if monitor_count and is_container_row:
+    if lanes.running and is_container_row:
         text.append(" ")
         text.append(
-            f"{_MONITOR_GLYPH}{monitor_count}", style=_MONITOR_COUNT_GLYPH_STYLE
+            f"{_MONITOR_GLYPH}{lanes.running}", style=_MONITOR_COUNT_GLYPH_STYLE
+        )
+    if lanes.settled and is_container_row:
+        text.append(" ")
+        text.append(
+            f"{_MONITOR_GLYPH}{lanes.settled}",
+            style=_MONITOR_SETTLED_COUNT_GLYPH_STYLE,
         )
 
     # Authoritative-only: modern phase launch metadata renders immediately;
@@ -595,7 +606,8 @@ def cached_format_agent_option(
         if agent.is_clan_container
         else None
     )
-    monitor_count = running_monitor_count(agent)
+    is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
+    lanes = monitor_lane_counts(agent) if is_container_row else NO_MONITOR_LANES
     key = agent_render_key(
         agent,
         index,
@@ -616,7 +628,7 @@ def cached_format_agent_option(
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
-        running_monitors=monitor_count,
+        monitor_lanes=lanes,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -641,7 +653,7 @@ def cached_format_agent_option(
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
-        running_monitors=monitor_count,
+        monitor_lanes=lanes,
     )
     cache.put_agent(key, parts)
     return parts

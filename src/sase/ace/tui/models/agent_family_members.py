@@ -9,6 +9,7 @@ from sase.agent.status_buckets import (
     agent_is_active,
     agent_status_bucket,
 )
+from sase.monitor_state import monitor_state_is_terminal
 from .agent import Agent, AgentType
 
 
@@ -31,32 +32,61 @@ def agent_row_is_in_flight(agent: Agent) -> bool:
     return agent_is_active(agent.status) and agent.stop_time is None
 
 
-def running_monitor_count(agent: Agent) -> int:
-    """Count in-flight monitor shells anywhere beneath one container row.
+def monitor_row_is_settled(row: Agent) -> bool:
+    """Return whether one monitor row belongs in the settled (grey) lane.
+
+    A ``stop_time`` alone settles a row even when its ``monitor_state`` was
+    never reconciled to a terminal value: the family member row is over
+    either way, and the badge partition would otherwise strand the row in
+    neither lane. Unknown/missing ``monitor_state`` with no ``stop_time``
+    is not settled, matching :func:`monitor_state_is_terminal`'s doctrine
+    that a monitor which has not (yet) reported never reads as finished.
+    """
+    return monitor_state_is_terminal(row.monitor_state) or row.stop_time is not None
+
+
+@dataclass(frozen=True, slots=True)
+class MonitorLaneCounts:
+    """Running vs. settled monitor counts for one container row's subtree."""
+
+    running: int = 0
+    settled: int = 0
+
+
+NO_MONITOR_LANES = MonitorLaneCounts()
+
+
+def monitor_lane_counts(agent: Agent) -> MonitorLaneCounts:
+    """Partition monitor shells beneath one container row into two lanes.
 
     ``Agent`` is mutable and unhashable, and ``runtime_children`` /
     ``followup_agents`` overlap, so traversal cycle-guards on ``id(row)``
-    while the count itself dedupes by ``row.identity``.
+    while the count itself dedupes by ``row.identity``. Every distinct
+    monitor row increments exactly one lane, never both, never neither.
     """
     visited_ids: set[int] = set()
     seen_identities: set[tuple[AgentType, str, str | None]] = set()
-    count = 0
+    running = 0
+    settled = 0
 
     def visit(row: Agent) -> None:
-        nonlocal count
+        nonlocal running, settled
         if id(row) in visited_ids:
             return
         visited_ids.add(id(row))
         if row.identity not in seen_identities:
             seen_identities.add(row.identity)
-            if row.is_monitor and agent_row_is_in_flight(row):
-                count += 1
+            if row.is_monitor:
+                if monitor_row_is_settled(row):
+                    settled += 1
+                else:
+                    running += 1
         for child in (*row.runtime_children, *row.followup_agents):
             visit(child)
 
     for child in (*agent.runtime_children, *agent.followup_agents):
         visit(child)
-    return count
+    return MonitorLaneCounts(running=running, settled=settled)
 
 
 def is_sequential_family_container(agent: Agent) -> bool:
@@ -263,11 +293,14 @@ def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
 
 __all__ = [
     "ConcreteAgentStatus",
+    "MonitorLaneCounts",
+    "NO_MONITOR_LANES",
     "agent_row_is_in_flight",
     "concrete_agent_statuses",
     "concrete_family_member_rows",
     "family_member_status_buckets",
     "family_roster_container",
     "is_sequential_family_container",
-    "running_monitor_count",
+    "monitor_lane_counts",
+    "monitor_row_is_settled",
 ]

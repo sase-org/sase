@@ -95,6 +95,13 @@ _MONITOR_GLYPH_STYLE = "bold #FFAF5F"
 _MONITOR_ROW_STYLE = "#FFAF5F"
 _MONITOR_COUNT_GLYPH_STYLE = "bold #FFAF5F"
 
+# Settled (finished) monitor lane. Deliberately non-bold, unlike the running
+# lane above: hue *and* weight both separate the quieter settled badge from
+# the live amber one, so the two stay distinguishable on low-color terminals
+# and for red/green color vision deficiency. Reuses this codebase's existing
+# neutral-grey token (see ``_IMPLICIT_TAG_STYLE`` in ``model_alias_styles.py``).
+_MONITOR_SETTLED_COUNT_GLYPH_STYLE = "#9E9E9E"
+
 # A terminal monitor whose supervisor never reported a real exit code (died
 # on arrival, or belongs to a previous boot): the command's outcome is
 # unknown and the lane needs a human, not merely a finished-looking row.
