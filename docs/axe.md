@@ -257,11 +257,13 @@ This scan does not call the dependency-aware `sase bead ready` query, so a store
 task with an active blocker still receives a gate. A flag bead's due-ness is derived
 through the one shared `flag_removal_due` predicate, never recomputed here.
 
-A ready task bead additionally needs at least
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports
-before it earns a `TaskTriage` gate. A sub-threshold bead is withheld from triage
-without any change to its stored status — it stays `ready` and stays visible to
-`sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
+A ready task bead additionally needs at least its
+[effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports before it
+earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for most
+builtins), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) when the bead is
+untyped or its type is not registered on this machine. A sub-threshold bead is withheld
+from triage without any change to its stored status — it stays `ready` and stays visible
+to `sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
 `TaskTriage` gate already raised for a bead that later falls below the bar is canceled
 (reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
 chop's next tick. Snoozed and flag beads are never subject to this bar.
@@ -456,7 +458,7 @@ than an interactive path because the first pass over a neglected root walks tens
 thousands of entries.
 
 The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
-beads that never clear [`bead.task_triage.min_plus_ones`](configuration.md#bead) stay
+beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay
 `ready` (the five-minute `bead_task_triage` chop withholds their `TaskTriage` gate) and
 would otherwise accumulate forever. Once at least
 [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them have sat

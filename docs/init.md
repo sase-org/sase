@@ -204,11 +204,12 @@ source counterpart). Template variables and validation rules are listed in the
 
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
 during memory initialization, but it no longer generates a note. `sase memory init`
-instead prepends a `**GLOSSARY TERMS:**` block to the Tier 2 section of `AGENTS.md` and
-the provider instruction files, naming every displayed glossary term and alias and
-pointing agents at `sase glossary read <term> -r "<why>"` to fetch a definition plus the
-terms its definition depends on. An empty or absent glossary emits no block. If an
-earlier run of this project left behind a marked `sase/memory/glossary.md` (frontmatter
+instead renders a `Glossary Terms` H3 section inside Tier 2 of `AGENTS.md` and the
+provider instruction files, after the `Long-Term Memory Files` H3. It lists every
+displayed glossary term with its aliases in parentheses and points agents at
+`sase glossary read <term> -r "<why>"` to fetch a definition plus the terms its
+definition depends on. An empty or absent glossary emits no section. If an earlier run
+of this project left behind a marked `sase/memory/glossary.md` (frontmatter
 `sase_generated: glossary`), initialization deletes it as part of the same migration; an
 unmarked, hand-authored `sase/memory/glossary.md` is left alone as an ordinary long
 note. See [glossary configuration](configuration.md#memoryglossary) for the schema and
@@ -217,14 +218,14 @@ group.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
 and numbers every heading in the generated document, renders Tier 2 as one numbered
-section per long note (headed by the note path, with the description as the body), adds
-missing canonical frontmatter, and validates reachability. Tier 2's
-`Long-Term Memory Files` H3 carries the instruction paragraph pointing agents at
-`/sase_memory_read` before the numbered sections; the H3 (with its paragraph) is omitted
-entirely when a root has no top-level long notes. Missing, false, merged-global, or
-`memory.h1_title`-only configuration does not authorize any project memory or root
-`AGENTS.md` creation, refresh, or validation. The retired `memory.enabled` key is not an
-alias. Existing projects must replace it once with:
+subsection per long note (headed by the note path, with the description as the body),
+adds missing canonical frontmatter, and validates reachability. Those per-note
+subsections sit under Tier 2's `Long-Term Memory Files` H3, which carries the
+instruction paragraph pointing agents at `/sase_memory_read`; the H3 (with its
+paragraph) is omitted entirely when a root has no top-level long notes. Missing, false,
+merged-global, or `memory.h1_title`-only configuration does not authorize any project
+memory or root `AGENTS.md` creation, refresh, or validation. The retired
+`memory.enabled` key is not an alias. Existing projects must replace it once with:
 
 ```yaml
 is_sase_managed: true

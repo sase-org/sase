@@ -91,11 +91,12 @@ scoped manifest records both halves of the comparison (`max_serial_seconds` and 
 fired —
 `serial budget: estimated 180s against a 232s budget (within; 96% of the selection covered by the timing table)`.
 
-Run `just check-full` — every lint gate plus the full suite through `just test-cost` —
-before landing an epic's combined tree, whenever a change touches the broadening set
-above, and any time a scoped run escalated or reported a selection that looks wrong. CI
-always runs the full suite, so a scoped false negative surfaces there within roughly the
-CI test leg's runtime; it is a backstop, not a silent gap.
+Run `just check-full` — every lint gate, the full suite through `just test-cost`, and
+the [flake-baseline gate](#the-flake-baseline-gate) — before landing an epic's combined
+tree, whenever a change touches the broadening set above, and any time a scoped run
+escalated or reported a selection that looks wrong. CI always runs the full suite, so a
+scoped false negative surfaces there within roughly the CI test leg's runtime; it is a
+backstop, not a silent gap.
 
 Use `tools/select_tests --explain` to see which rules fired and why a given file was
 pulled into (or excluded from) the current selection. The selection manifest — the
@@ -717,6 +718,36 @@ them.
 Use `tools/select_tests --explain` to see why an individual test was or was not
 selected. Set `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely, and
 `SASE_TEST_SELECTION_HEALTH_DIR` to point the store somewhere else.
+
+#### The Flake-Baseline Gate
+
+The reproducible-flake set is not only reported — it is gated. `just check-full`'s last
+stage runs `just selection-health --fail-on-new-flake`, which compares the currently
+reproducible node IDs against the committed baseline at
+`tests/reproducible_flake_baseline.txt` and exits non-zero on any node that is not
+already listed there. The failure names each new node and ends with
+`Additions require a filed bead; fix or file the node before landing.` — so the response
+to a red gate is to fix the test or file a [`flake` task bead](beads.md#task-types) and
+add the node with a comment naming that bead, never to add the node silently.
+
+The gate deliberately judges a narrower sample than the report:
+
+- Only full-lane records that carry a change set (health schema 2+) and at most **five**
+  failures are eligible, so one broken suite run cannot promote every node it touched
+  into flake debt.
+- It needs at least **two** eligible records. With fewer, it prints
+  `not enough full-lane records to judge` and passes.
+- The baseline file's `# effective-after: <UTC timestamp>` line discards evidence
+  recorded at or before that instant, which is how the list is reset after a suite-wide
+  fix.
+- A `# fixed-at: <UTC timestamp> <node id>` line retires only that node's pre-fix
+  evidence. A later failure of the same node is ordinary live evidence again.
+- Node IDs that no longer name a collectible test (renamed or deleted) are reported as
+  stale rather than counted, so a rename cannot manufacture permanent pressure to bump
+  the cutoff.
+
+Entries in the baseline are debt to remove, not suppressions to grow. Run
+`just selection-health` (without the flag) for the readable report behind the verdict.
 
 ### Selection Backtest
 

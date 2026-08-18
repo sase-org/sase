@@ -191,6 +191,17 @@ Every CLI, ACE, bead-page, and gate-preview surface routes the colored type chip
 one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `✦` feature,
 `≈` flake, `▤` memory); a type that declares none gets a stable hash-derived color.
 
+<a id="per-type-triage-bar"></a>
+
+A type also carries its own triage bar. `triage.min_plus_ones` is the number of
+independent [`+1`](#task-corroboration-1) reports a ready bead of that type needs before
+it earns a `TaskTriage` gate; the spec default is `0`, and among the builtins only
+`flake` raises it (to `1`), because a test that failed once is the case most often
+misread as a real defect. A bead whose type this machine does not have registered — and
+every legacy untyped bead — falls back to the configured
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) instead.
+`sase bead task-type show <slug>` prints the effective bar under `TRIAGE`.
+
 ### Status Lifecycle
 
 | Status        | Icon | Description                                                                               |
@@ -361,21 +372,23 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
 
 3. Triage it. The default AXE `checks` lumberjack scans enabled non-home projects every
    five minutes and creates one priority `TaskTriage` gate for each task whose stored
-   status is `ready` and that has accumulated at least
-   [`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
-   sub-threshold task is withheld from triage — it stays stored as `ready` and stays
-   visible to `sase bead ready` and this triage guide's other commands, only the gate is
-   withheld — and a `TaskTriage` gate already raised for a task that later falls below
-   the bar is canceled and its notification dismissed. This scan currently does not
-   apply the dependency filter used by `sase bead ready`, so a blocked ready task can
-   still receive a gate. The reviewed preview contains the task's title, description,
-   and notes. **Launch** accepts optional feedback and submits one global unattributed
-   proc that runs `sase bead work <task-id> --yes-to-all`; **Close** requires feedback
-   and closes the bead with `resolution=canceled` and that feedback as the reason. The
-   detached launch survives ACE, CLI, Telegram, or mobile client exit and appears in
-   `sase proc list` and ACE's Procs tab. **Snooze** requires a wake time, accepts an
-   optional `+N` wake threshold and reason, and defers the task until either condition
-   is met.
+   status is `ready` and that has accumulated at least its
+   [effective `+1` bar](#per-type-triage-bar) — its task type's own
+   `triage.min_plus_ones` (`0` for most builtins, so most typed tasks gate on the next
+   tick), or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
+   unregistered type. A sub-threshold task is withheld from triage — it stays stored as
+   `ready` and stays visible to `sase bead ready` and this triage guide's other
+   commands, only the gate is withheld — and a `TaskTriage` gate already raised for a
+   task that later falls below the bar is canceled and its notification dismissed. This
+   scan currently does not apply the dependency filter used by `sase bead ready`, so a
+   blocked ready task can still receive a gate. The reviewed preview contains the task's
+   title, description, and notes. **Launch** accepts optional feedback and submits one
+   global unattributed proc that runs `sase bead work <task-id> --yes-to-all`; **Close**
+   requires feedback and closes the bead with `resolution=canceled` and that feedback as
+   the reason. The detached launch survives ACE, CLI, Telegram, or mobile client exit
+   and appears in `sase proc list` and ACE's Procs tab. **Snooze** requires a wake time,
+   accepts an optional `+N` wake threshold and reason, and defers the task until either
+   condition is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
@@ -630,17 +643,18 @@ reporter to a new, node-specific task bead instead, with a
 The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
 `bead_task_triage` chop scans enabled projects every five minutes and raises one
-human-only `TaskTriage` gate per ready task bead that has accumulated at least
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
-sub-threshold task is withheld from triage without any change to its stored status, and
-a gate already raised for a task that later falls below the bar is canceled and its
-notification dismissed. The compact `[bead] <bead-id> — <title>` notification lands in
-the `Beads` panel, and the filing agent travels with the gate into its Markdown preview
-when that attribution is known. The chop records pending gates in lane state so later
-ticks do not repeat the notification, cancels a pending gate if the bead leaves `ready`
-or falls below the `+1` bar, defers re-gating while that task bead's detached launch is
-still in flight, and uses a new deterministic generation if the same task becomes ready
-again or its pending gate needs a presentation-contract refresh.
+human-only `TaskTriage` gate per ready task bead that has accumulated at least its
+[effective `+1` bar](#per-type-triage-bar) — its task type's own `triage.min_plus_ones`,
+or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
+unregistered type. A sub-threshold task is withheld from triage without any change to
+its stored status, and a gate already raised for a task that later falls below the bar
+is canceled and its notification dismissed. The compact `[bead] <bead-id> — <title>`
+notification lands in the `Beads` panel, and the filing agent travels with the gate into
+its Markdown preview when that attribution is known. The chop records pending gates in
+lane state so later ticks do not repeat the notification, cancels a pending gate if the
+bead leaves `ready` or falls below the `+1` bar, defers re-gating while that task bead's
+detached launch is still in flight, and uses a new deterministic generation if the same
+task becomes ready again or its pending gate needs a presentation-contract refresh.
 
 The hourly `bead_stale_cleanup` chop is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once
@@ -1108,7 +1122,7 @@ Create a new issue.
 | `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                                                   |
 | `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
 | `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
-| `--tier`                       | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                                                    |
+| `-r, --tier`                   | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                                                    |
 | `--patch` / `-c, --changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                                                             |
 | `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                                                                 |
 | `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model.                                   |

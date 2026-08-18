@@ -71,11 +71,11 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | **Artifacts** | Browse Stitch, Patch, Bead, configured document providers, and File. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
 | **Axe**       | Monitor the Axe daemon and background commands                                                                                                                                             |
 
-Agents is the first tab and the startup default. Each tab has contextual help: press
-`,?` (leader mode) to open the Help modal on its **Keymaps** view, then `]` to switch to
-the tab's **Guide** view. While Help is open, the configured tab-switch keys still
-switch ACE tabs and refresh both views in place. By default those keys are `Tab` and
-`Shift+Tab`; if you remap them, the modal follows the configured keys.
+Agents is the first tab and the startup default. Each tab has contextual help: press `?`
+to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
+**Guide** view. While Help is open, the configured tab-switch keys still switch ACE tabs
+and refresh both views in place. By default those keys are `Tab` and `Shift+Tab`; if you
+remap them, the modal follows the configured keys.
 
 Press `/` in the Keymaps view to open a live filter bar. Typing splits the query into
 whitespace-separated tokens that must **all** match — each token is checked against a
@@ -807,6 +807,8 @@ timestamps for each hook.
 
 ### Leader Mode (`,` prefix)
 
+Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
+
 | Key        | Action                                                                                 |
 | ---------- | -------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                         |
@@ -821,8 +823,9 @@ timestamps for each hook.
 | `,R`       | Show runners info                                                                      |
 | `,<space>` | Run agent from current PR (skips project selection)                                    |
 | `,.`       | Open prompt history modal                                                              |
+| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                              |
 | `,>`       | Open prompt history modal with cancelled prompts visible                               |
-| `,?`       | Open Help for the current tab (Keymaps / Guide)                                        |
+| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                       |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers
 use lifecycle-aware discovery: project entries, including `home` when it appears in
@@ -1972,7 +1975,8 @@ Leader mode is available on every tab. In the Agents tab it also exposes layout 
 notification shortcuts for the currently loaded agent list; global entries such as `,m`
 and `,U` behave the same from other tabs. Unread-completed actions operate on terminal
 rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden by a
-collapsed clan.
+collapsed clan. Help is not a leader command: press the app-level `?` to open the Help
+modal.
 
 | Key        | Action                                                                                            |
 | ---------- | ------------------------------------------------------------------------------------------------- |
@@ -1980,7 +1984,6 @@ collapsed clan.
 | `,/`       | Edit the Agents query                                                                             |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
 | `,g`       | Toggle between tribe-split panels and one merged agent panel                                      |
-| `,H`       | Number each currently toggleable visible fold owner; toggle the entered hints atomically          |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
 | `,y`       | Refresh the Agents tab from full artifact history                                                 |
@@ -1994,8 +1997,9 @@ collapsed clan.
 | `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                               |
 | `,.`       | Open prompt history modal                                                                         |
+| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                         |
 | `,>`       | Open prompt history modal with cancelled prompts visible                                          |
-| `,?`       | Open Help for the current tab (Keymaps / Guide)                                                   |
+| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                                  |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`,
 `TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from
@@ -2323,14 +2327,19 @@ property.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                                                                                 |
-| ---- | -------------------------------------------------------------------------------------- |
-| `,,` | Repeat the last leader command                                                         |
-| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                |
-| `,m` | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
-| `,U` | Update SASE/agent CLIs and import cached agent hoods                                   |
-| `,R` | Show runners info                                                                      |
-| `,?` | Open Help for the current tab (Keymaps / Guide)                                        |
+Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
+
+| Key       | Action                                                                                 |
+| --------- | -------------------------------------------------------------------------------------- |
+| `,,`      | Repeat the last leader command                                                         |
+| `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                |
+| `,m`      | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
+| `,U`      | Update SASE/agent CLIs and import cached agent hoods                                   |
+| `,R`      | Show runners info                                                                      |
+| `,.`      | Open prompt history modal                                                              |
+| `,Ctrl+G` | Open prompt history and edit the newest entry immediately                              |
+| `,>`      | Open prompt history modal with cancelled prompts visible                               |
+| `,@`      | Open the prompt stash picker without auto-restoring a lone entry                       |
 
 ### Bang Mode (`!` prefix)
 
@@ -2366,7 +2375,7 @@ focuses a filter row that is always on screen; on Beads, provider document panes
 Files it opens an inline filter bar that is only visible while you are editing. Each of
 those panes also accepts a local `f` for the same thing. Agents reserves bare `/` for
 forward inline metadata search, so its structured query editor uses the independent `,/`
-leader chord instead. Help remains `,?` on every tab.
+leader chord instead. Help is the app-level `?` on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
@@ -2377,7 +2386,7 @@ leader chord instead. Help remains `,?` on every tab.
 | Files                   | `/` (or local `f`) |
 | Agents structured query | `,/`               |
 
-The Axe tab has no query editor. Its `,?` help modal and the command palette both still
+The Axe tab has no query editor. Its `?` help modal and the command palette both still
 offer "Edit search query" there, but the action currently does nothing on Axe; use the
 tab's own filtering and navigation keys instead.
 
@@ -2659,13 +2668,13 @@ not appear as their own column. User-owned aliases and buckets still have the ta
 ownership gutter, misplaced built-in aliases keep a gold `!` marker in the name cell,
 and collapsed buckets put `▸` directly before the bucket name.
 
-**Launch settings** contains six rows: `launch model`, `epic lander`, `big epic lander`,
-`big epic starts at`, `default effort`, and `running agents`. The three model rows show
-raw alias/config value → effective provider/model. `big epic starts at` shows the
-effective `bead.big_epic_phase_threshold` as `<N> phase` or `<N> phases`: epics with `N`
-or more authored phases use the big epic lander, while smaller epics use the regular
-epic lander. `default effort` and `running agents` show their launch-effective scalar
-values and any active temporary override state.
+**Launch settings** contains six rows: `default model`, `epic lander`,
+`big epic lander`, `big epic starts at`, `default effort`, and `max runners`. The three
+model rows show raw alias/config value → effective provider/model. `big epic starts at`
+shows the effective `bead.big_epic_phase_threshold` as `<N> phase` or `<N> phases`:
+epics with `N` or more authored phases use the big epic lander, while smaller epics use
+the regular epic lander. `default effort` and `max runners` show their launch-effective
+scalar values and any active temporary override state.
 
 Alias rows show the alias name, effective provider/model as a provider-themed badge, and
 a state tag — `configured`, `implicit` / `implicit → @<fallback>` /
@@ -2859,11 +2868,11 @@ Control.
 
 ### Alias History
 
-Press `H` on an alias row, an alias-backed launch setting (`launch model`,
+Press `H` on an alias row, an alias-backed launch setting (`default model`,
 `epic lander`, `big epic lander` when configured as a raw `@alias` reference), or a
 collapsed bucket to open **Alias History** — bounded prior runs for that alias or, for a
 bucket, every member alias. A concrete (non-alias) launch setting and the
-`default effort`, `running agents`, and `big epic starts at` scalar settings are not
+`default effort`, `max runners`, and `big epic starts at` scalar settings are not
 aliases; pressing `H` on one of those rows only shows a warning toast. The panel loads
 off-thread and never changes Launch Control's own state.
 
@@ -2943,8 +2952,8 @@ are rejected; repeated fall-back times require an offset-qualified ISO value suc
 goes back to the duration picker, where a second `Esc` cancels the override flow.
 Overrides are per-alias and per-launch-setting, and independent:
 
-- An override on **`launch model`** drives the no-`%model` launch default. It renders in
-  a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
+- An override on **`default model`** drives the no-`%model` launch default. It renders
+  in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any built-in size alias or custom alias** takes effect wherever that
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool or `||` ordered
@@ -2953,7 +2962,7 @@ Overrides are per-alias and per-launch-setting, and independent:
   concrete target until the override expires or is cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
-  `launch model` and of each other.
+  `default model` and of each other.
 
 Every non-default override (an alias, `epic lander`, or `big epic lander`) is surfaced
 by a distinct, concise violet top-bar pill: a single active override renders as
@@ -3052,7 +3061,7 @@ live validation line reports an error.
 
 ### Examples
 
-- Highlight `launch model`, `o`, pick `codex/o3`, duration `1h` — launches with no
+- Highlight `default model`, `o`, pick `codex/o3`, duration `1h` — launches with no
   `%model` directive use Codex `o3` for the next hour, then revert to the configured
   default.
 - Highlight `@medium`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves
@@ -3896,7 +3905,7 @@ stream-derived rows from its `streaming-messages-json` output with `runtime: "gr
 `search_replace`, and so on) are mapped onto the same canonical display names Claude
 rows use, and its JSON-encoded `tool_result` envelopes are decoded for exit codes and
 file paths rather than shown raw. See
-[LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
+[LLM Providers — Claude tool calls](llms.md#claude-tool-calls),
 [LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
 [LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture),
 [LLM Providers — Muse tool-call capture](llms.md#muse-tool-call-capture),
@@ -4124,8 +4133,8 @@ one or more prior attempts.
 ## Custom Keymaps
 
 All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You
-can remap app-level, gate-modal, and focused Statistics-pane keys and define entirely
-new prefix-key modes.
+can remap app-level, gate-modal, Glossary-panel, and focused Statistics-pane keys and
+define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys
 
@@ -4209,6 +4218,26 @@ ace:
 These bindings dispatch only while a branch-driven gate modal is open, and its footer
 shows the effective keys. The retired `activate_control` setting is accepted as a
 deprecated alias for `submit_primary`.
+
+### Remapping Glossary Panel Keys
+
+Override [Glossary panel](#glossary-panel) bindings under `ace.keymaps.glossary`. A
+value may list more than one key, separated by commas:
+
+```yaml
+ace:
+  keymaps:
+    glossary:
+      follow_relation: "enter,l"
+      travel_back: "backspace,h"
+      filter_terms: "slash"
+      toggle_definition_filter: "full_stop"
+      add_term: "a"
+      delete_term: "d"
+```
+
+These bindings dispatch only while the panel is open. The full action list and defaults
+are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
 
 ### Custom Modes
 
@@ -4299,6 +4328,9 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
 | `Ctrl+G G`                   | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
+| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
+| `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
+| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
 | `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                             |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                           |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                 |
@@ -4507,6 +4539,7 @@ prefix actions currently available.
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                           |
 | `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
 | `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
+| `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
 | `gx`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                             |
 | `gt`        | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
 | `gX`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
@@ -4952,6 +4985,10 @@ artifact viewer, and `r` re-reads the current project.
 The panel footer lists only conditional keys: `d` when a term is selected, relation keys
 when chips exist, `p`/`P` when the ring has more than one project, and back when a trail
 exists. Always-available keys live in `?` and in this guide.
+
+Every key named above is remappable under
+[`ace.keymaps.glossary`](configuration.md#acekeymaps); see
+[Remapping Glossary Panel Keys](#remapping-glossary-panel-keys).
 
 #### Repo names
 

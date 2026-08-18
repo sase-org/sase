@@ -245,66 +245,47 @@ and appended to the command.
 While waiting for a response, a `provider_timer("Waiting for Claude")` spinner is shown
 (unless `suppress_output` is `True`).
 
-### Claude Tool-Call Hooks
+### Claude Tool Calls
 
 To record what tools an agent actually invoked (file reads, edits, bash commands, etc.),
-`ClaudeCodeProvider.invoke()` asks Claude Code to call back into SASE every time a tool
-runs. It does this by writing a pair of `PreToolUse` and `PostToolUse` hook entries into
-the workspace's `.claude/settings.local.json` for the duration of the agent run. Each
-entry matches all tools (`"matcher": "*"`) and invokes the `sase_claude_tool_hook`
-console script, which reads the Claude-supplied JSON payload from stdin and appends one
-normalized record (schema version 3) to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
+`ClaudeCodeProvider` parses Claude Code's `stream-json` output as it arrives and appends
+one normalized record per tool call to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
 
-- The `PreToolUse` hook writes a pending entry capturing the tool name and a redacted
-  version of its input.
-- The `PostToolUse` hook writes the matching result entry: success/failure/interrupted
-  status, the call's duration, and a length-bounded preview of the response.
+- An `assistant` event carrying `message.content[].tool_use` blocks emits one `pending`
+  `ToolUse` (start) record per block: the tool name and a bounded, redacted summary of
+  its input. Set `SASE_TOOL_LOG_FULL=1` to record the raw input instead.
+- A `user` event carrying `message.content[].tool_result` blocks emits the matching
+  `ToolResult` (end) record: a `success`, `failure`, or `interrupted` status and a
+  length-bounded preview of the response, drawing structured output from the top-level
+  `tool_use_result` envelope when present.
 
 The ACE Tools panel reads this same `tool_calls.jsonl` to render the per-agent timeline
-— see [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
+— see [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). The reader pairs a
+`ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into one row.
 
-Installation and cleanup are wrapped in a `claude_hooks_session()` context manager that
-is careful not to corrupt user-managed Claude settings:
+Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
+hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
+releases did, through a `sase_claude_tool_hook` console script that no longer ships.
+Those older runs wrote schema-v3 "hook" rows, and the reader still accepts them:
+`tool_calls.jsonl` rows at schema versions 1, 2, and 3 are all readable, and in a
+historical file that mixed both sources, a hook row wins over a stream row describing
+the same `tool_use_id` so an old timeline does not double-count one call. New runs write
+schema version 2 and never request Claude's `--include-hook-events`.
 
-- Writes to `.claude/settings.local.json` go through `tmp + os.replace` so a killed
-  agent cannot leave a half-written file behind.
-- Each SASE-installed hook command carries a `_sase_managed` sentinel value. On exit,
-  cleanup removes only entries carrying that sentinel; any pre-existing user or project
-  hooks (including hooks for unrelated events such as `Notification`) are left
-  untouched.
-- "Home-mode" launches — agents started outside a tracked workspace, identified by the
-  absence of `SASE_GIT_WORKSPACE_DIR` and `SASE_ACTIVE_PROJECT_DIR` — skip the settings
-  mutation entirely. They emit a `claude_hooks_skipped` diagnostic to
-  `tool_calls_writer_errors.jsonl` so the operator can see why the hook records are
-  missing, and rely on the stream-derived fallback writer (below) to populate the
-  timeline.
-- If `.claude/settings.local.json` exists but is malformed JSON, it is left alone, the
-  run logs a diagnostic, and the fallback writer takes over.
-- If SASE created the file (it did not pre-exist) and only SASE entries remain at exit,
-  both the file and an empty `.claude` directory are removed so the workspace is left
-  clean.
-
-The collector script itself is intentionally non-blocking: malformed JSON, non-object
-payloads, exceptions inside the collector, a missing `SASE_ARTIFACTS_DIR`, and
-unrecognized hook event names all produce a best-effort diagnostic (or a silent no-op
-when stdin is empty) and exit 0. This guarantees that a SASE-side bug can never make
-Claude surface the hook as a tool-call failure to the agent.
-
-The hook-based writer coexists with a stream-derived fallback writer in the LLM provider
-layer, which parses tool calls out of the Claude streaming response. Both writers append
-to the same artifact, and the Tools-panel reader accepts schema versions 1, 2, and 3.
-When hook and stream records describe the same `tool_use_id`, the reader keeps the
-hook-derived record and suppresses the duplicate stream-derived row; otherwise, older
-stream-only artifacts remain readable.
+The writer is intentionally non-blocking and best-effort: a malformed event, an
+exception inside normalization, or a missing `SASE_ARTIFACTS_DIR` produces a diagnostic
+line in `$SASE_ARTIFACTS_DIR/tool_calls_writer_errors.jsonl` (or a silent no-op) rather
+than failing the run. A SASE-side bug can never surface to the agent as a tool-call
+failure.
 
 The normalized tool-call artifact is still Python/TUI-owned glue rather than a shared
 `sase-core` contract. Move it into `../sase-core` only if another frontend or
 integration needs to produce or consume exactly the same schema through the Rust
 boundary.
 
-Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_claude_hooks.py`,
-`src/sase/llm_provider/_tool_calls.py`, `src/sase/scripts/sase_claude_tool_hook.py`,
-`src/sase/ace/tui/tools/reader.py`
+Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_tool_calls.py`,
+`src/sase/llm_provider/_tool_call_claude.py`,
+`src/sase/llm_provider/_tool_call_common.py`, `src/sase/ace/tui/tools/reader.py`
 
 ## Antigravity (`agy`) Integration
 
@@ -1216,7 +1197,7 @@ authoritative place to edit alias targets and to set or clear temporary override
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
 no automatic grouping. The ACE Launch Control instead shows the three scalar
-[launch model settings](#implicit-role-aliases) (`launch model`, `epic lander`,
+[launch model settings](#implicit-role-aliases) (`default model`, `epic lander`,
 `big epic lander`) as their own rows, alongside the five size aliases and any custom
 aliases. Optional `model_aliases.buckets.<name>` metadata still creates a display-only
 bucket for custom aliases: a collapsed bucket summarizes its effective-model mix and
@@ -1324,7 +1305,7 @@ propagation rule, not a change to `sase.yml` or `~/.sase/llm_override.json`.
 Launch-scoped values have the highest alias-resolution precedence. They beat
 machine-wide per-alias temporary overrides and configured/implicit aliases at every hop;
 a launch-scoped keyword matching the alias `default_model` references also beats the
-machine-wide temporary override on the `launch model` setting. An explicit concrete
+machine-wide temporary override on the `default model` setting. An explicit concrete
 model for the current agent remains concrete, while an explicit alias is resolved
 through this launch map. See
 [Launch-Scoped Model Alias Overrides](xprompt.md#launch-scoped-model-alias-overrides)
@@ -1649,7 +1630,7 @@ and the tier-based global override, sase supports **concrete** provider/model ov
 that act as temporary, time-bound machine-wide overrides of a model alias or
 launch-model setting. The ACE `,m` chord opens the
 [**Launch Control**](ace.md#launch-control) for setting, changing, and clearing these
-overrides — for the `launch model`, `epic lander`, and `big epic lander` settings, or
+overrides — for the `default model`, `epic lander`, and `big epic lander` settings, or
 any size/custom alias.
 
 The panel also shows a two-line description for the highlighted alias, launch-model
@@ -1672,7 +1653,7 @@ below-threshold epic land agents. An active override on `@xlarge` suspends its o
 fallback for a single concrete target, just as overrides on `@xsmall`, `@small`, and
 `@medium` suspend their independent load-balanced rotations for the override's duration.
 The three launch-model settings do not reference a shared alias, so an override on the
-`launch model` setting (`llm_provider.default_model`) does not move phase/task/tale
+`default model` setting (`llm_provider.default_model`) does not move phase/task/tale
 routing — which resolves through the size aliases directly — or epic-land routing —
 which resolves through `epic_lander_model`/`big_epic_lander_model`; override the size
 alias, or the specific launch-model setting, to move one of those lanes. Machine-wide
@@ -1907,13 +1888,13 @@ key:
 
 ### Examples
 
-- Launch Control (`,m`), highlight `launch model`, `o`, pick `codex/o3`, duration `1h` →
-  `~/.sase/llm_override.json` gains a `setting:default_model` entry; new launches with
+- Launch Control (`,m`), highlight `default model`, `o`, pick `codex/o3`, duration `1h`
+  → `~/.sase/llm_override.json` gains a `setting:default_model` entry; new launches with
   no `%model` default to CODEX(o3) for the next hour.
 - Launch Control, highlight `medium`, `o`, pick `opencode/anthropic/claude-sonnet-4-5`,
   `Until cleared` → medium phases and tasks without an explicit model inherit that
   target until cleared.
-- Launch Control, highlight `launch model`, `o`, pick `sonnet`, duration `30m` → known
+- Launch Control, highlight `default model`, `o`, pick `sonnet`, duration `30m` → known
   bare model; provider resolves to claude via plugin metadata.
 - Launch Control, highlight an alias, `x` → that alias's override is cleared; when the
   last override is removed the state file is deleted and defaults revert to permanent

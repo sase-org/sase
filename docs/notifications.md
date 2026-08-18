@@ -313,11 +313,13 @@ The following events generate notifications:
 ### Task Triage Notification
 
 The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for
-each ready task bead that has accumulated at least
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) independent `+1` reports. A
-sub-threshold task is withheld from triage — it stays stored as `ready`, only the gate
-is withheld — and a `TaskTriage` gate already raised for a task that later falls below
-the bar is canceled and its notification dismissed on the chop's next tick.
+each ready task bead that has accumulated at least its
+[effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports — its
+task type's own `triage.min_plus_ones`, or
+[`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or unregistered
+type. A sub-threshold task is withheld from triage — it stays stored as `ready`, only
+the gate is withheld — and a `TaskTriage` gate already raised for a task that later
+falls below the bar is canceled and its notification dismissed on the chop's next tick.
 
 After upgrading, gates already raised for beads below the new bar are canceled and their
 notifications dismissed automatically on the first `checks`-lane tick. Run

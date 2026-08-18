@@ -701,6 +701,7 @@ ace:
       next_patch: "j"
       prev_patch: "k"
       edit_query: "slash" # defaults render as `/` outside Agents
+      show_help: "question_mark" # app-level Help; defaults render as bare `?`
       # ... all app-level keybindings are configurable
     modes:
       # Built-in modes (fold, copy, leader, bang) are configurable
@@ -709,7 +710,6 @@ ace:
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
           edit_query: "slash" # Agents structured query; defaults render as `,/`
-          show_help: "question_mark" # defaults render as `,?`
           models_panel: "m"
           update_sase: "U"
           full_history_refresh: "y"
@@ -719,7 +719,7 @@ ace:
           set_level_1: "1" # PR detail: set every section to level 1
           set_level_2: "2"
           set_level_3: "3"
-          cycle_commits: "c"
+          cycle_stitches: "c" # `cycle_commits` is still accepted as a legacy alias
           cycle_hooks: "h"
           agents:
             set_level_1: "1" # family 1-2; clan/session 1-3; tribe 1-4
@@ -936,7 +936,7 @@ taking effect.
 
 #### `ace.keymaps`
 
-All TUI keybindings are configurable. The `keymaps` section has four scopes:
+All TUI keybindings are configurable. The `keymaps` section has five scopes:
 
 **`gate`** — Bindings active in the shared branch controls used by plan and custom gate
 modals:
@@ -977,6 +977,39 @@ focused. The available actions are:
 Statistics keys may overlap app-level bindings because they are registered on the
 focused pane, not globally.
 
+**`glossary`** — Bindings active only inside the
+[Glossary panel](ace.md#glossary-panel), the browse-and-edit surface opened from a
+prompt pane with `gG` or `Ctrl+G G`. A value may list more than one key, separated by
+commas:
+
+| Field                      | Default         | Description                                                      |
+| -------------------------- | --------------- | ---------------------------------------------------------------- |
+| `next_term`                | `j`             | Move the term-list cursor to the next term.                      |
+| `prev_term`                | `k`             | Move the term-list cursor to the previous term.                  |
+| `first_term`               | `g`             | Jump to the first term.                                          |
+| `last_term`                | `G`             | Jump to the last term.                                           |
+| `scroll_definition_down`   | `ctrl+d`        | Scroll the definition card down by half a page.                  |
+| `scroll_definition_up`     | `ctrl+u`        | Scroll the definition card up by half a page.                    |
+| `filter_terms`             | `slash`         | Filter terms and aliases.                                        |
+| `toggle_definition_filter` | `full_stop`     | Extend the active filter into definition bodies.                 |
+| `next_relation`            | `tab`           | Focus the next `SEE ALSO` / `REFERENCED BY` chip.                |
+| `prev_relation`            | `shift+tab`     | Focus the previous relation chip.                                |
+| `follow_relation`          | `enter,l`       | Travel to the focused chip's term (or chip ① when none focused). |
+| `travel_back`              | `backspace,h`   | Walk back one step along the travel trail.                       |
+| `next_project`             | `p`             | Cycle forward through the enabled-project ring.                  |
+| `prev_project`             | `P`             | Cycle backward through the enabled-project ring.                 |
+| `add_term`                 | `a`             | Open the add-term form.                                          |
+| `delete_term`              | `d`             | Confirm and delete the selected term.                            |
+| `open_source`              | `o`             | Open the definition's source line in `$EDITOR`.                  |
+| `open_viewer`              | `Z`             | Hand the source file to the artifact viewer.                     |
+| `copy_definition`          | `y`             | Copy the definition to the clipboard.                            |
+| `copy_source_path`         | `Y`             | Copy the source path to the clipboard.                           |
+| `refresh`                  | `r`             | Re-read the current project's glossary.                          |
+| `help`                     | `question_mark` | Open the panel-scoped help overlay.                              |
+
+Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
+app-level bindings.
+
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their
 defaults. Rebinding `open_config_center` also changes the Admin Center's home-page
@@ -1007,8 +1040,9 @@ Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls P
 Stitches, Plans, and Axe and defaults to bare `/`.
 `ace.keymaps.modes.leader_mode.keys.edit_query` independently controls the Agents
 structured-query chord and defaults to `,/`; bare `/` on Agents starts inline metadata
-search. Help remains a leader action controlled by `leader_mode.keys.show_help` and
-defaults to `,?`; the retired `ace.keymaps.app.show_help` override is ignored.
+search. Help is an app-level action controlled by `ace.keymaps.app.show_help` and
+defaults to bare `?`; the retired `leader_mode.keys.show_help` override is dropped at
+load time.
 
 A small allowlist of app actions intentionally shares a key because the two actions can
 never be available on the same surface. Validation permits exactly these pairs and
@@ -2039,6 +2073,11 @@ Configures the `sase axe` lumberjack-based daemon. The axe architecture uses an
 orchestrator that spawns multiple lumberjacks, each running a set of chops on a fixed
 interval. Defaults are provided by `src/sase/default_config.yml`.
 
+The YAML below is an abridged illustration of the shipped defaults, not the whole file:
+it shows the shape of a lane and a chop and omits some lanes and chops entirely. See
+[AXE Automation](axe.md#default-lumberjacks) for the complete lane-by-lane inventory,
+and `src/sase/default_config.yml` for the literal defaults.
+
 ```yaml
 axe:
   max_hook_runners: 3 # concurrent hook runners (default: 3)
@@ -2184,8 +2223,9 @@ axe:
             Raise one human gate for each ready or snoozed task bead, and for each due flag bead
 
             Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
-            gate: a TaskTriage gate while a task bead is ready and has at least bead.task_triage.min_plus_ones +1
-            reports, a BeadSnooze wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
+            gate: a TaskTriage gate while a task bead is ready and has at least its effective +1 bar in reports
+            (its own task type's triage.min_plus_ones, else the global bead.task_triage.min_plus_ones), a BeadSnooze
+            wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
             release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
             triage without changing its stored status, and a gate already raised for a bead that falls below the
             bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
@@ -2274,7 +2314,8 @@ axe:
             Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate
 
             Reads every enabled project's ready task beads and offers those that have sat below
-            bead.task_triage.min_plus_ones for bead.task_triage.stale_after_days once at least
+            their effective +1 bar (their own task type's triage.min_plus_ones, else the global
+            bead.task_triage.min_plus_ones) for bead.task_triage.stale_after_days once at least
             bead.task_triage.stale_cleanup_min_beads such beads exist. One pending gate at a time
             carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is

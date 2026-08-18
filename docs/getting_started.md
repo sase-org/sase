@@ -313,6 +313,11 @@ The names you'll keep bumping into, in one place:
   [ACE](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable plan, phase, and standalone
   task work units.
+- **[Glossary](memory.md#glossary)** — per-project definitions of the terms your team
+  keeps reusing, authored in `sase/sase.yml`. Agents fetch one on demand with
+  `sase glossary read <term> -r "<why>"` instead of carrying every definition in memory;
+  in ACE, `K` previews the term under the cursor and `gG` opens the browse-and-edit
+  [Glossary panel](ace.md#glossary-panel).
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed
   inputs and multi-agent fan-out. See also [workflow specs](workflow_spec.md).
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
