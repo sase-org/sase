@@ -219,12 +219,28 @@ def git_upstream_ahead_count(repo_dir: str) -> int | None:
     return int(text)
 
 
-def git_log_commit_messages(repo_dir: str, revision: str) -> tuple[str, ...]:
-    """Return the full messages of *revision*, oldest first."""
+def git_log_commit_records(
+    repo_dir: str, revision: str
+) -> tuple[tuple[str, str, str], ...]:
+    """Return ``(sha, tree, message)`` triples for *revision*, oldest first.
+
+    The tree id lets a caller content-match a commit against a run-owned
+    ledger entry even when the recorded SHA no longer resolves (a rebase
+    moved it after the ledger entry was written).
+    """
 
     try:
         result = subprocess.run(
-            ["git", "-C", repo_dir, "log", "--reverse", "-z", "--format=%B", revision],
+            [
+                "git",
+                "-C",
+                repo_dir,
+                "log",
+                "--reverse",
+                "-z",
+                "--format=%H%x1f%T%x1f%B",
+                revision,
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -234,7 +250,16 @@ def git_log_commit_messages(repo_dir: str, revision: str) -> tuple[str, ...]:
         return ()
     if result.returncode != 0:
         return ()
-    return tuple(message for message in result.stdout.split("\0") if message.strip())
+    records: list[tuple[str, str, str]] = []
+    for raw in result.stdout.split("\0"):
+        if "\x1f" not in raw:
+            continue
+        sha, _, rest = raw.partition("\x1f")
+        tree, _, message = rest.partition("\x1f")
+        if not message.strip():
+            continue
+        records.append((sha.strip(), tree.strip(), message))
+    return tuple(records)
 
 
 def git_show_head_file(repo_dir: str, path: str) -> str | None:

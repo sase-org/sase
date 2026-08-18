@@ -306,6 +306,7 @@ def run_commit_finalizer(
             dirty_state_before_pass,
             dirty_state,
             fingerprint_before=fingerprint_before,
+            artifacts_dir=str(artifact_root) if artifact_root is not None else None,
         )
         if discarded:
             _fail_on_discarded_dirty_work(

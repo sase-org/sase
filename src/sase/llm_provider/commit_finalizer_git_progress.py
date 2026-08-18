@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import json
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
 
+from .commit_finalizer_git_paths import normalize_path
 from .commit_finalizer_git_status import (
     UNKNOWN_HEAD_SENTINEL,
     git_head_commit_id,
-    git_log_commit_messages,
+    git_log_commit_records,
     git_upstream_ahead_count,
 )
 
@@ -20,6 +23,13 @@ if TYPE_CHECKING:
     from .commit_finalizer_types import DirtyRepo, DirtyState
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _LedgerEntry:
+    cwd: str
+    commit_sha: str
+    commit_tree: str
 
 
 @dataclass(frozen=True)
@@ -58,9 +68,11 @@ def discarded_dirty_work_evidence(
     after: DirtyState,
     *,
     fingerprint_before: tuple[tuple[str, str, tuple[str, ...]], ...] | None = None,
+    artifacts_dir: str | None = None,
 ) -> tuple[_DiscardedDirtyWorkEvidence, ...]:
     """Return repos that became clean without an attributable commit."""
 
+    ledger = _load_run_owned_commit_ledger(artifacts_dir)
     before_heads = {
         repo_path: head
         for repo_path, head, _changed_files in (
@@ -94,6 +106,7 @@ def discarded_dirty_work_evidence(
             before_head,
             after_head,
             agent_name,
+            ledger,
         ):
             if _published_store_state_is_exempt(repo, before_head, after_head):
                 continue
@@ -181,8 +194,9 @@ def _new_commits_are_attributable(
     before_head: str,
     after_head: str,
     agent_name: str,
+    ledger: tuple[_LedgerEntry, ...],
 ) -> bool:
-    for message in _new_commit_messages(repo_dir, before_head, after_head):
+    for sha, tree, message in _new_commit_records(repo_dir, before_head, after_head):
         from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
         tags = parse_trailing_commit_tags(message)
@@ -190,20 +204,87 @@ def _new_commits_are_attributable(
             return True
         if tags.get("TYPE") == AGENTS_SYNC_AUTO_COMMIT_TYPE:
             return True
+        if _ledger_matches_commit(ledger, repo_dir, sha, tree):
+            return True
     return False
 
 
-def _new_commit_messages(
+def _new_commit_records(
     repo_dir: str,
     before_head: str,
     after_head: str,
-) -> tuple[str, ...]:
+) -> tuple[tuple[str, str, str], ...]:
     revision = (
         after_head
         if before_head == UNKNOWN_HEAD_SENTINEL
         else f"{before_head}..{after_head}"
     )
-    return git_log_commit_messages(repo_dir, revision)
+    return git_log_commit_records(repo_dir, revision)
+
+
+def _load_run_owned_commit_ledger(
+    artifacts_dir: str | None,
+) -> tuple[_LedgerEntry, ...]:
+    """Load this run's commit ledger, degrading to empty on any read failure.
+
+    The ledger (``commit_results.json`` in the agent artifacts directory) is
+    a bonus attribution signal, not a requirement: a missing, empty, or
+    malformed file must fall back to today's footer-only behavior rather
+    than raising and turning a read failure into a new way to fail an agent.
+    """
+    if not artifacts_dir:
+        return ()
+    try:
+        raw = (Path(artifacts_dir) / "commit_results.json").read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, ValueError):
+        return ()
+    if not isinstance(data, list):
+        return ()
+    entries: list[_LedgerEntry] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        cwd = item.get("cwd")
+        sha = item.get("commit_sha")
+        if not isinstance(cwd, str) or not cwd or not isinstance(sha, str) or not sha:
+            continue
+        tree = item.get("commit_tree")
+        entries.append(
+            _LedgerEntry(
+                cwd=cwd,
+                commit_sha=sha,
+                commit_tree=tree if isinstance(tree, str) else "",
+            )
+        )
+    return tuple(entries)
+
+
+def _ledger_matches_commit(
+    ledger: tuple[_LedgerEntry, ...],
+    repo_dir: str,
+    commit_sha: str,
+    commit_tree: str,
+) -> bool:
+    """Whether the ledger proves *repo_dir* provably owns this commit.
+
+    Matches on the recorded SHA first; a rebase performed after the ledger
+    entry was written can move the commit, so a content match against the
+    recorded tree is the fallback rather than giving up.
+    """
+    if not commit_sha:
+        return False
+    normalized_repo = normalize_path(repo_dir)
+    same_repo = tuple(
+        entry for entry in ledger if normalize_path(entry.cwd) == normalized_repo
+    )
+    if any(entry.commit_sha == commit_sha for entry in same_repo):
+        return True
+    if not commit_tree:
+        return False
+    return any(
+        entry.commit_tree and entry.commit_tree == commit_tree for entry in same_repo
+    )
 
 
 def _agent_provenance_matches(recorded_agent: str | None, agent_name: str) -> bool:

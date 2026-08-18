@@ -9,6 +9,7 @@ prompt when a pass stalls, and records the stall in its result artifact.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -264,6 +265,104 @@ def test_current_agent_commit_satisfies_clean_after_pass(
     result_json = read_result_json(artifacts_dir)
     assert result_json["status"] == "finalized"
     assert result_json["reason"] == "clean_after_pass"
+
+
+def test_ledger_recorded_commit_without_footer_satisfies_clean_after_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commit ledgered by this run counts as attributable even footer-less.
+
+    Mirrors the resumed-conflict-resolution failure: the landed commit's
+    ``SASE_AGENT=`` footer was lost, but the run-owned ledger written
+    alongside the commit still proves this run made it.
+    """
+    repo = tmp_path / "sase_10"
+    _init_repo_with_dirty_file(repo)
+    set_agent_env(monkeypatch, repo)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "add", "-A")
+        _run_git(
+            repo, "commit", "-q", "-m", "commit dirty file, footer lost to a rewrite"
+        )
+        sha = _run_git(repo, "rev-parse", "HEAD").strip()
+        tree = _run_git(repo, "rev-parse", "HEAD^{tree}").strip()
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        (artifacts_dir / "commit_results.json").write_text(
+            json.dumps([{"cwd": str(repo), "commit_sha": sha, "commit_tree": tree}]),
+            encoding="utf-8",
+        )
+        return InvokeResult(content="committed without a footer, ledger recorded it")
+
+    provider.invoke.side_effect = invoke
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert result.content.endswith("ledger recorded it")
+    result_json = read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "clean_after_pass"
+
+
+def test_unrelated_ledger_entry_does_not_exempt_a_genuine_discard(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ledger present for other work must not paper over a real discard.
+
+    The ledger only exonerates the exact commit it recorded; an entry for an
+    unrelated SHA/repo sitting in the same file must not turn a foreign
+    agent's footer-less commit into an attributable one.
+    """
+    repo = tmp_path / "sase_10"
+    _init_repo_with_dirty_file(repo)
+    set_agent_env(monkeypatch, repo)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "cwd": str(repo),
+                    "commit_sha": "0" * 40,
+                    "commit_tree": "1" * 40,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "add", "-A")
+        _run_git(
+            repo,
+            "commit",
+            "-q",
+            "-m",
+            "commit dirty file\n\nSASE_AGENT=other-agent",
+        )
+        return InvokeResult(content="committed as a different agent")
+
+    provider.invoke.side_effect = invoke
+
+    with pytest.raises(CommitFinalizerError) as exc_info:
+        _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    message = str(exc_info.value)
+    assert "dirty work vanished without an attributable commit" in message
+    result = read_result_json(artifacts_dir)
+    assert result["status"] == "failed"
+    assert result["reason"] == "dirty_work_discarded"
 
 
 def test_partial_progress_without_a_commit_is_not_a_stall(
