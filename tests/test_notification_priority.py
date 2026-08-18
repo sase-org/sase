@@ -28,6 +28,10 @@ def test_plugins_required_is_priority() -> None:
     assert is_priority(_n(sender="plugin", action="PluginsRequired"))
 
 
+def test_epic_resume_is_priority() -> None:
+    assert is_priority(_n(sender="bead", action="EpicResume"))
+
+
 def test_jump_to_mentor_review_is_priority() -> None:
     assert is_priority(_n(sender="mentors", action="JumpToMentorReview"))
 

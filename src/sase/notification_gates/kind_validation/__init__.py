@@ -7,6 +7,9 @@ from sase.notification_gates.kind_validation.bead_stale_cleanup import (
     validate_bead_stale_cleanup_spec,
 )
 from sase.notification_gates.kind_validation.custom import validate_custom_spec
+from sase.notification_gates.kind_validation.epic_resume import (
+    validate_epic_resume_spec,
+)
 from sase.notification_gates.kind_validation.flag_triage import (
     validate_flag_triage_spec,
 )
@@ -24,6 +27,7 @@ __all__ = [
     "validate_bead_snooze_spec",
     "validate_bead_stale_cleanup_spec",
     "validate_custom_spec",
+    "validate_epic_resume_spec",
     "validate_flag_triage_spec",
     "validate_launch_spec",
     "validate_plan_spec",

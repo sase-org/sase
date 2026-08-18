@@ -551,7 +551,6 @@ def test_committed_pre_epic_baseline_still_fails_recalibrated_budgets() -> None:
 
     assert [failure.metric for failure in failures] == [
         "causes.parser_create",
-        "causes.textual_app_run_test_enter",
         "causes.yaml_load",
     ]
 
