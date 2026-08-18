@@ -9,9 +9,8 @@ from sase.ace.timestamps.recording import add_timestamp_entry_atomic
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.output import print_status
 from sase.running_field import (
-    claim_workspace,
-    get_first_available_axe_workspace,
-    get_workspace_directory_for_num,
+    WorkspaceClaimError,
+    claim_next_axe_workspace_dir,
     release_workspace,
 )
 from sase.vcs_provider import get_vcs_provider
@@ -109,25 +108,18 @@ class RewindWorkflow:
                 " (bookkeeping only)",
             )
 
-        # Claim an available workspace
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, project
-        )
-
-        # Claim the workspace
-        claim_result = claim_workspace(
-            project_file,
-            workspace_num,
-            "rewind",
-            os.getpid(),
-            cl_name,
-        )
-        if not claim_result.success:
-            return (
-                False,
-                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+        try:
+            workspace_num, workspace_dir, workspace_suffix = (
+                claim_next_axe_workspace_dir(
+                    project_file,
+                    "rewind",
+                    os.getpid(),
+                    project,
+                    cl_name=cl_name,
+                )
             )
+        except WorkspaceClaimError as exc:
+            return (False, f"Failed to claim workspace: {exc}")
 
         if workspace_suffix:
             print_status(f"Using workspace share: {workspace_suffix}", "progress")

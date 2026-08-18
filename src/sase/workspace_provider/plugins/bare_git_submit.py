@@ -105,9 +105,8 @@ def submit_bare_git(
     from sase.ace.hooks.processes import kill_and_persist_all_running_processes
     from sase.ace.operations import has_active_children
     from sase.running_field import (
-        claim_workspace,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
         release_workspace,
     )
     from sase.vcs_provider import get_vcs_provider
@@ -155,28 +154,20 @@ def submit_bare_git(
     if not workspace_dir:
         return (False, "WORKSPACE_DIR is not set for this project")
 
-    # Claim a workspace from the unified pool (#10+) for the submit operation
-    workspace_num = get_first_available_axe_workspace(patch_file)
     workflow_name = f"submit-{changespec_name}"
-    pid = os.getpid()
-
     try:
-        ws_dir, _ = get_workspace_directory_for_num(workspace_num, project_basename)
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
+        workspace_num, ws_dir, _ = claim_next_axe_workspace_dir(
+            patch_file,
+            workflow_name,
+            os.getpid(),
+            project_basename,
+            cl_name=changespec_name,
+        )
+    except WorkspaceClaimError as exc:
+        return (False, f"Failed to claim workspace: {exc}")
 
     if rich_console:
         rich_console.print(f"[cyan]Claiming workspace #{workspace_num}[/cyan]")
-
-    claim_result = claim_workspace(
-        patch_file, workspace_num, workflow_name, pid, changespec_name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace #{workspace_num}: "
-            f"{claim_result.error or 'unknown reason'}",
-        )
 
     try:
         # Checkout the branch

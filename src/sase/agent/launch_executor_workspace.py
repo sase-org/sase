@@ -137,6 +137,7 @@ def _preclaim_axe_workspace(
     from sase.running_field import (
         claim_next_axe_workspace,
         get_workspace_directory_for_num,
+        release_workspace,
     )
 
     parent_pid = os.getpid()
@@ -147,9 +148,18 @@ def _preclaim_axe_workspace(
         cl_name=context.cl_name or None,
         caller_tag="launcher-preclaim",
     )
-    workspace_dir, _ = get_workspace_directory_for_num(
-        workspace_num, context.project_name
-    )
+    try:
+        workspace_dir, _ = get_workspace_directory_for_num(
+            workspace_num, context.project_name
+        )
+    except Exception:
+        release_workspace(
+            context.project_file,
+            workspace_num,
+            workflow_name,
+            context.cl_name or None,
+        )
+        raise
     return _WorkspacePreClaim(
         project_file=context.project_file,
         workspace_num=workspace_num,

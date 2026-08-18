@@ -16,10 +16,9 @@ from sase.workflows.commit_utils import (
 )
 from sase.output import print_status
 from sase.running_field import (
-    claim_workspace,
+    WorkspaceClaimError,
+    claim_next_axe_workspace_dir,
     get_claimed_workspaces,
-    get_first_available_axe_workspace,
-    get_workspace_directory_for_num,
     release_workspace,
 )
 from sase.vcs_provider import get_vcs_provider
@@ -249,27 +248,19 @@ class AcceptWorkflow(BaseWorkflow):
             ``(accepted_proposals, extra_msgs)`` on success, or
             ``(None, None)`` on failure.
         """
-        # Claim an available workspace
         assert project is not None
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, project
-        )
-
-        # Claim the workspace
-        claim_result = claim_workspace(
-            project_file,
-            workspace_num,
-            "accept",
-            os.getpid(),
-            cl_name,
-        )
-        if not claim_result.success:
-            print_status(
-                f"Error: Failed to claim workspace: "
-                f"{claim_result.error or 'unknown reason'}",
-                "error",
+        try:
+            workspace_num, workspace_dir, workspace_suffix = (
+                claim_next_axe_workspace_dir(
+                    project_file,
+                    "accept",
+                    os.getpid(),
+                    project,
+                    cl_name=cl_name,
+                )
             )
+        except WorkspaceClaimError as exc:
+            print_status(f"Error: Failed to claim workspace: {exc}", "error")
             return None, None
 
         if workspace_suffix:

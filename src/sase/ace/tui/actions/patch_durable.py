@@ -107,21 +107,20 @@ def claim_patch_workspace(
     import os
 
     from sase.running_field import (
-        claim_workspace,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
     )
 
-    workspace_num = get_first_available_axe_workspace(project_file)
     try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+            project_file,
+            workflow,
+            os.getpid(),
+            project_basename,
+            cl_name=name,
         )
-    except RuntimeError as exc:
+    except WorkspaceClaimError as exc:
         return None, str(exc)
-    claimed = claim_workspace(project_file, workspace_num, workflow, os.getpid(), name)
-    if not claimed.success:
-        return None, claimed.error or "failed to claim workspace"
     return workspace_num, workspace_dir
 
 

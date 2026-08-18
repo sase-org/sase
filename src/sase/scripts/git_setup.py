@@ -8,6 +8,7 @@ from sase.running_field import (
     WorkspaceClaimError,
     claim_next_axe_workspace,
     claim_workspace,
+    release_workspace,
 )
 
 
@@ -41,9 +42,6 @@ def main(
         workspace_dir = os.environ["SASE_GIT_WORKSPACE_DIR"]
     elif n is not None:
         workspace_num = n
-        workspace_dir = ensure_workspace_checkout(
-            resolved.primary_workspace_dir, workspace_num
-        )
         claim_result = claim_workspace(
             project_file,
             workspace_num,
@@ -58,6 +56,13 @@ def main(
                 f"{claim_result.error or 'unknown reason'}",
                 workspace_num=workspace_num,
             )
+        try:
+            workspace_dir = ensure_workspace_checkout(
+                resolved.primary_workspace_dir, workspace_num
+            )
+        except Exception:
+            release_workspace(project_file, workspace_num, workflow_name)
+            raise
     else:
         # Atomically find + claim to prevent TOCTOU races where two
         # concurrent processes (e.g. mentors) both see the same workspace

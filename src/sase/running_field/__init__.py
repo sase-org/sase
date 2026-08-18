@@ -38,6 +38,7 @@ from sase.running_field._operations import (
     update_running_field_cl_name,
 )
 from sase.running_field._workspace import (
+    claim_next_axe_workspace_dir,
     get_first_available_axe_workspace,
     get_first_available_workspace,
     get_workspace_directory,
@@ -50,6 +51,7 @@ __all__ = [
     "WorkspaceClaim",
     "WorkspaceClaimError",
     "claim_next_axe_workspace",
+    "claim_next_axe_workspace_dir",
     "claim_workspace",
     "get_claimed_workspaces",
     "get_first_available_axe_workspace",

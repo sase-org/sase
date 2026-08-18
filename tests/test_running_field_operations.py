@@ -12,6 +12,7 @@ from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
     claim_next_axe_workspace,
+    claim_next_axe_workspace_dir,
     claim_workspace,
     get_claimed_workspaces,
     get_first_available_axe_workspace,
@@ -677,3 +678,53 @@ class TestWorkspaceClaimLedger:
             assert record["before"][0]["pid"] == 11111
         finally:
             Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_dir_resolves_after_claim(tmp_path: Path) -> None:
+    """Directory resolution happens only after the atomic claim is held."""
+    project_file = _create_project_file_with_running(tmp_path)
+    try:
+        with patch(
+            "sase.running_field._workspace.get_workspace_directory_for_num",
+            return_value=("/ws/10", "proj_10"),
+        ) as resolve_dir:
+            workspace_num, workspace_dir, suffix = claim_next_axe_workspace_dir(
+                project_file,
+                "spy-foo",
+                12345,
+                "proj",
+                cl_name="foo",
+            )
+
+        assert workspace_num == 10
+        assert workspace_dir == "/ws/10"
+        assert suffix == "proj_10"
+        resolve_dir.assert_called_once_with(10, "proj")
+        claims = get_claimed_workspaces(project_file)
+        assert [claim.workspace_num for claim in claims] == [10]
+    finally:
+        Path(project_file).unlink()
+
+
+def test_claim_next_axe_workspace_dir_releases_on_resolve_failure(
+    tmp_path: Path,
+) -> None:
+    """A materialization failure after claim must free the slot."""
+    project_file = _create_project_file_with_running(tmp_path)
+    try:
+        with patch(
+            "sase.running_field._workspace.get_workspace_directory_for_num",
+            side_effect=RuntimeError("clone failed"),
+        ):
+            with pytest.raises(WorkspaceClaimError, match="clone failed"):
+                claim_next_axe_workspace_dir(
+                    project_file,
+                    "spy-foo",
+                    12345,
+                    "proj",
+                    cl_name="foo",
+                )
+
+        assert get_claimed_workspaces(project_file) == []
+    finally:
+        Path(project_file).unlink()

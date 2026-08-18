@@ -10,7 +10,7 @@ from sase.ace.tui.actions.proposal_rebase import (
     _format_parent_for_timestamp,
     _rebase_task,
 )
-from sase.running_field import ClaimResult
+
 from sase.status_state_machine import update_patch_parent_atomic
 from sase.status_state_machine.field_updates import _apply_parent_update
 
@@ -211,16 +211,12 @@ STATUS: Ready
         lambda workspace, workflow: (True, ""),
     )
     monkeypatch.setattr(
-        "sase.running_field.get_first_available_axe_workspace",
-        lambda project: 7,
-    )
-    monkeypatch.setattr(
-        "sase.running_field.get_workspace_directory_for_num",
-        lambda workspace_num, project_basename: (str(workspace_dir), None),
-    )
-    monkeypatch.setattr(
-        "sase.running_field.claim_workspace",
-        lambda project, workspace_num, workflow, pid, patch: ClaimResult(success=True),
+        "sase.running_field.claim_next_axe_workspace_dir",
+        lambda project, workflow, pid, project_basename, cl_name=None: (
+            7,
+            str(workspace_dir),
+            None,
+        ),
     )
     monkeypatch.setattr(
         "sase.running_field.release_workspace",

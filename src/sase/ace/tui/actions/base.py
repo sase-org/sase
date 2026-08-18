@@ -331,9 +331,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
 
         from sase.running_field import (
-            claim_workspace,
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
+            WorkspaceClaimError,
+            claim_next_axe_workspace_dir,
             release_workspace,
         )
 
@@ -344,26 +343,19 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         cl_name = patch.name
         project_file = patch.file_path
 
-        # Claim workspace before suspend (needed for both prepare and execute)
-        workspace_num = get_first_available_axe_workspace(project_file)
-
-        claim_result = claim_workspace(
-            project_file, workspace_num, "mail", os.getpid(), cl_name
-        )
-        if not claim_result.success:
+        try:
+            workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+                project_file,
+                "mail",
+                os.getpid(),
+                patch.project_basename,
+                cl_name=cl_name,
+            )
+        except WorkspaceClaimError as exc:
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+                f"Failed to claim workspace: {exc}",
                 severity="error",
             )
-            return
-
-        try:
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, patch.project_basename
-            )
-        except RuntimeError as e:
-            release_workspace(project_file, workspace_num, "mail", cl_name)
-            self.notify(f"Failed to get workspace directory: {e}", severity="error")  # type: ignore[attr-defined]
             return
 
         # Interactive phase: checkout + prepare_mail (y/n prompt) in suspend()

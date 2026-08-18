@@ -28,10 +28,11 @@ from .hooks import has_failing_hooks_for_fix
 
 
 def get_workspace_directory(patch: Patch) -> tuple[str, str | None]:
-    """Determine which workspace directory to use for a Patch.
+    """Preview the first unclaimed workspace directory for a Patch.
 
-    Uses the RUNNING field in the ProjectSpec file to track which workspaces
-    are currently in use. Finds the first available (unclaimed) workspace.
+    Read-only: this does not claim the slot. Occupying callers must use
+    ``claim_next_axe_workspace_dir``. Production ACE mutations no longer
+    call this helper.
 
     Args:
         patch: The Patch to determine workspace for

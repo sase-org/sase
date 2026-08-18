@@ -20,7 +20,7 @@ _OK_CLAIM = ClaimResult(success=True)
 _PATCHES = {
     "base_status": "sase.ace.changespec.get_base_status",
     "update_name": "sase.ace.revert.update_changespec_name_atomic",
-    "first_ws": "sase.running_field.get_first_available_axe_workspace",
+    "first_ws": "sase.running_field.claim_next_axe_workspace_dir",
     "ws_dir": "sase.running_field.get_workspace_directory_for_num",
     "running": "sase.running_field.update_running_field_cl_name",
     "parent_refs": "sase.status_state_machine.update_parent_references_atomic",
@@ -71,7 +71,7 @@ def _make_patch(
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["base_status"], return_value="WIP")
 def test_immutable_writes_alias_no_existing(
     _bs: MagicMock,
@@ -122,7 +122,7 @@ def test_immutable_writes_alias_no_existing(
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["base_status"], return_value="WIP")
 def test_immutable_rekeys_existing_alias(
     _bs: MagicMock,
@@ -171,7 +171,7 @@ def test_immutable_rekeys_existing_alias(
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["update_name"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["base_status"], return_value="WIP")
 def test_mutable_renames_and_removes_stale_alias(
     _bs: MagicMock,

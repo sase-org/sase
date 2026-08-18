@@ -8,6 +8,8 @@ a branch alias via branch_map.  When can_rename_branch() == True
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.status_state_machine.suffix import (
     handle_suffix_append,
     handle_suffix_strip,
@@ -17,7 +19,7 @@ from sase.status_state_machine.suffix import (
 # at the source module for each.
 _PATCHES = {
     "update_name": "sase.ace.revert.update_patch_name_atomic",
-    "first_ws": "sase.running_field.get_first_available_axe_workspace",
+    "first_ws": "sase.running_field.claim_next_axe_workspace_dir",
     "ws_dir": "sase.running_field.get_workspace_directory_for_num",
     "running": "sase.running_field.update_running_field_cl_name",
     "parent_refs": "sase.status_state_machine.field_updates.update_parent_references_atomic",
@@ -32,6 +34,12 @@ _PATCHES = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _patch_suffix_release() -> object:
+    with patch("sase.running_field.release_workspace"):
+        yield
+
+
 # === handle_suffix_strip: immutable branch writes alias instead of renaming ===
 
 
@@ -43,7 +51,7 @@ _PATCHES = {
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["update_name"])
 def test_suffix_strip_writes_alias_for_immutable_branch(
     _un: MagicMock,
@@ -80,7 +88,7 @@ def test_suffix_strip_writes_alias_for_immutable_branch(
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["update_name"])
 def test_suffix_strip_renames_for_mutable_branch(
     _un: MagicMock,
@@ -120,7 +128,7 @@ def test_suffix_strip_renames_for_mutable_branch(
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["update_name"])
 def test_suffix_append_rekeys_alias_for_immutable_branch(
     _un: MagicMock,
@@ -157,7 +165,7 @@ def test_suffix_append_rekeys_alias_for_immutable_branch(
 @patch(_PATCHES["running"])
 @patch(_PATCHES["parent_refs"])
 @patch(_PATCHES["ws_dir"], return_value=("/ws", None))
-@patch(_PATCHES["first_ws"], return_value=100)
+@patch(_PATCHES["first_ws"], return_value=(100, "/ws", None))
 @patch(_PATCHES["update_name"])
 def test_suffix_append_renames_for_mutable_branch(
     _un: MagicMock,

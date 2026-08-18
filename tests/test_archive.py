@@ -4,9 +4,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.archive import archive_patch
-from sase.running_field import ClaimResult
-
-_OK_CLAIM = ClaimResult(success=True)
 
 
 def test_archive_patch_fails_without_pr(make_patch) -> None:  # type: ignore[no-untyped-def]
@@ -32,19 +29,7 @@ def test_archive_patch_fails_with_non_terminal_children(make_patch) -> None:  # 
     mock_provider.archive.return_value = (True, None)
 
     with patch("sase.ace.archive.find_all_patches", return_value=[parent, child]):
-        with patch(
-            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
-        ):
-            with patch(
-                "sase.ace.archive.get_workspace_directory_for_num",
-                return_value=("/tmp", None),
-            ):
-                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
-                    with patch(
-                        "sase.ace.archive.get_vcs_provider", return_value=mock_provider
-                    ):
-                        with patch("sase.ace.archive.release_workspace"):
-                            success, error = archive_patch(parent)
+        success, error = archive_patch(parent)
 
     assert success is False
     assert error is not None
@@ -67,38 +52,25 @@ def test_archive_patch_claims_workspace_100_plus(make_patch) -> None:  # type: i
 
     with patch("sase.ace.archive.find_all_patches", return_value=[patch_record]):
         with patch(
-            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
-        ) as mock_get_ws:
-            with patch(
-                "sase.ace.archive.get_workspace_directory_for_num",
-                return_value=("/tmp", None),
-            ):
+            "sase.ace.archive.claim_next_axe_workspace_dir",
+            return_value=(100, "/tmp", None),
+        ) as mock_claim:
+            with patch("sase.ace.archive.get_vcs_provider", return_value=mock_provider):
                 with patch(
-                    "sase.ace.archive.claim_workspace", return_value=_OK_CLAIM
-                ) as mock_claim:
-                    with patch(
-                        "sase.ace.archive.get_vcs_provider", return_value=mock_provider
-                    ):
+                    "sase.ace.archive.save_diff_to_file",
+                    return_value=(True, None),
+                ):
+                    with patch("sase.ace.archive.rename_patch_with_references"):
                         with patch(
-                            "sase.ace.archive.save_diff_to_file",
-                            return_value=(True, None),
+                            "sase.ace.archive.transition_patch_status",
+                            return_value=(True, "Mailed", None, []),
                         ):
-                            with patch("sase.ace.archive.rename_patch_with_references"):
-                                with patch(
-                                    "sase.ace.archive.transition_patch_status",
-                                    return_value=(True, "Mailed", None, []),
-                                ):
-                                    with patch("sase.ace.archive.release_workspace"):
-                                        success, _error = archive_patch(
-                                            patch_record, console
-                                        )
+                            with patch("sase.ace.archive.release_workspace"):
+                                success, _error = archive_patch(patch_record, console)
 
     assert success is True
-    mock_get_ws.assert_called_once_with(patch_record.file_path)
-    # Verify claim_workspace was called with workspace_num >= 100
     mock_claim.assert_called_once()
-    call_args = mock_claim.call_args
-    assert call_args[0][1] == 100  # workspace_num argument
+    assert mock_claim.call_args.args[0] == patch_record.file_path
 
     Path(patch_record.file_path).unlink()
 
@@ -114,22 +86,16 @@ def test_archive_patch_fails_on_archive_error(make_patch) -> None:  # type: igno
 
     with patch("sase.ace.archive.find_all_patches", return_value=[patch_record]):
         with patch(
-            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+            "sase.ace.archive.claim_next_axe_workspace_dir",
+            return_value=(100, "/tmp", None),
         ):
-            with patch(
-                "sase.ace.archive.get_workspace_directory_for_num",
-                return_value=("/tmp", None),
-            ):
-                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
-                    with patch(
-                        "sase.ace.archive.get_vcs_provider", return_value=mock_provider
-                    ):
-                        with patch(
-                            "sase.ace.archive.save_diff_to_file",
-                            return_value=(True, None),
-                        ):
-                            with patch("sase.ace.archive.release_workspace"):
-                                success, error = archive_patch(patch_record)
+            with patch("sase.ace.archive.get_vcs_provider", return_value=mock_provider):
+                with patch(
+                    "sase.ace.archive.save_diff_to_file",
+                    return_value=(True, None),
+                ):
+                    with patch("sase.ace.archive.release_workspace"):
+                        success, error = archive_patch(patch_record)
 
     assert success is False
     assert error is not None
@@ -147,20 +113,12 @@ def test_archive_patch_releases_workspace_on_failure(make_patch) -> None:  # typ
 
     with patch("sase.ace.archive.find_all_patches", return_value=[patch_record]):
         with patch(
-            "sase.ace.archive.get_first_available_axe_workspace", return_value=100
+            "sase.ace.archive.claim_next_axe_workspace_dir",
+            return_value=(100, "/tmp", None),
         ):
-            with patch(
-                "sase.ace.archive.get_workspace_directory_for_num",
-                return_value=("/tmp", None),
-            ):
-                with patch("sase.ace.archive.claim_workspace", return_value=_OK_CLAIM):
-                    with patch(
-                        "sase.ace.archive.get_vcs_provider", return_value=mock_provider
-                    ):
-                        with patch(
-                            "sase.ace.archive.release_workspace"
-                        ) as mock_release:
-                            success, error = archive_patch(patch_record)
+            with patch("sase.ace.archive.get_vcs_provider", return_value=mock_provider):
+                with patch("sase.ace.archive.release_workspace") as mock_release:
+                    success, error = archive_patch(patch_record)
 
     assert success is False
     assert error is not None

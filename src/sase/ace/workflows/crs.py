@@ -18,9 +18,8 @@ from sase.workflows.crs import CrsWorkflow
 from sase.core.paths import shorten_path
 from sase.core.time import generate_timestamp
 from sase.running_field import (
-    claim_workspace,
-    get_first_available_workspace,
-    get_workspace_directory_for_num,
+    WorkspaceClaimError,
+    claim_next_axe_workspace_dir,
     release_workspace,
 )
 
@@ -48,25 +47,16 @@ def run_crs_workflow(
     Returns:
         True if workflow completed successfully, False otherwise
     """
-    # Find first available workspace and claim it
-    workspace_num = get_first_available_workspace(patch.file_path)
-    workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-        workspace_num, patch.project_basename
-    )
-
-    # Claim the workspace FIRST to reserve it before doing any work
-    claim_result = claim_workspace(
-        patch.file_path,
-        workspace_num,
-        "crs",
-        os.getpid(),
-        patch.name,
-    )
-    if not claim_result.success:
-        console.print(
-            "[red]Error: Failed to claim workspace: "
-            f"{claim_result.error or 'unknown reason'}[/red]"
+    try:
+        workspace_num, workspace_dir, workspace_suffix = claim_next_axe_workspace_dir(
+            patch.file_path,
+            "crs",
+            os.getpid(),
+            patch.project_basename,
+            cl_name=patch.name,
         )
+    except WorkspaceClaimError as exc:
+        console.print(f"[red]Error: Failed to claim workspace: {exc}[/red]")
         return False
 
     if workspace_suffix:

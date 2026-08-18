@@ -317,9 +317,10 @@ policy.
 
 Older releases allocated agent workspaces starting at `#1` and special-cased axe at
 `#100`. The current allocator uses one shared pool for every claim source;
-`claim_next_axe_workspace()`, `get_first_available_axe_workspace()`, launch executor
-pre-claims, and `axe` deferred claims all start at `#10` unless a caller passes explicit
-`min_workspace` / `max_workspace` bounds.
+`claim_next_axe_workspace()`, launch executor pre-claims, and `axe` deferred claims all
+start at `#10` unless a caller passes explicit `min_workspace` / `max_workspace` bounds.
+`get_first_available_axe_workspace()` is a read-only selector and is not used to occupy
+a slot.
 
 User-facing checkout suffixes are `<project>_<num>` regardless of root policy. The
 primary checkout retains its `WORKSPACE_DIR` path with no suffix.

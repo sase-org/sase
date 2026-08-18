@@ -19,6 +19,11 @@ def resolve_ref_from_prompt(
     primary workspace directory is returned with workspace_num=0. This is used
     for agents with ``%wait`` directives that should defer workspace claiming
     until their dependencies are resolved.
+
+    Production launchers always pass ``skip_workspace=True`` and let the
+    executor claim atomically. The ``skip_workspace=False`` branch is a
+    read-only preview of the next free number plus a resolved path; it
+    must not be paired with a later ``claim_workspace`` of that number.
     """
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.running_field import get_first_available_axe_workspace

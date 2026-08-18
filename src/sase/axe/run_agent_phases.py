@@ -4,8 +4,11 @@ The implementation is split across focused ``run_agent_*`` modules while this
 module keeps the historical import and patch surface used by callers/tests.
 """
 
+from collections.abc import Callable
 import os
 import sys
+
+from sase.running_field import WorkspaceClaim
 
 from sase.axe.run_agent_directives import (
     AgentInfo,
@@ -39,18 +42,15 @@ def claim_deferred_workspace(
 ) -> tuple[int, str]:
     """Allocate a real workspace after deferred workspace wait completes.
 
-    Releases the placeholder workspace_num=0 claim, allocates a new
-    workspace, sets pre-allocation env vars, and claims the workspace.
+    Releases the placeholder workspace_num=0 claim, then atomically
+    allocates-and-claims a workspace *before* materializing the checkout.
+    A pinned family-attach target is a single-shot claim: an occupied
+    checkout fails the run with the occupant named.
 
     Returns (workspace_num, workspace_dir).
     """
     from sase.agent.launch_executor import workspace_allocation_attempt_limit
-    from sase.running_field import (
-        claim_workspace as claim_ws,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
-        release_workspace,
-    )
+    from sase.running_field import release_workspace
 
     # Release the placeholder workspace_num=0 claim.
     release_workspace(
@@ -72,68 +72,55 @@ def claim_deferred_workspace(
         ws_get_dir = _ws_get_dir
 
     max_attempts = workspace_allocation_attempt_limit()
-    last_error: BaseException | None = None
-    workspace_num = 0
-    workspace_dir = ""
     target_workspace_num = _deferred_target_workspace_num()
     target_workspace_dir = os.environ.get("SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR")
-    for _attempt in range(1, max_attempts + 1):
-        try:
-            workspace_num = target_workspace_num or get_first_available_axe_workspace(
-                project_file
-            )
-            if vcs_wf_type:
-                assert ws_get_dir is not None
-                workspace_dir = ws_get_dir(
-                    vcs_wf_type,
-                    workspace_num,
-                    project_name,
-                    os.getcwd(),
-                )
-            else:
-                workspace_dir = (
-                    target_workspace_dir
-                    if target_workspace_num and target_workspace_dir
-                    else get_workspace_directory_for_num(workspace_num, project_name)[0]
-                )
-
-            claim_result = claim_ws(
-                project_file,
-                workspace_num,
-                workflow_name,
-                os.getpid(),
-                cl_name,
-                artifacts_timestamp=artifacts_timestamp,
-                caller_tag="deferred-claim",
-            )
-            if claim_result.success:
-                if prefix:
-                    os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
-                    os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
-                    os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
-                break
-            last_error = RuntimeError(
-                f"Failed to claim workspace #{workspace_num}: "
-                f"{claim_result.error or 'unknown reason'}"
-            )
-        except RuntimeError as exc:
-            last_error = exc
-            workspace_num = 0
-            workspace_dir = ""
-            break
-    else:
-        workspace_num = 0
-        workspace_dir = ""
-
-    if not workspace_dir or workspace_num == 0:
-        print(
-            "Failed to claim a real workspace after dependencies completed "
-            f"for {project_name}/{cl_name} after {max_attempts} attempts; "
-            "axe workspaces may all be claimed or racing with other launches."
-            + (f" Last error: {last_error}" if last_error else ""),
-            file=sys.stderr,
+    if target_workspace_num is not None:
+        workspace_num, workspace_dir, pinned_error = _claim_pinned_deferred_workspace(
+            project_file=project_file,
+            project_name=project_name,
+            workflow_name=workflow_name,
+            cl_name=cl_name,
+            artifacts_timestamp=artifacts_timestamp,
+            target_workspace_num=target_workspace_num,
+            target_workspace_dir=target_workspace_dir,
+            vcs_wf_type=vcs_wf_type,
+            ws_get_dir=ws_get_dir,
         )
-        sys.exit(1)
+        if not workspace_dir or workspace_num == 0:
+            print(
+                pinned_error
+                or (
+                    f"Pinned workspace #{target_workspace_num} could not be "
+                    f"claimed for {project_name}/{cl_name}."
+                ),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    else:
+        workspace_num, workspace_dir, last_error = _claim_next_deferred_workspace(
+            project_file=project_file,
+            project_name=project_name,
+            workflow_name=workflow_name,
+            cl_name=cl_name,
+            artifacts_timestamp=artifacts_timestamp,
+            max_attempts=max_attempts,
+            vcs_wf_type=vcs_wf_type,
+            ws_get_dir=ws_get_dir,
+        )
+        if not workspace_dir or workspace_num == 0:
+            print(
+                "Failed to claim a real workspace after dependencies completed "
+                f"for {project_name}/{cl_name} after {max_attempts} attempts; "
+                "axe workspaces may all be claimed or racing with other launches."
+                + (f" Last error: {last_error}" if last_error else ""),
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    if prefix:
+        os.environ[f"{prefix}_PRE_ALLOCATED"] = "1"
+        os.environ[f"{prefix}_WORKSPACE_NUM"] = str(workspace_num)
+        os.environ[f"{prefix}_WORKSPACE_DIR"] = workspace_dir
 
     os.chdir(workspace_dir)
     os.environ["SASE_ACTIVE_PROJECT_DIR"] = workspace_dir
@@ -160,6 +147,181 @@ def claim_deferred_workspace(
     )
     print(f"Claimed workspace #{workspace_num}: {workspace_dir}")
     return workspace_num, workspace_dir
+
+
+def _claim_next_deferred_workspace(
+    *,
+    project_file: str,
+    project_name: str,
+    workflow_name: str,
+    cl_name: str,
+    artifacts_timestamp: str,
+    max_attempts: int,
+    vcs_wf_type: str | None,
+    ws_get_dir: Callable[[str, int, str, str], str] | None,
+) -> tuple[int, str, BaseException | None]:
+    """Atomically allocate, then materialize; release the slot if materialize fails."""
+    from sase.running_field import claim_next_axe_workspace, release_workspace
+
+    last_error: BaseException | None = None
+    for _attempt in range(1, max_attempts + 1):
+        claimed_num = 0
+        try:
+            claimed_num = claim_next_axe_workspace(
+                project_file,
+                workflow_name,
+                os.getpid(),
+                cl_name,
+                artifacts_timestamp=artifacts_timestamp,
+                caller_tag="deferred-claim",
+            )
+            workspace_dir = _resolve_deferred_workspace_dir(
+                workspace_num=claimed_num,
+                project_name=project_name,
+                vcs_wf_type=vcs_wf_type,
+                ws_get_dir=ws_get_dir,
+                target_workspace_num=None,
+                target_workspace_dir=None,
+            )
+            return claimed_num, workspace_dir, None
+        except Exception as exc:
+            last_error = exc
+            if claimed_num:
+                release_workspace(
+                    project_file,
+                    claimed_num,
+                    workflow_name,
+                    cl_name,
+                    caller_tag="deferred-claim",
+                )
+    return 0, "", last_error
+
+
+def _claim_pinned_deferred_workspace(
+    *,
+    project_file: str,
+    project_name: str,
+    workflow_name: str,
+    cl_name: str,
+    artifacts_timestamp: str,
+    target_workspace_num: int,
+    target_workspace_dir: str | None,
+    vcs_wf_type: str | None,
+    ws_get_dir: Callable[[str, int, str, str], str] | None,
+) -> tuple[int, str, str | None]:
+    """Claim a family-attach pin once. Occupied checkouts fail with the occupant named."""
+    from sase.running_field import claim_workspace, release_workspace
+
+    claim_result = claim_workspace(
+        project_file,
+        target_workspace_num,
+        workflow_name,
+        os.getpid(),
+        cl_name,
+        artifacts_timestamp=artifacts_timestamp,
+        caller_tag="deferred-claim",
+    )
+    if not claim_result.success:
+        occupant = _describe_workspace_occupant(project_file, target_workspace_num)
+        if occupant is not None:
+            return (
+                0,
+                "",
+                f"Pinned workspace #{target_workspace_num} is already claimed by "
+                f"{occupant}",
+            )
+        return (
+            0,
+            "",
+            f"Pinned workspace #{target_workspace_num} could not be claimed: "
+            f"{claim_result.error or 'unknown reason'}",
+        )
+
+    try:
+        workspace_dir = _resolve_deferred_workspace_dir(
+            workspace_num=target_workspace_num,
+            project_name=project_name,
+            vcs_wf_type=vcs_wf_type,
+            ws_get_dir=ws_get_dir,
+            target_workspace_num=target_workspace_num,
+            target_workspace_dir=target_workspace_dir,
+        )
+    except Exception as exc:
+        release_workspace(
+            project_file,
+            target_workspace_num,
+            workflow_name,
+            cl_name,
+            caller_tag="deferred-claim",
+        )
+        return (
+            0,
+            "",
+            f"Pinned workspace #{target_workspace_num} was claimed but "
+            f"failed to materialize: {exc}",
+        )
+    return target_workspace_num, workspace_dir, None
+
+
+def _resolve_deferred_workspace_dir(
+    *,
+    workspace_num: int,
+    project_name: str,
+    vcs_wf_type: str | None,
+    ws_get_dir: Callable[[str, int, str, str], str] | None,
+    target_workspace_num: int | None,
+    target_workspace_dir: str | None,
+) -> str:
+    from sase.running_field import get_workspace_directory_for_num
+
+    if vcs_wf_type:
+        if ws_get_dir is None:
+            raise RuntimeError(
+                f"VCS workflow type {vcs_wf_type!r} has no workspace directory resolver"
+            )
+        return ws_get_dir(
+            vcs_wf_type,
+            workspace_num,
+            project_name,
+            os.getcwd(),
+        )
+    if target_workspace_num and target_workspace_dir:
+        return target_workspace_dir
+    return get_workspace_directory_for_num(workspace_num, project_name)[0]
+
+
+def _describe_workspace_occupant(project_file: str, workspace_num: int) -> str | None:
+    from sase.running_field import get_claimed_workspaces
+
+    occupants = [
+        claim
+        for claim in get_claimed_workspaces(project_file)
+        if claim.workspace_num == workspace_num
+    ]
+    if not occupants:
+        return None
+    return "; ".join(_format_workspace_occupant(claim) for claim in occupants)
+
+
+def _format_workspace_occupant(claim: WorkspaceClaim) -> str:
+    name = claim.cl_name or claim.workflow
+    liveness = "live" if _pid_is_alive(claim.pid) else "dead"
+    detail = f"{name} (pid {claim.pid}, {liveness}, workflow {claim.workflow}"
+    if claim.artifacts_timestamp:
+        detail += f", artifacts {claim.artifacts_timestamp}"
+    return detail + ")"
+
+
+def _pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _deferred_target_workspace_num() -> int | None:

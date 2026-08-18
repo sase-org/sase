@@ -199,31 +199,22 @@ def add_tag_task(
         Tuple of (success, message).
     """
     from sase.running_field import (
-        claim_workspace,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
         release_workspace,
     )
 
-    workspace_num = get_first_available_axe_workspace(patch_file_path)
     workflow_name = f"add_tag-{patch_name}"
-
     try:
-        workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, workspace_suffix = claim_next_axe_workspace_dir(
+            patch_file_path,
+            workflow_name,
+            os.getpid(),
+            project_basename,
+            cl_name=patch_name,
         )
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
-
-    pid = os.getpid()
-    claim_result = claim_workspace(
-        patch_file_path, workspace_num, workflow_name, pid, patch_name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
-        )
+    except WorkspaceClaimError as e:
+        return (False, f"Failed to claim workspace: {e}")
 
     try:
         if workspace_suffix:
@@ -329,31 +320,22 @@ def reword_execute_task(
         Tuple of (success, message).
     """
     from sase.running_field import (
-        claim_workspace,
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
         release_workspace,
     )
 
-    workspace_num = get_first_available_axe_workspace(patch_file_path)
     workflow_name = "reword"
-
     try:
-        workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, workspace_suffix = claim_next_axe_workspace_dir(
+            patch_file_path,
+            workflow_name,
+            os.getpid(),
+            project_basename,
+            cl_name=patch_name,
         )
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
-
-    pid = os.getpid()
-    claim_result = claim_workspace(
-        patch_file_path, workspace_num, workflow_name, pid, patch_name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
-        )
+    except WorkspaceClaimError as e:
+        return (False, f"Failed to claim workspace: {e}")
 
     try:
         if workspace_suffix:

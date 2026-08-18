@@ -265,8 +265,9 @@ def _run_tag(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
 def _run_mail(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
     from sase.ace.handlers.mail import mail_execute_task
     from sase.running_field import (
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
         claim_workspace,
-        get_first_available_axe_workspace,
         get_workspace_directory_for_num,
         release_workspace,
     )
@@ -275,25 +276,41 @@ def _run_mail(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
     project_file = _project_file(args)
     patch = _load_patch(project_file, args.name)
     workspace_num = request.payload.get("workspace_num")
-    if workspace_num is None:
-        workspace_num = get_first_available_axe_workspace(project_file)
-    workspace_num = int(workspace_num)
     workspace_dir = request.payload.get("workspace_dir")
     settlement_owns_release = bool(request.payload.get("settlement_owns_release", True))
-    if not isinstance(workspace_dir, str) or not workspace_dir:
-        claimed = claim_workspace(
-            project_file, workspace_num, "mail", __import__("os").getpid(), args.name
-        )
-        if not claimed.success:
-            return False, claimed.error or "failed to claim workspace", {}
+    if workspace_num is None:
         try:
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, _project_basename(project_file)
+            workspace_num, resolved_dir, _ = claim_next_axe_workspace_dir(
+                project_file,
+                "mail",
+                __import__("os").getpid(),
+                _project_basename(project_file),
+                cl_name=args.name,
             )
-        except RuntimeError as exc:
-            if not settlement_owns_release:
-                release_workspace(project_file, workspace_num, "mail", args.name)
+        except WorkspaceClaimError as exc:
             return False, str(exc), {}
+        if not isinstance(workspace_dir, str) or not workspace_dir:
+            workspace_dir = resolved_dir
+    else:
+        workspace_num = int(workspace_num)
+        if not isinstance(workspace_dir, str) or not workspace_dir:
+            claimed = claim_workspace(
+                project_file,
+                workspace_num,
+                "mail",
+                __import__("os").getpid(),
+                args.name,
+            )
+            if not claimed.success:
+                return False, claimed.error or "failed to claim workspace", {}
+            try:
+                workspace_dir, _ = get_workspace_directory_for_num(
+                    workspace_num, _project_basename(project_file)
+                )
+            except RuntimeError as exc:
+                if not settlement_owns_release:
+                    release_workspace(project_file, workspace_num, "mail", args.name)
+                return False, str(exc), {}
     success, message = mail_execute_task(
         patch,
         str(workspace_dir),

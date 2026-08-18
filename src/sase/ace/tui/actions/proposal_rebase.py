@@ -44,37 +44,52 @@ def _rebase_task(
 
     from sase.workflows.commit_utils import run_sase_hg_clean
     from sase.running_field import (
+        WorkspaceClaimError,
+        claim_next_axe_workspace_dir,
         claim_workspace,
-        get_first_available_axe_workspace,
         get_workspace_directory_for_num,
         release_workspace,
     )
     from sase.status_state_machine import update_patch_parent_atomic
     from sase.vcs_provider import get_vcs_provider
 
-    if workspace_num is None:
-        workspace_num = get_first_available_axe_workspace(patch_file_path)
-    workspace_num = int(workspace_num)
     workflow_name = f"rebase-{patch_name}"
 
-    if not workspace_dir:
+    if workspace_num is None:
         try:
-            workspace_dir, _ = get_workspace_directory_for_num(
-                workspace_num, project_basename
+            workspace_num, resolved_dir, _ = claim_next_axe_workspace_dir(
+                patch_file_path,
+                workflow_name,
+                os.getpid(),
+                project_basename,
+                cl_name=patch_name,
             )
-        except RuntimeError as e:
-            return (False, f"Failed to get workspace directory: {e}")
-
-    if release:
-        pid = os.getpid()
-        claim_result = claim_workspace(
-            patch_file_path, workspace_num, workflow_name, pid, patch_name
-        )
-        if not claim_result.success:
-            return (
-                False,
-                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+        except WorkspaceClaimError as exc:
+            return (False, f"Failed to claim workspace: {exc}")
+        workspace_dir = workspace_dir or resolved_dir
+    else:
+        workspace_num = int(workspace_num)
+        if release:
+            claim_result = claim_workspace(
+                patch_file_path, workspace_num, workflow_name, os.getpid(), patch_name
             )
+            if not claim_result.success:
+                return (
+                    False,
+                    "Failed to claim workspace: "
+                    f"{claim_result.error or 'unknown reason'}",
+                )
+        if not workspace_dir:
+            try:
+                workspace_dir, _ = get_workspace_directory_for_num(
+                    workspace_num, project_basename
+                )
+            except RuntimeError as e:
+                if release:
+                    release_workspace(
+                        patch_file_path, workspace_num, workflow_name, patch_name
+                    )
+                return (False, f"Failed to get workspace directory: {e}")
 
     try:
         # Clean workspace before switching branches

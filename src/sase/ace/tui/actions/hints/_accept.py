@@ -122,9 +122,8 @@ class AcceptMailMixin(HintMixinBase):
 
         from rich.console import Console
         from sase.running_field import (
-            claim_workspace,
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
+            WorkspaceClaimError,
+            claim_next_axe_workspace_dir,
             release_workspace,
         )
 
@@ -137,25 +136,24 @@ class AcceptMailMixin(HintMixinBase):
             self.notify("Must be Ready status", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Claim a workspace in the 100-199 range
-        workspace_num = get_first_available_axe_workspace(patch.file_path)
-
-        claim_result = claim_workspace(
-            patch.file_path, workspace_num, "mail", os.getpid(), patch.name
-        )
-        if not claim_result.success:
+        try:
+            workspace_num, workspace_dir, workspace_suffix = (
+                claim_next_axe_workspace_dir(
+                    patch.file_path,
+                    "mail",
+                    os.getpid(),
+                    patch.project_basename,
+                    cl_name=patch.name,
+                )
+            )
+        except WorkspaceClaimError as exc:
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+                f"Failed to claim workspace: {exc}",
                 severity="error",
             )
             return
 
         try:
-            # Get workspace directory
-            workspace_dir, workspace_suffix = get_workspace_directory_for_num(
-                workspace_num, patch.project_basename
-            )
-
             if workspace_suffix:
                 self.notify(f"Using workspace: {workspace_suffix}")  # type: ignore[attr-defined]
 

@@ -77,9 +77,8 @@ class RenameMixin:
             new_name: The new name for the Patch.
         """
         from sase.running_field import (
-            claim_workspace,
-            get_first_available_axe_workspace,
-            get_workspace_directory_for_num,
+            WorkspaceClaimError,
+            claim_next_axe_workspace_dir,
             release_workspace,
             update_running_field_cl_name,
         )
@@ -124,28 +123,17 @@ class RenameMixin:
                 except Exception as e:
                     return (False, f"Failed to update spec file: {e}")
 
-            # Get workspace info
-            workspace_num = get_first_available_axe_workspace(patch.file_path)
             workflow_name = f"rename-{old_name}"
-
             try:
-                workspace_dir, _ = get_workspace_directory_for_num(
-                    workspace_num, project_basename
+                workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+                    patch.file_path,
+                    workflow_name,
+                    os.getpid(),
+                    project_basename,
+                    cl_name=old_name,
                 )
-            except RuntimeError as e:
-                return (False, f"Failed to get workspace directory: {e}")
-
-            # Claim workspace
-            pid = os.getpid()
-            claim_result = claim_workspace(
-                patch.file_path, workspace_num, workflow_name, pid, old_name
-            )
-            if not claim_result.success:
-                return (
-                    False,
-                    "Failed to claim workspace: "
-                    f"{claim_result.error or 'unknown reason'}",
-                )
+            except WorkspaceClaimError as exc:
+                return (False, f"Failed to claim workspace: {exc}")
 
             try:
                 # Clean workspace before switching branches

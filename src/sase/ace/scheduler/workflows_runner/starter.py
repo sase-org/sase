@@ -10,9 +10,11 @@ from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
 from sase.running_field import (
-    claim_workspace,
-    get_first_available_axe_workspace,
+    WorkspaceClaimError,
+    claim_next_axe_workspace,
     get_workspace_directory_for_num,
+    release_workspace,
+    transfer_workspace_claim,
 )
 from sase.vcs_provider import get_vcs_provider
 
@@ -117,8 +119,9 @@ def _start_crs_workflow(
 ) -> str | None:
     """Start CRS workflow as a background process.
 
-    Spawns the subprocess first, then claims the workspace with the actual PID.
-    If the claim fails, the subprocess is terminated.
+    Claims the workspace atomically under this process, materializes the
+    checkout, then transfers the claim to the spawned child PID. If spawn
+    or transfer fails, the claim is released and any child is terminated.
 
     Args:
         patch: The Patch to run CRS for.
@@ -136,10 +139,25 @@ def _start_crs_workflow(
 
     project_basename = get_project_basename(patch)
     timestamp = generate_timestamp()
-
-    # Get workspace info (don't claim yet - need subprocess PID first)
-    workspace_num = get_first_available_axe_workspace(patch.file_path)
     workflow_name = f"axe(crs)-{comment_entry.reviewer}-{timestamp}"
+    parent_pid = os.getpid()
+    try:
+        workspace_num = claim_next_axe_workspace(
+            patch.file_path,
+            workflow_name,
+            parent_pid,
+            patch.name,
+            artifacts_timestamp=timestamp,
+        )
+    except WorkspaceClaimError as exc:
+        log(
+            f"Warning: Failed to claim workspace for CRS on {patch.name}: {exc}",
+            "yellow",
+        )
+        return None
+
+    def _release_crs_claim() -> None:
+        release_workspace(patch.file_path, workspace_num, workflow_name, patch.name)
 
     # Detect VCS type and resolve workspace directory accordingly
     primary_dir = parse_workspace_dir(patch.file_path)
@@ -152,6 +170,7 @@ def _start_crs_workflow(
                 f"[WS#{workspace_num}] Warning: WORKSPACE_DIR not set for git project",
                 "yellow",
             )
+            _release_crs_claim()
             return None
         try:
             workspace_dir = ensure_workspace_checkout(primary_dir, workspace_num)
@@ -160,6 +179,7 @@ def _start_crs_workflow(
                 f"[WS#{workspace_num}] Warning: Failed to get git clone workspace: {e}",
                 "yellow",
             )
+            _release_crs_claim()
             return None
 
         # Clean workspace using VCS provider
@@ -183,6 +203,7 @@ def _start_crs_workflow(
                 f"[WS#{workspace_num}] Warning: Failed to get workspace directory: {e}",
                 "yellow",
             )
+            _release_crs_claim()
             return None
 
         if not os.path.isdir(workspace_dir):
@@ -190,6 +211,7 @@ def _start_crs_workflow(
                 f"[WS#{workspace_num}] Warning: Workspace directory not found: {workspace_dir}",
                 "yellow",
             )
+            _release_crs_claim()
             return None
 
         # Clean workspace before switching branches
@@ -213,6 +235,7 @@ def _start_crs_workflow(
             f"{patch.name}: {checkout_err}",
             "yellow",
         )
+        _release_crs_claim()
         return None
 
     # Expand the comments file path (replace ~ with home directory)
@@ -258,20 +281,21 @@ def _start_crs_workflow(
             f"[WS#{workspace_num}] Warning: Failed to start CRS subprocess: {e}",
             "yellow",
         )
+        _release_crs_claim()
         return None
 
-    # Now claim workspace with actual subprocess PID
-    claim_result = claim_workspace(
+    claim_result = transfer_workspace_claim(
         patch.file_path,
         workspace_num,
-        workflow_name,
-        pid,
-        patch.name,
-        artifacts_timestamp=timestamp,
+        from_pid=parent_pid,
+        to_pid=pid,
+        new_workflow=workflow_name,
+        new_artifacts_timestamp=timestamp,
+        cl_name=patch.name,
     )
     if not claim_result.success:
         log(
-            f"[WS#{workspace_num}] Warning: Failed to claim workspace for CRS on "
+            f"[WS#{workspace_num}] Warning: Failed to transfer workspace for CRS on "
             f"{patch.name}: {claim_result.error or 'unknown reason'}, "
             "terminating subprocess",
             "yellow",
@@ -281,6 +305,7 @@ def _start_crs_workflow(
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+        _release_crs_claim()
         return None
 
     # Set timestamp suffix on comment entry to indicate workflow is running

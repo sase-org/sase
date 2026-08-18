@@ -11,9 +11,8 @@ from rich.markup import escape as escape_markup
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from sase.core.paths import sase_subdir
 from sase.running_field import (
-    claim_workspace,
-    get_first_available_axe_workspace,
-    get_workspace_directory_for_num,
+    WorkspaceClaimError,
+    claim_next_axe_workspace_dir,
     release_workspace,
 )
 from sase.status_state_machine import transition_patch_status
@@ -98,30 +97,20 @@ def archive_patch(
 
     project_basename = project_spec_basename(patch.file_path)
 
-    # Claim a workspace from the unified pool (#10+) for the archive operation
-    workspace_num = get_first_available_axe_workspace(patch.file_path)
     workflow_name = f"archive-{patch.name}"
-    pid = os.getpid()
-
     try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+            patch.file_path,
+            workflow_name,
+            os.getpid(),
+            project_basename,
+            cl_name=patch.name,
         )
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
+    except WorkspaceClaimError as exc:
+        return (False, f"Failed to claim workspace: {exc}")
 
     if console:
         console.print(f"[cyan]Claiming workspace #{workspace_num}[/cyan]")
-
-    claim_result = claim_workspace(
-        patch.file_path, workspace_num, workflow_name, pid, patch.name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace #{workspace_num}: "
-            f"{claim_result.error or 'unknown reason'}",
-        )
 
     try:
         # Checkout the Patch branch

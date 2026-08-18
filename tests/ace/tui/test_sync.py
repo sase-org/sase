@@ -29,7 +29,7 @@ def _make_workflow_result(status: str = "success", message: str = "ok") -> Magic
 _PATCH_CLEAN = "sase.ace.tui.actions.sync.run_sase_hg_clean"
 _PATCH_VCS = "sase.ace.tui.actions.sync.get_vcs_provider"
 # Local imports inside _sync_task → patch at the source module
-_PATCH_GET_FIRST = "sase.running_field.get_first_available_axe_workspace"
+_PATCH_CLAIM_NEXT_DIR = "sase.running_field.claim_next_axe_workspace_dir"
 _PATCH_GET_DIR = "sase.running_field.get_workspace_directory_for_num"
 _PATCH_CLAIM = "sase.running_field.claim_workspace"
 _PATCH_RELEASE = "sase.running_field.release_workspace"
@@ -42,7 +42,7 @@ def _patch_running_field():
     from sase.running_field import ClaimResult
 
     with (
-        patch(_PATCH_GET_FIRST, return_value=100) as m_first,
+        patch(_PATCH_CLAIM_NEXT_DIR, return_value=(100, "/ws/100", None)) as m_first,
         patch(_PATCH_GET_DIR, return_value=("/ws/100", None)) as m_dir,
         patch(_PATCH_CLAIM, return_value=ClaimResult(success=True)) as m_claim,
         patch(_PATCH_RELEASE) as m_release,
@@ -111,17 +111,21 @@ class TestSyncTaskSuccess:
 
 class TestSyncTaskFailure:
     def test_returns_failure_on_workspace_dir_error(self, _patch_running_field) -> None:
-        _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")
+        from sase.running_field import WorkspaceClaimError
+
+        _patch_running_field["get_first"].side_effect = WorkspaceClaimError(
+            "Claimed workspace #100 but failed to resolve its directory: no dir"
+        )
         success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
         assert success is False
-        assert "Failed to get workspace directory" in message
+        assert "Failed to claim workspace" in message
 
     def test_returns_failure_on_claim_failure(self, _patch_running_field) -> None:
-        from sase.running_field import ClaimResult
+        from sase.running_field import WorkspaceClaimError
 
-        _patch_running_field["claim"].return_value = ClaimResult(
-            success=False, error="claim rejected"
+        _patch_running_field["get_first"].side_effect = WorkspaceClaimError(
+            "claim rejected"
         )
         success, message = _sync_task("CL-1", "/proj.sase", "proj")
 
@@ -212,9 +216,12 @@ class TestSyncTaskWorkspaceLifecycle:
         _patch_running_field["release"].assert_called_once()
 
     def test_workspace_not_released_on_dir_error(self, _patch_running_field) -> None:
-        """Workspace is not claimed if get_workspace_directory_for_num fails,
-        so release should not be called."""
-        _patch_running_field["get_dir"].side_effect = RuntimeError("no dir")
+        """A failed atomic allocate-and-resolve must not leak a caller-side release."""
+        from sase.running_field import WorkspaceClaimError
+
+        _patch_running_field["get_first"].side_effect = WorkspaceClaimError(
+            "Claimed workspace #100 but failed to resolve its directory: no dir"
+        )
         _sync_task("CL-1", "/proj.sase", "proj")
 
         _patch_running_field["release"].assert_not_called()
@@ -222,10 +229,10 @@ class TestSyncTaskWorkspaceLifecycle:
     def test_workspace_not_released_on_claim_failure(
         self, _patch_running_field
     ) -> None:
-        from sase.running_field import ClaimResult
+        from sase.running_field import WorkspaceClaimError
 
-        _patch_running_field["claim"].return_value = ClaimResult(
-            success=False, error="claim rejected"
+        _patch_running_field["get_first"].side_effect = WorkspaceClaimError(
+            "claim rejected"
         )
         _sync_task("CL-1", "/proj.sase", "proj")
 

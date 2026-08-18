@@ -1,6 +1,7 @@
 """Suffix strip/append logic for status transitions."""
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -90,8 +91,8 @@ def handle_suffix_strip(
     from sase.ace.revert import update_patch_name_atomic
     from sase.core.branch_map import remove_branch_alias, write_branch_alias
     from sase.running_field import (
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        claim_next_axe_workspace_dir,
+        release_workspace,
         update_running_field_cl_name,
     )
 
@@ -102,11 +103,14 @@ def handle_suffix_strip(
 
     # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem
+    workspace_num: int | None = None
     try:
-        # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+            project_file,
+            "suffix-strip",
+            os.getpid(),
+            project_basename,
+            cl_name=base_name,
         )
 
         provider = get_vcs_provider(workspace_dir)
@@ -136,6 +140,9 @@ def handle_suffix_strip(
                 remove_branch_alias(project_basename, base_name)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
+    finally:
+        if workspace_num is not None:
+            release_workspace(project_file, workspace_num, "suffix-strip", base_name)
 
     # Update PARENT references in other Patches
     update_parent_references_atomic(project_file, suffixed_name, base_name)
@@ -166,8 +173,8 @@ def handle_suffix_append(
         write_branch_alias,
     )
     from sase.running_field import (
-        get_first_available_axe_workspace,
-        get_workspace_directory_for_num,
+        claim_next_axe_workspace_dir,
+        release_workspace,
         update_running_field_cl_name,
     )
 
@@ -178,11 +185,14 @@ def handle_suffix_append(
 
     # Rename the Patch branch in git to match the new name
     project_basename = Path(project_file).stem
+    workspace_num: int | None = None
     try:
-        # Use a non-primary workspace (>=100) to avoid disrupting the main workspace
-        workspace_num = get_first_available_axe_workspace(project_file)
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
+        workspace_num, workspace_dir, _ = claim_next_axe_workspace_dir(
+            project_file,
+            "suffix-append",
+            os.getpid(),
+            project_basename,
+            cl_name=suffixed_name,
         )
 
         provider = get_vcs_provider(workspace_dir)
@@ -225,6 +235,11 @@ def handle_suffix_append(
                 remove_branch_alias(project_basename, suffixed_name)
     except RuntimeError as e:
         logger.warning(f"Could not get workspace directory: {e}")
+    finally:
+        if workspace_num is not None:
+            release_workspace(
+                project_file, workspace_num, "suffix-append", suffixed_name
+            )
 
     # Update PARENT references in other Patches
     update_parent_references_atomic(project_file, base_name, suffixed_name)

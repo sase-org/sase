@@ -11,9 +11,9 @@ from sase.workflows.commit_utils import (
     run_sase_hg_clean,
 )
 from sase.running_field import (
-    claim_workspace,
+    WorkspaceClaimError,
+    claim_next_axe_workspace,
     get_claimed_workspaces,
-    get_first_available_axe_workspace,
     get_workspace_directory_for_num,
     release_workspace,
 )
@@ -284,22 +284,18 @@ def _start_stale_hooks_for_proposal(
         workspace_num = existing_workspace
         newly_claimed = False
     else:
-        # Claim a single workspace for ALL hooks of this proposal
-        workspace_num = get_first_available_axe_workspace(patch.file_path)
         newly_claimed = True
-
-        claim_result = claim_workspace(
-            patch.file_path,
-            workspace_num,
-            proposal_workflow,
-            os.getpid(),
-            patch.name,
-        )
-        if not claim_result.success:
+        try:
+            workspace_num = claim_next_axe_workspace(
+                patch.file_path,
+                proposal_workflow,
+                os.getpid(),
+                patch.name,
+            )
+        except WorkspaceClaimError as exc:
             log(
-                f"[WS#{workspace_num}] Warning: Failed to claim workspace for proposal "
-                f"{entry_id} on {patch.name}: "
-                f"{claim_result.error or 'unknown reason'}",
+                f"Warning: Failed to claim workspace for proposal "
+                f"{entry_id} on {patch.name}: {exc}",
                 "yellow",
             )
             return updates, started_hooks, limited_count
@@ -535,21 +531,17 @@ def _start_stale_hooks_shared_workspace(
         workspace_num = existing_workspace
         newly_claimed = False
     else:
-        # Claim a new workspace from the unified pool (#10+)
-        workspace_num = get_first_available_axe_workspace(patch.file_path)
         newly_claimed = True
-
-        claim_result = claim_workspace(
-            patch.file_path,
-            workspace_num,
-            entry_workflow,
-            os.getpid(),
-            patch.name,
-        )
-        if not claim_result.success:
+        try:
+            workspace_num = claim_next_axe_workspace(
+                patch.file_path,
+                entry_workflow,
+                os.getpid(),
+                patch.name,
+            )
+        except WorkspaceClaimError as exc:
             log(
-                f"[WS#{workspace_num}] Warning: Failed to claim workspace for hooks on "
-                f"{patch.name}: {claim_result.error or 'unknown reason'}",
+                f"Warning: Failed to claim workspace for hooks on {patch.name}: {exc}",
                 "yellow",
             )
             return updates, started_hooks, limited_count
