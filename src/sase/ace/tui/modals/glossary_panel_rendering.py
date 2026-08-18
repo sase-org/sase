@@ -178,7 +178,9 @@ def build_panel_footer(
             parts.append(f"→ {focused_relation_term}")
     if has_trail:
         parts.append(f"{key_display_name(keymaps.travel_back)} back")
+    parts.append(f"{key_display_name(keymaps.add_term)} add")
     if has_entries:
+        parts.append(f"{key_display_name(keymaps.delete_term)} delete")
         parts.append(f"{key_display_name(keymaps.copy_definition)} copy")
     if has_source_path:
         parts.append(f"{key_display_name(keymaps.open_source)} edit")

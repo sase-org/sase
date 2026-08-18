@@ -4,9 +4,8 @@ Beyond the modal shell (header, alphabetical term list, filter, `p`/`P`
 project cycling), this module renders the definition card's numbered SEE
 ALSO / REFERENCED BY relation chips and implements the second navigation
 axis: the chip cursor, digit shortcuts, follow/back travel, and the bounded
-breadcrumb trail. Actions the later actions phase implements (add, delete)
-are declared here as stubs so the keymap surface -- ``GlossaryPanelKeymaps``
-and this screen's bindings -- is settled once.
+breadcrumb trail. Add/delete live in
+:mod:`sase.ace.tui.modals.glossary_panel_actions`.
 """
 
 from __future__ import annotations
@@ -44,6 +43,7 @@ from sase.glossary.text_filter import filter_glossary_entries
 
 from .base import CopyModeForwardingMixin, FilterInput
 from ._source_file_actions import SourceFileActionsMixin
+from .glossary_panel_actions import GlossaryPanelActionsMixin
 from .glossary_panel_help_modal import GlossaryPanelHelpModal
 from .glossary_panel_load import (
     GlossaryPanelInitialLoad,
@@ -95,6 +95,7 @@ class _GlossaryFilterInput(FilterInput):
 class GlossaryPanel(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
+    GlossaryPanelActionsMixin,
     ModalScreen[None],
 ):
     """Browse one project's glossary terms, alphabetically, with a filter."""
@@ -147,6 +148,9 @@ class GlossaryPanel(
         self._chip_outbound_count = 0
         self._chip_cursor: int | None = None
         self._trail: list[str] = []
+        self._write_busy = False
+        self._pending_delete_term: str | None = None
+        self._pending_delete_neighbor: str | None = None
 
     def compose(self) -> ComposeResult:
         self._accent = glossary_card_accent(self.app.current_theme)
@@ -698,14 +702,6 @@ class GlossaryPanel(
                 self._refresh_relations_for_current_entry()
                 return True
         return False
-
-    # --- stubs: implemented by the actions phase ------------------------
-
-    def action_add_term(self) -> None:
-        """Stub: the add form arrives in the actions phase."""
-
-    def action_delete_term(self) -> None:
-        """Stub: the delete confirmation arrives in the actions phase."""
 
 
 __all__ = ["GlossaryPanel"]

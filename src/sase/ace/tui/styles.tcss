@@ -5343,6 +5343,57 @@ RepoPreviewModal #repo-preview-footer {
     text-overflow: ellipsis;
 }
 
+/* ===== Glossary Term Add Modal ===== */
+
+GlossaryTermAddModal {
+    align: center middle;
+}
+
+GlossaryTermAddModal #glossary-add-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+GlossaryTermAddModal #glossary-add-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+GlossaryTermAddModal .glossary-add-label {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+GlossaryTermAddModal #glossary-add-term,
+GlossaryTermAddModal #glossary-add-aliases {
+    height: 3;
+    border: tall $secondary;
+}
+
+GlossaryTermAddModal #glossary-add-definition {
+    height: 10;
+    min-height: 6;
+    border: tall $secondary;
+}
+
+GlossaryTermAddModal .glossary-add-error {
+    height: auto;
+    color: #ff5f5f;
+}
+
+GlossaryTermAddModal #glossary-add-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+}
+
 /* ===== Notification Report Modal Styling ===== */
 
 ReportModal {
