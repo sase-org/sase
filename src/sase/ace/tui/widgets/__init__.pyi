@@ -46,6 +46,9 @@ from .changespec_onboarding import (
 )  # legacy compatibility alias
 from .artifacts.commits import CommitsPane as CommitsPane
 from .artifacts.commits import CommitsTimeline as CommitsTimeline
+from .current_project_indicator import (
+    CurrentProjectIndicator as CurrentProjectIndicator,
+)
 from .file_panel import FileLineCountChanged as FileLineCountChanged
 from .artifacts.types import FilesSubTab as FilesSubTab
 from .hint_input_bar import HintInputBar as HintInputBar

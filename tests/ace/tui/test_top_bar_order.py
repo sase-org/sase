@@ -5,16 +5,21 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
+import sase.ace.tui.widgets.current_project_indicator as current_project_indicator
 import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
+from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
+    CurrentProjectIndicator,
     LLMOverrideIndicator,
     ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
 )
+from sase.ace.tui.widgets.current_project_indicator import _CurrentProjectSnapshot
+from sase.current_project import CurrentProject
 from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
@@ -26,8 +31,12 @@ from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERS
 # spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
 # widget after it forms that cluster. The updates badge must sit immediately to
 # the left of the model (LLM override) indicator; the non-default override pill
-# sits just right of it so the two override indicators read as a pair. Pinning
-# the whole order keeps future reorders intentional.
+# sits just right of it so the two override indicators read as a pair. The
+# current-project chip mounts immediately after the provider-disables pill:
+# both intervening override/disable pills render empty (zero width) in the
+# normal case, so the chip sits visually flush against the model indicator
+# without splitting the tested override pairing. Pinning the whole order keeps
+# future reorders intentional.
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
     "proc-indicator",
@@ -37,6 +46,7 @@ EXPECTED_TOP_BAR_ORDER = [
     "llm-override-indicator",
     "alias-overrides-indicator",
     "provider-disables-indicator",
+    "current-project-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",
 ]
@@ -69,6 +79,34 @@ def _disable(provider: str) -> TemporaryProviderDisable:
     )
 
 
+def _current_project() -> CurrentProject:
+    return CurrentProject(
+        project_key="gh_sase-org__sase",
+        display_name="sase",
+        origin="project",
+        origin_ref="sase",
+        workflow_type="gh",
+    )
+
+
+def _paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
+    """Force the current-project chip visible for narrow-terminal bounds tests."""
+
+    project = _current_project()
+    indicator = page.app.query_one(
+        "#current-project-indicator",
+        CurrentProjectIndicator,
+    )
+    indicator._cached_snapshot = _CurrentProjectSnapshot(
+        project=project,
+        accent=project_accent(project.project_key, among=(project.project_key,)),
+    )
+    indicator._cached_token = ("bounds-test",)
+    indicator._cached_failed = False
+    indicator._apply_content()
+    return indicator
+
+
 async def test_top_bar_places_updates_indicator_left_of_model() -> None:
     async with AcePage() as page:
         top_bar = page.query_one_widget("#top-bar")
@@ -88,6 +126,16 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         "get_cached_update_status",
         lambda **_kwargs: None,
     )
+    monkeypatch.setattr(
+        current_project_indicator,
+        "resolve_current_project",
+        lambda **_kwargs: _current_project(),
+    )
+    monkeypatch.setattr(
+        current_project_indicator,
+        "_enabled_project_keys",
+        lambda: (_current_project().project_key,),
+    )
     async with AcePage(size=(80, 30)) as page:
         top_bar = page.query_one_widget("#top-bar")
         indicator = page.app.query_one(
@@ -95,10 +143,12 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
             UpdatesAvailableIndicator,
         )
         indicator.set_available(3, core=True, agent_cli_count=2)
+        project_indicator = _paint_current_project_chip(page)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
         assert indicator.render().plain == " ↑ 3 * CLI ↑ 2 "
+        assert project_indicator.render().plain == " +sase "
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0
         ]
@@ -133,6 +183,16 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         "peek_active_provider_disables",
         lambda: {"claude": _disable("claude")},
     )
+    monkeypatch.setattr(
+        current_project_indicator,
+        "resolve_current_project",
+        lambda **_kwargs: _current_project(),
+    )
+    monkeypatch.setattr(
+        current_project_indicator,
+        "_enabled_project_keys",
+        lambda: (_current_project().project_key,),
+    )
 
     async with AcePage(size=(80, 30)) as page:
         top_bar = page.query_one_widget("#top-bar")
@@ -148,12 +208,14 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
             "#provider-disables-indicator",
             ProviderDisablesIndicator,
         )
+        project_indicator = _paint_current_project_chip(page)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
         assert alias_indicator.render().plain == " @medium@max ∞ "
         assert provider_indicator.render().plain == " CLAUDE off ∞ "
+        assert project_indicator.render().plain == " +sase "
         visible_children = [
             child for child in top_bar.children if child.region.width > 0
         ]

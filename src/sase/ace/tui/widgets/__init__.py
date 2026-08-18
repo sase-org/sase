@@ -53,6 +53,10 @@ _LAZY_EXPORTS = {
     ),
     "CommitsPane": (".artifacts.commits", "CommitsPane"),
     "CommitsTimeline": (".artifacts.commits", "CommitsTimeline"),
+    "CurrentProjectIndicator": (
+        ".current_project_indicator",
+        "CurrentProjectIndicator",
+    ),
     "FileLineCountChanged": (".file_panel", "FileLineCountChanged"),
     "FilesSubTab": (".artifacts.types", "FilesSubTab"),
     "HintInputBar": (".hint_input_bar", "HintInputBar"),
@@ -130,6 +134,7 @@ __all__ = [
     "ArtifactsView",
     "CommitsPane",
     "CommitsTimeline",
+    "CurrentProjectIndicator",
     "BgCmdList",
     "PatchDetail",
     "PatchFilterBar",

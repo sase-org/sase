@@ -22,6 +22,7 @@ from .widgets import (
     AxeDashboard,
     AxeInfoPanel,
     BgCmdList,
+    CurrentProjectIndicator,
     KeybindingFooter,
     LLMOverrideIndicator,
     MonitorIndicator,
@@ -71,6 +72,7 @@ class AppLayoutMixin:
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
             yield ProviderDisablesIndicator(id="provider-disables-indicator")
+            yield CurrentProjectIndicator(id="current-project-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):

@@ -45,6 +45,11 @@
     content-align: right middle;
 }
 
+#current-project-indicator {
+    width: auto;
+    content-align: right middle;
+}
+
 #notification-indicator {
     width: auto;
     content-align: right middle;
