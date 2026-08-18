@@ -167,6 +167,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase project current`                       | Show the current project derived from the VCS xprompt MRU, colored by project accent; `--json` for machine-readable output.       | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                                                    | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project enable` / `disable`            | Apply the normal user-facing `PROJECT_STATE` transitions under lock.                                                              | [Project lifecycle](project_spec.md#project-lifecycle)            |
+| `sase project set-current`                   | Promote a project to the VCS xprompt MRU head, making it current; `--json` for machine-readable output.                           | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project set-state`                     | Set a lifecycle or internal backing state under the ProjectSpec lock.                                                             | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                                                         | [Project names](project_spec.md#project-names-and-aliases)        |
 | `sase plan` / `sase plan list`               | Show pending proposals, recent approvals, and inferred rejected archived proposals.                                               | [XPrompt directives](xprompt.md#plan-directive)                   |
@@ -188,19 +189,20 @@ artifacts.
 enabled true projects. `sase project current` prints the current project derived from
 the VCS xprompt MRU head — the project name in that project's accent color, its
 canonical directory key, whether it came from a project ref or a Patch, and the MRU ref
-that produced it. Launch an agent on a project (or on a Patch owned by that project) to
-change it; there is no separate set command. When nothing resolves, the command explains
-that and exits 0. Use `sase project list --state all --json` to inspect disabled
-projects and internal `sibling` backing records, `sase project disable <project>` to
-hide a dormant project from default launch views, and `sase project enable <project>` to
-make it launchable again. Disabling refuses projects with live `RUNNING` claims or
-active artifact markers unless `--force` is passed. Legacy active/inactive values and
-the deprecated lifecycle command aliases remain read-compatible. ACE's **Projects** tab
-(in the SASE Admin Center, opened with `#`) provides the interactive counterpart,
-including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting
-obsolete SASE project directories after confirmation. There is no CLI delete subcommand;
-full project-directory deletion is only available from ACE's Projects tab and removes
-state under `~/.sase/projects/`, not workspace checkouts.
+that produced it. Launch an agent on a project (or on a Patch owned by that project), or
+run `sase project set-current`, to change it — ACE binds the same operation in the
+Projects tab. When nothing resolves, the command explains that and exits 0. Use
+`sase project list --state all --json` to inspect disabled projects and internal
+`sibling` backing records, `sase project disable <project>` to hide a dormant project
+from default launch views, and `sase project enable <project>` to make it launchable
+again. Disabling refuses projects with live `RUNNING` claims or active artifact markers
+unless `--force` is passed. Legacy active/inactive values and the deprecated lifecycle
+command aliases remain read-compatible. ACE's **Projects** tab (in the SASE Admin
+Center, opened with `#`) provides the interactive counterpart, including marking
+multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE
+project directories after confirmation. There is no CLI delete subcommand; full
+project-directory deletion is only available from ACE's Projects tab and removes state
+under `~/.sase/projects/`, not workspace checkouts.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. The ACE Projects

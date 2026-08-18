@@ -30,7 +30,12 @@ from sase.core.project_lifecycle_wire import (
     normalize_project_lifecycle_state_filter,
     project_lifecycle_wire_to_json_dict,
 )
-from sase.current_project import CurrentProject, resolve_current_project
+from sase.current_project import (
+    CurrentProject,
+    SetCurrentProjectOutcome,
+    resolve_current_project,
+    set_current_project,
+)
 from sase.project_aliases import (
     ProjectAliasError,
     add_project_alias_locked as _add_project_alias_locked,
@@ -41,8 +46,11 @@ from sase.project_aliases import (
 )
 
 _NO_CURRENT_PROJECT_MESSAGE = (
-    "No current project.\nLaunch an agent on a project to make it current."
+    "No current project.\n"
+    "Launch an agent on a project, or run `sase project set-current`, "
+    "to make it current."
 )
+_SET_CURRENT_SUCCESS = frozenset({"set", "unchanged"})
 
 _ALL_STATES = tuple(PROJECT_LIFECYCLE_STATES)
 _LIVE_ARTIFACT_MARKERS = ("running.json", "waiting.json", "pending_question.json")
@@ -633,18 +641,53 @@ def _handle_current(args: argparse.Namespace) -> int:
     return 0
 
 
+def _set_current_json_payload(
+    outcome: SetCurrentProjectOutcome,
+) -> dict[str, object]:
+    return {
+        "message": outcome.message,
+        "project": (
+            None if outcome.project is None else _current_json_payload(outcome.project)
+        ),
+        "status": outcome.status,
+    }
+
+
+def _handle_set_current(args: argparse.Namespace) -> int:
+    try:
+        outcome: SetCurrentProjectOutcome = set_current_project(str(args.project))
+    except (OSError, ValueError, ImportError, AttributeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    success = outcome.status in _SET_CURRENT_SUCCESS
+    if args.json:
+        print(json.dumps(_set_current_json_payload(outcome), indent=2, sort_keys=True))
+        return 0 if success else 1
+
+    if not success:
+        print(outcome.message, file=sys.stderr)
+        return 1
+
+    print(outcome.message)
+    if outcome.project is not None:
+        _print_current_human(outcome.project)
+    return 0
+
+
 _HANDLERS = {
-    "alias": _handle_alias,
-    "current": _handle_current,
-    "list": _handle_list,
-    "show": _handle_show,
-    "set-state": _handle_set_state,
-    "disable": _handle_disable,
-    "enable": _handle_enable,
     "activate": _handle_activate,
-    "deactivate": _handle_deactivate,
+    "alias": _handle_alias,
     "archive": _handle_archive,
     "close": _handle_close,
+    "current": _handle_current,
+    "deactivate": _handle_deactivate,
+    "disable": _handle_disable,
+    "enable": _handle_enable,
+    "list": _handle_list,
+    "set-current": _handle_set_current,
+    "set-state": _handle_set_state,
+    "show": _handle_show,
 }
 
 
@@ -654,7 +697,8 @@ def handle_project_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase project {alias,current,disable,enable,list,set-state,show}",
+            "Usage: sase project "
+            "{alias,current,disable,enable,list,set-current,set-state,show}",
             file=sys.stderr,
         )
         sys.exit(2)

@@ -3412,8 +3412,8 @@ the `origin:` query property.
 ## Current project
 
 ACE has one **current project**: the project you last launched an agent on, derived from
-the head of the VCS xprompt MRU store. There is no separate "set current project"
-command — launching an agent is what moves it. Click the top-bar `+<project>` chip to
+the head of the VCS xprompt MRU store. `sase project set-current` and the Projects tab
+perform the same MRU promotion without a launch. Click the top-bar `+<project>` chip to
 open the `+` launch picker, which is the surface that actually records that launch.
 
 The chip sits immediately after the provider-disables pill. It renders as a boxed

@@ -16772,6 +16772,55 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "9b20b3ed5df4ce62",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "set-current",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "project",
+              "set-current"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "project",
+                "is_remainder": false,
+                "kind": "project",
+                "metavar": "project",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "fc16c49c85086156",
             "hidden": false,
             "mutex_groups": [],

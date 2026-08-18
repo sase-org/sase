@@ -100,7 +100,8 @@ class TestProjectCurrent:
         assert exc.value.code == 0
         out = capsys.readouterr().out
         assert "No current project." in out
-        assert "Launch an agent on a project to make it current." in out
+        assert "Launch an agent on a project" in out
+        assert "sase project set-current" in out
 
     def test_json_shape_for_resolved_project(
         self,

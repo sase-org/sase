@@ -828,8 +828,8 @@ queueing, or the `,U` cached-integration leg. See
 #### `ace.current_project`
 
 The current project is derived from the head of the VCS xprompt MRU store — the project
-you last launched an agent on. There is no separate "set current project" command;
-launching an agent is what moves it.
+you last launched an agent on. `sase project set-current` and the Projects tab perform
+the same MRU promotion without a launch.
 
 | Field               | Type | Default | Description                                                                                                 |
 | ------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------- |

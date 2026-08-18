@@ -103,19 +103,37 @@ def test_project_current_help_documents_resolution_and_json() -> None:
     project_parser = parser_for(("sase", "project"))
     current_help = flat_help(parser_for(("sase", "project", "current")).format_help())
 
+    expected = {
+        "alias",
+        "current",
+        "disable",
+        "enable",
+        "list",
+        "set-current",
+        "set-state",
+        "show",
+    }
     assert (
-        "{alias,current,disable,enable,list,set-state,show}"
+        "{alias,current,disable,enable,list,set-current,set-state,show}"
         in project_parser.format_help()
     )
-    assert "current" in help_subcommand_rows(
-        project_parser.format_help(),
-        {"alias", "current", "disable", "enable", "list", "set-state", "show"},
-    )
+    assert "current" in help_subcommand_rows(project_parser.format_help(), expected)
     assert "-j, --json" in current_help
     assert "current project" in current_help
     assert "VCS xprompt MRU" in current_help
     assert "Launch an agent" in current_help
+    assert "sase project set-current" in current_help
+    assert "no separate set command" not in current_help
     assert "sase project current --json" in current_help
+
+
+def test_project_set_current_help_documents_project_and_json() -> None:
+    set_help = flat_help(parser_for(("sase", "project", "set-current")).format_help())
+
+    assert "-j, --json" in set_help
+    assert "VCS xprompt MRU" in set_help
+    assert "sase project set-current sase --json" in set_help
+    assert "enabled and launchable" in set_help
 
 
 def test_agent_show_takes_name_positionally(

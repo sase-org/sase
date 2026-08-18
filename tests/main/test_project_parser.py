@@ -52,6 +52,13 @@ class TestProjectParser:
         assert ns.project_subcommand == "current"
         assert ns.json is True
 
+    def test_set_current_json_option(self) -> None:
+        ns = parse_sase_args(["project", "set-current", "demo", "-j"])
+
+        assert ns.project_subcommand == "set-current"
+        assert ns.project == "demo"
+        assert ns.json is True
+
     def test_alias_list_defaults(self) -> None:
         ns = parse_sase_args(["project", "alias"])
 

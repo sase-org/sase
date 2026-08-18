@@ -31,7 +31,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{alias,current,disable,enable,list,set-state,show}",
+        metavar="{alias,current,disable,enable,list,set-current,set-state,show}",
     )
 
     alias_parser = project_sub.add_parser(
@@ -86,8 +86,10 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
             "resolves to an enabled SASE project.\n\n"
             "The current project is a pure read of the VCS xprompt MRU store "
             "(~/.sase/vcs_xprompt_mru.json). Launch an agent on a project, or "
-            "on a Patch owned by that project, to make it current. There is "
-            "no separate set command.\n\n"
+            "on a Patch owned by that project, to make it current. "
+            "`sase project set-current` performs the same MRU promotion "
+            "without a launch, and ACE binds that operation in the Projects "
+            "tab.\n\n"
             "Human output colors the project name with that project's accent "
             "and reports the canonical directory key, the origin (project or "
             "patch, naming the Patch when applicable), and the MRU ref that "
@@ -130,6 +132,38 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Lifecycle state to include (default: enabled)",
     )
     list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+
+    set_current_parser = project_sub.add_parser(
+        "set-current",
+        help="Set the current project by promoting it in the VCS xprompt MRU",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Make PROJECT the current project by promoting it to the head of "
+            "the VCS xprompt MRU store (~/.sase/vcs_xprompt_mru.json).\n\n"
+            "This is the same write a launch on that project performs. The "
+            "project must be enabled and launchable. ACE binds the same "
+            "operation in the Projects tab.\n\n"
+            "Human output prints a one-line result, then the same project "
+            "detail as `sase project current`. --json emits status, message, "
+            "and the project payload (or null). Exits 0 when the project is "
+            "current (set or already current) and 1 when it is not."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase project set-current sase\n"
+            "  sase project set-current sase --json"
+        ),
+    )
+    set_current_parser.add_argument(
+        "project",
+        help="Project name, alias, or directory key",
+    )
+    set_current_parser.add_argument(
         "-j",
         "--json",
         action="store_true",

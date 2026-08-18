@@ -1,9 +1,13 @@
 """Current project derived from the VCS xprompt MRU store.
 
-The current project is a pure read of ``~/.sase/vcs_xprompt_mru.json``: this
-module adds no second store and no write path. Walk the MRU head-first,
-skip structural refs and disabled projects, and map a project ref or Patch
-name onto one enabled project.
+The current project is the first VCS xprompt MRU entry that resolves to an
+enabled project. This module reads ``~/.sase/vcs_xprompt_mru.json`` and
+exposes one write path, :func:`set_current_project`, which promotes a
+project through :func:`sase.history.vcs_xprompt_mru.record_vcs_xprompt_usage`
+— the same store a launch writes, not a second pin file.
+
+Walk the MRU head-first, skip structural refs and disabled projects, and
+map a project ref or Patch name onto one enabled project.
 
 ``peek_current_project_change_token`` is the cheap poller question — "might
 the current project have changed?" — using only ``os.stat`` and the
@@ -60,6 +64,15 @@ class CurrentProject:
     workflow_type: str
 
 
+@dataclass(frozen=True, slots=True)
+class SetCurrentProjectOutcome:
+    """Result of attempting to promote a project to the MRU head."""
+
+    status: Literal["set", "unchanged", "ineligible", "unverified"]
+    project: CurrentProject | None
+    message: str
+
+
 def peek_current_project_change_token() -> tuple[object, ...]:
     """Return a cheap token that changes when the current project might have.
 
@@ -113,6 +126,90 @@ def resolve_current_project(
         if resolved is not None:
             return resolved
     return None
+
+
+def set_current_project(
+    project_key: str,
+    *,
+    projects_dir: Path | None = None,
+) -> SetCurrentProjectOutcome:
+    """Promote *project_key* to the head of the VCS xprompt MRU.
+
+    Looks the key up through the same alias map the resolver uses, so a
+    display name, alias, or directory key all work. Eligibility failures
+    and an already-current project write nothing. A successful write is
+    verified by re-resolving rather than assuming the MRU accepted it.
+    """
+    records, alias_map, _known_projects = _project_snapshots(projects_dir)
+    requested = project_key.strip()
+    canonical = alias_map.get(requested, requested) if requested else ""
+    record = records.get(canonical)
+    if record is None:
+        label = requested or project_key
+        return _ineligible(f"Project '{label}' was not found.")
+
+    display = effective_project_name(record)
+    if record.state != "enabled":
+        return _ineligible(f"{display} is disabled; enable it first.")
+    if not record.launchable or not record.project_file:
+        return _ineligible(f"{display} has no launchable ProjectSpec.")
+
+    from sase.workspace_provider import detect_workflow_type
+
+    # Identical to the call ``_vcs_prefix_provider_mismatched`` makes, so a
+    # prefix built here cannot be the silently-dropped provider-mismatch write.
+    try:
+        workflow_type = detect_workflow_type(record.project_file)
+    except (OSError, ValueError):
+        return _ineligible(f"{display} has no launchable ProjectSpec.")
+    if not workflow_type:
+        return _ineligible(f"{display} has no launchable ProjectSpec.")
+
+    current = resolve_current_project(projects_dir=projects_dir)
+    if current is not None and current.project_key == record.project_name:
+        return SetCurrentProjectOutcome(
+            status="unchanged",
+            project=current,
+            message=f"{display} is already the current project.",
+        )
+
+    from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
+
+    # ``record_vcs_xprompt_usage`` rewrites the file unconditionally; the
+    # short-circuit above keeps every ACE instance from re-resolving.
+    record_vcs_xprompt_usage(f"#{workflow_type}:{record.project_name}")
+
+    verified = resolve_current_project(projects_dir=projects_dir)
+    if verified is not None and verified.project_key == record.project_name:
+        return SetCurrentProjectOutcome(
+            status="set",
+            project=verified,
+            message=f"{display} is now the current project.",
+        )
+    if verified is None:
+        return SetCurrentProjectOutcome(
+            status="unverified",
+            project=None,
+            message=(
+                f"Could not verify that {display} is current; no project resolved."
+            ),
+        )
+    return SetCurrentProjectOutcome(
+        status="unverified",
+        project=verified,
+        message=(
+            f"Could not verify that {display} is current; "
+            f"the resolver chose {verified.display_name}."
+        ),
+    )
+
+
+def _ineligible(message: str) -> SetCurrentProjectOutcome:
+    return SetCurrentProjectOutcome(
+        status="ineligible",
+        project=None,
+        message=message,
+    )
 
 
 def _mru_prefixes() -> list[str]:
@@ -249,6 +346,8 @@ def _stat_token(path: Path) -> tuple[int, int] | None:
 
 __all__ = [
     "CurrentProject",
+    "SetCurrentProjectOutcome",
     "peek_current_project_change_token",
     "resolve_current_project",
+    "set_current_project",
 ]
