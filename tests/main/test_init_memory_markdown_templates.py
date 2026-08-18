@@ -26,7 +26,6 @@ from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
     run_handler,
-    single_line,
     write,
 )
 
@@ -199,7 +198,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    assert "### 2.1 `sase/memory/parent.md`" in plan.agents_content
+    assert "#### 2.1.1 `sase/memory/parent.md`" in plan.agents_content
     assert "sase/memory/generated_child.md" not in plan.agents_content
     assert render_children_section((parent, generated_child), parent) == (
         "## Children\n\n"
@@ -233,16 +232,15 @@ def test_glossary_terms_block_is_sole_tier2_content_without_other_notes(
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    line = single_line(plan.agents_content)
-    assert (
-        "Terms (aliases follow in parentheses): Agent Hood (hood, agent "
-        "neighborhood); Stitch" in line
-    )
+    assert "Long-Term Memory Files" not in plan.agents_content
+    assert "### 2.1 Glossary Terms" in plan.agents_content
+    assert "- Agent Hood (hood, agent neighborhood)" in plan.agents_content
+    assert "- Stitch" in plan.agents_content
     parsed = parse_amd_agents_document(plan.agents_content)
     assert parsed.long_memory_entries == ()
 
 
-def test_glossary_terms_block_precedes_discovered_long_notes(tmp_path: Path) -> None:
+def test_long_memory_files_section_precedes_glossary_terms(tmp_path: Path) -> None:
     write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
     write(
         tmp_path / "sase" / "memory" / "parent.md",
@@ -259,13 +257,15 @@ def test_glossary_terms_block_precedes_discovered_long_notes(tmp_path: Path) -> 
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    glossary_index = plan.agents_content.index("**GLOSSARY TERMS:**")
-    heading_index = plan.agents_content.index("`sase/memory/parent.md`")
-    assert glossary_index < heading_index
+    files_index = plan.agents_content.index("### 2.1 Long-Term Memory Files")
+    note_index = plan.agents_content.index("#### 2.1.1 `sase/memory/parent.md`")
+    glossary_index = plan.agents_content.index("### 2.2 Glossary Terms")
+    assert files_index < note_index < glossary_index
     parsed = parse_amd_agents_document(plan.agents_content)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/parent.md",
     )
+    assert parsed.long_memory_entries[0].description == "Parent."
 
 
 def test_root_memory_templates_beat_user_templates(

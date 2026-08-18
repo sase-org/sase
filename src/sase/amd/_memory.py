@@ -5,11 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
-import re
 
 from ._agents_doc import (
-    long_memory_entry_path,
-    normalize_long_memory_description_lines,
+    collect_long_memory_entries,
     parse_amd_agents_document,
 )
 from ._config import resolve_amd_h1_title
@@ -34,16 +32,15 @@ from sase.memory.notes import (
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-_H2_LINE_RE = re.compile(r"^##\s+")
-
-
-def _legacy_inline_description(line: str) -> str:
-    stripped = line.strip()
-    marker = "`**"
-    close = stripped.find(marker)
-    if not stripped.startswith("**`") or close == -1:
-        return ""
-    return stripped[close + len(marker) :].strip()
+_LONG_MEMORY_FILES_TITLE = "Long-Term Memory Files"
+_GLOSSARY_TERMS_TITLE = "Glossary Terms"
+_LONG_MEMORY_FILES_HEADING = f"### {_LONG_MEMORY_FILES_TITLE}"
+_GLOSSARY_TERMS_HEADING = f"### {_GLOSSARY_TERMS_TITLE}"
+_GLOSSARY_TERMS_INTRO = (
+    'Run `sase glossary read <term> -r "<why>"` before relying on any of these '
+    "SASE terms; it prints that term's definition plus every term the "
+    "definition depends on. Aliases follow in parentheses."
+)
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -55,37 +52,11 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
         return {}
     parsed = parse_amd_agents_document(text)
     if parsed.has_long_section:
-        return {
-            entry.path: entry.description
-            for entry in parsed.long_memory_entries
-            if entry.description
-        }
-
-    descriptions: dict[str, str] = {}
-    lines = text.splitlines()
-    index = 0
-    while index < len(lines):
-        path = long_memory_entry_path(lines[index])
-        if path is None:
-            index += 1
-            continue
-        description_lines: list[str] = []
-        inline = _legacy_inline_description(lines[index])
-        if inline:
-            description_lines.append(inline)
-        index += 1
-        while index < len(lines):
-            candidate = lines[index]
-            if long_memory_entry_path(candidate) is not None:
-                break
-            if _H2_LINE_RE.match(candidate):
-                break
-            description_lines.append(candidate)
-            index += 1
-        body = normalize_long_memory_description_lines(description_lines)
-        if body:
-            descriptions[path] = body
-    return descriptions
+        entries = parsed.long_memory_entries
+    else:
+        lines = text.splitlines()
+        entries = collect_long_memory_entries(lines, 0, len(lines))
+    return {entry.path: entry.description for entry in entries if entry.description}
 
 
 def _first_body_paragraph_or_h1(body: str) -> str:
@@ -276,6 +247,15 @@ def _long_memory_description_blockers(
     return tuple(blockers)
 
 
+def _heading_has_title(line: str, title: str) -> bool:
+    text = line.lstrip("#").strip()
+    return text == title or text.endswith(f" {title}")
+
+
+def _rendered_has_heading(text: str, title: str) -> bool:
+    return any(_heading_has_title(line, title) for _, line in iter_headings(text))
+
+
 def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> str:
     escaped_term = md_escape(term)
     if not display_aliases:
@@ -284,18 +264,22 @@ def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> 
     return f"{escaped_term} ({escaped_aliases})"
 
 
-def _render_glossary_terms_block(glossary_terms: ProjectGlossaryTerms) -> str:
-    """Render the Tier 2 ``**GLOSSARY TERMS:**`` instruction paragraph."""
-    entries = "; ".join(
-        _render_glossary_term_entry(term, display_aliases)
+def _render_glossary_terms_section(glossary_terms: ProjectGlossaryTerms) -> str:
+    """Render the Tier 2 ``Glossary Terms`` H3 section."""
+    if not glossary_terms.terms:
+        return ""
+    bullets = "\n".join(
+        f"- {_render_glossary_term_entry(term, display_aliases)}"
         for term, display_aliases in glossary_terms.terms
     )
-    return (
-        '**GLOSSARY TERMS:** Run `sase glossary read <term> -r "<why>"` before '
-        "relying on any of these SASE terms; it prints that term's definition "
-        "plus every term the definition depends on. Terms (aliases follow in "
-        f"parentheses): {entries}"
-    )
+    return f"{_GLOSSARY_TERMS_HEADING}\n\n{_GLOSSARY_TERMS_INTRO}\n\n{bullets}"
+
+
+def _render_long_memory_files_section(entries: str) -> str:
+    """Render the Tier 2 ``Long-Term Memory Files`` H3 section."""
+    if not entries:
+        return ""
+    return f"{_LONG_MEMORY_FILES_HEADING}\n\n{entries}"
 
 
 def _render_managed_agents(
@@ -359,12 +343,17 @@ def _render_managed_agents(
             existing_agents_descriptions=existing_descriptions,
         )
         rendered_long_notes.append(replace(note, description=description))
-    tier2_entries = render_long_memory_sections(rendered_long_notes)
-    if glossary_terms is not None and glossary_terms.terms:
-        glossary_block = _render_glossary_terms_block(glossary_terms)
-        tier2_entries = (
-            f"{glossary_block}\n\n{tier2_entries}" if tier2_entries else glossary_block
-        )
+    tier2_sections = (
+        _render_long_memory_files_section(
+            render_long_memory_sections(rendered_long_notes)
+        ),
+        (
+            _render_glossary_terms_section(glossary_terms)
+            if glossary_terms is not None
+            else ""
+        ),
+    )
+    tier2_entries = "\n\n".join(section for section in tier2_sections if section)
 
     rendered, render_error = render_agents_template(
         root,
@@ -402,6 +391,23 @@ def _render_managed_agents(
             None,
             "rendered AGENTS template has unexpected Tier 2 memory paths: "
             f"expected {expected_long_paths!r}, found {parsed_long_paths!r}",
+        )
+    if top_level_long_notes and not _rendered_has_heading(
+        rendered, _LONG_MEMORY_FILES_TITLE
+    ):
+        return (
+            None,
+            "rendered AGENTS template is missing heading "
+            f"`{_LONG_MEMORY_FILES_TITLE}`",
+        )
+    if (
+        glossary_terms is not None
+        and glossary_terms.terms
+        and not _rendered_has_heading(rendered, _GLOSSARY_TERMS_TITLE)
+    ):
+        return (
+            None,
+            f"rendered AGENTS template is missing heading `{_GLOSSARY_TERMS_TITLE}`",
         )
     return rendered, None
 
@@ -453,8 +459,9 @@ def plan_amd_memory_sync(
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
     *generated_long_notes* maps generated long-note paths to their metadata so a
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
-    *glossary_terms* renders a ``**GLOSSARY TERMS:**`` paragraph at the top of Tier 2
-    when the project configures glossary entries; the home root never passes this.
+    *glossary_terms* renders a ``Glossary Terms`` H3 section after the long-memory
+    files in Tier 2 when the project configures glossary entries; the home root never
+    passes this.
     """
     root = root or Path.cwd()
     generated_short_notes = generated_short_notes or {}

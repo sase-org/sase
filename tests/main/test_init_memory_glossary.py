@@ -132,15 +132,22 @@ memory:
     action_by_path = {action.path: action for action in plan.actions}
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     tier1 = _tier1_memory(agents)
-    tier2 = single_line(_tier2_memory(agents))
+    tier2 = _tier2_memory(agents)
 
-    assert "**GLOSSARY TERMS:**" not in tier1
+    assert "Glossary Terms" not in tier1
     assert "A named, rootless container" not in agents
+    assert "### 2.1 Long-Term Memory Files" in tier2
+    assert "### 2.2 Glossary Terms" in tier2
+    files_index = tier2.index("### 2.1 Long-Term Memory Files")
+    note_index = tier2.index("#### 2.1.")
+    glossary_index = tier2.index("### 2.2 Glossary Terms")
+    assert files_index < note_index < glossary_index
     assert '`sase glossary read <term> -r "<why>"`' in tier2
-    assert (
-        "Terms (aliases follow in parentheses): Agent Clan (clan); Workspace" in tier2
-    )
+    assert "Aliases follow in parentheses." in tier2
+    assert "- Agent Clan (clan)" in tier2
+    assert "- Workspace" in tier2
     assert "agent clans" not in tier2
+    assert "**GLOSSARY TERMS:**" not in agents
 
 
 def test_memory_plan_omits_parens_when_only_alias_is_term_plural(
@@ -165,10 +172,8 @@ memory:
 
     assert plan.blockers == ()
     action_by_path = {action.path: action for action in plan.actions}
-    tier2 = single_line(
-        _tier2_memory(str(action_by_path[project_root / "AGENTS.md"].new_content))
-    )
-    assert "parentheses): Patch" in tier2
+    tier2 = _tier2_memory(str(action_by_path[project_root / "AGENTS.md"].new_content))
+    assert "- Patch\n" in tier2 or tier2.rstrip().endswith("- Patch")
     assert "Patch (patches)" not in tier2
     assert "patches" not in tier2
 
@@ -202,12 +207,10 @@ memory:
     assert plan.blockers == ()
     action_by_path = {action.path: action for action in plan.actions}
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    tier2 = single_line(_tier2_memory(agents))
+    tier2 = _tier2_memory(agents)
 
-    assert (
-        "Terms (aliases follow in parentheses): Agent Clan (hood, agent "
-        "neighborhood); Artifact Reference (ref)" in tier2
-    )
+    assert "- Agent Clan (hood, agent neighborhood)" in tier2
+    assert "- Artifact Reference (ref)" in tier2
     assert "artifact references" not in tier2
     assert format_generated_memory_markdown(agents) == agents
 
@@ -233,8 +236,9 @@ memory:
     assert run_memory() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "**GLOSSARY TERMS:**" not in _tier1_memory(agents)
-    assert "**GLOSSARY TERMS:**" in _tier2_memory(agents)
+    assert "Glossary Terms" not in _tier1_memory(agents)
+    assert "### 2.2 Glossary Terms" in _tier2_memory(agents)
+    assert "- Workspace" in _tier2_memory(agents)
     assert not _glossary_note_path(project_root).exists()
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
@@ -264,7 +268,7 @@ memory:
 
     assert not _glossary_note_path(project_root).exists()
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "**GLOSSARY TERMS:**" in _tier2_memory(agents)
+    assert "### 2.2 Glossary Terms" in _tier2_memory(agents)
 
     assert run_memory(check=True) == 0
 
@@ -288,9 +292,9 @@ def test_memory_init_deletes_stale_generated_glossary_note_without_configured_te
 
     assert run_memory() == 0
     assert not _glossary_note_path(project_root).exists()
-    assert "GLOSSARY TERMS" not in (project_root / "AGENTS.md").read_text(
-        encoding="utf-8"
-    )
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "GLOSSARY TERMS" not in agents
+    assert "Glossary Terms" not in agents
 
 
 def test_memory_plan_blocks_invalid_project_glossary(
@@ -354,7 +358,7 @@ memory:
     action_by_path = {action.path: action for action in plan.actions}
     tier2 = _tier2_memory(str(action_by_path[project_root / "AGENTS.md"].new_content))
     assert "`sase/memory/glossary.md`" in tier2
-    assert "**GLOSSARY TERMS:**" in tier2
+    assert "### 2.2 Glossary Terms" in tier2
 
 
 def test_memory_init_ignores_home_glossary_config(
@@ -378,4 +382,6 @@ memory:
     assert not _glossary_note_path(home_root).exists()
     home_agents = home_root / "AGENTS.md"
     if home_agents.exists():
-        assert "GLOSSARY TERMS" not in home_agents.read_text(encoding="utf-8")
+        home_text = home_agents.read_text(encoding="utf-8")
+        assert "GLOSSARY TERMS" not in home_text
+        assert "Glossary Terms" not in home_text

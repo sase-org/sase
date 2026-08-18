@@ -243,11 +243,11 @@ def test_render_long_memory_sections_orders_and_filters_notes() -> None:
     earlier = _note("sase/memory/earlier.md", description="Earlier.")
 
     assert render_long_memory_sections((later, short_note, earlier)) == (
-        "### `sase/memory/earlier.md`\n"
+        "#### `sase/memory/earlier.md`\n"
         "\n"
         "Earlier.\n"
         "\n"
-        "### `sase/memory/later.md`\n"
+        "#### `sase/memory/later.md`\n"
         "\n"
         "Later."
     )
@@ -266,7 +266,7 @@ def test_render_long_memory_sections_preserves_block_descriptions() -> None:
     )
 
     assert render_long_memory_sections((note,)) == (
-        "### `sase/memory/block.md`\n\nLead paragraph.\n\n- One\n- Two\n\nTrailer."
+        "#### `sase/memory/block.md`\n\nLead paragraph.\n\n- One\n- Two\n\nTrailer."
     )
 
 
@@ -293,5 +293,5 @@ def test_render_long_memory_sections_omits_empty_description_body() -> None:
     )
 
     assert render_long_memory_sections((empty, missing)) == (
-        "### `sase/memory/empty.md`\n\n### `sase/memory/missing.md`"
+        "#### `sase/memory/empty.md`\n\n#### `sase/memory/missing.md`"
     )

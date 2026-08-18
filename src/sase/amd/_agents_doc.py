@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 import re
 
+from ._headings import fence_marker, heading_level
 from sase.memory.paths import canonical_memory_reference
 
 
@@ -29,7 +30,7 @@ _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
 _LONG_MEMORY_SECTION_RE = re.compile(
-    r"^###\s+(?:\d+(?:\.\d+)*\.?\s+)?`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`$"
+    r"^#{3,4}\s+(?:\d+(?:\.\d+)*\.?\s+)?`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`$"
 )
 _LEGACY_READ_WHEN_SUFFIX_RE = re.compile(r"\s+_Read when\b.*?_$")
 
@@ -162,12 +163,18 @@ def _legacy_long_memory_inline_description(line: str) -> str:
     return match.group("description").strip()
 
 
-def _collect_long_memory_entries(
+def collect_long_memory_entries(
     lines: list[str],
     start: int,
     end: int,
 ) -> tuple[_AmdLongMemoryEntry, ...]:
-    """Parse long-memory entries from ``lines[start:end]``."""
+    """Parse long-memory entries from ``lines[start:end]``.
+
+    Description collection stops at the next long-memory entry or at any
+    unfenced heading that is not itself an entry, so a trailing
+    ``### Glossary Terms`` section is not absorbed. Headings inside fenced
+    code blocks stay part of the description.
+    """
     entries: list[_AmdLongMemoryEntry] = []
     index = start
     while index < end:
@@ -187,12 +194,29 @@ def _collect_long_memory_entries(
             description_lines.append(inline_description)
         index += 1
 
+        in_fence = False
+        active_fence_marker = ""
         while index < end:
             candidate = lines[index]
             if _is_legacy_amd_comment(candidate):
                 index += 1
                 continue
+            marker = fence_marker(candidate)
+            if in_fence:
+                description_lines.append(candidate)
+                if marker == active_fence_marker:
+                    in_fence = False
+                index += 1
+                continue
+            if marker is not None:
+                in_fence = True
+                active_fence_marker = marker
+                description_lines.append(candidate)
+                index += 1
+                continue
             if long_memory_entry_path(candidate) is not None:
+                break
+            if heading_level(candidate) is not None:
                 break
             description_lines.append(candidate)
             index += 1
@@ -213,7 +237,7 @@ def _long_memory_entries(
     if bounds is None:
         return ()
     start, end = bounds
-    return _collect_long_memory_entries(lines, start, end)
+    return collect_long_memory_entries(lines, start, end)
 
 
 def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
@@ -238,6 +262,7 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
 
 
 __all__ = [
+    "collect_long_memory_entries",
     "long_memory_entry_path",
     "normalize_long_memory_description_lines",
     "parse_amd_agents_document",

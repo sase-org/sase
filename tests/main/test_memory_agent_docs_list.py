@@ -68,7 +68,7 @@ def managed_agents(
     )
     if long_sections:
         long_entry = (
-            "### 2.1 `sase/memory/generated_skills.md`"
+            "#### 2.1.1 `sase/memory/generated_skills.md`"
             if numbered
             else "### `sase/memory/generated_skills.md`"
         )
