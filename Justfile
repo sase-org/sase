@@ -339,6 +339,13 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-pq.5(TaskTypeGateDisplay)" \
+        --epic-symbol "sase-pq.5(parse_task_type_gate_display)" \
+        --epic-symbol "sase-pq.5(resolve_task_type_gate_display)" \
+        --epic-symbol "sase-pq.5(task_type_gate_chip)" \
+        --epic-symbol "sase-pq.5(task_type_gate_display_payload)" \
+        --epic-symbol "sase-pq.5(task_type_gate_markdown_fact)" \
+        --epic-symbol "sase-pq.5(task_type_gate_note)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

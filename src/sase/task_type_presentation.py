@@ -9,6 +9,10 @@ presentation label, never a catalog member.
 This is the only place any surface may derive a task-type glyph, accent, chip,
 or CLI cell; every consumer routes through here rather than re-deriving
 presentation from a ``TaskTypeRecord`` or the snapshot directly.
+
+:func:`format_task_type_chip` is the single ``{glyph} {label}`` layout both
+the live chip and a frozen gate display render through. Do not copy that
+format string elsewhere.
 """
 
 from __future__ import annotations
@@ -112,11 +116,16 @@ def task_type_presentation(slug: str) -> _TaskTypePresentation:
     )
 
 
+def format_task_type_chip(glyph: str, label: str) -> str:
+    """Return the shared ``{glyph} {label}`` layout for a task-type chip."""
+    return f"{glyph} {label}"
+
+
 def task_type_chip(slug: str, *, width: int | None = None) -> Text:
     """Return a literal task-type chip, honest about an unresolved slug."""
     presentation = task_type_presentation(slug)
     display_slug = issue_task_type_slug(slug)
-    label = f" {presentation.glyph} {display_slug} "
+    label = f" {format_task_type_chip(presentation.glyph, display_slug)} "
     if width is not None:
         label = label.ljust(max(width, len(label)))
     return Text(
@@ -149,6 +158,7 @@ __all__ = [
     "DEFAULT_TASK_TYPE_GLYPH",
     "UNKNOWN_TASK_TYPE_GLYPH",
     "UNTYPED_TASK_TYPE_GLYPH",
+    "format_task_type_chip",
     "task_type_chip",
     "task_type_cli_cell",
     "task_type_presentation",

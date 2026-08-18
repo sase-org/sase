@@ -10,6 +10,7 @@ from sase.task_type_presentation import (
     DEFAULT_TASK_TYPE_GLYPH,
     UNKNOWN_TASK_TYPE_GLYPH,
     UNTYPED_TASK_TYPE_GLYPH,
+    format_task_type_chip,
     task_type_chip,
     task_type_cli_cell,
     task_type_presentation,
@@ -80,7 +81,8 @@ def test_every_known_task_type_accent_is_pairwise_distinct_from_every_bead_type(
 def test_task_type_chip_renders_glyph_and_slug() -> None:
     chip = task_type_chip("flake")
 
-    assert chip.plain == " ≈ flake "
+    assert format_task_type_chip("≈", "flake") == "≈ flake"
+    assert chip.plain == f" {format_task_type_chip('≈', 'flake')} "
     assert Style.parse(str(chip.style)) == Style.parse("bold black on #00D7D7")
 
 
