@@ -8,14 +8,17 @@ artifacts dir and killing the agent runner, which is a concern of the
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
 
-from .models import MonitorError, MonitorRecord
+from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
+from sase.agent.pending_handoff_write import (
+    PendingHandoffError,
+    write_pending_handoff_marker,
+)
 
-MONITOR_PENDING_MARKER = ".sase_monitor_pending"
+from .models import MonitorError, MonitorRecord
 
 
 def will_handoff_monitor_to_agent_runner() -> bool:
@@ -66,20 +69,20 @@ def write_monitor_pending_marker(
     timestamp: float | None = None,
 ) -> Path:
     """Persist the pending monitor handoff marker for the runner to adopt."""
-    marker_path = Path(artifacts_dir) / MONITOR_PENDING_MARKER
-    marker_data = {
+    marker_data: dict[str, str | float] = {
         "monitor_id": record.monitor_id,
         "member_artifacts_dir": record.artifacts_dir,
         "member_agent_name": record.member_agent_name,
-        "timestamp": time.time() if timestamp is None else timestamp,
     }
+    if timestamp is not None:
+        marker_data["timestamp"] = timestamp
     try:
-        marker_path.parent.mkdir(parents=True, exist_ok=True)
-        with marker_path.open("w", encoding="utf-8") as f:
-            json.dump(marker_data, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-    except OSError as exc:
+        marker_path = write_pending_handoff_marker(
+            MONITOR_PENDING_MARKER,
+            marker_data,
+            artifacts_dir=artifacts_dir,
+        )
+    except (OSError, PendingHandoffError) as exc:
         raise MonitorError(f"could not write monitor handoff marker: {exc}") from exc
 
     _touch_agent_artifacts_refresh_pulse(artifacts_dir)

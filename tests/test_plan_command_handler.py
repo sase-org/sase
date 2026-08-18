@@ -111,6 +111,11 @@ def test_plan_command_pulse_mtime_advances(
         assert _invoke_plan(plan_file) == 0
         first_mtime = pulse_path.stat().st_mtime_ns
 
+        # The runner consumes the pending marker before the next turn. A
+        # second propose with that marker still on disk is a second hand-off
+        # from one turn and is refused.
+        (artifacts_dir / ".sase_plan_pending").unlink()
+
         # The first invocation consumes the scratch plan, so recreate it before
         # proposing again.
         plan_file.write_text(VALID_TALE, encoding="utf-8")

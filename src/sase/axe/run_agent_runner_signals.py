@@ -5,13 +5,12 @@ import signal
 from collections.abc import Callable
 from pathlib import Path
 
-from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
+from sase.agent.pending_handoff import MONITOR_PENDING_MARKER, PENDING_HANDOFF_MARKERS
 from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
 from sase.axe.runner_signals import install_sigterm_handler, was_killed
 
-_MONITOR_HANDOFF_MARKER = ".sase_monitor_pending"
 _NON_MONITOR_HANDOFF_MARKERS = tuple(
-    marker for marker in PENDING_HANDOFF_MARKERS if marker != _MONITOR_HANDOFF_MARKER
+    marker for marker in PENDING_HANDOFF_MARKERS if marker != MONITOR_PENDING_MARKER
 )
 
 
@@ -51,7 +50,7 @@ def install_workspace_release_sigterm_handler(
         ):
             return
         if _has_pending_handoff_marker(
-            artifacts_dir, markers=(_MONITOR_HANDOFF_MARKER,)
+            artifacts_dir, markers=(MONITOR_PENDING_MARKER,)
         ) and monitor_handoff_claim_transferred(
             project_file,
             workspace_num,

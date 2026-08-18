@@ -9,6 +9,12 @@ import time
 from pathlib import Path
 from typing import NoReturn, cast
 
+from sase.agent.pending_handoff import PLAN_PENDING_MARKER
+from sase.agent.pending_handoff_write import (
+    PendingHandoffError,
+    handoff_guard,
+    write_pending_handoff_marker,
+)
 from sase.main.utils import kill_agent_runner_group
 
 
@@ -41,21 +47,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     5. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
     6. Kill the agent runner's process group via SIGTERM
     """
-    # Guard: must be running inside sase agent
-    if not os.environ.get("SASE_AGENT"):
-        print(
-            "Error: 'sase plan propose' is only available inside sase"
-            " (SASE_AGENT env var not set).",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        print(
-            "Error: SASE_ARTIFACTS_DIR env var not set.",
-            file=sys.stderr,
-        )
+    try:
+        artifacts_dir = handoff_guard()
+    except PendingHandoffError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
     # Validate plan file exists
@@ -178,16 +173,18 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # Write .sase_plan_pending marker JSON. ``plan_file`` points at the durable
     # archive copy; ``original_file`` is retained for provenance/debugging even
     # though the scratch file no longer exists after the move above.
-    marker_path = Path(artifacts_dir) / ".sase_plan_pending"
-    marker_data = {
-        "plan_file": str(archived_path),
-        "original_file": str(plan_path),
-        "timestamp": time.time(),
-    }
-    with open(marker_path, "w", encoding="utf-8") as f:
-        json.dump(marker_data, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
+    try:
+        write_pending_handoff_marker(
+            PLAN_PENDING_MARKER,
+            {
+                "plan_file": str(archived_path),
+                "original_file": str(plan_path),
+            },
+            artifacts_dir=artifacts_dir,
+        )
+    except PendingHandoffError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     # Pulse a file at a path the ACE inotify watcher actually sees.
     # ``ArtifactWatcher`` is non-recursive and only watches direct children of

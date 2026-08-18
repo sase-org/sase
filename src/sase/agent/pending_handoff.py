@@ -2,10 +2,16 @@
 
 from pathlib import Path
 
+PLAN_PENDING_MARKER = ".sase_plan_pending"
+QUESTIONS_PENDING_MARKER = ".sase_questions_pending"
+MONITOR_PENDING_MARKER = ".sase_monitor_pending"
+PIPE_PENDING_MARKER = ".sase_pipe_pending"
+
 PENDING_HANDOFF_MARKERS = (
-    ".sase_plan_pending",
-    ".sase_questions_pending",
-    ".sase_monitor_pending",
+    PLAN_PENDING_MARKER,
+    QUESTIONS_PENDING_MARKER,
+    MONITOR_PENDING_MARKER,
+    PIPE_PENDING_MARKER,
 )
 
 
