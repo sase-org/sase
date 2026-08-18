@@ -38,7 +38,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "to discover an agent name from agent_meta.json."
         ),
     ),
-    "src/sase/agent/restart.py:_write_recovery_files": PathPassingReview(
+    "src/sase/agent/_restart_recovery.py:_write_recovery_files": PathPassingReview(
         exemption=(
             "Recovery-bundle snapshot: agent_meta.json is copied into "
             "~/.sase/restarts, not into a live artifact directory."

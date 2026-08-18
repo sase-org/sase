@@ -143,7 +143,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/agent/restart.py:_write_recovery_files": Review(
+    "src/sase/agent/_restart_recovery.py:_write_recovery_files": Review(
         mutation_calls=(
             "copy2",
             "write_text",
