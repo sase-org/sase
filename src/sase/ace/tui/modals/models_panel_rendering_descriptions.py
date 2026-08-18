@@ -6,6 +6,7 @@ from collections.abc import Iterable
 
 from rich.text import Text
 
+from sase.ace.tui.model_alias_styles import append_pool_weight
 from sase.llm_provider import AliasView, BucketView
 
 from .models_panel_rendering_layout import (
@@ -219,6 +220,7 @@ def description_text_for_view(
                     else _WARNING_STYLE
                 )
                 text.append(f"! {member.value}", style=style)
+            append_pool_weight(text, member.weight)
     elif view.effort:
         if text:
             text.append("\n")

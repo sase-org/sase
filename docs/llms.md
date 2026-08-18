@@ -1150,42 +1150,48 @@ An alias value can instead use one of two selector operators. `A | B` is an
 availability-filtered round-robin pool: each real LLM invocation advances the
 machine-global cursor in `~/.sase/llm_lb.json` exactly once, under a machine-wide lock,
 immediately before the provider is called — never during metadata preparation, a
-display/marker preview, or a doctor/dry-run check, which only peek. Any alias that
-merely delegates to a pool-owning alias (directly or through further aliasing) shares
-that pool-owning alias's cursor rather than keeping one of their own. `A || B` is an
-ordered fallback chain: the first registered provider whose CLI is installed and not
-temporarily disabled always wins, and resolution never reads or changes the round-robin
-cursor, including during a real launch. Fallback is based on the cached CLI-installation
-probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable snapshot, not a
-later model or runtime failure; SASE does not relaunch with the next candidate after
-such a failure. If every provider is unavailable, both modes preserve a candidate for
-the ordinary provider lookup to report: fallback preserves its first member, while the
-pool preserves its current rotation choice.
+display/marker preview, or a doctor/dry-run check, which only peek. The cursor is the
+next position in that pool's weighted cycle (identical to a member index when every
+weight is 1). Any alias that merely delegates to a pool-owning alias (directly or
+through further aliasing) shares that pool-owning alias's cursor rather than keeping one
+of their own. `A || B` is an ordered fallback chain: the first registered provider whose
+CLI is installed and not temporarily disabled always wins, and resolution never reads or
+changes the round-robin cursor, including during a real launch. Fallback is based on the
+cached CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a captured
+active-disable snapshot, not a later model or runtime failure; SASE does not relaunch
+with the next candidate after such a failure. If every provider is unavailable, both
+modes preserve a candidate for the ordinary provider lookup to report: fallback
+preserves its first member, while the pool preserves its current rotation choice.
 
 Both selectors accept two or more members using the same single-target grammar,
-including candidate-specific trailing reasoning effort. Whitespace is trimmed and empty
-members are invalid. `|` and `||` cannot be mixed in one value, and a member may follow
-an ordinary alias chain but cannot reach another pool or fallback. Selector expressions
-are config-only: `%model` values, launch-scoped alias overrides, and temporary overrides
+including candidate-specific trailing reasoning effort. A load-balanced pool member may
+be prefixed with a positive integer weight and at least one space (`A | 3 B` selects B
+three times as often as A, spreading B's turns through the cycle). Valid weights are
+1–99; weight 1 is the default and is omitted from the canonical spelling. Weights are
+invalid in `||` ordered fallback chains. Whitespace is trimmed and empty members are
+invalid. `|` and `||` cannot be mixed in one value, and a member may follow an ordinary
+alias chain but cannot reach another pool or fallback. Selector expressions are
+config-only: `%model` values, launch-scoped alias overrides, and temporary overrides
 remain single targets. The ACE Launch Control's persistent Edit path authors selectors
 directly — hand-typed in the custom input or assembled with a guided pool/fallback
-builder — while its temporary Override path refuses a typed pool or fallback outright,
-pointing at Edit, rather than silently accepting and corrupting it. An override on the
-alias that owns a selector bypasses that expression for the override's lifetime. The ACE
-Launch Control shows every member's availability, an aggregate
-`pool <available>/<total>` chip for round-robin pools, and a `→` on the current
-selection. A temporary alias override labels the member list suspended only while its
-provider is available. If its provider is temporarily disabled, the stored override is
-paused, the live selector target is shown instead, and the override resumes
-automatically after the provider disable is cleared or expires while the override itself
-is still active.
+builder (`w`/`W` raise and lower a pool member's weight) — while its temporary Override
+path refuses a typed pool or fallback outright, pointing at Edit, rather than silently
+accepting and corrupting it. An override on the alias that owns a selector bypasses that
+expression for the override's lifetime. The ACE Launch Control shows every member's
+availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a
+`→` on the current selection. A temporary alias override labels the member list
+suspended only while its provider is available. If its provider is temporarily disabled,
+the stored override is paused, the live selector target is shown instead, and the
+override resumes automatically after the provider disable is cleared or expires while
+the override itself is still active.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has a matching `model_alias` value for the alias being audited
 — a no-`%model` launch's `model_alias` records whichever alias
-`llm_provider.default_model` currently references, `@large` under the shipped default. A
-healthy two-member round-robin pool should keep the member counts within one launch of
-each other, ignoring periods where provider availability caused a member to be skipped.
+`llm_provider.default_model` currently references, `@large` under the shipped default.
+Over a full weighted cycle the member counts should match the configured weight ratio
+(an unweighted two-member pool stays within one launch of each other), ignoring periods
+where provider availability caused a member to be skipped.
 
 When the same name appears in both maps, `model_aliases.custom` wins.
 `sase doctor -C config.model_aliases` warns about legacy flat keys in `model_aliases`,

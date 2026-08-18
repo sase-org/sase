@@ -101,6 +101,37 @@ def test_description_text_preserves_pool_rendering() -> None:
     assert text.plain == "pool: → ✓ claude/opus@medium · × codex/gpt-5.5"
 
 
+def test_description_text_appends_weight_chip_for_weighted_members() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="claude/opus",
+            target="claude/opus",
+            effort="medium",
+            provider="claude",
+            available=True,
+            selected=True,
+        ),
+        ModelAliasSelectorMember(
+            value="grok/grok-4.6",
+            target="grok/grok-4.6",
+            effort=None,
+            provider="grok",
+            available=True,
+            weight=3,
+        ),
+    )
+    text = _description_text_for_view(
+        make_alias_view(
+            "xsmall",
+            "role",
+            selector_mode="round_robin",
+            selector_members=members,
+        )
+    )
+
+    assert text.plain == "pool: → ✓ claude/opus@medium · ✓ grok/grok-4.6 ×3"
+
+
 def test_description_text_for_user_alias_without_description_hints_config_path() -> (
     None
 ):

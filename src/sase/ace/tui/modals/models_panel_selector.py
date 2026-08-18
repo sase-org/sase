@@ -55,6 +55,14 @@ def member_rejection(context: AliasSelectionContext | None, member: str) -> str 
     return alias_reference_rejection(context, member)
 
 
-def compose_selector(mode: ModelAliasSelectorMode, members: Sequence[str]) -> str:
+def compose_selector(
+    mode: ModelAliasSelectorMode,
+    members: Sequence[str],
+    weights: Sequence[int] | None = None,
+) -> str:
     """Return the canonical ``A | B`` / ``A || B`` spelling for *members*."""
-    return ModelAliasSelector(mode=mode, members=tuple(members)).normalized
+    return ModelAliasSelector(
+        mode=mode,
+        members=tuple(members),
+        weights=() if weights is None else tuple(weights),
+    ).normalized

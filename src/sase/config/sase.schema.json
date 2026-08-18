@@ -2266,7 +2266,7 @@
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for SASE's built-in size aliases: xsmall, small, medium, large, and xlarge. See src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
+              "description": "Overrides for SASE's built-in size aliases: xsmall, small, medium, large, and xlarge. See src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; a pool member may be prefixed with a positive integer weight and a space (A | 3 B, weights 1-99) to favor that member. Double-pipe values (A || B) form ordered provider-availability fallbacks and cannot carry weights. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2282,7 +2282,7 @@
                   "model": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Model target using a bare model, provider/model, nested provider-local path, or @<alias>. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>."
+                    "description": "Model target using a bare model, provider/model, nested provider-local path, or @<alias>. Single-pipe values (A | B) form load-balanced round-robin pools; a pool member may be prefixed with a positive integer weight and a space (A | 3 B, weights 1-99) to favor that member. Double-pipe values (A || B) form ordered provider-availability fallbacks and cannot carry weights. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>."
                   },
                   "description": {
                     "type": "string",

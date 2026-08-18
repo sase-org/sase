@@ -341,6 +341,56 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
     assert "no custom aliases" in by_key["model_aliases.buckets.unused"]
 
 
+def test_model_aliases_warns_on_weight_prefix_without_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "solo": {
+                        "model": "3 claude/opus",
+                        "description": "Misplaced weight prefix.",
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    messages = " ".join(row["message"] for row in check.data["problems"])
+    assert "weights only apply to '|' load-balanced pool members" in messages
+    assert "remove the '3 ' prefix" in messages
+
+
+def test_model_aliases_warns_on_weighted_fallback_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "chain": {
+                        "model": "claude/opus || 2 codex/gpt-5.5",
+                        "description": "Weighted fallback.",
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    messages = " ".join(row["message"] for row in check.data["problems"])
+    assert "ordered fallback chains cannot weight candidates" in messages
+    assert "remove the '2 ' prefix from candidate 2" in messages
+
+
 def test_model_aliases_warns_on_malformed_and_nested_pools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

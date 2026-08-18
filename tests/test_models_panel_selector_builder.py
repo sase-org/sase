@@ -18,6 +18,7 @@ from sase.llm_provider import (
     EffectiveDefaultEffortSnapshot,
     TemporaryProviderDisable,
 )
+from sase.llm_provider.load_balancing import MAX_POOL_MEMBER_WEIGHT
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests._model_picker_modal_helpers import ModelPickerTestApp, make_alias_context
 from tests._models_panel_helpers import make_alias_view
@@ -65,24 +66,35 @@ def test_seed_from_existing_pool() -> None:
     modal = _modal("claude/opus | codex/o3")
     assert modal._mode == "round_robin"
     assert modal._members == ["claude/opus", "codex/o3"]
+    assert modal._weights == [1, 1]
+
+
+def test_seed_from_weighted_pool() -> None:
+    modal = _modal("claude/opus | 3 codex/o3")
+    assert modal._mode == "round_robin"
+    assert modal._members == ["claude/opus", "codex/o3"]
+    assert modal._weights == [1, 3]
 
 
 def test_seed_from_existing_fallback() -> None:
     modal = _modal("claude/opus || codex/o3")
     assert modal._mode == "fallback"
     assert modal._members == ["claude/opus", "codex/o3"]
+    assert modal._weights == [1, 1]
 
 
 def test_seed_from_single_target() -> None:
     modal = _modal("claude/opus")
     assert modal._mode == "round_robin"
     assert modal._members == ["claude/opus"]
+    assert modal._weights == [1]
 
 
 def test_seed_from_empty() -> None:
     modal = _modal("")
     assert modal._mode == "round_robin"
     assert modal._members == []
+    assert modal._weights == []
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +128,7 @@ async def test_add_concrete_member_then_effort_appends_member() -> None:
         modal._on_member_effort_picked(DefaultEffortLevelChoice("medium"))
         await pilot.pause()
         assert modal._members == ["opus@medium"]
+        assert modal._weights == [1]
 
 
 async def test_add_alias_member_rejects_selector_owning_alias() -> None:
@@ -260,6 +273,27 @@ async def test_remove_and_reorder_members() -> None:
         modal.action_remove_member()
         await pilot.pause()
         assert modal._members == ["claude/sonnet", "codex/o3"]
+        assert modal._weights == [1, 1]
+
+
+async def test_remove_and_reorder_keep_weights_aligned() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("2 claude/opus | 3 codex/o3 | claude/sonnet")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        option_list = modal.query_one(f"#{modal._option_list_id}", OptionList)
+
+        option_list.highlighted = 0
+        modal.action_move_down()
+        await pilot.pause()
+        assert modal._members == ["codex/o3", "claude/opus", "claude/sonnet"]
+        assert modal._weights == [3, 2, 1]
+
+        option_list.highlighted = 2
+        modal.action_remove_member()
+        await pilot.pause()
+        assert modal._members == ["codex/o3", "claude/opus"]
+        assert modal._weights == [3, 2]
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +312,51 @@ async def test_toggle_mode_flips_between_pool_and_fallback() -> None:
         modal.action_toggle_mode()
         await pilot.pause()
         assert modal._mode == "round_robin"
+
+
+async def test_toggle_to_fallback_clears_weights() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("claude/opus | 3 codex/o3")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal.action_toggle_mode()
+        await pilot.pause()
+        assert modal._mode == "fallback"
+        assert modal._weights == [1, 1]
+        modal.notify.assert_called_once()
+        assert "Weights were cleared" in modal.notify.call_args.args[0]
+
+
+async def test_weight_keys_increment_decrement_and_clamp() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("claude/opus | 3 codex/o3")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        option_list = modal.query_one(f"#{modal._option_list_id}", OptionList)
+
+        option_list.highlighted = 1
+        modal.action_increase_weight()
+        await pilot.pause()
+        assert modal._weights == [1, 4]
+
+        modal._weights[1] = MAX_POOL_MEMBER_WEIGHT
+        modal.action_increase_weight()
+        await pilot.pause()
+        assert modal._weights[1] == MAX_POOL_MEMBER_WEIGHT
+
+        option_list.highlighted = 0
+        modal.action_decrease_weight()
+        await pilot.pause()
+        assert modal._weights[0] == 1
+
+        modal.action_toggle_mode()
+        await pilot.pause()
+        option_list.highlighted = 1
+        modal.action_increase_weight()
+        await pilot.pause()
+        assert modal._mode == "fallback"
+        assert modal._weights == [1, 1]
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +423,17 @@ async def test_confirm_emits_normalized_expression() -> None:
         assert captured == ["claude/opus || codex/o3"]
 
 
+async def test_confirm_emits_canonical_weighted_expression() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("1 claude/opus | 3 codex/o3")
+        captured: list[str | None] = []
+        pilot.app.push_screen(modal, captured.append)
+        await pilot.pause()
+        modal.action_confirm()
+        await pilot.pause()
+        assert captured == ["claude/opus | 3 codex/o3"]
+
+
 async def test_enter_key_on_focused_list_confirms() -> None:
     async with ModelPickerTestApp().run_test() as pilot:
         modal = _modal("claude/opus || codex/o3")
@@ -362,6 +452,7 @@ async def test_confirm_blocked_on_validation_error() -> None:
         pilot.app.push_screen(modal, captured.append)
         await pilot.pause()
         modal._members = ["claude/opus", "@totally_unknown_alias"]
+        modal._weights = [1, 1]
         modal.action_confirm()
         await pilot.pause()
         assert isinstance(pilot.app.screen, SelectorBuilderModal)

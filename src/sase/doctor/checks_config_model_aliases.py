@@ -349,7 +349,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
             else f"model_aliases.builtin.{alias}"
         )
         selector_errors = validate_model_alias_selector_value(alias, target)
-        if "|" in target:
+        if selector_errors:
             for message in selector_errors:
                 problems.append(
                     {
@@ -357,6 +357,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
                         "message": f"{target_key}: {message}",
                     }
                 )
+        if "|" in target:
             if not selector_errors:
                 selector = model_alias_selector_details(alias)
                 if selector is None:

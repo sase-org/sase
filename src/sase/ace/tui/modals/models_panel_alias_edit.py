@@ -254,7 +254,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                     title="Custom Alias Value",
                     hint=(
                         "Single values may end in @effort; selectors keep "
-                        "per-member effort: A@low | B@high"
+                        "per-member effort: A@low | B@high. "
+                        "A | 3 B weights B three-to-one"
                     ),
                     placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
                     initial=view.raw_value or "",

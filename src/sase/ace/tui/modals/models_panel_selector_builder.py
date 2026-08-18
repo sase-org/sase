@@ -21,7 +21,7 @@ from textual.screen import ModalScreen
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
-from sase.ace.tui.model_alias_styles import append_effort_suffix
+from sase.ace.tui.model_alias_styles import append_effort_suffix, append_pool_weight
 from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.llm_provider import (
     AliasView,
@@ -33,6 +33,7 @@ from sase.llm_provider.config import (
     validate_model_alias_selector_value,
 )
 from sase.llm_provider.load_balancing import (
+    MAX_POOL_MEMBER_WEIGHT,
     ModelAliasSelectorError,
     ModelAliasSelectorMode,
     parse_model_alias_selector,
@@ -59,21 +60,25 @@ _AVAILABLE_STYLE = "#87D787"
 _UNAVAILABLE_STYLE = "#D78787"
 _INVALID_STYLE = "bold #FF875F"
 _KEYS_HINT = (
-    "a=add  d=remove  J/K=reorder  E=effort  t=toggle mode  enter=confirm  esc=cancel"
+    "a=add  d=remove  J/K=reorder  E=effort  w/W=weight  t=toggle mode  "
+    "enter=confirm  esc=cancel"
 )
 _MIN_MEMBERS = 2
 
 
-def _seed_selector(value: str) -> tuple[ModelAliasSelectorMode, list[str]]:
-    """Return the initial mode and member list for the builder."""
+def _seed_selector(
+    value: str,
+) -> tuple[ModelAliasSelectorMode, list[str], list[int]]:
+    """Return the initial mode, members, and weights for the builder."""
     try:
         selector = parse_model_alias_selector(value)
     except ModelAliasSelectorError:
         selector = None
     if selector is not None:
-        return selector.mode, list(selector.members)
+        return selector.mode, list(selector.members), list(selector.weights)
     cleaned = value.strip()
-    return "round_robin", [cleaned] if cleaned else []
+    members = [cleaned] if cleaned else []
+    return "round_robin", members, [1] * len(members)
 
 
 def _resolved_target_text(
@@ -97,6 +102,7 @@ def _member_option(
     member: str,
     views_by_name: dict[str, AliasView],
     provider_disables: Mapping[str, TemporaryProviderDisable],
+    weight: int = 1,
 ) -> Option:
     """Render one member row: position, provider/model badge, effort, availability."""
     raw_target, effort = split_model_effort(member)
@@ -119,6 +125,7 @@ def _member_option(
     else:
         text.append(member, style=_INVALID_STYLE)
     append_effort_suffix(text, effort or "")
+    append_pool_weight(text, weight)
     return Option(text, id=f"__member_{index}__")
 
 
@@ -134,6 +141,8 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         Binding("J", "move_down", "Move down", show=False),
         Binding("K", "move_up", "Move up", show=False),
         Binding("E", "edit_effort", "Effort", show=False),
+        Binding("w", "increase_weight", "Weight+", show=False),
+        Binding("W", "decrease_weight", "Weight-", show=False),
         Binding("t", "toggle_mode", "Toggle mode", show=False),
         Binding("enter", "confirm", "Confirm", show=False),
     ]
@@ -156,9 +165,10 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._now = now
         self._provider_disables = dict(provider_disables or {})
         self._views_by_name = {view.name: view for view in alias_context.views}
-        mode, members = _seed_selector(current_value)
+        mode, members, weights = _seed_selector(current_value)
         self._mode: ModelAliasSelectorMode = mode
         self._members = members
+        self._weights = weights
         self._pending_member = ""
         self._pending_effort_index: int | None = None
 
@@ -182,7 +192,10 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         text.append(_MODE_LABELS[self._mode], style="bold #AF87FF")
         text.append("\n")
         if self._members:
-            text.append(compose_selector(self._mode, self._members), style="dim")
+            text.append(
+                compose_selector(self._mode, self._members, self._weights),
+                style="dim",
+            )
         else:
             text.append("(no members yet)", style="dim")
         return text
@@ -202,6 +215,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 member,
                 self._views_by_name,
                 self._provider_disables,
+                self._weights[index],
             )
             for index, member in enumerate(self._members)
         ]
@@ -209,7 +223,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def _validation_errors(self) -> tuple[str, ...]:
         if len(self._members) < _MIN_MEMBERS:
             return ()
-        expression = compose_selector(self._mode, self._members)
+        expression = compose_selector(self._mode, self._members, self._weights)
         return validate_model_alias_selector_value(self._alias, expression)
 
     def _validation_text(self) -> Text:
@@ -338,6 +352,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
 
     def _append_member(self, member: str) -> None:
         self._members.append(member)
+        self._weights.append(1)
         self._refresh_view(preferred_index=len(self._members) - 1)
 
     # -- remove / reorder -------------------------------------------------
@@ -347,6 +362,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if index is None:
             return
         del self._members[index]
+        del self._weights[index]
         self._refresh_view(preferred_index=index)
 
     def action_move_down(self) -> None:
@@ -365,6 +381,10 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._members[index], self._members[target] = (
             self._members[target],
             self._members[index],
+        )
+        self._weights[index], self._weights[target] = (
+            self._weights[target],
+            self._weights[index],
         )
         self._refresh_view(preferred_index=target)
 
@@ -399,14 +419,42 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
 
     # -- mode / confirm -------------------------------------------------
 
+    def action_increase_weight(self) -> None:
+        self._nudge_weight(1)
+
+    def action_decrease_weight(self) -> None:
+        self._nudge_weight(-1)
+
+    def _nudge_weight(self, delta: int) -> None:
+        if self._mode != "round_robin":
+            return
+        index = self._highlighted_index()
+        if index is None:
+            return
+        self._weights[index] = max(
+            1,
+            min(MAX_POOL_MEMBER_WEIGHT, self._weights[index] + delta),
+        )
+        self._refresh_view(preferred_index=index)
+
     def action_toggle_mode(self) -> None:
-        self._mode = "fallback" if self._mode == "round_robin" else "round_robin"
+        if self._mode == "round_robin":
+            dropped = any(weight > 1 for weight in self._weights)
+            self._mode = "fallback"
+            if dropped:
+                self._weights = [1] * len(self._weights)
+                self.notify(
+                    "Weights were cleared because ordered fallback cannot "
+                    "weight candidates."
+                )
+        else:
+            self._mode = "round_robin"
         self._refresh_view(preferred_index=self._highlighted_index())
 
     def action_confirm(self) -> None:
         if len(self._members) < _MIN_MEMBERS or self._validation_errors():
             return
-        self.dismiss(compose_selector(self._mode, self._members))
+        self.dismiss(compose_selector(self._mode, self._members, self._weights))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()

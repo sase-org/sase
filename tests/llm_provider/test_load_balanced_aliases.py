@@ -57,6 +57,68 @@ def test_selector_parser_normalizes_modes_and_rejects_invalid_members() -> None:
         parse_model_alias_selector("claude/opus | codex/o3 || claude/sonnet")
 
 
+def test_selector_parser_accepts_and_normalizes_pool_weights() -> None:
+    pool = parse_model_alias_selector("claude/opus | 3 codex/gpt-5.5")
+    assert pool is not None
+    assert pool.members == ("claude/opus", "codex/gpt-5.5")
+    assert pool.weights == (1, 3)
+    assert pool.normalized == "claude/opus | 3 codex/gpt-5.5"
+    assert pool.weighted is True
+
+    dropped_default = parse_model_alias_selector("1 claude/opus | 3 codex/gpt-5.5")
+    assert dropped_default is not None
+    assert dropped_default.members == ("claude/opus", "codex/gpt-5.5")
+    assert dropped_default.weights == (1, 3)
+    assert dropped_default.normalized == "claude/opus | 3 codex/gpt-5.5"
+
+    alias_member = parse_model_alias_selector("3 @medium@high | claude/opus")
+    assert alias_member is not None
+    assert alias_member.members == ("@medium@high", "claude/opus")
+    assert alias_member.weights == (3, 1)
+    assert alias_member.normalized == "3 @medium@high | claude/opus"
+
+    leading_zeros = parse_model_alias_selector("03 claude/opus | codex/gpt-5.5")
+    assert leading_zeros is not None
+    assert leading_zeros.weights == (3, 1)
+    assert leading_zeros.normalized == "3 claude/opus | codex/gpt-5.5"
+
+    unweighted = parse_model_alias_selector("claude/opus | codex/gpt-5.5")
+    assert unweighted is not None
+    assert unweighted.weights == (1, 1)
+    assert unweighted.weighted is False
+    legacy_payload = json.dumps(
+        unweighted.members, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    assert unweighted.fingerprint == hashlib.sha256(legacy_payload).hexdigest()
+    assert pool.fingerprint != unweighted.fingerprint
+    assert parse_model_alias_selector("3 claude/opus") is None
+
+
+def test_selector_parser_rejects_invalid_and_fallback_weights() -> None:
+    range_message = "load-balanced pool weights must be between 1 and 99"
+    with pytest.raises(ModelAliasSelectorError, match=range_message) as zero:
+        parse_model_alias_selector("A | 0 B")
+    assert "got '0'" in str(zero.value)
+    with pytest.raises(ModelAliasSelectorError, match=range_message) as over:
+        parse_model_alias_selector("A | 100 B")
+    assert "got '100'" in str(over.value)
+    with pytest.raises(ModelAliasSelectorError, match=range_message) as negative:
+        parse_model_alias_selector("A | -2 B")
+    assert "got '-2'" in str(negative.value)
+    with pytest.raises(ModelAliasSelectorError, match=range_message) as plus:
+        parse_model_alias_selector("A | +2 B")
+    assert "got '+2'" in str(plus.value)
+    with pytest.raises(ModelAliasSelectorError, match=range_message) as decimal:
+        parse_model_alias_selector("A | 2.5 B")
+    assert "got '2.5'" in str(decimal.value)
+    with pytest.raises(
+        ModelAliasSelectorError,
+        match="ordered fallback chains cannot weight candidates",
+    ) as fallback:
+        parse_model_alias_selector("A || 2 B")
+    assert "remove the '2 ' prefix from candidate 2" in str(fallback.value)
+
+
 def test_peek_is_stable_and_consumes_round_robin(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

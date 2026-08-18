@@ -15,6 +15,7 @@ from .load_balancing import (
     parse_model_alias_selector,
     select_model_alias_fallback_member,
     select_model_alias_pool_member,
+    split_pool_member_weight_prefix,
 )
 from .model_alias_policy import (
     DEFAULT_MODEL_ALIAS_NAME,
@@ -126,6 +127,7 @@ class ModelAliasSelectorMember:
     available: bool
     valid: bool = True
     selected: bool = False
+    weight: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -562,6 +564,7 @@ def model_alias_selector_details(
                 available=available,
                 valid=result.valid,
                 selected=index == selected_index,
+                weight=selector.weights[index],
             )
         )
     return _ModelAliasSelectorDetails(mode=selector.mode, members=tuple(members))
@@ -576,6 +579,13 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
     except ModelAliasSelectorError as exc:
         return (str(exc),)
     if selector is None:
+        prefix = split_pool_member_weight_prefix(value)
+        if prefix is not None:
+            token, _rest = prefix
+            return (
+                "weights only apply to '|' load-balanced pool members; "
+                f"remove the '{token} ' prefix",
+            )
         return ()
 
     aliases = config._get_model_aliases()

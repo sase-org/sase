@@ -233,12 +233,14 @@ def build_launch_model_setting_snapshot(
                     available=available,
                     valid=result.valid,
                     selected=index == selected_index,
+                    weight=weight,
                 )
-                for index, (value, result, available) in enumerate(
+                for index, (value, result, available, weight) in enumerate(
                     zip(
                         raw_selector.members,
                         resolved_members,
                         availability,
+                        raw_selector.weights,
                         strict=True,
                     )
                 )

@@ -70,6 +70,13 @@ def append_pool_chip(text: Text, available: int, total: int) -> None:
     text.append(f"pool {available}/{total}", style=style)
 
 
+def append_pool_weight(text: Text, weight: int) -> None:
+    """Append a compact `` ×<n>`` chip when *weight* is greater than 1."""
+    if weight <= 1:
+        return
+    text.append(f" ×{weight}", style=_IMPLICIT_TAG_STYLE)
+
+
 def alias_state_text(
     provenance: str,
     reference: str = "",
@@ -113,5 +120,6 @@ __all__ = [
     "append_alias_reference",
     "append_effort_suffix",
     "append_pool_chip",
+    "append_pool_weight",
     "provider_model_text",
 ]

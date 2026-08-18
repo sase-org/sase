@@ -130,6 +130,65 @@ def test_rotation_state_records_alias_fingerprint_and_cursor(
     assert len(data["entries"]["pool"]["fingerprint"]) == 64
 
 
+def test_weighted_pool_state_walks_schedule_and_wraps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_pool(monkeypatch, "claude/sonnet | 2 grok/grok-4.6")
+    state_path = Path.home() / ".sase" / "llm_lb.json"
+    cursors: list[int] = []
+    for _ in range(3):
+        resolve_model_alias("@pool", consume=True)
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+        assert data["version"] == 1
+        assert isinstance(data["entries"]["pool"]["cursor"], int)
+        cursors.append(data["entries"]["pool"]["cursor"])
+    assert cursors == [1, 2, 0]
+
+
+def test_reweighting_same_members_resets_cursor_via_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg: dict[str, object] = {
+        "provider": "claude",
+        "model_aliases": {
+            "custom": {
+                "pool": {
+                    "model": "claude/sonnet | grok/grok-4.6",
+                    "description": "Test pool.",
+                }
+            }
+        },
+    }
+    mock_provider_config(monkeypatch, cfg)
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    assert resolve_model_alias("@pool", consume=True) == "claude/sonnet"
+    state_path = Path.home() / ".sase" / "llm_lb.json"
+    before = json.loads(state_path.read_text(encoding="utf-8"))
+    assert before["entries"]["pool"]["cursor"] == 1
+
+    cfg["model_aliases"] = {
+        "custom": {
+            "pool": {
+                "model": "claude/sonnet | 3 grok/grok-4.6",
+                "description": "Test pool.",
+            }
+        }
+    }
+    llm_config._get_model_aliases_for_token.cache_clear()
+    assert resolve_model_alias("@pool", consume=True) == "grok/grok-4.6"
+    after = json.loads(state_path.read_text(encoding="utf-8"))
+    assert after["version"] == 1
+    assert after["entries"]["pool"]["cursor"] == 1
+    assert (
+        after["entries"]["pool"]["fingerprint"]
+        != before["entries"]["pool"]["fingerprint"]
+    )
+
+
 def test_provider_availability_probe_is_cached_and_honors_path_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
