@@ -37,6 +37,7 @@ sections, environment variables, and CLI flags.
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
   - [max_running_agents](#max_running_agents)
+  - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
   - [procs](#procs)
   - [markdown](#markdown)
@@ -2778,6 +2779,34 @@ agents continue and new implicit-cap launches wait for occupancy to drain. Parke
 implicit waiters and question continuations reread the effective cap on each normal
 poll. An explicit `%wait(runners=N)` keeps its own initial-admission threshold and may
 be either stricter or looser than the global cap.
+
+### max_agent_pipe_chain
+
+The bound on how many times one agent family may hand its turn forward with `sase pipe`.
+The originally launched agent is depth `0`; each successful pipe records `pipe_depth` on
+the successor and increments it by one. A pipe is refused when the next link would
+exceed this value, and the refusal names the limit, this configuration key, and the
+chain length already reached. The calling agent stays alive on a refusal, so it can
+finish the work itself instead of handing it on.
+
+```yaml
+max_agent_pipe_chain: 8
+```
+
+| Field                  | Type | Default | Minimum | Description                                         |
+| ---------------------- | ---- | ------- | ------- | --------------------------------------------------- |
+| `max_agent_pipe_chain` | int  | `8`     | `1`     | Maximum `sase pipe` hops in one agent family chain. |
+
+This is a configuration field rather than a feature flag: the number is one users choose
+permanently to stop a self-piping chain from running away. A missing or malformed value
+falls back to the packaged default rather than allowing an unbounded chain. Only
+`sase pipe` records `pipe_depth`, so a plan-approval, question, or monitor follow-up
+member created in between starts the count over at `0`. The bound is per family chain,
+not per host, so it is unrelated to the concurrency cap in
+[max_running_agents](#max_running_agents).
+
+Source: `src/sase/default_config.yml`, `src/sase/config/core.py`,
+`src/sase/main/pipe_handler.py`
 
 ### runner_slots
 
