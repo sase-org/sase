@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 import re
 import unicodedata
 
 from sase.notification_gates.models import GateError
-from sase.notification_gates.model_validation import validate_icon
+from sase.notification_gates.model_validation import validate_color, validate_icon
 
+GATE_CHIP_COLOR_ACTION_DATA_KEY = "gate_chip_color"
+GATE_CHIP_GLYPH_ACTION_DATA_KEY = "gate_chip_glyph"
+GATE_CHIP_LABEL_ACTION_DATA_KEY = "gate_chip_label"
 GATE_PANEL_ACTION_DATA_KEY = "panel"
 GATE_PANEL_ICON_ACTION_DATA_KEY = "panel_icon"
 GATE_ORIGIN_AGENT_ACTION_DATA_KEY = "origin_agent"
@@ -20,9 +25,19 @@ RESERVED_GATE_PANELS = frozenset(
 )
 
 _GATE_PANEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_MAX_GATE_CHIP_LABEL_LENGTH = 32
 _MAX_GATE_PANEL_LENGTH = 32
 _MAX_GATE_ORIGIN_AGENT_LENGTH = 128
 _MAX_GATE_TITLE_LENGTH = 120
+
+
+@dataclass(frozen=True)
+class GateChip:
+    """Sender-declared subject chip: one glyph, a short label, optional accent."""
+
+    glyph: str
+    label: str
+    color: str | None = None
 
 
 def normalize_gate_panel(value: object) -> str | None:
@@ -134,6 +149,51 @@ def normalize_gate_title(value: object) -> str | None:
     return title
 
 
+def normalize_gate_chip(value: object) -> GateChip | None:
+    """Return a canonical subject chip, if one was declared."""
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise _invalid_chip(value, "must be an object")
+    glyph = _normalize_chip_glyph(value.get("glyph"), declared=value)
+    if glyph is None:
+        raise _invalid_chip(value, "glyph is required")
+    label = _normalize_chip_label(value.get("label"), declared=value)
+    if label is None:
+        raise _invalid_chip(value, "label is required")
+    return GateChip(
+        glyph=glyph,
+        label=label,
+        color=_normalize_chip_color(value.get("color"), declared=value),
+    )
+
+
+def gate_chip_from_action_data(action_data: object) -> GateChip | None:
+    """Return a usable chip from stored notification ``action_data``, or None.
+
+    This is the zero-I/O render-path reader: it never raises. A missing or
+    malformed glyph or label drops the chip; a stored colour that is not
+    ``#RRGGBB`` is ignored so the glyph and label still render.
+    """
+    if not isinstance(action_data, Mapping):
+        return None
+    try:
+        glyph = _normalize_chip_glyph(action_data.get(GATE_CHIP_GLYPH_ACTION_DATA_KEY))
+        label = _normalize_chip_label(action_data.get(GATE_CHIP_LABEL_ACTION_DATA_KEY))
+    except (AttributeError, GateError, TypeError):
+        return None
+    if glyph is None or label is None:
+        return None
+    color: str | None = None
+    raw_color = action_data.get(GATE_CHIP_COLOR_ACTION_DATA_KEY)
+    if raw_color is not None:
+        try:
+            color = _normalize_chip_color(raw_color)
+        except (AttributeError, GateError, TypeError):
+            color = None
+    return GateChip(glyph=glyph, label=label, color=color)
+
+
 def _invalid_panel(value: object, reason: str) -> GateError:
     return GateError(
         "invalid_presentation",
@@ -166,12 +226,69 @@ def _invalid_title(value: object, reason: str) -> GateError:
     )
 
 
+def _invalid_chip(value: object, reason: str) -> GateError:
+    return GateError(
+        "invalid_presentation",
+        "presentation.chip",
+        f"invalid chip {value!r}: {reason}",
+    )
+
+
+def _normalize_chip_glyph(
+    value: object, *, declared: object | None = None
+) -> str | None:
+    shown = value if declared is None else declared
+    try:
+        return validate_icon(value, "presentation.chip")
+    except GateError as exc:
+        raise _invalid_chip(shown, "glyph must be a single emoji or glyph") from exc
+
+
+def _normalize_chip_label(
+    value: object, *, declared: object | None = None
+) -> str | None:
+    shown = value if declared is None else declared
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _invalid_chip(shown, "label must be a string")
+    label = value.strip()
+    if not label:
+        raise _invalid_chip(shown, "label must be non-empty")
+    if len(label) > _MAX_GATE_CHIP_LABEL_LENGTH:
+        raise _invalid_chip(
+            shown,
+            f"label must be at most {_MAX_GATE_CHIP_LABEL_LENGTH} characters",
+        )
+    if "\n" in label:
+        raise _invalid_chip(shown, "label must be a single line")
+    if any(unicodedata.category(character) == "Cc" for character in label):
+        raise _invalid_chip(shown, "label must not contain control characters")
+    return label
+
+
+def _normalize_chip_color(
+    value: object, *, declared: object | None = None
+) -> str | None:
+    shown = value if declared is None else declared
+    try:
+        return validate_color(value, "presentation.chip")
+    except GateError as exc:
+        raise _invalid_chip(shown, "color must be an '#RRGGBB' hex color") from exc
+
+
 __all__ = [
+    "GATE_CHIP_COLOR_ACTION_DATA_KEY",
+    "GATE_CHIP_GLYPH_ACTION_DATA_KEY",
+    "GATE_CHIP_LABEL_ACTION_DATA_KEY",
     "GATE_ORIGIN_AGENT_ACTION_DATA_KEY",
     "GATE_PANEL_ACTION_DATA_KEY",
     "GATE_PANEL_ICON_ACTION_DATA_KEY",
     "GATE_TITLE_ACTION_DATA_KEY",
     "RESERVED_GATE_PANELS",
+    "GateChip",
+    "gate_chip_from_action_data",
+    "normalize_gate_chip",
     "normalize_gate_origin_agent",
     "normalize_gate_panel",
     "normalize_gate_panel_icon",

@@ -271,7 +271,47 @@ def test_malformed_gate_origin_agents_are_rejected(
     assert repr(origin_agent) in str(exc_info.value)
 
 
-@pytest.mark.parametrize("key", ["panel", "panel_icon", "origin_agent"])
+def test_declared_gate_chip_projects_to_action_data(gate_home: Path) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["chip"] = {"glyph": "≈", "label": "flake", "color": " #AF87FF "}
+
+    create_gate(spec)
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.action_data["gate_chip_glyph"] == "≈"
+    assert notification.action_data["gate_chip_label"] == "flake"
+    assert notification.action_data["gate_chip_color"] == "#AF87FF"
+
+
+def test_a_colorless_gate_chip_writes_no_color_key(gate_home: Path) -> None:
+    del gate_home
+    spec = gate_spec()
+    presentation = spec["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["chip"] = {"glyph": "≈", "label": "flake"}
+
+    create_gate(spec)
+
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.action_data["gate_chip_glyph"] == "≈"
+    assert notification.action_data["gate_chip_label"] == "flake"
+    assert "gate_chip_color" not in notification.action_data
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "panel",
+        "panel_icon",
+        "origin_agent",
+        "gate_chip_glyph",
+        "gate_chip_label",
+        "gate_chip_color",
+    ],
+)
 def test_gate_presentation_action_data_cannot_bypass_normalization(
     gate_home: Path,
     key: str,

@@ -1,4 +1,4 @@
-"""Coverage for gate presentation title normalization and custom-kind requirements."""
+"""Coverage for gate presentation field normalization and custom-kind requirements."""
 
 from __future__ import annotations
 
@@ -8,8 +8,14 @@ import pytest
 
 from sase.notification_gates.models import GateError
 from sase.notification_gates.presentation import (
+    GATE_CHIP_COLOR_ACTION_DATA_KEY,
+    GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+    GATE_CHIP_LABEL_ACTION_DATA_KEY,
     GATE_TITLE_ACTION_DATA_KEY,
     RESERVED_GATE_PANELS,
+    GateChip,
+    gate_chip_from_action_data,
+    normalize_gate_chip,
     normalize_gate_panel_icon,
     normalize_gate_title,
 )
@@ -56,6 +62,219 @@ def test_normalize_gate_panel_icon_rejects_invalid_values(value: object) -> None
         normalize_gate_panel_icon(value)
     assert exc_info.value.code == "invalid_presentation"
     assert exc_info.value.target == "presentation.panel_icon"
+
+
+def test_normalize_gate_chip_accepts_none() -> None:
+    assert normalize_gate_chip(None) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ({"glyph": "≈", "label": "flake"}, GateChip("≈", "flake")),
+        ({"glyph": "≈", "label": "  flake  "}, GateChip("≈", "flake")),
+        (
+            {"glyph": "≈", "label": "flake", "color": " #AF87FF "},
+            GateChip("≈", "flake", "#AF87FF"),
+        ),
+        (
+            {"glyph": "≈", "label": "flake", "color": None},
+            GateChip("≈", "flake"),
+        ),
+        (
+            {"glyph": "🚀", "label": "x" * 32, "color": "#00ff00"},
+            GateChip("🚀", "x" * 32, "#00ff00"),
+        ),
+        (
+            {"glyph": "#", "label": "ok", "ignored": True},
+            GateChip("#", "ok"),
+        ),
+    ],
+)
+def test_normalize_gate_chip_accepts_legal_forms(
+    value: object, expected: GateChip
+) -> None:
+    assert normalize_gate_chip(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "fragment"),
+    [
+        (7, "must be an object"),
+        ("flake", "must be an object"),
+        ([], "must be an object"),
+        ({}, "glyph"),
+        ({"label": "flake"}, "glyph"),
+        ({"glyph": "≈"}, "label"),
+        ({"glyph": "", "label": "flake"}, "glyph"),
+        ({"glyph": " ≈ ", "label": "flake"}, "glyph"),
+        ({"glyph": "≈≈", "label": "flake"}, "glyph"),
+        ({"glyph": "ab", "label": "flake"}, "glyph"),
+        ({"glyph": 7, "label": "flake"}, "glyph"),
+        ({"glyph": "≈", "label": ""}, "label"),
+        ({"glyph": "≈", "label": "   "}, "label"),
+        ({"glyph": "≈", "label": "x" * 33}, "label"),
+        ({"glyph": "≈", "label": "line\nbreak"}, "label"),
+        ({"glyph": "≈", "label": "bad\x00lab"}, "label"),
+        ({"glyph": "≈", "label": 7}, "label"),
+        ({"glyph": "≈", "label": "flake", "color": "red"}, "color"),
+        ({"glyph": "≈", "label": "flake", "color": "#FFF"}, "color"),
+        ({"glyph": "≈", "label": "flake", "color": "#GGGGGG"}, "color"),
+        ({"glyph": "≈", "label": "flake", "color": 7}, "color"),
+    ],
+)
+def test_normalize_gate_chip_rejects_invalid_values(
+    value: object, fragment: str
+) -> None:
+    with pytest.raises(GateError) as exc_info:
+        normalize_gate_chip(value)
+    assert exc_info.value.code == "invalid_presentation"
+    assert exc_info.value.target == "presentation.chip"
+    assert fragment in str(exc_info.value)
+    assert repr(value) in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    ("action_data", "expected"),
+    [
+        (None, None),
+        ("not-a-map", None),
+        (7, None),
+        ([], None),
+        ({}, None),
+        ({GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈"}, None),
+        ({GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake"}, None),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: " ≈ ",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "line\nbreak",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "bad\x00lab",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "x" * 33,
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: 7,
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: 7,
+            },
+            None,
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+            },
+            GateChip("≈", "flake"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "  flake  ",
+            },
+            GateChip("≈", "flake"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "#AF87FF",
+            },
+            GateChip("≈", "flake", "#AF87FF"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: " #00ff00 ",
+            },
+            GateChip("≈", "flake", "#00ff00"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "red",
+            },
+            GateChip("≈", "flake"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "#FFF",
+            },
+            GateChip("≈", "flake"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: 7,
+            },
+            GateChip("≈", "flake"),
+        ),
+        (
+            {
+                GATE_CHIP_GLYPH_ACTION_DATA_KEY: "≈",
+                GATE_CHIP_LABEL_ACTION_DATA_KEY: "flake",
+                GATE_CHIP_COLOR_ACTION_DATA_KEY: "",
+            },
+            GateChip("≈", "flake"),
+        ),
+    ],
+)
+def test_gate_chip_from_action_data_is_tolerant(
+    action_data: object, expected: GateChip | None
+) -> None:
+    assert gate_chip_from_action_data(action_data) == expected
 
 
 def test_gate_title_is_projected_into_action_data(gate_home: Path) -> None:

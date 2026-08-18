@@ -27,10 +27,14 @@ from sase.notification_gates.models import (
     validate_icon,
 )
 from sase.notification_gates.presentation import (
+    GATE_CHIP_COLOR_ACTION_DATA_KEY,
+    GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+    GATE_CHIP_LABEL_ACTION_DATA_KEY,
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
     GATE_PANEL_ICON_ACTION_DATA_KEY,
     GATE_TITLE_ACTION_DATA_KEY,
+    normalize_gate_chip,
     normalize_gate_origin_agent,
     normalize_gate_panel,
     normalize_gate_panel_icon,
@@ -146,6 +150,9 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         )
     protected = {
         "bundle_path",
+        GATE_CHIP_COLOR_ACTION_DATA_KEY,
+        GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+        GATE_CHIP_LABEL_ACTION_DATA_KEY,
         GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
         GATE_PANEL_ACTION_DATA_KEY,
         GATE_PANEL_ICON_ACTION_DATA_KEY,
@@ -181,6 +188,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "tab, so it requires presentation.panel_icon: one emoji or glyph "
             "identifying that tab at a glance",
         )
+    normalize_gate_chip(presentation.get("chip"))
     normalize_gate_origin_agent(presentation.get("origin_agent"))
     normalize_gate_snooze_until(presentation.get("snooze_until"))
     title = normalize_gate_title(presentation.get("title"))

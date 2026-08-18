@@ -32,10 +32,15 @@ from sase.notification_gates.models import (
     validate_color,
 )
 from sase.notification_gates.presentation import (
+    GATE_CHIP_COLOR_ACTION_DATA_KEY,
+    GATE_CHIP_GLYPH_ACTION_DATA_KEY,
+    GATE_CHIP_LABEL_ACTION_DATA_KEY,
     GATE_ORIGIN_AGENT_ACTION_DATA_KEY,
     GATE_PANEL_ACTION_DATA_KEY,
     GATE_PANEL_ICON_ACTION_DATA_KEY,
     GATE_TITLE_ACTION_DATA_KEY,
+    GateChip,
+    normalize_gate_chip,
     normalize_gate_origin_agent,
     normalize_gate_panel,
     normalize_gate_panel_icon,
@@ -347,6 +352,12 @@ def _build_notification(
     panel_icon = normalize_gate_panel_icon(presentation.get("panel_icon"))
     if panel_icon is not None:
         action_data[GATE_PANEL_ICON_ACTION_DATA_KEY] = panel_icon
+    chip: GateChip | None = normalize_gate_chip(presentation.get("chip"))
+    if chip is not None:
+        action_data[GATE_CHIP_GLYPH_ACTION_DATA_KEY] = chip.glyph
+        action_data[GATE_CHIP_LABEL_ACTION_DATA_KEY] = chip.label
+        if chip.color is not None:
+            action_data[GATE_CHIP_COLOR_ACTION_DATA_KEY] = chip.color
     origin_agent = normalize_gate_origin_agent(presentation.get("origin_agent"))
     if origin_agent is not None:
         action_data[GATE_ORIGIN_AGENT_ACTION_DATA_KEY] = origin_agent
