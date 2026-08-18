@@ -36,6 +36,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("K", "Preview xprompt/skill/file/word"),
         ("Ctrl+]", "Jump to xprompt/skill/file"),
         ("K / Ctrl+] on glossary term", "Preview / jump to definition"),
+        ("K / Ctrl+] on repo name", "Preview repo / open checkout"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),
         ("* / #", "Search word under cursor"),

@@ -329,7 +329,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-p1.5(glossary_entry_relations)" \
         --epic-symbol "sase-p1.7(GlossaryPanel)" \
-        --epic-symbol "sase-p2.3(RepoMention)" \
         --epic-symbol "sase-p4.3(active_epic_resume)" \
         --epic-symbol "sase-p4.3(build_epic_resume_argv)" \
         --epic-symbol "sase-p4.3(epic_resume_origin_from_gate_source)" \

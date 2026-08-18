@@ -5284,6 +5284,58 @@ GlossaryPanelHelpModal #glossary-panel-help-footer {
     padding-top: 1;
 }
 
+/* ===== Repo Preview Modal Styling ===== */
+
+RepoPreviewModal {
+    align: center middle;
+}
+
+RepoPreviewModal > Container {
+    width: auto;
+    max-width: 84;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+RepoPreviewModal #repo-preview-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+RepoPreviewModal #repo-preview-scroll {
+    height: auto;
+    max-height: 100%;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+RepoPreviewModal #repo-preview-description {
+    width: 100%;
+    height: auto;
+    padding: 0 1 0 1;
+}
+
+RepoPreviewModal #repo-preview-meta {
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+}
+
+RepoPreviewModal #repo-preview-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 /* ===== Notification Report Modal Styling ===== */
 
 ReportModal {

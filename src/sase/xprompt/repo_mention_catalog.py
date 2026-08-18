@@ -161,7 +161,9 @@ def _load_editor_repo_mention_catalog(
         return EditorRepoMentionCatalogResult(project, None, tuple(diagnostics))
 
     entries = tuple(
-        GlossaryInputEntry(term=identifier, definition=_synthesized_definition(record))
+        GlossaryInputEntry(
+            term=identifier, definition=synthesized_repo_description(record)
+        )
         for identifier, record in admitted
     )
     try:
@@ -267,7 +269,8 @@ def _glossary_excluded_identifiers(
     return excluded
 
 
-def _synthesized_definition(record: RepoRecord) -> str:
+def synthesized_repo_description(record: RepoRecord) -> str:
+    """Return the record's description, or a kind/path fallback when unset."""
     description = (record.description or "").strip()
     if description:
         return description
@@ -427,4 +430,5 @@ __all__ = [
     "editor_repo_mention_catalog_for_project",
     "lookup_repo_mention",
     "scan_repo_mentions",
+    "synthesized_repo_description",
 ]

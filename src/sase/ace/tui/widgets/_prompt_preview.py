@@ -36,6 +36,7 @@ class PromptPreviewMixin(_MixinBase):
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
         def _lookup_word_under_cursor(self) -> bool: ...
         def _preview_glossary_under_cursor(self) -> bool: ...
+        def _preview_repo_mention_under_cursor(self) -> bool: ...
 
     def _preview_token_under_cursor(self) -> None:
         """Resolve and open a preview for the token under the cursor."""
@@ -52,13 +53,18 @@ class PromptPreviewMixin(_MixinBase):
             preview_glossary = getattr(self, "_preview_glossary_under_cursor", None)
             if callable(preview_glossary) and preview_glossary():
                 return
+            preview_repo_mention = getattr(
+                self, "_preview_repo_mention_under_cursor", None
+            )
+            if callable(preview_repo_mention) and preview_repo_mention():
+                return
             if self._lookup_word_under_cursor():
                 return
             token = detect_shorthand_argument_owner_at_cursor(self.text, offset)
             if token is None:
                 self.notify(
-                    "Move the cursor onto an xprompt, skill, file path, glossary term, "
-                    "or word to look it up",
+                    "Move the cursor onto an xprompt, skill, file path, glossary "
+                    "term, repo name, or word to look it up",
                     severity="warning",
                 )
                 return

@@ -192,6 +192,26 @@ class PromptRepoMentionMixin(_MixinBase):
             launch_workspace=launch_workspace,
         )
 
+    def _preview_repo_mention_under_cursor(self) -> bool:
+        """Preview the repo mention under the cursor, if one is selected."""
+        match = self._repo_mention_under_cursor(schedule=True)
+        if isinstance(match, _ColdRepoCatalogType):
+            self.notify(
+                "Repo catalog is still loading; try again",
+                severity="warning",
+            )
+            return True
+        if match is None:
+            return False
+        catalog, span = match
+
+        from sase.ace.tui.modals.repo_preview_modal import RepoPreviewModal
+
+        self.app.push_screen(
+            RepoPreviewModal(catalog, span.mention, matched_text=span.matched_text)
+        )
+        return True
+
     def _repo_mention_under_cursor(
         self,
         *,

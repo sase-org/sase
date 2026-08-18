@@ -170,14 +170,14 @@ def test_no_description_gets_synthesized_definition() -> None:
         "sase-core", "linked", path="/repos/sase-core", description=None
     )
     assert (
-        catalog._synthesized_definition(record)
+        catalog.synthesized_repo_description(record)
         == "Linked repository at /repos/sase-core."
     )
 
     described = _repo_record(
         "sase-core", "linked", path="/repos/sase-core", description="The core crate."
     )
-    assert catalog._synthesized_definition(described) == "The core crate."
+    assert catalog.synthesized_repo_description(described) == "The core crate."
 
 
 def test_load_succeeds_without_description(

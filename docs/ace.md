@@ -4889,6 +4889,23 @@ path and are cached per project. Config edits, project changes, and watched `sas
 changes invalidate the cache. A repo opened with `sase repo open` during a live ACE
 session does not appear until the next config-driven invalidation.
 
+`K` on a repo mention opens a compact repo card: kind, description, checkout path, clone
+coverage, remote URL, and where the repo is declared. The title shows the repo
+identifier and discloses the matched text only when it differs in case from the
+identifier — the exact-identifier filter above rules out any other difference. Chips
+mark the kind, plus `AUTO-CLONE` and/or `AUTO-SYNC` when set, and `ENV <name>` when the
+record has one. `Checkout` prefers the clone registered for the active workspace, else
+the record's own path; when that path does not exist locally it is suffixed
+` (not cloned)` and the card prints the exact `sase repo open <name>` command as a hint
+— ACE never runs that command itself. `Clones` shows
+`<existing> of <registered> workspaces` when the repo has clone records, and rows whose
+value is unknown (no remote, no declaration site) are omitted rather than shown empty.
+`y` copies the description, `p` copies the checkout path, and `Y`, `o`, and `Z` copy the
+declaration path, open the owning `sase.yml` line in `$EDITOR`, or hand the file to the
+artifact viewer — all three warn cleanly for an external repo, which has no declaration
+site. If the catalog is still loading, ACE schedules a warm and asks you to retry rather
+than falling through to word lookup or an unrelated jump target.
+
 #### Word definitions & spellcheck
 
 When no xprompt, slash skill, workflow, or file target matches, `K` treats a plain
@@ -5144,7 +5161,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `~`         | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
 | `.`         | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
 | `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
-| `K`         | Preview the xprompt, workflow, skill, file, glossary term, or plain word under the cursor             |
+| `K`         | Preview the xprompt, workflow, skill, file, glossary term, repo name, or plain word under the cursor  |
 | `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition or file under the cursor                       |
 | `/` / `?`   | Search forward / backward in the current prompt pane                                                  |
 | `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |

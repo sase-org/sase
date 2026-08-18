@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the glossary preview card."""
+"""ACE TUI PNG visual snapshots for the glossary and repo preview cards."""
 
 from __future__ import annotations
 
@@ -9,12 +9,15 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.glossary_preview_modal import GlossaryPreviewModal
+from sase.ace.tui.modals.repo_preview_modal import RepoPreviewModal
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
+from sase.repo_inventory import RepoCloneRecord, RepoRecord
 from sase.xprompt.glossary_catalog import (
     EditorGlossaryCatalog,
     EditorGlossaryProject,
     _GlossaryConfigSignature,
 )
+from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     patches,
@@ -94,6 +97,77 @@ async def test_glossary_preview_card_minimal_png_snapshot(
             "glossary_preview_card_minimal_120x40",
             title="ACE glossary preview card - minimal entry",
         )
+
+
+async def test_repo_preview_card_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    catalog, mention = _visual_repo_mention_catalog()
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(RepoPreviewModal(catalog, mention, matched_text=None))
+        await page.expect_modal("RepoPreviewModal")
+        await wait_for_svg_contains(page, "Checkout")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "repo_preview_card_120x40",
+            title="ACE repo preview card",
+        )
+
+
+def _visual_repo_mention_catalog() -> tuple[EditorRepoMentionCatalog, RepoMention]:
+    config_path = Path("/workspace/sase/sase.yml")
+    clones = tuple(
+        RepoCloneRecord(
+            workspace_num=workspace_num,
+            path=f"/workspace/sase_{workspace_num}/sase/repos/linked/sase-core",
+            exists=workspace_num <= 18,
+        )
+        for workspace_num in range(1, 25)
+    )
+    record = RepoRecord(
+        name="sase-core",
+        kind="linked",
+        project="sase",
+        project_key="sase",
+        path="/workspace/sase/repos/linked/sase-core",
+        exists=True,
+        auto_clone=True,
+        auto_sync=False,
+        description=(
+            "Shared Rust core backend for SASE domain behavior and cross-frontend APIs."
+        ),
+        source="test",
+        env_name="SASE_CORE",
+        remote_url="git@github.com:bbugyi200/sase-core.git",
+        clones=clones,
+    )
+    mention = RepoMention(
+        identifier="sase-core",
+        kind="linked",
+        record=record,
+        index=0,
+        config_path=str(config_path),
+        config_line=216,
+        config_col=7,
+    )
+    catalog = EditorRepoMentionCatalog(
+        schema_version=1,
+        project=EditorGlossaryProject(
+            key="sase",
+            name="sase",
+            aliases=("sase-org",),
+            workspace_dir=Path("/workspace/sase"),
+        ),
+        mentions=(mention,),
+        compiled=None,
+    )
+    return catalog, mention
 
 
 def _visual_glossary_catalog(*, full: bool) -> EditorGlossaryCatalog:
