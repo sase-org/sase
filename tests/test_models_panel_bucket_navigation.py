@@ -54,7 +54,7 @@ def _launch_setting_rows() -> tuple[
     LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
 ]:
     return (
-        _launch_setting_row(DEFAULT_MODEL_FIELD, "launch model"),
+        _launch_setting_row(DEFAULT_MODEL_FIELD, "default model"),
         _launch_setting_row(EPIC_LANDER_MODEL_FIELD, "epic lander"),
         _launch_setting_row(BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
         BigEpicPhaseThresholdSettingRow(5),

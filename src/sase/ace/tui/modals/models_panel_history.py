@@ -51,21 +51,14 @@ class ModelsPanelHistoryMixin(_MixinBase):
             return _alias_history_request(row)
         if isinstance(row, LaunchModelSettingRow):
             return self._launch_setting_history_request(row)
-        if isinstance(row, DefaultEffortSettingRow):
+        if isinstance(
+            row,
+            DefaultEffortSettingRow
+            | RunnerLimitSettingRow
+            | BigEpicPhaseThresholdSettingRow,
+        ):
             self.notify(  # type: ignore[attr-defined]
-                "default effort is not an alias; it has no run history.",
-                severity="warning",
-            )
-            return None
-        if isinstance(row, RunnerLimitSettingRow):
-            self.notify(  # type: ignore[attr-defined]
-                "running agents is not an alias; it has no run history.",
-                severity="warning",
-            )
-            return None
-        if isinstance(row, BigEpicPhaseThresholdSettingRow):
-            self.notify(  # type: ignore[attr-defined]
-                "big epic starts at is not an alias; it has no run history.",
+                f"{row.label} is not an alias; it has no run history.",
                 severity="warning",
             )
             return None

@@ -310,7 +310,7 @@ def test_render_section_header_aligns_counts_with_row_state_column() -> None:
 def test_render_launch_setting_row_shows_raw_and_effective_model() -> None:
     row = LaunchModelSettingRow(
         field="default_model",
-        label="launch model",
+        label="default model",
         detail="Used when a launch has no explicit %model directive.",
         snapshot=LaunchModelSettingSnapshot(
             field="default_model",
@@ -331,7 +331,7 @@ def test_render_launch_setting_row_shows_raw_and_effective_model() -> None:
 
     assert header.startswith("  ── Launch settings ")
     assert "1 setting" in header
-    assert "launch model" in line
+    assert "default model" in line
     assert "@large → CLAUDE(opus) @ xhigh" in line
     assert "shipped" in line
 
@@ -360,7 +360,7 @@ def test_render_scalar_setting_rows_show_effective_values() -> None:
 
     assert "default effort" in effort_line
     assert "provider default" in effort_line
-    assert "running agents" in runner_line
+    assert "max runners" in runner_line
     assert str(DEFAULT_MAX_RUNNING_AGENTS) in runner_line
     assert "big epic starts at" in threshold_line
     assert "1 phase" in threshold_line

@@ -141,7 +141,7 @@ async def test_footer_shows_history_for_alias_backed_launch_setting(
         monkeypatch,
         (
             _launch_setting_row(
-                DEFAULT_MODEL_FIELD, "launch model", referenced_alias="large"
+                DEFAULT_MODEL_FIELD, "default model", referenced_alias="large"
             ),
             BigEpicPhaseThresholdSettingRow(5),
         ),
@@ -162,7 +162,7 @@ async def test_footer_hides_history_for_concrete_launch_setting(monkeypatch) -> 
         monkeypatch,
         (
             _launch_setting_row(
-                DEFAULT_MODEL_FIELD, "launch model", referenced_alias=None
+                DEFAULT_MODEL_FIELD, "default model", referenced_alias=None
             ),
             BigEpicPhaseThresholdSettingRow(5),
         ),
@@ -233,7 +233,7 @@ async def test_h_on_alias_backed_launch_setting_opens_referenced_alias(
         monkeypatch,
         (
             _launch_setting_row(
-                DEFAULT_MODEL_FIELD, "launch model", referenced_alias="large"
+                DEFAULT_MODEL_FIELD, "default model", referenced_alias="large"
             ),
             BigEpicPhaseThresholdSettingRow(5),
         ),
@@ -258,7 +258,7 @@ async def test_h_on_concrete_launch_setting_only_warns(monkeypatch) -> None:
         monkeypatch,
         (
             _launch_setting_row(
-                DEFAULT_MODEL_FIELD, "launch model", referenced_alias=None
+                DEFAULT_MODEL_FIELD, "default model", referenced_alias=None
             ),
             BigEpicPhaseThresholdSettingRow(5),
         ),
@@ -282,7 +282,7 @@ async def test_h_on_concrete_launch_setting_only_warns(monkeypatch) -> None:
     ("row_id", "expected_snippet"),
     [
         ("setting:default_effort", "default effort"),
-        ("setting:runner_limit", "running agents"),
+        ("setting:runner_limit", "max runners"),
         ("setting:big_epic_phase_threshold", "big epic starts at"),
     ],
 )

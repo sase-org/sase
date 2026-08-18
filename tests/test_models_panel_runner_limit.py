@@ -126,7 +126,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         runner_row = option_list.get_option_at_index(
             option_list.get_option_index("setting:runner_limit")
         ).prompt.plain
-        assert "running agents" in runner_row
+        assert "max runners" in runner_row
         assert "4" in runner_row
         assert "override · 42m left" in runner_row
         footer = str(panel.query_one("#models-panel-footer", Static).content)

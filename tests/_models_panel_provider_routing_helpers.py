@@ -74,7 +74,7 @@ def launch_setting_rows() -> tuple[LaunchModelSettingRow, ...]:
             ),
         )
         for field, label in (
-            (DEFAULT_MODEL_FIELD, "launch model"),
+            (DEFAULT_MODEL_FIELD, "default model"),
             (EPIC_LANDER_MODEL_FIELD, "epic lander"),
             (BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
         )

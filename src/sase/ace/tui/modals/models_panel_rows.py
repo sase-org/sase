@@ -75,7 +75,7 @@ class RunnerLimitSettingRow:
     snapshot: EffectiveRunnerLimitSnapshot
 
     row_id: str = "setting:runner_limit"
-    label: str = "running agents"
+    label: str = "max runners"
     kind: ScalarSettingKind = "runner_limit"
 
 
@@ -101,7 +101,7 @@ ModelsPanelDisplayRow = (
 )
 
 _LAUNCH_SETTING_ORDER: tuple[tuple[LaunchModelField, str], ...] = (
-    (DEFAULT_MODEL_FIELD, "launch model"),
+    (DEFAULT_MODEL_FIELD, "default model"),
     (EPIC_LANDER_MODEL_FIELD, "epic lander"),
     (BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
 )
