@@ -137,6 +137,16 @@ ace:
       # Relative date windows re-anchor whenever the pane refreshes. Queries
       # without an explicit positive limit:N are uncapped.
       default_query: "sidecar:false merges:hide since:24h"
+  current_project:
+    # Show the +<project> chip in the top bar. The current project is derived
+    # from the VCS xprompt MRU store; launching an agent is what moves it.
+    indicator: true
+    # Seed project filters that have no value yet. Never overrides an explicit
+    # choice, and never re-scopes a surface that is already open.
+    seed_filters: true
+    # Also seed the Agents-tab search query. Off by default because that query
+    # also drives unread jumps and prospective clans, not just the visible list.
+    seed_agents_query: false
   # Per-tribe ACE TUI identity display. Keys are bare tribe names (no "@").
   # The special "default" entry styles the reserved untagged identity.
   # Empty icon strings disable an inherited default icon, while empty color

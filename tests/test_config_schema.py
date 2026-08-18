@@ -96,6 +96,48 @@ def test_config_schema_validates_ace_prompt_spellcheck_settings() -> None:
             validator.validate({"ace": {"prompt_spellcheck": invalid}})
 
 
+def test_config_schema_validates_ace_current_project_settings() -> None:
+    validator = Draft7Validator(schema())
+    documented = {
+        "indicator": True,
+        "seed_filters": True,
+        "seed_agents_query": False,
+    }
+    validator.validate({"ace": {"current_project": documented}})
+    validator.validate(
+        {
+            "ace": {
+                "current_project": {
+                    "indicator": False,
+                    "seed_filters": False,
+                    "seed_agents_query": True,
+                }
+            }
+        }
+    )
+    public_schema = schema()
+    current_project = public_schema["properties"]["ace"]["properties"][
+        "current_project"
+    ]
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+
+    assert default_config["ace"]["current_project"] == documented
+    assert current_project["additionalProperties"] is False
+    assert current_project["properties"]["indicator"]["default"] is True
+    assert current_project["properties"]["seed_filters"]["default"] is True
+    assert current_project["properties"]["seed_agents_query"]["default"] is False
+    for invalid in (
+        {"indicator": "yes"},
+        {"seed_filters": 1},
+        {"seed_agents_query": "false"},
+        {"unknown": True},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate({"ace": {"current_project": invalid}})
+
+
 def test_config_schema_validates_ace_agents_sync_settings() -> None:
     validator = Draft7Validator(schema())
     validator.validate(

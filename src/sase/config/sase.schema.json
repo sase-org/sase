@@ -983,6 +983,28 @@
             }
           }
         },
+        "current_project": {
+          "type": "object",
+          "description": "Current-project indicator and session seed settings. The current project is derived from the VCS xprompt MRU store; launching an agent is what moves it.",
+          "additionalProperties": false,
+          "properties": {
+            "indicator": {
+              "type": "boolean",
+              "description": "Show the +<project> chip in the ACE top bar",
+              "default": true
+            },
+            "seed_filters": {
+              "type": "boolean",
+              "description": "Seed project filters that have no value yet. Never overrides an explicit choice and never re-scopes a surface that is already open.",
+              "default": true
+            },
+            "seed_agents_query": {
+              "type": "boolean",
+              "description": "Also seed the Agents-tab search query with the current project. Off by default because that query also drives unread jumps and prospective clans, not just the visible list.",
+              "default": false
+            }
+          }
+        },
         "snippets": {
           "type": "object",
           "description": "Snippet expansions for the prompt input (trigger string to expansion text)",

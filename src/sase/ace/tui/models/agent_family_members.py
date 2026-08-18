@@ -32,7 +32,7 @@ def agent_row_is_in_flight(agent: Agent) -> bool:
     return agent_is_active(agent.status) and agent.stop_time is None
 
 
-def monitor_row_is_settled(row: Agent) -> bool:
+def _monitor_row_is_settled(row: Agent) -> bool:
     """Return whether one monitor row belongs in the settled (grey) lane.
 
     A ``stop_time`` alone settles a row even when its ``monitor_state`` was
@@ -77,7 +77,7 @@ def monitor_lane_counts(agent: Agent) -> MonitorLaneCounts:
         if row.identity not in seen_identities:
             seen_identities.add(row.identity)
             if row.is_monitor:
-                if monitor_row_is_settled(row):
+                if _monitor_row_is_settled(row):
                     settled += 1
                 else:
                     running += 1
@@ -302,5 +302,4 @@ __all__ = [
     "family_roster_container",
     "is_sequential_family_container",
     "monitor_lane_counts",
-    "monitor_row_is_settled",
 ]

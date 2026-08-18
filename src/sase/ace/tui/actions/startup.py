@@ -27,6 +27,7 @@ from ._state_init import StateInitMixin
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
     from ...query_record import QueryRecord
+    from ..current_project_settings import CurrentProjectSettings
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..repo_mention_catalog import PromptRepoMentionContext
@@ -169,6 +170,7 @@ class StartupMixin(
     _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings
     _prompt_spellcheck_settings: PromptSpellcheckSettings
+    _current_project_settings: CurrentProjectSettings
     _history_prompt_word_index_cache: PromptWordIndex | None
     _history_prompt_word_deletions_cache: frozenset[str] | None
     _history_prompt_words_cache: list[str] | None

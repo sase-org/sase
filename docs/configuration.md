@@ -740,6 +740,7 @@ ace:
 | `agents_sync`              | dict         | see below | Periodic agents-repository status checks and the top-bar synchronization indicator.                                                                        |
 | `artifacts`                | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
 | `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
+| `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
@@ -821,6 +822,27 @@ informational. Hiding the indicator also disables the periodic ACE status schedu
 it does not disable `sase agent sync`, Updates-pane `a`, commit-triggered publication
 queueing, or the `,U` cached-integration leg. See
 [Agent Hood Synchronization](agents_sidecar.md).
+
+#### `ace.current_project`
+
+The current project is derived from the head of the VCS xprompt MRU store — the project
+you last launched an agent on. There is no separate "set current project" command;
+launching an agent is what moves it.
+
+| Field               | Type | Default | Description                                                                                                 |
+| ------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator.                        |
+| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface. |
+| `seed_agents_query` | bool | `false` | Also seed the Agents-tab search query with the current project's `project:` term.                           |
+
+`seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
+at-a-glance view, and its search query is also read by unread-jump candidates and
+prospective-clan selection — not just the visible list. Turning this on silently
+re-scopes those surfaces. The capability is fully built; one line of config enables it.
+
+When `seed_filters` is on, a filter that already has a value — an explicit `project:` /
+`+name` query term, or a pick made this session — is left alone. A mid-session MRU
+change moves the chip but does not re-scope surfaces that are already open.
 
 #### `ace.tribes`
 

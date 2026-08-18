@@ -16,6 +16,8 @@ from sase.logs import current_toast_session, record_toast
 if TYPE_CHECKING:
     from sase.vcs_log.filter_query import CommitLogFilterValues
 
+    from .current_project_settings import CurrentProjectSettings
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..patch import Patch
@@ -185,6 +187,7 @@ class AceApp(
     _jk_perf: JKPerfTimer | None
     _commits_default_filter: "CommitLogFilterValues"
     _commits_default_query_diagnostic: str | None
+    _current_project_settings: "CurrentProjectSettings"
 
     @property
     def current_idx(self) -> int:
