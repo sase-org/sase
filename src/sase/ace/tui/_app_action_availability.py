@@ -84,7 +84,7 @@ def check_app_action(
             metadata_search = getattr(app, "_agent_metadata_search", None)
             if not bool(getattr(metadata_search, "is_active", False)):
                 return False
-    # ``Ctrl+Space`` replays the last launch selection by remounting the
+    # ``Ctrl+Space`` replays the last launched VCS xprompt by remounting the
     # prompt bar, which tears down whatever the user is currently typing
     # (``_show_prompt_input_bar_for_home`` unmounts first). The printable
     # launch keys (``+``, ``space``) are swallowed by the focused TextArea,

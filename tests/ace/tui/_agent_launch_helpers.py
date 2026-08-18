@@ -24,7 +24,6 @@ class _FakeApp(AgentLaunchMixin):
         self.launch_tasks: list[dict[str, Any]] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_patches = None
-        self._last_custom_agent_selection = None
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))

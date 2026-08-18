@@ -41,11 +41,32 @@ def load_launchable_vcs_xprompt_mru(
 ) -> list[str]:
     """Load MRU prefixes, dropping entries that would no longer launch.
 
+    Display-only convenience wrapper around
+    :func:`load_launchable_vcs_xprompt_mru_pairs`; see that function for the
+    pruning rules. Callers that also need the canonical (on-disk) form of
+    each entry -- e.g. to build a ``history_sort_key`` -- should call the
+    pairs accessor directly instead.
+    """
+    return [
+        display
+        for _, display in load_launchable_vcs_xprompt_mru_pairs(
+            projects_dir, prune=prune
+        )
+    ]
+
+
+def load_launchable_vcs_xprompt_mru_pairs(
+    projects_dir: Path | None = None,
+    *,
+    prune: bool = True,
+) -> list[tuple[str, str]]:
+    """Load MRU prefixes as ``(canonical_prefix, display_prefix)`` pairs.
+
     Four classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
     cycles to explicit refs that will actually launch (and so the
     unresolved-ref launch guard is never reachable through normal cycling):
 
-    - the implicit default prefix (:func:`is_default_vcs_xprompt_prefix`),
+    - the implicit default prefix (:func:`_is_default_vcs_xprompt_prefix`),
       which is normalized data rather than a user MRU choice,
     - prefixes for a known but non-launchable project
       (:func:`_is_stale_known_project_prefix`),
@@ -56,10 +77,17 @@ def load_launchable_vcs_xprompt_mru(
       provider (:func:`_vcs_prefix_provider_mismatched`), e.g. a stale
       ``#git:<gh-project>`` entry recorded before a project's spec was
       repaired back to its real provider.
+
+    ``canonical_prefix`` is the on-disk directory-key form (the correct
+    ``history_sort_key`` source); ``display_prefix`` is humanized to the
+    configured project name (the correct prefill/label source -- users must
+    never see a directory key). Deduping is keyed on the display form,
+    first-wins, so this and :func:`load_launchable_vcs_xprompt_mru` can never
+    disagree on ordering or length.
     """
     entries = _load_vcs_xprompt_mru()
     if not entries:
-        return entries
+        return []
 
     # An explicit projects root is usually a test or alternate state root.
     # The global ref index is built from the default SASE home and can
@@ -78,17 +106,17 @@ def load_launchable_vcs_xprompt_mru(
     filtered = [
         entry
         for entry in entries
-        if not is_default_vcs_xprompt_prefix(entry)
+        if not _is_default_vcs_xprompt_prefix(entry)
         and not _is_stale_known_project_prefix(entry, projects_dir, alias_map=alias_map)
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
         and not _vcs_prefix_provider_mismatched(entry, resolvable_refs)
     ]
     if prune and filtered != entries:
         _save_vcs_xprompt_mru(filtered)
-    # Disk stays canonical (written above); the returned entries are humanized
-    # to the configured project name and deduped in MRU order so callers that
-    # render/cycle them never surface directory keys.
-    return _humanize_and_dedupe_mru(filtered, projects_dir)
+    # Disk stays canonical (written above); the returned pairs' display half
+    # is humanized to the configured project name and deduped in MRU order so
+    # callers that render/cycle them never surface directory keys.
+    return _dedupe_mru_pairs(filtered, projects_dir)
 
 
 def record_vcs_xprompt_usage(prefix: str) -> None:
@@ -112,8 +140,8 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
 
     prefix = canonicalize_project_aliases_in_prompt(prefix)
     entries = _load_vcs_xprompt_mru()
-    if is_default_vcs_xprompt_prefix(prefix):
-        filtered = [e for e in entries if not is_default_vcs_xprompt_prefix(e)]
+    if _is_default_vcs_xprompt_prefix(prefix):
+        filtered = [e for e in entries if not _is_default_vcs_xprompt_prefix(e)]
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
         return
@@ -160,23 +188,26 @@ def _project_alias_map_or_empty(projects_dir: Path | None) -> dict[str, str]:
         return {}
 
 
-def _humanize_and_dedupe_mru(
+def _dedupe_mru_pairs(
     entries: list[str], projects_dir: Path | None
-) -> list[str]:
-    """Rewrite each entry to its configured project name, deduped in MRU order."""
+) -> list[tuple[str, str]]:
+    """Pair each canonical entry with its humanized display form.
+
+    Deduped on the display form, first-wins, in MRU order.
+    """
     from sase.project_display_names import humanize_vcs_refs_in_text
 
     seen: set[str] = set()
-    humanized: list[str] = []
+    pairs: list[tuple[str, str]] = []
     for entry in entries:
         display = humanize_vcs_refs_in_text(entry, projects_dir)
         if display not in seen:
             seen.add(display)
-            humanized.append(display)
-    return humanized
+            pairs.append((entry, display))
+    return pairs
 
 
-def is_default_vcs_xprompt_prefix(prefix: str) -> bool:
+def _is_default_vcs_xprompt_prefix(prefix: str) -> bool:
     """Return whether *prefix* is the implicit default workflow prefix.
 
     The bare-prompt default (``#git:home``) is normalized data, not a user

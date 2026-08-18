@@ -27,7 +27,6 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
         self._agents_with_children = list(agents)
         self.selected = selected
         self._prompt_context = None
-        self._last_custom_agent_selection = None
         self.notifications: list[tuple[str, str]] = []
         self.dismissed: list[Agent] = []
         self.killed: list[Agent] = []
@@ -130,15 +129,9 @@ async def test_completed_family_member_relaunch_dismisses_only_selected_child(
     parent, child = _family_rows(tmp_path)
     app = _FamilyRelaunchApp([parent, child], child)
 
-    with (
-        patch(
-            "sase.ace.last_agent_selection.save_last_agent_selection_if_launchable",
-            return_value=False,
-        ),
-        patch(
-            "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
-            return_value="#gh:feature ",
-        ),
+    with patch(
+        "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
+        return_value="#gh:feature ",
     ):
         async with app.run_test(size=(110, 40)) as pilot:
             app._kill_and_edit_agent()
@@ -193,15 +186,9 @@ async def test_running_family_member_relaunch_confirmation_kills_only_child(
     parent, child = _family_rows(tmp_path, running_child=True)
     app = _FamilyRelaunchApp([parent, child], child)
 
-    with (
-        patch(
-            "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
-            return_value="#gh:feature ",
-        ),
-        patch(
-            "sase.ace.last_agent_selection.save_last_agent_selection_if_launchable",
-            return_value=False,
-        ),
+    with patch(
+        "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
+        return_value="#gh:feature ",
     ):
         async with app.run_test(size=(100, 35)) as pilot:
             app._kill_and_edit_agent()

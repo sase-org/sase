@@ -1,4 +1,4 @@
-"""Tests for stale-selection persistence guards in VCS-prefixed entry points."""
+"""Tests for VCS-prefix mount behavior in quick-launch/edit-relaunch entry points."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 
-from ._entry_points_vcs_prefix_helpers import _App, _patch_save_recorder
+from ._entry_points_vcs_prefix_helpers import _App
 
 
-def test_quick_patch_skips_save_for_non_launchable_project(
+def test_quick_patch_mounts_prompt_bar_for_non_launchable_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A bogus project_basename must not be persisted, but the prompt bar still mounts."""
+    """A bogus project_basename still mounts the prompt bar with its prefix."""
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
@@ -24,7 +24,6 @@ def test_quick_patch_skips_save_for_non_launchable_project(
         "sase.ace.tui.modals.project_discovery.is_launchable_project",
         lambda _name, projects_dir=None: False,
     )
-    saved = _patch_save_recorder(monkeypatch)
 
     app = _App()
     app.patches = [
@@ -37,16 +36,14 @@ def test_quick_patch_skips_save_for_non_launchable_project(
 
     app._start_agent_from_patch_quick()
 
-    assert saved == []
-    assert app._last_custom_agent_selection is None
     assert len(app.prompt_launches) == 1
     assert app.prompt_launches[0]["initial_text"] == "#gh:branch "
 
 
-def test_quick_agent_skips_save_for_non_launchable_project(
+def test_quick_agent_mounts_prompt_bar_for_non_launchable_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A stale agent.project_file must not get persisted as last selection."""
+    """A stale agent.project_file still mounts the prompt bar with its prefix."""
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
@@ -55,7 +52,6 @@ def test_quick_agent_skips_save_for_non_launchable_project(
         "sase.ace.tui.modals.project_discovery.is_launchable_project",
         lambda _name, projects_dir=None: False,
     )
-    saved = _patch_save_recorder(monkeypatch)
 
     agent = SimpleNamespace(
         project_file="/tmp/project/project.sase",
@@ -71,8 +67,6 @@ def test_quick_agent_skips_save_for_non_launchable_project(
 
     app._start_agent_from_agent_quick()
 
-    assert saved == []
-    assert app._last_custom_agent_selection is None
     assert len(app.prompt_launches) == 1
 
 
@@ -88,7 +82,6 @@ def test_quick_agent_uses_cl_name_not_agent_display_name_for_ref(
         "sase.ace.tui.modals.project_discovery.is_launchable_project",
         lambda _name, projects_dir=None: True,
     )
-    saved = _patch_save_recorder(monkeypatch)
 
     agent = SimpleNamespace(
         project_file="/tmp/project/project.sase",
@@ -105,22 +98,18 @@ def test_quick_agent_uses_cl_name_not_agent_display_name_for_ref(
 
     app._start_agent_from_agent_quick()
 
-    assert len(saved) == 1
-    assert saved[0].display_name == "branch"
-    assert saved[0].cl_name == "branch"
     assert app.prompt_launches[0]["initial_text"] == "#gh:branch "
     assert app.prompt_launches[0]["display_name"] == "branch"
 
 
-def test_edit_and_relaunch_skips_save_for_non_launchable_project(
+def test_edit_and_relaunch_mounts_prompt_bar_for_non_launchable_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A stale project_file in edit-and-relaunch must not be persisted."""
+    """A stale project_file in edit-and-relaunch still mounts the prompt bar."""
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_discovery.is_launchable_project",
         lambda _name, projects_dir=None: False,
     )
-    saved = _patch_save_recorder(monkeypatch)
 
     class _AppEdit(_App):
         def __init__(self) -> None:
@@ -142,6 +131,4 @@ def test_edit_and_relaunch_skips_save_for_non_launchable_project(
         is_project_agent=False,
     )
 
-    assert saved == []
-    assert app._last_custom_agent_selection is None
     assert len(app.mounted) == 1

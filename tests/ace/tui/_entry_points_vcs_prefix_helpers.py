@@ -9,7 +9,6 @@ import pytest
 from sase.ace.tui.actions.agent_workflow import _entry_points
 from sase.ace.tui.actions.agent_workflow._entry_points import EntryPointsMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
-from sase.ace.tui.modals import SelectionItem
 
 # An editor buffer with leading xprompt frontmatter, a real multi-agent ``---``
 # separator, and a trailing ` @` review marker: the marker requests review (not
@@ -53,7 +52,6 @@ class _App(EntryPointsMixin):
         self.finished_prompts: list[str] = []
         self.patches: list[Any] = []
         self.current_idx = 0
-        self._last_custom_agent_selection = None
         self._prompt_context = None
         self.pushed_screens: list[tuple[Any, Any]] = []
 
@@ -112,17 +110,3 @@ def _patch_missing_workspace_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _raise)
-
-
-def _patch_save_recorder(monkeypatch: pytest.MonkeyPatch) -> list[SelectionItem]:
-    """Capture writes by ``save_last_agent_selection`` in an in-memory list."""
-    saved: list[SelectionItem] = []
-
-    def _record(selection: SelectionItem) -> bool:
-        saved.append(selection)
-        return True
-
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection._save_last_agent_selection", _record
-    )
-    return saved

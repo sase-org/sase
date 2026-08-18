@@ -147,7 +147,7 @@ def launch_query(query: str) -> None:
 
     for result in results:
         print(f"Agent started (PID {result.pid})")
-    _record_leading_vcs_xprompt_usage(query)
+    _record_launched_vcs_xprompt_usage(query)
     result_payload: dict[str, object] = {
         "count": len(results),
         "pids": [result.pid for result in results],
@@ -183,25 +183,61 @@ def _serialize_launch_result(result: object) -> dict[str, object]:
     }
 
 
-def _record_leading_vcs_xprompt_usage(query: str) -> None:
-    """Record the leading VCS prefix from a successful launch query."""
-    prefix = _leading_vcs_xprompt_prefix(query)
-    if prefix is None:
-        return
+def _record_launched_vcs_xprompt_usage(query: str) -> None:
+    """Record one VCS MRU entry per launched multi-prompt segment.
+
+    Entries are recorded in launch order so the last-launched segment ends up
+    at the MRU head; a single-segment query keeps today's behavior.
+    """
+    from sase.agent.multi_prompt import parse_multi_prompt
     from sase.history.vcs_xprompt_mru import record_vcs_xprompt_usage
 
-    record_vcs_xprompt_usage(prefix)
+    segments = parse_multi_prompt(query).segments
+    for segment in segments:
+        prefix = _launched_vcs_xprompt_prefix(segment)
+        if prefix is not None:
+            record_vcs_xprompt_usage(prefix)
 
 
-def _leading_vcs_xprompt_prefix(query: str) -> str | None:
-    """Return ``#<workflow>:<ref>`` for the first VCS tag in *query*, if any."""
-    from sase.workspace_provider import get_ref_patterns
+def _launched_vcs_xprompt_prefix(segment: str) -> str | None:
+    """Return ``#<workflow>:<ref>`` for *segment*'s leading VCS tag, if any.
 
-    for workflow_type, pattern in get_ref_patterns().items():
-        match = pattern.search(query)
-        if match is None:
-            continue
-        ref = match.group(1) or match.group(2)
-        if ref:
-            return f"#{workflow_type}:{ref}"
-    return None
+    Uses the launcher's own leading-tag semantics (skips a ``%directive``
+    prefix, matches only at the start of the segment) instead of a
+    registry-ordered search, so this agrees with what actually launched.
+    """
+    from sase.xprompt._parsing import (
+        extract_project_from_vcs_tag,
+        extract_vcs_workflow_tag,
+    )
+
+    tag = extract_vcs_workflow_tag(segment.strip() + " ")
+    if tag is None:
+        return None
+    ref = extract_project_from_vcs_tag(tag)
+    if not ref:
+        return None
+    workflow_type = _vcs_workflow_type_from_tag(tag)
+    if not workflow_type:
+        return None
+    return f"#{workflow_type}:{ref}"
+
+
+def _vcs_workflow_type_from_tag(tag: str) -> str | None:
+    """Return the workflow-type prefix (e.g. ``"gh"``) of a leading VCS tag."""
+    body = tag.strip()
+    if not body.startswith("#"):
+        return None
+    body = body[1:]
+
+    for suffix in ("!!", "??"):
+        idx = body.find(suffix)
+        if idx != -1:
+            body = body[:idx] + body[idx + len(suffix) :]
+            break
+
+    for sep in ("(", ":", "_", "+"):
+        idx = body.find(sep)
+        if idx != -1:
+            return body[:idx] or None
+    return body or None

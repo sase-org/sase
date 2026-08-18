@@ -11,7 +11,6 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.ace.patch import Patch
-    from sase.ace.tui.modals import SelectionItem
     from sase.ace.tui.models import Agent
 
 
@@ -29,5 +28,3 @@ class AgentLaunchMixin(
 
     # State for prompt input (from AgentWorkflowMixin)
     _prompt_context: PromptContext | None = None
-    # State for repeat-last-+/Ctrl+Space selection (from EntryPointsMixin)
-    _last_custom_agent_selection: SelectionItem | None = None

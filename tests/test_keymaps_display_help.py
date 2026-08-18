@@ -553,7 +553,7 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
     }
 
     for pairs in (cls_pairs, agent_pairs, axe_pairs):
-        assert ("Ctrl+Space", "Repeat last +/Ctrl+Space selection") in pairs
+        assert ("Ctrl+Space", "Repeat last launched VCS xprompt") in pairs
         assert not any("@/Space" in label for _key, label in pairs)
 
     assert (", Space", "Run agent from current Patch") in cls_pairs

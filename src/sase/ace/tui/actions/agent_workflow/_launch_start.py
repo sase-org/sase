@@ -8,7 +8,6 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan
-    from sase.ace.tui.modals import SelectionItem
 
 
 def _launch_toast_label(prompt: str, fallback: str) -> str:
@@ -38,7 +37,6 @@ class AgentLaunchStartMixin:
     """Mixin providing prompt-submit launch setup."""
 
     _prompt_context: PromptContext | None
-    _last_custom_agent_selection: SelectionItem | None
 
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         """Complete agent launch with the given prompt.

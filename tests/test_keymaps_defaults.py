@@ -511,5 +511,5 @@ def test_patch_facing_binding_meta_uses_patch_labels() -> None:
     """Visible binding names should match Patch terminology."""
     meta_labels = {action: label for action, label, _priority in _BINDING_META}
 
-    assert meta_labels["start_agent_from_patch"] == "Run Agent (Patch)"
+    assert meta_labels["start_agent_from_patch"] == "Run Agent (Last VCS XPrompt)"
     assert meta_labels["jump_to_agent_patch"] == "Go to Patch"

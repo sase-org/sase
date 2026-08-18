@@ -9,6 +9,7 @@ import pytest
 from sase.history.vcs_xprompt_mru import (
     _MAX_ENTRIES,
     load_launchable_vcs_xprompt_mru,
+    load_launchable_vcs_xprompt_mru_pairs,
     _load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
 )
@@ -633,3 +634,127 @@ def test_record_prunes_provider_mismatched_prefix(
     record_vcs_xprompt_usage("#git:gh_sase-org__sase")
 
     assert _load_vcs_xprompt_mru() == ["#gh:gh_sase-org__sase"]
+
+
+def test_record_then_record_moves_mru_head_to_most_recently_recorded(
+    tmp_path: Path,
+) -> None:
+    """Recording ref A then ref B leaves B at the MRU head, not A.
+
+    Regression test for the headline ``<ctrl+space>`` defect, reduced to its
+    store effect: whichever ref is recorded *last* is what every reader
+    (``<ctrl+p>``, ``<ctrl+g>``, ``<ctrl+space>``) sees first.
+    """
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        record_vcs_xprompt_usage("#gh:projA")
+        record_vcs_xprompt_usage("#gh:projB")
+        result = _load_vcs_xprompt_mru()
+
+    assert result[0] == "#gh:projB"
+    assert result == ["#gh:projB", "#gh:projA"]
+
+
+@pytest.mark.usefixtures("_reset_display_name_cache")
+def test_load_launchable_pairs_returns_canonical_and_display_halves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pairs expose the on-disk key alongside the configured display name."""
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(json.dumps({"entries": ["#gh:gh_acme__widgets"]}))
+    projects_dir = tmp_path / "projects"
+    widgets_ws = tmp_path / "widgets-ws"
+    widgets_ws.mkdir()
+    _write_named_project(projects_dir, "gh_acme__widgets", "widgets", widgets_ws)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
+
+    assert result == [("#gh:gh_acme__widgets", "#gh:widgets")]
+
+
+@pytest.mark.usefixtures("_reset_display_name_cache")
+def test_load_launchable_pairs_agrees_with_display_only_accessor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pairs accessor and the display-only accessor never disagree.
+
+    Both are built from the same dedupe step, so the display halves of the
+    pairs must exactly match (order and length) what
+    :func:`load_launchable_vcs_xprompt_mru` returns.
+    """
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(
+        json.dumps({"entries": ["#gh:gh_acme__widgets", "#gh:widgets", "#gh:other"]})
+    )
+    projects_dir = tmp_path / "projects"
+    widgets_ws = tmp_path / "widgets-ws"
+    widgets_ws.mkdir()
+    _write_named_project(projects_dir, "gh_acme__widgets", "widgets", widgets_ws)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        pairs = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
+        displays = load_launchable_vcs_xprompt_mru(projects_dir)
+
+    assert [display for _, display in pairs] == displays
+    assert displays == ["#gh:widgets", "#gh:other"]
+
+
+def test_load_launchable_pairs_performs_at_most_one_pruning_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One call prunes and saves at most once, even though multiple entries
+    are dropped."""
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    fake.write_text(
+        json.dumps({"entries": ["#gh:stale-one", "#gh:stale-two", "#gh:valid"]})
+    )
+    projects_dir = tmp_path / "projects"
+    valid_workspace = tmp_path / "valid-workspace"
+    valid_workspace.mkdir()
+    _write_project(projects_dir, "valid", valid_workspace)
+    _write_project(projects_dir, "stale-one", tmp_path / "missing-workspace-one")
+    _write_project(projects_dir, "stale-two", tmp_path / "missing-workspace-two")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+    save_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru._save_vcs_xprompt_mru",
+        lambda entries: save_calls.append(list(entries)),
+    )
+
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        result = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
+
+    assert result == [("#gh:valid", "#gh:valid")]
+    assert len(save_calls) == 1
+    assert save_calls[0] == ["#gh:valid"]

@@ -19,7 +19,6 @@ class _SubmitBoundaryApp(AgentLaunchMixin, _RefreshApp):
         _RefreshApp.__init__(self, watcher_active=False)
         self._prompt_context = _fake_context()
         self._bulk_patches = None
-        self._last_custom_agent_selection = None
         self.notifications: list[tuple[str, str | None]] = []
         self.unmount_calls: list[str] = []
         self.durable_submissions: list[tuple[list[str], dict[str, Any]]] = []

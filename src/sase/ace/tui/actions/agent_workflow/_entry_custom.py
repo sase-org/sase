@@ -11,29 +11,41 @@ if TYPE_CHECKING:
     from ...modals import SelectionItem
 
 
+def _resolve_vcs_xprompt_mru_head() -> tuple[str, str, str] | None:
+    """Resolve the VCS xprompt MRU head into a ready-to-mount prefill.
+
+    Returns ``(initial_text, display_name, history_sort_key)``, or ``None``
+    when the MRU is empty. ``initial_text``/``display_name`` use the
+    humanized display prefix (users must never see a directory key);
+    ``history_sort_key`` uses the canonical on-disk prefix so prompt-history
+    grouping agrees with every other prefill surface.
+    """
+    from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
+    from sase.xprompt import extract_project_from_vcs_tag
+
+    pairs = load_launchable_vcs_xprompt_mru_pairs()
+    if not pairs:
+        return None
+    canonical_prefix, display_prefix = pairs[0]
+    initial_text = f"{display_prefix} "
+    display_name = extract_project_from_vcs_tag(display_prefix) or display_prefix
+    history_sort_key = extract_project_from_vcs_tag(canonical_prefix) or display_name
+    return initial_text, display_name, history_sort_key
+
+
 class EntryCustomMixin:
     """Mixin providing custom project/Patch launch entry points."""
 
-    _last_custom_agent_selection: SelectionItem | None
-
     if TYPE_CHECKING:
 
-        def _load_last_custom_agent_selection(
-            self,
-        ) -> tuple[SelectionItem | None, bool]: ...
-
         def _is_launchable_project(self, project_name: str) -> bool: ...
-
-        def _clear_stale_last_custom_agent_selection(
-            self, project_name: str
-        ) -> None: ...
 
         def _vcs_prompt_prefix_or_notify(
             self, project_file: str, name: str
         ) -> str | None: ...
 
     def action_start_agent_from_patch(self) -> None:
-        """Repeat last +/Ctrl+Space agent selection."""
+        """Pre-fill the prompt bar with the most recently launched VCS xprompt."""
         changespec_override = self.__dict__.get(
             "action_start_agent_from_changespec"  # legacy compatibility alias
         )
@@ -44,12 +56,16 @@ class EntryCustomMixin:
         if callable(legacy_override):
             legacy_override()
             return
-        last, stale_cleared = self._load_last_custom_agent_selection()
-        if last is None:
-            if not stale_cleared:
-                self.notify("No previous +/Ctrl+Space selection", severity="warning")  # type: ignore[attr-defined]
+        resolved = _resolve_vcs_xprompt_mru_head()
+        if resolved is None:
+            self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]
             return
-        self._start_custom_agent_from_selection(last)
+        initial_text, display_name, history_sort_key = resolved
+        self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
+            initial_text=initial_text,
+            display_name=display_name,
+            history_sort_key=history_sort_key,
+        )
 
     def action_start_agent_from_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_start_agent_from_patch`."""
@@ -61,19 +77,11 @@ class EntryCustomMixin:
 
     def action_start_last_vcs_xprompt_in_editor(self) -> None:
         """Open editor with the most recently used launchable VCS xprompt."""
-        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru
-        from sase.xprompt import extract_project_from_vcs_tag
-
-        prefixes = [p.strip() for p in load_launchable_vcs_xprompt_mru() if p.strip()]
-        if not prefixes:
+        resolved = _resolve_vcs_xprompt_mru_head()
+        if resolved is None:
             self.notify("No previous VCS xprompt", severity="warning")  # type: ignore[attr-defined]
             return
-
-        prefix = prefixes[0]
-        initial_text = f"{prefix} "
-        project_name = extract_project_from_vcs_tag(prefix)
-        display_name = project_name or prefix
-        history_sort_key = project_name or display_name
+        initial_text, display_name, history_sort_key = resolved
 
         self._select_and_open_editor_for_home(  # type: ignore[attr-defined]
             initial_text=initial_text,
@@ -114,13 +122,6 @@ class EntryCustomMixin:
                     self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
                 return
 
-            # Save for Ctrl+Space repeat
-            from sase.ace.last_agent_selection import (
-                save_last_agent_selection_if_launchable,
-            )
-
-            if save_last_agent_selection_if_launchable(selection):
-                self._last_custom_agent_selection = selection
             self._start_custom_agent_from_selection(
                 selection, open_in_editor=open_in_editor
             )
@@ -155,7 +156,12 @@ class EntryCustomMixin:
             "project",
             "cl",
         ) or not self._is_launchable_project(project_name):
-            self._clear_stale_last_custom_agent_selection(project_name)
+            from sase.project_display_names import project_display_name_for
+
+            display_name = project_display_name_for(project_name)
+            self.notify(  # type: ignore[attr-defined]
+                f"Project {display_name!r} is not launchable", severity="warning"
+            )
             return
 
         project_dir = str(sase_projects_dir() / project_name)

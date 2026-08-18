@@ -35,7 +35,6 @@ class _SubmitHost(AgentLaunchStartMixin, LaunchProcMixin):
         self._prompt_context: PromptContext | None = _home_ctx()
         self.calls: list[dict[str, Any]] = []
         self.notifications: list[tuple[str, str | None]] = []
-        self._last_custom_agent_selection = None
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))

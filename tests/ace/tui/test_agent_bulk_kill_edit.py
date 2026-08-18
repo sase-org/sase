@@ -14,7 +14,6 @@ import json
 import os
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 from textual.app import App, ComposeResult
 from textual.widgets import Static
@@ -124,7 +123,6 @@ class _MountedBulkEditApp(AgentMarkingMixin, EntryRelaunchMixin, App[None]):
         self._marked_agents = set()
         self._marked_agent_order = []
         self._prompt_context = None
-        self._last_custom_agent_selection = None
         self.bulk_kill_calls: list[tuple[list[Agent], list[Agent]]] = []
 
     def compose(self) -> ComposeResult:
@@ -248,26 +246,22 @@ async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
     app._record_marked_agent(templated.identity)
     app._record_marked_agent(literal.identity)
 
-    with patch(
-        "sase.ace.last_agent_selection.save_last_agent_selection_if_launchable",
-        return_value=False,
-    ):
-        async with app.run_test(size=(100, 40)) as pilot:
-            app._bulk_kill_marked_agents_and_edit()
-            await wait_for(pilot, lambda: isinstance(app.screen, ConfirmKillAllModal))
+    async with app.run_test(size=(100, 40)) as pilot:
+        app._bulk_kill_marked_agents_and_edit()
+        await wait_for(pilot, lambda: isinstance(app.screen, ConfirmKillAllModal))
 
-            await pilot.press("y")
-            await pilot.pause()
-            assert isinstance(app.screen, ConfirmKillAllModal)
-            await pilot.press("y")
-            await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
+        await pilot.press("y")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmKillAllModal)
+        await pilot.press("y")
+        await wait_for(pilot, lambda: bool(app.query(PromptInputBar)))
 
-            bar = app.query_one(PromptInputBar)
-            assert len(bar._stack) == 2
-            assert bar.all_prompt_texts() == [
-                "%id:!0.cld\nWork templated",
-                "%i:!literal.wait\nWork literal",
-            ]
+        bar = app.query_one(PromptInputBar)
+        assert len(bar._stack) == 2
+        assert bar.all_prompt_texts() == [
+            "%id:!0.cld\nWork templated",
+            "%i:!literal.wait\nWork literal",
+        ]
 
     assert len(app.bulk_kill_calls) == 1
     killable, dismissable = app.bulk_kill_calls[0]

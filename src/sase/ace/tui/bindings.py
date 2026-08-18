@@ -182,7 +182,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("plus", "start_custom_agent", "Run Agent", show=False),
     Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
     # Run agent from Patch (Patches view only)
-    Binding("ctrl+@", "start_agent_from_patch", "Run Agent (Patch)", show=False),
+    Binding(
+        "ctrl+@", "start_agent_from_patch", "Run Agent (Last VCS XPrompt)", show=False
+    ),
     Binding(
         "ctrl+g",
         "start_last_vcs_xprompt_in_editor",

@@ -150,7 +150,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ("[ / ]", "Switch Keymaps / Guide"),
                 (
                     d(a.start_agent_from_patch),
-                    "Repeat last +/Ctrl+Space selection",
+                    "Repeat last launched VCS xprompt",
                 ),
                 (
                     d(a.open_config_center),

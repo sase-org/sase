@@ -11,8 +11,8 @@ def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
-        lambda: ["#gh:sase", "#gh:old"],
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:sase", "#gh:sase"), ("#gh:old", "#gh:old")],
     )
     app = _EditorApp()
 
@@ -26,12 +26,35 @@ def test_start_last_vcs_xprompt_editor_opens_mru_prefix_and_launches_edit(
     assert app._prompt_context.history_sort_key == "sase"
 
 
+def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The editor's history grouping key uses the canonical ref, not the display one.
+
+    Regression test for Defect 4: a project whose configured display name
+    differs from its on-disk directory key must group prompt history under
+    the canonical key, matching every other prefill surface.
+    """
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
+    )
+    app = _EditorApp()
+
+    app.action_start_last_vcs_xprompt_in_editor()
+
+    assert app.editor_prompts == ["#gh:widgets "]
+    assert app._prompt_context is not None
+    assert app._prompt_context.display_name == "widgets"
+    assert app._prompt_context.history_sort_key == "gh_acme__widgets"
+
+
 def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
-        lambda: [],
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [],
     )
     app = _App()
 
@@ -47,8 +70,8 @@ def test_start_last_vcs_xprompt_editor_cancel_records_prefilled_prefix(
 ) -> None:
     cancelled_prompts: list[tuple[str, bool]] = []
     monkeypatch.setattr(
-        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru",
-        lambda: ["#gh:sase"],
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:sase", "#gh:sase")],
     )
 
     def _record_cancelled_prompt(text: str, *, cancelled: bool = False) -> None:

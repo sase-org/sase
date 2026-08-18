@@ -20,7 +20,6 @@ from ._types import PromptContext
 
 if TYPE_CHECKING:
     from ...models import Agent
-    from ...modals import SelectionItem
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +123,6 @@ class EntryRelaunchMixin:
     """Mixin providing agent retry and edit/relaunch entry points."""
 
     _prompt_context: PromptContext | None
-    _last_custom_agent_selection: SelectionItem | None
 
     if TYPE_CHECKING:
 
@@ -364,7 +362,6 @@ class EntryRelaunchMixin:
         """
         from sase.core.time import generate_timestamp
 
-        from ...modals import SelectionItem
         from ...widgets import PromptInputBar
         from sase.project_display_names import project_display_name_for
 
@@ -376,20 +373,6 @@ class EntryRelaunchMixin:
         )
         timestamp = generate_timestamp()
         workflow_name = f"ace(run)-{timestamp}"
-
-        # Save for Ctrl+Space repeat
-        selection = SelectionItem(
-            display_name=display_name,
-            item_type="project" if is_project_agent else "cl",
-            project_name=project_name,
-            cl_name=cl_name if not is_project_agent else None,
-        )
-        from sase.ace.last_agent_selection import (
-            save_last_agent_selection_if_launchable,
-        )
-
-        if save_last_agent_selection_if_launchable(selection):
-            self._last_custom_agent_selection = selection
 
         # Remove any existing prompt bar before mounting a new one.
         self._unmount_prompt_bar()  # type: ignore[attr-defined]

@@ -17,31 +17,6 @@ from ._entry_points_vcs_prefix_helpers import (
 )
 
 
-def test_repeat_last_selection_reports_vcs_detection_error_without_launching(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_missing_workspace_plugin(monkeypatch)
-    app = _App()
-    app._last_custom_agent_selection = SelectionItem(
-        display_name="Fix bug",
-        item_type="cl",
-        project_name="proj",
-        cl_name="fix_bug",
-    )
-
-    app.action_start_agent_from_patch()
-
-    assert app.notifications == [
-        (
-            "Cannot start agent for fix_bug: "
-            "No workspace plugin detected a workflow type",
-            "error",
-        )
-    ]
-    assert app.prompt_launches == []
-    assert app.editor_launches == []
-
-
 def test_home_project_selection_launches_with_vcs_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -198,134 +173,119 @@ def test_start_custom_agent_selector_hides_home_project_row(
     assert [item.display_name for item in modal.all_items] == ["[P] sase"]
 
 
-def test_repeat_last_selection_clears_stale_missing_project_without_launching(
+def test_selecting_non_launchable_project_notifies_without_persisting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    clear_calls: list[bool] = []
-    persisted_selection = SelectionItem(
-        display_name="branch",
-        item_type="cl",
-        project_name="project",
-        cl_name="branch",
-    )
-
-    def _unexpected_prefix(_project_file: str, _name: str) -> str:
-        raise AssertionError("stale selections should not detect workspace type")
-
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection.load_last_agent_selection",
-        lambda: persisted_selection,
-    )
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection.clear_last_agent_selection",
-        lambda: clear_calls.append(True) or True,
-    )
+    """Selecting a stale/non-launchable project just notifies; nothing is saved."""
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: False)
-    monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _unexpected_prefix)
-
-    app = _App()
-
-    app.action_start_agent_from_patch()
-
-    assert app.notifications == [
-        (
-            "Saved +/Ctrl+Space selection is stale: "
-            "project 'project' is not launchable; cleared saved selection",
-            "warning",
-        )
-    ]
-    assert app.prompt_launches == []
-    assert app.editor_launches == []
-    assert app._last_custom_agent_selection is None
-    assert clear_calls == [True]
-
-
-def test_repeat_last_selection_clears_stale_default_home_without_launching(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stale project-``home`` selection clears instead of launching default home."""
-    clear_calls: list[bool] = []
-    persisted_selection = SelectionItem(
-        display_name="[P] home",
-        item_type="project",
-        project_name="home",
-        cl_name=None,
-    )
-
     monkeypatch.setattr(
-        "sase.ace.last_agent_selection.load_last_agent_selection",
-        lambda: persisted_selection,
-    )
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection.clear_last_agent_selection",
-        lambda: clear_calls.append(True) or True,
-    )
-    # ``home`` is a launchable project, so the stale-launchability guard does
-    # not fire; the default-prefix guard must.
-    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
-    monkeypatch.setattr(
-        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#git:{name} "
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: key,
     )
 
     app = _App()
 
-    app.action_start_agent_from_patch()
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="branch",
+            item_type="cl",
+            project_name="project",
+            cl_name="branch",
+        )
+    )
 
     assert app.notifications == [
-        (
-            "Saved +/Ctrl+Space selection was the implicit #git:home default; "
-            "cleared it (use the home keymap to start a home-mode agent)",
-            "warning",
-        )
+        ("Project 'project' is not launchable", "warning"),
     ]
     assert app.prompt_launches == []
     assert app.editor_launches == []
-    assert app._last_custom_agent_selection is None
-    assert clear_calls == [True]
 
 
-def test_repeat_last_selection_replays_non_default_launchable_project(
+def test_ctrl_space_mounts_bar_from_mru_head(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A launchable project with a non-default prefix is replayed normally."""
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection.load_last_agent_selection",
-        lambda: SelectionItem(
-            display_name="[P] sase",
-            item_type="project",
-            project_name="sase",
-            cl_name=None,
-        ),
-    )
-    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
-    monkeypatch.setattr(
-        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
-    )
+    """``<ctrl+space>`` pre-fills from the VCS xprompt MRU head.
 
+    Regression coverage for the headline defect: ``<ctrl+space>`` must read
+    the same store that every launch surface writes, not a separate
+    selection-time store. The display half seeds the bar text/label; the
+    canonical half seeds ``history_sort_key``.
+    """
+    from sase.history import vcs_xprompt_mru
+
+    monkeypatch.setattr(
+        vcs_xprompt_mru,
+        "load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
+    )
     app = _App()
 
     app.action_start_agent_from_patch()
 
     assert app.prompt_launches == [
         {
-            "initial_text": "#gh:sase ",
-            "display_name": "sase",
-            "history_sort_key": "sase",
+            "initial_text": "#gh:widgets ",
+            "display_name": "widgets",
+            "history_sort_key": "gh_acme__widgets",
         }
     ]
     assert app.notifications == []
+
+
+def test_ctrl_space_offers_most_recently_launched_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After launching ref A then ref B, ``<ctrl+space>`` offers B, not A.
+
+    Reduces the "open the bar on A, cycle to B, launch" headline bug to its
+    MRU-head effect: the most recently *launched* ref wins, regardless of
+    what an earlier selection or cycle left behind.
+    """
+    from sase.history import vcs_xprompt_mru
+
+    monkeypatch.setattr(
+        vcs_xprompt_mru,
+        "load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:projB", "#gh:projB"), ("#gh:projA", "#gh:projA")],
+    )
+    app = _App()
+
+    app.action_start_agent_from_patch()
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "#gh:projB ",
+            "display_name": "projB",
+            "history_sort_key": "projB",
+        }
+    ]
+
+
+def test_ctrl_space_warns_when_mru_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.history import vcs_xprompt_mru
+
+    monkeypatch.setattr(
+        vcs_xprompt_mru,
+        "load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [],
+    )
+    app = _App()
+
+    app.action_start_agent_from_patch()
+
+    assert app.notifications == [
+        ("No previously launched VCS xprompt", "warning"),
+    ]
+    assert app.prompt_launches == []
     assert app.editor_launches == []
-    assert app._last_custom_agent_selection is not None
 
 
-def test_quick_current_patch_reports_vcs_detection_error_without_saving(
+def test_quick_current_patch_reports_vcs_detection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_missing_workspace_plugin(monkeypatch)
-    saved: list[SelectionItem] = []
-    monkeypatch.setattr(
-        "sase.ace.last_agent_selection._save_last_agent_selection", saved.append
-    )
     app = _App()
     app.patches = [
         SimpleNamespace(
@@ -346,5 +306,3 @@ def test_quick_current_patch_reports_vcs_detection_error_without_saving(
     ]
     assert app.prompt_launches == []
     assert app.editor_launches == []
-    assert app._last_custom_agent_selection is None
-    assert saved == []
