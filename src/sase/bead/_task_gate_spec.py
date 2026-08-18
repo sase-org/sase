@@ -84,9 +84,12 @@ def build_task_triage_gate_spec(
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
     closed_at: str | None = None,
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the TaskTriage adapter."""
+    stored_fields = dict(task_type_fields or {})
     origin_agent = created_by.strip()
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
@@ -129,6 +132,8 @@ def build_task_triage_gate_spec(
             "refs": list(refs),
             "plus_one_count": count,
             **({"closed_at": closed_at} if closed_at else {}),
+            "task_type": task_type,
+            "task_type_fields": stored_fields,
             "plus_one_evidence": [
                 {
                     "timestamp": item.timestamp,
@@ -175,6 +180,8 @@ def build_task_triage_gate_spec(
                     plus_one_evidence=evidence,
                     close_history=history,
                     closed_at=closed_at,
+                    task_type=task_type,
+                    task_type_fields=stored_fields,
                 ),
             },
         ],

@@ -235,7 +235,7 @@ def test_handle_bead_search_compact_renders_size_token(
     bead_cli.handle_bead_search(args)
 
     row = capsys.readouterr().out.splitlines()[0]
-    assert f"◆ ○  L {task.id} · Needle Task" in row
+    assert f"◆ · ○  L {task.id} · Needle Task" in row
 
 
 def test_handle_bead_search_compact_colors_type_glyphs(

@@ -515,6 +515,7 @@ def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
         flag_key=None if flag is None else flag.key,
         flag_remove_by_date=None if flag is None else flag.remove_by_date,
         flag_remove_by_release=None if flag is None else flag.remove_by_release,
+        task_type=issue.task_type,
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -12,6 +13,8 @@ from textual.widgets import Button, Input, Label, Select, TextArea
 
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead_type_presentation import bead_type_presentation
+from sase.task_type_presentation import task_type_presentation
+from sase.task_types import issue_task_type_slug
 
 
 @dataclass(frozen=True, init=False)
@@ -144,6 +147,17 @@ class BeadEditorModal(ModalScreen[BeadEditorResult | None]):
                 yield from self._text_field("Assignee", "assignee", issue.assignee)
                 yield from self._text_field("Owner", "owner", issue.owner)
                 yield from self._text_field("Model", "model", issue.model)
+                if issue.issue_type is IssueType.TASK:
+                    task_presentation = task_type_presentation(issue.task_type)
+                    task_type_slug = issue_task_type_slug(issue.task_type)
+                    yield Label("Task type (immutable)", classes="bead-modal-label")
+                    yield Label(
+                        Text(
+                            f"{task_presentation.glyph} {task_type_slug}",
+                            style=task_presentation.rich_style,
+                        ),
+                        classes="bead-modal-readonly-value",
+                    )
                 if issue.issue_type is not IssueType.PLAN:
                     yield Label("Size", classes="bead-modal-label")
                     yield Select(

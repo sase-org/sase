@@ -914,6 +914,11 @@ BeadCloseModal {
     margin-bottom: 1;
 }
 
+.bead-modal-readonly-value {
+    width: 100%;
+    height: 1;
+}
+
 .bead-modal-buttons {
     width: 100%;
     height: 3;

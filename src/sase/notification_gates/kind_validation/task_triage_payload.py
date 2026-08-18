@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.notification_gates.models import GateError
@@ -23,6 +24,8 @@ _TASK_TRIAGE_PAYLOAD_FIELDS = frozenset(
         "closed_at",
         "plus_one_evidence",
         "close_history",
+        "task_type",
+        "task_type_fields",
     }
 )
 _LEGACY_TASK_TRIAGE_PAYLOAD_FIELDS = _TASK_TRIAGE_PAYLOAD_FIELDS - {"closed_at"}
@@ -42,6 +45,8 @@ class TaskTriagePayload:
     closed_at: str | None
     plus_one_evidence: tuple[TaskPlusOneEvidence, ...]
     close_history: tuple[CloseRecord, ...]
+    task_type: str = ""
+    task_type_fields: Mapping[str, str] = dataclass_field(default_factory=dict)
 
 
 def parse_task_triage_payload(payload: Mapping[str, Any]) -> TaskTriagePayload:
@@ -129,6 +134,7 @@ def parse_task_bead_payload(
             "payload.closed_at",
             f"{label} payload closed_at must be null or a string",
         )
+    task_type, task_type_fields = _parse_task_type(payload, code, label)
     return TaskTriagePayload(
         bead_id=cast(str, payload["bead_id"]),
         project=project,
@@ -140,7 +146,38 @@ def parse_task_bead_payload(
         closed_at=closed_at,
         plus_one_evidence=evidence,
         close_history=close_history,
+        task_type=task_type,
+        task_type_fields=task_type_fields,
     )
+
+
+def _parse_task_type(
+    payload: Mapping[str, Any], code: str, label: str
+) -> tuple[str, Mapping[str, str]]:
+    task_type = payload.get("task_type", "")
+    if not isinstance(task_type, str):
+        raise GateError(
+            code,
+            "payload.task_type",
+            f"{label} payload task_type must be a string",
+        )
+    raw_fields = payload.get("task_type_fields", {})
+    if not isinstance(raw_fields, Mapping) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in raw_fields.items()
+    ):
+        raise GateError(
+            code,
+            "payload.task_type_fields",
+            f"{label} payload task_type_fields must be a string-to-string mapping",
+        )
+    if raw_fields and not task_type:
+        raise GateError(
+            code,
+            "payload.task_type_fields",
+            f"{label} payload task_type_fields requires task_type",
+        )
+    return task_type, dict(cast("Mapping[str, str]", raw_fields))
 
 
 def _parse_plus_one_evidence(

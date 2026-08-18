@@ -15,6 +15,7 @@ from sase.ace.tui.models.wait_bead_catalog import (
 from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, bead_age_label
 from sase.bead_type_presentation import bead_type_presentation
+from sase.task_type_presentation import task_type_presentation
 
 _ID_WIDTH = 16
 _TITLE_WIDTH = 32
@@ -88,6 +89,10 @@ def bead_candidate_option(
         f"{type_presentation.glyph} {candidate.type_label}",
         style=type_presentation.rich_style,
     )
+    if candidate.type_label == "task":
+        task_presentation = task_type_presentation(candidate.task_type)
+        text.append(" ")
+        text.append(task_presentation.glyph, style=task_presentation.rich_style)
     if age:
         text.append(" · ", style="dim")
         text.append(f"{BEAD_CREATED_GLYPH} {age}", style="dim")

@@ -8,7 +8,7 @@ from typing import Protocol, runtime_checkable
 from sase.agents_sync.rendering_markdown import md_cell, md_code, md_escape
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_detail import IssueDetail
-from sase.bead.model import Issue, Status
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
     POST_CLOSE_EVIDENCE_MARKER,
@@ -32,7 +32,12 @@ from sase.bead.snooze_presentation import (
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
-from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
+from sase.task_type_presentation import task_type_presentation
+from sase.task_types import (
+    TASK_TYPE_BODY_SEPARATOR,
+    issue_task_type_slug,
+    render_task_type_display_block,
+)
 from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, PLAN_REFERENCE_PREFIX
 
 MAX_RENDERED_PROSE_CHARS = 10_000
@@ -257,6 +262,10 @@ def _primary_facts(issue: Issue) -> str:
     ]
     if issue.tier is not None:
         values.append(f"**Tier:** {issue.tier.value}")
+    if issue.issue_type is IssueType.TASK:
+        task_presentation = task_type_presentation(issue.task_type)
+        task_slug = issue_task_type_slug(issue.task_type)
+        values.append(f"**Task type:** {task_presentation.glyph} {md_code(task_slug)}")
     if issue.flag is not None:
         glyph = bead_type_presentation("flag").glyph
         values.append(f"**Flag:** {glyph} `{md_code(issue.flag.key)}`")

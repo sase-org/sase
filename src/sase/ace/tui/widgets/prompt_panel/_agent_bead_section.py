@@ -20,6 +20,7 @@ from sase.bead.plus_one_presentation import (
     plus_one_reports_label,
 )
 from sase.phase_size_presentation import phase_size_chip
+from sase.task_type_presentation import task_type_chip
 
 from ...models.agent_associated_plan import BeadSummary
 from ...models.fold_scale import FoldScale, fold_scale_position
@@ -51,6 +52,7 @@ _BEAD_FIELD_LABELS = (
     "Flag Key",
     "Remove By",
     "Size",
+    "Task Type",
     "+1 Reports",
     "+1 Evidence",
     "Created",
@@ -146,6 +148,7 @@ class ResponsiveBeadSection:
                 )
             if self.summary.size is not None:
                 rows.append((self._label("Size"), self._size_value()))
+            rows.append((self._label("Task Type"), self._task_type_value()))
             if self.summary.plus_one_count:
                 rows.append((self._label("+1 Reports"), self._plus_one_count_value()))
                 rows.append(
@@ -260,6 +263,9 @@ class ResponsiveBeadSection:
             self.summary.size,
             unavailable_style=COLOR_EMPTY,
         )
+
+    def _task_type_value(self) -> Text:
+        return task_type_chip(self.summary.task_type)
 
     def _created_value(self) -> Text:
         return Text(

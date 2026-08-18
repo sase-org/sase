@@ -274,6 +274,51 @@ def test_task_and_phase_notes_follow_description() -> None:
     assert "Epic Plan:" not in task_plain
 
 
+def test_task_bead_lane_shows_task_type_between_size_and_plus_one() -> None:
+    typed_summary = BeadSummary(
+        id="sase-task.6",
+        phase_title="Flaky retry test",
+        description="Reproduce the intermittent failure.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size="medium",
+        created_at=_CREATED_AT,
+        bead_type="task",
+        task_type="flake",
+    )
+    header, _ = build_header_text(
+        make_agent(agent_name=typed_summary.id),
+        summary=DetailHeaderSummary(phase_bead=typed_summary),
+    )
+    plain = header.plain
+
+    assert "Task Type:  ≈ flake" in plain
+    assert plain.index("Size:") < plain.index("Task Type:") < plain.index("Created:")
+
+    untyped_summary = BeadSummary(
+        id="sase-task.7",
+        phase_title="Legacy task",
+        description="No declared task type.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size=None,
+        created_at=_CREATED_AT,
+        bead_type="task",
+    )
+    untyped_header, _ = build_header_text(
+        make_agent(agent_name=untyped_summary.id),
+        summary=DetailHeaderSummary(phase_bead=untyped_summary),
+    )
+
+    assert "Task Type:  · untyped" in untyped_header.plain
+
+
 def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
     evidence = TaskPlusOneEvidence(
         timestamp="2026-08-01T15:00:00Z",

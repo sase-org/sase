@@ -47,6 +47,7 @@ class WaitBeadCandidate:
     type_label: str
     created_at: str
     updated_at: str
+    task_type: str = ""
 
     @property
     def search_text(self) -> str:
@@ -148,6 +149,7 @@ def _bead_candidate(issue: Issue) -> WaitBeadCandidate:
         type_label=issue.issue_type.value,
         created_at=issue.created_at,
         updated_at=issue.updated_at,
+        task_type=issue.task_type,
     )
 
 

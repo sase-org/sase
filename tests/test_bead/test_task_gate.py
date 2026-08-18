@@ -43,6 +43,8 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "size": None,
         "refs": [],
         "plus_one_count": 0,
+        "task_type": "",
+        "task_type_fields": {},
         "plus_one_evidence": [],
         "close_history": [],
     }
@@ -137,6 +139,36 @@ def test_task_triage_presents_structured_plus_one_evidence(gate_home: Path) -> N
     assert "## +1 Evidence" in preview
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in preview
     assert "Reproduced after clearing the cache." in preview
+
+
+def test_task_triage_preview_shows_task_type_and_field_values(gate_home: Path) -> None:
+    del gate_home
+    gate = create_task_triage_gate(
+        request_id="task-triage-typed",
+        bead_id="sase-task.3",
+        project="sase",
+        title="Ctrl+] hint is wrong",
+        description="Found while landing sase-ace.",
+        task_type="bug",
+        task_type_fields={
+            "location": "src/sase/ace/help.py",
+            "repro": "Open ACE, press Ctrl+].",
+            "impact": "Confuses new users.",
+        },
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["task_type"] == "bug"
+    assert request["payload"]["task_type_fields"] == {
+        "location": "src/sase/ace/help.py",
+        "repro": "Open ACE, press Ctrl+].",
+        "impact": "Confuses new users.",
+    }
+    preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "## Bug" in preview
+    assert "**Location:** `src/sase/ace/help.py`" in preview
+    assert "Open ACE, press Ctrl+]." in preview
+    assert "Confuses new users." in preview
 
 
 def test_task_triage_presents_prior_close_history(gate_home: Path) -> None:

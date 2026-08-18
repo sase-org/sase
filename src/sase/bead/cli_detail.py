@@ -73,7 +73,12 @@ from sase.phase_size_presentation import (
     PHASE_SIZE_DEFAULT_MARKER,
     phase_size_cli_style,
 )
-from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
+from sase.task_type_presentation import task_type_presentation
+from sase.task_types import (
+    TASK_TYPE_BODY_SEPARATOR,
+    issue_task_type_slug,
+    render_task_type_display_block,
+)
 
 
 def render_issue_detail(
@@ -143,6 +148,10 @@ def render_issue_detail(
         lines.append(f"{palette.label('Model:')} {issue.model}")
     if issue.issue_type in {IssueType.PHASE, IssueType.TASK}:
         lines.append(f"{palette.label('Size:')} {_phase_size_field(issue, palette)}")
+    if issue.issue_type is IssueType.TASK:
+        lines.append(
+            f"{palette.label('Task type:')} {_task_type_field(issue, palette)}"
+        )
 
     created_label = bead_created_label(issue.created_at)
     created_value = (
@@ -592,6 +601,12 @@ def _phase_size_field(issue: Issue, palette: DetailPalette) -> str:
     if defaulted:
         field += f" {palette.placeholder(PHASE_SIZE_DEFAULT_MARKER)}"
     return field
+
+
+def _task_type_field(issue: Issue, palette: DetailPalette) -> str:
+    presentation = task_type_presentation(issue.task_type)
+    slug = issue_task_type_slug(issue.task_type)
+    return palette.accent(f"{presentation.glyph} {slug}", presentation.cli_style)
 
 
 def _display_design_path(

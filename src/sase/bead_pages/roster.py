@@ -10,6 +10,8 @@ from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import bead_date_label
 from sase.bead_type_presentation import bead_type_presentation
+from sase.task_type_presentation import task_type_presentation
+from sase.task_types import issue_task_type_slug
 
 
 def _render_bead_pages_roster(
@@ -37,8 +39,8 @@ def _render_bead_pages_roster(
         "",
         "Generated pages for every bead lineage in this project.",
         "",
-        "| Bead | Title | Type | Flag | Tier | Status | Created | +1 | ↺ | Phases | Agents | Commits |",
-        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Bead | Title | Type | Task Type | Flag | Tier | Status | Created | +1 | ↺ | Phases | Agents | Commits |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for issue in roots:
         associations = association_index.for_bead(issue.id)
@@ -49,6 +51,7 @@ def _render_bead_pages_roster(
             f"[{md_cell(issue.id)}]({issue.id}/README.md) | "
             f"{md_cell(issue.title)} | "
             f"{type_glyph} {issue.issue_type.value} | "
+            f"{_task_type_roster_cell(issue)} | "
             f"{_flag_roster_cell(issue)} | "
             f"{tier} | "
             f"{issue.status.value} | "
@@ -60,6 +63,14 @@ def _render_bead_pages_roster(
             f"{len(associations.commits)} |"
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _task_type_roster_cell(issue: Issue) -> str:
+    if issue.issue_type is not IssueType.TASK:
+        return "—"
+    presentation = task_type_presentation(issue.task_type)
+    slug = issue_task_type_slug(issue.task_type)
+    return f"{presentation.glyph} {md_cell(slug)}"
 
 
 def _flag_roster_cell(issue: Issue) -> str:

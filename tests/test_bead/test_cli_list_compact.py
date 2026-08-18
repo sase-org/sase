@@ -160,7 +160,8 @@ def test_list_compact_collapses_size_column_when_no_rows_are_sized(
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
 
     assert (
-        capsys.readouterr().out == f"▸ ○ {issue.id} · Plan Only  ⧖ now\n\n1 open plan\n"
+        capsys.readouterr().out
+        == f"▸   ○ {issue.id} · Plan Only  ⧖ now\n\n1 open plan\n"
     )
 
 

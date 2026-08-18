@@ -50,6 +50,7 @@ class BeadSummary:
     flag_key: str | None = None
     flag_remove_by_date: str | None = None
     flag_remove_by_release: str | None = None
+    task_type: str = ""
 
     @property
     def plus_one_count(self) -> int:

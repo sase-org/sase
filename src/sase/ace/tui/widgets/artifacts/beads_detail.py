@@ -23,6 +23,8 @@ from sase.bead_time_presentation import bead_created_label
 from sase.bead_type_presentation import bead_type_chip
 from sase.core.time import format_local
 from sase.phase_size_presentation import phase_size_chip
+from sase.task_type_presentation import task_type_chip
+from sase.task_types import issue_task_type_slug
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot, PendingTriage
@@ -82,6 +84,8 @@ def bead_properties_header(
         ("Status", _status_chip(issue.status)),
         ("Readiness", _readiness_chip(issue, snapshot, project=project)),
     ]
+    if issue.issue_type is IssueType.TASK:
+        properties.append(("Task type", task_type_chip(issue.task_type)))
     properties.extend(_flag_properties(issue, snapshot, project=project))
     if issue.tier is not None:
         properties.append(("Tier", issue.tier.value))
@@ -197,6 +201,8 @@ def bead_preview_markdown(
         lines.append(f"**Tier:** {issue.tier.value}  ")
     if issue.size is not None:
         lines.append(f"**Size:** {issue.size.value}  ")
+    if issue.issue_type is IssueType.TASK:
+        lines.append(f"**Task type:** {issue_task_type_slug(issue.task_type)}  ")
     if issue.flag is not None:
         record = issue.flag
         lines.extend(

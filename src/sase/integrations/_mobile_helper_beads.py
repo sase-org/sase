@@ -259,6 +259,7 @@ def _bead_summary_wire(
         "title": issue.title,
         "status": issue.status.value,
         "bead_type": issue.issue_type.value,
+        "task_type": issue.task_type or None,
         "tier": issue.tier.value if issue.tier is not None else None,
         "project": project,
         "parent_id": issue.parent_id,
@@ -303,6 +304,7 @@ def _bead_detail_wire(
         "description": issue.description or None,
         "notes": issue.notes or None,
         "model": issue.model or None,
+        "task_type_fields": dict(issue.task_type_fields) or None,
         "design_path_display": _issue_plan_path(
             issue,
             issue_by_id,

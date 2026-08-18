@@ -33,6 +33,8 @@ from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
 from sase.notification_gates.model_validation import GateError, validate_icon
+from sase.task_type_presentation import task_type_presentation
+from sase.task_types.registry import get_task_type_registry
 
 # The core's catch-all tab key; the modal spells the same tab ``None``.
 GENERAL_TAB_KEY = "general"
@@ -104,6 +106,7 @@ class _IconRung(Enum):
     CONFIGURED = "configured"
     DECLARED = "declared"
     BEAD_TYPE = "bead_type"
+    TASK_TYPE = "task_type"
     BUILTIN = "builtin"
     KIND = "kind"
     LAST_RESORT = "last_resort"
@@ -147,6 +150,9 @@ def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
         return declared
     if config_key in BEAD_TYPE_VALUES:
         return bead_type_presentation(config_key).accent_color
+    task_type = _task_type_tab_glyph_and_color(config_key)
+    if task_type is not None:
+        return task_type[1]
     return _default_notification_tab_color(config_key)
 
 
@@ -186,6 +192,9 @@ def _resolve_tab_icon(tab: NotificationTagTab) -> tuple[str, _IconRung]:
         return declared, _IconRung.DECLARED
     if config_key in BEAD_TYPE_VALUES:
         return bead_type_presentation(config_key).glyph, _IconRung.BEAD_TYPE
+    task_type = _task_type_tab_glyph_and_color(config_key)
+    if task_type is not None:
+        return task_type[0], _IconRung.TASK_TYPE
     builtin = _BUILTIN_TAB_ICONS.get(config_key)
     if builtin is not None:
         return builtin, _IconRung.BUILTIN
@@ -193,6 +202,19 @@ def _resolve_tab_icon(tab: NotificationTagTab) -> tuple[str, _IconRung]:
     if kind is not None:
         return kind, _IconRung.KIND
     return _LAST_RESORT_TAB_ICON, _IconRung.LAST_RESORT
+
+
+def _task_type_tab_glyph_and_color(config_key: str) -> tuple[str, str] | None:
+    """Return the resolved ``(glyph, accent_color)`` for *config_key*, if any.
+
+    Only a slug the live registry actually knows about qualifies -- an
+    arbitrary tag name must never pick up the degraded ``unknown`` styling
+    ``task_type_presentation`` would otherwise hand back for every string.
+    """
+    if config_key not in get_task_type_registry().by_slug:
+        return None
+    presentation = task_type_presentation(config_key)
+    return presentation.glyph, presentation.accent_color
 
 
 def _derive_icon_from_tab_key(tab_key: str, claimed: set[str]) -> str:

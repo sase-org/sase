@@ -241,6 +241,40 @@ def test_beads_show_bridge_returns_detail(
     assert summary["created_at"] == alpha_epic.created_at
 
 
+def test_beads_show_bridge_returns_task_type_and_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_root = tmp_path / "alpha"
+    alpha_dir, _, _, _ = seed_bead_project(alpha_root)
+    with BeadProject(alpha_root) as project:
+        flaky = project.create(
+            "Flaky retry test",
+            IssueType.TASK,
+            size="small",
+            task_type="flake",
+            task_type_fields={
+                "node_id": "tests/foo.py::test_bar",
+                "evidence": "Failed once, passed on rerun.",
+            },
+        )
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_id": flaky.id},
+        "beads-show",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    summary = data["bead"]["summary"]  # type: ignore[index]
+    assert summary["task_type"] == "flake"
+    assert data["bead"]["task_type_fields"] == {  # type: ignore[index]
+        "node_id": "tests/foo.py::test_bar",
+        "evidence": "Failed once, passed on rerun.",
+    }
+
+
 def test_beads_show_bridge_returns_stored_references_it_cannot_resolve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

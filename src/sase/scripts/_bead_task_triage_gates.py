@@ -291,6 +291,8 @@ def create_gate(
         "plus_one_evidence": issue.plus_one_evidence,
         "close_history": issue.close_history,
         "closed_at": issue.closed_at,
+        "task_type": issue.task_type,
+        "task_type_fields": dict(issue.task_type_fields),
         "producer": {"chop": "bead_task_triage", "project": project_name},
     }
     if kind == TASK_TRIAGE_KIND:

@@ -209,6 +209,8 @@ def _validate_bead_snooze_preview(
             refs=task.refs,
             plus_one_evidence=task.plus_one_evidence,
             close_history=task.close_history,
+            task_type=task.task_type,
+            task_type_fields=task.task_type_fields,
         )
 
     matches = preview_matches_renderer(

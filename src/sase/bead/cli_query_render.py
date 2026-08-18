@@ -19,7 +19,7 @@ from sase.bead.cli_detail import (
     render_issue_detail,
     resolve_issue_detail,
 )
-from sase.bead.model import BeadSearchMatch, Issue, Status
+from sase.bead.model import BeadSearchMatch, Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
     POST_CLOSE_CLI_STYLE,
@@ -43,6 +43,7 @@ from sase.bead_type_presentation import (
 )
 from sase.core import time as core_time
 from sase.phase_size_presentation import PHASE_SIZE_TOKEN_WIDTH, phase_size_cli_token
+from sase.task_type_presentation import task_type_cli_cell
 
 
 def row_badges(issue: Issue, *, use_color: bool = False) -> str:
@@ -59,6 +60,13 @@ def row_badges(issue: Issue, *, use_color: bool = False) -> str:
     if post_close := post_close_plus_one_badge(post_close_plus_one_count(issue)):
         badges.append(styled(f"[{post_close}]", POST_CLOSE_CLI_STYLE, use_color))
     return "".join(f" {badge}" for badge in badges)
+
+
+def _task_type_column(issue: Issue, *, use_color: bool) -> str:
+    """Return the fixed-width task-type cell, blank for non-task beads."""
+    if issue.issue_type is not IssueType.TASK:
+        return "  "
+    return f"{task_type_cli_cell(issue.task_type, use_color=use_color)} "
 
 
 def compact_size_column_width(issues: list[Issue]) -> int:
@@ -105,7 +113,7 @@ def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
         issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
         parent = f" ← {issue.parent_id}" if issue.parent_id else ""
         lines.append(
-            f"{type_cell} {status_glyph} "
+            f"{type_cell} {_task_type_column(issue, use_color=use_color)}{status_glyph} "
             f"{compact_size_column(issue, use_color=use_color, width=size_width)}"
             f"{issue_id} · {issue.title}"
             f"{_flag_compact_cells(issue, use_color=use_color)}"
@@ -179,7 +187,8 @@ def render_search_compact(
             width=type_width,
         )
         lines.append(
-            f"{type_cell} {status_icon(issue.status)} "
+            f"{type_cell} {_task_type_column(issue, use_color=use_color)}"
+            f"{status_icon(issue.status)} "
             f"{compact_size_column(issue, use_color=use_color, width=size_width)}"
             f"{issue.id} · "
             f"{issue.title}{_flag_compact_cells(issue, use_color=use_color)}"

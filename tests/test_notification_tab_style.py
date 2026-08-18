@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.notification_tab_style import (
     resolve_notification_tab_icons,
 )
 from sase.bead_type_presentation import bead_type_presentation
+from sase.task_type_presentation import task_type_presentation
 
 
 @pytest.fixture(autouse=True)
@@ -96,6 +97,22 @@ def test_flag_notification_tag_uses_bead_type_presentation() -> None:
 
     assert resolve_notification_tab_color(tab) == presentation.accent_color
     assert _resolve_notification_tab_icon(tab) == presentation.glyph
+
+
+def test_a_task_type_slug_notification_tag_uses_task_type_presentation() -> None:
+    presentation = task_type_presentation("flake")
+    tab = _tab("flake", kind="tag")
+
+    assert resolve_notification_tab_color(tab) == presentation.accent_color
+    assert _resolve_notification_tab_icon(tab) == presentation.glyph
+
+
+def test_a_tag_matching_no_task_type_slug_never_borrows_task_type_styling() -> None:
+    tab = _tab("not-a-real-task-type", kind="tag")
+
+    assert resolve_notification_tab_color(tab) == _default_notification_tab_color(
+        "not-a-real-task-type"
+    )
 
 
 def test_an_empty_configured_color_falls_through_to_the_default(

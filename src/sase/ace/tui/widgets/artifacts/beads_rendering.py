@@ -25,6 +25,7 @@ from sase.bead_time_presentation import (
 )
 from sase.bead_type_presentation import bead_type_presentation
 from sase.phase_size_presentation import phase_size_chip
+from sase.task_type_presentation import task_type_presentation
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot
@@ -393,6 +394,8 @@ def _bead_text(
     presentation = bead_type_presentation(issue.issue_type)
     text = single_line_text()
     text.append(f"{presentation.glyph} ", style=presentation.rich_style)
+    task_type = task_type_presentation(issue.task_type)
+    text.append(f"{task_type.glyph} ", style=task_type.rich_style)
     if triage:
         text.append("✦ ", style=f"bold {ARTIFACTS_ACCENTS['beads']}")
     if plan_link:

@@ -73,6 +73,8 @@ def create_task_triage_gate(
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
     closed_at: str | None = None,
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only triage gate for a ready standalone task bead."""
@@ -93,6 +95,8 @@ def create_task_triage_gate(
             plus_one_evidence=plus_one_evidence,
             close_history=close_history,
             closed_at=closed_at,
+            task_type=task_type,
+            task_type_fields=task_type_fields,
             producer=producer,
         )
     )

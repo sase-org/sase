@@ -44,6 +44,7 @@ class BeadFilterBar(FilterBar):
     CANDIDATE_ID_PREFIX = "bead-filter-candidate"
     KEY_COMPLETIONS = (
         ("type", ", ".join(BEAD_TYPE_VALUES)),
+        ("task_type", "task-type slug or untyped"),
         ("tier", "plan or epic"),
         ("status", "open, closed, blocked, triage"),
         ("size", "xsmall through xlarge"),
@@ -71,6 +72,7 @@ class BeadFilterBar(FilterBar):
     }
     VALUE_HINTS = {
         "type": "bead type",
+        "task_type": "task type",
         "tier": "plan tier",
         "status": "real or derived status",
         "size": "phase or task size",
@@ -88,6 +90,7 @@ class BeadFilterBar(FilterBar):
     REPEATABLE_VALUE_KINDS = frozenset(
         (
             "type",
+            "task_type",
             "tier",
             "status",
             "size",

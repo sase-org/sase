@@ -103,6 +103,8 @@ def create_bead_snooze_gate(
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> Any:
     """Create one human-only wake gate for a snoozed standalone task bead."""
@@ -123,6 +125,8 @@ def create_bead_snooze_gate(
             refs=refs,
             plus_one_evidence=plus_one_evidence,
             close_history=close_history,
+            task_type=task_type,
+            task_type_fields=task_type_fields,
             producer=producer,
         )
     )
@@ -143,6 +147,8 @@ def _build_bead_snooze_gate_spec(
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the BeadSnooze adapter."""
@@ -152,6 +158,7 @@ def _build_bead_snooze_gate_spec(
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
     history = tuple(close_history)
+    stored_fields = dict(task_type_fields or {})
     presentation: dict[str, Any] = {
         "sender": "bead",
         "icon": "◈",
@@ -188,6 +195,8 @@ def _build_bead_snooze_gate_spec(
             "size": size,
             "refs": list(refs),
             "plus_one_count": count,
+            "task_type": task_type,
+            "task_type_fields": stored_fields,
             "plus_one_evidence": [
                 {
                     "timestamp": item.timestamp,
@@ -235,6 +244,8 @@ def _build_bead_snooze_gate_spec(
                     refs=refs,
                     plus_one_evidence=evidence,
                     close_history=history,
+                    task_type=task_type,
+                    task_type_fields=stored_fields,
                 ),
             },
         ],
@@ -299,6 +310,8 @@ def render_bead_snooze_preview(
     refs: Sequence[str] = (),
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
 ) -> str:
     """Render the woken task's detail, snooze block first.
 
@@ -317,6 +330,8 @@ def render_bead_snooze_preview(
         refs=refs,
         plus_one_evidence=plus_one_evidence,
         close_history=close_history,
+        task_type=task_type,
+        task_type_fields=task_type_fields,
     )
 
 

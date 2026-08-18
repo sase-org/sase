@@ -9,7 +9,7 @@ rendered with a placeholder.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from sase.bead.model import (
     CloseRecord,
@@ -35,6 +35,7 @@ from sase.bead.reopen_presentation import (
     reopen_badge,
 )
 from sase.bead_time_presentation import bead_created_cli, bead_created_label
+from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 
 _MAX_GATE_TITLE_LENGTH = 120
 
@@ -65,6 +66,8 @@ def render_task_triage_preview(
     plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
     close_history: Sequence[CloseRecord] = (),
     closed_at: str | None = None,
+    task_type: str = "",
+    task_type_fields: Mapping[str, str] | None = None,
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients.
 
@@ -75,8 +78,20 @@ def render_task_triage_preview(
     instant, never a recomputed age. The Notes section itself is conditional:
     it is omitted entirely when notes are blank rather than rendered with a
     placeholder.
+
+    The typed body block renders after Notes rather than directly below
+    Description: gate validation recovers the agent-authored description and
+    notes by locating them between two markers rendered into this same
+    template, so anything placed between those two fields must itself be a
+    pure function of ``(task_type, task_type_fields)`` alone -- which the
+    block already is, but sitting between Description and Notes would corrupt
+    that recovery whenever notes are blank (the block's own Markdown could be
+    mistaken for part of the description). Placing it strictly after Notes
+    keeps it outside the marker-delimited region entirely.
     """
     description_text = description.strip() or "_No description._"
+    type_body = _task_type_body(task_type, task_type_fields or {})
+    type_section = f"\n\n{TASK_TYPE_BODY_SEPARATOR}\n\n{type_body}" if type_body else ""
     notes_text = notes.strip()
     notes_section = f"\n\n## Notes\n\n{notes_text}" if notes_text else ""
     filer = f"**Filed by:** `@{created_by}`\n\n" if created_by else ""
@@ -105,8 +120,24 @@ def render_task_triage_preview(
         f"{close_history_section}"
         f"## Description\n\n{description_text}"
         f"{notes_section}\n"
+        f"{type_section}"
         f"{evidence_section}"
     )
+
+
+def _task_type_body(task_type: str, task_type_fields: Mapping[str, str]) -> str:
+    """Render the typed body block a gate preview shows below Description."""
+    if not task_type:
+        return ""
+    preview_issue = Issue(
+        "preview",
+        "",
+        status=Status.OPEN,
+        issue_type=IssueType.TASK,
+        task_type=task_type,
+        task_type_fields=dict(task_type_fields),
+    )
+    return render_task_type_display_block(preview_issue)
 
 
 def task_triage_presentation_note(

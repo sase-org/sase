@@ -221,6 +221,8 @@ def _validate_task_triage_preview(
             plus_one_evidence=payload.plus_one_evidence,
             close_history=payload.close_history,
             closed_at=payload.closed_at,
+            task_type=payload.task_type,
+            task_type_fields=payload.task_type_fields,
         )
 
     matches = preview_matches_renderer(

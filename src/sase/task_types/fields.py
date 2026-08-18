@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.task_types._snapshot import task_type_snapshot_entry as _snapshot_entry
 from sase.task_types._validation import plain_task_type_spec
 from sase.task_types.registry import get_task_type_registry
 
@@ -143,32 +144,6 @@ def _unknown_task_type_message(slug: str, registry: Any) -> str:
                 f"run `sase plugin install {package}`"
             )
     return "\n".join(lines)
-
-
-def _snapshot_entry(slug: str) -> Mapping[str, Any] | None:
-    from sase.content_layout import discover_project_root, resolve_project_layout
-
-    root = discover_project_root()
-    if root is None:
-        return None
-    path = resolve_project_layout(root).namespace_root.path / "task_types.json"
-    if not path.is_file():
-        return None
-    try:
-        snapshot = require_rust_binding("parse_task_type_snapshot")(
-            path.read_text(encoding="utf-8")
-        )
-    except Exception:
-        return None
-    if not isinstance(snapshot, Mapping):
-        return None
-    types = snapshot.get("types")
-    if not isinstance(types, list):
-        return None
-    for entry in types:
-        if isinstance(entry, Mapping) and str(entry.get("task_type") or "") == slug:
-            return entry
-    return None
 
 
 __all__ = [
