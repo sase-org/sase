@@ -5,7 +5,7 @@ authoring time" pattern used by ``_provider_accent_for_kind``
 (:mod:`sase.ace.tui._artifact_tab_descriptors`): hash the identifier, index
 a frozen palette. Project accents add one requirement that pattern does not
 need — colors must be *unique per project*, not merely stable — so
-:func:`project_accent_map` forward-probes past a hash collision to the next
+:func:`_project_accent_map` forward-probes past a hash collision to the next
 free palette slot instead of accepting the collision.
 """
 
@@ -67,7 +67,7 @@ def _project_accent_map_cached(project_keys: tuple[str, ...]) -> Mapping[str, st
     return assigned
 
 
-def project_accent_map(project_keys: Iterable[str]) -> Mapping[str, str]:
+def _project_accent_map(project_keys: Iterable[str]) -> Mapping[str, str]:
     """Return a stable, distinct accent per key in ``project_keys``.
 
     Keys are assigned in sorted order so a key's color can only change when
@@ -83,10 +83,10 @@ def project_accent(project_key: str, *, among: Iterable[str] | None = None) -> s
     """Return ``project_key``'s accent, optionally unique within ``among``.
 
     Without ``among`` this degrades to a hash-only lookup (no collision
-    avoidance). With ``among``, the accent is the one :func:`project_accent_map`
+    avoidance). With ``among``, the accent is the one :func:`_project_accent_map`
     would assign that key within that key set.
     """
 
     if among is None:
         return PROJECT_ACCENTS[_hash_index(project_key, len(PROJECT_ACCENTS))]
-    return project_accent_map(set(among) | {project_key})[project_key]
+    return _project_accent_map(set(among) | {project_key})[project_key]
