@@ -209,6 +209,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "llm.default",
         "runtime.node",
         "install.management",
+        "plugins.required",
         "plugins.resources",
         "resources.disk_free",
         "plugins.github",

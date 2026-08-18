@@ -27,6 +27,12 @@ class _ValidationResult:
 
 
 _CHECKS = (
+    # Required plugins are verified before memory drift so a missing plugin
+    # never reports as a spurious generated-file mismatch.
+    _ValidationCheck(
+        "doctor plugins.required",
+        ("doctor", "-C", "plugins.required"),
+    ),
     # Machine identity is intentionally local and may be absent on a clean CI
     # host. Validate portable initialization surfaces explicitly; users and
     # doctor still get the full Config-first plan from bare `sase init --check`.

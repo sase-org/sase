@@ -97,6 +97,17 @@ def _print_config_errors(errors: Iterable[str]) -> None:
         print(error, file=sys.stderr)
 
 
+def _required_plugin_errors(config_path: Path) -> tuple[str, ...]:
+    """Return ``plugins.required`` blockers before any memory drift comparison."""
+    from sase.plugins.required import required_plugin_blockers
+    from sase.project_management import load_local_config
+
+    loaded = load_local_config(config_path)
+    if not loaded.valid:
+        return ()
+    return required_plugin_blockers(loaded.config, command_label=COMMAND_LABEL)
+
+
 def _stdin_is_tty() -> bool:
     return sys.stdin.isatty()
 
@@ -114,9 +125,11 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     project_glossary_terms: _ProjectGlossaryTerms | None = None
     glossary_errors: tuple[str, ...] = ()
     project_name: str | None = None
+    plugin_errors: tuple[str, ...] = ()
     if is_project_dir:
         management = project_management_status(project_config)
         project_managed = management.is_sase_managed
+        plugin_errors = _required_plugin_errors(project_config)
         if management.error is not None:
             project_entries = ()
             project_errors = (management.error,)
@@ -141,7 +154,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     home_entries, home_errors = _linked_entries_from_config(
         global_config, label="home", primary_root=primary_root
     )
-    config_errors = (*project_errors, *glossary_errors, *home_errors)
+    config_errors = (*plugin_errors, *project_errors, *glossary_errors, *home_errors)
     if config_errors or not is_project_dir or not project_managed:
         project_name = None
         project_glossary_terms = None

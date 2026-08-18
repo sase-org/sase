@@ -17,6 +17,11 @@ from sase.plugins.inventory import (
     PluginInventory,
     collect_plugin_inventory,
 )
+from sase.plugins.required import (
+    RequiredPluginsReport,
+    load_project_required_plugins_config,
+    resolve_required_plugins,
+)
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -26,8 +31,13 @@ _MAX_DETAIL_ROWS = 10
 
 def plugin_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
     """Return default plugin check specs."""
-    del context  # These checks inspect the live environment, not the context.
     return (
+        CheckSpec(
+            id="plugins.required",
+            group="plugins",
+            title="Required plugins",
+            runner=lambda: _check_plugins_required(context),
+        ),
         CheckSpec(
             id="plugins.resources",
             group="plugins",
@@ -40,6 +50,107 @@ def plugin_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="GitHub plugin prerequisites",
             runner=_check_plugins_github,
         ),
+    )
+
+
+def _check_plugins_required(context: DoctorContext) -> DiagnosticCheck:
+    """Report missing, mismatched, or undeclared ``plugins.required`` entries."""
+    config, config_path, load_error = load_project_required_plugins_config(context.cwd)
+    if load_error is not None:
+        return DiagnosticCheck(
+            id="plugins.required",
+            group="plugins",
+            status="ERROR",
+            title="Required plugins",
+            summary="project config could not be read for plugins.required",
+            details=(load_error,),
+            next_steps=(
+                "Fix the project sase.yml parse error, then rerun `sase doctor`.",
+            ),
+            data={
+                "status": "ERROR",
+                "config_path": str(config_path) if config_path is not None else None,
+                "load_error": load_error,
+            },
+        )
+    if config is None:
+        return DiagnosticCheck(
+            id="plugins.required",
+            group="plugins",
+            status="SKIP",
+            title="Required plugins",
+            summary="no project config in this checkout",
+            data={"status": "SKIP", "config_path": None},
+        )
+
+    report = resolve_required_plugins(config)
+    return _required_plugins_check_from_report(
+        report,
+        config_path=str(config_path) if config_path is not None else None,
+    )
+
+
+def _required_plugins_check_from_report(
+    report: RequiredPluginsReport,
+    *,
+    config_path: str | None,
+) -> DiagnosticCheck:
+    if report.ok:
+        declared = len(report.requirements)
+        summary = (
+            f"{declared} required plugin(s) satisfied"
+            if declared
+            else "no required plugins declared"
+        )
+        return DiagnosticCheck(
+            id="plugins.required",
+            group="plugins",
+            status="OK",
+            title="Required plugins",
+            summary=summary,
+            data={
+                "status": "OK",
+                "config_path": config_path,
+                "required_count": declared,
+                "satisfied_count": len(report.satisfied),
+                "issue_count": 0,
+            },
+        )
+
+    details = tuple(issue.message for issue in report.issues[:_MAX_DETAIL_ROWS])
+    next_steps = tuple(
+        dict.fromkeys(
+            issue.install_command
+            for issue in report.issues
+            if issue.install_command is not None
+        )
+    )[:_MAX_DETAIL_ROWS]
+    return DiagnosticCheck(
+        id="plugins.required",
+        group="plugins",
+        status="ERROR",
+        title="Required plugins",
+        summary=f"{len(report.issues)} plugins.required problem(s) found",
+        details=details,
+        next_steps=next_steps,
+        data={
+            "status": "ERROR",
+            "config_path": config_path,
+            "required_count": len(report.requirements),
+            "satisfied_count": len(report.satisfied),
+            "issue_count": len(report.issues),
+            "issues": [
+                {
+                    "kind": issue.kind,
+                    "message": issue.message,
+                    "name": issue.name,
+                    "requirement": issue.requirement,
+                    "config_path": issue.config_path,
+                    "install_command": issue.install_command,
+                }
+                for issue in report.issues[:_MAX_DETAIL_ROWS]
+            ],
+        },
     )
 
 

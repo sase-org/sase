@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import subprocess
 
 import pytest
 
-from sase.doctor.checks_plugins import _check_plugins_github, _check_plugins_resources
+from sase.doctor.checks_plugins import (
+    _check_plugins_github,
+    _check_plugins_required,
+    _check_plugins_resources,
+    plugin_check_specs,
+)
+from sase.doctor.runner import DoctorContext
 
 
 class _FakeDist:
@@ -49,6 +56,66 @@ def _patch_entry_points(
         "sase.plugins.inventory.importlib.metadata.entry_points",
         fake_entry_points,
     )
+
+
+def _context(cwd: Path) -> DoctorContext:
+    return DoctorContext(cwd=cwd, project=None, sase_home=cwd / ".sase")
+
+
+def test_plugin_check_specs_register_required_beside_resources(tmp_path: Path) -> None:
+    ids = [spec.id for spec in plugin_check_specs(_context(tmp_path))]
+    assert ids[:2] == ["plugins.required", "plugins.resources"]
+
+
+def test_plugins_required_ok_when_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    config = tmp_path / "sase" / "sase.yml"
+    config.parent.mkdir()
+    config.write_text(
+        "plugins:\n  required:\n    - sase-github\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.plugins.required._installed_plugin_versions",
+        lambda *args, **kwargs: {"sase-github": "1.2.3"},
+    )
+
+    check = _check_plugins_required(_context(tmp_path))
+
+    assert check.id == "plugins.required"
+    assert check.status == "OK"
+    assert check.data["required_count"] == 1
+
+
+def test_plugins_required_errors_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    config = tmp_path / "sase" / "sase.yml"
+    config.parent.mkdir()
+    config.write_text(
+        "plugins:\n  required:\n    - sase-github\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.plugins.required._installed_plugin_versions",
+        lambda *args, **kwargs: {},
+    )
+
+    check = _check_plugins_required(_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert check.details
+    assert "required plugin `sase-github` is not installed" in check.details[0]
+    assert check.next_steps == ("sase plugin install sase-github",)
+
+
+def test_plugins_required_skips_without_project(tmp_path: Path) -> None:
+    check = _check_plugins_required(_context(tmp_path))
+
+    assert check.status == "SKIP"
 
 
 # --- plugins.resources ---

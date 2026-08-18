@@ -2715,6 +2715,22 @@
       "description": "Non-gating commands matched to repository file events.",
       "items": { "$ref": "#/definitions/fileHook" }
     },
+    "plugins": {
+      "type": "object",
+      "description": "Project-declared plugin dependencies. A linked or sidecar checkout is not an install; each entry is checked against distributions in the running environment.",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "array",
+          "description": "PEP 508 requirement strings that must be installed. Every non-builtin <plugin>@ prefix used anywhere in this project config must name a distribution listed here.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
     "max_running_agents": {
       "type": "integer",
       "description": "Maximum number of slot-participating user agents that may be running concurrently across all projects: top-level user agents and eligible parallel family members; serial follow-ups, workflow Python/bash steps, and axe runners are excluded.",

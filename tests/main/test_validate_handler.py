@@ -57,6 +57,7 @@ def test_validate_suppresses_successful_child_output(
 
     assert exit_code == 0
     assert calls == [
+        [sys.executable, "-m", "sase", "doctor", "-C", "plugins.required"],
         [sys.executable, "-m", "sase", "init", "memory", "--check"],
         [sys.executable, "-m", "sase", "init", "repo", "--check"],
         [sys.executable, "-m", "sase", "init", "skills", "--check"],
@@ -67,6 +68,7 @@ def test_validate_suppresses_successful_child_output(
     captured = capsys.readouterr()
     assert captured.out == (
         "SASE validation\n"
+        "  ok     doctor plugins.required\n"
         "  ok     init memory --check\n"
         "  ok     init repo --check\n"
         "  ok     init skills --check\n"
@@ -83,6 +85,7 @@ def test_validate_runs_both_checks_when_first_fails(
 ) -> None:
     calls: list[list[str]] = []
     results = [
+        (0, "plugins success stdout\n", "plugins success stderr\n"),
         (2, "init stdout\n", "init stderr\n"),
         (0, "repo success stdout\n", "repo success stderr\n"),
         (0, "skills success stdout\n", "skills success stderr\n"),
@@ -108,6 +111,7 @@ def test_validate_runs_both_checks_when_first_fails(
 
     assert exit_code == 1
     assert calls == [
+        [sys.executable, "-m", "sase", "doctor", "-C", "plugins.required"],
         [sys.executable, "-m", "sase", "init", "memory", "--check"],
         [sys.executable, "-m", "sase", "init", "repo", "--check"],
         [sys.executable, "-m", "sase", "init", "skills", "--check"],
@@ -116,6 +120,7 @@ def test_validate_runs_both_checks_when_first_fails(
         [sys.executable, "-m", "sase", "agent", "prompts", "validate"],
     ]
     out = capsys.readouterr().out
+    assert "  ok     doctor plugins.required\n" in out
     assert "  fail   init memory --check\n" in out
     assert "  ok     init repo --check\n" in out
     assert "  ok     init skills --check\n" in out
@@ -135,6 +140,7 @@ def test_validate_prints_output_for_each_failed_check(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     results = [
+        (0, "", ""),
         (1, "", "init broken\n"),
         (0, "", ""),
         (0, "", ""),
@@ -182,6 +188,7 @@ def test_validate_aggregates_prompt_archive_failure(
         (0, "", ""),
         (0, "", ""),
         (0, "", ""),
+        (0, "", ""),
         (4, "prompt archive broken\n", ""),
     ]
 
@@ -209,6 +216,7 @@ def test_validate_skips_unavailable_prompt_archive_context(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     results = [
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
         (0, "", ""),
@@ -247,6 +255,7 @@ def test_validate_prints_warnings_section_for_passing_checks(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     results = [
+        (0, "", ""),
         (0, "", ""),
         (0, "", ""),
         (

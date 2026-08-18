@@ -247,3 +247,8 @@ repos:
           Durable SASE research reports and generated media used by research workflows.
         ref:
           use: sase-research-artifacts@research
+
+plugins:
+  required:
+    - sase-github
+    - sase-research-artifacts

@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 
 #: The literal plugin prefix for a provider or spec that ships with sase itself.
-_BUILTIN_PLUGIN_PREFIX = "builtin"
+BUILTIN_PLUGIN_PREFIX = "builtin"
+_BUILTIN_PLUGIN_PREFIX = BUILTIN_PLUGIN_PREFIX
 
 _QUALIFIED_ID_RE = re.compile(
     r"^(?P<plugin>[A-Za-z0-9._-]+)@(?P<id>[a-z0-9][a-z0-9_-]*)$"
@@ -42,6 +43,7 @@ def plugin_qualified_id_matches(plugin: str, *, builtin: bool, package: str) -> 
 
 
 __all__ = [
+    "BUILTIN_PLUGIN_PREFIX",
     "PluginQualifiedIdError",
     "parse_plugin_qualified_id",
     "plugin_qualified_id_matches",

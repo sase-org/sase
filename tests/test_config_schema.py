@@ -486,6 +486,36 @@ def test_config_schema_rejects_invalid_file_hooks(hook: dict[str, Any]) -> None:
         Draft7Validator(schema()).validate({"file_hooks": [hook]})
 
 
+def test_config_schema_accepts_plugins_required() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "plugins": {
+                "required": [
+                    "sase-github",
+                    "sase-research-artifacts>=0.2",
+                ]
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"plugins": {"required": "sase-github"}},
+        {"plugins": {"required": [""]}},
+        {"plugins": {"required": [1]}},
+        {"plugins": {"unknown": True}},
+        {"plugins": {"required": [], "extra": True}},
+    ],
+)
+def test_config_schema_rejects_invalid_plugins_required(
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(payload)
+
+
 def test_configured_max_running_agents_reads_merged_config(monkeypatch) -> None:
     from sase.config import core as config_core
 
