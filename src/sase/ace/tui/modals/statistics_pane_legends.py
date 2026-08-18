@@ -42,7 +42,10 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend("Zero", "wall time with no eligible runner"),
         _MetricLegend("Average", "runner-seconds ÷ analyzed wall time"),
         _MetricLegend("All time", "begins at earliest valid runner coverage"),
-        _MetricLegend("Project", "filtered before concurrency is combined"),
+        _MetricLegend(
+            "Project",
+            "filtered before concurrency; first open seeds current",
+        ),
         _MetricLegend(
             "Skipped",
             "malformed rows, invalid bounds, missing ends, and user-hidden rows omitted",
@@ -92,8 +95,8 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     "plans_questions": (
         _MetricLegend(
             "Project scope",
-            "plans and questions honor the filter; skills and memories honor it "
-            "too, shown on the Activity view",
+            "plans and questions honor the filter (first open seeds current); "
+            "skills and memories honor it too, shown on the Activity view",
         ),
     ),
     "perf": (

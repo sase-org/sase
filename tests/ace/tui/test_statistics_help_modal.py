@@ -53,8 +53,8 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
             assert description in controls
     assert "Last 7 days · exact range" in controls
     assert "0  Select View by Number — press 0 then 1-8" in controls
-    assert "next ranked project; current: All projects" in controls
-    assert "previous ranked project; current: All projects" in controls
+    assert "next ranked project (seeded); current: All projects" in controls
+    assert "previous ranked project (seeded); current: All projects" in controls
 
 
 def test_help_group_control_is_visible_only_for_grouping_views() -> None:

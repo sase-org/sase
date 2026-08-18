@@ -285,6 +285,16 @@ def test_catalog_specs_use_configured_keys() -> None:
     assert spec.key_display == "P"
 
 
+def test_pick_artifacts_project_command_mentions_seeded_scope() -> None:
+    """The palette label and aliases must mention the current-project seed."""
+    catalog = build_command_catalog(_registry())
+    spec = get_command_by_id(catalog, "app.pick_artifacts_project")
+    assert spec is not None
+    assert "seeds current" in spec.label
+    assert "current project" in spec.aliases
+    assert "seeded" in spec.aliases
+
+
 def test_open_command_palette_command_is_always_present() -> None:
     """The palette opener must remain in the catalog regardless of
     config, since it is the discovery entry point for the palette

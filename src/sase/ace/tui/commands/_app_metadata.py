@@ -102,10 +102,10 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("files_prev_version", "Files: previous version", "Navigation", CL_ONLY, ()),
     (
         "pick_artifacts_project",
-        "Pick Artifacts project scope",
+        "Pick Artifacts project scope (seeds current)",
         "Tabs",
         CL_ONLY,
-        ("project scope", "filter project"),
+        ("project scope", "filter project", "current project", "seeded"),
     ),
     # Stitches sub-tab
     (

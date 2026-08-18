@@ -286,16 +286,18 @@ change the Projects, XPrompts, or Perf grouping, `p`/`P` to cycle the project fi
 forward or backward, and `r` to refresh immediately. Keyed scope chips keep the
 effective range, grouping, and project visible; the **Group** chip appears only in those
 three groupable views and names the selected dimension there. Project scopes use
-configured display names while retaining canonical keys internally. The filter order is
-**All projects**, followed by projects ranked by run count in the most recently loaded
-unfiltered result, and then wraps: `p` moves forward and `P` backward. Return to **All**
-after changing the range to rebuild that list for the new range. If a selected project
-produces an empty result, either project-cycle key clears directly to **All projects**.
-Every populated view includes a compact metric legend, `?` opens the complete glossary
-and current scope, and empty/error states show the effective keys for widening,
-clearing, or retrying. The Overview Agents Run, Success Rate, and Commits tiles open
-Projects, while Plans Proposed and Questions open Plans & Questions. The plan and
-question tiles remain all-project values even when a project is selected; see
+configured display names while retaining canonical keys internally. First open seeds the
+current project when `ace.current_project.seed_filters` is on; `p` / `P` can always
+cycle away from that seed. The cycle order is **All projects**, followed by projects
+ranked by run count in the most recently loaded unfiltered result, and then wraps: `p`
+moves forward and `P` backward. Return to **All** after changing the range to rebuild
+that list for the new range. If a selected project produces an empty result, either
+project-cycle key clears directly to **All projects**. Every populated view includes a
+compact metric legend, `?` opens the complete glossary and current scope, and
+empty/error states show the effective keys for widening, clearing, or retrying. The
+Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed
+and Questions open Plans & Questions. The plan and question tiles remain all-project
+values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for
 the view contents, range syntax, and project-filter caveats, and
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)

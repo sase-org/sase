@@ -107,7 +107,8 @@ than the available space, micro remains selected. Every Artifacts tab has an ico
 including provider tabs whose missing or invalid `ref.icon` falls back to the generic
 `◆`, so the micro tier never leaves an inactive tab unidentified. These keys act only
 while Artifacts is visible. Press `p` in Stitch, Bead, provider document panes, or File
-to change the shared project scope, or use the command palette to jump directly to a
+to change the shared project scope — first-open seeds from the
+[current project](#current-project) — or use the command palette to jump directly to a
 top-level view. Patches remains query-scoped and retains the existing Patch workflow.
 
 ### Split Modes in Artifacts Panes
@@ -274,23 +275,25 @@ comma-listable, and negatable like `repo:` and `author:`. `merges:hide/show/only
 controls merge-commit visibility exactly like `sase stitch list`'s `--merges` flag (see
 [VCS Provider Reference](vcs.md#sase-stitch-list)). `project:` is not repeatable,
 comma-listable, or negatable because it selects the repository constellation before
-commits are collected. With no `project:` token, collection truly spans all projects. It
+commits are collected. With no `project:` token, collection spans all projects. It
 accepts a configured project name, ProjectSpec directory key, or alias; committed known
-values are rewritten to the configured project name. The project picker replaces that
-token while preserving every other committed token; its **All projects** choice removes
-it. The compatibility `a` action removes an active project token and restores the last
-automatic or picked project on the next press.
+values are rewritten to the configured project name. On first open, when
+`ace.current_project.seed_filters` is on, the shared Artifacts project scope seeds from
+the [current project](#current-project) unless an explicit `project:` / `+name` term
+already selected one. The project picker replaces that token while preserving every
+other committed token; its **All projects** choice removes it. The compatibility `a`
+action removes an active project token and restores the last automatic or picked project
+on the next press.
 
 The bundled initial query is `sidecar:false merges:hide since:24h`; it is configurable
 with `ace.artifacts.stitches.default_query` (`ace.artifacts.commits.default_query` is a
-deprecated alias), and changes take effect the next time ACE starts. Before the pane is
-mounted, an explicit project in the ACE query overrides a configured `project:`, a
-configured project overrides current-directory inference, and an inferred registered
-current project is added only when neither explicit source supplied one. An empty parsed
-query includes sidecar repositories; at ACE startup it can also gain that inferred
-visible project token. Canonical rendering always includes either `sidecar:true` or
-`sidecar:false`, and the configured `d` action rewrites that same visible token.
-Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For example,
+deprecated alias), and changes take effect the next time ACE starts. An explicit
+`project:` in the ACE query or in the configured default query wins over the
+current-project seed. An empty parsed query includes sidecar repositories; at ACE
+startup the async Artifacts seed can add a visible project token. Canonical rendering
+always includes either `sidecar:true` or `sidecar:false`, and the configured `d` action
+rewrites that same visible token. Selecting a sidecar with `repo:` therefore requires
+`sidecar:true`. For example,
 `project:sase repo:sase author:Ada origin:stitch since:7d sidecar:false fix` shows
 recent tracked SASE commits by Ada whose subjects contain `fix`,
 `repo:plans sidecar:true` shows that sidecar across all projects, and `limit:40` caps a
@@ -574,7 +577,7 @@ provenance.
 | `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
 | `%`       | Open the Files **Copy as…** palette                                             |
 | `R`       | Refresh the index                                                               |
-| `p`       | Change the shared Artifacts project scope                                       |
+| `p`       | Change the shared Artifacts project scope (first-open seeds current project)    |
 
 These are the default keymap values; the Files-pane actions retain their `files_*`
 configuration names and are remappable under
@@ -833,7 +836,9 @@ picker lists, must have enabled and launchable ProjectSpecs; PR choices come fro
 enabled ProjectSpecs. Disabled projects do not appear in normal launch pickers until
 they are enabled with `sase project enable <project>`. You can also type a known-project
 VCS ref explicitly; launch preparation treats that as intent to resume work and
-re-enables the project before claiming a workspace.
+re-enables the project before claiming a workspace. When the current project appears in
+the list, the `+` picker highlights that row on mount; typing in the filter box still
+resets the highlight to the first match.
 
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This
 deletes only the highlighted project's active/archive ProjectSpec files, refuses entries
@@ -1961,7 +1966,11 @@ Press `,/` (leader mode) on the Agents tab to open the query editor. The query l
 is a **structured Boolean expression** — parallel to the Patch query language but with a
 property-key allowlist tailored to agents. Bare words are substring-matched against an
 agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its **xprompt, live
-reply/response, chat transcript, and prior attempt replies**.
+reply/response, chat transcript, and prior attempt replies**. When
+`ace.current_project.seed_agents_query` is on, ACE seeds this query with the current
+project's `project:` term on first load and marks it `seeded` until you edit it. That
+setting defaults **off** because the same query also drives unread jumps and prospective
+clans.
 
 Property keys (closed allowlist):
 
@@ -2602,11 +2611,13 @@ claim, PID liveness, pin, last-used time, TTL staleness, and checkout presence. 
 checkouts point to `sase workspace repair`, and dead claims are warning-styled. Both
 sub-tabs load off-thread and show cached rows during refresh.
 
-Press `p` on either inventory to choose all projects, an enabled project (`●`), or a
-disabled project (`○`). Explicitly selecting a disabled project is how its
-repos/workspaces become visible. `/` then filters within that project scope; `Esc`
-clears the scope. The picker is filterable by display name, canonical key, or state and
-shows repo/workspace counts for each project.
+On first open, Repos and Workspaces seed their project filter from the
+[current project](#current-project) when `ace.current_project.seed_filters` is on. Press
+`p` on either inventory to choose all projects, an enabled project (`●`), or a disabled
+project (`○`). Explicitly selecting a disabled project is how its repos/workspaces
+become visible. `/` then filters within that project scope; `Esc` clears the scope and
+the cleared filter sticks for the rest of the session. The picker is filterable by
+display name, canonical key, or state and shows repo/workspace counts for each project.
 
 `e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`),
 holds the ProjectSpec edit lock for the editor session, then reloads project records. In
@@ -2627,8 +2638,11 @@ view. The Admin Center-wide `'` entry-jump key arms this same numbered-view sele
 instead of painting row hints — Statistics has no row cursor, so the already visible
 strip numbers act as its jump hints; `Esc` or any non-digit cancels. Use `[` / `]` to
 move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope,
-and `r` to refresh. On Overview, Agents Run, Success Rate, and Commits open Projects;
-Plans Proposed and Questions open Plans & Questions.
+and `r` to refresh. First open seeds the project filter from the
+[current project](#current-project) when `ace.current_project.seed_filters` is on; `p` /
+`P` can always cycle away from that seed, including back to **All projects**. On
+Overview, Agents Run, Success Rate, and Commits open Projects; Plans Proposed and
+Questions open Plans & Questions.
 
 The **Perf** sub-tab combines five headline measures—Startup (median visible-ready),
 Stalls (stall count, with hitches named separately in the tile's detail line), Launch
@@ -3395,6 +3409,41 @@ or run `sase patch set-origin <name> <sase|external|unknown>` (see
 [Origin Matching](query_language.md#origin-matching) for the underlying Patch field and
 the `origin:` query property.
 
+## Current project
+
+ACE has one **current project**: the project you last launched an agent on, derived from
+the head of the VCS xprompt MRU store. There is no separate "set current project"
+command — launching an agent is what moves it. Click the top-bar `+<project>` chip to
+open the `+` launch picker, which is the surface that actually records that launch.
+
+The chip sits immediately after the provider-disables pill, so in the normal case — when
+the override and disable pills are empty — it reads flush against the default-model
+indicator. Its color is unique among currently enabled projects. Hovering names the
+project, the MRU ref it came from, and (when the head was a Patch) the Patch; the
+tooltip also says to launch an agent to make a project current. Hide the chip with
+`ace.current_project.indicator: false`.
+
+When `ace.current_project.seed_filters` is on (the default), first-open surfaces that
+can filter by project seed from the current project instead of starting at all projects:
+
+- the shared Artifacts project scope (Stitches, Beads, Plans, Files)
+- the Statistics project filter
+- the Repos / Workspaces inventory filters
+- the Glossary project ring
+- the highlight in the `+` launch picker
+
+The seed never overrides an explicit `project:` / `+name` term, a pick you already made
+this session, or a surface that is already open. A mid-session launch moves the chip
+live but does not re-scope those surfaces. Turn seeding off with
+`ace.current_project.seed_filters: false`.
+
+The Agents-tab search query is **not** seeded by default
+(`ace.current_project.seed_agents_query: false`) because that query also drives unread
+jumps and prospective clans, not just the visible list. One line of config turns it on.
+
+Inspect the resolved project from the CLI with `sase project current`. See
+[`ace.current_project`](configuration.md#acecurrent_project) for the three fields.
+
 ## Tab Bar Display
 
 The tab bar renders plain tab labels (`Agents`, `Artifacts`, `AXE`). Per-bucket counts
@@ -3414,6 +3463,14 @@ An amber gear icon (⚙), immediately right of the [Proc Indicator](#proc-indica
 shows a count of currently running monitor shells (`sase monitor start` supervised
 commands). It hides at zero. A monitor is a detached supervisor that survives ACE exit,
 so it is counted separately from — and never blocks — ACE's own procs.
+
+### Current Project Indicator
+
+The uniquely colored `+<project>` chip mounts immediately after the provider-disables
+pill. When those intervening override/disable pills are empty, it sits visually flush
+against the default-model indicator. Clicking it opens the `+` launch picker. See
+[Current project](#current-project) for what the chip means, what it seeds, and how to
+turn each part off.
 
 ### Runners Modal
 
@@ -4233,8 +4290,9 @@ active only in Projects, XPrompts, and Perf. On the XPrompts view, the focus key
 filterable picker and the clear-focus key restores **All xprompts**. Project filtering
 cycles through **All projects** and the latest cached unfiltered ranking: the configured
 forward key moves toward the first ranked project, the reverse key moves toward the
-last, and both wrap. Either key clears an active project filter directly when its loaded
-result is empty.
+last, and both wrap. First open seeds the current project when
+`ace.current_project.seed_filters` is on; either key can cycle away from that seed.
+Either key clears an active project filter directly when its loaded result is empty.
 
 ### Remapping Gate Modal Keys
 
@@ -5000,9 +5058,11 @@ Two navigation axes stay synchronized:
 
 `p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
 glossary configured, plus the project you opened from even when it has none — so `a` can
-add that project's first term. Order is by display name. Switching projects clears the
-trail and the filter and restores that project's last-selected term for the life of the
-panel.
+add that project's first term. Order is by display name. Precedence for the starting
+index is the prompt's launch-workspace project, then the
+[current project](#current-project) when it appears in the ring, then the alphabetically
+first project. Switching projects clears the trail and the filter and restores that
+project's last-selected term for the life of the panel.
 
 `a` opens an add form (term, optional comma-separated aliases, definition) with live
 validation against the Rust glossary validator. `d` confirms a delete and shows the

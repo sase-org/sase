@@ -45,6 +45,9 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Move down / up 5 entries" not in combined
     assert "Hint jump (' first / back)" in combined
     assert "omitted/all unlimited" in combined
+    assert "Pick (seeded); rewrite project:" in combined
+    assert "Filter (seeds current)" in combined
+    assert "Single; omitted seeds current" in combined
     assert "PR Navigation" in combined
     assert "Snippet action else list shift" in combined
     assert "Glossary panel" in combined

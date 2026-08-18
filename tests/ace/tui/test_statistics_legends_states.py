@@ -63,7 +63,8 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
             "Scope = launch-boundary references only; workflow step templates excluded"
         ),
         "plans_questions": (
-            "Project scope = plans and questions honor the filter; "
+            "Project scope = plans and questions honor the filter "
+            "(first open seeds current); "
             "skills and memories honor it too, shown on the Activity view"
         ),
         "perf": (

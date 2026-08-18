@@ -55,7 +55,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick; Patches/Stitches rewrite project:",
+                    "Pick (seeded); rewrite project:",
                 ),
                 (
                     d(a.open_command_palette),
@@ -70,7 +70,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     f"{d(a.patches_filters)} / {d(a.edit_query)}",
                     "Focus persistent Patch filter",
                 ),
-                ("+PROJECT / project:NAME", "Filter project scope"),
+                ("+PROJECT / project:NAME", "Filter (seeds current)"),
                 ("^NAME / ancestor:NAME", "Patch plus descendants"),
                 ("~NAME / sibling:NAME", "Revert-family siblings"),
                 ("&NAME / name:NAME", "Exact Patch name"),
@@ -101,7 +101,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     f"{d(a.edit_query)} / {d(a.stitches_filters)}",
                     "Focus persistent commit filter",
                 ),
-                ("project:NAME", "Single; omitted = all projects"),
+                ("project:NAME", "Single; omitted seeds current"),
                 ("repo: / author:", "Filter repository / author substring"),
                 ("since: / until:", "until:DAY includes the full day"),
                 ("sidecar:true / false", "Include / exclude sidecars"),

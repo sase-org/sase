@@ -190,9 +190,9 @@ class StatisticsHelpModal(ModalScreen[None]):
                 return f"Perf · {self._perf_group_label()}"
             return f"Projects · {self._projects_group_label()}"
         if action == "cycle_project_filter":
-            return f"next ranked project; current: {self._project_label}"
+            return f"next ranked project (seeded); current: {self._project_label}"
         if action == "cycle_project_filter_reverse":
-            return f"previous ranked project; current: {self._project_label}"
+            return f"previous ranked project (seeded); current: {self._project_label}"
         if action == "focus_xprompt":
             return f"choose from loaded xprompts; current: {self._xprompt_focus_label}"
         if action == "clear_xprompt_focus":

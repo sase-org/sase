@@ -267,7 +267,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         assert "merges:hide" in help_text
         assert "Cycle merge visibility" in help_text
         assert "project:NAME" in help_text
-        assert "Single; omitted = all projects" in help_text
+        assert "Single; omitted seeds current" in help_text
         assert "Sidecars / project: off/on" in help_text
         assert "until:DAY includes the full day" in help_text
         assert "[P/N] / [P/N+]" in help_text

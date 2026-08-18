@@ -250,12 +250,14 @@ open-ended range such as `2026-07-01..`. Calendar inputs use the configured SASE
 timezone, closed ranges include the final date, and future time is excluded.
 
 The project choices are ranked by run count in the most recently loaded unfiltered
-result. The cycle is **All projects** followed by those ranked projects: `p` moves
-forward and wraps, while `P` moves backward and wraps. From **All**, `p` selects the
-first ranked project and `P` selects the last. If you change the range while a project
-remains selected, both keys continue to use that cached list; cycle back to **All** and
-let the pane reload to rank projects for the new range. When the selected project has no
-rows in the range, either key clears the filter directly to **All projects**.
+result. First open seeds the current project when `ace.current_project.seed_filters` is
+on; `p` / `P` can always cycle away from that seed. The cycle is **All projects**
+followed by those ranked projects: `p` moves forward and wraps, while `P` moves backward
+and wraps. From **All**, `p` selects the first ranked project and `P` selects the last.
+If you change the range while a project remains selected, both keys continue to use that
+cached list; cycle back to **All** and let the pane reload to rank projects for the new
+range. When the selected project has no rows in the range, either key clears the filter
+directly to **All projects**.
 
 The project filter applies to run-backed metrics, project-attributed activity (including
 the Activity view's skill and memory panels), and—in Plans & Questions—the run-backed
