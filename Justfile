@@ -175,8 +175,7 @@ install: _venv
 
 # Install this project's plugins.required into the active venv, verified.
 # Reads plugins.required from sase/sase.yml (not a hard-coded name list) and
-# resolves each entry from a linked/sibling checkout, PyPI, or (only when PyPI
-# does not carry the distribution) the public sase-org git repo, then imports
+# resolves each entry from a linked/sibling checkout or PyPI, then imports
 # it in the target interpreter to catch a dangling or stale install that uv's
 # already-satisfied fast path would otherwise let slide. See its docstring.
 _setup-required-plugins:

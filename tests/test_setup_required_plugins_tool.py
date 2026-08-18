@@ -164,13 +164,10 @@ def test_install_requirement_prefers_editable_checkout(tmp_path: Path) -> None:
     assert str(checkout) in log.calls[0]
 
 
-def test_install_requirement_falls_back_to_git_when_pypi_has_no_such_project() -> None:
-    log = _RunLog(
-        _result(1, stderr="... was not found in the package registry ..."),
-        _result(0),
-    )
+def test_install_requirement_uses_pypi_with_the_declared_specifier() -> None:
+    log = _RunLog(_result(0))
     plan = TOOL.RequirementPlan(
-        raw="sase-research-artifacts",
+        raw="sase-research-artifacts>=0.2.0",
         name="sase-research-artifacts",
         module="sase_research_artifacts",
         checkout=None,
@@ -182,10 +179,32 @@ def test_install_requirement_falls_back_to_git_when_pypi_has_no_such_project() -
     )
 
     assert outcome.ok
-    assert len(log.calls) == 2
-    assert (
-        "git+https://github.com/sase-org/sase-research-artifacts@master" in log.calls[1]
+    assert outcome.source == "PyPI"
+    assert len(log.calls) == 1
+    assert "sase-research-artifacts>=0.2.0" in log.calls[0]
+    assert all("git+https://" not in arg for arg in log.calls[0])
+
+
+def test_install_requirement_does_not_fall_back_to_git_when_pypi_misses() -> None:
+    log = _RunLog(
+        _result(1, stderr="... was not found in the package registry ..."),
     )
+    plan = TOOL.RequirementPlan(
+        raw="sase-research-artifacts>=0.2.0",
+        name="sase-research-artifacts",
+        module="sase_research_artifacts",
+        checkout=None,
+        is_linked=True,
+    )
+
+    outcome = TOOL.install_requirement(
+        plan, "/venv/bin/python", reinstall=False, run_fn=log
+    )
+
+    assert not outcome.ok
+    assert outcome.source == "PyPI"
+    assert len(log.calls) == 1
+    assert all("git+https://" not in arg for call in log.calls for arg in call)
 
 
 def test_install_requirement_does_not_mask_a_real_resolution_conflict() -> None:
@@ -203,7 +222,8 @@ def test_install_requirement_does_not_mask_a_real_resolution_conflict() -> None:
     )
 
     assert not outcome.ok
-    assert len(log.calls) == 1  # no git fallback for a real conflict, not "missing"
+    assert outcome.source == "PyPI"
+    assert len(log.calls) == 1
 
 
 def test_verify_import_uses_a_fresh_subprocess_not_in_process_import() -> None:
@@ -301,7 +321,10 @@ def test_failure_message_suggests_uv_install_for_an_unlinked_plugin() -> None:
     )
 
     assert "uv pip install" in message
+    assert "--no-deps" in message
+    assert "sase plugin install some-plugin" in message
     assert "sase repo open" not in message
+    assert "git repository" not in message
 
 
 def test_main_returns_zero_without_installing_when_nothing_is_required(

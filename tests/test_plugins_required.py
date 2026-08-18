@@ -241,5 +241,5 @@ def test_project_sase_yml_required_covers_its_use_prefixes() -> None:
     raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert raw["plugins"]["required"] == [
         "sase-github>=0.2.5",
-        "sase-research-artifacts",
+        "sase-research-artifacts>=0.2.0",
     ]

@@ -13,8 +13,6 @@ Each PEP 508 entry is resolved from, in order:
 1. A linked or sibling checkout with a ``pyproject.toml`` (editable, ``--no-deps``).
 2. PyPI, honoring the entry's version specifier so a stale install is upgraded
    instead of treated as already satisfied.
-3. Only when PyPI does not carry the distribution at all (not merely an
-   unsatisfiable version), the public sase-org git repository.
 
 ``uv pip install <name-or-spec>`` no-ops whenever any matching distribution is
 already present, which lets a dangling editable ``.pth`` (files gone, metadata
@@ -26,12 +24,10 @@ would not be picked up by re-importing in this same process). A failed import
 forces exactly one ``--reinstall-package`` attempt before giving up, so a
 healthy environment costs one cheap import check per plugin and nothing else.
 
-This intentionally skips `sase.plugins.catalog`'s live GitHub-search catalog
-for the git-fallback URL: that lookup shells out to `gh api` with a ~20s
-timeout and needs `gh` authentication, both unwelcome on every `just`
-invocation. sase-org plugin repos are 1:1 with their distribution name
-(`sase-github` -> github.com/sase-org/sase-github), so only the org name
-constant is reused from the catalog module, not its network lookup.
+Installs always pass ``--no-deps``: the target interpreter already has sase, so
+a plugin's ``Requires-Dist: sase>=...`` must not re-resolve the host package
+(PyPI's ``sase`` can lag this checkout). Missing-from-index failures stay
+PyPI failures; there is no git-repo fallback.
 """
 
 from __future__ import annotations
@@ -48,11 +44,6 @@ from packaging.requirements import Requirement
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-#: uv's message when a distribution name has no matching PyPI project at all,
-#: as opposed to one whose version specifier no release satisfies. Reproduced
-#: verbatim from a real `uv pip install sase-research-artifacts` failure.
-_NOT_FOUND_MARKER = "was not found in the package registry"
-
 _ENV_NAME_RE = re.compile(r"[^A-Za-z0-9]+")
 
 RunFn = Callable[..., "subprocess.CompletedProcess[str]"]
@@ -65,7 +56,6 @@ class InstallOutcome:
     ok: bool
     source: str
     detail: str = ""
-    not_found: bool = False
 
 
 @dataclass(frozen=True)
@@ -176,27 +166,7 @@ def install_from_pypi(
     result = _uv_install(python, args, run_fn=run_fn)
     if result.returncode == 0:
         return InstallOutcome(ok=True, source="PyPI")
-    not_found = _NOT_FOUND_MARKER in result.stderr
-    return InstallOutcome(
-        ok=False, source="PyPI", detail=_tail(result), not_found=not_found
-    )
-
-
-def install_from_git(
-    python: str,
-    name: str,
-    *,
-    reinstall: bool,
-    run_fn: RunFn = subprocess.run,
-) -> InstallOutcome:
-    from sase.plugins.catalog import SASE_PLUGIN_ORG
-
-    url = f"git+https://github.com/{SASE_PLUGIN_ORG}/{name}@master"
-    args = (["--reinstall-package", name] if reinstall else []) + [url]
-    result = _uv_install(python, args, run_fn=run_fn)
-    if result.returncode != 0:
-        return InstallOutcome(ok=False, source=url, detail=_tail(result))
-    return InstallOutcome(ok=True, source=url)
+    return InstallOutcome(ok=False, source="PyPI", detail=_tail(result))
 
 
 def install_requirement(
@@ -206,22 +176,14 @@ def install_requirement(
     reinstall: bool,
     run_fn: RunFn = subprocess.run,
 ) -> InstallOutcome:
-    """Install *plan* from its checkout, else PyPI, else the sase-org git repo."""
+    """Install *plan* from its checkout, else PyPI."""
     if plan.checkout is not None:
         return install_editable(
             python, plan.name, plan.checkout, reinstall=reinstall, run_fn=run_fn
         )
-    outcome = install_from_pypi(
+    return install_from_pypi(
         python, plan.raw, plan.name, reinstall=reinstall, run_fn=run_fn
     )
-    if outcome.ok or not outcome.not_found:
-        return outcome
-    print(
-        f"[setup] {plan.name} is not on PyPI yet; installing from the sase-org "
-        "git repository (see sase-p3.15 phase 3 to retire this fallback).",
-        file=sys.stderr,
-    )
-    return install_from_git(python, plan.name, reinstall=reinstall, run_fn=run_fn)
 
 
 def verify_import(
@@ -265,9 +227,8 @@ def failure_message(plan: RequirementPlan, attempts: list[InstallOutcome]) -> st
         )
     else:
         lines.append(
-            f"Run `uv pip install --python {sys.executable} '{plan.raw}'` once it "
-            f"is published, or confirm the sase-org/{plan.name} git repository "
-            "exists and is reachable."
+            f"Run `sase plugin install {plan.name}` or "
+            f"`uv pip install --python {sys.executable} --no-deps '{plan.raw}'`."
         )
     return "\n".join(lines)
 
