@@ -231,7 +231,7 @@ def test_render_phase_divider_shows_naive_start_verbatim(tz_divergence: None) ->
         render_phase_divider,
     )
 
-    divider = render_phase_divider("PLANNER", datetime(2026, 7, 3, 6, 24, 49))
+    divider = render_phase_divider("AGENT (plan)", datetime(2026, 7, 3, 6, 24, 49))
     assert "06:24:49" in divider.plain
 
 

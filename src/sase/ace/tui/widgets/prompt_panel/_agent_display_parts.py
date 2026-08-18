@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ._agent_display_content import (
-    _PHASE_LABELS,
+    _PHASE_SUFFIX_TOKENS,
     get_phase_label,
     get_prompt_content,
     render_agent_reply_content,
@@ -48,7 +48,7 @@ __all__ = [
     "_DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES",
     "_DetailHeaderSummary",
     "_DetailHeaderSummaryCacheEntry",
-    "_PHASE_LABELS",
+    "_PHASE_SUFFIX_TOKENS",
     "_UNASSIGNED_AGENT_NAME_DISPLAY",
     "build_detail_header_summary",
     "build_header_text",

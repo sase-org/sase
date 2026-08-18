@@ -94,6 +94,11 @@
 # fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_plain_sase_run_without_request_sidecar_still_rejects_forced_reuse
 # fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_sidecar_without_authorization_still_rejects_forced_reuse
 #
+# sase-pn: fixed by cbed33584 "fix(amd): move the Tier 2 reference-material
+# paragraph under Long-Term Memory Files" (committed 2026-08-18T11:39:40Z),
+# which made the assertion wrap-tolerant via ' '.join(tier2.split()).
+# fixed-at: 2026-08-18T11:39:40Z tests/main/test_init_memory_glossary.py::test_memory_plan_renders_glossary_terms_block_in_tier2
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
@@ -120,3 +125,14 @@ tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: lega
 tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: tracked-Details\n\nSASE_TYPE=stitch\nSASE_BEAD=sase-1]
 tests/test_core_vcs_log.py::test_parse_computes_auto_origin_from_footer
 tests/test_core_vcs_log.py::test_parse_computes_origin_from_footer
+# sase-nf
+tests/ace/tui/test_xprompt_browser_load_keymap.py::test_enter_returns_while_xprompt_file_read_is_blocked
+# sase-oh
+tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_when_in_repo
+# sase-oz
+tests/test_ace_testing.py::test_ace_page_fast_startup_is_structurally_quiet
+# sase-pg
+tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
+# sase-pr
+tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
+tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot

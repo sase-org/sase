@@ -275,7 +275,7 @@ class TestAgentXPromptRendering:
         assert "▾ AGENT REPLY" not in plain
         assert "AGENT (0) · ✓ DONE" in plain
         assert "AGENT (bar) · ✓ DONE" in plain
-        assert "QUESTIONS" not in plain
+        assert "AGENT (q)" not in plain
 
     def test_hint_mode_custom_family_reply_summaries_include_member_ids(
         self,
@@ -302,7 +302,7 @@ class TestAgentXPromptRendering:
         assert "▾ AGENT REPLY" not in plain
         assert "AGENT (0) · ✓ DONE" in plain
         assert "AGENT (bar) · ✓ DONE" in plain
-        assert "QUESTIONS" not in plain
+        assert "AGENT (q)" not in plain
 
     def test_running_reply_placeholders_are_compact(self, tmp_path: Path) -> None:
         panel = FakePromptPanel()

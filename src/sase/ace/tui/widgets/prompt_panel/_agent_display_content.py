@@ -25,13 +25,18 @@ from ...models.agent import Agent, AttemptRecord
 from ...util.lazy_syntax import lazy_renderable
 
 
-_PHASE_LABELS = {
-    PLAN_CHAIN_PLAN_SUFFIX: "PLANNER",
-    PLAN_CHAIN_CODER_SUFFIX: "CODER",
-    PLAN_CHAIN_QUESTION_SUFFIX: "QUESTIONS",
-    PLAN_CHAIN_EPIC_SUFFIX: "EPIC",
-    PLAN_CHAIN_COMMIT_SUFFIX: "COMMIT",
+_PHASE_SUFFIX_TOKENS = {
+    PLAN_CHAIN_PLAN_SUFFIX: "plan",
+    PLAN_CHAIN_CODER_SUFFIX: "code",
+    PLAN_CHAIN_QUESTION_SUFFIX: "q",
+    PLAN_CHAIN_EPIC_SUFFIX: "epic",
+    PLAN_CHAIN_COMMIT_SUFFIX: "commit",
 }
+
+
+def _agent_role_label(token: str | None) -> str:
+    """Format one family member's phase header as ``AGENT (<role>)``."""
+    return f"AGENT ({token})" if token else "AGENT"
 
 
 def render_timestamp_divider(iso_timestamp: str) -> Text:
@@ -50,7 +55,7 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 
 
 def get_phase_label(agent: Agent) -> str:
-    """Map role_suffix to human-readable phase label."""
+    """Map a member's family role to its ``AGENT (<role>)`` phase header."""
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
         agent.role_suffix,
@@ -58,29 +63,26 @@ def get_phase_label(agent: Agent) -> str:
     )
     is_promoted_root = agent.agent_family_role == "root" and not agent.plan_chain_root
     if role == "q" and not is_promoted_root:
-        return "QUESTIONS"
+        return _agent_role_label("q")
     if role == "code":
-        return "CODER"
+        return _agent_role_label("code")
     if role == "epic":
-        return "EPIC"
+        return _agent_role_label("epic")
     if role == "commit":
-        return "COMMIT"
+        return _agent_role_label("commit")
     if role == "monitor":
-        return "MONITOR"
+        return _agent_role_label("monitor")
     if role == "plan":
-        return "PLANNER"
-    if suffix in _PHASE_LABELS:
-        return _PHASE_LABELS[suffix]
+        return _agent_role_label("plan")
+    if suffix in _PHASE_SUFFIX_TOKENS:
+        return _agent_role_label(_PHASE_SUFFIX_TOKENS[suffix])
     feedback_round = plan_chain_feedback_round(
         suffix,
         agent_family_role=agent.agent_family_role,
     )
     if feedback_round is not None:
-        return f"PLANNER (round {feedback_round})"
-    token = agent_family_suffix_token(agent.role_suffix)
-    if token is not None:
-        return f"AGENT ({token})"
-    return "AGENT"
+        return _agent_role_label(f"plan round {feedback_round}")
+    return _agent_role_label(agent_family_suffix_token(agent.role_suffix))
 
 
 def render_attempt_divider(

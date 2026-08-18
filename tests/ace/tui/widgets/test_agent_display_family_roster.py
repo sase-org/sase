@@ -40,7 +40,7 @@ def test_family_roster_numbers_real_chain_rows_in_order(
 
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
-    assert [entry.kind for entry in entries] == ["PLANNER", "CODER"]
+    assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
     assert "Fold: 1/2\n" in header.plain
     assert "▾ ❖ FAMILY MEMBERS · 2\n" in header.plain
     assert header.plain.index("FAMILY MEMBERS") < header.plain.index("OUTPUT VARIABLES")

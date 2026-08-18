@@ -9,67 +9,83 @@ from tests.ace.tui.widgets._agent_display_helpers import make_agent
 class TestGetPhaseLabel:
     def test_plan(self) -> None:
         agent = make_agent(role_suffix=".plan")
-        assert get_phase_label(agent) == "PLANNER"
+        assert get_phase_label(agent) == "AGENT (plan)"
 
     def test_plan_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-plan")
-        assert get_phase_label(agent) == "PLANNER"
+        assert get_phase_label(agent) == "AGENT (plan)"
 
     def test_code(self) -> None:
         agent = make_agent(role_suffix=".code")
-        assert get_phase_label(agent) == "CODER"
+        assert get_phase_label(agent) == "AGENT (code)"
 
     def test_code_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-code")
-        assert get_phase_label(agent) == "CODER"
+        assert get_phase_label(agent) == "AGENT (code)"
 
     def test_questions(self) -> None:
         agent = make_agent(role_suffix=".q")
-        assert get_phase_label(agent) == "QUESTIONS"
+        assert get_phase_label(agent) == "AGENT (q)"
 
     def test_questions_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-q")
-        assert get_phase_label(agent) == "QUESTIONS"
+        assert get_phase_label(agent) == "AGENT (q)"
 
     def test_epic(self) -> None:
         agent = make_agent(role_suffix=".epic")
-        assert get_phase_label(agent) == "EPIC"
+        assert get_phase_label(agent) == "AGENT (epic)"
 
     def test_epic_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-epic")
-        assert get_phase_label(agent) == "EPIC"
+        assert get_phase_label(agent) == "AGENT (epic)"
 
     def test_commit(self) -> None:
         agent = make_agent(role_suffix="-commit")
-        assert get_phase_label(agent) == "COMMIT"
+        assert get_phase_label(agent) == "AGENT (commit)"
 
     def test_legacy_commit(self) -> None:
         agent = make_agent(role_suffix=".commit")
-        assert get_phase_label(agent) == "COMMIT"
+        assert get_phase_label(agent) == "AGENT (commit)"
+
+    def test_monitor(self) -> None:
+        agent = make_agent(role_suffix="--mon")
+        assert get_phase_label(agent) == "AGENT (monitor)"
+
+    def test_monitor_numbered_suffix(self) -> None:
+        agent = make_agent(role_suffix="--mon-1")
+        assert get_phase_label(agent) == "AGENT (monitor)"
 
     def test_feedback_round_2(self) -> None:
         agent = make_agent(role_suffix=".2")
-        assert get_phase_label(agent) == "PLANNER (round 2)"
+        assert get_phase_label(agent) == "AGENT (plan round 2)"
 
     def test_new_feedback_round_2(self) -> None:
         agent = make_agent(role_suffix="--plan-0", agent_family_role="feedback")
-        assert get_phase_label(agent) == "PLANNER (round 2)"
+        assert get_phase_label(agent) == "AGENT (plan round 2)"
 
     def test_feedback_round_2_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-2")
-        assert get_phase_label(agent) == "PLANNER (round 2)"
+        assert get_phase_label(agent) == "AGENT (plan round 2)"
 
     def test_feedback_round_10(self) -> None:
         agent = make_agent(role_suffix=".10")
-        assert get_phase_label(agent) == "PLANNER (round 10)"
+        assert get_phase_label(agent) == "AGENT (plan round 10)"
 
     def test_feedback_round_10_hyphen_suffix(self) -> None:
         agent = make_agent(role_suffix="-10")
-        assert get_phase_label(agent) == "PLANNER (round 10)"
+        assert get_phase_label(agent) == "AGENT (plan round 10)"
 
     def test_root_question_numeric_label(self) -> None:
         agent = make_agent(role_suffix="--2", agent_family_role="q")
-        assert get_phase_label(agent) == "QUESTIONS"
+        assert get_phase_label(agent) == "AGENT (q)"
+
+    def test_promoted_root_question_fallback_label(self) -> None:
+        agent = make_agent(
+            role_suffix="--q",
+            agent_family_role="root",
+            plan_chain_root=False,
+        )
+        assert get_phase_label(agent) == "AGENT (q)"
 
     def test_custom_member_label_includes_suffix_token(self) -> None:
         agent = make_agent(role_suffix="--bar", agent_family_role="bar")
@@ -101,15 +117,15 @@ class TestGetPhaseLabel:
             agent_family_role="root",
             plan_chain_root=True,
         )
-        assert get_phase_label(agent) == "PLANNER"
+        assert get_phase_label(agent) == "AGENT (plan)"
 
     def test_genuine_question_member_still_uses_question_label(self) -> None:
         agent = make_agent(role_suffix="--0", agent_family_role="q")
-        assert get_phase_label(agent) == "QUESTIONS"
+        assert get_phase_label(agent) == "AGENT (q)"
 
     def test_code_question_continuation_label(self) -> None:
         agent = make_agent(role_suffix="--code-0", agent_family_role="code")
-        assert get_phase_label(agent) == "CODER"
+        assert get_phase_label(agent) == "AGENT (code)"
 
     def test_no_suffix(self) -> None:
         agent = make_agent(role_suffix=None)
