@@ -91,8 +91,8 @@ current `main`.
 
 ## Epic symbols
 
-`--epic-symbol <bead_id>(<symbol>)` lives in the Symvision invocation in the `Justfile`.
-Entries are self-cleaning: Symvision tells you to drop one when the bead is
+`--epic-symbol <epic_bead_id>(<symbol>)` lives in the Symvision invocation in the
+`Justfile`. Entries are self-cleaning: Symvision tells you to drop one when the bead is
 missing/closed, the symbol is now properly used, or the symbol no longer exists as a
 public def. Remove the matching entry once its epic phase lands and the symbol gains a
 real consumer (or the bead closes).
