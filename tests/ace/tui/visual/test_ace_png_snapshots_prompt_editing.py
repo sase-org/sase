@@ -14,11 +14,13 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
+    compute_jinja_now,
+    mount_prompt_bar,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     CURSOR_PROMPT,
     JINJA_INVALID_PROMPT,
     JINJA_VALID_PROMPT,
-    compute_jinja_now,
-    mount_prompt_bar,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 

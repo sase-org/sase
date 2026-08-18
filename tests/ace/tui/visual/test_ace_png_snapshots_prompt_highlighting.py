@@ -14,27 +14,35 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
     wait_for_visual_idle,
 )
-from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
+from tests.ace.tui.visual._ace_prompt_png_snapshot_artifact_ref_fixtures import (
+    patch_visual_artifact_ref_kinds,
+    seed_visual_artifact_ref_kinds,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_glossary_fixtures import (
+    patch_visual_glossary_catalog,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
+from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     ARTIFACT_REF_HIGHLIGHT,
     BULLET_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_SOLO,
     CODEBLOCK_HIGHLIGHT_STACK,
     GLOSSARY_HIGHLIGHT_PROMPT,
     GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT,
-    REPO_MENTION_HIGHLIGHT_PROMPT,
     MISSPELLING_HIGHLIGHT_PROMPT,
     ORDERED_HIGHLIGHT_SOLO,
+    REPO_MENTION_HIGHLIGHT_PROMPT,
     SEARCH_PROMPT,
     TODO_HIGHLIGHT_STACK,
     TODO_RESTORED_PROMPT,
     XPROMPT_HIGHLIGHT_SOLO,
     XPROMPT_HIGHLIGHT_STACK,
-    mount_prompt_bar,
-    patch_visual_artifact_ref_kinds,
-    patch_visual_glossary_catalog,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_repo_mention_fixtures import (
     patch_visual_repo_mention_catalog,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
     patch_visual_skill_catalog,
-    seed_visual_artifact_ref_kinds,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 

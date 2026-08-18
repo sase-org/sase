@@ -21,11 +21,13 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
-from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import (
+from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
+from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     COMPACT_PROMPT,
     TWO_PANE_PROMPT,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
     XPROMPT_COMPLETION_ROWS,
-    mount_prompt_bar,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
