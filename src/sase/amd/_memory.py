@@ -397,8 +397,7 @@ def _render_managed_agents(
     ):
         return (
             None,
-            "rendered AGENTS template is missing heading "
-            f"`{_LONG_MEMORY_FILES_TITLE}`",
+            f"rendered AGENTS template is missing heading `{_LONG_MEMORY_FILES_TITLE}`",
         )
     if (
         glossary_terms is not None
