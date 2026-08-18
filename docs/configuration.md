@@ -4515,10 +4515,12 @@ adds slower read-only checks.
 
 Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
 `runtime`, `llm.default`, `plugins.required`, `plugins.resources`, `beads.task_types`,
-`project.junk_directories`, `workspace.missing_checkouts`, and `config.model_xprompts`.
-The two inventory checks report telemetry-only directories without ProjectSpecs and
-registered workspace paths missing from disk; both are read-only and provide
-cleanup/repair guidance.
+`project.junk_directories`, `workspace.missing_checkouts`,
+`workspace.occupancy_conflicts`, and `config.model_xprompts`. The two inventory checks
+report telemetry-only directories without ProjectSpecs and registered workspace paths
+missing from disk; both are read-only and provide cleanup/repair guidance.
+`workspace.occupancy_conflicts` reports RUNNING-field and occupant-record collisions and
+never auto-repairs.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.

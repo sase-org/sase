@@ -219,6 +219,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "project.duplicate_patch_blocks",
         "project.current",
         "workspace.registry",
+        "workspace.occupancy_conflicts",
         "state.agent_index",
         "state.agent_publication_outbox",
         "project.beads",

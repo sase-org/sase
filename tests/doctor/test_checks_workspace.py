@@ -15,9 +15,11 @@ from sase.doctor.checks_workspace import (
     _check_legacy_artifact_home,
     _check_missing_workspace_checkouts,
     _check_workspace_occupancy,
+    _check_workspace_occupancy_conflicts,
     _check_workspace_registry,
     workspace_check_specs,
 )
+from sase.workspace_provider.occupancy_conflicts import OccupancyConflict
 from sase.doctor.runner import DoctorContext
 from sase.workspace_provider.registry import (
     SCHEMA_VERSION,
@@ -325,8 +327,67 @@ def test_workspace_check_specs_registers_missing_checkout_check(
         "workspace.registry",
         "workspace.missing_checkouts",
         "workspace.occupancy",
+        "workspace.occupancy_conflicts",
         "workspace.legacy_artifact_home",
     ]
+
+
+def test_workspace_occupancy_conflicts_reports_duplicate_and_ledger(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    conflicts = (
+        OccupancyConflict(
+            code="duplicate_running_claim",
+            project="alpha",
+            project_file=str(tmp_path / "alpha.sase"),
+            workspace_num=10,
+            message=(
+                "Workspace #10 is claimed by more than one RUNNING row: "
+                "PID 1 (a), PID 2 (b). Last mutated at 260818_130235 by "
+                "deferred-claim."
+            ),
+            last_mutated_at="260818_130235",
+            last_caller_tag="deferred-claim",
+            claim_pids=(1, 2),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.occupancy_conflicts.detect_occupancy_conflicts",
+        lambda *_args, **_kwargs: conflicts,
+    )
+    monkeypatch.setattr(
+        "sase.logs.workspace_claim_ledger.ledger_path",
+        lambda: tmp_path / "workspace_claims.jsonl",
+    )
+
+    check = _check_workspace_occupancy_conflicts(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["conflict_count"] == 1
+    assert check.data["conflicts"][0]["last_caller_tag"] == "deferred-claim"
+    assert "more than one RUNNING row" in check.details[0]
+    assert "Do not auto-repair" in check.next_steps[0]
+
+
+def test_workspace_occupancy_conflicts_ok_when_none(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.workspace_provider.occupancy_conflicts.detect_occupancy_conflicts",
+        lambda *_args, **_kwargs: (),
+    )
+    monkeypatch.setattr(
+        "sase.logs.workspace_claim_ledger.ledger_path",
+        lambda: tmp_path / "workspace_claims.jsonl",
+    )
+
+    check = _check_workspace_occupancy_conflicts(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["conflict_count"] == 0
+    assert check.next_steps == ()
 
 
 def test_legacy_artifact_home_doctor_reports_stale_directory(

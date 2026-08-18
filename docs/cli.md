@@ -496,7 +496,11 @@ repair and, after confirmation or `-y` / `--yes`, keeps the newest block per Pat
 without changing the default read-only doctor behavior. `workspace.missing_checkouts`
 scans enabled and disabled projects through the shared inventory, lists registered
 checkout paths missing from disk, and suggests a per-project `sase workspace repair -n`
-preview. Default doctor checks do not mutate state.
+preview. `workspace.occupancy_conflicts` reads every project's RUNNING field and each
+checkout's occupant record, then reports duplicate workspace-number claims, a live claim
+whose occupant names a different live pid, and occupant records with no matching claim.
+Conflicts include the last workspace-claim ledger mutation and caller tag when one
+exists; the check never auto-repairs. Default doctor checks do not mutate state.
 
 When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j`
 for a machine-readable report.

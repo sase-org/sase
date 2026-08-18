@@ -85,20 +85,24 @@ def _guard_workspace_not_occupied(
     """
     from sase.core.occupancy_guard import (
         OccupancyCaller,
+        WorkspaceOccupiedError,
         ensure_workspace_not_occupied,
     )
 
-    ensure_workspace_not_occupied(
-        checkout_dir,
-        project_file=project_file,
-        caller=OccupancyCaller(
-            pid=os.getpid(),
-            workspace_num=workspace_num,
-            project=project_name,
-            workflow=workflow_name,
-            artifacts_timestamp=artifacts_timestamp,
-        ),
-    )
+    try:
+        ensure_workspace_not_occupied(
+            checkout_dir,
+            project_file=project_file,
+            caller=OccupancyCaller(
+                pid=os.getpid(),
+                workspace_num=workspace_num,
+                project=project_name,
+                workflow=workflow_name,
+                artifacts_timestamp=artifacts_timestamp,
+            ),
+        )
+    except WorkspaceOccupiedError:
+        raise
 
 
 def prepare_workspace_if_needed(

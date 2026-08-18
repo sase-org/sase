@@ -71,7 +71,7 @@ class OccupantRecord:
         }
 
 
-def occupant_marker_path(checkout_dir: str) -> str:
+def _occupant_marker_path(checkout_dir: str) -> str:
     """Return the path to the occupant marker inside *checkout_dir*."""
     return str(Path(checkout_dir) / OCCUPANT_DIR / OCCUPANT_FILENAME)
 
@@ -85,7 +85,7 @@ def write_occupant_record(checkout_dir: str, record: OccupantRecord) -> None:
     write only weakens protection — it never blocks a legitimate agent.
     """
     try:
-        path = occupant_marker_path(checkout_dir)
+        path = _occupant_marker_path(checkout_dir)
         parent = os.path.dirname(path)
         os.makedirs(parent, exist_ok=True)
         payload = json.dumps(record.to_dict(), indent=2, sort_keys=True)
@@ -116,7 +116,7 @@ def read_occupant_record(checkout_dir: str) -> OccupantRecord | None:
     A missing or malformed marker is treated as absent so the occupancy
     guard falls back to "unoccupied" rather than raising.
     """
-    path = occupant_marker_path(checkout_dir)
+    path = _occupant_marker_path(checkout_dir)
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
@@ -135,7 +135,7 @@ def read_occupant_record(checkout_dir: str) -> OccupantRecord | None:
 def clear_occupant_record(checkout_dir: str) -> None:
     """Best-effort removal of the occupant marker for *checkout_dir*."""
     try:
-        os.unlink(occupant_marker_path(checkout_dir))
+        os.unlink(_occupant_marker_path(checkout_dir))
     except OSError:
         return
 
@@ -169,7 +169,6 @@ __all__ = [
     "OccupantRecord",
     "clear_occupant_record",
     "new_occupant_record",
-    "occupant_marker_path",
     "read_occupant_record",
     "write_occupant_record",
 ]

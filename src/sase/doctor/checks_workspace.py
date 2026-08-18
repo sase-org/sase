@@ -60,6 +60,12 @@ def workspace_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_workspace_occupancy(context),
         ),
         CheckSpec(
+            id="workspace.occupancy_conflicts",
+            group="workspace",
+            title="Workspace occupancy conflicts",
+            runner=lambda: _check_workspace_occupancy_conflicts(context),
+        ),
+        CheckSpec(
             id="workspace.legacy_artifact_home",
             group="workspace",
             title="Legacy prompt artifact home",
@@ -256,6 +262,79 @@ def _check_workspace_occupancy(context: DoctorContext) -> DiagnosticCheck:
                 for issue in visible
             ],
             "details_truncated": len(occupancy_issues) > len(visible),
+        },
+    )
+
+
+def _check_workspace_occupancy_conflicts(context: DoctorContext) -> DiagnosticCheck:
+    """Report RUNNING-field / occupant-record conflicts; never auto-repair."""
+
+    from sase.logs.workspace_claim_ledger import ledger_path
+    from sase.workspace_provider.occupancy_conflicts import (
+        OccupancyConflict,
+        detect_occupancy_conflicts,
+    )
+
+    projects_root = context.sase_home / "projects"
+    canonical_ledger = str(ledger_path())
+    try:
+        conflicts: tuple[OccupancyConflict, ...] = detect_occupancy_conflicts(
+            projects_root
+        )
+    except Exception as exc:  # noqa: BLE001 - doctor reports detector failures.
+        error = f"{type(exc).__name__}: {exc}"
+        return DiagnosticCheck(
+            id="workspace.occupancy_conflicts",
+            group="workspace",
+            status="ERROR",
+            title="Workspace occupancy conflicts",
+            summary="occupancy conflicts could not be scanned",
+            details=(error,),
+            next_steps=(
+                "Inspect RUNNING claims with `sase agent list -j` and the "
+                "workspace-claim ledger under ~/.sase/logs/workspace_claims.jsonl.",
+            ),
+            data={
+                "projects_root": str(projects_root),
+                "ledger_path": canonical_ledger,
+                "error": error,
+            },
+        )
+
+    visible = conflicts[:_MAX_DETAIL_ROWS]
+    next_steps: tuple[str, ...]
+    if conflicts:
+        status: CheckStatus = "WARN"
+        summary = f"{len(conflicts)} occupancy conflict(s) found"
+        next_steps = (
+            "Do not auto-repair: an occupancy conflict means live work is at "
+            "risk and needs a human decision.",
+            "Inspect RUNNING claims with `sase agent list -j` and each "
+            "checkout's `.sase/occupant.json`.",
+            "Use the last-mutated ledger timestamp and caller tag in this "
+            "check to see which path last wrote the claim.",
+        )
+    else:
+        status = "OK"
+        summary = "no duplicate claims or occupant-record conflicts"
+        next_steps = ()
+
+    return DiagnosticCheck(
+        id="workspace.occupancy_conflicts",
+        group="workspace",
+        status=status,
+        title="Workspace occupancy conflicts",
+        summary=summary,
+        details=tuple(
+            f"{conflict.project}: {conflict.message}" for conflict in visible
+        ),
+        next_steps=next_steps,
+        data={
+            "projects_root": str(projects_root),
+            "ledger_path": canonical_ledger,
+            "conflict_count": len(conflicts),
+            "conflicts": [conflict.to_json_dict() for conflict in visible],
+            "details_truncated": len(conflicts) > len(visible),
         },
     )
 

@@ -6,9 +6,9 @@ from pathlib import Path
 
 from sase.workspace_provider.occupant import (
     OccupantRecord,
+    _occupant_marker_path,
     clear_occupant_record,
     new_occupant_record,
-    occupant_marker_path,
     read_occupant_record,
     write_occupant_record,
 )
@@ -37,7 +37,7 @@ class TestWriteAndReadOccupantRecord:
 
         write_occupant_record(str(checkout), record)
 
-        assert Path(occupant_marker_path(str(checkout))).exists()
+        assert Path(_occupant_marker_path(str(checkout))).exists()
         read_back = read_occupant_record(str(checkout))
         assert read_back == record
 
