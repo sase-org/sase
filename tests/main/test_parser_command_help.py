@@ -160,6 +160,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     memory_init_help = flat_help(parser_for(("sase", "memory", "init")).format_help())
     memory_list_help = flat_help(parser_for(("sase", "memory", "list")).format_help())
     memory_read_help = flat_help(parser_for(("sase", "memory", "read")).format_help())
+    memory_show_help = flat_help(parser_for(("sase", "memory", "show")).format_help())
     memory_write_help = flat_help(parser_for(("sase", "memory", "write")).format_help())
     memory_review_help = flat_help(
         parser_for(("sase", "memory", "review")).format_help()
@@ -174,7 +175,8 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     )
 
     assert "`sase memory list`" in memory_help
-    assert "{agent-docs,init,list,log,read,review,write}" in memory_help
+    assert "{agent-docs,init,list,log,read,review,show,write}" in memory_help
+    assert "sase memory show generated_skills.md" in memory_help
     assert "`sase memory agent-docs list`" in agent_docs_help
     assert "provider instruction shim status" in agent_docs_list_help
     assert "sase memory read generated_skills.md --reason" in memory_help
@@ -198,6 +200,10 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "flat note name such as generated_skills.md" in memory_read_help
     assert "--reason REASON" in memory_read_help
     assert "Need generated skill context" in memory_read_help
+    assert "Identical to `sase memory show`" in memory_read_help
+    assert "-f, --format" in memory_show_help
+    assert "records no audit event" in memory_show_help
+    assert "must use" in memory_show_help
     assert "--evidence EVIDENCE" in memory_write_help
     assert "--manual-author NAME" in memory_write_help
     assert "--notify" in memory_write_help

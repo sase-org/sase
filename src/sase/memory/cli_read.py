@@ -6,33 +6,29 @@ import argparse
 from pathlib import Path
 import sys
 
+from rich.console import Console
+
+from sase.memory.cli_show import emit_memory_view, resolve_memory_view
 from sase.memory.read_log import (
     AgentIdentityError,
     MemoryReadError,
-    MemoryReadContent,
     append_memory_read_event,
     build_memory_read_event,
     normalize_read_reason,
-    read_memory_content,
     require_agent_identity,
-    validate_memory_read_path,
 )
-from sase.memory.notes import discover_memory_notes, render_children_section
 
 
-def handle_memory_read_command(args: argparse.Namespace) -> None:
+def handle_memory_read_command(
+    args: argparse.Namespace, *, console: Console | None = None
+) -> None:
     """Read an allowed memory file and append an audit event."""
     try:
         reason = normalize_read_reason(args.reason)
         agent = require_agent_identity()
-        validated_path = validate_memory_read_path(
-            args.memory_path,
-            home_root=Path.home(),
-        )
-        content = read_memory_content(validated_path)
-        output = _render_memory_read_output(content)
+        view = resolve_memory_view(args)
         event = build_memory_read_event(
-            content,
+            view.content,
             reason=reason,
             agent=agent,
             cwd=Path.cwd(),
@@ -42,18 +38,7 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
         print(f"sase memory read: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    sys.stdout.write(output)
+    emit_memory_view(view, args, console=console)
 
 
-def _render_memory_read_output(content: MemoryReadContent) -> str:
-    notes = discover_memory_notes(content.path.content_root)
-    children_section = render_children_section(notes, content.path.note)
-    if not children_section:
-        return content.body
-
-    body = content.body
-    if body and not body.endswith("\n"):
-        body += "\n"
-    if body and not body.endswith("\n\n"):
-        body += "\n"
-    return body + children_section
+__all__ = ["handle_memory_read_command"]

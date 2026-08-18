@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from io import StringIO
+import json
 from pathlib import Path
 
 import pytest
@@ -97,6 +98,33 @@ def test_memory_read_prints_body_and_appends_log(
     assert events[0].artifacts_dir == str(artifacts_dir)
     assert events[0].reason == "Need foo"
     assert events[0].frontmatter_stripped is True
+
+
+def test_memory_read_json_format_still_appends_exactly_one_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _long_note("# Body\n\n"),
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+
+    handle_memory_read_command(
+        argparse.Namespace(memory_path="foo.md", reason="Need foo", format="json")
+    )
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["note"]["canonical_path"] == "foo.md"
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].canonical_path == "foo.md"
 
 
 def test_memory_read_accepts_flat_path_and_omits_empty_children(

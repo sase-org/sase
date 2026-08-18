@@ -80,6 +80,25 @@ The dashboard separates:
 Approximate token counts are included so large instruction surfaces are visible before
 an agent launch.
 
+## Show a Note
+
+`sase memory show <memory-relative-path>` resolves and prints a long-term memory note
+the same way `sase memory read` does, minus the audit event:
+
+```bash
+sase memory show generated_skills.md
+sase memory show sase_beads.md -f rich
+sase memory show cli_rules.md -f json
+```
+
+Path resolution is identical to `read`: project `sase/memory/` first, then
+`~/sase/memory/`, and only `type: long` notes are accepted. Leading YAML frontmatter is
+stripped, and a `## Children` section (or, in `rich`, a `Children` block) is appended
+when the note has nested long-term children. `-f/--format` selects `markdown` (the
+default, byte-identical to `read`'s stdout for the same note), `rich` (a styled terminal
+view), or `json` (a structured payload with `project`, `origin`, `note`, and
+`children`). No audit event is written and no agent identity is required.
+
 ## Audited Reads
 
 Agents should read long-term memory through `sase memory read` so the access is
@@ -105,8 +124,10 @@ name, timestamp, cwd, byte count, and reason.
 Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json` (`name`,
 `workflow_name`, or `agent_name`). Unattributed reads fail instead of writing the log.
-In a normal human shell, use regular file reads instead of this audited command unless
-you are intentionally simulating an agent identity.
+Agents should always use `read`, not `show`, when consulting memory to accomplish a
+task; nothing is printed unless the read was recorded.
+[`sase memory show`](#show-a-note) is the supported way for a human shell to view a
+note.
 
 Pass `--include proposals` to include memory proposal and review ledger events in the
 same audit dashboard. Path and agent filters also apply to proposal target paths and

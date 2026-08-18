@@ -11070,7 +11070,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "936bebc2585787bf",
+            "description_digest": "bd37f54249ba4350",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -11086,6 +11086,22 @@
                   "--help"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
               },
               {
                 "choices": null,
@@ -11267,6 +11283,59 @@
                 "kind": null,
                 "metavar": "proposal_id",
                 "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "457d073d7155ae69",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "memory",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "memory_path",
+                "is_remainder": false,
+                "kind": "memory",
+                "metavar": "memory-relative-path",
+                "nargs": null
               }
             ],
             "subcommands": []

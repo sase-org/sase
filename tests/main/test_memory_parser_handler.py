@@ -37,6 +37,19 @@ def test_parser_registers_memory_namespace() -> None:
     assert read_args.memory_subcommand == "read"
     assert read_args.memory_path == "foo.md"
     assert read_args.reason == "Need context"
+    assert read_args.format == "markdown"
+
+    show_args = parser.parse_args(["memory", "show", "foo.md"])
+    assert show_args.command == "memory"
+    assert show_args.memory_subcommand == "show"
+    assert show_args.memory_path == "foo.md"
+    assert show_args.format == "markdown"
+
+    show_rich_args = parser.parse_args(["memory", "show", "foo.md", "-f", "rich"])
+    assert show_rich_args.format == "rich"
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["memory", "show", "foo.md", "-f", "bogus"])
 
     write_args = parser.parse_args(
         [
@@ -217,6 +230,27 @@ def test_memory_read_dispatches_to_read_handler(
     args = create_parser().parse_args(
         ["memory", "read", "foo.md", "--reason", "Need context"]
     )
+
+    with pytest.raises(SystemExit) as exc:
+        memory_handler.handle_memory_command(args)
+
+    assert exc.value.code == 0
+    assert calls == [args]
+
+
+def test_memory_show_dispatches_to_show_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[argparse.Namespace] = []
+
+    def fake_show(args: argparse.Namespace) -> None:
+        calls.append(args)
+
+    monkeypatch.setattr(
+        "sase.memory.cli_show.handle_memory_show_command",
+        fake_show,
+    )
+    args = create_parser().parse_args(["memory", "show", "foo.md"])
 
     with pytest.raises(SystemExit) as exc:
         memory_handler.handle_memory_command(args)

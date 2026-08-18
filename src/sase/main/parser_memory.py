@@ -19,6 +19,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase memory read generated_skills.md --reason "
             '"Need generated skill context"\n'
+            "  sase memory show generated_skills.md\n"
             '  sase memory write --title "Generated skills" --slug '
             'generated_skills --evidence "$(sase repo path research)/skills.md" --body '
             '"Durable memory body"\n'
@@ -118,7 +119,8 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             "Pass a flat note name such as generated_skills.md. Leading YAML "
             "frontmatter is stripped before printing, child notes are listed "
             "when present, and each read appends an attributable "
-            "audit log row."
+            "audit log row. Identical to `sase memory show` except that it "
+            "requires a reason and records an audited read before printing."
         ),
         epilog=(
             "example:\n"
@@ -126,20 +128,28 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
             '"Need generated skill context"'
         ),
     )
-    read_parser.add_argument(
-        "memory_path",
-        metavar="memory-relative-path",
-        help=(
-            "Path relative to project sase/memory/ or ~/sase/memory/, for example "
-            "generated_skills.md"
+    _add_memory_view_arguments(read_parser, require_reason=True)
+
+    show_parser = memory_subparsers.add_parser(
+        "show",
+        help="Print a long-term memory note without recording a read",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Resolve a long-term memory note exactly like `sase memory read` "
+            "— project sase/memory/ first, then ~/sase/memory/ — strip "
+            "leading YAML frontmatter, and append the `## Children` section "
+            "when children exist. Unlike `read`, this command records no "
+            "audit event, so agents consulting memory to do work must use "
+            "`sase memory read` instead."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase memory show generated_skills.md\n"
+            "  sase memory show sase_beads.md -f rich\n"
+            "  sase memory show cli_rules.md -f json"
         ),
     )
-    read_parser.add_argument(
-        "-r",
-        "--reason",
-        required=True,
-        help="Non-empty reason for the audited memory read",
-    )
+    _add_memory_view_arguments(show_parser)
 
     write_parser = memory_subparsers.add_parser(
         "write",
@@ -346,3 +356,30 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit deterministic machine-readable JSON",
     )
+
+
+def _add_memory_view_arguments(
+    parser: argparse.ArgumentParser, *, require_reason: bool = False
+) -> None:
+    parser.add_argument(
+        "memory_path",
+        metavar="memory-relative-path",
+        help=(
+            "Path relative to project sase/memory/ or ~/sase/memory/, for example "
+            "generated_skills.md"
+        ),
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "markdown", "rich"),
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    if require_reason:
+        parser.add_argument(
+            "-r",
+            "--reason",
+            required=True,
+            help="Non-empty reason for the audited memory read",
+        )
