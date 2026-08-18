@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from sase.repo_inventory import RepoRecord
+from sase.repo_inventory import RepoKind, RepoRecord
 from sase.xprompt.glossary_catalog import EditorGlossaryProject
 from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog, RepoMention
 
@@ -103,12 +103,20 @@ def catalog_for_text(
     identifier: str,
     *,
     occurrence_count: int = 1,
+    kind: RepoKind = "linked",
+    exists: bool = True,
 ) -> EditorRepoMentionCatalog:
     spans = tuple(
         _span_wire(text, identifier, start, start + len(identifier))
         for start in _occurrence_offsets(text, identifier, occurrence_count)
     )
-    return _catalog(tmp_path, identifier, _FakeCompiledRepoMentions(spans))
+    return _catalog(
+        tmp_path,
+        identifier,
+        _FakeCompiledRepoMentions(spans),
+        kind=kind,
+        exists=exists,
+    )
 
 
 def dynamic_catalog_for_identifier(
@@ -134,29 +142,32 @@ def _catalog(
     *,
     project_key: str = "sase",
     project_name: str = "sase",
+    kind: RepoKind = "linked",
+    exists: bool = True,
 ) -> EditorRepoMentionCatalog:
     config_path = tmp_path / f"{project_key}.yml"
     record = RepoRecord(
         name=identifier,
-        kind="linked",
+        kind=kind,
         project=project_name,
         project_key=project_key,
         path=str(tmp_path / identifier),
-        exists=True,
+        exists=exists,
         auto_clone=False,
         description="Shared Rust core backend.",
         source="test",
         env_name=None,
         slug=None,
     )
+    has_declaration = kind != "external"
     mention = RepoMention(
         identifier=identifier,
-        kind="linked",
+        kind=kind,
         record=record,
         index=0,
-        config_path=str(config_path),
-        config_line=16,
-        config_col=7,
+        config_path=str(config_path) if has_declaration else None,
+        config_line=16 if has_declaration else None,
+        config_col=7 if has_declaration else None,
     )
     return EditorRepoMentionCatalog(
         schema_version=1,

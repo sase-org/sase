@@ -59,6 +59,9 @@ class JumpTarget:
     definition_name: str | None = None
     source_id: str | None = None
     is_editable: bool = False
+    config_path: str | None = None
+    config_line: int | None = None
+    config_col: int | None = None
 
 
 class JumpError(Exception):

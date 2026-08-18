@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import shlex
 import subprocess
 from pathlib import Path
@@ -44,6 +45,7 @@ class PromptJumpMixin(_MixinBase):
         ) -> frozenset[str] | None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _jump_to_glossary_definition_under_cursor(self) -> bool: ...
+        def _jump_to_repo_mention_under_cursor(self) -> bool: ...
         def _refocus_if_needed(self) -> None: ...
 
     def _jump_to_definition_under_cursor(self, *, prefer_load: bool = False) -> None:
@@ -65,10 +67,17 @@ class PromptJumpMixin(_MixinBase):
             )
             if callable(jump_glossary) and jump_glossary():
                 return
+            jump_repo_mention = getattr(
+                self,
+                "_jump_to_repo_mention_under_cursor",
+                None,
+            )
+            if callable(jump_repo_mention) and jump_repo_mention():
+                return
             token = detect_shorthand_argument_owner_jump_target(self.text, offset)
             if token is None:
                 self.notify(
-                    "Move the cursor onto an xprompt, skill, file path, or glossary term to jump to its definition",
+                    "Move the cursor onto an xprompt, skill, file path, glossary term, or repo name to jump to its definition",
                     severity="warning",
                 )
                 return
@@ -182,6 +191,8 @@ class PromptJumpMixin(_MixinBase):
         choices.append("editor")
         if payload.loadable_markdown is not None and self._can_load_jump_into_prompt():
             choices.append("load")
+        if payload.config_path is not None:
+            choices.append("config")
         return choices
 
     def _can_load_jump_into_prompt(self) -> bool:
@@ -198,6 +209,20 @@ class PromptJumpMixin(_MixinBase):
             self._open_jump_target_in_this_pane(payload)
         elif choice == "load":
             self._load_jump_target_into_prompt(payload)
+        elif choice == "config":
+            self._open_jump_target_at_declaration(payload)
+
+    def _open_jump_target_at_declaration(self, payload: JumpTarget) -> None:
+        if payload.config_path is None:
+            return
+        self._open_jump_target_in_this_pane(
+            dataclasses.replace(
+                payload,
+                source_path=payload.config_path,
+                line=payload.config_line,
+                col=payload.config_col,
+            )
+        )
 
     async def _open_jump_target_in_tmux_pane_async(
         self,
@@ -322,12 +347,14 @@ def _open_jump_target_in_tmux_pane(payload: JumpTarget) -> str | None:
         payload.line,
         payload.col,
     )
+    source_path = Path(payload.source_path)
+    pane_dir = source_path if source_path.is_dir() else source_path.parent
     command = [
         "tmux",
         "split-window",
         "-h",
         "-c",
-        str(Path(payload.source_path).parent),
+        str(pane_dir),
         "-P",
         "-F",
         "#{pane_id}",

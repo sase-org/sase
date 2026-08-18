@@ -34,7 +34,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("#@ Ctrl+O", "Edit definition here (target)"),
         ("K", "Preview xprompt/skill/file/word"),
-        ("Ctrl+]", "Jump to xprompt/skill/file"),
+        ("Ctrl+]", "Jump to xprompt/skill/file/repo"),
         ("K / Ctrl+] on glossary term", "Preview / jump to definition"),
         ("K / Ctrl+] on repo name", "Preview repo / open checkout"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),

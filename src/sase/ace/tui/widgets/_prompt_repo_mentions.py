@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
+from sase.ace.tui.modals.repo_preview_render import repo_checkout_path
 from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
@@ -59,6 +60,8 @@ class PromptRepoMentionMixin(_MixinBase):
             style_name: str,
         ) -> None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
+        def _present_jump_actions(self, payload: Any) -> None: ...
+        def _perform_jump_action(self, choice: Any, payload: Any) -> None: ...
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -77,9 +80,6 @@ class PromptRepoMentionMixin(_MixinBase):
             super_on_mount()
         self._register_repo_mention_text_area_theme()
         self._refresh_prompt_repo_mention_context(schedule=True)
-        # Preview/jump consume this helper; call it here so the private
-        # method stays live in this phase without a render-path lookup.
-        self._repo_mention_under_cursor(schedule=False)
 
     def _app_theme_changed(self) -> None:
         super_changed = getattr(super(), "_app_theme_changed", None)
@@ -212,6 +212,51 @@ class PromptRepoMentionMixin(_MixinBase):
         )
         return True
 
+    def _jump_to_repo_mention_under_cursor(self) -> bool:
+        """Open the checkout for the repo mention under the cursor, if any."""
+        match = self._repo_mention_under_cursor(schedule=True)
+        if isinstance(match, _ColdRepoCatalogType):
+            self.notify(
+                "Repo catalog is still loading; try again",
+                severity="warning",
+            )
+            return True
+        if match is None:
+            return False
+        _catalog, span = match
+        mention = span.mention
+
+        from sase.ace.tui.widgets._prompt_jump_target import JumpTarget
+
+        workspace_num = _active_workspace_num(self._active_app())
+        path, exists = repo_checkout_path(mention, workspace_num=workspace_num)
+        payload = JumpTarget(
+            kind_label="repo",
+            icon="R",
+            title=mention.identifier,
+            source_path=path,
+            line=None,
+            col=None,
+            loadable_markdown=None,
+            is_editable=False,
+            config_path=mention.config_path,
+            config_line=mention.config_line,
+            config_col=mention.config_col,
+        )
+
+        if not exists:
+            self.notify(
+                f"{mention.identifier} is not cloned in this workspace; "
+                f"run `sase repo open {mention.identifier}`",
+                severity="warning",
+            )
+            if payload.config_path is not None:
+                self._perform_jump_action("config", payload)
+            return True
+
+        self._present_jump_actions(payload)
+        return True
+
     def _repo_mention_under_cursor(
         self,
         *,
@@ -340,6 +385,16 @@ class _ColdRepoCatalogType:
 
 
 _ColdRepoCatalog = _ColdRepoCatalogType()
+
+
+def _active_workspace_num(app: Any) -> int | None:
+    if app is None:
+        return None
+    ctx = getattr(app, "_prompt_context", None)
+    if ctx is None or bool(getattr(ctx, "is_home_mode", False)):
+        return None
+    workspace_num = getattr(ctx, "workspace_num", None)
+    return workspace_num if isinstance(workspace_num, int) else None
 
 
 def _editor_range_to_offsets(

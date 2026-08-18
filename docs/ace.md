@@ -4906,6 +4906,15 @@ artifact viewer — all three warn cleanly for an external repo, which has no de
 site. If the catalog is still loading, ACE schedules a warm and asks you to retry rather
 than falling through to word lookup or an unrelated jump target.
 
+`Ctrl+]` on a repo mention opens the resolved checkout — the clone registered for the
+active workspace, else the record's own path — in `$EDITOR` or a new tmux pane through
+the normal jump action chooser, which gains a `c` — Open declaration choice whenever the
+repo has one (external repos do not). When the checkout is not cloned in the active
+workspace, `Ctrl+]` notifies that the repo is not cloned and prints the exact
+`sase repo open <name>` command to run instead of offering to open a path that does not
+exist: it opens the declaration directly when one exists, or just notifies with no
+chooser at all for an external repo. ACE never runs `sase repo open` itself.
+
 #### Word definitions & spellcheck
 
 When no xprompt, slash skill, workflow, or file target matches, `K` treats a plain
@@ -5162,7 +5171,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `.`         | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
 | `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
 | `K`         | Preview the xprompt, workflow, skill, file, glossary term, repo name, or plain word under the cursor  |
-| `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition or file under the cursor                       |
+| `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition, file, or repo checkout under the cursor       |
 | `/` / `?`   | Search forward / backward in the current prompt pane                                                  |
 | `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |
 | `*` / `#`   | Search forward / backward for the whole word under the cursor                                         |

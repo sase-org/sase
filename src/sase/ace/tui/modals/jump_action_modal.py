@@ -11,7 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Static
 from rich.markup import escape
 
-type JumpChoice = Literal["tmux", "editor", "load"]
+type JumpChoice = Literal["tmux", "editor", "load", "config"]
 
 
 class JumpActionModal(ModalScreen[JumpChoice | None]):
@@ -21,6 +21,7 @@ class JumpActionModal(ModalScreen[JumpChoice | None]):
         Binding("t", "choose_tmux", "Open in tmux", show=False),
         Binding("e", "choose_editor", "Open editor", show=False),
         Binding("l", "choose_load", "Load prompt", show=False),
+        Binding("c", "choose_config", "Open declaration", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("q", "cancel", "Cancel", show=False),
     ]
@@ -89,6 +90,8 @@ class JumpActionModal(ModalScreen[JumpChoice | None]):
             return "  [bold]t[/]   [bold]Open in new tmux pane[/]\n      [dim]Open the definition beside this TUI.[/]"
         if choice == "editor":
             return "  [bold]e[/]   [bold]Open in this pane[/]\n      [dim]Suspend the TUI, edit, then return here.[/]"
+        if choice == "config":
+            return "  [bold]c[/]   [bold]Open declaration[/]\n      [dim]Open where this is declared instead.[/]"
         return "  [bold]l[/]   [bold]Load into prompt input[/]\n      [dim]Stash this bar, then edit the xprompt here.[/]"
 
     @staticmethod
@@ -100,6 +103,7 @@ class JumpActionModal(ModalScreen[JumpChoice | None]):
             "tmux": "t pane",
             "editor": "e editor",
             "load": "l load",
+            "config": "c declaration",
         }
         hints = [labels[choice] for choice in self._choices]
         hints.append("esc cancel")
@@ -109,6 +113,11 @@ class JumpActionModal(ModalScreen[JumpChoice | None]):
         """Choose the tmux-pane action when available."""
         if "tmux" in self._choices:
             self.dismiss("tmux")
+
+    def action_choose_config(self) -> None:
+        """Choose the declaration-open action when available."""
+        if "config" in self._choices:
+            self.dismiss("config")
 
     def action_choose_editor(self) -> None:
         """Choose the in-pane editor action when available."""
