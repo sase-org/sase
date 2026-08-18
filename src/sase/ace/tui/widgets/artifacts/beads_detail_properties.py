@@ -45,7 +45,10 @@ def properties_header(
     table.add_column(justify="right", style="dim", no_wrap=True)
     table.add_column(ratio=1, overflow="fold")
     for label, value in properties:
-        table.add_row(label, _property_text(value))
+        text = _property_text(value)
+        if not text.plain.strip():
+            continue
+        table.add_row(label, text)
     divider = Text("─" * 72, style="dim #5F5F87", no_wrap=True, overflow="crop")
     return Group(title, table, divider)
 
@@ -71,18 +74,18 @@ def flag_properties(
     if record is None:
         return []
     due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))
-    due_text = Text("—", style="dim")
-    if due is not None:
-        due_text = Text(due.label, style=due.style.rich)
-        due_text.append(f"  {due.state}", style="dim")
-    return [
+    properties: list[DetailProperty] = [
         ("Flag", flag_key_chip(record.key)),
         (
             "Removal",
             f"{record.remove_by_date} · v{record.remove_by_release}",
         ),
-        ("Due state", due_text),
     ]
+    if due is not None:
+        due_text = Text(due.label, style=due.style.rich)
+        due_text.append(f"  {due.state}", style="dim")
+        properties.append(("Due state", due_text))
+    return properties
 
 
 def plan_reference_properties(
@@ -93,7 +96,7 @@ def plan_reference_properties(
 ) -> tuple[DetailProperty, ...]:
     reference = issue.design.strip()
     if not reference:
-        return (("Plan reference", ""),)
+        return ()
     resolved = resolved_plan_path(issue, snapshot, project=project)
     if resolved is None:
         return (
@@ -112,7 +115,7 @@ def previously_closed_text(history: list[CloseRecord]) -> Text:
 
 def references_text(issue: Issue) -> Text:
     if not issue.refs:
-        return Text("—", style="dim")
+        return Text()
     text = Text()
     for index, reference in enumerate(issue.refs):
         if index:
@@ -128,7 +131,7 @@ def dependencies_text(
     project: str,
 ) -> Text:
     if not issue.dependencies:
-        return Text("—", style="dim")
+        return Text()
     text = Text()
     statuses = {status.value: status for status in Status}
     for index, dependency in enumerate(issue.dependencies):
@@ -202,7 +205,7 @@ def created_text(issue: Issue) -> Text:
     """Render the shared creation label in the provenance accent."""
     label = bead_created_label(issue.created_at)
     if label == BEAD_TIME_UNKNOWN_LABEL:
-        return Text("—", style="dim")
+        return Text()
     return Text(label, style=BEAD_TIME_RICH_STYLE, overflow="fold")
 
 
@@ -281,9 +284,7 @@ def readiness_label(
 def _property_text(value: str | Text) -> Text:
     if isinstance(value, Text):
         return value
-    if value:
-        return Text(value, style="white", overflow="fold")
-    return Text("—", style="dim")
+    return Text(value, style="white", overflow="fold")
 
 
 def _chip(label: str, color: str, *, glyph: str = "") -> Text:

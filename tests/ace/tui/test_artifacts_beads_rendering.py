@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
@@ -9,14 +10,15 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
+from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot
+from sase.ace.tui.widgets.artifacts.beads_data_models import (
+    ExternalIssueLink,
+    ProjectBead,
+)
 from sase.ace.tui.widgets.artifacts.beads_detail import (
     bead_body_markdown,
     bead_preview_markdown,
     bead_properties_header,
-)
-from sase.ace.tui.widgets.artifacts.beads_data_models import (
-    ExternalIssueLink,
-    ProjectBead,
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_rendering import (
@@ -27,6 +29,7 @@ from sase.ace.tui.widgets.artifacts.beads_rendering import (
 )
 from sase.bead.model import (
     CloseRecord,
+    Dependency,
     FlagRecord,
     Issue,
     IssueType,
@@ -40,6 +43,31 @@ from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 _PINNED_NOW = datetime(2026, 7, 8, 12, 0, 0)
+
+
+def _has_property_label(rendered: str, label: str) -> bool:
+    """True when *label* is the first column of a property-grid row."""
+    return re.search(rf"(?m)^\s*{re.escape(label)}\s", rendered) is not None
+
+
+def _capture_properties(
+    issue: Issue,
+    value: BeadsSnapshot,
+    *,
+    project: str = "alpha",
+    project_name: str = "Alpha",
+) -> str:
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project=project,
+                project_name=project_name,
+            )
+        )
+    return capture.get()
 
 
 @pytest.fixture
@@ -165,6 +193,30 @@ def test_flag_group_rows_status_and_detail_render_due_metadata(tmp_path: Path) -
     assert "**Due state:** due (DUE ⧗ +6d)" in preview
 
 
+def test_flag_detail_omits_due_state_when_unresolved(tmp_path: Path) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.FLAG,
+        flag=FlagRecord(
+            key="plugins_enabled",
+            remove_by_date="2026-12-01",
+            remove_by_release="0.19.0",
+        ),
+    )
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+    )
+
+    properties = _capture_properties(flag, value)
+
+    assert _has_property_label(properties, "Flag")
+    assert "plugins_enabled" in properties
+    assert _has_property_label(properties, "Removal")
+    assert not _has_property_label(properties, "Due state")
+
+
 def test_rows_label_created_and_updated_ages_separately(
     tmp_path: Path,
     pinned_clock: None,
@@ -226,6 +278,69 @@ def test_detail_uses_shared_metadata_and_triage_callout(tmp_path: Path) -> None:
     assert "Status" in properties
     assert body.startswith(f"> [!IMPORTANT] {issue.id} is awaiting task triage.")
     assert body.index("## Description") < len(body)
+
+
+def test_detail_drops_empty_property_rows_for_a_sparse_task(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    issue = next(task.issue for task in value.tasks if task.issue.id == "alpha-open")
+
+    properties = _capture_properties(issue, value)
+
+    for label in ("ID", "Type", "Status", "Readiness", "Project", "Created"):
+        assert _has_property_label(properties, label)
+    for label in (
+        "Assignee",
+        "Model",
+        "Closed",
+        "Dependencies",
+        "External issue",
+        "References",
+        "Patch",
+        "External bug",
+        "Plan reference",
+    ):
+        assert not _has_property_label(properties, label)
+    assert "—" not in properties
+
+
+def test_detail_keeps_populated_property_rows(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    issue = replace(
+        value.epics[0].issue,
+        dependencies=[
+            Dependency(
+                issue_id="alpha-1",
+                depends_on_id="alpha-1.1",
+                created_at="2026-07-02T10:00:00Z",
+            )
+        ],
+    )
+
+    properties = _capture_properties(issue, value)
+
+    assert _has_property_label(properties, "Assignee")
+    assert "alpha.agent" in properties
+    assert _has_property_label(properties, "Owner")
+    assert "owner@example.com" in properties
+    assert _has_property_label(properties, "Plan reference")
+    assert "plan:202608/beads.md" in properties
+    assert _has_property_label(properties, "Dependencies")
+    assert "alpha-1.1" in properties
+
+
+def test_detail_keeps_unrecorded_resolution_on_a_closed_bead(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    issue = replace(
+        next(task.issue for task in value.tasks if task.issue.id == "alpha-open"),
+        status=Status.CLOSED,
+        closed_at="2026-07-08T16:00:00Z",
+        resolution=None,
+    )
+
+    properties = _capture_properties(issue, value)
+
+    assert _has_property_label(properties, "Resolution")
+    assert "(unrecorded)" in properties
 
 
 def test_external_issue_links_render_in_rows_detail_and_preview(

@@ -17,7 +17,7 @@ def external_issue_property_text(
     links: tuple[ExternalIssueLink, ...],
 ) -> Text:
     if not links:
-        return Text("—", style="dim")
+        return Text()
     text = Text()
     for index, link in enumerate(links):
         if index:
