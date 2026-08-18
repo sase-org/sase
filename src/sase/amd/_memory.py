@@ -41,6 +41,11 @@ _GLOSSARY_TERMS_INTRO = (
     "SASE terms; it prints that term's definition plus every term the "
     "definition depends on. Aliases follow in parentheses."
 )
+_LONG_MEMORY_FILES_INTRO = (
+    "The below files contain detailed reference material. When working in "
+    "their domain, you MUST use your `/sase_memory_read` skill to review "
+    "their contents. Do not read canonical memory files directly."
+)
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -279,7 +284,7 @@ def _render_long_memory_files_section(entries: str) -> str:
     """Render the Tier 2 ``Long-Term Memory Files`` H3 section."""
     if not entries:
         return ""
-    return f"{_LONG_MEMORY_FILES_HEADING}\n\n{entries}"
+    return f"{_LONG_MEMORY_FILES_HEADING}\n\n{_LONG_MEMORY_FILES_INTRO}\n\n{entries}"
 
 
 def _render_managed_agents(

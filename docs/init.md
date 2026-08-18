@@ -218,10 +218,13 @@ group.
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
 and numbers every heading in the generated document, renders Tier 2 as one numbered
 section per long note (headed by the note path, with the description as the body), adds
-missing canonical frontmatter, and validates reachability. Missing, false,
-merged-global, or `memory.h1_title`-only configuration does not authorize any project
-memory or root `AGENTS.md` creation, refresh, or validation. The retired
-`memory.enabled` key is not an alias. Existing projects must replace it once with:
+missing canonical frontmatter, and validates reachability. Tier 2's
+`Long-Term Memory Files` H3 carries the instruction paragraph pointing agents at
+`/sase_memory_read` before the numbered sections; the H3 (with its paragraph) is omitted
+entirely when a root has no top-level long notes. Missing, false, merged-global, or
+`memory.h1_title`-only configuration does not authorize any project memory or root
+`AGENTS.md` creation, refresh, or validation. The retired `memory.enabled` key is not an
+alias. Existing projects must replace it once with:
 
 ```yaml
 is_sase_managed: true

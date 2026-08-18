@@ -139,11 +139,12 @@ memory:
     assert "### 2.1 Long-Term Memory Files" in tier2
     assert "### 2.2 Glossary Terms" in tier2
     files_index = tier2.index("### 2.1 Long-Term Memory Files")
+    intro_index = tier2.index("The below files contain detailed reference material")
     note_index = tier2.index("#### 2.1.")
     glossary_index = tier2.index("### 2.2 Glossary Terms")
-    assert files_index < note_index < glossary_index
+    assert files_index < intro_index < note_index < glossary_index
     assert '`sase glossary read <term> -r "<why>"`' in tier2
-    assert "Aliases follow in parentheses." in tier2
+    assert "Aliases follow in parentheses." in " ".join(tier2.split())
     assert "- Agent Clan (clan)" in tier2
     assert "- Workspace" in tier2
     assert "agent clans" not in tier2

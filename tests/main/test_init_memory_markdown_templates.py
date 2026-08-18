@@ -233,6 +233,9 @@ def test_glossary_terms_block_is_sole_tier2_content_without_other_notes(
     assert plan.blockers == ()
     assert plan.agents_content is not None
     assert "Long-Term Memory Files" not in plan.agents_content
+    assert "The below files contain detailed reference material" not in (
+        plan.agents_content
+    )
     assert "### 2.1 Glossary Terms" in plan.agents_content
     assert "- Agent Hood (hood, agent neighborhood)" in plan.agents_content
     assert "- Stitch" in plan.agents_content
@@ -257,10 +260,18 @@ def test_long_memory_files_section_precedes_glossary_terms(tmp_path: Path) -> No
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
+    tier2_index = plan.agents_content.index("## 2. Tier 2 (long-term) Memory")
     files_index = plan.agents_content.index("### 2.1 Long-Term Memory Files")
+    intro_index = plan.agents_content.index(
+        "The below files contain detailed reference material"
+    )
     note_index = plan.agents_content.index("#### 2.1.1 `sase/memory/parent.md`")
     glossary_index = plan.agents_content.index("### 2.2 Glossary Terms")
-    assert files_index < note_index < glossary_index
+    assert tier2_index < files_index < intro_index < note_index < glossary_index
+    between_h2_and_h3 = plan.agents_content[
+        tier2_index + len("## 2. Tier 2 (long-term) Memory") : files_index
+    ]
+    assert between_h2_and_h3.strip() == ""
     parsed = parse_amd_agents_document(plan.agents_content)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/parent.md",

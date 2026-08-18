@@ -489,6 +489,10 @@ memory:
 | `memory.sase_template`           | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
 | `memory.readme_template`         | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
 
+`{{ tier2_entries }}` renders the entire Tier 2 body: both the `Long-Term Memory Files`
+and `Glossary Terms` H3 sections, each with its own instruction paragraph. A custom
+`agents_template` must not repeat that prose above `{{ tier2_entries }}`.
+
 The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
 `memory_sase_template`, and `memory_readme_template` keys are deprecated but still read
 as aliases; when both paths appear in one file, the nested `memory.*` form wins.
