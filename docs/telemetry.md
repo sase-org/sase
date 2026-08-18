@@ -204,7 +204,10 @@ another data load.
 
 Two Overview definitions differ from each other on purpose: the **Success Rate** tile is
 completed ÷ _finished_ runs, while the **Top projects** success column is completed ÷
-_all_ runs in the range. The legend states both.
+_all_ runs in the range. "Finished" means the run reached a terminal outcome, so the
+tile ignores runs still in progress while the column counts them in its denominator. A
+range holding many live runs therefore shows a tile percentage above the column's. The
+legend states both.
 
 Overview's **Runs over time** panel is clamped to observed activity. Leading and
 trailing zero-run buckets are dropped, so a wide window does not render years of empty

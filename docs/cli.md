@@ -97,9 +97,13 @@ bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase cha
 `sase stitch`, `sase telemetry`, `sase var`, `sase workspace`, and `sase xprompt`.
 Nested groups such as `sase agent prompts`, `sase agent tribe`, `sase artifact trash`,
 `sase axe chop`, `sase axe lumberjack`, `sase bead dep`, `sase bead ref`,
-`sase memory agent-docs`, `sase patch ref`, `sase plan links`, and `sase project alias`
-follow the same rule. A bare invocation prints a short notice naming the delegation, for
-example `No subcommand provided for 'sase repo'; delegating to 'sase repo list'.`
+`sase bead task-type`, `sase memory agent-docs`, `sase patch ref`, `sase plan links`,
+and `sase project alias` follow the same rule. A bare invocation prints a short notice
+naming the delegation, for example
+`No subcommand provided for 'sase repo'; delegating to 'sase repo list'.`
+
+This is a property of the parser, not a hand-maintained list: any group that gains an
+exact `list` child picks the behavior up automatically.
 
 The bare form is only the default view. When you need flags that belong to the list
 command, keep the `list` subcommand explicit, for example `sase notify list -j`,

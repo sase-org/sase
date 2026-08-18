@@ -1931,16 +1931,8 @@ Provider plugins supply conservative built-in patterns through
 - `min_disable_seconds` and `max_disable_seconds` clamp only provider-reported reset
   hints, not the administrator-chosen fallback duration.
 - `honor_reset_hint` allows a provider-reported reset time to choose the expiry, with a
-  small grace buffer. Four forms are recognized, in priority order: an ISO-ish absolute
-  timestamp (`resets at 2026-08-18 09:00`, with optional `Z`/`UTC`/`±HH:MM`), a
-  month-name absolute date (`resets Aug 18, 2026 9am (America/New_York)`), a clock time
-  with or without a zone (`resets at 8pm`, `resets at 8pm (UTC)`), and a relative
-  duration (`try again in 2 hours`). Parsing commits to the first form whose keyword
-  matches rather than falling through, so an unrecognized zone name is a failed parse,
-  not a silent substitution of the local zone. A timestamp with no zone marker resolves
-  through the configured SASE `timezone:`, so setting that to something other than the
-  host zone skews these parses. Any failed or ambiguous parse falls back to
-  `disable_seconds` — a hint never blocks the disable.
+  small grace buffer of 60 seconds. See [Reset-hint forms](#reset-hint-forms) for what
+  it parses.
 - `notify` controls the notification created for a new automatic disable window.
 - `providers.<provider>.patterns` adds positive provider-specific substrings.
 - `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses
@@ -1964,6 +1956,38 @@ provider, the detector leaves its source, creation time, and expiry unchanged an
 not emit another notification. After the record expires or is cleared from Launch
 Control, a later matching failure may create a new window. Fallback may proceed only to
 a different enabled provider; it cannot silently route back to the disabled provider.
+
+### Reset-Hint Forms
+
+When `honor_reset_hint` is on, SASE tries to read an expiry out of the provider's error
+text. Five forms are attempted, in this priority order:
+
+| #   | Form                          | Example                                      |
+| --- | ----------------------------- | -------------------------------------------- |
+| 1   | ISO-ish absolute timestamp    | `resets at 2026-08-18 09:00`                 |
+| 2   | Month-name absolute date      | `resets Aug 18, 2026 9am (America/New_York)` |
+| 3   | Clock time with explicit zone | `resets at 8pm (UTC)`                        |
+| 4   | Bare clock time               | `resets at 8pm`                              |
+| 5   | Relative duration             | `try again in 2 hours`                       |
+
+Form 1 accepts an optional `Z`, `UTC`, or `±HH:MM` marker. Forms 1–4 share one keyword
+anchor: `reset`, `resets`, or `try again`, followed by an optional `at`/`on`. Form 5
+needs the keyword to end in `in` (`resets in 90m`, `try again in 2 hours`). A date or
+time must follow the keyword immediately, so incidental prose such as "connection reset
+by peer" cannot match.
+
+Parsing commits to the first form whose keyword matches; it does **not** fall through to
+a lower-priority form when that form then fails to resolve. That is why forms 3 and 4
+are listed separately: `resets at 8pm (Not/AZone)` matches form 3, and an unrecognized
+zone name there is treated as a failed parse rather than silently reinterpreted as the
+bare form 4.
+
+Forms carrying no zone marker — form 1 without a marker, form 2 without a parenthesized
+zone, and form 4 — resolve through the configured SASE `timezone:`. Setting that to
+something other than the host's zone will skew those parses.
+
+Any failed or ambiguous parse falls back to `disable_seconds`. Reading a hint is an
+optimization, never a gate: it cannot block or delay the disable.
 
 ## Environment Variables
 

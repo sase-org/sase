@@ -1707,8 +1707,10 @@ Once an epic bead exists, the shared launch path:
    force-reuse.
 
    The itemized preview labels each existing agent with the action cleanup would take —
-   `BLOCKED`, `PRESERVE`, `KILL`, `REMOVE`, or `RELEASE`, printed in that order with the
-   agent name, current state, expected bead, and a reason. `BLOCKED` marks a slot whose
+   `BLOCKED`, `PRESERVE`, `KILL`, `REMOVE`, or `RELEASE`. Rows are grouped in that
+   order, then sorted by agent name, and each prints as
+   `ACTION (current-state) agent-name bead=<expected-bead> reason`, with the `bead=`
+   part omitted when the slot has no expected bead. `BLOCKED` marks a slot whose
    existing owner cannot be safely classified, usually a conflicting bead association;
    family and clan members reached without their own bead ids are accepted rather than
    treated as conflicts. Every blocker is listed instead of aborting on the first one,

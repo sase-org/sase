@@ -1009,19 +1009,26 @@ A small allowlist of app actions intentionally shares a key because the two acti
 never be available on the same surface. Validation permits exactly these pairs and
 rejects every other duplicate app binding:
 
-| Shared key (default) | Pair                                                   | Disjoint because                                       |
-| -------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
-| `/`                  | `edit_query` / `search_forward`                        | query editing excludes Agents; search is Agents-only   |
-| `a`                  | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
-| `d`                  | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
-| `L`                  | `beads_open_plan` / `plans_open_bead`                  | Beads vs Plans panes                                   |
-| `E`                  | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
-| `.`                  | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
-| `X`                  | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
+| Shared key (default) | Spelled in YAML as | Pair                                                   | Disjoint because                                       |
+| -------------------- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
+| `/`                  | `slash`            | `edit_query` / `search_forward`                        | query editing excludes Agents; search is Agents-only   |
+| `a`                  | `a`                | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
+| `d`                  | `d`                | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
+| `L`                  | `L`                | `beads_open_plan` / `plans_open_bead`                  | Beads vs Plans panes                                   |
+| `E`                  | `E`                | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
+| `.`                  | `full_stop`        | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
+| `X`                  | `X`                | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
 
-The allowlist is keyed by action pair, not by key, and only overridden actions are
-checked: an override that collides with any action outside its allowed pair is logged as
-a duplicate and reverted to that action's default.
+The first column is what the key looks like on your keyboard; the second is the name to
+write in `sase.yml`, matching how `src/sase/default_config.yml` spells it. Punctuation
+keys generally use their long name (`slash`, `full_stop`, `question_mark`), the same
+convention as the curly-bracket names described above.
+
+The allowlist is keyed by action pair, not by key, so moving one of these actions onto a
+different key keeps the exemption, and pointing a third action at a shared key does not
+gain it. Only actions you overrode are checked: an override that collides with any
+action outside its allowed pair is logged as a duplicate and reverted to that action's
+default, leaving the rest of your keymap in place.
 
 `ace.keymaps.app.start_saved_query_mode` (default `0`) arms direct saved-PR-query slot
 selection: press it, then a slot digit (`1`-`9`, then `0`) to load that slot. Its digit

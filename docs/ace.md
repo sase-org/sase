@@ -2006,12 +2006,30 @@ and leaves the set untouched. After confirmation, ACE kills or dismisses the mar
 agents and opens a prompt stack with one editable pane per original prompt in mark
 order. Embedded `---` inside an individual agent prompt stays inside that agent's pane.
 
-Each recovered prompt is rewritten to the forced-reuse `%id:!<name>` form
-(`%id(!name, clan=…)` for a clan or family member) so the relaunch keeps the original
-agent's name instead of claiming `<name>1`. ACE is the surface that confirms that reuse,
-and it carries the authorization through to the launch, so no second confirmation is
-asked for. Forced reuse cannot be combined with alt/fan-out directives in one segment;
-such a prompt is rejected with an explanatory error and preserved in prompt history.
+Each recovered prompt is marked for forced name reuse so the relaunch keeps the original
+agent's name instead of claiming `<name>1`. The marker is a `!` on the `%id` directive,
+and its exact shape follows the prompt:
+
+| Original prompt          | Rewritten as                      |
+| ------------------------ | --------------------------------- |
+| `%id:foo`                | `%id:!foo`                        |
+| `%id(foo)`               | `%id(!foo)`                       |
+| a clan member's prompt   | `%id(!<suffix>, clan=<clan>)`     |
+| a family member's prompt | `%id(!<suffix>, family=<family>)` |
+| no `%id` directive       | unchanged — a fresh name is used  |
+
+Note that the clan and family forms carry the member's trailing `<suffix>` — the part
+after the `<clan>.` prefix, or the family role segment — not the full agent name; the
+membership keyword supplies the rest. An existing `bead=` value is carried across, and a
+standalone `clan:` declaration is dropped in favor of the `clan=` keyword. The last row
+is not a failure: a prompt that never named its agent has nothing to reuse, so it simply
+relaunches under a newly allocated name.
+
+ACE is the surface that confirms that reuse, and it carries the authorization through to
+the launch, so no second confirmation is asked for. Forced reuse cannot be combined with
+alt/fan-out directives in one segment; such a prompt is rejected with an explanatory
+error and preserved in prompt history, so you can reopen it from `,.` and split the
+launch.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
 before creating git revert commits. For plan/follow-up families, ACE reverts the family

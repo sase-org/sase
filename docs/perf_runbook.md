@@ -623,10 +623,13 @@ The detailed body contains:
    it OK below two seconds, warning from two to five seconds, and critical at five
    seconds or more.
 2. **Stalls & hitches** — per-event counts, worst and median duration, recency,
-   suppressed counts, a **Freeze records by context** ranking, and recoveries. A freeze
-   past the stall threshold is also past the (lower) hitch threshold and is recorded by
-   both event kinds, so the two counts overlap and must not be added together. The tile
-   therefore reports stalls only and names hitches separately in its detail line. Any
+   suppressed counts, a **Freeze records by context** ranking, and recoveries. The two
+   tiers are independent watchdogs with different thresholds (hitch at 1.5 seconds,
+   stall at 5, both configurable — see
+   [Freeze and hitch capture](#freeze-and-hitch-capture)), so one freeze long enough to
+   trip the stall threshold has already tripped the lower hitch threshold and is
+   recorded as both. The two counts therefore overlap and must not be added together.
+   The tile reports stalls only and names hitches separately in its detail line. Any
    hitch makes the tile warn; any stall makes it critical.
 3. **Latency & reliability** — telemetry-backed p50, p95, maximum, a count, error rate,
    and retry rate. The count column is labeled by what it actually counts: **LLM
