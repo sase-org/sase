@@ -31,10 +31,8 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import Issue, IssueType, SnoozeRecord, Status
 from sase.bead.project import BeadProject
-from sase.bead.snooze_gate import (
-    _bead_snooze_close_reason,
-    _build_bead_snooze_gate_spec,
-)
+from sase.bead._snooze_gate_preview import bead_snooze_close_reason
+from sase.bead._snooze_gate_spec import build_bead_snooze_gate_spec
 from sase.core import bead_read_facade
 from sase.core.time import get_timezone
 from sase.notification_gates.executor import execute_gate_selection
@@ -113,7 +111,7 @@ def _reload(store: SimpleNamespace) -> Issue:
 
 
 def _gate_spec(bead: Issue, *, request_id: str) -> dict[str, Any]:
-    return _build_bead_snooze_gate_spec(
+    return build_bead_snooze_gate_spec(
         request_id=request_id,
         bead_id=bead.id,
         project="sase",
@@ -144,7 +142,7 @@ def _select(
     """Run one BeadSnooze gate option against the real store."""
     gate = create_gate(_gate_spec(bead, request_id=request_id))
     with patch(
-        "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+        "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
         return_value=store.checkout,
     ):
         execute_gate_selection(
@@ -180,7 +178,7 @@ def test_gate_close_closes_a_snoozed_bead_and_leaves_the_store_readable(
     reloaded = _reload(snooze_store)
     assert reloaded.status is Status.CLOSED
     assert reloaded.snooze is None
-    assert reloaded.close_reason == _bead_snooze_close_reason(WAKE_TIME)
+    assert reloaded.close_reason == bead_snooze_close_reason(WAKE_TIME)
 
 
 def test_gate_ready_wakes_a_snoozed_bead_and_leaves_the_store_readable(

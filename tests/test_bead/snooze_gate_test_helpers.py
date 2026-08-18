@@ -8,11 +8,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-from sase.bead.model import SnoozeRecord
-from sase.bead.snooze_gate import (
+from sase.bead._snooze_gate_spec import (
     BEAD_SNOOZE_PREVIEW_PATH,
-    _build_bead_snooze_gate_spec,
+    build_bead_snooze_gate_spec,
 )
+from sase.bead.model import SnoozeRecord
 
 WAKE_TIME = "2026-08-09T09:00:00-04:00"
 
@@ -44,7 +44,7 @@ def bead_snooze_spec(
         "producer": {"agent_name": "snooze-test"},
     }
     fields.update(overrides)
-    return _build_bead_snooze_gate_spec(**fields)
+    return build_bead_snooze_gate_spec(**fields)
 
 
 def preview_resource(spec: dict[str, Any]) -> dict[str, Any]:

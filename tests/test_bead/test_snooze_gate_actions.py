@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.bead._snooze_gate_preview import bead_snooze_close_reason
 from sase.bead.snooze_gate import (
     BEAD_SNOOZE_COMMAND_PATHS,
-    _bead_snooze_close_reason,
     translate_bead_snooze_response,
 )
 from sase.notification_gates.executor import execute_gate_selection
@@ -37,7 +37,7 @@ def test_bead_snooze_close_uses_the_preset_reason_when_feedback_is_empty(
 
     with (
         patch(
-            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
@@ -46,7 +46,7 @@ def test_bead_snooze_close_uses_the_preset_reason_when_feedback_is_empty(
 
     project.close.assert_called_once_with(
         ["sase-task.1"],
-        reason=_bead_snooze_close_reason(WAKE_TIME),
+        reason=bead_snooze_close_reason(WAKE_TIME),
         resolution="canceled",
     )
     mutation.commit.assert_called_once_with("chore(beads): close sase-task.1")
@@ -61,7 +61,7 @@ def test_bead_snooze_close_feedback_replaces_the_preset_reason(
 
     with (
         patch(
-            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
@@ -90,7 +90,7 @@ def test_bead_snooze_ready_cancels_the_snooze_and_notes_the_wake(
 
     with (
         patch(
-            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
@@ -132,7 +132,7 @@ def test_bead_snooze_resnooze_defers_again_with_the_typed_duration(
 
     with (
         patch(
-            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
@@ -166,7 +166,7 @@ def test_bead_snooze_resnooze_accepts_a_preset_and_records_the_note_as_the_reaso
 
     with (
         patch(
-            "sase.bead.snooze_gate._resolve_bead_snooze_project_cwd",
+            "sase.bead._snooze_gate_actions._resolve_bead_snooze_project_cwd",
             return_value=Path("/canonical/sase"),
         ),
         patch("sase.bead.cli_common.bead_store_mutation", side_effect=mutation_scope),
