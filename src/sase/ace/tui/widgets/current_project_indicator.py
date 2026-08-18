@@ -1,8 +1,8 @@
 """Current-project chip for the ACE TUI top bar.
 
-Renders ``+<display_name>`` boxed by two accent-colored rails and a tinted
-plate, immediately after the provider-disables pill. Empty (zero width) when
-no project resolves or when ``ace.current_project.indicator`` is false.
+Renders ``+<display_name>`` in the project's accent color immediately after
+the provider-disables pill. Empty (zero width) when no project resolves or
+when ``ace.current_project.indicator`` is false.
 
 The periodic tick only peeks a cheap change token. The real
 :func:`sase.current_project.resolve_current_project` call — plus the enabled
@@ -15,7 +15,6 @@ derivation of the VCS xprompt MRU store: launching an agent is how it moves.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import functools
 from typing import Any
 
 from rich.text import Text
@@ -23,7 +22,7 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.project_styles import project_accent, project_chip_plate
+from sase.ace.tui.project_styles import project_accent
 from sase.current_project import (
     CurrentProject,
     peek_current_project_change_token,
@@ -36,20 +35,6 @@ from sase.xprompt.loader import get_known_project_workspaces
 _POLL_INTERVAL_SECONDS = 5.0
 _WORKER_GROUP = "current-project-indicator"
 _LAUNCH_HINT = "Launch an agent on a project to make it current."
-
-_FRAME_LEFT = "▏"  # U+258F LEFT ONE EIGHTH BLOCK
-_FRAME_RIGHT = "▕"  # U+2595 RIGHT ONE EIGHTH BLOCK
-
-
-@functools.cache
-def _fallback_theme_background() -> str:
-    """Return the pinned theme's background when no live app theme is usable."""
-
-    from textual.theme import BUILTIN_THEMES
-
-    from sase.xprompt.highlight_theme import ACE_THEME_NAME
-
-    return BUILTIN_THEMES[ACE_THEME_NAME].background or "#000000"
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,34 +165,16 @@ class CurrentProjectIndicator(Static):
         snapshot = self._cached_snapshot
         project = None if snapshot is None else snapshot.project
         accent = "" if snapshot is None else snapshot.accent
-        plate = (
-            project_chip_plate(accent, background=self._theme_background())
-            if accent
-            else ""
-        )
         self.update(
-            self._build_content(
-                project, accent=accent, plate=plate, indicator=settings.indicator
-            )
+            self._build_content(project, accent=accent, indicator=settings.indicator)
         )
         self.tooltip = self._build_tooltip(project, indicator=settings.indicator)
-
-    def _theme_background(self) -> str:
-        """Return the live app theme's background, or the pinned theme's."""
-
-        if self.is_attached:
-            theme = getattr(self.app, "current_theme", None)
-            background = getattr(theme, "background", None)
-            if isinstance(background, str) and background:
-                return background
-        return _fallback_theme_background()
 
     @staticmethod
     def _build_content(
         project: CurrentProject | None,
         *,
         accent: str,
-        plate: str,
         indicator: bool,
     ) -> Text:
         """Build the chip, or empty text when hidden."""
@@ -215,11 +182,8 @@ class CurrentProjectIndicator(Static):
         if not indicator or project is None:
             return Text("")
         text = Text()
-        text.append(" ")
-        text.append(_FRAME_LEFT, style=f"{accent} on {plate}")
-        text.append("+", style=f"dim {accent} on {plate}")
-        text.append(project.display_name, style=f"bold {accent} on {plate}")
-        text.append(_FRAME_RIGHT, style=f"{accent} on {plate}")
+        text.append(" +", style=f"dim {accent}")
+        text.append(project.display_name, style=f"bold {accent}")
         text.append(" ")
         return text
 

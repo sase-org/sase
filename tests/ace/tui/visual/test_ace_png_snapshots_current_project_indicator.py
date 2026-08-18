@@ -89,7 +89,7 @@ async def test_current_project_indicator_png_snapshot(
         await page.app.wait_for_refresh()
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ▏+sase▕ ",
+            lambda: indicator.render().plain == " +sase ",
             description="current-project chip",
         )
         await wait_for_visual_idle(page)

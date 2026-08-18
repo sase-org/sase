@@ -32,7 +32,9 @@ from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERS
 # widget after it forms that cluster. The updates badge must sit immediately to
 # the left of the model (LLM override) indicator; the non-default override pill
 # sits just right of it so the two override indicators read as a pair. The
-# current-project chip mounts immediately after the provider-disables pill,
+# current-project chip mounts immediately after the provider-disables pill:
+# both intervening override/disable pills render empty (zero width) in the
+# normal case, so the chip sits visually flush against the model indicator
 # without splitting the tested override pairing. Pinning the whole order keeps
 # future reorders intentional.
 EXPECTED_TOP_BAR_ORDER = [
@@ -146,7 +148,7 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         await page.app.wait_for_refresh()
 
         assert indicator.render().plain == " ↑ 3 * CLI ↑ 2 "
-        assert project_indicator.render().plain == " ▏+sase▕ "
+        assert project_indicator.render().plain == " +sase "
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0
         ]
@@ -213,7 +215,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
         assert alias_indicator.render().plain == " @medium@max ∞ "
         assert provider_indicator.render().plain == " CLAUDE off ∞ "
-        assert project_indicator.render().plain == " ▏+sase▕ "
+        assert project_indicator.render().plain == " +sase "
         visible_children = [
             child for child in top_bar.children if child.region.width > 0
         ]
