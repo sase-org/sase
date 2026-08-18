@@ -19,6 +19,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
+from sase.xprompt import _glossary_catalog_config as catalog_config
 from sase.xprompt import glossary_catalog as catalog
 
 
@@ -52,7 +53,9 @@ def _record(
 
 @pytest.fixture(autouse=True)
 def _fake_glossary_rust(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(catalog, "validate_glossary_entries", lambda _entries: ())
+    monkeypatch.setattr(
+        catalog_config, "validate_glossary_entries", lambda _entries: ()
+    )
     monkeypatch.setattr(catalog, "build_glossary_catalog", _fake_build_catalog)
     monkeypatch.setattr(catalog, "compile_glossary_catalog", lambda entries: entries)
 
@@ -255,7 +258,7 @@ def test_catalog_reports_validation_diagnostics(
     record = _record("sase", workspace)
     monkeypatch.setattr(catalog, "list_project_records", lambda *_a, **_kw: [record])
     monkeypatch.setattr(
-        catalog,
+        catalog_config,
         "validate_glossary_entries",
         lambda _entries: (
             GlossaryDiagnostic(
