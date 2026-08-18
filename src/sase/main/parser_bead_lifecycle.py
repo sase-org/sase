@@ -50,7 +50,9 @@ def register_bead_plus_one_parser(
         "--note",
         required=True,
         metavar="TEXT",
-        help="Required independent reproduction or impact evidence",
+        help=(
+            f"Required independent reproduction or impact evidence; {_AT_PATH_READS_IT}"
+        ),
     )
     parser.add_argument(
         "-R",
@@ -78,7 +80,8 @@ def register_bead_close_parser(
         help="Close one or more issues",
         description=(
             "Close one or more issues atomically. With --phases, the single "
-            "target is an epic whose numbered phase beads are closed instead."
+            "target is an epic whose numbered phase beads are closed instead. "
+            f"Free-text values accept {AT_PATH_PREFIX}<path>."
         ),
         epilog=(
             "Examples:\n"
@@ -116,7 +119,10 @@ def register_bead_close_parser(
     parser.add_argument(
         "-n",
         "--note",
-        help="Append this attributed note to each issue before closing it",
+        help=(
+            "Append this attributed note to each issue before closing it; "
+            f"{_AT_PATH_READS_IT}"
+        ),
     )
     parser.add_argument(
         "-p",
@@ -128,7 +134,11 @@ def register_bead_close_parser(
             "numbers and ranges (e.g. 1,3,5-7)"
         ),
     )
-    parser.add_argument("-r", "--reason", help="Close reason")
+    parser.add_argument(
+        "-r",
+        "--reason",
+        help=f"Close reason; {_AT_PATH_READS_IT}",
+    )
     parser.add_argument(
         "-R",
         "--resolution",
@@ -456,7 +466,7 @@ def register_bead_snooze_parser(
         "-r",
         "--reason",
         metavar="TEXT",
-        help="Why this task is being deferred",
+        help=f"Why this task is being deferred; {_AT_PATH_READS_IT}",
     )
     parser.add_argument(
         "-u",

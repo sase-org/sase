@@ -28,6 +28,11 @@ def _withheld_reopen_note(reporter: str, closed_at: str) -> str:
 def handle_bead_plus_one(args: argparse.Namespace) -> None:
     """Record independently attributed evidence on an existing task bead."""
     verified_after_close = bool(getattr(args, "verified_after_close", False))
+    try:
+        note = read_at_path_value(args.note, target="--note")
+    except CliFileValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         try:
             reporter = getattr(args, "author", None)
@@ -47,7 +52,7 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
                 observed_since = resolve_observation_window_start()
             issue, changed = mutation.project.plus_one(
                 args.id,
-                args.note,
+                note,
                 reporter=reporter,
                 refs=getattr(args, "ref", None) or (),
                 observed_since=observed_since,

@@ -393,6 +393,9 @@ def test_bead_create_and_update_help_document_at_path() -> None:
     create_help = flat_help(parser_for(("sase", "bead", "create")).format_help())
     update_help = flat_help(parser_for(("sase", "bead", "update")).format_help())
     note_help = flat_help(parser_for(("sase", "bead", "note")).format_help())
+    close_help = flat_help(parser_for(("sase", "bead", "close")).format_help())
+    plus_one_help = flat_help(parser_for(("sase", "bead", "+1")).format_help())
+    snooze_help = flat_help(parser_for(("sase", "bead", "snooze")).format_help())
 
     _assert_metavar_option_documented(create_help, "-d", "--description", "DESCRIPTION")
     assert "@<path> reads it from that file" in create_help
@@ -406,6 +409,17 @@ def test_bead_create_and_update_help_document_at_path() -> None:
     assert "@<path> reads them from that file" in update_help
 
     assert "single-token @<path>" in note_help
+
+    _assert_metavar_option_documented(close_help, "-n", "--note", "NOTE")
+    _assert_metavar_option_documented(close_help, "-r", "--reason", "REASON")
+    assert "Free-text values accept @<path>." in close_help
+    assert "@<path> reads it from that file" in close_help
+
+    _assert_metavar_option_documented(plus_one_help, "-n", "--note", "TEXT")
+    assert "@<path> reads it from that file" in plus_one_help
+
+    _assert_metavar_option_documented(snooze_help, "-r", "--reason", "TEXT")
+    assert "@<path> reads it from that file" in snooze_help
 
 
 def test_workspace_help_hides_deprecated_open_alias() -> None:

@@ -1034,17 +1034,17 @@ no blocked bead has a stored size.
 ### `sase bead +1 <task-id>`
 
 Corroborate an existing task with independently attributed evidence. `--note` is
-required; `--ref` is repeatable and `--author` overrides normal current-agent
-attribution. Each reporter counts once, the creator does not count, and repeat reporters
-are unchanged no-ops. New evidence promotes `open` tasks to `ready` atomically. Closed
-tasks promote only when the report's `observed_since` window starts strictly after the
-current close, archiving close metadata into close history and clearing the assignee;
-missing provenance preserves the legacy reopen behavior. Stale post-close evidence is
-recorded with `observed_since`, shown with the post-close evidence marker and
-`+1 after close` badge, and leaves the close standing. `--verified-after-close` asserts
-that the defect was reproduced on a tree already containing the close and uses the
-current instant as the observation-window start. Other active statuses are preserved,
-and plan or phase beads are rejected. See
+required; a value of `@<path>` is read from that file. `--ref` is repeatable and
+`--author` overrides normal current-agent attribution. Each reporter counts once, the
+creator does not count, and repeat reporters are unchanged no-ops. New evidence promotes
+`open` tasks to `ready` atomically. Closed tasks promote only when the report's
+`observed_since` window starts strictly after the current close, archiving close
+metadata into close history and clearing the assignee; missing provenance preserves the
+legacy reopen behavior. Stale post-close evidence is recorded with `observed_since`,
+shown with the post-close evidence marker and `+1 after close` badge, and leaves the
+close standing. `--verified-after-close` asserts that the defect was reproduced on a
+tree already containing the close and uses the current instant as the observation-window
+start. Other active statuses are preserved, and plan or phase beads are rejected. See
 [Task Corroboration (+1)](#task-corroboration-1) and [Close History](#close-history).
 
 ### `sase bead close <id> [<id2> ...]`
@@ -1107,14 +1107,14 @@ When a close changes the store, SASE commits it and then publishes it according 
 failure instead of a false success. Use `--no-push` to keep the commit local while
 batching bead mutations, then publish the batch with a later `sase bead sync`.
 
-| Flag               | Description                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                               |
-| `-P, --no-push`    | Commit the close locally but skip the post-commit push                                                       |
-| `-n, --note`       | Append this attributed note to each listed issue before closing it                                           |
-| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                |
-| `-r, --reason`     | Optional close reason text; required with `--force`                                                          |
-| `-R, --resolution` | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied |
+| Flag               | Description                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `-f, --force`      | Sweep unfinished descendants; requires a reason and `canceled` or `superseded`                                   |
+| `-P, --no-push`    | Commit the close locally but skip the post-commit push                                                           |
+| `-n, --note`       | Append this attributed note to each listed issue before closing it. A value of `@<path>` is read from that file. |
+| `-p, --phases`     | Close numbered phases of one epic; accepts comma-separated numbers and ranges                                    |
+| `-r, --reason`     | Optional close reason text; required with `--force`. A value of `@<path>` is read from that file.                |
+| `-R, --resolution` | `canceled`, `done`, or `superseded`; real closes default to `done`; repeat closes compare only when supplied     |
 
 ### `sase bead create`
 
@@ -1614,12 +1614,12 @@ Defer one or more `open` or `ready` task beads. See
 the same wake time, `+1` target, and reason atomically, matching `sase bead update`'s
 batch semantics.
 
-| Flag                    | Description                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `-u, --until TIME`      | Wake time: a duration (`30m`, `2h`, `1h30m`, `3d`) or absolute ISO-8601 timestamp; required unless `--cancel` |
-| `-p, --plus-ones COUNT` | Also wake when this many additional `+1` reports arrive                                                       |
-| `-r, --reason TEXT`     | Why this task is being deferred; embedded in the note this snooze appends                                     |
-| `-c, --cancel`          | Wake these beads now, returning them to `ready`                                                               |
+| Flag                    | Description                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `-u, --until TIME`      | Wake time: a duration (`30m`, `2h`, `1h30m`, `3d`) or absolute ISO-8601 timestamp; required unless `--cancel`           |
+| `-p, --plus-ones COUNT` | Also wake when this many additional `+1` reports arrive                                                                 |
+| `-r, --reason TEXT`     | Why this task is being deferred; embedded in the note this snooze appends. A value of `@<path>` is read from that file. |
+| `-c, --cancel`          | Wake these beads now, returning them to `ready`                                                                         |
 
 ### `sase bead stats`
 

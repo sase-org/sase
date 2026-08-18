@@ -19,6 +19,7 @@ from sase.bead.phase_selector import (
     resolve_epic_phase_ids,
 )
 from sase.bead.project import BeadProject
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 
 
 def handle_bead_open(args: argparse.Namespace) -> None:
@@ -94,6 +95,16 @@ def _refuse_leftover_epic_symbols(project: BeadProject, issue_ids: list[str]) ->
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:
+    try:
+        note = getattr(args, "note", None)
+        if note is not None:
+            note = read_at_path_value(note, target="--note")
+        reason = getattr(args, "reason", None)
+        if reason is not None:
+            reason = read_at_path_value(reason, target="--reason")
+    except CliFileValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     with bead_store_mutation(
         auto_commit_bead_store,
         no_push=getattr(args, "no_push", False),
@@ -101,13 +112,12 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         try:
             resolved_ids = _resolve_close_ids(args, mutation.project)
             _refuse_leftover_epic_symbols(mutation.project, resolved_ids)
-            note = getattr(args, "note", None)
             author = None
             if note is not None:
                 author = resolve_mutation_author(mutation.project)
             closed = mutation.project.close(
                 resolved_ids,
-                reason=args.reason,
+                reason=reason,
                 resolution=getattr(args, "resolution", None),
                 force=getattr(args, "force", False),
                 note=note,

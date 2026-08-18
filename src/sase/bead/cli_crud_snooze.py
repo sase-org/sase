@@ -25,6 +25,7 @@ from sase.bead.snooze_time import (
     SnoozeTimeError,
     parse_snooze_until,
 )
+from sase.cli_file_values import CliFileValueError, read_at_path_value
 
 
 def _snooze_actor(project: BeadProject) -> str:
@@ -45,8 +46,8 @@ def handle_bead_snooze(args: argparse.Namespace) -> None:
     cancel = bool(getattr(args, "cancel", False))
     until_arg = getattr(args, "until", None)
     plus_ones = getattr(args, "plus_ones", None)
-    reason = getattr(args, "reason", None) or ""
-    if cancel and (until_arg or plus_ones is not None or reason):
+    raw_reason = getattr(args, "reason", None) or ""
+    if cancel and (until_arg or plus_ones is not None or raw_reason):
         print(
             "Error: --cancel takes no wake conditions; drop -u/-p/-r",
             file=sys.stderr,
@@ -69,6 +70,11 @@ def handle_bead_snooze(args: argparse.Namespace) -> None:
         except SnoozeTimeError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+    try:
+        reason = read_at_path_value(raw_reason, target="--reason") if raw_reason else ""
+    except CliFileValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project

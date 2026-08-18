@@ -4449,7 +4449,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d38bab29e5d73b37",
+            "description_digest": "ef5c07abe0d4c0c5",
             "hidden": false,
             "mutex_groups": [],
             "name": "+1",
@@ -4630,7 +4630,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b64a3fa88963c662",
+            "description_digest": "52e7c2449b442cea",
             "hidden": false,
             "mutex_groups": [],
             "name": "close",
@@ -6502,7 +6502,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "0eac8ba4194b6843",
+            "description_digest": "07633d9241c4f0e9",
             "hidden": false,
             "mutex_groups": [],
             "name": "snooze",
