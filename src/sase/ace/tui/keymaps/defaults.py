@@ -28,15 +28,15 @@ def _builtin_keymaps_config() -> Mapping[str, Any]:
 
 
 @functools.cache
-def _builtin_app_defaults() -> Mapping[str, str]:
-    """Cache app-level defaults from the bundled configuration."""
+def _builtin_scope_defaults(scope: str) -> Mapping[str, str]:
+    """Cache one keymap scope's bundled defaults, keyed by *scope* name."""
 
-    app = _builtin_keymaps_config().get("app", {})
-    if not isinstance(app, dict):
-        msg = "default_config.yml missing ace.keymaps.app section"
+    section = _builtin_keymaps_config().get(scope, {})
+    if not isinstance(section, dict):
+        msg = f"default_config.yml missing ace.keymaps.{scope} section"
         raise RuntimeError(msg)
     return MappingProxyType(
-        {k: canonicalize_key_binding(str(v)) for k, v in app.items()}
+        {k: canonicalize_key_binding(str(v)) for k, v in section.items()}
     )
 
 
@@ -47,42 +47,22 @@ def load_builtin_app_defaults() -> dict[str, str]:
     corrupting the cached parse.
     """
 
-    return dict(_builtin_app_defaults())
-
-
-@functools.cache
-def _builtin_statistics_defaults() -> Mapping[str, str]:
-    """Cache focused Statistics-pane defaults from bundled configuration."""
-
-    statistics = _builtin_keymaps_config().get("statistics", {})
-    if not isinstance(statistics, dict):
-        msg = "default_config.yml missing ace.keymaps.statistics section"
-        raise RuntimeError(msg)
-    return MappingProxyType(
-        {k: canonicalize_key_binding(str(v)) for k, v in statistics.items()}
-    )
+    return dict(_builtin_scope_defaults("app"))
 
 
 def load_builtin_statistics_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Statistics-pane defaults."""
 
-    return dict(_builtin_statistics_defaults())
-
-
-@functools.cache
-def _builtin_gate_defaults() -> Mapping[str, str]:
-    """Cache focused gate-modal defaults from bundled configuration."""
-
-    gate = _builtin_keymaps_config().get("gate", {})
-    if not isinstance(gate, dict):
-        msg = "default_config.yml missing ace.keymaps.gate section"
-        raise RuntimeError(msg)
-    return MappingProxyType(
-        {k: canonicalize_key_binding(str(v)) for k, v in gate.items()}
-    )
+    return dict(_builtin_scope_defaults("statistics"))
 
 
 def load_builtin_gate_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused gate-modal defaults."""
 
-    return dict(_builtin_gate_defaults())
+    return dict(_builtin_scope_defaults("gate"))
+
+
+def load_builtin_glossary_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Glossary-panel defaults."""
+
+    return dict(_builtin_scope_defaults("glossary"))

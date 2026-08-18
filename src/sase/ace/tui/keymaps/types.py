@@ -9,6 +9,7 @@ from dataclasses import dataclass, field, fields
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
+    GlossaryPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
@@ -47,6 +48,7 @@ __all__ = [
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",
+    "GlossaryPanelKeymaps",
     "KeymapRegistry",
     "LeaderModeKeymaps",
     "ModeKeymaps",
@@ -90,6 +92,7 @@ class KeymapRegistry:
     app: AppKeymaps
     statistics: StatisticsPaneKeymaps = field(default_factory=StatisticsPaneKeymaps)
     gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
+    glossary: GlossaryPanelKeymaps = field(default_factory=GlossaryPanelKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

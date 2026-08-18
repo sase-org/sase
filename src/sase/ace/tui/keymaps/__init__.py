@@ -9,17 +9,21 @@ from sase.ace.tui.keymaps.bindings import (
     build_app_bindings,
     build_gate_modal_bindings,
     build_gate_numbered_branch_bindings,
+    build_glossary_bindings,
     build_statistics_bindings,
+    glossary_help_bindings,
     statistics_help_bindings,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
+    GlossaryPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_app_defaults,
     load_builtin_gate_defaults,
+    load_builtin_glossary_defaults,
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.display import (
@@ -55,6 +59,7 @@ __all__ = [
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",
+    "GlossaryPanelKeymaps",
     "KeymapRegistry",
     "LeaderModeKeymaps",
     "ModeKeymaps",
@@ -63,15 +68,18 @@ __all__ = [
     "build_app_bindings",
     "build_gate_modal_bindings",
     "build_gate_numbered_branch_bindings",
+    "build_glossary_bindings",
     "build_statistics_bindings",
     "canonicalize_key_binding",
     "canonicalize_single_key",
     "footer_key_display",
+    "glossary_help_bindings",
     "is_valid_key",
     "key_display_name",
     "leader_key_display",
     "load_builtin_app_defaults",
     "load_builtin_gate_defaults",
+    "load_builtin_glossary_defaults",
     "load_builtin_statistics_defaults",
     "load_keymap_registry",
     "normalize_key_binding",

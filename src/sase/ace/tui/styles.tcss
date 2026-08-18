@@ -5171,6 +5171,119 @@ GlossaryPreviewModal #glossary-preview-footer {
     text-overflow: ellipsis;
 }
 
+/* ===== Glossary Panel Styling ===== */
+
+GlossaryPanel {
+    align: center middle;
+}
+
+GlossaryPanel #glossary-panel-container {
+    width: 90%;
+    max-width: 130;
+    height: 90%;
+    max-height: 44;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+GlossaryPanel #glossary-panel-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+GlossaryPanel #glossary-panel-body {
+    height: 1fr;
+}
+
+GlossaryPanel #glossary-panel-terms {
+    width: 32;
+    height: 100%;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+GlossaryPanel #glossary-panel-detail {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    margin-left: 1;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+GlossaryPanel #glossary-panel-card-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+GlossaryPanel #glossary-panel-card-definition {
+    width: 100%;
+    height: auto;
+}
+
+GlossaryPanel #glossary-panel-card-meta {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
+GlossaryPanel #glossary-panel-filter {
+    height: 3;
+    margin-top: 1;
+    border: tall $accent;
+}
+
+GlossaryPanel #glossary-panel-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ===== Glossary Panel Help Modal Styling ===== */
+
+GlossaryPanelHelpModal {
+    align: center middle;
+}
+
+GlossaryPanelHelpModal #glossary-panel-help-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+GlossaryPanelHelpModal #glossary-panel-help-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+GlossaryPanelHelpModal #glossary-panel-help-scroll {
+    height: auto;
+    max-height: 100%;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+GlossaryPanelHelpModal #glossary-panel-help-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Notification Report Modal Styling ===== */
 
 ReportModal {

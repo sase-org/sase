@@ -18,6 +18,7 @@ from sase.glossary.cli_common import (
     resolve_glossary_cli_project,
 )
 from sase.glossary.resolution import resolve_glossary_closure
+from sase.glossary.text_filter import filter_glossary_entries
 
 _SUMMARY_WIDTH = 72
 
@@ -36,7 +37,7 @@ def handle_glossary_list_command(
     include_definitions = getattr(args, "definitions", False)
     output_format = getattr(args, "format", "table")
 
-    entries = _filter_entries(
+    entries = filter_glossary_entries(
         resolved.catalog.entries,
         pattern=pattern,
         include_definitions=include_definitions,
@@ -59,25 +60,6 @@ def handle_glossary_list_command(
 
     target = console or Console()
     target.print(_build_table(resolved, entries))
-
-
-def _filter_entries(
-    entries: tuple[GlossaryEntry, ...],
-    *,
-    pattern: str | None,
-    include_definitions: bool,
-) -> tuple[GlossaryEntry, ...]:
-    if not pattern:
-        return entries
-    needle = pattern.casefold()
-    matched: list[GlossaryEntry] = []
-    for entry in entries:
-        haystacks = [entry.term, *entry.display_aliases]
-        if include_definitions:
-            haystacks.append(entry.definition)
-        if any(needle in haystack.casefold() for haystack in haystacks):
-            matched.append(entry)
-    return tuple(matched)
 
 
 def _reference_terms(

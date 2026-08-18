@@ -7,12 +7,14 @@ from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
+    GlossaryPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
     _GATE_BINDING_META,
+    _GLOSSARY_BINDING_META,
     _STATISTICS_BINDING_META,
 )
 
@@ -77,6 +79,31 @@ def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
             priority=True,
         )
         for action, description in _GATE_BINDING_META
+    ]
+
+
+def build_glossary_bindings(keymaps: GlossaryPanelKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Glossary panel."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+        )
+        for action, description in _GLOSSARY_BINDING_META
+    ]
+
+
+def glossary_help_bindings(
+    keymaps: GlossaryPanelKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Glossary panel keys and descriptions for help surfaces."""
+
+    return [
+        (key_display_name(getattr(keymaps, action)), description)
+        for action, description in _GLOSSARY_BINDING_META
     ]
 
 

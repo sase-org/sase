@@ -327,18 +327,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-p1.4(GlossaryProjectRef)" \
-        --epic-symbol "sase-p1.4(GlossaryProjectSnapshot)" \
-        --epic-symbol "sase-p1.4(build_glossary_project_ring)" \
-        --epic-symbol "sase-p1.4(load_glossary_project_snapshot)" \
         --epic-symbol "sase-p1.5(glossary_entry_relations)" \
-        --epic-symbol "sase-p1.6(GlossaryConflictError)" \
-        --epic-symbol "sase-p1.6(GlossaryMutationError)" \
-        --epic-symbol "sase-p1.6(GlossaryMutationOutcome)" \
-        --epic-symbol "sase-p1.6(GlossaryValidationError)" \
-        --epic-symbol "sase-p1.6(add_glossary_term)" \
-        --epic-symbol "sase-p1.6(delete_glossary_term)" \
-        --epic-symbol "sase-p1.6(invalidate_glossary_project)" \
+        --epic-symbol "sase-p1.7(GlossaryPanel)" \
         --epic-symbol "sase-p2.3(RepoMention)" \
         --epic-symbol "sase-p4.3(active_epic_resume)" \
         --epic-symbol "sase-p4.3(build_epic_resume_argv)" \

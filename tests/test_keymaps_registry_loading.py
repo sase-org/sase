@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps import (
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
+    GlossaryPanelKeymaps,
     LeaderModeKeymaps,
     ModeKeymaps,
     StatisticsPaneKeymaps,
@@ -54,6 +55,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.bead_issue_mode, BeadIssueModeKeymaps)
     assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
+    assert isinstance(reg.glossary, GlossaryPanelKeymaps)
     assert reg.gate.toggle_option == "space"
     assert reg.gate.submit_branch == "ctrl+s"
     assert reg.statistics.prev_view == "left_square_bracket"
@@ -69,6 +71,12 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.scroll_up == "ctrl+u"
     assert reg.statistics.refresh == "r"
     assert reg.statistics.help == "question_mark"
+    assert reg.glossary.next_term == "j"
+    assert reg.glossary.prev_term == "k"
+    assert reg.glossary.filter_terms == "slash"
+    assert reg.glossary.next_project == "p"
+    assert reg.glossary.prev_project == "P"
+    assert reg.glossary.help == "question_mark"
 
 
 def test_app_query_and_help_overrides_are_honored_while_leader_help_is_retired(
@@ -182,6 +190,43 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
     )
 
     assert reg.gate == GateModalKeymaps("down", "up", "t", "a", "s")
+
+
+def test_glossary_panel_keys_can_be_overridden_independently() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "glossary": {
+                    "next_term": "down",
+                    "prev_term": "up",
+                    "filter_terms": "f12",
+                    "next_project": "f11",
+                    "prev_project": "f10",
+                    "help": "f9",
+                }
+            }
+        }
+    )
+
+    assert reg.glossary.next_term == "down"
+    assert reg.glossary.prev_term == "up"
+    assert reg.glossary.filter_terms == "f12"
+    assert reg.glossary.next_project == "f11"
+    assert reg.glossary.prev_project == "f10"
+    assert reg.glossary.help == "f9"
+    # Unoverridden fields keep their bundled defaults.
+    assert reg.glossary.add_term == "a"
+    assert reg.glossary.delete_term == "d"
+
+
+def test_duplicate_glossary_help_override_reverts_to_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"glossary": {"help": "r"}}})
+
+    assert reg.glossary.help == "question_mark"
+    assert "Duplicate glossary key" in caplog.text
 
 
 def test_retired_activate_control_override_aliases_submit_primary(

@@ -186,6 +186,34 @@ _GATE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("submit_branch", "Submit"),
 )
 
+# Scoped bindings owned by the Glossary panel. These are deliberately
+# excluded from ``AppKeymaps`` so common keys such as ``j``/``k``/``p`` never
+# become globally active.
+_GLOSSARY_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("next_term", "Next Term"),
+    ("prev_term", "Previous Term"),
+    ("first_term", "First Term"),
+    ("last_term", "Last Term"),
+    ("scroll_definition_down", "Scroll Definition Down"),
+    ("scroll_definition_up", "Scroll Definition Up"),
+    ("filter_terms", "Filter"),
+    ("toggle_definition_filter", "Toggle Definition Match"),
+    ("next_relation", "Next Relation Chip"),
+    ("prev_relation", "Previous Relation Chip"),
+    ("follow_relation", "Follow Relation"),
+    ("travel_back", "Travel Back"),
+    ("next_project", "Next Project"),
+    ("prev_project", "Previous Project"),
+    ("add_term", "Add Term"),
+    ("delete_term", "Delete Term"),
+    ("open_source", "Open in Editor"),
+    ("open_viewer", "Open in Viewer"),
+    ("copy_definition", "Copy Definition"),
+    ("copy_source_path", "Copy Source Path"),
+    ("refresh", "Refresh"),
+    ("help", "Help"),
+)
+
 # Maps mode name -> the app-level action that activates it.
 _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "fold_mode": "start_fold_mode",

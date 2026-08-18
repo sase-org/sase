@@ -276,6 +276,36 @@ def test_duplicate_gate_keys_revert_overrides() -> None:
     assert reg.gate.previous_control == "k"
 
 
+def test_glossary_key_can_overlap_global_app_key() -> None:
+    """Scoped Glossary panel keys do not participate in global app conflicts."""
+    reg = load_keymap_registry({"keymaps": {"glossary": {"refresh": "q"}}})
+
+    assert reg.glossary.refresh == "q"
+    assert reg.app.quit == "q"
+
+
+def test_duplicate_glossary_keys_revert_overrides() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "glossary": {
+                    "next_term": "f12",
+                    "prev_term": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.glossary.next_term == "j"
+    assert reg.glossary.prev_term == "k"
+
+
+def test_invalid_glossary_key_reverts_to_default() -> None:
+    reg = load_keymap_registry({"keymaps": {"glossary": {"refresh": "not_a_real_key"}}})
+
+    assert reg.glossary.refresh == "r"
+
+
 def test_custom_mode_prefix_conflicts_with_compound_app_key(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
