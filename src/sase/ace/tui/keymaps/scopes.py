@@ -8,11 +8,13 @@ from typing import Any
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
+    load_builtin_projects_defaults,
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     GateModalKeymaps,
     GlossaryPanelKeymaps,
+    ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
@@ -164,4 +166,15 @@ def load_glossary_keymaps(keymaps_cfg: dict[str, Any]) -> GlossaryPanelKeymaps:
         scope="glossary",
         dataclass_type=GlossaryPanelKeymaps,
         defaults=load_builtin_glossary_defaults(),
+    )
+
+
+def load_projects_keymaps(keymaps_cfg: dict[str, Any]) -> ProjectsPaneKeymaps:
+    """Load and validate the focused Admin Center Projects binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="projects",
+        dataclass_type=ProjectsPaneKeymaps,
+        defaults=load_builtin_projects_defaults(),
     )

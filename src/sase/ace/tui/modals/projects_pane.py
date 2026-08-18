@@ -8,10 +8,17 @@ from typing import Any, cast
 
 from textual import events, on
 from textual.app import ComposeResult
+from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
 from textual.widgets import ContentSwitcher, OptionList, Static
 
+from sase.ace.tui.keymaps import (
+    ProjectsPaneKeymaps,
+    build_projects_bindings,
+    load_keymap_registry,
+    split_key_alternatives,
+)
 from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
@@ -98,15 +105,17 @@ class _ProjectsFilterInput(FilterInput):
     """Filter input that forwards printable sub-tab cycle keys."""
 
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("left_square_bracket", "right_square_bracket"):
-            pane = self._pane()
-            if pane is not None:
-                event.stop()
-                event.prevent_default()
-                if event.key == "left_square_bracket":
-                    pane.action_cycle_subtab_reverse()
-                else:
-                    pane.action_cycle_subtab()
+        pane = self._pane()
+        if pane is None:
+            return
+        if event.key in split_key_alternatives(pane._keymaps.cycle_subtab_reverse):
+            event.stop()
+            event.prevent_default()
+            pane.action_cycle_subtab_reverse()
+        elif event.key in split_key_alternatives(pane._keymaps.cycle_subtab):
+            event.stop()
+            event.prevent_default()
+            pane.action_cycle_subtab()
 
     def _pane(self) -> ProjectsPane | None:
         node: object | None = self.parent
@@ -126,30 +135,7 @@ class ProjectsPane(
     """Manage true SASE projects and host related inventory sub-tabs."""
 
     _option_list_id = "projects-list"
-    BINDINGS = [
-        ("j", "next_option", "Next"),
-        ("k", "prev_option", "Previous"),
-        ("down", "next_option", "Next"),
-        ("up", "prev_option", "Previous"),
-        ("ctrl+n", "next_option", "Next"),
-        ("ctrl+p", "prev_option", "Previous"),
-        ("/", "focus_filter", "Filter"),
-        ("right_square_bracket", "cycle_subtab", "Next Sub-tab"),
-        ("left_square_bracket", "cycle_subtab_reverse", "Previous Sub-tab"),
-        ("m", "toggle_project_mark", "Mark"),
-        ("u", "clear_project_marks", "Unmark All"),
-        ("e", "edit_project_spec", "Edit"),
-        ("A", "edit_project_aliases", "Aliases"),
-        ("a", "enable_project", "Enable"),
-        ("d", "disable_project", "Disable"),
-        ("ctrl+d", "delete_project", "Delete"),
-        ("F", "force_current_state_change", "Force"),
-        ("enter", "default_project_action", "Default"),
-        ("R", "reload_projects", "Reload"),
-        ("r", "show_project_repos", "Project Repos"),
-        ("w", "show_project_workspaces", "Project Workspaces"),
-        ("apostrophe", "jump_to_entry", "Jump"),
-    ]
+    BINDINGS = []
 
     _PROJECT_ONLY_ACTIONS = frozenset(
         {
@@ -169,6 +155,7 @@ class ProjectsPane(
             "reload_projects",
             "show_project_repos",
             "show_project_workspaces",
+            "set_current_project",
         }
     )
 
@@ -177,9 +164,12 @@ class ProjectsPane(
         projects_root: Path | None = None,
         *,
         session_state: ProjectsSessionState | None = None,
+        keymaps: ProjectsPaneKeymaps | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._keymaps = keymaps or load_keymap_registry({}).projects
+        self._bindings = BindingsMap(build_projects_bindings(self._keymaps))
         self._projects_root = projects_root
         self._session_state = session_state or ProjectsSessionState()
         self._records: list[ProjectRecordWire] = []
@@ -242,6 +232,7 @@ class ProjectsPane(
                 bookmark=self._session_state.repos,
                 project_filter=self._session_state.repos_project_filter,
                 on_project_filter_changed=self._set_repos_project_filter,
+                keymaps=self._keymaps,
                 id=_SUBTAB_WIDGET_IDS["repos"],
             )
             yield WorkspaceInventoryPane(
@@ -250,6 +241,7 @@ class ProjectsPane(
                 bookmark=self._session_state.workspaces,
                 project_filter=self._session_state.workspaces_project_filter,
                 on_project_filter_changed=self._set_workspaces_project_filter,
+                keymaps=self._keymaps,
                 id=_SUBTAB_WIDGET_IDS["workspaces"],
             )
 
@@ -281,7 +273,7 @@ class ProjectsPane(
                 event.prevent_default()
                 event.stop()
                 return
-        if event.key == "apostrophe":
+        if event.key in split_key_alternatives(self._keymaps.jump_to_entry):
             event.prevent_default()
             event.stop()
             self.action_jump_to_entry()

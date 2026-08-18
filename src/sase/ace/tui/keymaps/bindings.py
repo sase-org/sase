@@ -8,6 +8,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
+    ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
@@ -16,6 +17,8 @@ from sase.ace.tui.keymaps.metadata import (
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
     _GLOSSARY_BINDING_META,
+    _PROJECTS_BINDING_META,
+    _PROJECTS_INVENTORY_BINDING_META,
     _STATISTICS_BINDING_META,
 )
 
@@ -120,6 +123,34 @@ def glossary_help_bindings(
     return [
         (key_display_name(getattr(keymaps, action)), description)
         for action, description in _GLOSSARY_BINDING_META
+    ]
+
+
+def build_projects_bindings(keymaps: ProjectsPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Projects sub-tab's own list."""
+
+    return [
+        Binding(
+            getattr(keymaps, field),
+            action,
+            description,
+            show=False,
+        )
+        for field, action, description in _PROJECTS_BINDING_META
+    ]
+
+
+def build_projects_inventory_bindings(keymaps: ProjectsPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings shared by the Repos/Workspaces sub-tabs."""
+
+    return [
+        Binding(
+            getattr(keymaps, field),
+            action,
+            description,
+            show=False,
+        )
+        for field, action, description in _PROJECTS_INVENTORY_BINDING_META
     ]
 
 

@@ -66,3 +66,9 @@ def load_builtin_glossary_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Glossary-panel defaults."""
 
     return dict(_builtin_scope_defaults("glossary"))
+
+
+def load_builtin_projects_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Projects-pane defaults."""
+
+    return dict(_builtin_scope_defaults("projects"))

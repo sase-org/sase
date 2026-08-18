@@ -52,7 +52,13 @@ def _logs_pane_factory(_modal: ConfigCenterModal) -> Widget:
 def _projects_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .projects_pane import ProjectsPane
 
-    return ProjectsPane(session_state=_modal._session_state.projects, id="projects")
+    registry = getattr(_modal.app, "_keymap_registry", None)
+    keymaps = getattr(registry, "projects", None)
+    return ProjectsPane(
+        session_state=_modal._session_state.projects,
+        keymaps=keymaps,
+        id="projects",
+    )
 
 
 def _statistics_pane_factory(modal: ConfigCenterModal) -> Widget:

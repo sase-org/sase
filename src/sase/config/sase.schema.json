@@ -1615,6 +1615,97 @@
                 }
               }
             },
+            "projects": {
+              "type": "object",
+              "description": "Bindings active only while the Admin Center Projects tab is focused, shared by its Projects/Repos/Workspaces sub-tabs",
+              "additionalProperties": false,
+              "properties": {
+                "next_option": {
+                  "type": "string",
+                  "description": "Select the next row"
+                },
+                "prev_option": {
+                  "type": "string",
+                  "description": "Select the previous row"
+                },
+                "focus_filter": {
+                  "type": "string",
+                  "description": "Focus the sub-tab's filter input"
+                },
+                "cycle_subtab": {
+                  "type": "string",
+                  "description": "Switch to the next Projects-tab sub-tab"
+                },
+                "cycle_subtab_reverse": {
+                  "type": "string",
+                  "description": "Switch to the previous Projects-tab sub-tab"
+                },
+                "toggle_project_mark": {
+                  "type": "string",
+                  "description": "Mark or unmark the selected project"
+                },
+                "clear_project_marks": {
+                  "type": "string",
+                  "description": "Clear all marked projects"
+                },
+                "edit_project_spec": {
+                  "type": "string",
+                  "description": "Edit the selected project's ProjectSpec file"
+                },
+                "edit_project_aliases": {
+                  "type": "string",
+                  "description": "Edit the selected project's aliases"
+                },
+                "enable_project": {
+                  "type": "string",
+                  "description": "Enable the selected (or marked) project(s)"
+                },
+                "disable_project": {
+                  "type": "string",
+                  "description": "Disable the selected (or marked) project(s)"
+                },
+                "delete_project": {
+                  "type": "string",
+                  "description": "Delete the selected (or marked) project(s)"
+                },
+                "force_current_state_change": {
+                  "type": "string",
+                  "description": "Force a blocked enable/disable/delete through"
+                },
+                "default_project_action": {
+                  "type": "string",
+                  "description": "Run the default action for the selected project"
+                },
+                "reload": {
+                  "type": "string",
+                  "description": "Reload the projects list, or the focused inventory sub-tab"
+                },
+                "show_project_repos": {
+                  "type": "string",
+                  "description": "Show the selected project's repos in the Repos sub-tab"
+                },
+                "show_project_workspaces": {
+                  "type": "string",
+                  "description": "Show the selected project's workspaces in the Workspaces sub-tab"
+                },
+                "jump_to_entry": {
+                  "type": "string",
+                  "description": "Arm numbered jump-to-row selection"
+                },
+                "pick_project": {
+                  "type": "string",
+                  "description": "Open the project picker to scope an inventory sub-tab"
+                },
+                "clear_project_filter": {
+                  "type": "string",
+                  "description": "Clear an inventory sub-tab's project scope"
+                },
+                "set_current_project": {
+                  "type": "string",
+                  "description": "Make the selected project the current project"
+                }
+              }
+            },
             "app": {
               "type": "object",
               "description": "Top-level application keybindings (action name to key string)",

@@ -7,6 +7,11 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.ace.tui.keymaps import (
+    ProjectsPaneKeymaps,
+    key_display_name,
+    split_key_alternatives,
+)
 from sase.core.time import format_local
 from sase.repo_inventory import RepoRecord
 from sase.workspace_provider.inventory import WorkspaceInventoryRecord
@@ -176,6 +181,7 @@ def repo_detail_text(
 
 
 def repo_hints_text(
+    keymaps: ProjectsPaneKeymaps,
     *,
     project_filtered: bool,
     jump_active: bool = False,
@@ -184,6 +190,7 @@ def repo_hints_text(
     """Return one-line key hints for the repository inventory."""
 
     return _inventory_hints_text(
+        keymaps,
         project_filtered=project_filtered,
         jump_active=jump_active,
         jump_back=jump_back,
@@ -363,6 +370,7 @@ def workspace_detail_text(
 
 
 def workspace_hints_text(
+    keymaps: ProjectsPaneKeymaps,
     *,
     project_filtered: bool,
     jump_active: bool = False,
@@ -371,6 +379,7 @@ def workspace_hints_text(
     """Return one-line key hints for the workspace inventory."""
 
     return _inventory_hints_text(
+        keymaps,
         project_filtered=project_filtered,
         jump_active=jump_active,
         jump_back=jump_back,
@@ -378,6 +387,7 @@ def workspace_hints_text(
 
 
 def _inventory_hints_text(
+    keymaps: ProjectsPaneKeymaps,
     *,
     project_filtered: bool,
     jump_active: bool,
@@ -385,11 +395,28 @@ def _inventory_hints_text(
 ) -> str:
     """Return the shared one-line hints both inventory sub-tabs render."""
 
+    jump_key = key_display_name(keymaps.jump_to_entry)
     if jump_active:
-        return f"JUMP ' {'back' if jump_back else 'first'}  <esc> cancel"
-    escape = "  Esc clear project" if project_filtered else ""
+        return f"JUMP {jump_key} {'back' if jump_back else 'first'}  <esc> cancel"
+    move_keys = "/".join(
+        key_display_name(split_key_alternatives(key)[0])
+        for key in (keymaps.next_option, keymaps.prev_option)
+    )
+    subtab_keys = " / ".join(
+        key_display_name(key)
+        for key in (keymaps.cycle_subtab_reverse, keymaps.cycle_subtab)
+    )
+    escape = (
+        f"  {key_display_name(keymaps.clear_project_filter)} clear project"
+        if project_filtered
+        else ""
+    )
     return (
-        "j/k navigate  ' jump  / filter  p pick project  [ / ] sub-tab  R reload"
+        f"{move_keys} navigate  {jump_key} jump  "
+        f"{key_display_name(keymaps.focus_filter)} filter  "
+        f"{key_display_name(keymaps.pick_project)} pick project  "
+        f"{subtab_keys} sub-tab  "
+        f"{key_display_name(keymaps.reload)} reload"
         f"{escape}  Tab/Shift+Tab switch tab   q close"
     )
 

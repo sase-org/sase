@@ -306,6 +306,38 @@ def test_invalid_glossary_key_reverts_to_default() -> None:
     assert reg.glossary.refresh == "r"
 
 
+def test_projects_key_can_overlap_global_app_key() -> None:
+    """Scoped Projects pane keys do not participate in global app conflicts."""
+    reg = load_keymap_registry({"keymaps": {"projects": {"toggle_project_mark": "q"}}})
+
+    assert reg.projects.toggle_project_mark == "q"
+    assert reg.app.quit == "q"
+
+
+def test_duplicate_projects_keys_revert_overrides() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "projects": {
+                    "toggle_project_mark": "f12",
+                    "clear_project_marks": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.projects.toggle_project_mark == "m"
+    assert reg.projects.clear_project_marks == "u"
+
+
+def test_invalid_projects_key_reverts_to_default() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"projects": {"set_current_project": "not_a_real_key"}}}
+    )
+
+    assert reg.projects.set_current_project == "c"
+
+
 def test_custom_mode_prefix_conflicts_with_compound_app_key(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

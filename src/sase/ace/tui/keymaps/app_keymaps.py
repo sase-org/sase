@@ -245,6 +245,33 @@ class StatisticsPaneKeymaps:
 
 
 @dataclass
+class ProjectsPaneKeymaps:
+    """Focused actions shared by all three Admin Center Projects sub-tabs."""
+
+    next_option: str = "j,down,ctrl+n"
+    prev_option: str = "k,up,ctrl+p"
+    focus_filter: str = "slash"
+    cycle_subtab: str = "right_square_bracket"
+    cycle_subtab_reverse: str = "left_square_bracket"
+    toggle_project_mark: str = "m"
+    clear_project_marks: str = "u"
+    edit_project_spec: str = "e"
+    edit_project_aliases: str = "A"
+    enable_project: str = "a"
+    disable_project: str = "d"
+    delete_project: str = "ctrl+d"
+    force_current_state_change: str = "F"
+    default_project_action: str = "enter"
+    reload: str = "R"
+    show_project_repos: str = "r"
+    show_project_workspaces: str = "w"
+    jump_to_entry: str = "apostrophe"
+    pick_project: str = "p"
+    clear_project_filter: str = "escape"
+    set_current_project: str = "c"
+
+
+@dataclass
 class GateModalKeymaps:
     """Focused actions shared by plan and custom gate modals."""
 

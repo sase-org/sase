@@ -85,6 +85,7 @@ class RepoInventoryPane(InventoryPaneBase[RepoRecord, RepoInventoryIssue]):
 
     def _hints_text(self) -> str:
         return repo_hints_text(
+            self._keymaps,
             project_filtered=self._project_filter is not None,
             jump_active=self.jump_mode_active,
             jump_back=bool(self.jump_back_stack),
@@ -167,6 +168,7 @@ class WorkspaceInventoryPane(
 
     def _hints_text(self) -> str:
         return workspace_hints_text(
+            self._keymaps,
             project_filtered=self._project_filter is not None,
             jump_active=self.jump_mode_active,
             jump_back=bool(self.jump_back_stack),

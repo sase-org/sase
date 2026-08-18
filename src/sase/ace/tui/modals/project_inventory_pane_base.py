@@ -9,12 +9,18 @@ from typing import TYPE_CHECKING, Any, cast
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
-from textual.binding import Binding
+from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.keymaps import (
+    ProjectsPaneKeymaps,
+    build_projects_inventory_bindings,
+    load_keymap_registry,
+    split_key_alternatives,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import (
     ProgrammaticSelectionGuard,
@@ -54,14 +60,7 @@ class InventoryPaneBase[RecordT, IssueT: InventoryIssue](
 
     _prefix: str
     _option_list_id: str
-    BINDINGS = [
-        *OptionListNavigationMixin.NAVIGATION_BINDINGS[2:],
-        ("/", "focus_filter", "Filter"),
-        ("p", "pick_project", "Pick Project"),
-        ("R", "reload_inventory", "Reload"),
-        ("apostrophe", "jump_to_entry", "Jump"),
-        Binding("escape", "clear_project_filter", "Clear Project", show=False),
-    ]
+    BINDINGS = []
 
     def __init__(
         self,
@@ -71,9 +70,12 @@ class InventoryPaneBase[RecordT, IssueT: InventoryIssue](
         bookmark: SelectionBookmark | None = None,
         project_filter: str | None = None,
         on_project_filter_changed: Callable[[str | None], None] | None = None,
+        keymaps: ProjectsPaneKeymaps | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._keymaps = keymaps or load_keymap_registry({}).projects
+        self._bindings = BindingsMap(build_projects_inventory_bindings(self._keymaps))
         self._init_inventory_load_state()
         self._projects_root = projects_root
         self._bookmark = bookmark or SelectionBookmark()
@@ -363,11 +365,14 @@ class InventoryPaneBase[RecordT, IssueT: InventoryIssue](
                 event.prevent_default()
                 event.stop()
                 return
-        if event.key == "apostrophe":
+        if event.key in split_key_alternatives(self._keymaps.jump_to_entry):
             event.stop()
             event.prevent_default()
             self.action_jump_to_entry()
-        elif event.key == "escape" and self._project_filter is not None:
+        elif (
+            event.key in split_key_alternatives(self._keymaps.clear_project_filter)
+            and self._project_filter is not None
+        ):
             event.stop()
             event.prevent_default()
             self.action_clear_project_filter()

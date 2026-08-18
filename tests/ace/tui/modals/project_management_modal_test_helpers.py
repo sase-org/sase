@@ -6,6 +6,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.keymaps import ProjectsPaneKeymaps
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 
@@ -21,12 +22,22 @@ class ProjectsPaneTestApp(App[None]):
 
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, projects_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        projects_root: Path | None = None,
+        *,
+        keymaps: ProjectsPaneKeymaps | None = None,
+    ) -> None:
         super().__init__()
         self._projects_root = projects_root
+        self._keymaps = keymaps
 
     def compose(self) -> ComposeResult:
-        yield ProjectsPane(projects_root=self._projects_root, id="projects")
+        yield ProjectsPane(
+            projects_root=self._projects_root,
+            keymaps=self._keymaps,
+            id="projects",
+        )
 
     def on_mount(self) -> None:
         self.query_one("#projects", ProjectsPane).focus_default()

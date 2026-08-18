@@ -16,11 +16,13 @@ from sase.ace.tui.keymaps import (
     GlossaryPanelKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
+    ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
+    load_builtin_projects_defaults,
     load_builtin_statistics_defaults,
     load_keymap_registry,
 )
@@ -481,6 +483,37 @@ def test_default_config_covers_all_glossary_keymaps() -> None:
         "copy_source_path": "Y",
         "refresh": "r",
         "help": "question_mark",
+    }
+    assert field_names == set(defaults)
+
+
+def test_default_config_covers_all_projects_keymaps() -> None:
+    """The bundled config is the source of truth for Projects-pane keys."""
+    defaults = load_builtin_projects_defaults()
+    field_names = {field.name for field in fields(ProjectsPaneKeymaps)}
+
+    assert defaults == {
+        "next_option": "j,down,ctrl+n",
+        "prev_option": "k,up,ctrl+p",
+        "focus_filter": "slash",
+        "cycle_subtab": "right_square_bracket",
+        "cycle_subtab_reverse": "left_square_bracket",
+        "toggle_project_mark": "m",
+        "clear_project_marks": "u",
+        "edit_project_spec": "e",
+        "edit_project_aliases": "A",
+        "enable_project": "a",
+        "disable_project": "d",
+        "delete_project": "ctrl+d",
+        "force_current_state_change": "F",
+        "default_project_action": "enter",
+        "reload": "R",
+        "show_project_repos": "r",
+        "show_project_workspaces": "w",
+        "jump_to_entry": "apostrophe",
+        "pick_project": "p",
+        "clear_project_filter": "escape",
+        "set_current_project": "c",
     }
     assert field_names == set(defaults)
 

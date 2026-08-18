@@ -177,6 +177,46 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("help", "Help"),
 )
 
+# Scoped bindings owned by the focused Admin Center Projects pane. Each entry
+# is (dataclass field, Textual action name, description); the field and
+# action names diverge only for ``reload``, whose configured key drives
+# ``action_reload_projects`` on the list sub-tab and a same-named field on the
+# Repos/Workspaces inventory panes drives their own ``action_reload_inventory``.
+_PROJECTS_BINDING_META: tuple[tuple[str, str, str], ...] = (
+    ("next_option", "next_option", "Next"),
+    ("prev_option", "prev_option", "Previous"),
+    ("focus_filter", "focus_filter", "Filter"),
+    ("cycle_subtab", "cycle_subtab", "Next Sub-tab"),
+    ("cycle_subtab_reverse", "cycle_subtab_reverse", "Previous Sub-tab"),
+    ("toggle_project_mark", "toggle_project_mark", "Mark"),
+    ("clear_project_marks", "clear_project_marks", "Unmark All"),
+    ("edit_project_spec", "edit_project_spec", "Edit"),
+    ("edit_project_aliases", "edit_project_aliases", "Aliases"),
+    ("enable_project", "enable_project", "Enable"),
+    ("disable_project", "disable_project", "Disable"),
+    ("delete_project", "delete_project", "Delete"),
+    ("force_current_state_change", "force_current_state_change", "Force"),
+    ("default_project_action", "default_project_action", "Default"),
+    ("reload", "reload_projects", "Reload"),
+    ("show_project_repos", "show_project_repos", "Project Repos"),
+    ("show_project_workspaces", "show_project_workspaces", "Project Workspaces"),
+    ("jump_to_entry", "jump_to_entry", "Jump"),
+    ("set_current_project", "set_current_project", "Set Current"),
+)
+
+# Scoped bindings owned by the Repos/Workspaces Projects-tab inventory panes.
+# ``reload`` maps to ``action_reload_inventory`` here, not
+# ``action_reload_projects`` -- see ``_PROJECTS_BINDING_META`` above.
+_PROJECTS_INVENTORY_BINDING_META: tuple[tuple[str, str, str], ...] = (
+    ("next_option", "next_option", "Next"),
+    ("prev_option", "prev_option", "Previous"),
+    ("focus_filter", "focus_filter", "Filter"),
+    ("pick_project", "pick_project", "Pick Project"),
+    ("reload", "reload_inventory", "Reload"),
+    ("jump_to_entry", "jump_to_entry", "Jump"),
+    ("clear_project_filter", "clear_project_filter", "Clear Project"),
+)
+
 # Shared bindings owned by the branch renderer inside gate-review modals.
 # ``next_input`` / ``previous_input`` live on the input panel, not the gate
 # modal, so they are omitted here and bound by ``build_gate_input_panel_bindings``.

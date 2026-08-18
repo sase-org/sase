@@ -27,6 +27,7 @@ from .project_management_rendering import (
 )
 
 if TYPE_CHECKING:
+    from sase.ace.tui.keymaps import ProjectsPaneKeymaps
     from sase.current_project import CurrentProject
     from textual.containers import Vertical as _MixinBase
 else:
@@ -55,6 +56,7 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
         _current_project_name: str | None
         _current_project_accent: str
         _current_project_loaded: bool
+        _keymaps: ProjectsPaneKeymaps
 
         def action_default_project_action(self) -> None: ...
 
@@ -138,6 +140,7 @@ class ProjectListControllerMixin(PaneEntryJumpMixin, _MixinBase):
     def _hints_text(self) -> str:
         return hints_text(
             self._marked_projects,
+            self._keymaps,
             jump_active=self.jump_mode_active,
             jump_back=bool(self.jump_back_stack),
         )

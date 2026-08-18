@@ -313,6 +313,30 @@ ace:
       copy_source_path: "Y"
       refresh: "r"
       help: "question_mark"
+    # Focused Admin Center Projects-tab bindings. These keys are inactive
+    # everywhere else, even when they overlap app-level actions.
+    projects:
+      next_option: "j,down,ctrl+n"
+      prev_option: "k,up,ctrl+p"
+      focus_filter: "slash"
+      cycle_subtab: "right_square_bracket"
+      cycle_subtab_reverse: "left_square_bracket"
+      toggle_project_mark: "m"
+      clear_project_marks: "u"
+      edit_project_spec: "e"
+      edit_project_aliases: "A"
+      enable_project: "a"
+      disable_project: "d"
+      delete_project: "ctrl+d"
+      force_current_state_change: "F"
+      default_project_action: "enter"
+      reload: "R"
+      show_project_repos: "r"
+      show_project_workspaces: "w"
+      jump_to_entry: "apostrophe"
+      pick_project: "p"
+      clear_project_filter: "escape"
+      set_current_project: "c"
     app:
       # Navigation
       next_patch: "j"

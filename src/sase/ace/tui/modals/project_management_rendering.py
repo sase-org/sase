@@ -8,6 +8,11 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.ace.tui.keymaps import (
+    ProjectsPaneKeymaps,
+    key_display_name,
+    split_key_alternatives,
+)
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.current_project import CurrentProject
 from sase.main.project_handler import ProjectLifecycleBlockedError
@@ -265,28 +270,63 @@ def summary_text(
     return text
 
 
+def _primary_key_display(key: str) -> str:
+    """Return the display form of a configured key's first alternative."""
+
+    return key_display_name(split_key_alternatives(key)[0])
+
+
 def hints_text(
     marked_projects: set[str],
+    keymaps: ProjectsPaneKeymaps,
     *,
     jump_active: bool = False,
     jump_back: bool = False,
 ) -> str:
     """Return the one-line Projects sub-tab key hints."""
 
+    jump_key = key_display_name(keymaps.jump_to_entry)
     if jump_active:
-        return f"JUMP ' {'back' if jump_back else 'first'}  <esc> cancel"
+        return f"JUMP {jump_key} {'back' if jump_back else 'first'}  <esc> cancel"
+    move_keys = "/".join(
+        _primary_key_display(key) for key in (keymaps.next_option, keymaps.prev_option)
+    )
+    subtab_keys = " / ".join(
+        key_display_name(key)
+        for key in (keymaps.cycle_subtab_reverse, keymaps.cycle_subtab)
+    )
     # This line already overflows 120 columns, so the leading segments are
-    # kept short enough that adding ' jump displaces nothing that used to be
-    # visible.
+    # kept short enough that adding the jump key displaces nothing that used
+    # to be visible.
     base = (
-        "j/k move  ' jump  / filter  [ / ] sub-tab  Enter enable  "
-        "r repos  w workspaces  m mark  u unmark all  e edit  A aliases  "
-        "a enable  d disable  "
-        "Ctrl+D delete  F force after block  R reload"
+        f"{move_keys} move  {jump_key} jump  "
+        f"{key_display_name(keymaps.focus_filter)} filter  "
+        f"{subtab_keys} sub-tab  "
+        f"{key_display_name(keymaps.default_project_action)} enable  "
+        f"{key_display_name(keymaps.show_project_repos)} repos  "
+        f"{key_display_name(keymaps.show_project_workspaces)} workspaces  "
+        f"{key_display_name(keymaps.toggle_project_mark)} mark  "
+        f"{key_display_name(keymaps.clear_project_marks)} unmark all  "
+        f"{key_display_name(keymaps.edit_project_spec)} edit  "
+        f"{key_display_name(keymaps.edit_project_aliases)} aliases  "
+        f"{key_display_name(keymaps.enable_project)} enable  "
+        f"{key_display_name(keymaps.disable_project)} disable  "
+        f"{key_display_name(keymaps.delete_project)} delete  "
+        f"{key_display_name(keymaps.force_current_state_change)} force after block  "
+        f"{key_display_name(keymaps.reload)} reload  "
+        f"{key_display_name(keymaps.set_current_project)} current"
     )
     mark_count = len(marked_projects)
     if mark_count:
-        base = f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
+        target_keys = "/".join(
+            key_display_name(key)
+            for key in (
+                keymaps.enable_project,
+                keymaps.disable_project,
+                keymaps.delete_project,
+            )
+        )
+        base = f"{base}  marked:{mark_count} ({target_keys} target marked set)"
     return f"{base}  Tab/Shift+Tab switch tab   q close"
 
 

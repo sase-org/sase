@@ -7,6 +7,8 @@ from typing import Protocol
 
 from textual import events
 
+from sase.ace.tui.keymaps import ProjectsPaneKeymaps, split_key_alternatives
+
 from .base import FilterInput
 
 
@@ -33,20 +35,33 @@ class InventoryFilterInput(FilterInput):
     """Filter input that leaves pane sub-tab cycle keys available."""
 
     def on_key(self, event: events.Key) -> None:
-        if event.key not in ("left_square_bracket", "right_square_bracket"):
+        keymaps = self._keymaps()
+        if keymaps is None:
+            return
+        if event.key in split_key_alternatives(keymaps.cycle_subtab_reverse):
+            action_name = "action_cycle_subtab_reverse"
+        elif event.key in split_key_alternatives(keymaps.cycle_subtab):
+            action_name = "action_cycle_subtab"
+        else:
             return
         node: object | None = self.parent
         while node is not None:
-            if event.key == "left_square_bracket":
-                action = getattr(node, "action_cycle_subtab_reverse", None)
-            else:
-                action = getattr(node, "action_cycle_subtab", None)
+            action = getattr(node, action_name, None)
             if callable(action):
                 event.stop()
                 event.prevent_default()
                 action()
                 return
             node = getattr(node, "parent", None)
+
+    def _keymaps(self) -> ProjectsPaneKeymaps | None:
+        node: object | None = self.parent
+        while node is not None:
+            keymaps = getattr(node, "_keymaps", None)
+            if keymaps is not None:
+                return keymaps
+            node = getattr(node, "parent", None)
+        return None
 
 
 __all__ = [
