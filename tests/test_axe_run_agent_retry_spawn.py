@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from sase.agent.launch_types import AgentLaunchResult
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 from sase.axe.run_agent_exec_retry import RetryTracker, handle_workflow_error
 from sase.axe.run_agent_retry_spawn import (
+    ENV_RETRY_OF_TIMESTAMP,
     RETRY_HANDOFF_FILENAME,
     RetryHandoff,
     _classify_error,
     _build_handoff,
     mark_parent_retried,
+    spawn_retry_agent,
 )
 from sase.llm_provider.retry_config import ProviderRetryConfig
 
@@ -449,3 +456,53 @@ class TestHandleWorkflowErrorSpawnMode:
         # spawn_retry_agent never called when flag is False
         assert not fake_spawn.called
         assert action == "continue"
+
+
+# ---------------------------------------------------------------------------
+# spawn_retry_agent delegates the actual spawn to the shared detached_child
+# primitive (sase.agent.detached_child.spawn_detached_child).
+# ---------------------------------------------------------------------------
+
+
+class TestSpawnRetryAgentUsesSharedPrimitive:
+    def test_calls_spawn_agent_subprocess_via_spawn_detached_child(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ctx = _make_ctx(tmp_path)
+        state = _make_state("Implement X.")
+        tracker = _make_tracker(spawn=True)
+
+        captured: dict[str, Any] = {}
+
+        def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+            captured.update(kwargs)
+            return AgentLaunchResult(
+                pid=555,
+                workspace_num=kwargs["workspace_num"],
+                workspace_dir=kwargs["workspace_dir"],
+                output_path="/tmp/out.txt",
+                timestamp=kwargs["timestamp"],
+            )
+
+        monkeypatch.setattr("sase.agent.launcher.spawn_agent_subprocess", fake_spawn)
+
+        result = spawn_retry_agent(
+            ctx=ctx,
+            state=state,
+            tracker=tracker,
+            error_snippet="Prompt is too long",
+            continuation_prompt="Resume work.",
+        )
+
+        assert result is not None
+        assert result["pid"] == 555
+        assert captured["cl_name"] == ctx.cl_name
+        assert captured["project_file"] == ctx.project_file
+        assert captured["workspace_dir"] == ctx.workspace_dir
+        assert captured["workspace_num"] == ctx.workspace_num
+        assert captured["update_target"] == ctx.update_target
+        assert captured["is_home_mode"] == ctx.is_home_mode
+        assert captured["workflow_name"] == f"ace(run)-{captured['timestamp']}"
+        assert captured["retry_transfer_from_pid"] == os.getpid()
+        assert captured["extra_env"][ENV_RETRY_OF_TIMESTAMP] == ctx.artifacts_timestamp
+        assert result["child_timestamp"] == captured["timestamp"]

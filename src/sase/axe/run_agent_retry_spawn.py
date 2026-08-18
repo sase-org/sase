@@ -252,8 +252,7 @@ def spawn_retry_agent(
     spawn-side failure occurred and the caller should fall back to in-process
     retry.
     """
-    from sase.agent.launcher import spawn_agent_subprocess
-    from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
+    from sase.agent.detached_child import spawn_detached_child
     from sase.telemetry.metrics import RETRY_SPAWNS_TOTAL
 
     handoff = _build_handoff(
@@ -268,8 +267,6 @@ def spawn_retry_agent(
     # and the loader can read it from the parent side.
     handoff_path = handoff.write_to(ctx.artifacts_dir)
 
-    child_timestamp = reserve_launch_timestamp_batch(1)[0]
-    child_workflow_name = f"ace(run)-{child_timestamp}"
     child_prompt = _build_resume_prompt(handoff)
 
     extra_env: dict[str, str] = {
@@ -287,21 +284,19 @@ def spawn_retry_agent(
     )
 
     try:
-        result = spawn_agent_subprocess(
+        result = spawn_detached_child(
             cl_name=ctx.cl_name,
             project_file=ctx.project_file,
+            project_name=ctx.project_name,
             workspace_dir=ctx.workspace_dir,
             workspace_num=ctx.workspace_num,
-            workflow_name=child_workflow_name,
             prompt=child_prompt,
-            timestamp=child_timestamp,
             update_target=ctx.update_target,
-            project_name=ctx.project_name,
             history_sort_key="",
             is_home_mode=ctx.is_home_mode,
             vcs_ref=vcs_ref_tuple,
             extra_env=extra_env,
-            retry_transfer_from_pid=os.getpid(),
+            transfer_from_pid=os.getpid(),
         )
     except RuntimeError as exc:
         # Couldn't claim/transfer workspace.  Caller falls back to in-process.
@@ -326,6 +321,7 @@ def spawn_retry_agent(
 
     from sase.artifacts import convert_timestamp_to_artifacts_format
 
+    child_timestamp = result.timestamp
     child_artifacts_timestamp = convert_timestamp_to_artifacts_format(child_timestamp)
     return {
         "pid": result.pid,

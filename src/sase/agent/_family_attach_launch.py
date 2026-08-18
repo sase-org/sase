@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import asdict, replace
+from dataclasses import replace
 import json
 import os
 from typing import Any, TYPE_CHECKING
@@ -12,6 +12,7 @@ from sase.agent import _family_attach_candidates as _candidates
 from sase.agent import _family_attach_directives as _directives
 from sase.agent import _family_attach_resolution as _resolution
 from sase.agent import _family_attach_types as _types
+from sase.agent.detached_child import family_attach_env
 
 if TYPE_CHECKING:
     from sase.agent.launch_executor_types import LaunchSpawnRequest
@@ -40,11 +41,7 @@ def prepare_family_attach_launch(
         pending_family_parents=pending_family_parents,
     )
     env = dict(extra_env or {})
-
-    from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
-
-    env[INTERNAL_AGENT_NAME_BYPASS_ENV] = "1"
-    env[_types.FAMILY_ATTACH_ENV] = json.dumps(asdict(plan), sort_keys=True)
+    env.update(family_attach_env(plan))
     if plan.sase_plan:
         env["SASE_PLAN"] = plan.sase_plan
     if plan.model_alias_overrides:

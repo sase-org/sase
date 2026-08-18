@@ -177,7 +177,7 @@ def test_spawn_new_agent_writes_handoff_and_terminal_parent_artifacts(
         ),
         patch(
             "sase.agent.launcher.spawn_agent_subprocess",
-            return_value=SimpleNamespace(pid=4242),
+            return_value=SimpleNamespace(pid=4242, timestamp="260710_120001"),
         ) as spawn,
     ):
         result = harness.run("Resume this task in the child.")

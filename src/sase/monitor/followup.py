@@ -13,21 +13,17 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.agent.family_attach import (
-    FAMILY_ATTACH_ENV,
+from sase.agent.detached_child import (
     FamilyAttachDirective,
-    FamilyAttachError,
-    resolve_family_attach_plan,
+    spawn_family_successor,
 )
-from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
-from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.core.artifact_file_facade import store_explicit_artifact_file
 from sase.running_field import (
     WorkspaceClaim,
@@ -155,19 +151,11 @@ def launch_followup_agent(
         workspace_degraded_reason=initial_degraded_reason,
     )
 
-    try:
-        plan = resolve_family_attach_plan(
-            FamilyAttachDirective(parent=lane, suffix="@"),
-            project_name=project_name,
-        )
-    except FamilyAttachError as exc:
-        return _record_not_launchable(artifacts_dir, meta, str(exc), prompt)
-
     transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid
     try:
         result = _spawn_followup(
             meta,
-            plan=plan,
+            lane=lane,
             starter_role=starter_role,
             project_name=project_name,
             prompt=prompt,
@@ -186,7 +174,7 @@ def launch_followup_agent(
         return _record_launched(
             artifacts_dir,
             meta,
-            result.agent_name or plan.agent_name,
+            result.agent_name,
             degraded_reason=initial_degraded_reason,
         )
 
@@ -197,7 +185,7 @@ def launch_followup_agent(
     try:
         result = _spawn_followup(
             meta,
-            plan=plan,
+            lane=lane,
             starter_role=starter_role,
             project_name=project_name,
             prompt=degraded_prompt,
@@ -225,7 +213,7 @@ def launch_followup_agent(
         try:
             result = _spawn_followup(
                 meta,
-                plan=plan,
+                lane=lane,
                 starter_role=starter_role,
                 project_name=project_name,
                 prompt=zero_prompt,
@@ -238,7 +226,7 @@ def launch_followup_agent(
         return _record_launched(
             artifacts_dir,
             meta,
-            result.agent_name or plan.agent_name,
+            result.agent_name,
             degraded_reason=zero_reason,
         )
     except (RuntimeError, OSError, ValueError) as exc:
@@ -247,7 +235,7 @@ def launch_followup_agent(
     return _record_launched(
         artifacts_dir,
         meta,
-        result.agent_name or plan.agent_name,
+        result.agent_name,
         degraded_reason=fresh_reason,
     )
 
@@ -255,7 +243,7 @@ def launch_followup_agent(
 def _spawn_followup(
     meta: dict[str, Any],
     *,
-    plan: Any,
+    lane: str,
     starter_role: str | None,
     project_name: str,
     prompt: str,
@@ -263,29 +251,16 @@ def _spawn_followup(
     workspace_num: int,
     transfer_from_pid: int | None,
 ) -> Any:
-    launch_plan = replace(
-        plan,
-        parent_is_running=False,
-        agent_family_role=starter_role or plan.agent_family_role,
-        parent_workspace_dir=workspace_dir or plan.parent_workspace_dir,
-        parent_workspace_num=workspace_num,
-    )
-    env = {
-        INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
-        FAMILY_ATTACH_ENV: json.dumps(asdict(launch_plan), sort_keys=True),
-    }
-    timestamp = reserve_launch_timestamp_batch(1)[0]
-    return spawn_agent_subprocess(
-        cl_name=str(meta.get("cl_name") or launch_plan.agent_name),
-        project_file=get_project_file_path(project_name),
+    return spawn_family_successor(
+        FamilyAttachDirective(parent=lane, suffix="@"),
+        project_name=project_name,
+        prompt=prompt,
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
-        workflow_name=f"ace(run)-{timestamp}",
-        prompt=prompt,
-        timestamp=timestamp,
-        project_name=project_name,
-        extra_env=env,
-        retry_transfer_from_pid=transfer_from_pid,
+        transfer_from_pid=transfer_from_pid,
+        cl_name=_clean_str(meta.get("cl_name")),
+        agent_family_role=starter_role,
+        spawn_fn=spawn_agent_subprocess,
     )
 
 
