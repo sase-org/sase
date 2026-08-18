@@ -169,14 +169,44 @@ class GrokProvider(LLMProvider):
     def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
         from .usage_limit_config import ProviderUsageLimitConfig
 
-        # Verbatim from a captured live failure (epic sase-n4 research); the
-        # source uses U+2019 in "You've", which normalize_for_match handles.
+        # Free-tier patterns verbatim from a captured live failure (epic
+        # sase-n4 research); the source uses U+2019 in "You've", which
+        # normalize_for_match handles. The next three patterns are the
+        # paid credit/balance family, captured live 2026-08-18 from:
+        #   API error (status 402 Payment Required): Grok Build usage
+        #   balance exhausted
+        # ("usage balance exhausted" and "status 402 payment required" are
+        # both substrings of that message). The last two ("you've hit the
+        # credit limit for your plan", "you hit your weekly limit") are
+        # pager billing-panel strings pulled from the shipped grok binary,
+        # not yet observed on stderr.
+        #
+        # Grok Build emits no reset instant in any limit message a full
+        # literal scan of the binary can find (no "resets at/in", no
+        # Retry-After on the sampling path) — see the plan's "Evidence:
+        # Grok Build never reports a reset instant" section. honor_reset_hint
+        # is therefore a no-op for grok and parse_reset_hint always returns
+        # (None, None) here, which makes disable_seconds below load-bearing.
+        #
+        # disable_seconds is 172800 (48h), double the global 24h default,
+        # because since June 2026 paid Grok meters every product against one
+        # shared weekly usage pool (docs.x.ai/grok/faq): an exhausted balance
+        # is typically a multi-day condition, not a same-day reset, so 24h
+        # would under-shoot it and burn a fresh agent workspace on every
+        # re-probe.
         return ProviderUsageLimitConfig(
             patterns=[
                 "reached your free grok build usage limit",
                 "usage limit for now",
                 "get supergrok for much higher limits",
+                "usage balance exhausted",
+                "status 402 payment required",
+                "out of credits or over your spending limit",
+                "you've hit the credit limit for your plan",
+                "you hit your weekly limit",
+                "usage limit reached",
             ],
+            disable_seconds=172800,
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

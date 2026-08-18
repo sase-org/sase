@@ -1048,6 +1048,8 @@ llm_provider:
   #       # this provider's detector without removing future built-in defaults.
   #       replace_patterns: false
   #       # null inherits the global value; an integer overrides it per provider.
+  #       # A provider plugin may also ship its own non-null built-in default
+  #       # here (e.g. grok's 48h), which user config below then overrides.
   #       disable_seconds: null
   #       # null inherits the global reset-hint policy; true/false overrides it.
   #       honor_reset_hint: null

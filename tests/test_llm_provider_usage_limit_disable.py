@@ -36,6 +36,16 @@ _CODEX_TRY_AGAIN_AT_DATE = (
     "purchase more credits or try again at Aug 20th, 2026 6:38 AM."
 )
 
+# Verbatim stderr from the three 2026-08-18 grok agent failures that
+# motivated this plan (see the plan's Background section).
+_GROK_USAGE_BALANCE_EXHAUSTED = """\
+Error running LLM provider command (exit code 1)
+stderr: Error: Internal error: {
+  "message": "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+  "http_status": 402,
+  "promptUsage": { ... }
+}"""
+
 
 @pytest.fixture
 def registered_providers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,6 +142,33 @@ class TestHandlePossibleUsageLimit:
         )
         assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
         assert disable.expires_at != pytest.approx(fixed_now + 86400, abs=3600)
+
+    def test_grok_usage_balance_exhausted_writes_flat_48h_disable(
+        self, registered_providers: None
+    ) -> None:
+        # Enforcement, not just detection: Grok Build reports no reset
+        # instant, so this must exercise the flat try_disable_provider
+        # branch at the plan's 48h duration — not the reset-hint-derived
+        # try_disable_provider_until branch the codex test above exercises.
+        # try_disable_provider's expiry is computed store-side against real
+        # wall-clock time (the caller passes no explicit ``now``), so the
+        # duration is asserted from the stored created_at/expires_at pair
+        # rather than a pinned Python-side clock.
+        result = handle_possible_usage_limit(
+            provider="grok", error_text=_GROK_USAGE_BALANCE_EXHAUSTED
+        )
+
+        assert result is not None
+        assert result.used_reset_hint is False
+        assert result.expires_at is None
+
+        disable = get_active_provider_disable("grok")
+        assert disable is not None
+        assert disable.source == "usage_limit"
+        assert disable.expires_at is not None
+        duration = disable.expires_at - disable.created_at
+        assert duration == pytest.approx(172800, abs=5)
+        assert duration != pytest.approx(86400, abs=5)
 
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")

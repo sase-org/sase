@@ -40,6 +40,18 @@ _GROK_USAGE_LIMIT = (
     "https://grok.com/supergrok?referrer=grok-build"
 )
 
+# Verbatim stderr from the three 2026-08-18 grok agent failures (see the
+# plan's Background section); JSON braces and newlines intact on purpose —
+# normalization collapses whitespace, and using the real multi-line shape is
+# what proves that.
+_GROK_USAGE_BALANCE_EXHAUSTED = """\
+Error running LLM provider command (exit code 1)
+stderr: Error: Internal error: {
+  "message": "API error (status 402 Payment Required): Grok Build usage balance exhausted",
+  "http_status": 402,
+  "promptUsage": { ... }
+}"""
+
 _CODEX_UPGRADE_TO_PRO = (
     "You've hit your usage limit. Upgrade to Pro "
     "(https://chatgpt.com/explore/pro), visit "
@@ -71,6 +83,16 @@ _CLAUDE_FAST_MODE_COOLDOWN = (
     "Fast limit reached and temporarily disabled · resets in 5m"
 )
 _CLAUDE_CLOSE_TO_LIMIT_ADVISORY = "You're close to your usage limit"
+
+# Grok Build pager rate-limit strings: throttling, not quota exhaustion, and
+# must stay on the retry path rather than tripping a usage-limit disable.
+_GROK_RATE_LIMIT_PLAN = (
+    "You've hit the rate limit for your plan. Upgrade your account or try again later."
+)
+_GROK_TEAM_RATE_LIMIT = (
+    "You've hit your team's API rate limit. Ask a team admin to purchase "
+    "more credits for higher limits, or try again later."
+)
 
 
 class TestClaudeBuiltInDefaults:
@@ -201,6 +223,36 @@ class TestGrokBuiltInDefaults:
         config = get_usage_limit_config("grok")
         assert config is not None
         assert is_usage_limit_error(_GROK_USAGE_LIMIT, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_matches_captured_usage_balance_exhausted_failure(
+        self, mock_config: object
+    ) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("grok")
+        assert config is not None
+        assert is_usage_limit_error(_GROK_USAGE_BALANCE_EXHAUSTED, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_disable_seconds_is_48h(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("grok")
+        assert config is not None
+        assert config.disable_seconds == 172800
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_does_not_match_plan_rate_limit(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("grok")
+        assert config is not None
+        assert is_usage_limit_error(_GROK_RATE_LIMIT_PLAN, config) is False
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_does_not_match_team_rate_limit(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("grok")
+        assert config is not None
+        assert is_usage_limit_error(_GROK_TEAM_RATE_LIMIT, config) is False
 
 
 class TestQwenAndAgyBuiltInDefaults:

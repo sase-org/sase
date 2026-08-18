@@ -1947,7 +1947,9 @@ Provider plugins supply conservative built-in patterns through
   literal replacement for built-ins; `patterns: []` intentionally disables matching for
   that provider.
 - `providers.<provider>.disable_seconds` and `.honor_reset_hint` override the global
-  duration/reset policy for that provider; `null` inherits the global value.
+  duration/reset policy for that provider; `null` inherits the global value. `grok`
+  ships a non-null built-in `disable_seconds` of 48h because Grok Build reports no reset
+  instant and meters usage against a weekly pool.
 
 Detection is provider-scoped. When the failed execution provider is known, SASE tests
 only that provider's usage-limit config; it scans other provider configs only for older
