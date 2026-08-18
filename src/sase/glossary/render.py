@@ -10,7 +10,7 @@ from __future__ import annotations
 from io import StringIO
 import json
 import sys
-from typing import Literal
+from typing import Literal, cast
 
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
@@ -25,6 +25,7 @@ from sase.glossary.resolution import (
 )
 
 GlossaryShowFormat = Literal["json", "markdown", "rich"]
+_ColorSystem = Literal["auto", "standard", "256", "truecolor", "windows"]
 
 _INDENT_STEP = 2
 _MAX_INDENT_DEPTH = 3
@@ -71,7 +72,8 @@ def _print_rich_without_trailing_whitespace(
         file=buffer,
         width=console.width,
         force_terminal=console.is_terminal,
-        color_system=console.color_system,
+        # Rich types the property as str | None, the constructor as this Literal.
+        color_system=cast(_ColorSystem | None, console.color_system),
         highlight=False,
         markup=False,
     )
