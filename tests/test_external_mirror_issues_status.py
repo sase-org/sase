@@ -56,8 +56,41 @@ def test_upstream_close_appends_exactly_one_note_across_three_passes(
 
     [bead] = beads(bead_store)
     assert bead.status == Status.CLOSED
+    assert bead.task_type == "github"
     assert "open -> closed" in bead.notes
     assert "Closed this mirrored bead to match." in bead.notes
+
+
+def test_untyped_mirrored_bead_still_reconciles_when_github_type_is_absent(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.task_types._models import TaskTypeRegistry
+
+    create_mirrored_bead(bead_store, number=42)
+    monkeypatch.setattr(
+        "sase.external_mirror._issue_apply.get_task_type_registry",
+        lambda: TaskTypeRegistry(records=(), diagnostics=()),
+    )
+    install_provider(monkeypatch, provider(FakeIssueProvider([issue(42)])))
+    seeded = run_mirror()
+    assert seeded.beads_created == 0
+
+    install_provider(
+        monkeypatch,
+        provider(
+            FakeIssueProvider(
+                [issue(42, state="closed", updated_at="2026-08-10T19:00:00Z")]
+            )
+        ),
+    )
+
+    report = run_mirror()
+
+    assert report.beads_created == 0
+    assert report.beads_closed == 1
+    [bead] = beads(bead_store)
+    assert bead.status == Status.CLOSED
+    assert bead.task_type == ""
 
 
 def test_upstream_reopen_reopens_mirrored_bead(

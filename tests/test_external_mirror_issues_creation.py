@@ -37,6 +37,7 @@ def test_uncovered_issue_creates_bead_then_second_pass_is_noop(
     assert bead.status == Status.OPEN
     assert bead.issue_type == IssueType.TASK
     assert bead.size == PhaseSize.SMALL
+    assert bead.task_type == "github"
     assert bead.external_ref == "bug:sase#42"
     assert "bug:sase#42" in bead.refs
     assert bead.title == "Fix the thing"
@@ -94,6 +95,8 @@ def test_bead_with_only_bug_ref_is_recognized_as_covering(
     report = run_mirror()
 
     assert report.beads_created == 0
+    [bead] = beads(bead_store)
+    assert bead.task_type == ""
 
 
 def test_flag_bead_bug_ref_does_not_cover_external_issue(
@@ -121,6 +124,7 @@ def test_flag_bead_bug_ref_does_not_cover_external_issue(
     assert {bead.issue_type for bead in mirrored} == {IssueType.FLAG, IssueType.TASK}
     created = next(bead for bead in mirrored if bead.issue_type is IssueType.TASK)
     assert created.external_ref == "bug:sase#42"
+    assert created.task_type == "github"
 
 
 def test_conflict_created_between_plan_and_apply_is_detected_under_lock(
@@ -183,3 +187,26 @@ def test_creation_budget_defers_then_converges_next_pass(
     assert report2.checkpoint_advanced is True
 
     assert len(beads(bead_store)) == 40
+    assert {bead.task_type for bead in beads(bead_store)} == {"github"}
+
+
+def test_missing_github_type_fails_the_run_instead_of_creating_untyped(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.plugins.required import missing_required_plugin_message
+    from sase.task_types._models import TaskTypeRegistry
+
+    monkeypatch.setattr(
+        "sase.external_mirror._issue_apply.get_task_type_registry",
+        lambda: TaskTypeRegistry(records=(), diagnostics=()),
+    )
+    vcs_provider = provider(FakeIssueProvider([issue(42, title="Fix the thing")]))
+    install_provider(monkeypatch, vcs_provider)
+
+    with pytest.raises(
+        RuntimeError,
+        match=missing_required_plugin_message("sase-github"),
+    ):
+        run_mirror()
+
+    assert beads(bead_store) == []

@@ -13,6 +13,8 @@ from sase.bead.sync import (
     commit_external_issue_mirror,
     publish_bead_claim,
 )
+from sase.plugins.required import missing_required_plugin_message
+from sase.task_types import get_task_type_registry
 from sase.workspace_provider.ownership import OperationContext
 
 from ._issue_models import (
@@ -30,6 +32,23 @@ from ._issue_planning import (
     unclosed_ancestor_ids,
 )
 
+_MIRRORED_ISSUE_TASK_TYPE = "github"
+_MIRRORED_ISSUE_TASK_TYPE_PLUGIN = "sase-github"
+
+
+def _require_github_task_type() -> None:
+    """Fail closed when the ``github`` task type is not in the live catalog.
+
+    The mirror only creates beads when sase-github is installed, so the type
+    is normally present. If it is somehow absent, refuse to create an untyped
+    bead and surface the same ``plugins.required`` install message.
+    """
+    if _MIRRORED_ISSUE_TASK_TYPE in get_task_type_registry().by_slug:
+        return
+    raise RuntimeError(
+        missing_required_plugin_message(_MIRRORED_ISSUE_TASK_TYPE_PLUGIN)
+    )
+
 
 def apply_issue_mirror(
     *,
@@ -44,6 +63,8 @@ def apply_issue_mirror(
     """Apply planned creates and transitions under one lock, one commit, one publish."""
     if not create_candidates and not transition_candidates:
         return ApplyOutcome()
+    if create_candidates:
+        _require_github_task_type()
 
     beads_created = 0
     beads_closed = 0
@@ -82,6 +103,7 @@ def apply_issue_mirror(
                     refs=[candidate.display_ref],
                     external_ref=candidate.ref,
                     size=PhaseSize.SMALL,
+                    task_type=_MIRRORED_ISSUE_TASK_TYPE,
                 )
                 live_index[candidate.ref] = CoveredBead(issue, mirrored=True)
                 beads_created += 1

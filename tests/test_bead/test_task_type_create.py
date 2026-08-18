@@ -304,10 +304,47 @@ def test_unknown_type_renders_degraded_key_values() -> None:
         task_type_fields={"external": "sase-org/sase#1"},
     )
 
-    rendered = render_task_type_display_block(issue)
+    rendered = render_task_type_display_block(
+        issue, registry=TaskTypeRegistry(records=(), diagnostics=())
+    )
 
     assert "Task type: github (not installed on this machine)" in rendered
     assert "**external:** sase-org/sase#1" in rendered
+
+
+def test_known_github_type_without_body_template_does_not_degrade() -> None:
+    record = TaskTypeRecord(
+        task_type="github",
+        spec={
+            "schema_version": 1,
+            "task_type": "github",
+            "label": "GitHub",
+            "summary": "A GitHub issue mirrored into a task bead.",
+            "when_to_use": "Agents never create this type.",
+            "agent_creatable": False,
+            "fields": [],
+        },
+        digest="a" * 64,
+        provenance=TaskTypeProvenance(
+            source="plugin",
+            name="github",
+            package="sase-github",
+            version="0.1.0",
+        ),
+    )
+    issue = Issue(
+        id="task-1",
+        title="Mirrored",
+        issue_type=IssueType.TASK,
+        task_type="github",
+    )
+
+    rendered = render_task_type_display_block(
+        issue, registry=TaskTypeRegistry(records=(record,), diagnostics=())
+    )
+
+    assert rendered == ""
+    assert "not installed on this machine" not in rendered
 
 
 def test_bead_page_appends_body_below_description() -> None:

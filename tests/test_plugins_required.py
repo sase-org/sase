@@ -12,6 +12,7 @@ from sase.plugins import required as required_plugins
 from sase.plugins.required import (
     RequiredPluginError,
     fail_closed_required_plugins,
+    missing_required_plugin_message,
     required_plugin_blockers,
     resolve_required_plugins,
 )
@@ -34,6 +35,13 @@ def _config(
 def test_plugin_install_command_names_the_distribution() -> None:
     assert required_plugins._plugin_install_command("sase-github") == (
         "sase plugin install sase-github"
+    )
+
+
+def test_missing_required_plugin_message_names_install_command() -> None:
+    assert missing_required_plugin_message("sase-github") == (
+        "required plugin `sase-github` is not installed; "
+        "run `sase plugin install sase-github`"
     )
 
 

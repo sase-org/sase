@@ -131,12 +131,15 @@ def _plugin_install_command(name: str) -> str:
     return f"sase plugin install {name}"
 
 
-def _missing_required_plugin_message(name: str) -> str:
+def missing_required_plugin_message(name: str) -> str:
     """Return the hard-error text for a missing required plugin."""
     return (
         f"required plugin `{name}` is not installed; "
         f"run `{_plugin_install_command(name)}`"
     )
+
+
+_missing_required_plugin_message = missing_required_plugin_message
 
 
 def _fail_closed_required_plugins_text(report: RequiredPluginsReport) -> str:
@@ -491,6 +494,7 @@ __all__ = [
     "RequiredPluginsReport",
     "fail_closed_required_plugins",
     "load_project_required_plugins_config",
+    "missing_required_plugin_message",
     "required_plugin_blockers",
     "resolve_required_plugins",
 ]
