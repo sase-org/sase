@@ -126,10 +126,12 @@ def build_definition_card_title(
 def build_empty_project_message(project_display_name: str, *, accent: str) -> Text:
     """Build the centered invitation shown for a project with no glossary."""
     text = Text(justify="center")
-    text.append(f"{project_display_name} has no glossary terms yet.\n\n", style="bold")
+    text.append("No glossary in ", style="dim")
+    text.append(project_display_name, style="bold")
+    text.append(" yet.\n\n", style="dim")
     text.append("Press ", style="dim")
     text.append("a", style=f"bold {accent}")
-    text.append(" to add the first one.", style="dim")
+    text.append(" to add the first term.", style="dim")
     return text
 
 
@@ -162,10 +164,7 @@ def build_panel_footer(
     focused_relation_term: str | None = None,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps."""
-    parts = [
-        f"{key_display_name(keymaps.next_term)}/{key_display_name(keymaps.prev_term)} term",
-        f"{key_display_name(keymaps.filter_terms)} filter",
-    ]
+    parts: list[str] = []
     if ring_size > 1:
         parts.append(
             f"{key_display_name(keymaps.next_project)}/"
@@ -178,16 +177,12 @@ def build_panel_footer(
             parts.append(f"→ {focused_relation_term}")
     if has_trail:
         parts.append(f"{key_display_name(keymaps.travel_back)} back")
-    parts.append(f"{key_display_name(keymaps.add_term)} add")
     if has_entries:
         parts.append(f"{key_display_name(keymaps.delete_term)} delete")
         parts.append(f"{key_display_name(keymaps.copy_definition)} copy")
     if has_source_path:
         parts.append(f"{key_display_name(keymaps.open_source)} edit")
         parts.append(f"{key_display_name(keymaps.open_viewer)} view")
-    parts.append(f"{key_display_name(keymaps.refresh)} refresh")
-    parts.append(f"{key_display_name(keymaps.help)} help")
-    parts.append("esc close")
     return "  ·  ".join(parts)
 
 

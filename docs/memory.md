@@ -194,6 +194,10 @@ visible to agents. `-I/--no-init` skips that step. A regeneration failure is rep
 a warning and does not roll back the config write; run `sase memory init` by hand if
 that happens.
 
+ACE's Glossary panel uses the same add/delete engine. From a prompt, press `gG` or
+`Ctrl+G G` to browse terms, follow relations, cycle projects, and add or delete entries;
+see [Glossary panel](ace.md#glossary-panel).
+
 ## Propose Memory
 
 Agents do not write canonical long-term memory files directly. They create proposals:

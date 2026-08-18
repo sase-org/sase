@@ -43,6 +43,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("g* / g#", "... as substring"),
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("gf / Ctrl+G f", "Format current prompt"),
+        ("gG / Ctrl+G G", "Glossary panel"),
         ("g=", "Frontmatter panel"),
         ("q/Esc (panel)", "Return to originating pane"),
         ("gj/gk (panel)", "Top / bottom prompt pane"),
@@ -127,6 +128,35 @@ def custom_mode_sections(km: KeymapRegistry) -> Sections:
         if bindings:
             sections.append((f"{display_name} ({d(mode.prefix)})", bindings))
     return sections
+
+
+def glossary_panel_section(
+    km: KeymapRegistry,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build the Glossary panel keybinding section from configured keys."""
+    d = key_display_name
+    g = km.glossary
+    return (
+        "Glossary Panel",
+        [
+            ("gG / Ctrl+G G", "Open from prompt"),
+            (f"{d(g.next_term)} / {d(g.prev_term)}", "Move through terms"),
+            (f"{d(g.first_term)} / {d(g.last_term)}", "First / last term"),
+            (d(g.filter_terms), "Filter terms / aliases"),
+            (d(g.toggle_definition_filter), "Match definition bodies"),
+            (f"{d(g.next_relation)} / {d(g.prev_relation)}", "Move relation chip"),
+            (d(g.follow_relation), "Follow relation"),
+            ("1-9", "Follow numbered chip"),
+            (d(g.travel_back), "Walk back along trail"),
+            (f"{d(g.next_project)} / {d(g.prev_project)}", "Cycle visible project"),
+            (d(g.add_term), "Add a term"),
+            (d(g.delete_term), "Delete selected term"),
+            (d(g.open_source), "Open source in editor"),
+            (d(g.copy_definition), "Copy definition"),
+            (d(g.help), "Panel-scoped help"),
+            ("Esc", "Close and restore prompt"),
+        ],
+    )
 
 
 _custom_mode_sections = custom_mode_sections

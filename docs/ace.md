@@ -4276,6 +4276,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                  |
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
+| `Ctrl+G G`                   | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
 | `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                             |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                           |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                 |
@@ -4478,6 +4479,7 @@ prefix actions currently available.
 | `gj` / `gk` | Focus the next / previous pane in NORMAL mode; inside the panel, jump to the top / bottom prompt pane                                    |
 | `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                                                         |
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
+| `gG`        | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
 | `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                           |
@@ -4872,6 +4874,62 @@ The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver be
 `sase glossary show`/`read` (see [Glossary](memory.md#glossary)): both walk outgoing
 reference spans from the shared `sase.glossary.resolution` module, so the preview card
 and the CLI can never disagree about which terms a definition references.
+
+<a id="glossary-panel"></a>
+
+#### Glossary panel
+
+`K` previews one highlighted phrase. The **Glossary panel** is the browse-and-edit
+surface for a whole project's terms. From a prompt pane, press `gG` in NORMAL mode or
+`Ctrl+G G` in INSERT or NORMAL. The which-key hint row lists `glossary…` on both
+prefixes. If the cursor sits inside a highlighted glossary term, that term is selected;
+otherwise the panel opens on the first term. Closing with `Esc` or `q` restores the
+prompt pane and the vim mode you left.
+
+The header reads `GLOSSARY · <project> · N terms · project i/N` and always uses the
+configured `PROJECT_NAME:`, never a `ProjectSpec` key. A single-project setup still
+shows `project 1/1`.
+
+Two navigation axes stay synchronized:
+
+- **Alphabetical.** `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) move the term-list cursor;
+  the definition card follows. `g`/`G` jump to the first and last term. `/` filters
+  terms and aliases with the same predicate as `sase glossary list`; `.` extends the
+  match into definition bodies, matching `--definitions`. `Esc` closes the filter and
+  keeps the selection when it is still visible. An empty result reads
+  `no terms matched: <pattern>`.
+- **Relational.** The definition card carries numbered `SEE ALSO` chips (outbound
+  references from this definition) and `REFERENCED BY` chips (inbound terms that mention
+  this one). Numbering is continuous across both rows so `1`–`9` is never ambiguous.
+  `Tab` / `Shift+Tab` move a chip cursor; `Enter` or `l` follows the focused chip, or ①
+  when none is focused. Following moves the term-list cursor to the target, pushes the
+  previous term onto a trail bounded at 32 entries, and clears an active filter when the
+  target is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
+  `TRAIL  A › B › C` above the footer.
+
+`p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
+glossary configured, plus the project you opened from even when it has none — so `a` can
+add that project's first term. Order is by display name. Switching projects clears the
+trail and the filter and restores that project's last-selected term for the life of the
+panel.
+
+`a` opens an add form (term, optional comma-separated aliases, definition) with live
+validation against the Rust glossary validator. `d` confirms a delete and shows the
+inbound blast radius before anything is written. Both writes use the same engine as
+`sase glossary add` and `sase glossary del` (see [Glossary](memory.md#glossary)), run as
+tracked procs, refresh the panel, invalidate prompt highlighting, and offer a config
+commit for the written `sase.yml`. A delete toasts the exact restore command. The panel
+does not run `sase memory init`; the success toast names that follow-up.
+
+A project with no glossary shows a centered invitation that names the project and points
+at `a`. A project whose glossary failed to load shows the diagnostics and the config
+path. `?` opens a panel-scoped help overlay. `y` copies the definition, `Y` copies the
+source path, `o` opens the definition line in `$EDITOR`, `Z` hands the file to the
+artifact viewer, and `r` re-reads the current project.
+
+The panel footer lists only conditional keys: `d` when a term is selected, relation keys
+when chips exist, `p`/`P` when the ring has more than one project, and back when a trail
+exists. Always-available keys live in `?` and in this guide.
 
 #### Repo names
 

@@ -47,6 +47,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "omitted/all unlimited" in combined
     assert "PR Navigation" in combined
     assert "Snippet action else list shift" in combined
+    assert "Glossary panel" in combined
+    assert "Glossary Panel" in combined
     assert abs(len(left.splitlines()) - len(right.splitlines())) < 45
 
     modal.refresh_for_tab("agents", active_query=None)

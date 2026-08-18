@@ -581,6 +581,11 @@ async def test_footer_shows_conditional_delete(monkeypatch: pytest.MonkeyPatch) 
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
-        text = _plain(panel.query_one("#glossary-panel-footer", Static).content)
-        assert "a add" in text
+        footer = panel.query_one("#glossary-panel-footer", Static)
+        text = _plain(footer.content)
         assert "d delete" in text
+        assert "a add" not in text
+        assert "filter" not in text
+        assert "help" not in text
+        assert "esc" not in text
+        assert footer.display is True

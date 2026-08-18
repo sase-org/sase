@@ -13,6 +13,7 @@ from .binding_common import (
     _Sections,
     _custom_mode_sections,
     _sk,
+    glossary_panel_section,
 )
 from .patches_bindings import cls_bindings
 
@@ -30,4 +31,5 @@ __all__ = [
     "agents_bindings",
     "axe_bindings",
     "cls_bindings",
+    "glossary_panel_section",
 ]

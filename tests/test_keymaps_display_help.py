@@ -319,6 +319,28 @@ def test_help_modal_lists_at_reference_completion() -> None:
         assert ("@", "Artifact kinds; Ctrl+T files") in pairs
 
 
+def test_help_modal_lists_glossary_panel() -> None:
+    """Prompt Input and the Glossary Panel section advertise gG / Ctrl+G G."""
+    reg = load_keymap_registry({})
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        names = {name for name, _bindings in sections}
+        assert ("gG / Ctrl+G G", "Glossary panel") in pairs
+        assert ("gG / Ctrl+G G", "Open from prompt") in pairs
+        assert "Glossary Panel" in names
+        assert ("j / k", "Move through terms") in pairs
+        assert ("1-9", "Follow numbered chip") in pairs
+        assert ("Esc", "Close and restore prompt") in pairs
+        for _name, bindings in sections:
+            if _name != "Glossary Panel":
+                continue
+            for key, description in bindings:
+                assert len(key) <= 16, key
+                assert len(description) <= 32, description
+
+
 def test_help_modal_lists_frontmatter_panel_toggle() -> None:
     """The Prompt Input section advertises the g-prefix properties toggle."""
     reg = load_keymap_registry({})

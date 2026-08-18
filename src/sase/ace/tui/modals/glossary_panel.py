@@ -359,7 +359,9 @@ class GlossaryPanel(
             has_trail=bool(self._trail),
             focused_relation_term=focused_relation_term,
         )
-        self.query_one("#glossary-panel-footer", Static).update(footer)
+        footer_widget = self.query_one("#glossary-panel-footer", Static)
+        footer_widget.update(footer)
+        footer_widget.display = bool(footer)
 
     def _trail_strip(self) -> Static:
         return self.query_one("#glossary-panel-trail", Static)

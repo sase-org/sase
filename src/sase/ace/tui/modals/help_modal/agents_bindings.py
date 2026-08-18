@@ -7,6 +7,7 @@ from .binding_common import (
     PROMPT_INPUT_SECTION,
     Sections,
     custom_mode_sections,
+    glossary_panel_section,
     key_sequence_display,
     sk,
 )
@@ -458,6 +459,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     # Insert custom mode sections before "General".
     sections.extend(custom_mode_sections(km))
     sections.append(PROMPT_INPUT_SECTION)
+    sections.append(glossary_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)
     sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(

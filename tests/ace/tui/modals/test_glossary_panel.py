@@ -343,8 +343,24 @@ async def test_no_glossary_project_shows_invitation(
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
         meta = _static_text(panel, "glossary-panel-card-meta")
-        assert "no glossary terms yet" in meta
+        assert "No glossary in" in meta
         assert "sase" in meta
+        assert "add the first term" in meta
+
+
+async def test_no_glossary_invitation_uses_display_name_not_spec_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("gh_org__research", "Research", has_glossary=False)
+    _install_fixed_load(monkeypatch, (ref,), {"gh_org__research": _snapshot(ref, ())})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        meta = _static_text(panel, "glossary-panel-card-meta")
+        assert "Research" in meta
+        assert "gh_org__research" not in meta
 
 
 async def test_diagnostics_project_shows_error(
