@@ -26,6 +26,7 @@ from sase.notification_gates.summary import (
 )
 from sase.notifications import Notification, format_relative_until
 
+from .gate_input_panel_model import option_input_count_label
 from .gate_primary_footer import primary_action_badge_for_label
 from .notification_modal_constants import ACTION_BADGES
 from .notification_modal_palette import (
@@ -293,13 +294,15 @@ def _branch_block(
 
     multi = len(branch.options) > 1
     for option in branch.options:
-        grid.add_row(*_option_row(option, multi=multi))
+        grid.add_row(*_option_row(option, multi=multi, pending=not terminal))
         for line in _option_input_lines(option, terminal=terminal):
             grid.add_row(line, Text(""))
     return grid
 
 
-def _option_row(option: GateSummaryOption, *, multi: bool) -> tuple[Text, Text]:
+def _option_row(
+    option: GateSummaryOption, *, multi: bool, pending: bool = True
+) -> tuple[Text, Text]:
     left = Text("     ")
     if option.selected:
         left.append("● ", style=f"bold {PANE_ANSWERED}")
@@ -310,10 +313,24 @@ def _option_row(option: GateSummaryOption, *, multi: bool) -> tuple[Text, Text]:
         left.append(f"  · {' '.join(option.argv)}", style=PANE_MUTED)
 
     right = Text()
-    if option.feedback != "disabled":
-        note = "✎ note required" if option.feedback == "required" else "✎ note optional"
-        right.append(note, style=f"{PANE_MUTED} italic")
+    if pending:
+        summary = _pending_option_summary(option)
+        if summary:
+            right.append(summary, style=f"{PANE_MUTED} italic")
     return left, right
+
+
+def _pending_option_summary(option: GateSummaryOption) -> str:
+    """Pending-state ``✎ n inputs`` / note wording for one option row."""
+    parts: list[str] = []
+    count_label = option_input_count_label(len(option.input_fields))
+    if count_label:
+        parts.append(count_label)
+    if option.feedback == "required":
+        parts.append("note required" if count_label else "✎ note required")
+    elif option.feedback == "optional":
+        parts.append("note optional" if count_label else "✎ note optional")
+    return " · ".join(parts)
 
 
 def _option_input_lines(option: GateSummaryOption, *, terminal: bool) -> list[Text]:

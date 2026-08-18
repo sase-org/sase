@@ -13,6 +13,8 @@ from sase.ace.tui.modals.custom_gate_modal import (
 )
 from sase.ace.tui.modals.gate_action_controls import GateActionsData
 from sase.ace.tui.modals.gate_branch_controls import GateBranchData
+from sase.ace.tui.modals.gate_input_panel import GateInputPanel
+from sase.ace.tui.modals.gate_input_panel_model import build_gate_input_request
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
 from sase.notification_gates.model_operations import GateOperation
 from sase.notification_gates.models import GateGroup, GateOption
@@ -20,6 +22,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -448,10 +451,8 @@ async def test_custom_gate_inputs_section_png_snapshot(
         _option_with_inputs("deploy", "Deploy signed build", icon="🚀"),
         _option("cancel", "Cancel release", icon="🛑"),
     )
-    # Two-pane mode (preview_text set) gives the Actions column unbounded
-    # height (no compact-mode 30-row cap); trimmed notes/attachments plus a
-    # taller viewport fit every field -- a required line, an enum, and a
-    # secret -- without scrolling.
+    # Two-pane layout: the left Decision column shows option badges and no
+    # inline Inputs section. The panel itself is snapshotted separately.
     data = CustomGateModalData(
         request_id="deploy-production-42",
         title="Custom Gate",
@@ -475,7 +476,7 @@ async def test_custom_gate_inputs_section_png_snapshot(
         monkeypatch,
         data=data,
         snapshot_name="custom_gate_inputs_120x45",
-        title="ACE custom gate Inputs section",
+        title="ACE custom gate option input badges",
         size=(120, 45),
     )
 
@@ -498,4 +499,207 @@ async def test_custom_gate_draft_banner_png_snapshot(
         ),
         snapshot_name="custom_gate_draft_banner_120x40",
         title="ACE custom gate unaccepted draft banner",
+    )
+
+
+def _panel_option(
+    option_id: str,
+    label: str,
+    *,
+    icon: str,
+    inputs: list[dict[str, object]] | None = None,
+    input_schema: dict[str, object] | None = None,
+    feedback: str = "disabled",
+) -> GateOption:
+    payload: dict[str, object] = {
+        "id": option_id,
+        "label": label,
+        "icon": icon,
+        "feedback": feedback,
+        "command": {"argv": [f"commands/{option_id}"]},
+    }
+    if inputs is not None:
+        payload["inputs"] = inputs
+    if input_schema is not None:
+        payload["input_schema"] = input_schema
+    return GateOption.from_mapping(payload, 0)
+
+
+async def _snapshot_panel(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    panel: GateInputPanel,
+    snapshot_name: str,
+    title: str,
+    sentinel: str,
+    size: tuple[int, int] = (120, 45),
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=size,
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(panel)
+        await page.expect_modal("GateInputPanel")
+        await wait_for_svg_contains(page, sentinel)
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_gate_input_panel_single_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    option = _panel_option(
+        "deploy",
+        "Deploy signed build",
+        icon="🚀",
+        feedback="optional",
+        inputs=[
+            {
+                "id": "target_env",
+                "label": "Target environment",
+                "type": "line",
+                "required": True,
+            },
+            {
+                "id": "mode",
+                "label": "Mode",
+                "type": "enum",
+                "choices": ["fast", "thorough"],
+            },
+            {
+                "id": "token",
+                "label": "Access token",
+                "type": "line",
+                "secret": True,
+            },
+        ],
+    )
+    request = build_gate_input_request(
+        (option,),
+        ("deploy",),
+        branch_index=0,
+        branch_label="Deploy signed build",
+        feedback_mode="optional",
+    )
+    await _snapshot_panel(
+        ace_png_visual,
+        monkeypatch,
+        panel=GateInputPanel(
+            request,
+            headline="Approve production deployment",
+            kind="custom",
+            request_id="deploy-production-42",
+        ),
+        snapshot_name="gate_input_panel_single_120x45",
+        title="ACE gate input panel single option",
+        sentinel="Target environment",
+    )
+
+
+async def test_gate_input_panel_group_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deploy = _panel_option(
+        "deploy",
+        "Deploy signed build",
+        icon="🚀",
+        inputs=[
+            {
+                "id": "target",
+                "label": "Target environment",
+                "type": "line",
+                "required": True,
+            },
+            {
+                "id": "mode",
+                "label": "Mode",
+                "type": "enum",
+                "choices": ["fast", "thorough"],
+            },
+        ],
+    )
+    announce = _panel_option(
+        "announce",
+        "Post release announcement",
+        icon="📣",
+        inputs=[
+            {
+                "id": "target",
+                "label": "Target environment",
+                "type": "line",
+                "required": True,
+            }
+        ],
+    )
+    rotate = _panel_option(
+        "rotate",
+        "Rotate deploy credentials",
+        icon="🔑",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "default": "quarterly rotation"},
+            },
+            "required": ["reason"],
+        },
+    )
+    request = build_gate_input_request(
+        (deploy, announce, rotate),
+        ("deploy", "announce", "rotate"),
+        branch_index=0,
+        branch_label="Ship the release",
+    )
+    await _snapshot_panel(
+        ace_png_visual,
+        monkeypatch,
+        panel=GateInputPanel(
+            request,
+            headline="Approve production deployment",
+            kind="custom",
+            request_id="deploy-production-42",
+        ),
+        snapshot_name="gate_input_panel_group_120x45",
+        title="ACE gate input panel AND group",
+        sentinel="also sent to",
+    )
+
+
+async def test_gate_input_panel_note_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    option = _panel_option(
+        "override",
+        "Override warning",
+        icon="⚠️",
+        feedback="required",
+    )
+    request = build_gate_input_request(
+        (option,),
+        ("override",),
+        branch_index=0,
+        branch_label="Override warning",
+        feedback_mode="required",
+    )
+    await _snapshot_panel(
+        ace_png_visual,
+        monkeypatch,
+        panel=GateInputPanel(
+            request,
+            headline="Approve production deployment",
+            kind="custom",
+            request_id="deploy-production-42",
+        ),
+        snapshot_name="gate_input_panel_note_120x40",
+        title="ACE gate input panel required note",
+        sentinel="Note",
+        size=(120, 40),
     )

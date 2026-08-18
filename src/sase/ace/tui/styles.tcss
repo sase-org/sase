@@ -1716,7 +1716,6 @@ CustomGateModal #custom-gate-attachments {
 
 GateBranchControls {
     height: auto;
-    max-height: 18;
     border: solid $secondary;
     padding: 0 1;
     scrollbar-gutter: stable;
@@ -1728,8 +1727,9 @@ GateBranchControls .gate-singleton-row {
 }
 
 GateBranchControls .gate-singleton-row Button {
-    min-width: 18;
+    min-width: 28;
     margin: 0 1;
+    text-wrap: nowrap;
 }
 
 GateBranchControls .gate-group,
@@ -1746,40 +1746,7 @@ GateBranchControls .gate-group-submit {
 GateBranchControls .gate-option-toggle {
     width: 100%;
     text-align: left;
-}
-
-GateBranchControls #gate-feedback-label {
-    height: auto;
-    color: $text-muted;
-    margin-top: 1;
-}
-
-GateBranchControls #gate-feedback-input {
-    margin-bottom: 1;
-}
-
-GateBranchControls .gate-branch-inputs {
-    height: auto;
-    margin-top: 1;
-}
-
-GateBranchControls .gate-input-conflict {
-    color: $error;
-}
-
-GateBranchControls TypedInputForm {
-    height: auto;
-}
-
-GateBranchControls TypedInputForm Button {
-    width: 100%;
-    text-align: left;
-    color: $text-muted;
-    border: round $secondary;
-}
-
-GateBranchControls .gate-branch-inputs TextArea {
-    height: 6;
+    text-wrap: nowrap;
 }
 
 GateBranchControls.gate-branch-controls--stacked {
@@ -1803,6 +1770,69 @@ GateBranchControls.gate-branch-controls--stacked .gate-group-expand,
 GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
     width: 100%;
     margin: 0;
+}
+
+GateInputPanel {
+    align: center middle;
+}
+
+GateInputPanel > #gate-input-container {
+    width: 90%;
+    max-width: 120;
+    min-width: 56;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: double $accent;
+    border-title-align: left;
+    padding: 0 1;
+}
+
+GateInputPanel #gate-input-body {
+    height: auto;
+    max-height: 32;
+    scrollbar-gutter: stable;
+}
+
+GateInputPanel .gate-input-section-title {
+    height: auto;
+    text-style: bold;
+    margin-top: 1;
+}
+
+GateInputPanel .input-field-block {
+    margin-bottom: 1;
+}
+
+GateInputPanel .field-header {
+    text-wrap: nowrap;
+}
+
+GateInputPanel .gate-input-conflict {
+    color: $error;
+}
+
+/* More specific single-line rules follow the VimTextArea rule so subclass
+   matching does not stretch those editors to the multi-line height. */
+GateInputPanel VimTextArea {
+    height: 8;
+}
+
+GateInputPanel SingleLineVimTextArea,
+GateInputPanel SecretVimTextArea {
+    height: 3;
+    text-wrap: nowrap;
+}
+
+GateInputPanel #gate-input-buttons {
+    height: auto;
+    align-horizontal: right;
+}
+
+GateInputPanel #gate-input-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid $secondary;
 }
 
 GateActionControls {

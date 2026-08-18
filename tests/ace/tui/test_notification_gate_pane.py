@@ -10,18 +10,22 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_gate import _option_row
 from sase.bead.model import SnoozeRecord
 from sase.bead.snooze_gate import create_bead_snooze_gate
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notification_gates.executor import execute_gate_selection
+from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.service import create_gate
 from sase.notification_gates.summary import (
+    GateSummaryOption,
     gate_summary_from_notification,
     load_gate_summary,
 )
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.plan_gate import create_plan_approval_gate
+from sase.xprompt.models import InputType
 
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
 from tests.plan_validation_helpers import VALID_TALE_PLAN
@@ -207,6 +211,51 @@ _TWO_BRANCH_QUERY_SPEC: dict[str, object] = {
     ],
     "auto": False,
 }
+
+
+def test_pending_option_row_summarizes_declared_inputs() -> None:
+    fields = (
+        GateInputField(id="env", label="Env", type=InputType.LINE, required=True),
+        GateInputField(id="token", label="Token", type=InputType.LINE, secret=True),
+    )
+    with_inputs = GateSummaryOption(
+        id="deploy",
+        label="Deploy",
+        icon="🚀",
+        argv=(),
+        feedback="optional",
+        default_selected=True,
+        selected=False,
+        input_fields=fields,
+    )
+    note_only = GateSummaryOption(
+        id="override",
+        label="Override",
+        icon=None,
+        argv=(),
+        feedback="required",
+        default_selected=False,
+        selected=False,
+    )
+    bare = GateSummaryOption(
+        id="skip",
+        label="Skip",
+        icon=None,
+        argv=(),
+        feedback="disabled",
+        default_selected=False,
+        selected=False,
+    )
+
+    _left, with_inputs_right = _option_row(with_inputs, multi=False)
+    _left, note_right = _option_row(note_only, multi=False)
+    _left, bare_right = _option_row(bare, multi=False)
+
+    assert with_inputs_right.plain == "✎ 2 inputs · note optional"
+    assert note_right.plain == "✎ note required"
+    assert bare_right.plain == ""
+    _left, answered_right = _option_row(with_inputs, multi=False, pending=False)
+    assert answered_right.plain == ""
 
 
 def test_decision_block_lists_branches_in_canonical_order_with_primary_marked(

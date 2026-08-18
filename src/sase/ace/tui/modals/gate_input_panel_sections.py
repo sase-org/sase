@@ -93,6 +93,7 @@ class GateInputSection(Vertical):
                 ],
                 id_prefix=f"gate-input-{self.spec.option_id}",
                 optional_toggle=False,
+                soft_wrap=False,
                 id=f"gate-input-form-{self.spec.option_id}",
             )
             self._form = form

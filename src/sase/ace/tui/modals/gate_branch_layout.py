@@ -19,6 +19,12 @@ from textual.widgets import Button
 
 from sase.notification_gates.models import GateGroup, GateOption
 
+from .gate_input_panel_model import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
+    option_declared_input_count,
+    option_input_count_label,
+)
+
 
 class GateControlButton(Button):
     """Button carrying its source branch for focus-driven feedback state."""
@@ -42,9 +48,37 @@ def _option_label(option: GateOption) -> str:
     return escape(value)
 
 
-def toggle_label(option: GateOption, selected: bool) -> str:
+def _input_badge_markup(
+    option: GateOption,
+    host_collected_properties: Collection[str],
+) -> str:
+    """Dim ``✎ n inputs`` suffix, or empty when the option declares none."""
+    label = option_input_count_label(
+        option_declared_input_count(option, host_collected_properties)
+    )
+    return f"[dim]{label}[/dim]" if label else ""
+
+
+def _option_control_label(
+    option: GateOption,
+    host_collected_properties: Collection[str],
+) -> str:
+    """Icon, escaped label, and an input-count badge when the option has inputs."""
+    label = _option_label(option)
+    badge = _input_badge_markup(option, host_collected_properties)
+    return f"{label} {badge}" if badge else label
+
+
+def toggle_label(
+    option: GateOption,
+    selected: bool,
+    host_collected_properties: Collection[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
+) -> str:
     """An AND member's label, prefixed by its checkbox state."""
-    return f"{'☑️' if selected else '⬜'} {_option_label(option)}"
+    return (
+        f"{'☑️' if selected else '⬜'} "
+        f"{_option_control_label(option, host_collected_properties)}"
+    )
 
 
 def _group_label(group: GateGroup) -> str:
@@ -63,13 +97,17 @@ def compose_singleton_row(
     options: Sequence[GateOption],
     *,
     primary_branch_index: int,
+    host_collected_properties: Collection[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
 ) -> ComposeResult:
     """Render a run of adjacent single-option branches as one row."""
     with Horizontal(classes="gate-singleton-row"):
         for index, option in zip(branch_indices, options, strict=True):
             primary = index == primary_branch_index
             yield GateControlButton(
-                _numbered_label(index, _option_label(option)),
+                _numbered_label(
+                    index,
+                    _option_control_label(option, host_collected_properties),
+                ),
                 branch_index=index,
                 id=f"gate-singleton-{index}",
                 classes="gate-singleton gate-primary" if primary else "gate-singleton",
@@ -85,6 +123,7 @@ def compose_group(
     expanded: bool,
     primary: bool,
     selected: Collection[str],
+    host_collected_properties: Collection[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
 ) -> ComposeResult:
     """Render one AND branch: its collapsed header, toggles, and submit."""
     label = _numbered_label(branch_index, _group_label(group))
@@ -101,7 +140,11 @@ def compose_group(
         ):
             for option_index, option in enumerate(options):
                 yield GateControlButton(
-                    toggle_label(option, option.id in selected),
+                    toggle_label(
+                        option,
+                        option.id in selected,
+                        host_collected_properties,
+                    ),
                     branch_index=branch_index,
                     id=f"gate-option-{branch_index}-{option_index}",
                     classes="gate-option-toggle",

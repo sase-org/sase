@@ -10,9 +10,12 @@ from textual.widgets import Button, Static
 from sase.ace.tui.keymaps import GateModalKeymaps
 from sase.ace.tui.modals.gate_input_panel import GateInputPanel, GateInputPanelResult
 from sase.ace.tui.modals.gate_input_panel_model import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
     GateInputDraft,
     build_gate_input_request,
     collect_option_inputs,
+    option_declared_input_count,
+    option_input_count_label,
 )
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -135,6 +138,41 @@ def test_requires_panel_and_is_empty_follow_the_open_table() -> None:
     assert hidden_host.is_empty is True
 
 
+def test_option_declared_input_count_uses_inputs_or_raw_schema() -> None:
+    declared = _option(
+        "deploy",
+        inputs=[
+            {"id": "env", "label": "Env", "type": "line", "required": True},
+            {"id": "token", "label": "Token", "type": "line", "secret": True},
+        ],
+    )
+    raw = _option(
+        "rotate",
+        input_schema={
+            "type": "object",
+            "properties": {"reason": {"type": "string"}, "when": {"type": "string"}},
+        },
+    )
+    host_only = _option(
+        "accept",
+        input_schema={
+            "type": "object",
+            "properties": {"feedback": {"type": "string"}},
+        },
+    )
+    bare = _option("proceed")
+
+    assert option_declared_input_count(declared) == 2
+    assert option_declared_input_count(raw) == 2
+    assert (
+        option_declared_input_count(host_only, DEFAULT_HOST_COLLECTED_PROPERTIES) == 0
+    )
+    assert option_declared_input_count(bare) == 0
+    assert option_input_count_label(1) == "✎ 1 input"
+    assert option_input_count_label(2) == "✎ 2 inputs"
+    assert option_input_count_label(0) == ""
+
+
 def test_collect_option_inputs_parses_raw_yaml() -> None:
     option = _option(
         "rotate",
@@ -180,6 +218,8 @@ async def test_one_section_per_selected_option_uses_icon_and_label() -> None:
         assert any("📝" in title and "Publish notes" in title for title in titles)
         assert panel.query("#gate-input-section-deploy")
         assert panel.query("#gate-input-section-publish")
+        line = panel.query_one("#gate-input-deploy-input-0", SingleLineVimTextArea)
+        assert line.soft_wrap is False
 
 
 async def test_shared_compatible_field_renders_once_and_lands_in_both() -> None:

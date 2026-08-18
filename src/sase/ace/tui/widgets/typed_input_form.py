@@ -223,6 +223,7 @@ class TypedInputForm(Vertical):
         id_prefix: str = "field",
         index_offset: int = 0,
         optional_toggle: bool = True,
+        soft_wrap: bool | None = None,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
@@ -231,6 +232,7 @@ class TypedInputForm(Vertical):
         self._id_prefix = id_prefix
         self._index_offset = index_offset
         self._optional_toggle = optional_toggle
+        self._soft_wrap = soft_wrap
         self._optional_revealed = False
         self._visible = [
             not optional_toggle or field.required for field in self._fields
@@ -304,14 +306,15 @@ class TypedInputForm(Vertical):
         if arg.type is InputType.ENUM:
             return _EnumField(arg, id=field_id)
         placeholder = self._placeholder_text(field)
+        wrap = {} if self._soft_wrap is None else {"soft_wrap": self._soft_wrap}
         # A secret stays single-line and masked even when its type is text.
         if field.secret:
-            return _SecretInput(id=field_id, placeholder=placeholder)
+            return _SecretInput(id=field_id, placeholder=placeholder, **wrap)
         if arg.type is InputType.PATH:
-            return _PathField(id=field_id, placeholder=placeholder)
+            return _PathField(id=field_id, placeholder=placeholder, **wrap)
         if arg.type is InputType.TEXT or arg.repeatable:
             return _MultilineInput(id=field_id, placeholder=placeholder)
-        return _InputCollectionInput(id=field_id, placeholder=placeholder)
+        return _InputCollectionInput(id=field_id, placeholder=placeholder, **wrap)
 
     # -- labels ---------------------------------------------------------------
 

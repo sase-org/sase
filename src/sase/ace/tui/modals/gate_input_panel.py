@@ -113,6 +113,20 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
     GateInputPanel .input-field-block {
         margin-bottom: 1;
     }
+    GateInputPanel .field-header {
+        text-wrap: nowrap;
+    }
+    GateInputPanel .gate-input-conflict {
+        color: $error;
+    }
+    GateInputPanel VimTextArea {
+        height: 8;
+    }
+    GateInputPanel SingleLineVimTextArea,
+    GateInputPanel SecretVimTextArea {
+        height: 3;
+        text-wrap: nowrap;
+    }
     GateInputPanel #gate-input-buttons {
         height: auto;
         align-horizontal: right;

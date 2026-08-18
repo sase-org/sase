@@ -8,6 +8,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Button, Static
 
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls, GateBranchData
+from sase.ace.tui.modals.gate_branch_layout import toggle_label
 from sase.ace.tui.modals.gate_input_panel import GateInputPanel
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
@@ -84,6 +85,69 @@ def _panel(app: _ControlsApp) -> GateInputPanel:
 def _plain(widget: object) -> str:
     rendered = widget.render()  # type: ignore[attr-defined]
     return rendered.plain if hasattr(rendered, "plain") else str(rendered)
+
+
+def test_option_labels_badge_declared_and_raw_inputs() -> None:
+    two = _option(
+        "deploy",
+        inputs=[
+            {"id": "env", "label": "Env", "type": "line", "required": True},
+            {"id": "token", "label": "Token", "type": "line", "secret": True},
+        ],
+    )
+    one = _option(
+        "rotate",
+        input_schema={
+            "type": "object",
+            "properties": {"reason": {"type": "string"}},
+        },
+    )
+    host_only = _option(
+        "accept",
+        input_schema={
+            "type": "object",
+            "properties": {"feedback": {"type": "string"}},
+        },
+    )
+    bare = _option("proceed")
+
+    two_label = toggle_label(two, selected=False)
+    assert two_label.startswith("⬜")
+    assert "[dim]✎ 2 inputs[/dim]" in two_label
+    assert "[dim]✎ 1 input[/dim]" in toggle_label(one, selected=True)
+    assert "✎" not in toggle_label(host_only, selected=False)
+    assert "✎" not in toggle_label(bare, selected=True)
+
+
+async def test_singleton_button_shows_input_badge() -> None:
+    controls = _controls(
+        options=(
+            _option(
+                "deploy",
+                label="Deploy signed build",
+                inputs=[
+                    {
+                        "id": "env",
+                        "label": "Env",
+                        "type": "line",
+                        "required": True,
+                    }
+                ],
+            ),
+            _option("cancel"),
+        ),
+        branches=(("deploy",), ("cancel",)),
+    )
+    app = _ControlsApp(controls)
+
+    async with app.run_test(size=(100, 34)) as pilot:
+        await pilot.pause()
+        deploy = str(controls.query_one("#gate-singleton-0", Button).label)
+        cancel = str(controls.query_one("#gate-singleton-1", Button).label)
+
+    assert "Deploy signed build" in deploy
+    assert "✎ 1 input" in deploy
+    assert "✎" not in cancel
 
 
 async def test_branch_without_declared_inputs_renders_no_container() -> None:

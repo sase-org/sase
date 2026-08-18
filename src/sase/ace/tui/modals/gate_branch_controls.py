@@ -106,6 +106,7 @@ class GateBranchControls(VerticalScroll):
                     singleton_indices,
                     [self._branch_options(index)[0] for index in singleton_indices],
                     primary_branch_index=self._primary_branch_index,
+                    host_collected_properties=self._host_collected_properties,
                 )
                 continue
 
@@ -117,6 +118,7 @@ class GateBranchControls(VerticalScroll):
                 expanded=branch_index == self._expanded_group_index,
                 primary=branch_index == self._primary_branch_index,
                 selected=self._selected_by_branch.get(branch_index, set()),
+                host_collected_properties=self._host_collected_properties,
             )
             branch_index += 1
 
@@ -195,7 +197,9 @@ class GateBranchControls(VerticalScroll):
         option = self._options_by_id[option_id]
         self.query_one(
             f"#gate-option-{branch_index}-{option_index}", Button
-        ).label = toggle_label(option, option_id in selected)
+        ).label = toggle_label(
+            option, option_id in selected, self._host_collected_properties
+        )
         self._set_active_branch(branch_index)
         self._update_submit_state(branch_index)
 
@@ -264,7 +268,9 @@ class GateBranchControls(VerticalScroll):
                     option = self._options_by_id[option_id]
                     self.query_one(
                         f"#gate-option-{branch_index}-{option_index}", Button
-                    ).label = toggle_label(option, option_id in selected)
+                    ).label = toggle_label(
+                        option, option_id in selected, self._host_collected_properties
+                    )
                 self._update_submit_state(branch_index)
             return
 

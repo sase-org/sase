@@ -151,6 +151,28 @@ def _assign_fields(
     return fields_by_owner, shared_by_owner
 
 
+def option_declared_input_count(
+    option: GateOption,
+    host_collected_properties: Collection[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
+) -> int:
+    """How many inputs this option will collect in the panel.
+
+    Declared ``inputs`` win. Otherwise the count is the option's raw schema
+    properties that a sibling host control does not already collect.
+    """
+    if option.inputs:
+        return len(option.inputs)
+    return len(_raw_properties(option, frozenset(host_collected_properties)))
+
+
+def option_input_count_label(count: int) -> str:
+    """Reviewer-facing ``✎ n input(s)`` wording, or empty when *count* is 0."""
+    if count <= 0:
+        return ""
+    noun = "input" if count == 1 else "inputs"
+    return f"✎ {count} {noun}"
+
+
 def gate_declares_inputs(
     options: Sequence[GateOption], host_collected_properties: frozenset[str]
 ) -> tuple[bool, bool]:
@@ -278,4 +300,6 @@ __all__ = [
     "build_gate_input_request",
     "collect_option_inputs",
     "gate_declares_inputs",
+    "option_declared_input_count",
+    "option_input_count_label",
 ]
