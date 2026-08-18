@@ -2869,21 +2869,34 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 
 ### max_running_agents
 
-The configured global cap on concurrently running slot participants across all projects.
-Participants are top-level user agents—including independently launched clan members—and
-eligible parallel family members. Serial family follow-ups, workflow Python/bash steps,
-and axe Patch runners are excluded; axe runners continue to use their separate
-`axe.max_*_runners` limits. An unanswered participant at `QUESTION` temporarily yields
-its slot. After the user answers, it must reacquire against the current effective cap
-before follow-up work resumes and may therefore appear as a runner-slot `QUEUED` row.
+The configured global cap on concurrently occupied runner slots across all projects. A
+**runner slot is held by one running sase agent.** A standalone agent holds one slot. A
+serial agent family holds one slot for as long as any of its shells is live — the root,
+a serial child, a monitor proc shell, or a post-handoff `--next` agent — regardless of
+which shell that is and whether earlier shells have exited. Independently launched clan
+members each hold one slot. Each live parallel family member holds its own slot.
+
+Holding a slot and waiting for one are separate questions. Roots and live parallel
+family members wait at the admission gate. Serial family members — including monitors
+and monitor follow-ups — inherit the slot their family already holds and never park.
+Workflow Python/bash steps and axe Patch runners hold none of these slots; axe runners
+continue to use their separate `axe.max_*_runners` limits. An unanswered participant at
+`QUESTION` temporarily yields its family's slot. After the user answers, it must
+reacquire against the current effective cap before follow-up work resumes and may
+therefore appear as a runner-slot `QUEUED` row.
+
+On a host that uses monitors heavily, the same `max_running_agents` value now admits
+fewer new agents than it did before this occupancy rule: a monitor is not a way to free
+capacity. Raising the value (persistently in this field, or temporarily from Launch
+Control) is the supported response. The packaged default remains `10`.
 
 ```yaml
 max_running_agents: 10
 ```
 
-| Field                | Type | Default | Minimum | Description                                                   |
-| -------------------- | ---- | ------- | ------- | ------------------------------------------------------------- |
-| `max_running_agents` | int  | `10`    | `1`     | Configured maximum concurrent slot participants on this host. |
+| Field                | Type | Default | Minimum | Description                                                       |
+| -------------------- | ---- | ------- | ------- | ----------------------------------------------------------------- |
+| `max_running_agents` | int  | `10`    | `1`     | Configured maximum concurrent occupied runner slots on this host. |
 
 The effective cap is an active machine-wide temporary override first and this merged
 configured value second. In Launch Control, fixed `Ctrl+R` opens **Max Running Agents**:

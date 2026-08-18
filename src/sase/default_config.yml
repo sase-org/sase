@@ -38,9 +38,12 @@ repos:
     builtin: {}
     custom: {}
 
-# Maximum number of slot-participating user agents that may run concurrently
-# across all projects: top-level user agents and eligible parallel family
-# members. Serial follow-ups, workflow Python/bash steps, and axe runners are
+# Host-wide cap on concurrently occupied runner slots. A running sase
+# agent holds one slot while any of its shells is live: a standalone
+# agent, a serial family (root, serial child, monitor, or --next
+# follow-up), or each live parallel family member. Roots and parallel
+# members wait at the gate; serial family members ride the family's
+# slot and do not wait. Workflow Python/bash steps and axe runners are
 # excluded; axe Patch runners use their separate axe.max_* limits.
 max_running_agents: 10
 

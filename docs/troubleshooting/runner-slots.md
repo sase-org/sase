@@ -4,8 +4,10 @@ An agent shown as `QUEUED` is at an admission boundary: it has finished every
 dependency, bead, and time wait and is holding only for runner capacity. Its threshold
 may come from the effective global `max_running_agents` value (configured default: 10)
 or an authored `%wait(runners=N)`. It may also have received an answer after temporarily
-yielding its slot at `QUESTION`. Participants are top-level user agents—including every
-clan member launched independently—plus parallel family members.
+yielding its slot at `QUESTION`. A runner slot is held by one running sase agent: a
+standalone agent, a serial family (one slot while any of its shells is live — root,
+serial child, monitor, or post-handoff `--next` agent), or each live parallel family
+member. Independently launched clan members each hold one slot.
 
 The ACE Agents header summarizes the same global state as `[R/L · Q queued]`: slots in
 use, effective limit, and live waiters at the runner-slot admission gate. The effective
@@ -20,9 +22,11 @@ later waiters that can run. ACE shows this as a capacity-aware display order: cu
 eligible waiters first, then parked waiters by the threshold that opens soonest, with
 priority/FIFO preserved inside each group. Priority defaults to `10` and does not age,
 so sustained higher-priority arrivals can starve default- or lower-priority waiters.
-Parallel family members participate even when ACE renders them as nested rows. Serial
-family follow-ups are exempt so a running parent can safely wait for child work;
-workflow Python/bash steps and axe Patch runners are exempt as well.
+Parallel family members wait for their own slot even when ACE renders them as nested
+rows. Serial family members — including monitors and monitor follow-ups — do not wait:
+they ride the slot their family already holds, so a running parent can safely wait for
+child work without deadlock and a post-handoff `--next` agent is not a way to escape the
+cap. Workflow Python/bash steps and axe Patch runners hold none of these slots.
 
 The bundled task, epic phase, and lander xprompts used by `sase bead work` do not set an
 authored wait priority. They use the default priority (`10`) once their rendered

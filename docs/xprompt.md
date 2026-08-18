@@ -1812,11 +1812,11 @@ runner-slot gate is the final admission stage. Primary and linked-workspace prep
 starts only after admission, so admitted runner counts include that preparation work.
 
 The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity:
-the agent starts only when at most `N` other slot-participating user agents are holding
-slots. It overrides the effective `max_running_agents - 1` threshold for that launch, so
-it can either lower or raise the effective limit. Among waiters eligible at the current
-running count, the lowest numeric `priority=N` starts first, with FIFO ordering among
-equal priorities. That sort only compares waiters already parked when a slot frees, so a
+the agent starts only when at most `N` other running sase agents are holding slots. It
+overrides the effective `max_running_agents - 1` threshold for that launch, so it can
+either lower or raise the effective limit. Among waiters eligible at the current running
+count, the lowest numeric `priority=N` starts first, with FIFO ordering among equal
+priorities. That sort only compares waiters already parked when a slot frees, so a
 waiter whose priority is numerically worse than the `10` default additionally holds back
 for a bounded deference window rather than claiming the instant it becomes eligible.
 Default- and better-priority waiters (`priority=10` or lower) never defer and start on
@@ -1836,13 +1836,19 @@ may each appear only once across a prompt's `%wait` directives; priority default
 `10`.
 
 Without an explicit `runners=`, the effective global `max_running_agents` value limits
-concurrent slot-participating user agents (configured default `10`; an active
-`~/.sase/max_running_agents_override.json` value wins). Participants are top-level user
-agents—including every clan member launched independently—plus parallel family members,
-even when ACE renders them as nested rows. Immediate participating launches claim a slot
-before workspace preparation; dependency, time, and fork waiters remain uncounted until
-those prerequisites resolve. Serial family follow-ups, workflow Python/bash steps, and
-axe Patch runners do not consume these slots.
+concurrent occupied runner slots (configured default `10`; an active
+`~/.sase/max_running_agents_override.json` value wins). A slot is held by one running
+sase agent: a standalone agent, a serial family (its root, a live serial child, a live
+monitor, or a live post-handoff `--next` agent — one slot for as long as any of those
+shells is live), or each live parallel family member, even when ACE renders the member
+as a nested row. Independently launched clan members each hold one slot.
+
+Holding a slot and waiting for one are separate. Roots and live parallel family members
+wait at this gate. Serial family members — including monitors and monitor follow-ups —
+ride the slot their family already holds and never park here. Immediate participating
+launches claim a slot before workspace preparation; dependency, time, and fork waiters
+remain uncounted until those prerequisites resolve. Workflow Python/bash steps and axe
+Patch runners hold none of these slots.
 
 A slot participant that pauses at `QUESTION` temporarily yields its slot while waiting
 for the user's answer. Answering does not bypass the cap: before follow-up work resumes,

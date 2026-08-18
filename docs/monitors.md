@@ -235,6 +235,22 @@ large or hostile logs when the follow-up should inspect the log explicitly, or
 `--next-output none` when the outcome summary and `sase monitor show --all-lines`
 pointer are enough.
 
+## Runner slots
+
+A monitor is not a way to free runner capacity. The family keeps its one
+[`max_running_agents`](configuration.md#max_running_agents) slot for the monitor's whole
+lifetime and then hands that same slot to the `--next` agent. The starter's runner
+process exits at handoff, but occupancy stays continuous: the monitor member counts as
+soon as it has a recorded supervisor pid, and the follow-up inherits the family's slot
+instead of waiting at the admission gate. A fire-and-forget monitor (no `--next`) still
+holds the slot until the command settles. In-process successors such as `sase pipe` keep
+the same family's slot as well; they never become a second occupant.
+
+Holding a slot and waiting for one stay separate. Only a root or a live parallel family
+member parks at the gate. Serial family members — the monitor and its `--next` agent
+included — ride the slot the family already holds. See
+[Agent queued for a runner slot](troubleshooting/runner-slots.md).
+
 ## Inspecting and stopping monitors
 
 ```bash
@@ -396,3 +412,5 @@ necessary. See the `/sase_pipe` skill for the command's flags and hazards.
   into a sequential agent family.
 - [CLI Reference](cli.md) for the full `sase monitor` command table.
 - [ACE TUI User Guide](ace.md) for how monitor rows render in the Agents tab.
+- [Agent queued for a runner slot](troubleshooting/runner-slots.md) for occupancy versus
+  admission, including why a monitor still counts against `max_running_agents`.

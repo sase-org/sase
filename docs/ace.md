@@ -1303,6 +1303,12 @@ Behavior depends on the agent's status:
   priority to kill and restart the current agent with a canonical `%wait(...)`
   directive.
 
+The **Runners** field is an admission threshold against the sase-agent occupancy count
+`R` in the Agents header, not a count of individual shells. A serial family — including
+its monitor and `--next` follow-up — still occupies one slot, so it still counts against
+this threshold. Only a root or a live parallel family member waits here; a serial family
+member rides the family's slot and never parks.
+
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
 first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
 interacts with FIFO order and the bounded deference window applied to deprioritized
@@ -1775,17 +1781,20 @@ contributes one sase agent even though it is not selectable yet. Grouping mode, 
 ownership, and fold state do not change this projection.
 
 The sase-agent total is followed by an always-visible capacity chip in the form
-`[R/L · Q queued]`: `R` is the global number of slot-participating user agents currently
-holding runner slots, `L` is the current effective `max_running_agents` limit (temporary
-override first, configured value second), and `Q` counts every live agent parked at the
-runner-slot admission gate, whether its threshold comes from that effective cap or an
-authored `%wait(runners=N)`. Slot participants are top-level user agents—including every
-clan member launched independently—plus parallel family members. Serial family
-follow-ups, workflow Python/bash steps, and axe Patch runners do not participate. The
-occupancy count `R` always renders green, so it reads as a plain count; capacity
-pressure is carried by `L`, which escalates from dim through gold at half the limit,
-orange at three quarters, and red once `R` reaches or passes it. A nonzero queue count
-is cornflower blue.
+`[R/L · Q queued]`: `R` is the global number of runner slots currently held — the same
+occupancy the admission gate uses — `L` is the current effective `max_running_agents`
+limit (temporary override first, configured value second), and `Q` counts every live
+agent parked at the runner-slot admission gate, whether its threshold comes from that
+effective cap or an authored `%wait(runners=N)`. A standalone agent holds one slot. A
+serial family holds one slot for as long as any of its shells is live (root, serial
+child, monitor proc shell, or post-handoff `--next` agent). Independently launched clan
+members each hold one slot. Each live parallel family member holds its own slot. Roots
+and parallel members wait at the gate; serial family members ride the family's slot and
+do not appear in `Q`. Workflow Python/bash steps and axe Patch runners hold none of
+these slots. The occupancy count `R` always renders green, so it reads as a plain count;
+capacity pressure is carried by `L`, which escalates from dim through gold at half the
+limit, orange at three quarters, and red once `R` reaches or passes it. A nonzero queue
+count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
