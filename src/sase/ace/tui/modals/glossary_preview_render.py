@@ -99,6 +99,71 @@ def build_see_also_chips(
     return text
 
 
+def build_relation_chip_rows(
+    outbound: tuple[GlossaryEntry, ...],
+    inbound: tuple[GlossaryEntry, ...],
+    *,
+    focused_number: int | None,
+    accent: str,
+) -> RenderableType | None:
+    """Build the numbered SEE ALSO / REFERENCED BY chip rows.
+
+    Numbering is continuous across both rows -- SEE ALSO starts at 1 and
+    REFERENCED BY continues from ``len(outbound) + 1`` -- so a digit
+    shortcut is never ambiguous. A row with no members is omitted rather
+    than rendered empty. Returns ``None`` when both rows are empty.
+    """
+    rows: list[tuple[str, Text]] = []
+    if outbound:
+        rows.append(
+            (
+                "SEE ALSO",
+                _numbered_chips(
+                    outbound, start=1, focused_number=focused_number, accent=accent
+                ),
+            )
+        )
+    if inbound:
+        rows.append(
+            (
+                "REFERENCED BY",
+                _numbered_chips(
+                    inbound,
+                    start=len(outbound) + 1,
+                    focused_number=focused_number,
+                    accent=accent,
+                ),
+            )
+        )
+    if not rows:
+        return None
+    grid = Table.grid(expand=True, padding=(0, 2, 0, 0))
+    grid.add_column(no_wrap=True)
+    grid.add_column(ratio=1, overflow="fold")
+    for label, chips in rows:
+        grid.add_row(Text(label, style=_COLOR_LABEL), chips)
+    return grid
+
+
+def _numbered_chips(
+    entries: tuple[GlossaryEntry, ...],
+    *,
+    start: int,
+    focused_number: int | None,
+    accent: str,
+) -> Text:
+    text = Text()
+    for offset, entry in enumerate(entries):
+        number = start + offset
+        _append_chip(
+            text,
+            f"{number} {entry.term}",
+            accent=accent,
+            focused=number == focused_number,
+        )
+    return text
+
+
 def build_property_grid(
     entry: GlossaryEntry,
     *,
@@ -249,10 +314,15 @@ def _as_glossary_catalog(catalog: Any) -> GlossaryCatalog:
     )
 
 
-def _append_chip(text: Text, label: str, *, accent: str) -> None:
+def _append_chip(text: Text, label: str, *, accent: str, focused: bool = False) -> None:
     if text.plain:
         text.append(" ")
-    text.append(f" {label} ", style=f"bold {_PILL_FOREGROUND} on {accent}")
+    style = (
+        f"bold {accent} on {_PILL_FOREGROUND}"
+        if focused
+        else f"bold {_PILL_FOREGROUND} on {accent}"
+    )
+    text.append(f" {label} ", style=style)
 
 
 def _format_match_count(entry: GlossaryEntry, effective_count: int) -> str:
@@ -296,6 +366,7 @@ __all__ = [
     "build_alias_chips",
     "build_glossary_title",
     "build_property_grid",
+    "build_relation_chip_rows",
     "build_see_also_chips",
     "glossary_card_accent",
     "glossary_cross_references",

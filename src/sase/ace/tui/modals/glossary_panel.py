@@ -1,11 +1,12 @@
 """The Glossary panel -- browse one project's glossary terms.
 
-This phase delivers the modal shell: header, alphabetical term list, filter,
-the definition card (minus the relation chip rows the travel phase adds),
-and `p`/`P` project cycling. Actions the later travel and actions phases
-implement (relation chips, add, delete) are declared here as stubs so the
-keymap surface -- ``GlossaryPanelKeymaps`` and this screen's bindings -- is
-settled once.
+Beyond the modal shell (header, alphabetical term list, filter, `p`/`P`
+project cycling), this module renders the definition card's numbered SEE
+ALSO / REFERENCED BY relation chips and implements the second navigation
+axis: the chip cursor, digit shortcuts, follow/back travel, and the bounded
+breadcrumb trail. Actions the later actions phase implements (add, delete)
+are declared here as stubs so the keymap surface -- ``GlossaryPanelKeymaps``
+and this screen's bindings -- is settled once.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.glossary_panel_catalog import (
     GlossaryProjectRef,
     GlossaryProjectSnapshot,
+    glossary_entry_relations,
     invalidate_glossary_project,
     load_glossary_project_snapshot,
 )
@@ -56,6 +58,7 @@ from .glossary_panel_rendering import (
     build_panel_footer,
     build_panel_header,
     build_term_row_text,
+    build_trail_strip,
     sorted_glossary_entries,
 )
 from .glossary_preview_render import (
@@ -67,6 +70,7 @@ from .glossary_preview_render import (
 
 _TERM_LIST_ID = "glossary-panel-terms"
 _FILTER_INPUT_ID = "glossary-panel-filter"
+_MAX_TRAIL_LENGTH = 32
 
 
 class _GlossaryFilterInput(FilterInput):
@@ -98,6 +102,14 @@ class GlossaryPanel(
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
+        *(
+            (
+                str(number),
+                f"follow_relation_number({number})",
+                f"Follow relation {number}",
+            )
+            for number in range(1, 10)
+        ),
     ]
 
     def __init__(
@@ -131,6 +143,10 @@ class GlossaryPanel(
         self._selection_guard = ProgrammaticSelectionGuard()
         self._debouncer: DetailPanelDebouncer | None = None
         self._project_selection_memory: dict[str, str] = {}
+        self._chip_entries: tuple[GlossaryEntry, ...] = ()
+        self._chip_outbound_count = 0
+        self._chip_cursor: int | None = None
+        self._trail: list[str] = []
 
     def compose(self) -> ComposeResult:
         self._accent = glossary_card_accent(self.app.current_theme)
@@ -146,11 +162,13 @@ class GlossaryPanel(
                 placeholder="Filter terms and aliases…",
                 id=_FILTER_INPUT_ID,
             )
+            yield Static("", id="glossary-panel-trail")
             yield Static("", id="glossary-panel-footer")
 
     def on_mount(self) -> None:
         self._debouncer = DetailPanelDebouncer(self.app)
         self._filter_input().display = False
+        self._trail_strip().display = False
         self._term_list().focus()
         self._start_initial_load()
 
@@ -290,6 +308,7 @@ class GlossaryPanel(
             self._current_term = identity
         else:
             self._current_term = None
+        self._refresh_relations_for_current_entry()
         self._render_definition_card()
 
     # --- rendering --------------------------------------------------------
@@ -322,15 +341,38 @@ class GlossaryPanel(
             and self._snapshot.catalog is not None
             and glossary_source_path(self._snapshot.catalog, entry) is not None
         )
+        focused_relation_term = None
+        if self._chip_cursor is not None and 0 <= self._chip_cursor < len(
+            self._chip_entries
+        ):
+            focused_relation_term = self._chip_entries[self._chip_cursor].term
         footer = build_panel_footer(
             self._keymaps,
             has_entries=bool(self._entries),
             has_source_path=has_source_path,
             ring_size=len(self._ring),
+            has_relations=bool(self._chip_entries),
+            has_trail=bool(self._trail),
+            focused_relation_term=focused_relation_term,
         )
         self.query_one("#glossary-panel-footer", Static).update(footer)
 
+    def _trail_strip(self) -> Static:
+        return self.query_one("#glossary-panel-trail", Static)
+
+    def _update_trail_strip(self) -> None:
+        trail_widget = self._trail_strip()
+        if not self._trail or self._current_term is None:
+            trail_widget.display = False
+            trail_widget.update("")
+            return
+        trail_widget.display = True
+        trail_widget.update(
+            build_trail_strip((*self._trail, self._current_term), accent=self._accent)
+        )
+
     def _render_definition_card(self) -> None:
+        self._update_trail_strip()
         title_widget = self.query_one("#glossary-panel-card-title", Static)
         definition_widget = self.query_one("#glossary-panel-card-definition", Markdown)
         meta_widget = self.query_one("#glossary-panel-card-meta", Static)
@@ -380,9 +422,20 @@ class GlossaryPanel(
             )
         )
         definition_widget.update(glossary_definition_markdown(snapshot.catalog, entry))
+        outbound = self._chip_entries[: self._chip_outbound_count]
+        inbound = self._chip_entries[self._chip_outbound_count :]
+        focused_relation_number = (
+            self._chip_cursor + 1 if self._chip_cursor is not None else None
+        )
         meta_widget.update(
             build_definition_card_meta(
-                snapshot.catalog, entry, project_name=project_name, accent=self._accent
+                snapshot.catalog,
+                entry,
+                project_name=project_name,
+                accent=self._accent,
+                outbound=outbound,
+                inbound=inbound,
+                focused_relation_number=focused_relation_number,
             )
         )
 
@@ -426,6 +479,7 @@ class GlossaryPanel(
         ):
             return
         self._current_term = identity
+        self._refresh_relations_for_current_entry()
         self._update_footer()
         if self._debouncer is not None:
             self._debouncer.schedule(self._render_definition_card)
@@ -506,6 +560,7 @@ class GlossaryPanel(
         self._project_index = (self._project_index + delta) % len(self._ring)
         self._filter_input().value = ""
         self._filter_input().display = False
+        self._trail = []
         self._start_project_load()
 
     def action_refresh(self) -> None:
@@ -554,19 +609,97 @@ class GlossaryPanel(
     def action_close(self) -> None:
         self.dismiss(None)
 
-    # --- stubs: implemented by the travel and actions phases -----------
+    # --- relation travel --------------------------------------------------
+
+    def _refresh_relations_for_current_entry(self) -> None:
+        """Recompute this entry's chip list and reset the chip cursor.
+
+        Called whenever the selected term changes, so the chip cursor never
+        survives a jump to a different entry's relations.
+        """
+        self._chip_cursor = None
+        entry = self._selected_entry()
+        if entry is None or self._snapshot is None or self._snapshot.catalog is None:
+            self._chip_entries = ()
+            self._chip_outbound_count = 0
+            return
+        outbound, inbound = glossary_entry_relations(self._snapshot, entry)
+        self._chip_entries = outbound + inbound
+        self._chip_outbound_count = len(outbound)
 
     def action_next_relation(self) -> None:
-        """Stub: the relation-chip cursor arrives in the travel phase."""
+        if not self._chip_entries:
+            return
+        if self._chip_cursor is None:
+            self._chip_cursor = 0
+        else:
+            self._chip_cursor = (self._chip_cursor + 1) % len(self._chip_entries)
+        self._render_definition_card()
+        self._update_footer()
 
     def action_prev_relation(self) -> None:
-        """Stub: the relation-chip cursor arrives in the travel phase."""
+        if not self._chip_entries:
+            return
+        if self._chip_cursor is None:
+            self._chip_cursor = len(self._chip_entries) - 1
+        else:
+            self._chip_cursor = (self._chip_cursor - 1) % len(self._chip_entries)
+        self._render_definition_card()
+        self._update_footer()
 
     def action_follow_relation(self) -> None:
-        """Stub: relation travel arrives in the travel phase."""
+        self._follow_relation_index(
+            self._chip_cursor if self._chip_cursor is not None else 0
+        )
+
+    def action_follow_relation_number(self, number: int) -> None:
+        self._follow_relation_index(number - 1)
+
+    def _follow_relation_index(self, index: int) -> None:
+        if not self._chip_entries or not 0 <= index < len(self._chip_entries):
+            return
+        self._travel_forward(self._chip_entries[index].term)
+
+    def _travel_forward(self, target_term: str) -> None:
+        if self._current_term is None or target_term == self._current_term:
+            return
+        self._trail.append(self._current_term)
+        if len(self._trail) > _MAX_TRAIL_LENGTH:
+            del self._trail[0]
+        self._land_on_term(target_term)
 
     def action_travel_back(self) -> None:
-        """Stub: the back trail arrives in the travel phase."""
+        while self._trail:
+            term = self._trail.pop()
+            if any(entry.term == term for entry in self._all_entries):
+                self._land_on_term(term)
+                return
+
+    def _land_on_term(self, term: str) -> None:
+        if self._select_term_by_identity(term):
+            self._render_definition_card()
+            self._update_footer()
+        else:
+            self.notify(f'Filter cleared to show "{term}"')
+            self._filter_input().value = ""
+            self._apply_filter("", definitions=False, preferred_term=term)
+        self.query_one("#glossary-panel-detail", VerticalScroll).scroll_home(
+            animate=False
+        )
+
+    def _select_term_by_identity(self, term: str) -> bool:
+        """Move the term-list highlight to *term* if it is currently visible."""
+        option_list = self._term_list()
+        for row, entry in enumerate(self._entries):
+            if entry.term == term:
+                self._selection_guard.prepare(term, row)
+                option_list.highlighted = row
+                self._current_term = term
+                self._refresh_relations_for_current_entry()
+                return True
+        return False
+
+    # --- stubs: implemented by the actions phase ------------------------
 
     def action_add_term(self) -> None:
         """Stub: the add form arrives in the actions phase."""

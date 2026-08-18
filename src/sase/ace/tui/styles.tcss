@@ -5234,6 +5234,13 @@ GlossaryPanel #glossary-panel-filter {
     border: tall $accent;
 }
 
+GlossaryPanel #glossary-panel-trail {
+    height: auto;
+    margin-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 GlossaryPanel #glossary-panel-footer {
     text-align: center;
     color: $text-muted;

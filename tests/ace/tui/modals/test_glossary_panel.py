@@ -78,8 +78,54 @@ class _CompiledGlossary:
         return []
 
 
+class _ScanningCompiledGlossary:
+    """Substring-matches configured entries' terms, for outbound-chip tests."""
+
+    def __init__(self, entries: tuple[GlossaryEntry, ...]) -> None:
+        self._entries = entries
+
+    def scan(self, text: str) -> list[dict[str, Any]]:
+        spans: list[dict[str, Any]] = []
+        for entry in self._entries:
+            start = text.find(entry.term)
+            if start == -1:
+                continue
+            spans.append(_span_at(entry.index, entry.term, start=start))
+        return spans
+
+
+def _span_at(entry_index: int, matched_text: str, *, start: int) -> dict[str, Any]:
+    end = start + len(matched_text)
+    return {
+        "term": matched_text,
+        "entry_index": entry_index,
+        "alias_index": 0,
+        "alias": matched_text,
+        "matched_text": matched_text,
+        "byte_start": start,
+        "byte_end": end,
+        "range": {
+            "start": {"line": 0, "character": start},
+            "end": {"line": 0, "character": end},
+        },
+        "segments": [
+            {
+                "byte_start": start,
+                "byte_end": end,
+                "range": {
+                    "start": {"line": 0, "character": start},
+                    "end": {"line": 0, "character": end},
+                },
+            }
+        ],
+    }
+
+
 def _catalog(
-    ref: GlossaryProjectRef, entries: tuple[GlossaryEntry, ...]
+    ref: GlossaryProjectRef,
+    entries: tuple[GlossaryEntry, ...],
+    *,
+    scanning: bool = False,
 ) -> EditorGlossaryCatalog:
     config_path = Path(f"/tmp/{ref.key}/sase.yml")
     return EditorGlossaryCatalog(
@@ -92,7 +138,9 @@ def _catalog(
             path=str(config_path), mtime_ns=1, size=1
         ),
         catalog=GlossaryCatalog(schema_version=1, entries=entries),
-        compiled=_CompiledGlossary(),
+        compiled=_ScanningCompiledGlossary(entries)
+        if scanning
+        else _CompiledGlossary(),
     )
 
 
@@ -101,10 +149,15 @@ def _snapshot(
     entries: tuple[GlossaryEntry, ...] = (),
     *,
     diagnostics: tuple[str, ...] = (),
+    reverse_references: dict[int, tuple[str, ...]] | None = None,
+    scanning: bool = False,
 ) -> GlossaryProjectSnapshot:
-    catalog = _catalog(ref, entries) if entries else None
+    catalog = _catalog(ref, entries, scanning=scanning) if entries else None
     return GlossaryProjectSnapshot(
-        project=ref, catalog=catalog, reverse_references={}, diagnostics=diagnostics
+        project=ref,
+        catalog=catalog,
+        reverse_references=reverse_references or {},
+        diagnostics=diagnostics,
     )
 
 
@@ -342,3 +395,262 @@ async def test_term_list_option_list_widget_exists(
         await wait_for(pilot, lambda: not panel._loading)
         option_list = panel.query_one("#glossary-panel-terms", OptionList)
         assert option_list.option_count == 1
+
+
+# --- travel: relation chips, digit shortcuts, and the back trail ----------
+
+
+async def test_relation_chip_numbering_is_continuous_across_both_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (
+        _entry(0, "Alpha", definition="Alpha mentions Beta and Gamma."),
+        _entry(1, "Beta"),
+        _entry(2, "Gamma"),
+        _entry(3, "Delta"),
+    )
+    snapshot = _snapshot(
+        ref, entries, reverse_references={0: ("Delta",)}, scanning=True
+    )
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == "Alpha"
+        assert [entry.term for entry in panel._chip_entries] == [
+            "Beta",
+            "Gamma",
+            "Delta",
+        ]
+        assert panel._chip_outbound_count == 2
+
+        meta = _static_text(panel, "glossary-panel-card-meta")
+        assert "SEE ALSO" in meta
+        assert "REFERENCED BY" in meta
+        assert "1 Beta" in meta
+        assert "2 Gamma" in meta
+        assert "3 Delta" in meta
+
+
+async def test_digit_follows_referenced_by_chip_when_see_also_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "AAA Leaf"), _entry(1, "BBB Ref"), _entry(2, "CCC Ref"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("BBB Ref", "CCC Ref")})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == "AAA Leaf"
+        assert panel._chip_outbound_count == 0
+        assert [entry.term for entry in panel._chip_entries] == [
+            "BBB Ref",
+            "CCC Ref",
+        ]
+
+        await pilot.press("2")
+        await wait_for(pilot, lambda: panel._current_term == "CCC Ref")
+        assert panel._trail == ["AAA Leaf"]
+
+
+async def test_tab_moves_chip_cursor_and_wraps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Leaf"), _entry(1, "X"), _entry(2, "Y"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("X", "Y")})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._chip_cursor is None
+
+        await pilot.press("tab")
+        assert panel._chip_cursor == 0
+        await pilot.press("tab")
+        assert panel._chip_cursor == 1
+        await pilot.press("tab")
+        assert panel._chip_cursor == 0
+
+
+async def test_follow_moves_term_cursor_and_pushes_trail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Leaf"), _entry(1, "X"), _entry(2, "Y"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("X", "Y")})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("tab")
+        assert panel._chip_cursor == 0
+        await pilot.press("l")
+        await wait_for(pilot, lambda: panel._current_term == "X")
+        assert panel._trail == ["Leaf"]
+        assert panel._chip_cursor is None
+
+
+async def test_follow_through_active_filter_clears_it_and_lands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Leaf"), _entry(1, "X"), _entry(2, "Y"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("X",)})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("slash")
+        await wait_for(pilot, lambda: panel._filter_input().display)
+        for char in "leaf":
+            await pilot.press(char)
+        await wait_for(pilot, lambda: [e.term for e in panel._entries] == ["Leaf"])
+
+        await pilot.press("escape")
+        await wait_for(pilot, lambda: not panel._filter_input().display)
+
+        await pilot.press("l")
+        await wait_for(pilot, lambda: panel._current_term == "X")
+        assert panel._filter_text == ""
+        assert [e.term for e in panel._entries] == ["Leaf", "X", "Y"]
+
+
+async def test_back_restores_previous_term_and_pops_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "A"), _entry(1, "B"), _entry(2, "C"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("B",), 1: ("C",)})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == "A"
+
+        panel._travel_forward("B")
+        await wait_for(pilot, lambda: panel._current_term == "B")
+        panel._travel_forward("C")
+        await wait_for(pilot, lambda: panel._current_term == "C")
+        assert panel._trail == ["A", "B"]
+
+        await pilot.press("h")
+        await wait_for(pilot, lambda: panel._current_term == "B")
+        assert panel._trail == ["A"]
+
+        await pilot.press("h")
+        await wait_for(pilot, lambda: panel._current_term == "A")
+        assert panel._trail == []
+
+
+async def test_back_on_empty_trail_is_a_no_op(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Agent Hood"),)
+    _install_fixed_load(monkeypatch, (ref,), {"sase": _snapshot(ref, entries)})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("h")
+        await pilot.pause()
+        assert panel._current_term == "Agent Hood"
+        assert panel._trail == []
+
+
+async def test_trail_is_bounded_at_32(monkeypatch: pytest.MonkeyPatch) -> None:
+    ref = _ref("sase", "sase")
+    terms = [f"Term{index:02d}" for index in range(41)]
+    entries = tuple(_entry(index, term) for index, term in enumerate(terms))
+    _install_fixed_load(monkeypatch, (ref,), {"sase": _snapshot(ref, entries)})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == terms[0]
+
+        for term in terms[1:]:
+            panel._travel_forward(term)
+        await pilot.pause()
+
+        assert panel._current_term == terms[-1]
+        assert len(panel._trail) == 32
+        assert panel._trail[0] == terms[8]
+        assert panel._trail[-1] == terms[39]
+
+
+async def test_project_cycling_clears_the_trail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref_a = _ref("proj-a", "Alpha")
+    ref_b = _ref("proj-b", "Beta")
+    entries_a = (_entry(0, "A"), _entry(1, "B"))
+    snapshots = {
+        "proj-a": _snapshot(ref_a, entries_a, reverse_references={0: ("B",)}),
+        "proj-b": _snapshot(ref_b, (_entry(0, "Only In Beta"),)),
+    }
+    _install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        panel._travel_forward("B")
+        await wait_for(pilot, lambda: panel._current_term == "B")
+        assert panel._trail == ["A"]
+
+        await pilot.press("p")
+        await wait_for(pilot, lambda: not panel._loading and panel._project_index == 1)
+        assert panel._trail == []
+
+
+async def test_back_skips_a_deleted_trail_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Real"), _entry(1, "Other"))
+    _install_fixed_load(monkeypatch, (ref,), {"sase": _snapshot(ref, entries)})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        panel._trail = ["Real", "Ghost"]
+
+        await pilot.press("h")
+        await wait_for(pilot, lambda: panel._current_term == "Real")
+        assert panel._trail == []
+
+
+async def test_reverse_references_make_inbound_only_term_reachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (_entry(0, "Leaf"), _entry(1, "Referencer"))
+    snapshot = _snapshot(ref, entries, reverse_references={0: ("Referencer",)})
+    _install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == "Leaf"
+        assert panel._chip_outbound_count == 0
+        assert [entry.term for entry in panel._chip_entries] == ["Referencer"]

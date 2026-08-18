@@ -12,6 +12,7 @@ from sase.ace.tui.modals.glossary_preview_render import (
     build_alias_chips,
     build_glossary_title,
     build_property_grid,
+    build_relation_chip_rows,
     glossary_definition_markdown,
     glossary_cross_references,
     glossary_source_display,
@@ -123,6 +124,41 @@ def test_title_renders_wrapped_alias_match_on_one_line() -> None:
 
     assert 'matched "agent family"' in text
     assert "agent\n  family" not in text
+
+
+def test_relation_chip_rows_number_continuously_across_rows() -> None:
+    outbound = (_entry(1, "Beta"), _entry(2, "Gamma"))
+    inbound = (_entry(3, "Delta"),)
+
+    text = _render_text(
+        build_relation_chip_rows(
+            outbound, inbound, focused_number=None, accent="#87D7FF"
+        )
+    )
+
+    assert "SEE ALSO" in text
+    assert "REFERENCED BY" in text
+    assert "1 Beta" in text
+    assert "2 Gamma" in text
+    assert "3 Delta" in text
+
+
+def test_relation_chip_rows_omit_empty_row() -> None:
+    inbound = (_entry(1, "Delta"),)
+
+    text = _render_text(
+        build_relation_chip_rows((), inbound, focused_number=None, accent="#87D7FF")
+    )
+
+    assert "SEE ALSO" not in text
+    assert "REFERENCED BY" in text
+    assert "1 Delta" in text
+
+
+def test_relation_chip_rows_return_none_when_both_empty() -> None:
+    assert (
+        build_relation_chip_rows((), (), focused_number=None, accent="#87D7FF") is None
+    )
 
 
 def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:

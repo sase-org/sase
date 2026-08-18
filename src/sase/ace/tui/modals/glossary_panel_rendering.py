@@ -18,6 +18,7 @@ from sase.ace.tui.modals.glossary_preview_render import (
     build_alias_chips,
     build_glossary_title,
     build_property_grid,
+    build_relation_chip_rows,
     glossary_source_display,
 )
 from sase.core.glossary_facade import GlossaryEntry
@@ -74,8 +75,11 @@ def build_definition_card_meta(
     *,
     project_name: str,
     accent: str,
+    outbound: tuple[GlossaryEntry, ...] = (),
+    inbound: tuple[GlossaryEntry, ...] = (),
+    focused_relation_number: int | None = None,
 ) -> RenderableType:
-    """Build the alias chips and property grid below the definition body."""
+    """Build the chip rows and property grid below the definition body."""
     sections: list[RenderableType] = []
     alias_chips = build_alias_chips(entry.display_aliases, accent=accent)
     if alias_chips is not None:
@@ -84,6 +88,12 @@ def build_definition_card_meta(
         grid.add_column(ratio=1, overflow="fold")
         grid.add_row(Text("ALSO KNOWN AS", style=_COLOR_LABEL), alias_chips)
         sections.append(grid)
+
+    relation_rows = build_relation_chip_rows(
+        outbound, inbound, focused_number=focused_relation_number, accent=accent
+    )
+    if relation_rows is not None:
+        sections.append(relation_rows)
 
     sections.append(Text("-" * 44, style="dim"))
     sections.append(
@@ -147,6 +157,9 @@ def build_panel_footer(
     has_entries: bool,
     has_source_path: bool,
     ring_size: int,
+    has_relations: bool = False,
+    has_trail: bool = False,
+    focused_relation_term: str | None = None,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps."""
     parts = [
@@ -158,6 +171,13 @@ def build_panel_footer(
             f"{key_display_name(keymaps.next_project)}/"
             f"{key_display_name(keymaps.prev_project)} project"
         )
+    if has_relations:
+        parts.append(f"{key_display_name(keymaps.next_relation)} relation")
+        parts.append(f"{key_display_name(keymaps.follow_relation)} follow")
+        if focused_relation_term:
+            parts.append(f"→ {focused_relation_term}")
+    if has_trail:
+        parts.append(f"{key_display_name(keymaps.travel_back)} back")
     if has_entries:
         parts.append(f"{key_display_name(keymaps.copy_definition)} copy")
     if has_source_path:
@@ -169,6 +189,25 @@ def build_panel_footer(
     return "  ·  ".join(parts)
 
 
+def build_trail_strip(
+    path: tuple[str, ...], *, accent: str, max_width: int = 70
+) -> Text:
+    """Build the ``TRAIL  A › B › C`` breadcrumb strip.
+
+    Once the plain joined path would exceed *max_width*, the middle is
+    elided with ``…`` while the first entry and the two most recent stay
+    visible, per the plan's bounded-breadcrumb rule.
+    """
+    text = Text()
+    text.append("TRAIL  ", style=f"bold {accent}")
+    full = " › ".join(path)
+    if len(full) <= max_width or len(path) <= 3:
+        text.append(full)
+    else:
+        text.append(f"{path[0]} › … › {' › '.join(path[-2:])}")
+    return text
+
+
 __all__ = [
     "build_definition_card_meta",
     "build_definition_card_title",
@@ -178,5 +217,6 @@ __all__ = [
     "build_panel_footer",
     "build_panel_header",
     "build_term_row_text",
+    "build_trail_strip",
     "sorted_glossary_entries",
 ]
