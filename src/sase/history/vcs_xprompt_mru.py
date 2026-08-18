@@ -12,8 +12,17 @@ _MRU_FILE: Path | None = None
 _MAX_ENTRIES = 100
 
 
-def _mru_file() -> Path:
+def vcs_xprompt_mru_path() -> Path:
+    """Return the on-disk VCS xprompt MRU path.
+
+    Honors the module-level ``_MRU_FILE`` test hook so isolated tests and
+    the current-project peek share one override.
+    """
     return _MRU_FILE or sase_home() / "vcs_xprompt_mru.json"
+
+
+def _mru_file() -> Path:
+    return vcs_xprompt_mru_path()
 
 
 def _load_vcs_xprompt_mru() -> list[str]:

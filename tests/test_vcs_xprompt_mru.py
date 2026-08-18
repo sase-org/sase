@@ -12,6 +12,7 @@ from sase.history.vcs_xprompt_mru import (
     load_launchable_vcs_xprompt_mru_pairs,
     _load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
+    vcs_xprompt_mru_path,
 )
 from sase.workspace_provider import reset_workflow_metadata_caches
 from sase.workspace_provider._hookspec import WorkflowMetadata
@@ -82,6 +83,23 @@ def _reset_display_name_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.project_display_names as pdn
 
     monkeypatch.setattr(pdn, "_PROJECT_DISPLAY_NAME_CACHE", None)
+
+
+def test_vcs_xprompt_mru_path_follows_sase_home() -> None:
+    from sase.core.paths import sase_home
+
+    assert vcs_xprompt_mru_path() == sase_home() / "vcs_xprompt_mru.json"
+
+
+def test_vcs_xprompt_mru_path_honors_mru_file_hook(tmp_path: Path) -> None:
+    fake = tmp_path / "vcs_xprompt_mru.json"
+    with patch.object(
+        __import__("sase.history.vcs_xprompt_mru", fromlist=["_MRU_FILE"]),
+        "_MRU_FILE",
+        fake,
+    ):
+        assert vcs_xprompt_mru_path() == fake
+        assert _load_vcs_xprompt_mru() == []
 
 
 def test_load_empty_when_file_missing(tmp_path: Path) -> None:
