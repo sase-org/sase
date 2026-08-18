@@ -349,6 +349,48 @@ def test_settled_monitor_badge_is_panel_scoped() -> None:
     assert banana_title.plain == "@banana · 1 [R1]"
 
 
+def test_running_monitor_badge_is_panel_scoped() -> None:
+    apple_root = _agent(name="apple-family", tribe="apple", suffix="apple-root")
+    apple_root.agent_family = "apple-family"
+    apple_root.agent_family_role = "root"
+    apple_running_monitor = _agent(
+        name="apple-family--mon-run",
+        tribe="apple",
+        suffix="apple-mon-run",
+        parent_timestamp=apple_root.raw_suffix,
+    )
+    apple_running_monitor.agent_family = "apple-family"
+    apple_running_monitor.agent_family_role = "monitor"
+    apple_running_monitor.role_suffix = "--mon"
+    apple_running_monitor.monitor_id = "m1"
+    apple_running_monitor.monitor_state = "running"
+    apple_done_monitor = _agent(
+        name="apple-family--mon-done",
+        tribe="apple",
+        suffix="apple-mon-done",
+        parent_timestamp=apple_root.raw_suffix,
+    )
+    apple_done_monitor.agent_family = "apple-family"
+    apple_done_monitor.agent_family_role = "monitor"
+    apple_done_monitor.role_suffix = "--mon"
+    apple_done_monitor.monitor_id = "m2"
+    apple_done_monitor.monitor_state = "completed"
+    apple_root.followup_agents = [apple_running_monitor, apple_done_monitor]
+    apple_root.runtime_children = [apple_running_monitor, apple_done_monitor]
+
+    banana_agent = _agent(name="banana", tribe="banana", suffix="banana-1")
+
+    agents = [apple_root, apple_running_monitor, apple_done_monitor, banana_agent]
+    app = _FakeApp(agents)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    apple_title = _title_text(app._panel_widgets["agent-list-panel"])
+    banana_title = _title_text(app._panel_widgets["agent-list-panel-1"])
+    assert apple_title.plain == "@apple · 1 [R1] ⚙1 ⚙1"
+    assert banana_title.plain == "@banana · 1 [R1]"
+
+
 def test_grouped_panel_title_uses_all_agents_label_with_counts() -> None:
     agents = [
         _agent(name="no_tribe", suffix="u1", status="RUNNING"),

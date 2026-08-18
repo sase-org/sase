@@ -78,7 +78,7 @@ async def test_settled_monitor_lane_badge_png_snapshot(
         assert_page_svg_contains(page, "⚙1")
         assert_page_svg_contains(page, "⚙3")
         panel = page.app.query_one("#agent-list-panel", AgentList)
-        assert Text.from_markup(panel.border_title).plain == "⌂ @default · 1 [R1] ⚙3"
+        assert Text.from_markup(panel.border_title).plain == "⌂ @default · 1 [R1] ⚙1 ⚙3"
         ace_png_visual.assert_page_png(
             page,
             "agents_settled_monitor_lane_badge_120x40",

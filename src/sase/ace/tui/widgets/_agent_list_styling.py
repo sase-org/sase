@@ -1,7 +1,11 @@
 """Constants, colors, and icons for the agent list widget."""
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
-from sase.monitor_state import MONITOR_GLYPH, MONITOR_SETTLED_GLYPH_COLOR
+from sase.monitor_state import (
+    MONITOR_GLYPH,
+    MONITOR_GLYPH_COLOR,
+    MONITOR_SETTLED_GLYPH_COLOR,
+)
 
 from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ..models.agent import AgentType
@@ -91,9 +95,9 @@ _STEP_RUN_GLYPH = "❯"
 _STEP_TYPE_GLYPHS: dict[str, str] = {"python": _STEP_RUN_GLYPH, "bash": _STEP_RUN_GLYPH}
 
 _MONITOR_GLYPH = MONITOR_GLYPH
-_MONITOR_GLYPH_STYLE = "bold #FFAF5F"
-_MONITOR_ROW_STYLE = "#FFAF5F"
-_MONITOR_COUNT_GLYPH_STYLE = "bold #FFAF5F"
+_MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
+_MONITOR_ROW_STYLE = MONITOR_GLYPH_COLOR
+_MONITOR_COUNT_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 
 # Settled (finished) monitor lane. Deliberately non-bold, unlike the running
 # lane above: hue *and* weight both separate the quieter settled badge from

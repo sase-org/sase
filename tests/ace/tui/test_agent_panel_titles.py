@@ -17,7 +17,7 @@ from sase.ace.tui.actions.agents._display_panels import (
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_family_members import monitor_lane_counts
-from sase.monitor_state import MONITOR_SETTLED_GLYPH_COLOR
+from sase.monitor_state import MONITOR_GLYPH_COLOR, MONITOR_SETTLED_GLYPH_COLOR
 
 from ._agent_panel_title_helpers import (
     _agent,
@@ -468,6 +468,7 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     assert counts.queued == 1
     assert (counts.running, counts.waiting, counts.read) == (2, 0, 1)
     assert counts.settled_monitors == 1
+    assert counts.running_monitors == 0
     # Disjoint status metrics must sum to the number of visible lanes, even
     # though settled_monitors is populated: monitors are not agents.
     assert sum(value for _name, value in counts.metric_items()) == 4
@@ -588,6 +589,144 @@ def test_merged_panel_title_shows_settled_monitor_badge() -> None:
     assert title.plain == "All agents · 3 ⚙2"
 
 
+def test_running_monitor_badge_precedes_settled_badge_with_chip() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(
+            running=1, waiting=2, running_monitors=1, settled_monitors=2
+        ),
+    )
+
+    assert title.plain == "@chop · 3 [R1 W2] ⚙1 ⚙2"
+
+
+def test_running_monitor_badge_with_chip_and_no_settled_monitors() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, running_monitors=1),
+    )
+
+    assert title.plain == "@chop · 3 [R1] ⚙1"
+
+
+def test_running_monitor_badge_with_empty_chip() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running_monitors=1),
+    )
+
+    assert title.plain == "@chop · 3 ⚙1"
+
+
+def test_zero_running_monitors_does_not_disturb_settled_badge() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, settled_monitors=2),
+    )
+
+    assert title.plain == "@chop · 3 [R1] ⚙2"
+
+
+def test_running_and_settled_monitor_badge_styles() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(
+            running=1, waiting=2, running_monitors=1, settled_monitors=2
+        ),
+    )
+
+    assert title.plain == "@chop · 3 [R1 W2] ⚙1 ⚙2"
+    running_badge_start = title.plain.index("⚙1")
+    settled_badge_start = title.plain.index("⚙2")
+    _assert_title_span(
+        title,
+        start=running_badge_start - 1,
+        end=running_badge_start,
+        style=_PANEL_COUNT_STYLE,
+        text=" ",
+    )
+    _assert_title_span(
+        title,
+        start=running_badge_start,
+        end=running_badge_start + 2,
+        style=f"bold {MONITOR_GLYPH_COLOR}",
+        text="⚙1",
+    )
+    _assert_title_span(
+        title,
+        start=settled_badge_start - 1,
+        end=settled_badge_start,
+        style=_PANEL_COUNT_STYLE,
+        text=" ",
+    )
+    _assert_title_span(
+        title,
+        start=settled_badge_start,
+        end=settled_badge_start + 2,
+        style=MONITOR_SETTLED_GLYPH_COLOR,
+        text="⚙2",
+    )
+
+
+def test_selected_panel_keeps_running_monitor_badge_amber() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, running_monitors=1, settled_monitors=2),
+        selected=True,
+    )
+
+    assert title.plain == "❖ @chop · 3 [R1] ⚙1 ⚙2"
+    running_badge_start = title.plain.index("⚙1")
+    settled_badge_start = title.plain.index("⚙2")
+    _assert_title_span(
+        title,
+        start=running_badge_start,
+        end=running_badge_start + 2,
+        style=f"bold {MONITOR_GLYPH_COLOR}",
+        text="⚙1",
+    )
+    _assert_title_span(
+        title,
+        start=settled_badge_start,
+        end=settled_badge_start + 2,
+        style=MONITOR_SETTLED_GLYPH_COLOR,
+        text="⚙2",
+    )
+
+
+def test_collapsed_panel_title_shows_both_monitor_badges() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(
+            running=1,
+            waiting=2,
+            running_monitors=1,
+            settled_monitors=2,
+        ),
+        collapsed=True,
+    )
+
+    assert title.plain == "▸ @chop · 3 [R1 W2] ⚙1 ⚙2"
+
+
+def test_merged_panel_title_shows_both_monitor_badges() -> None:
+    title = agent_panel_border_title(
+        None,
+        3,
+        merge_tribe_panels=True,
+        counts=AgentPanelCounts(running_monitors=1, settled_monitors=2),
+    )
+
+    assert title.plain == "All agents · 3 ⚙1 ⚙2"
+
+
 def test_agent_panel_counts_is_fold_independent_for_settled_monitors() -> None:
     container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
     container.agent_family = "alpha"
@@ -601,6 +740,22 @@ def test_agent_panel_counts_is_fold_independent_for_settled_monitors() -> None:
     counts = agent_panel_counts([container], set())
 
     assert counts.settled_monitors == 1
+
+
+def test_agent_panel_counts_is_fold_independent_for_running_monitors() -> None:
+    container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
+    container.agent_family = "alpha"
+    container.agent_family_role = "root"
+    monitor = _monitor_agent("alpha--mon", family="alpha", state="running")
+    container.runtime_children = [monitor]
+    container.followup_agents = [monitor]
+
+    # Only the container is in the slice, simulating a collapsed fold that
+    # hides the monitor row.
+    counts = agent_panel_counts([container], set())
+
+    assert counts.running_monitors == 1
+    assert counts.settled_monitors == 0
 
 
 def test_agent_panel_counts_does_not_double_count_clan_and_family_rows() -> None:
@@ -617,16 +772,17 @@ def test_agent_panel_counts_does_not_double_count_clan_and_family_rows() -> None
     family_root.agent_family_role = "root"
     family_root.agent_clan = "workers"
     monitor = _monitor_agent("alpha--mon", family="alpha", state="completed")
-    family_root.runtime_children = [monitor]
-    family_root.followup_agents = [monitor]
+    running_monitor = _monitor_agent("alpha--mon-run", family="alpha", state="running")
+    family_root.runtime_children = [monitor, running_monitor]
+    family_root.followup_agents = [monitor, running_monitor]
     clan.runtime_children = [family_root]
 
     counts = agent_panel_counts([clan, family_root], set())
 
-    assert counts.settled_monitors == 1
+    assert (counts.running_monitors, counts.settled_monitors) == (1, 1)
 
 
-def test_panel_settled_monitors_matches_sum_of_container_row_badges() -> None:
+def test_panel_monitor_lanes_match_sum_of_container_row_badges() -> None:
     family_a_root, family_a_child = _sequential_family("alpha")
     monitor_a_running = _monitor_agent(
         "alpha--mon-run", family="alpha", state="running"
@@ -645,9 +801,15 @@ def test_panel_settled_monitors_matches_sum_of_container_row_badges() -> None:
     agents = [family_a_root, family_a_child, family_b_root, family_b_child]
     counts = agent_panel_counts(agents, set())
 
-    expected = (
+    expected_settled = (
         monitor_lane_counts(family_a_root).settled
         + monitor_lane_counts(family_b_root).settled
     )
-    assert expected == 2
-    assert counts.settled_monitors == expected
+    expected_running = (
+        monitor_lane_counts(family_a_root).running
+        + monitor_lane_counts(family_b_root).running
+    )
+    assert expected_settled == 2
+    assert expected_running == 1
+    assert counts.settled_monitors == expected_settled
+    assert counts.running_monitors == expected_running
