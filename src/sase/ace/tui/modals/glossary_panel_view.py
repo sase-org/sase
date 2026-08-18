@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 from rich.console import RenderableType
 from rich.text import Text
+from textual.containers import Horizontal
+from textual.css.query import NoMatches
 from textual.widgets import Markdown, Static
 
 from .glossary_panel_rendering import (
@@ -22,11 +24,13 @@ from .glossary_panel_rendering import (
     build_panel_footer,
     build_panel_header,
     build_trail_strip,
+    term_rail_width,
 )
 from .glossary_preview_render import glossary_definition_markdown, glossary_source_path
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
+    from textual.widgets import OptionList
 
     from sase.ace.tui.glossary_panel_catalog import (
         GlossaryProjectRef,
@@ -59,6 +63,8 @@ class GlossaryPanelViewMixin(_MixinBase):
 
         def _selected_entry(self) -> GlossaryEntry | None: ...
 
+        def _term_list(self) -> OptionList: ...
+
     def _loading_header_text(self) -> Text:
         return Text("GLOSSARY  ·  loading…", style=f"bold {self._accent}")
 
@@ -78,6 +84,19 @@ class GlossaryPanelViewMixin(_MixinBase):
                 accent=self._accent,
             )
         self.query_one("#glossary-panel-header", Static).update(header)
+
+    def _resize_term_rail(self) -> None:
+        """Fit the term rail to its widest row within the panel's width."""
+        try:
+            body = self.query_one("#glossary-panel-body", Horizontal)
+            term_list = self._term_list()
+        except NoMatches:
+            return
+        width = term_rail_width(self._all_entries, available_width=body.size.width)
+        current = term_list.styles.width
+        if current is not None and current.is_cells and int(current.value) == width:
+            return
+        term_list.styles.width = width
 
     def _update_footer(self) -> None:
         entry = self._selected_entry()

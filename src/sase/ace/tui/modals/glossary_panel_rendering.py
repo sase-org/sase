@@ -26,6 +26,20 @@ from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 
 _COLOR_LABEL = "dim"
 
+# The term rail is sized to fit its widest row. Chrome is everything in
+# ``#glossary-panel-terms`` that is not text: the 1-cell ``solid`` border on
+# each side, ``OptionList``'s default ``padding: 0 1``, and the 2-cell
+# vertical scrollbar held open by ``scrollbar-gutter: stable``.
+_TERM_RAIL_CHROME = 6
+# Never narrower than the historical fixed width, and never wide enough to
+# crowd the definition card. Mirrored by the ``min-width`` / ``max-width``
+# backstops on ``#glossary-panel-terms`` in ``styles.tcss``.
+_TERM_RAIL_MIN_WIDTH = 32
+_TERM_RAIL_MAX_WIDTH = 52
+# Cells the definition card keeps for itself, chrome included; 56 leaves it
+# ~50 columns of prose, the narrowest comfortable measure for a definition.
+_TERM_RAIL_DETAIL_RESERVED = 56
+
 
 def sorted_glossary_entries(
     catalog: EditorGlossaryCatalog | None,
@@ -67,6 +81,26 @@ def build_term_row_text(entry: GlossaryEntry) -> Text:
         text.append("  ")
         text.append(" · ".join(entry.display_aliases), style="dim")
     return text
+
+
+def term_rail_width(entries: tuple[GlossaryEntry, ...], *, available_width: int) -> int:
+    """Return the width ``#glossary-panel-terms`` should take.
+
+    Wide enough for the widest row of *entries* to render on one line, clamped
+    so the rail is never narrower than its historical fixed width and never
+    takes the definition card's share of *available_width* -- the panel body's
+    content width, or ``0`` before the first layout has settled.
+    """
+    if not entries:
+        return _TERM_RAIL_MIN_WIDTH
+    widest = max(build_term_row_text(entry).cell_len for entry in entries)
+    desired = widest + _TERM_RAIL_CHROME
+    cap = _TERM_RAIL_MAX_WIDTH
+    if available_width > 0:
+        # The ``- 1`` is ``#glossary-panel-detail``'s ``margin-left``.
+        room = available_width - _TERM_RAIL_DETAIL_RESERVED - 1
+        cap = min(cap, max(_TERM_RAIL_MIN_WIDTH, room))
+    return max(_TERM_RAIL_MIN_WIDTH, min(cap, desired))
 
 
 def build_definition_card_meta(
@@ -216,4 +250,5 @@ __all__ = [
     "build_term_row_text",
     "build_trail_strip",
     "sorted_glossary_entries",
+    "term_rail_width",
 ]

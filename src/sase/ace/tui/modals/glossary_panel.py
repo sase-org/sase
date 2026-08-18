@@ -12,6 +12,7 @@ split across sibling mixins -- snapshot and selection state in
 
 from __future__ import annotations
 
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -170,6 +171,10 @@ class GlossaryPanel(
         for worker in (self._load_worker, self._project_worker):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
+
+    def on_resize(self, _event: events.Resize) -> None:
+        """Re-fit the term rail when the terminal changes size."""
+        self._resize_term_rail()
 
     # --- loading --------------------------------------------------------
 

@@ -7,7 +7,22 @@ from sase.ace.tui.modals.glossary_panel_rendering import (
     build_empty_project_message,
     build_panel_footer,
     build_trail_strip,
+    term_rail_width,
 )
+from sase.core.glossary_facade import GlossaryEntry
+
+
+def _entry(index: int, term: str, *, aliases: tuple[str, ...] = ()) -> GlossaryEntry:
+    return GlossaryEntry(
+        index=index,
+        term=term,
+        normalized_term=term.casefold(),
+        definition=f"Definition of {term}.",
+        configured_aliases=aliases,
+        display_aliases=aliases,
+        effective_aliases=(term.casefold(), *aliases),
+        source=None,
+    )
 
 
 def test_trail_strip_shows_full_path_when_short() -> None:
@@ -83,3 +98,35 @@ def test_panel_footer_lists_only_conditional_keys() -> None:
     assert "esc" not in footer
     assert "j/" not in footer
     assert "refresh" not in footer
+
+
+def test_term_rail_width_is_driven_by_the_widest_row() -> None:
+    entries = (
+        _entry(0, "Agent Instruction File", aliases=("agents.md file",)),
+        _entry(1, "Zebra"),
+    )
+
+    assert term_rail_width(entries, available_width=1000) == 44
+
+
+def test_term_rail_width_clamps_below_the_historical_minimum() -> None:
+    assert term_rail_width((), available_width=1000) == 32
+    assert term_rail_width((_entry(0, "A"),), available_width=1000) == 32
+
+
+def test_term_rail_width_clamps_above_the_maximum() -> None:
+    entry = _entry(0, "A" * 80)
+
+    assert term_rail_width((entry,), available_width=1000) == 52
+
+
+def test_term_rail_width_is_constrained_by_available_room() -> None:
+    entries = (_entry(0, "Agent Instruction File", aliases=("agents.md file",)),)
+
+    assert term_rail_width(entries, available_width=84) == 32
+
+
+def test_term_rail_width_ignores_room_clamp_before_layout_settles() -> None:
+    entries = (_entry(0, "Agent Instruction File", aliases=("agents.md file",)),)
+
+    assert term_rail_width(entries, available_width=0) == 44

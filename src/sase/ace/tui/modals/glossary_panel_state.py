@@ -49,6 +49,8 @@ class GlossaryPanelStateMixin(_MixinBase):
 
         def _render_definition_card(self) -> None: ...
 
+        def _resize_term_rail(self) -> None: ...
+
         def _update_footer(self) -> None: ...
 
         def _update_header(self) -> None: ...
@@ -60,6 +62,7 @@ class GlossaryPanelStateMixin(_MixinBase):
         self._all_entries = sorted_glossary_entries(
             snapshot.catalog if snapshot is not None else None
         )
+        self._resize_term_rail()
         self._apply_filter(
             self._filter_text,
             definitions=self._filter_definitions,

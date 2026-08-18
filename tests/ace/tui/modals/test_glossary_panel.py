@@ -398,6 +398,79 @@ async def test_initial_and_project_switch_loads_run_off_event_loop(
     assert off_main_thread == [True, True]
 
 
+async def test_term_rail_width_matches_widest_row_after_initial_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (
+        _entry(0, "Agent Hood", aliases=("hood", "agent neighborhood")),
+        _entry(1, "Zebra"),
+    )
+    _install_fixed_load(monkeypatch, (ref,), {"sase": _snapshot(ref, entries)})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.pause()
+        width = panel._term_list().styles.width
+        assert width is not None
+        assert width.value == 43
+
+
+async def test_filtering_to_short_terms_does_not_jitter_the_rail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _ref("sase", "sase")
+    entries = (
+        _entry(0, "Agent Hood", aliases=("hood", "agent neighborhood")),
+        _entry(1, "Zebra"),
+    )
+    _install_fixed_load(monkeypatch, (ref,), {"sase": _snapshot(ref, entries)})
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.pause()
+        width_before = panel._term_list().styles.width.value
+
+        await pilot.press("slash")
+        await wait_for(pilot, lambda: panel._filter_input().display)
+        for char in "zebra":
+            await pilot.press(char)
+        await wait_for(pilot, lambda: [e.term for e in panel._entries] == ["Zebra"])
+
+        assert panel._term_list().styles.width.value == width_before
+
+
+async def test_cycling_to_a_project_with_short_terms_shrinks_the_rail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref_a = _ref("proj-a", "Alpha")
+    ref_b = _ref("proj-b", "Beta")
+    snapshots = {
+        "proj-a": _snapshot(
+            ref_a,
+            (_entry(0, "Agent Hood", aliases=("hood", "agent neighborhood")),),
+        ),
+        "proj-b": _snapshot(ref_b, (_entry(0, "AB"),)),
+    }
+    _install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
+
+    panel = GlossaryPanel()
+    app = _GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.pause()
+        assert panel._term_list().styles.width.value == 43
+
+        await pilot.press("p")
+        await wait_for(pilot, lambda: not panel._loading and panel._project_index == 1)
+        await pilot.pause()
+        assert panel._term_list().styles.width.value == 32
+
+
 async def test_term_list_option_list_widget_exists(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

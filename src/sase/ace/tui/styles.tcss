@@ -5184,7 +5184,7 @@ GlossaryPanel {
 
 GlossaryPanel #glossary-panel-container {
     width: 90%;
-    max-width: 130;
+    max-width: 150;
     height: 90%;
     max-height: 44;
     border: double $primary;
@@ -5202,7 +5202,9 @@ GlossaryPanel #glossary-panel-body {
 }
 
 GlossaryPanel #glossary-panel-terms {
-    width: 32;
+    width: 32;      /* default; fitted at runtime by term_rail_width() */
+    min-width: 32;  /* keep in sync with _TERM_RAIL_MIN_WIDTH */
+    max-width: 52;  /* keep in sync with _TERM_RAIL_MAX_WIDTH */
     height: 100%;
     border: solid $secondary;
     scrollbar-gutter: stable;
