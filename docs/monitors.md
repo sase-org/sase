@@ -297,7 +297,8 @@ one command. A collapsed family or clan container row carries an amber `⚙N` ba
 its running monitors and a grey `⚙N` badge for its finished ones, so both counts are
 visible without expanding the subtree; the two badges partition the subtree's monitors
 exactly, and a failed, timed-out, or lost monitor counts in the finished (grey) lane
-along with a clean completion.
+along with a clean completion. The tribe panel title aggregates the finished lane across
+the whole tribe, so a fully collapsed panel still reports completed monitored work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted

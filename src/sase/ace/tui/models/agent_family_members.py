@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from sase.agent.status_buckets import (
@@ -56,37 +56,69 @@ class MonitorLaneCounts:
 NO_MONITOR_LANES = MonitorLaneCounts()
 
 
-def monitor_lane_counts(agent: Agent) -> MonitorLaneCounts:
-    """Partition monitor shells beneath one container row into two lanes.
+class _MonitorLaneTally:
+    """Shared traversal state for partitioning monitor rows into two lanes.
 
     ``Agent`` is mutable and unhashable, and ``runtime_children`` /
     ``followup_agents`` overlap, so traversal cycle-guards on ``id(row)``
     while the count itself dedupes by ``row.identity``. Every distinct
     monitor row increments exactly one lane, never both, never neither.
     """
-    visited_ids: set[int] = set()
-    seen_identities: set[tuple[AgentType, str, str | None]] = set()
-    running = 0
-    settled = 0
 
-    def visit(row: Agent) -> None:
-        nonlocal running, settled
-        if id(row) in visited_ids:
+    def __init__(self) -> None:
+        self._visited_ids: set[int] = set()
+        self._seen_identities: set[tuple[AgentType, str, str | None]] = set()
+        self.running = 0
+        self.settled = 0
+
+    def visit(self, row: Agent) -> None:
+        if id(row) in self._visited_ids:
             return
-        visited_ids.add(id(row))
-        if row.identity not in seen_identities:
-            seen_identities.add(row.identity)
+        self._visited_ids.add(id(row))
+        if row.identity not in self._seen_identities:
+            self._seen_identities.add(row.identity)
             if row.is_monitor:
                 if _monitor_row_is_settled(row):
-                    settled += 1
+                    self.settled += 1
                 else:
-                    running += 1
+                    self.running += 1
         for child in (*row.runtime_children, *row.followup_agents):
-            visit(child)
+            self.visit(child)
 
+    def counts(self) -> MonitorLaneCounts:
+        return MonitorLaneCounts(running=self.running, settled=self.settled)
+
+
+def monitor_lane_counts(agent: Agent) -> MonitorLaneCounts:
+    """Partition monitor shells beneath one container row into two lanes.
+
+    The container row itself is excluded: only its ``runtime_children`` and
+    ``followup_agents`` are visited.
+    """
+    tally = _MonitorLaneTally()
     for child in (*agent.runtime_children, *agent.followup_agents):
-        visit(child)
-    return MonitorLaneCounts(running=running, settled=settled)
+        tally.visit(child)
+    return tally.counts()
+
+
+def panel_monitor_lane_counts(rows: Iterable[Agent]) -> MonitorLaneCounts:
+    """Partition monitor rows reachable from a whole panel's top-level rows.
+
+    Differs from :func:`monitor_lane_counts` in two ways, both required to
+    make a panel-level total rather than a per-container one: each row in
+    ``rows`` is itself visited rather than excluded, so a top-level row that
+    is itself a monitor is counted (a monitor nests under its starter today,
+    so this should never fire, but it keeps the partition total honest
+    instead of silently dropping a row if that projection ever changes); and
+    dedupe spans all roots in one shared tally rather than one tally per
+    root, so a monitor reachable from two different top-level rows (a clan
+    container and a member family can both reach the same monitor) is
+    counted exactly once.
+    """
+    tally = _MonitorLaneTally()
+    for row in rows:
+        tally.visit(row)
+    return tally.counts()
 
 
 def is_sequential_family_container(agent: Agent) -> bool:
@@ -302,4 +334,5 @@ __all__ = [
     "family_roster_container",
     "is_sequential_family_container",
     "monitor_lane_counts",
+    "panel_monitor_lane_counts",
 ]

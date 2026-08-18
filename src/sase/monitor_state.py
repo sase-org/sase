@@ -8,6 +8,8 @@ DEFAULT_MONITOR_STOP_STATUS = "MONITORED"
 MONITOR_FAMILY_ROLE = "monitor"
 MONITOR_GLYPH = "⚙"
 MONITOR_GLYPH_COLOR = "#FFAF5F"
+#: Finished-monitor lane hue, shared by row and panel-title badges.
+MONITOR_SETTLED_GLYPH_COLOR = "#9E9E9E"
 MONITOR_PROC_ORIGIN = "monitor"
 MONITOR_TIMEOUT_GLYPH = "⧖"
 
@@ -63,6 +65,7 @@ __all__ = [
     "MONITOR_GLYPH",
     "MONITOR_GLYPH_COLOR",
     "MONITOR_PROC_ORIGIN",
+    "MONITOR_SETTLED_GLYPH_COLOR",
     "MONITOR_STATE_BUCKETS",
     "MONITOR_TIMEOUT_GLYPH",
     "is_monitor_member_role",

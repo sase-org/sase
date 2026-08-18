@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
+from sase.monitor_state import MONITOR_GLYPH, MONITOR_SETTLED_GLYPH_COLOR
+
 from ..._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ...agent_count_chip import (
     AGENT_COUNT_CHIP_METRIC_STYLES,
@@ -16,6 +18,7 @@ from ...agent_count_chip import (
 )
 from ...models._agent_clan import sase_agent_status_counts
 from ...models._agent_tree import agent_is_tree_child
+from ...models.agent_family_members import panel_monitor_lane_counts
 from ...models.agent_panels import agent_panel_label
 from ...models.tribe_display import compose_tribe_identity_style
 
@@ -38,11 +41,19 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
     ("asking" if name == "stopped" else "read" if name == "done" else name, label)
     for name, label in AGENT_COUNT_CHIP_METRICS
 )
+_PANEL_MONITOR_GLYPH = MONITOR_GLYPH
+_PANEL_MONITOR_SETTLED_STYLE = MONITOR_SETTLED_GLYPH_COLOR
 
 
 @dataclass(frozen=True)
 class AgentPanelCounts:
-    """Lane total and status counts for one rendered panel."""
+    """Lane total and status counts for one rendered panel.
+
+    ``settled_monitors`` counts finished monitors across the panel's
+    subtrees. It is intentionally absent from :meth:`metric_items`: monitors
+    are not agents, so folding it in would break the disjoint-status
+    invariant that the metric counts sum to ``lane_count``.
+    """
 
     lane_count: int = 0
     asking: int = 0
@@ -52,6 +63,7 @@ class AgentPanelCounts:
     failed: int = 0
     unread: int = 0
     read: int = 0
+    settled_monitors: int = 0
 
     def metric_items(self) -> list[tuple[str, int]]:
         return [
@@ -82,6 +94,7 @@ def agent_panel_counts(
         failed=projected.failed,
         unread=projected.unread,
         read=projected.done,
+        settled_monitors=panel_monitor_lane_counts(visible_top_level_agents).settled,
     )
 
 
@@ -145,4 +158,10 @@ def agent_panel_border_title(
         if chip:
             title.append(" ", style=_PANEL_COUNT_STYLE)
             title.append_text(chip)
+        if counts.settled_monitors:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_MONITOR_GLYPH}{counts.settled_monitors}",
+                style=_PANEL_MONITOR_SETTLED_STYLE,
+            )
     return title

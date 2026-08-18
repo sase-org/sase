@@ -1,7 +1,7 @@
 """Constants, colors, and icons for the agent list widget."""
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
-from sase.monitor_state import MONITOR_GLYPH
+from sase.monitor_state import MONITOR_GLYPH, MONITOR_SETTLED_GLYPH_COLOR
 
 from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ..models.agent import AgentType
@@ -100,7 +100,7 @@ _MONITOR_COUNT_GLYPH_STYLE = "bold #FFAF5F"
 # the live amber one, so the two stay distinguishable on low-color terminals
 # and for red/green color vision deficiency. Reuses this codebase's existing
 # neutral-grey token (see ``_IMPLICIT_TAG_STYLE`` in ``model_alias_styles.py``).
-_MONITOR_SETTLED_COUNT_GLYPH_STYLE = "#9E9E9E"
+_MONITOR_SETTLED_COUNT_GLYPH_STYLE = MONITOR_SETTLED_GLYPH_COLOR
 
 # A terminal monitor whose supervisor never reported a real exit code (died
 # on arrival, or belongs to a previous boot): the command's outcome is

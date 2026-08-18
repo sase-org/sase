@@ -16,12 +16,29 @@ from sase.ace.tui.actions.agents._display_panels import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent_family_members import monitor_lane_counts
+from sase.monitor_state import MONITOR_SETTLED_GLYPH_COLOR
 
 from ._agent_panel_title_helpers import (
     _agent,
     _assert_title_range_style,
     _assert_title_span,
 )
+
+
+def _monitor_agent(name: str, *, family: str, state: str | None) -> Agent:
+    settled = state not in (None, "running")
+    monitor = _agent(
+        name=name,
+        suffix=name,
+        status="MONITORED" if settled else "MONITORING",
+    )
+    monitor.agent_family = family
+    monitor.agent_family_role = "monitor"
+    monitor.role_suffix = "--mon"
+    monitor.monitor_id = name
+    monitor.monitor_state = state
+    return monitor
 
 
 def _sequential_family(
@@ -431,6 +448,9 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     clan_standalone.pid = 101
     clan_standalone.wait_runners = 9
     clan_standalone.slot_requested_at = "2026-07-12T12:00:00Z"
+    settled_monitor = _monitor_agent("family--mon", family="family", state="completed")
+    family_root.followup_agents.append(settled_monitor)
+    family_root.runtime_children.append(settled_monitor)
     agents = project_clan_tree(
         [
             standalone,
@@ -447,5 +467,187 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     assert counts.lane_count == 4
     assert counts.queued == 1
     assert (counts.running, counts.waiting, counts.read) == (2, 0, 1)
-    # Disjoint status metrics must sum to the number of visible lanes.
+    assert counts.settled_monitors == 1
+    # Disjoint status metrics must sum to the number of visible lanes, even
+    # though settled_monitors is populated: monitors are not agents.
     assert sum(value for _name, value in counts.metric_items()) == 4
+
+
+def test_settled_monitor_badge_follows_the_metric_chip() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2, settled_monitors=2),
+    )
+
+    assert title.plain == "@chop · 3 [R1 W2] ⚙2"
+
+
+def test_settled_monitor_badge_follows_the_total_when_chip_is_empty() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(settled_monitors=2),
+    )
+
+    assert title.plain == "@chop · 3 ⚙2"
+
+
+def test_zero_settled_monitors_renders_no_badge() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1),
+    )
+
+    assert title.plain == "@chop · 3 [R1]"
+
+
+def test_no_counts_renders_no_settled_monitor_badge() -> None:
+    title = agent_panel_border_title("chop", 3)
+
+    assert title.plain == "@chop · 3"
+
+
+def test_settled_monitor_badge_style_is_grey_and_separator_is_neutral() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, settled_monitors=2),
+    )
+
+    assert title.plain == "@chop · 3 [R1] ⚙2"
+    badge_start = title.plain.index("⚙2")
+    _assert_title_span(
+        title,
+        start=badge_start - 1,
+        end=badge_start,
+        style=_PANEL_COUNT_STYLE,
+        text=" ",
+    )
+    _assert_title_span(
+        title,
+        start=badge_start,
+        end=badge_start + 2,
+        style=MONITOR_SETTLED_GLYPH_COLOR,
+        text="⚙2",
+    )
+
+
+def test_selected_panel_keeps_settled_monitor_badge_grey() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, settled_monitors=2),
+        selected=True,
+    )
+
+    assert title.plain == "❖ @chop · 3 [R1] ⚙2"
+    r_position = title.plain.index("R1")
+    _assert_title_range_style(
+        title,
+        start=r_position,
+        end=r_position + 1,
+        style=_PANEL_SELECTED_CHROME_STYLE,
+    )
+    _assert_title_range_style(
+        title,
+        start=r_position + 1,
+        end=r_position + 2,
+        style=_PANEL_METRIC_STYLES["running"],
+    )
+    badge_start = title.plain.index("⚙2")
+    _assert_title_span(
+        title,
+        start=badge_start,
+        end=badge_start + 2,
+        style=MONITOR_SETTLED_GLYPH_COLOR,
+        text="⚙2",
+    )
+
+
+def test_collapsed_panel_title_shows_settled_monitor_badge() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2, settled_monitors=2),
+        collapsed=True,
+    )
+
+    assert title.plain == "▸ @chop · 3 [R1 W2] ⚙2"
+
+
+def test_merged_panel_title_shows_settled_monitor_badge() -> None:
+    title = agent_panel_border_title(
+        None,
+        3,
+        merge_tribe_panels=True,
+        counts=AgentPanelCounts(settled_monitors=2),
+    )
+
+    assert title.plain == "All agents · 3 ⚙2"
+
+
+def test_agent_panel_counts_is_fold_independent_for_settled_monitors() -> None:
+    container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
+    container.agent_family = "alpha"
+    container.agent_family_role = "root"
+    monitor = _monitor_agent("alpha--mon", family="alpha", state="completed")
+    container.runtime_children = [monitor]
+    container.followup_agents = [monitor]
+
+    # Only the container is in the slice, simulating a collapsed fold that
+    # hides the monitor row.
+    counts = agent_panel_counts([container], set())
+
+    assert counts.settled_monitors == 1
+
+
+def test_agent_panel_counts_does_not_double_count_clan_and_family_rows() -> None:
+    clan = _agent(name="workers", suffix="workers", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "workers"
+    family_root = _agent(
+        name="alpha--0",
+        suffix="alpha-0",
+        status="RUNNING",
+        parent_timestamp="workers",
+    )
+    family_root.agent_family = "alpha"
+    family_root.agent_family_role = "root"
+    family_root.agent_clan = "workers"
+    monitor = _monitor_agent("alpha--mon", family="alpha", state="completed")
+    family_root.runtime_children = [monitor]
+    family_root.followup_agents = [monitor]
+    clan.runtime_children = [family_root]
+
+    counts = agent_panel_counts([clan, family_root], set())
+
+    assert counts.settled_monitors == 1
+
+
+def test_panel_settled_monitors_matches_sum_of_container_row_badges() -> None:
+    family_a_root, family_a_child = _sequential_family("alpha")
+    monitor_a_running = _monitor_agent(
+        "alpha--mon-run", family="alpha", state="running"
+    )
+    monitor_a_done = _monitor_agent(
+        "alpha--mon-done", family="alpha", state="completed"
+    )
+    family_a_root.followup_agents.extend([monitor_a_running, monitor_a_done])
+    family_a_root.runtime_children.extend([monitor_a_running, monitor_a_done])
+
+    family_b_root, family_b_child = _sequential_family("beta")
+    monitor_b_done = _monitor_agent("beta--mon-done", family="beta", state="completed")
+    family_b_root.followup_agents.append(monitor_b_done)
+    family_b_root.runtime_children.append(monitor_b_done)
+
+    agents = [family_a_root, family_a_child, family_b_root, family_b_child]
+    counts = agent_panel_counts(agents, set())
+
+    expected = (
+        monitor_lane_counts(family_a_root).settled
+        + monitor_lane_counts(family_b_root).settled
+    )
+    assert expected == 2
+    assert counts.settled_monitors == expected

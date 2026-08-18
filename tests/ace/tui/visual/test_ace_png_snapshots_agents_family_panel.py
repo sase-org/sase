@@ -6,12 +6,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -388,6 +390,8 @@ async def test_family_conversation_monitor_phase_png_snapshot(
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "MONITOR")
         assert_page_svg_contains(page, "just check-full")
+        panel = page.app.query_one("#agent-list-panel", AgentList)
+        assert "⚙1" in Text.from_markup(panel.border_title).plain
         ace_png_visual.assert_page_png(
             page,
             "agents_family_conversation_monitor_120x40",

@@ -1459,10 +1459,16 @@ sequential family once from its normalized owner status. The selected whole-pane
 `TRIBE` header uses that same projection, while its nested count and per-family/per-clan
 member summaries preserve the concrete-member distinction. On the selected whole panel,
 the title marker, total, brackets, and metric letters use the focus accent; each numeric
-metric count retains its semantic status color. Panel heights are sized to their content
-and separated by a one-row gap. When the panels fit, the first panel grows to absorb
-leftover vertical space while later panels stay pinned to their natural height; when the
-panels overflow, space is weighted by each panel's rendered row count.
+metric count retains its semantic status color. The title can end with a grey `⚙N` badge
+after the metric chip (or after the total when the chip is empty), counting finished
+monitors anywhere in the tribe's subtrees. The badge is fold- and collapse-independent —
+it still reports on a fully collapsed panel — and is omitted entirely when the count is
+zero. It keeps its grey hue on a selected panel while the brackets and metric letters
+take the focus accent, and it shows only the finished lane: running monitors are not
+shown on the panel title, only on container rows. Panel heights are sized to their
+content and separated by a one-row gap. When the panels fit, the first panel grows to
+absorb leftover vertical space while later panels stay pinned to their natural height;
+when the panels overflow, space is weighted by each panel's rendered row count.
 
 A selected tribe panel's `TRIBE` header ends with an unlabeled description row only when
 the tribe has a configured [`description`](configuration.md#acetribes). That row is set
@@ -1829,26 +1835,26 @@ questions, and workflow input.
 To keep rows compact, agent statuses and types are rendered as one- or two-character
 badges instead of verbose text:
 
-| Glyph | Meaning                                              |
-| ----- | ---------------------------------------------------- |
-| `▶`   | RUNNING                                              |
-| `✓`   | DONE                                                 |
-| `✓P`  | PLAN DONE                                            |
-| `▶P`  | PLAN APPROVED                                        |
-| `★E`  | EPIC CREATED                                         |
-| `✎`   | PLAN                                                 |
-| `✗`   | FAILED                                               |
-| `…`   | QUEUED                                               |
-| `⏳`  | WAITING                                              |
-| `?`   | QUESTION                                             |
-| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
-| `≡`   | Workflow row (top-level)                             |
-| `❑`   | Patch / Patch row (top-level)                        |
-| `⚡`  | Autonomous (`%auto`) agent                           |
-| `◌`   | Hidden agent (visible only when `.` toggles them in) |
-| `⚙`   | Monitor shell (row label)                            |
-| `⚙N`  | N running monitors in a family/clan subtree (amber)  |
-| `⚙N`  | N finished monitors in a family/clan subtree (grey)  |
+| Glyph | Meaning                                                                                            |
+| ----- | -------------------------------------------------------------------------------------------------- |
+| `▶`   | RUNNING                                                                                            |
+| `✓`   | DONE                                                                                               |
+| `✓P`  | PLAN DONE                                                                                          |
+| `▶P`  | PLAN APPROVED                                                                                      |
+| `★E`  | EPIC CREATED                                                                                       |
+| `✎`   | PLAN                                                                                               |
+| `✗`   | FAILED                                                                                             |
+| `…`   | QUEUED                                                                                             |
+| `⏳`  | WAITING                                                                                            |
+| `?`   | QUESTION                                                                                           |
+| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)                                                    |
+| `≡`   | Workflow row (top-level)                                                                           |
+| `❑`   | Patch / Patch row (top-level)                                                                      |
+| `⚡`  | Autonomous (`%auto`) agent                                                                         |
+| `◌`   | Hidden agent (visible only when `.` toggles them in)                                               |
+| `⚙`   | Monitor shell (row label)                                                                          |
+| `⚙N`  | N running monitors in a family/clan subtree (amber)                                                |
+| `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
 
 A monitor shell (a family member whose work is a supervised command, started with
 `sase monitor start`) renders its own amber `⚙` glyph beside the bash/python step glyphs
@@ -1865,7 +1871,9 @@ family's** fold rather than its starter's own: a collapsed family shows an amber
 badge for its running monitors and a grey `⚙N` badge for its finished ones — the two
 counts partition the subtree's monitors, with a monitor that has not reported a terminal
 state counting as running — and counts every monitor in its collapsed ` ×N`, but renders
-no monitor row, even when the family root itself is the starter. A single `l` on the
+no monitor row, even when the family root itself is the starter. The tribe panel title
+aggregates the finished lane across the whole tribe, so a fully collapsed panel still
+reports how much monitored work has already completed inside it. A single `l` on the
 family container row reveals every member and monitor in that family in one step;
 monitors are not deferred to a further "fully expanded" press the way hidden workflow
 steps are. Selecting a monitor row and pressing `l` or `H` acts on that governing family
