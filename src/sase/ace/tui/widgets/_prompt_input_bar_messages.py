@@ -108,6 +108,20 @@ class RestoreRequested(Message, namespace="prompt_input_bar"):
         self.mode = mode
 
 
+class GlossaryPanelRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to open the glossary panel.
+
+    Presentation-only (boundary rule D6): the bar captures the glossary term
+    under the cursor (or ``None``) and its current ``mode``. The app opens the
+    panel with that seed and restores prompt focus and vim mode on dismiss.
+    """
+
+    def __init__(self, term: str | None = None, mode: str = "prompt") -> None:
+        super().__init__()
+        self.term = term
+        self.mode = mode
+
+
 class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
     """Message sent when the user asks to update an existing pinned stash.
 

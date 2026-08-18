@@ -81,9 +81,13 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             lambda **_: calls.append("X"),
         )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
+        monkeypatch.setattr(
+            bar, "request_open_glossary_panel", lambda: calls.append("G")
+        )
 
         for key in (
             "f",
+            "G",
             "enter",
             "j",
             "k",
@@ -113,6 +117,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
 
         assert calls == [
             "f",
+            "G",
             "enter",
             "focus+1",
             "focus-1",

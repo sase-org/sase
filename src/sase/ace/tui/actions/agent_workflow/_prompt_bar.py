@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._prompt_bar_glossary_panel import PromptBarGlossaryPanelMixin
 from ._prompt_bar_mount import PromptBarMountMixin
 from ._prompt_bar_requests import PromptBarRequestsMixin
 from ._prompt_bar_save_xprompt import PromptBarSaveXpromptMixin
@@ -26,6 +27,7 @@ class PromptBarMixin(
     PromptBarSaveXpromptMixin,
     PromptBarSnippetPaneMixin,
     PromptBarRequestsMixin,
+    PromptBarGlossaryPanelMixin,
 ):
     """Mixin providing prompt input bar management and event handlers."""
 

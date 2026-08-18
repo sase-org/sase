@@ -109,6 +109,7 @@ from .gate_action_runner import GateCommandOutcome as GateCommandOutcome
 from .gate_debug_modal import GateDebugModal as GateDebugModal
 from .gate_action_runner import GateEditOutcome as GateEditOutcome
 from .gate_retry_modal import GateRetryModal as GateRetryModal
+from .glossary_panel import GlossaryPanel as GlossaryPanel
 from .help_modal import HelpModal as HelpModal
 from .hook_history_modal import HookHistoryAction as HookHistoryAction
 from .hook_history_modal import HookHistoryModal as HookHistoryModal

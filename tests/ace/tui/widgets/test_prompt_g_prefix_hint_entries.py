@@ -35,6 +35,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
         # No multi-pane nav (single pane), no stash restore (empty stash).
         assert entry_pairs(bar) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -52,6 +53,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
 
         assert entry_pairs(bar) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -69,6 +71,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
 
         assert entry_pairs(bar, via_ctrl_g=True) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "submit this draft"),
             ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
@@ -99,6 +102,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
 
         assert entry_pairs(bar) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -109,6 +113,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
         ]
         assert entry_pairs(bar, via_ctrl_g=True) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "submit this draft"),
             ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
@@ -143,6 +148,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
 
         assert entry_pairs(bar) == [
             ("f", "format prompt"),
+            ("G", "glossary…"),
             ("enter", "launch this pane"),
             ("j", "focus next pane"),
             ("k", "focus prev pane"),
@@ -174,6 +180,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         # Multi-pane nav and stash-all stay available.
         assert keys == [
             "f",
+            "G",
             "enter",
             "j",
             "k",

@@ -54,6 +54,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_format_prompt",
     ),
     _PromptGPrefixBinding(
+        "G",
+        "request_open_glossary_panel",
+        "_g_prefix_label_glossary",
+        "_g_prefix_available_glossary",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -257,6 +263,37 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if callable(action):
             action()
 
+    def request_open_glossary_panel(self) -> None:
+        """Ask the app to open the glossary panel.
+
+        Presentation-only: the bar captures the glossary term under the
+        cursor (if any) and posts ``GlossaryPanelRequested`` with that term
+        and the bar's current mode. The app opens the panel and restores
+        prompt focus and vim mode on dismiss (boundary rule D6).
+        """
+        self.post_message(
+            self.GlossaryPanelRequested(  # type: ignore[attr-defined]
+                self._glossary_term_under_cursor(),
+                self._mode,
+            )
+        )
+
+    def _glossary_term_under_cursor(self) -> str | None:
+        """Return the highlighted glossary term at the cursor, if any.
+
+        Reuses the prompt-area ``lookup_glossary_span`` match used by the
+        glossary preview action. A cold or missing catalog is a miss: the
+        panel loads its own catalog and opens on the first term.
+        """
+        try:
+            match = self.active_text_area()._glossary_match_under_cursor(schedule=False)
+        except Exception:
+            return None
+        if not isinstance(match, tuple) or len(match) != 3:
+            return None
+        term = getattr(match[2], "term", None)
+        return term if isinstance(term, str) and term else None
+
     def _g_focus_next_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
         self.focus_relative(1, target_mode=target_mode)
@@ -313,6 +350,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return bool(self.active_text_area().text.strip())
         except Exception:
             return False
+
+    def _g_prefix_available_glossary(self) -> bool:
+        """Whether ``gG`` / ``^GG`` can open the glossary panel."""
+        return self._mode == "prompt"
 
     def _g_prefix_available_cancel_all(self) -> bool:
         """Whether ``Ctrl+G Ctrl+C`` can cancel the whole prompt stack."""
@@ -416,6 +457,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_format_prompt(self) -> str:
         return "format prompt"
+
+    def _g_prefix_label_glossary(self) -> str:
+        return "glossary…"
 
     def _g_prefix_label_cancel_all(self) -> str:
         """Return the ``Ctrl+G Ctrl+C`` label."""
