@@ -23,13 +23,14 @@ from sase.core.runner_slots import (
     normalize_wait_priority,
     runner_slot_queue_display_key,
     runner_slot_waiter_sort_key,
-    running_root_agent_count,
+    running_agent_slot_count,
 )
 
 
 def _record(
     artifact_dir: str,
     *,
+    project_name: str = "proj",
     pid: int = 100,
     run_started: bool = False,
     requested_at: str | None = None,
@@ -37,22 +38,26 @@ def _record(
     wait_priority: int | None = None,
     meta_wait_priority: int | None = None,
     parent_timestamp: str | None = None,
+    agent_family: str | None = None,
     agent_family_parallel: bool = False,
+    monitor_id: str | None = None,
     appears_as_agent: bool = True,
     done: bool = False,
     pending_question: bool = False,
 ) -> AgentArtifactRecordWire:
     return AgentArtifactRecordWire(
-        project_name="proj",
-        project_dir="/projects/proj",
-        project_file="/projects/proj/proj.gp",
+        project_name=project_name,
+        project_dir=f"/projects/{project_name}",
+        project_file=f"/projects/{project_name}/proj.gp",
         workflow_dir_name="ace-run",
         artifact_dir=artifact_dir,
         timestamp=artifact_dir.rsplit("/", 1)[-1],
         agent_meta=AgentMetaWire(
             pid=pid,
             parent_timestamp=parent_timestamp,
+            agent_family=agent_family,
             agent_family_parallel=agent_family_parallel,
+            monitor_id=monitor_id,
             wait_priority=meta_wait_priority,
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
         ),
@@ -182,16 +187,23 @@ def test_better_priority_agent_pending_finds_only_plausible_arrivals() -> None:
     )
 
 
-def test_running_count_uses_live_started_roots_only() -> None:
+def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
     records = [
         _record("/a", pid=1, run_started=True),
         _record("/starting", pid=2),
-        _record("/child", pid=3, run_started=True, parent_timestamp="parent"),
+        _record(
+            "/child",
+            pid=3,
+            run_started=True,
+            parent_timestamp="parent",
+            agent_family="family-b",
+        ),
         _record(
             "/parallel-child",
             pid=7,
             run_started=True,
             parent_timestamp="parent",
+            agent_family="family-b",
             agent_family_parallel=True,
         ),
         _record("/step", pid=4, run_started=True, appears_as_agent=False),
@@ -199,9 +211,13 @@ def test_running_count_uses_live_started_roots_only() -> None:
         _record("/dead", pid=6, run_started=True),
     ]
 
+    # /a is its own family (1). family-b's live serial child holds the
+    # family's one slot (1) and its live parallel sibling holds its own slot
+    # on top of that (1). /starting (not started), /step (not an agent),
+    # /done, and /dead (not live) contribute nothing.
     assert (
-        running_root_agent_count(records, lambda record: record.agent_meta.pid != 6)
-        == 2
+        running_agent_slot_count(records, lambda record: record.agent_meta.pid != 6)
+        == 3
     )  # type: ignore[union-attr]
 
 
@@ -221,19 +237,156 @@ def test_runner_slot_user_agent_record_predicate_covers_admission_cases() -> Non
     assert not is_runner_slot_user_agent_record(done)
 
 
+def _always_live(_record: AgentArtifactRecordWire) -> bool:
+    return True
+
+
+def test_standalone_agent_occupies_one_slot() -> None:
+    records = [_record("/standalone", run_started=True)]
+
+    assert running_agent_slot_count(records, _always_live) == 1
+
+
+def test_root_plus_live_serial_child_occupies_exactly_one_slot() -> None:
+    records = [
+        _record("/root", agent_family="fam", run_started=True),
+        _record(
+            "/serial",
+            agent_family="fam",
+            parent_timestamp="root_ts",
+            run_started=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 1
+
+
+def test_dead_root_with_live_monitor_member_still_occupies_one_slot() -> None:
+    records = [
+        _record("/root", agent_family="fam", run_started=True),
+        _record("/monitor", agent_family="fam", monitor_id="mon-1"),
+    ]
+
+    def is_live(record: AgentArtifactRecordWire) -> bool:
+        return record.artifact_dir != "/root"
+
+    assert running_agent_slot_count(records, is_live) == 1
+
+
+def test_settled_monitor_with_live_followup_still_occupies_one_slot() -> None:
+    records = [
+        _record("/root", agent_family="fam", run_started=True, done=True),
+        _record("/monitor", agent_family="fam", monitor_id="mon-1", done=True),
+        _record(
+            "/followup",
+            agent_family="fam",
+            parent_timestamp="/root",
+            run_started=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 1
+
+
+def test_two_independent_families_occupy_two_slots() -> None:
+    records = [
+        _record("/a", agent_family="fam-a", run_started=True),
+        _record("/b", agent_family="fam-b", run_started=True),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 2
+
+
+def test_clan_members_launched_independently_count_individually() -> None:
+    records = [
+        _record("/clan-a", run_started=True),
+        _record("/clan-b", run_started=True),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 2
+
+
+def test_live_parallel_family_members_count_individually() -> None:
+    records = [
+        _record("/root", agent_family="fam", run_started=True, done=True),
+        _record(
+            "/parallel-1",
+            agent_family="fam",
+            parent_timestamp="/root",
+            agent_family_parallel=True,
+            run_started=True,
+        ),
+        _record(
+            "/parallel-2",
+            agent_family="fam",
+            parent_timestamp="/root",
+            agent_family_parallel=True,
+            run_started=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 2
+
+
+def test_pending_question_on_familys_only_live_shell_frees_its_slot() -> None:
+    records = [
+        _record(
+            "/root",
+            agent_family="fam",
+            run_started=True,
+            pending_question=True,
+        ),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 0
+
+
+def test_done_marker_and_dead_pid_members_do_not_occupy() -> None:
+    records = [
+        _record("/done", agent_family="fam", run_started=True, done=True),
+        _record("/dead", agent_family="fam", run_started=True),
+    ]
+
+    def is_live(record: AgentArtifactRecordWire) -> bool:
+        return record.artifact_dir != "/dead"
+
+    assert running_agent_slot_count(records, is_live) == 0
+
+
+def test_monitor_member_with_pid_but_no_run_started_at_occupies_one_slot() -> None:
+    records = [_record("/monitor", monitor_id="mon-1")]
+
+    assert running_agent_slot_count(records, _always_live) == 1
+
+
+def test_non_agent_workflow_step_record_does_not_occupy() -> None:
+    records = [_record("/step", run_started=True, appears_as_agent=False)]
+
+    assert running_agent_slot_count(records, _always_live) == 0
+
+
+def test_records_from_two_projects_sharing_a_family_name_count_separately() -> None:
+    records = [
+        _record("/a", project_name="proj-a", agent_family="fam", run_started=True),
+        _record("/b", project_name="proj-b", agent_family="fam", run_started=True),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 2
+
+
 def test_question_paused_root_yields_until_pause_marker_is_removed() -> None:
     records = [
         _record("/ordinary", pid=1, run_started=True),
         _record("/question", pid=2, run_started=True, pending_question=True),
     ]
 
-    assert running_root_agent_count(records, lambda _record: True) == 1
+    assert running_agent_slot_count(records, lambda _record: True) == 1
 
     resumed = [
         _record("/ordinary", pid=1, run_started=True),
         _record("/question", pid=2, run_started=True),
     ]
-    assert running_root_agent_count(resumed, lambda _record: True) == 2
+    assert running_agent_slot_count(resumed, lambda _record: True) == 2
 
 
 def test_live_waiter_queue_is_fifo_and_filters_stale_processes() -> None:

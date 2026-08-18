@@ -10,7 +10,7 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     WorkflowStateWire,
 )
-from sase.core.runner_slots import running_root_agent_count
+from sase.core.runner_slots import running_agent_slot_count
 from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
@@ -116,7 +116,7 @@ class TestRunStartedAtRecording:
                 ),
                 workflow_state=WorkflowStateWire(appears_as_agent=True),
             )
-            assert running_root_agent_count([record], lambda _record: True) == 1
+            assert running_agent_slot_count([record], lambda _record: True) == 1
             raise RuntimeError("blocked workspace preparation")
 
         patches[f"{SETUP}.prepare_workspace"] = prepare_workspace

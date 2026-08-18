@@ -74,6 +74,86 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
     assert not (waiter / "waiting.json").exists()
 
 
+def test_running_monitor_occupying_last_slot_parks_new_launch(tmp_path: Path) -> None:
+    monitor = artifact(tmp_path, "20260812120000", 500, monitor_id="mon-1")
+    newcomer = artifact(tmp_path, "20260812120001", 501)
+
+    def scan() -> list[AgentArtifactRecordWire]:
+        return [record(monitor), record(newcomer)]
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(newcomer),
+            cl_name="cl",
+            timestamp=newcomer.name,
+            directive_threshold=None,
+            claim=lambda: "started",
+        )
+
+    assert result is None
+    assert parked
+    marker = json.loads((newcomer / "waiting.json").read_text())
+    assert marker["slot_requested_at"]
+
+
+def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:
+    monitor = artifact(tmp_path, "20260812120000", 500, monitor_id="mon-1")
+    waiter = artifact(tmp_path, "20260812120001", 501)
+    monitor_alive = True
+
+    def scan() -> list[AgentArtifactRecordWire]:
+        records = [record(waiter)]
+        if monitor_alive:
+            records.insert(0, record(monitor))
+        return records
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        first, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            claim=lambda: "started",
+        )
+        assert first is None
+        assert parked
+
+        monitor_alive = False
+        second, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            claim=lambda: "started",
+        )
+
+    assert second == "started"
+    assert not parked
+    assert not (waiter / "waiting.json").exists()
+
+
 def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
     tmp_path: Path,
 ) -> None:

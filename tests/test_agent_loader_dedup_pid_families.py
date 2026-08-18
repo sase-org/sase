@@ -12,7 +12,7 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     WaitingMarkerWire,
 )
-from sase.core.runner_slots import running_root_agent_count
+from sase.core.runner_slots import running_agent_slot_count
 from tests._agent_loader_helpers import _mock_agent_loader_sources
 from tests._workspace_provider_helpers import patch_spy_metadata
 
@@ -146,7 +146,7 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
             ),
         ),
     ]
-    admission_count = running_root_agent_count(admission_records, lambda _record: True)
+    admission_count = running_agent_slot_count(admission_records, lambda _record: True)
     assert capacity.slots_in_use == admission_count == 1
 
 

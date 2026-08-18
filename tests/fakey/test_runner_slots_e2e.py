@@ -100,6 +100,8 @@ class _RunnerSlotFakeyHarness:
         wait_runners: int | None = None,
         wait_priority: int | None = None,
         parent_timestamp: str | None = None,
+        agent_family: str | None = None,
+        monitor_id: str | None = None,
         crash: bool = False,
     ) -> _Agent:
         timestamp = f"202607130900{index:02d}"
@@ -113,6 +115,10 @@ class _RunnerSlotFakeyHarness:
         }
         if parent_timestamp is not None:
             meta["parent_timestamp"] = parent_timestamp
+        if agent_family is not None:
+            meta["agent_family"] = agent_family
+        if monitor_id is not None:
+            meta["monitor_id"] = monitor_id
         write_agent_meta(str(artifacts_dir), meta)
         return _Agent(
             name=str(meta["name"]),
@@ -447,11 +453,12 @@ def test_child_is_exempt_while_repeat_roots_stay_capped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
-    parent = harness.create_agent(0, name="parent")
+    parent = harness.create_agent(0, name="parent", agent_family="parent")
     child = harness.create_agent(
         1,
         name="parent.child",
         parent_timestamp=parent.artifacts_dir.name,
+        agent_family="parent",
     )
     repeats = [harness.create_agent(index, name=f"repeat-{index}") for index in (2, 3)]
 
@@ -465,14 +472,86 @@ def test_child_is_exempt_while_repeat_roots_stay_capped(
 
     harness.release_agent(parent)
     harness.join(parent)
+    # The family (parent + child) still holds its one slot while the exempt
+    # child is alive, even though parent's own record is now done.
+    time.sleep(0.05)  # sase-test-wait: delayed runner admission window
+    assert not repeats[0].started.exists()
+
+    harness.release_agent(child)
+    harness.join(child)
     harness.wait_started(repeats[0])
     harness.release_agent(repeats[0])
     harness.join(repeats[0])
     harness.wait_started(repeats[1])
 
-    for agent in (child, repeats[1]):
-        harness.release_agent(agent)
-    harness.join_all([child, repeats[1]])
+    harness.release_agent(repeats[1])
+    harness.join(repeats[1])
 
     assert harness.claim_order == ["parent", "parent.child", "repeat-2", "repeat-3"]
     assert harness.max_active_roots == 1
+
+
+def test_fakey_monitor_holds_capacity_across_handoff_and_followup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A monitor occupies its family's slot for its whole lifetime and hands
+    that occupancy to its ``--next`` follow-up agent; a second launch stays
+    queued until the whole family -- monitor and follow-up -- finishes.
+    """
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+
+    # A monitor member never calls `wait_for_runner_slot`: production writes
+    # its pid directly and kills the starter's runner group. Simulate that
+    # shape with a real live pid (so the production liveness probe treats it
+    # as live) instead of driving the full monitor subsystem.
+    supervisor = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        monitor_timestamp = "20260713090099"
+        monitor_dir = harness.artifacts_root / monitor_timestamp
+        monitor_dir.mkdir()
+        write_agent_meta(
+            str(monitor_dir),
+            {
+                "name": "watcher--m0",
+                "pid": supervisor.pid,
+                "agent_family": "watcher",
+                "monitor_id": "mon-1",
+            },
+        )
+
+        newcomer = harness.create_agent(0, name="newcomer")
+        harness.start(newcomer)
+        harness.wait_parked(newcomer)
+
+        followup = harness.create_agent(
+            1,
+            name="watcher--1",
+            parent_timestamp=monitor_timestamp,
+            agent_family="watcher",
+        )
+        harness.start(followup)
+        harness.wait_started(followup)
+
+        # newcomer stays queued: the family's slot moved from the monitor to
+        # its live follow-up, it was never freed.
+        time.sleep(0.05)  # sase-test-wait: delayed runner admission window
+        assert not newcomer.started.exists()
+
+        supervisor.terminate()
+        supervisor.wait(timeout=_TIMEOUT)
+
+        # The monitor is gone but the follow-up is still live: the family
+        # still holds its one slot.
+        time.sleep(0.05)  # sase-test-wait: delayed runner admission window
+        assert not newcomer.started.exists()
+
+        harness.release_agent(followup)
+        harness.join(followup)
+        harness.wait_started(newcomer)
+        harness.release_agent(newcomer)
+        harness.join(newcomer)
+    finally:
+        if supervisor.poll() is None:
+            supervisor.kill()
+            supervisor.wait(timeout=_TIMEOUT)

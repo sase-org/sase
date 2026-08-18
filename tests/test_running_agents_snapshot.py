@@ -36,7 +36,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
-from sase.core.runner_slots import running_root_agent_count
+from sase.core.runner_slots import running_agent_slot_count
 from tests.agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
     TS_ACE_RUN_FAILED,
@@ -183,6 +183,7 @@ def _synthetic_record(
     *,
     run_started: bool = False,
     parent_timestamp: str | None = None,
+    agent_family: str | None = None,
     agent_family_parallel: bool = False,
     waiting_for: list[str] | None = None,
     slot_requested_at: str | None = None,
@@ -200,6 +201,7 @@ def _synthetic_record(
             name=name,
             pid=100,
             parent_timestamp=parent_timestamp,
+            agent_family=agent_family,
             agent_family_parallel=agent_family_parallel,
             run_started_at=("2026-07-17T12:00:00-04:00" if run_started else None),
         ),
@@ -304,6 +306,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             root_timestamp,
             "root",
             run_started=True,
+            agent_family="root",
         ),
         _synthetic_record(
             tmp_path,
@@ -311,6 +314,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             "parallel",
             run_started=True,
             parent_timestamp=root_timestamp,
+            agent_family="root",
             agent_family_parallel=True,
         ),
         _synthetic_record(
@@ -319,6 +323,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             "serial",
             run_started=True,
             parent_timestamp=root_timestamp,
+            agent_family="root",
         ),
         _synthetic_record(
             tmp_path,
@@ -340,7 +345,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
     with _fixture_processes(tmp_path, alive=True):
         listed = _running_from_snapshot(snapshot)
 
-    admission_count = running_root_agent_count(records, lambda _record: True)
+    admission_count = running_agent_slot_count(records, lambda _record: True)
     assert admission_count == sum(bool(info.holds_runner_slot) for info in listed)
 
 

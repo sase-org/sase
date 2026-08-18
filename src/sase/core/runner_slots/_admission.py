@@ -136,7 +136,16 @@ def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
 
 
 def is_runner_slot_user_agent_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether *record* participates in runner-slot admission."""
+    """Return whether *record* may itself be parked and queued at the gate.
+
+    This answers the *admission* question only: a live root or a live
+    parallel family member waits for its own slot, while a serial family
+    member (a non-parallel child, a monitor, or a monitor follow-up) rides
+    the slot its family already holds and is exempt from waiting. It does
+    not answer the *occupancy* question of how many slots are in use --
+    see `is_runner_slot_occupying_record` / `running_agent_slot_count` for
+    that, which is decided per family rather than per record.
+    """
     if record.workflow_dir_name != "ace-run" or record.has_done_marker:
         return False
     meta = record.agent_meta
@@ -171,26 +180,104 @@ def better_priority_agent_pending(
     return False
 
 
-def running_root_agent_count(
+def is_runner_slot_occupying_record(
+    record: AgentArtifactRecordWire,
+    is_live: RecordLiveness,
+) -> bool:
+    """Return whether *record* is, on its own, occupying a runner slot now.
+
+    This is the primitive `running_agent_slot_count` groups and sums per
+    family; unlike `is_runner_slot_user_agent_record`, it intentionally
+    ignores lineage (``parent_timestamp``), because a live serial child, a
+    live monitor member, or a live post-handoff follow-up agent can each be
+    the shell currently holding a family's slot in place of a dead root.
+
+    ``pending_question.json`` is the authoritative marker for a shell that
+    has temporarily yielded its slot while awaiting a user answer. The
+    marker is retained if an answer is ready but the shell is queued to
+    reacquire capacity, and removed only by its successful locked claim.
+
+    "Started" is monitor-aware. An ordinary agent shell needs
+    ``agent_meta.run_started_at``, as today. A monitor member
+    (``agent_meta.monitor_id`` set) only needs a recorded ``pid``: the
+    supervisor pid is written before the starter's runner group is killed,
+    while ``run_started_at`` is not written until the monitored command
+    itself launches -- requiring it here would open a window across the
+    handoff where the starter is already dead and the monitor does not yet
+    count, letting a queued agent slip in.
+    """
+    if record.workflow_dir_name != "ace-run" or record.has_done_marker:
+        return False
+    state = record.workflow_state
+    if state is not None and not state.appears_as_agent:
+        return False
+    if record.pending_question is not None:
+        return False
+    meta = record.agent_meta
+    if meta is None:
+        return False
+    started = meta.pid is not None if meta.monitor_id else bool(meta.run_started_at)
+    if not started:
+        return False
+    return is_live(record)
+
+
+def runner_slot_family_key(record: AgentArtifactRecordWire) -> tuple[str, str]:
+    """Return the per-family occupancy grouping key for *record*.
+
+    Grouped by ``(project_name, agent_family)``. A record with no
+    ``agent_family`` falls back to its own ``timestamp``, which keeps
+    standalone agents and independently launched clan members counting
+    individually instead of collapsing into one group.
+    """
+    meta = record.agent_meta
+    family = meta.agent_family if meta is not None and meta.agent_family else None
+    return (record.project_name, family or record.timestamp)
+
+
+def group_records_by_runner_slot_family(
+    records: Iterable[AgentArtifactRecordWire],
+) -> dict[tuple[str, str], list[AgentArtifactRecordWire]]:
+    """Group *records* by the family `running_agent_slot_count` decides over.
+
+    Exposed so display code (the ACE capacity chip, agent listings) can
+    reuse this grouping instead of reimplementing it.
+    """
+    groups: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
+    for record in records:
+        groups.setdefault(runner_slot_family_key(record), []).append(record)
+    return groups
+
+
+def running_agent_slot_count(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
 ) -> int:
-    """Count live admitted agents that currently hold a runner slot.
+    """Count runner slots held right now, one per occupied family.
 
-    ``pending_question.json`` is the authoritative marker for a root that has
-    temporarily yielded its slot while awaiting a user answer.  The marker is
-    retained if an answer is ready but the root is queued to reacquire capacity,
-    and removed only by its successful locked claim.
+    A family holds one slot while any of its non-parallel members is
+    occupying (see `is_runner_slot_occupying_record`) -- covering a live
+    root, a live serial child, a live monitor member, or a live
+    post-handoff follow-up agent, in any combination and regardless of
+    which of them is the one currently live. Each live parallel member
+    (``agent_family_parallel`` is ``True``) additionally holds its own
+    slot, on top of that, matching admission's per-member treatment of
+    parallel family fan-out.
     """
-    return sum(
-        1
-        for record in records
-        if is_runner_slot_user_agent_record(record)
-        and record.agent_meta is not None
-        and bool(record.agent_meta.run_started_at)
-        and record.pending_question is None
-        and is_live(record)
-    )
+    count = 0
+    for group in group_records_by_runner_slot_family(records).values():
+        serial_occupying = False
+        parallel_occupying = 0
+        for candidate in group:
+            if not is_runner_slot_occupying_record(candidate, is_live):
+                continue
+            meta = candidate.agent_meta
+            if meta is not None and meta.agent_family_parallel:
+                parallel_occupying += 1
+            else:
+                serial_occupying = True
+        count += (1 if serial_occupying else 0) + parallel_occupying
+    return count
 
 
 def live_runner_slot_waiters(

@@ -38,7 +38,7 @@ from sase.core.runner_slots import (
     deference_window_seconds,
     live_runner_slot_waiters,
     may_start,
-    running_root_agent_count,
+    running_agent_slot_count,
 )
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
@@ -232,7 +232,7 @@ def _try_claim_runner_slot(
             records = _scan_runner_slot_records()
             is_live = _record_liveness_probe()
             queue = live_runner_slot_waiters(records, is_live)
-            running_count = running_root_agent_count(records, is_live)
+            running_count = running_agent_slot_count(records, is_live)
             eligible = may_start(running_count, threshold, queue, artifacts_dir)
             eligible_since: str | None = None
             entered_deference = False
@@ -329,6 +329,15 @@ def wait_for_runner_slot(
     Serial family follow-ups are exempt so a parent waiting on its children can
     never deadlock while holding a slot. Parallel family members participate in
     the global cap independently.
+
+    This exemption is now purely about *waiting*, not about *occupancy*: the
+    family's slot is already counted by `running_agent_slot_count` off
+    whichever of its shells is currently live (root, serial child, monitor,
+    or monitor follow-up), so an exempt member here is riding a slot its
+    family already holds rather than escaping the cap. Making it wait too
+    would reintroduce the deadlock this exemption exists to prevent, and
+    would strand a monitor follow-up whose starter root is already dead no
+    matter what the gate decides.
     """
     if (
         agent_meta.get("parent_timestamp")

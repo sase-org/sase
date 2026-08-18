@@ -25,7 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     PendingQuestionMarkerWire,
 )
-from sase.core.runner_slots import running_root_agent_count
+from sase.core.runner_slots import running_agent_slot_count
 
 from tests.axe_chop_runner_helpers import make_script
 
@@ -53,6 +53,7 @@ def _agent_record(
     *,
     run_started: bool = False,
     parent_timestamp: str | None = None,
+    agent_family: str | None = None,
     agent_family_parallel: bool = False,
     pending_question: bool = False,
     done: bool = False,
@@ -68,6 +69,7 @@ def _agent_record(
             name=name,
             pid=100,
             parent_timestamp=parent_timestamp,
+            agent_family=agent_family,
             agent_family_parallel=agent_family_parallel,
             run_started_at=("2026-08-12T12:00:00-04:00" if run_started else None),
         ),
@@ -276,13 +278,16 @@ def test_agent_runner_snapshot_count_matches_admission_count(
 ) -> None:
     root_timestamp = "20260812120000"
     records = [
-        _agent_record(tmp_path, root_timestamp, "root", run_started=True),
+        _agent_record(
+            tmp_path, root_timestamp, "root", run_started=True, agent_family="root"
+        ),
         _agent_record(
             tmp_path,
             "20260812120001",
             "parallel",
             run_started=True,
             parent_timestamp=root_timestamp,
+            agent_family="root",
             agent_family_parallel=True,
         ),
         _agent_record(
@@ -291,6 +296,7 @@ def test_agent_runner_snapshot_count_matches_admission_count(
             "serial",
             run_started=True,
             parent_timestamp=root_timestamp,
+            agent_family="root",
         ),
         _agent_record(
             tmp_path,
@@ -309,7 +315,7 @@ def test_agent_runner_snapshot_count_matches_admission_count(
         rows = _agent_snapshots([{"provider": "agent_runners"}])
 
     assert sum(bool(row["holds_runner_slot"]) for row in rows) == (
-        running_root_agent_count(records, lambda _record: True)
+        running_agent_slot_count(records, lambda _record: True)
     )
 
 
