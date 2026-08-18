@@ -2,7 +2,7 @@
 
 The hint line is a projection of three things a reviewer cannot otherwise see
 at a glance: the configured gate keymap, which branch is primary, and whether
-the gate declares path inputs worth a completion key.
+the gate offers an input panel for a note or declared fields.
 """
 
 from __future__ import annotations
@@ -34,12 +34,10 @@ def plan_approval_footer_text(
     hints.append("  ")
     hints.append(key_display_name(keys.submit_branch), style="green")
     hints.append("=Submit  ")
-    _has_inputs, has_path = gate_declares_inputs(
-        gate.options, HOST_COLLECTED_PROPERTIES
-    )
-    if has_path:
-        hints.append("^t", style="green")
-        hints.append("=Complete path  ")
+    has_inputs, _ = gate_declares_inputs(gate.options, HOST_COLLECTED_PROPERTIES)
+    if has_inputs or any(option.feedback != "disabled" for option in gate.options):
+        hints.append(key_display_name(keys.open_inputs), style="green")
+        hints.append("=note/inputs  ")
     hints.append("c", style="green")
     hints.append("=Coder options  ")
     hints.append_text(action_hints)

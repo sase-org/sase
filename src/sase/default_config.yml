@@ -266,6 +266,9 @@ ace:
       toggle_option: "space"
       submit_primary: "enter"
       submit_branch: "ctrl+s"
+      open_inputs: "i"
+      next_input: "tab"
+      previous_input: "shift+tab"
     # Focused Admin Center Statistics-pane bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.
     statistics:

@@ -6,11 +6,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.binding import Binding
+from textual.binding import Binding, BindingsMap
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static, TextArea
 
+from sase.ace.tui.keymaps import (
+    GateModalKeymaps,
+    build_gate_input_panel_bindings,
+    key_display_name,
+)
 from sase.ace.tui.widgets.typed_input_form import TypedInputForm
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputType, XPromptValidationError
@@ -75,10 +80,7 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
     """Collect the typed inputs for one gate selection and submit or cancel."""
 
     BINDINGS = [
-        Binding("tab", "next_input", "Next input", priority=True, show=False),
-        Binding(
-            "shift+tab", "previous_input", "Previous input", priority=True, show=False
-        ),
+        *build_gate_input_panel_bindings(GateModalKeymaps()),
         Binding("ctrl+s", "submit", "Submit", priority=True),
         Binding("escape", "cancel", "Cancel"),
     ]
@@ -129,16 +131,25 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         headline: str | None = None,
         kind: str | None = None,
         request_id: str | None = None,
+        gate_keymaps: GateModalKeymaps | None = None,
     ) -> None:
         super().__init__()
         self._request = request
         self._headline = headline or request.branch_label
         self._kind = kind
         self._request_id = request_id
+        self._keymaps = gate_keymaps or GateModalKeymaps()
         self._sections: list[GateInputSection] = []
         self._draft: GateInputDraft | None = None
         self._mode_label = ""
         self._mode_indicator = ""
+        self._bindings = BindingsMap(
+            [
+                *build_gate_input_panel_bindings(self._keymaps),
+                Binding(self._keymaps.submit_branch, "submit", "Submit", priority=True),
+                Binding("escape", "cancel", "Cancel"),
+            ]
+        )
 
     @property
     def draft(self) -> GateInputDraft:
@@ -416,14 +427,20 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         submit.disabled = not self._is_valid()
 
     def _footer_text(self, mode: str = "", indicator: str = "") -> str:
-        parts = ["<tab>/<shift+tab> field", "^s submit", "<esc> back"]
+        keys = self._keymaps
+        parts = [
+            f"{key_display_name(keys.next_input)}/"
+            f"{key_display_name(keys.previous_input)} field",
+            f"{key_display_name(keys.submit_branch)} submit",
+            "<esc> back",
+        ]
         if self._has_path_field():
             parts.append("^t complete path")
         chip = mode or self._mode_label
         suffix = indicator or self._mode_indicator
         if suffix:
             chip = f"{chip} {suffix}".strip()
-        left = "   ".join(parts)
+        left = " · ".join(parts)
         if chip:
             return f"{left}      {chip}"
         return left

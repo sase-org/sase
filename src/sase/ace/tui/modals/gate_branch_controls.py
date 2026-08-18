@@ -16,6 +16,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Button
 
+from sase.ace.tui.keymaps import GateModalKeymaps
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.models import GateFeedbackMode, GateOption
 
@@ -60,12 +61,14 @@ class GateBranchControls(VerticalScroll):
         data: GateBranchData,
         *,
         host_collected_properties: frozenset[str] = DEFAULT_HOST_COLLECTED_PROPERTIES,
+        gate_keymaps: GateModalKeymaps | None = None,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
         super().__init__(id=id, classes=classes)
         self.data = data
         self._host_collected_properties = host_collected_properties
+        self._gate_keymaps = gate_keymaps or GateModalKeymaps()
         self._options_by_id = {option.id: option for option in data.options}
         self._groups_by_members = {
             frozenset(group.options): group for group in data.groups
@@ -343,7 +346,7 @@ class GateBranchControls(VerticalScroll):
             return
         focused = self.screen.focused
         originating_id = focused.id if focused is not None else None
-        panel = GateInputPanel(request)
+        panel = GateInputPanel(request, gate_keymaps=self._gate_keymaps)
         self._panel_open = True
 
         def on_done(result: GateInputPanelResult | None) -> None:

@@ -705,7 +705,7 @@ def test_bindings_match_shared_branch_actions() -> None:
         for binding in CustomGateModal.BINDINGS
     }
     assert {"next_control", "previous_control", "toggle_option"} <= actions
-    assert {"submit_primary", "submit_branch"} <= actions
+    assert {"submit_primary", "submit_branch", "open_inputs"} <= actions
     assert {f"submit_numbered_branch({index})" for index in range(9)} <= actions
     assert "next_choice" not in actions
 
@@ -714,3 +714,38 @@ def test_bindings_match_shared_branch_actions() -> None:
         str(index) for index in range(1, 10)
     ]
     assert all(not binding.show and not binding.priority for binding in numbered)
+
+
+def test_footer_omits_open_inputs_when_gate_has_no_inputs_or_note() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed", icon="✅"),),
+            branches=(("proceed",),),
+        )
+    )
+
+    footer = modal._footer_text().plain
+    assert "note/inputs" not in footer
+    assert "^t complete path" not in footer
+
+
+async def test_remapped_open_inputs_opens_panel_and_appears_in_footer() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed", icon="✅", feedback="optional"),),
+            branches=(("proceed",),),
+        ),
+        gate_keymaps=GateModalKeymaps(open_inputs="o"),
+    )
+
+    footer = modal._footer_text().plain
+    assert "o note/inputs" in footer
+    assert "i note/inputs" not in footer
+    assert "^t complete path" not in footer
+
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        await pilot.press("o")
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, GateInputPanel))
+        assert _open_panel(pilot.app).query("#gate-input-note")

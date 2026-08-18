@@ -150,3 +150,42 @@ def test_custom_footer_uses_effective_primary_submit_key() -> None:
 
     assert "a=Approve deployment" in modal._footer_text().plain
     assert "Enter=Approve deployment" not in modal._footer_text().plain
+
+
+def test_remapped_open_inputs_appears_in_both_gate_footers() -> None:
+    keys = GateModalKeymaps(open_inputs="o")
+    custom = _custom_modal(
+        _gate(
+            options=(_option("approve", "Approve deployment"),),
+            primary_branch=("approve",),
+        ),
+        gate_keymaps=keys,
+    )
+    custom_with_note = _custom_modal(
+        _gate(
+            options=(
+                GateOption.from_mapping(
+                    {
+                        "id": "approve",
+                        "label": "Approve deployment",
+                        "feedback": "optional",
+                        "command": {"argv": ["commands/approve"]},
+                    },
+                    0,
+                ),
+            ),
+            primary_branch=("approve",),
+        ),
+        gate_keymaps=keys,
+    )
+    plan = PlanApprovalModal(
+        "approved-plan.md",
+        plan_content="",
+        gate_keymaps=keys,
+    )
+
+    assert "note/inputs" not in custom._footer_text().plain
+    assert "o note/inputs" in custom_with_note._footer_text().plain
+    assert "o=note/inputs" in plan._footer_text().plain
+    assert "i=note/inputs" not in plan._footer_text().plain
+    assert "^t" not in plan._footer_text().plain

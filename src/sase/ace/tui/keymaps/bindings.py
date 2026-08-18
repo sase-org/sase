@@ -14,6 +14,7 @@ from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
     _GATE_BINDING_META,
+    _GATE_INPUT_PANEL_BINDING_META,
     _GLOSSARY_BINDING_META,
     _STATISTICS_BINDING_META,
 )
@@ -79,6 +80,21 @@ def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
             priority=True,
         )
         for action, description in _GATE_BINDING_META
+    ]
+
+
+def build_gate_input_panel_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the gate input panel focus ring."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+            priority=True,
+        )
+        for action, description in _GATE_INPUT_PANEL_BINDING_META
     ]
 
 

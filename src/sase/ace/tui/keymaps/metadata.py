@@ -178,12 +178,21 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
 )
 
 # Shared bindings owned by the branch renderer inside gate-review modals.
+# ``next_input`` / ``previous_input`` live on the input panel, not the gate
+# modal, so they are omitted here and bound by ``build_gate_input_panel_bindings``.
 _GATE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("next_control", "Next control"),
     ("previous_control", "Previous control"),
     ("toggle_option", "Toggle option"),
     ("submit_primary", "Submit primary"),
     ("submit_branch", "Submit"),
+    ("open_inputs", "Open inputs"),
+)
+
+# Focus-ring bindings owned by ``GateInputPanel``.
+_GATE_INPUT_PANEL_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("next_input", "Next input"),
+    ("previous_input", "Previous input"),
 )
 
 # Scoped bindings owned by the Glossary panel. These are deliberately

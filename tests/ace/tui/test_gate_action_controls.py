@@ -28,6 +28,7 @@ from sase.ace.tui.modals.gate_action_output_modal import GateActionOutputModal
 from sase.ace.tui.modals.gate_action_runner import (
     GateCommandOutcome,
     GateEditOutcome,
+    gate_modal_taken_keys,
 )
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls, GateBranchData
 from sase.notification_gates.model_operations import GateOperation
@@ -245,6 +246,23 @@ def test_declared_key_wins_when_free_and_falls_back_when_taken() -> None:
     reassigned = resolve_gate_action_keys(operations, taken={"e", "x"})
     assert reassigned["edit_plan"] not in {"e", "x"}
     assert reassigned["show_diff"] not in {"e", "x", reassigned["edit_plan"]}
+
+
+def test_open_inputs_key_is_withheld_from_declared_gate_action_keys() -> None:
+    taken = gate_modal_taken_keys((), GateModalKeymaps())
+    assert "i" in taken
+    resolved = resolve_gate_action_keys((_edit_operation(key="i"),), taken=taken)
+    assert resolved["edit_plan"] != "i"
+
+    remapped = gate_modal_taken_keys((), GateModalKeymaps(open_inputs="o"))
+    assert "i" not in remapped
+    assert "o" in remapped
+    assert (
+        resolve_gate_action_keys((_edit_operation(key="i"),), taken=remapped)[
+            "edit_plan"
+        ]
+        == "i"
+    )
 
 
 async def test_accepted_edit_keeps_the_modal_and_the_reviewers_work() -> None:

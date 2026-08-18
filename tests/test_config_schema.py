@@ -307,6 +307,9 @@ def test_config_schema_accepts_scoped_gate_keymaps() -> None:
                         "toggle_option": "space",
                         "submit_primary": "enter",
                         "submit_branch": "ctrl+enter",
+                        "open_inputs": "o",
+                        "next_input": "ctrl+n",
+                        "previous_input": "ctrl+p",
                     }
                 }
             }

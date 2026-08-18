@@ -1434,6 +1434,18 @@
                 "submit_branch": {
                   "type": "string",
                   "description": "Submit the active branch"
+                },
+                "open_inputs": {
+                  "type": "string",
+                  "description": "Open the input panel for the focused option"
+                },
+                "next_input": {
+                  "type": "string",
+                  "description": "Focus the next input in the gate input panel"
+                },
+                "previous_input": {
+                  "type": "string",
+                  "description": "Focus the previous input in the gate input panel"
                 }
               }
             },

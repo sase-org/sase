@@ -496,8 +496,25 @@ def test_default_config_covers_all_gate_modal_keymaps() -> None:
         "toggle_option": "space",
         "submit_primary": "enter",
         "submit_branch": "ctrl+s",
+        "open_inputs": "i",
+        "next_input": "tab",
+        "previous_input": "shift+tab",
     }
     assert field_names == set(defaults)
+
+
+def test_gate_panel_keys_are_not_bound_on_the_gate_modal() -> None:
+    from sase.ace.tui.keymaps.metadata import (
+        _GATE_BINDING_META,
+        _GATE_INPUT_PANEL_BINDING_META,
+    )
+
+    modal_actions = {action for action, _description in _GATE_BINDING_META}
+    panel_actions = {action for action, _description in _GATE_INPUT_PANEL_BINDING_META}
+
+    assert "open_inputs" in modal_actions
+    assert panel_actions == {"next_input", "previous_input"}
+    assert modal_actions.isdisjoint(panel_actions)
 
 
 def test_binding_meta_matches_app_keymaps() -> None:

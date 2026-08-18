@@ -184,6 +184,7 @@ class CustomGateModal(
         yield Static("Decision", classes="gate-review-section-title")
         yield GateBranchControls(
             self._data.gate,
+            gate_keymaps=self._gate_keymaps,
             id="custom-gate-branches",
             classes="gate-branch-controls--stacked",
         )
@@ -246,6 +247,9 @@ class CustomGateModal(
 
     def action_submit_numbered_branch(self, branch_index: int) -> None:
         self.query_one(GateBranchControls).submit_numbered_branch(branch_index)
+
+    def action_open_inputs(self) -> None:
+        self.query_one(GateBranchControls).open_inputs_for_focused_control()
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#custom-gate-review-scroll", VerticalScroll)
@@ -316,11 +320,13 @@ class CustomGateModal(
         text.append_text(primary_action_badge(self._data.gate, keys.submit_primary))
         text.append("  ")
         text.append(f"{key_display_name(keys.submit_branch)} submit  ")
-        _has_inputs, has_path = gate_declares_inputs(
+        has_inputs, _ = gate_declares_inputs(
             self._data.gate.options, DEFAULT_HOST_COLLECTED_PROPERTIES
         )
-        if has_path:
-            text.append("^t complete path  ")
+        if has_inputs or any(
+            option.feedback != "disabled" for option in self._data.gate.options
+        ):
+            text.append(f"{key_display_name(keys.open_inputs)} note/inputs  ")
         text.append_text(self.gate_action_hints())
         text.append("d debug  q cancel")
         return text

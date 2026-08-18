@@ -128,6 +128,7 @@ def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
         "toggle_option",
         "submit_primary",
         "submit_branch",
+        "open_inputs",
     } <= actions
     assert {"approve", "tale", "epic", "reject", "feedback"}.isdisjoint(actions)
 

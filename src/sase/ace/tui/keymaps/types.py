@@ -26,6 +26,7 @@ from sase.ace.tui.keymaps.key_validation import (
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
     _GATE_BINDING_META,
+    _GATE_INPUT_PANEL_BINDING_META,
     _MODE_PREFIX_ACTIONS,
     _STATISTICS_BINDING_META,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "_BUILTIN_MODE_CLASSES",
     "_CTRL_SPACE_KEY",
     "_GATE_BINDING_META",
+    "_GATE_INPUT_PANEL_BINDING_META",
     "_KEY_ALIASES",
     "_KEY_DISPLAY",
     "_MODE_PREFIX_ACTIONS",

@@ -253,6 +253,9 @@ class GateModalKeymaps:
     toggle_option: str = "space"
     submit_primary: str = "enter"
     submit_branch: str = "ctrl+s"
+    open_inputs: str = "i"
+    next_input: str = "tab"
+    previous_input: str = "shift+tab"
 
 
 @dataclass

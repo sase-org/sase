@@ -167,6 +167,7 @@ class PlanApprovalModal(
                     yield GateBranchControls(
                         self._gate,
                         host_collected_properties=HOST_COLLECTED_PROPERTIES,
+                        gate_keymaps=self._gate_keymaps,
                         id="plan-approval-branches",
                         classes="gate-branch-controls--stacked",
                     )
@@ -288,6 +289,9 @@ class PlanApprovalModal(
 
     def action_submit_numbered_branch(self, branch_index: int) -> None:
         self.query_one(GateBranchControls).submit_numbered_branch(branch_index)
+
+    def action_open_inputs(self) -> None:
+        self.query_one(GateBranchControls).open_inputs_for_focused_control()
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

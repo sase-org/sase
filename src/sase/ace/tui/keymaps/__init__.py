@@ -7,6 +7,7 @@ system (``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays).
 
 from sase.ace.tui.keymaps.bindings import (
     build_app_bindings,
+    build_gate_input_panel_bindings,
     build_gate_modal_bindings,
     build_gate_numbered_branch_bindings,
     build_glossary_bindings,
@@ -66,6 +67,7 @@ __all__ = [
     "StatisticsPaneKeymaps",
     "_BINDING_META",
     "build_app_bindings",
+    "build_gate_input_panel_bindings",
     "build_gate_modal_bindings",
     "build_gate_numbered_branch_bindings",
     "build_glossary_bindings",

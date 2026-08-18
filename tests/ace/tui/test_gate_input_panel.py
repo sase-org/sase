@@ -7,6 +7,7 @@ from typing import Any
 from textual.app import App
 from textual.widgets import Button, Static
 
+from sase.ace.tui.keymaps import GateModalKeymaps
 from sase.ace.tui.modals.gate_input_panel import GateInputPanel, GateInputPanelResult
 from sase.ace.tui.modals.gate_input_panel_model import (
     GateInputDraft,
@@ -308,6 +309,42 @@ async def test_tab_and_shift_tab_walk_editors_enum_and_buttons() -> None:
         await pilot.pause()
         assert panel.focused is not None
         assert panel.focused.id == expected[-1]
+
+
+async def test_remapped_next_and_previous_input_drive_the_panel_ring() -> None:
+    option = _option(
+        "deploy",
+        inputs=[{"id": "env", "label": "Env", "type": "line", "required": True}],
+        feedback="optional",
+    )
+    request = _request(option, feedback_mode="optional")
+    keys = GateModalKeymaps(next_input="ctrl+n", previous_input="ctrl+p")
+    app = _PanelApp()
+    panel = GateInputPanel(request, gate_keymaps=keys)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.push_screen(panel)
+        await pilot.pause()
+        footer = _plain(panel.query_one("#gate-input-footer", Static))
+        assert "Ctrl+N/Ctrl+P field" in footer
+        assert "Ctrl+S submit" in footer
+        assert "<esc> back" in footer
+        expected = [
+            "gate-input-deploy-input-0",
+            "gate-input-note",
+            "gate-input-submit",
+            "gate-input-cancel",
+        ]
+        panel.query_one(f"#{expected[0]}").focus()
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert panel.focused is not None
+        assert panel.focused.id == expected[1]
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        assert panel.focused is not None
+        assert panel.focused.id == expected[0]
 
 
 async def test_enter_on_last_field_advances_section_then_submits() -> None:

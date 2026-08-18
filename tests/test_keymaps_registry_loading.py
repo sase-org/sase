@@ -58,6 +58,9 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.glossary, GlossaryPanelKeymaps)
     assert reg.gate.toggle_option == "space"
     assert reg.gate.submit_branch == "ctrl+s"
+    assert reg.gate.open_inputs == "i"
+    assert reg.gate.next_input == "tab"
+    assert reg.gate.previous_input == "shift+tab"
     assert reg.statistics.prev_view == "left_square_bracket"
     assert reg.statistics.next_view == "right_square_bracket"
     assert reg.statistics.select_view == "0"
@@ -189,7 +192,13 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
         }
     )
 
-    assert reg.gate == GateModalKeymaps("down", "up", "t", "a", "s")
+    assert reg.gate == GateModalKeymaps(
+        next_control="down",
+        previous_control="up",
+        toggle_option="t",
+        submit_primary="a",
+        submit_branch="s",
+    )
 
 
 def test_glossary_panel_keys_can_be_overridden_independently() -> None:
