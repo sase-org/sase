@@ -111,6 +111,7 @@ _ARTIFACT_REF_SLOTS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
 def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
     overrides: dict[tuple[tuple[str, ...], str], ValueKind] = {
         (("agent", "kill"), "name"): ValueKind.AGENT,
+        (("agent", "restart"), "name"): ValueKind.AGENT,
         (("agent", "revert"), "name"): ValueKind.AGENT,
         (("agent", "show"), "name"): ValueKind.AGENT,
         (("glossary", "del"), "term"): ValueKind.GLOSSARY,

@@ -11,6 +11,7 @@ from ._directive_edit_identity import (
     set_prompt_name,
     set_prompt_tribe,
 )
+from ._directive_edit_model import set_prompt_model
 from ._directive_edit_wait import (
     AutoMode,
     PromptWaitDirective,
@@ -27,6 +28,7 @@ __all__ = [
     "rewrite_prompt_family_member_name",
     "set_prompt_auto_mode",
     "set_prompt_clan_tribe",
+    "set_prompt_model",
     "set_prompt_name",
     "set_prompt_tribe",
     "set_prompt_wait",

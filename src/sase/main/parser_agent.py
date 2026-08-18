@@ -599,3 +599,60 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show warning-severity diagnostics (hidden by default)",
     )
+
+    # sase agent restart NAME
+    restart_parser = agents_sub.add_parser(
+        "restart",
+        help="Stop a named agent and immediately relaunch its stored prompt",
+        description=(
+            "Stop the named agent and immediately relaunch its stored prompt "
+            "under the same name. Planning finishes before anything is killed. "
+            "A live agent asks for confirmation unless -y is given; --dry-run "
+            "prints the preview and exits 0. Exit 0 means restarted or "
+            "previewed, 2 means refused with nothing changed, and 1 means the "
+            "old run was stopped but the relaunch failed."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent restart 02p\n"
+            "  sase agent restart 02p --dry-run\n"
+            "  sase agent restart sase-mf.1 -m opus@high\n"
+            "  sase agent restart 02p -j"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    restart_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one stable JSON envelope on stdout and nothing else",
+    )
+    restart_parser.add_argument(
+        "-m",
+        "--model",
+        metavar="MODEL",
+        help=(
+            "Relaunch under a different model. Accepts [provider/]model[@effort], "
+            "the same spelling %%model: accepts. -m opus replaces the model only "
+            "and leaves a standalone %%effort: in place. -m opus@high replaces "
+            "the model and removes %%effort: so the combined directive is the "
+            "only source of truth."
+        ),
+    )
+    restart_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the preview and exit 0 without killing or launching",
+    )
+    restart_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the interactive confirmation for a live agent",
+    )
+    restart_parser.add_argument(
+        "name",
+        metavar="NAME",
+        help="Name of the agent to restart",
+    )

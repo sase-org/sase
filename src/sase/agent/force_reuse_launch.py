@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class _ForceReuseLaunchPlan:
+class ForceReuseLaunchPlan:
     """A validated, not-yet-applied forced-name-reuse launch."""
 
     rewritten_prompt: str
@@ -43,7 +43,7 @@ class _ForceReuseLaunchFanoutError(RuntimeError):
         )
 
 
-def plan_force_reuse_launch(prompt: str) -> _ForceReuseLaunchPlan | None:
+def plan_force_reuse_launch(prompt: str) -> ForceReuseLaunchPlan | None:
     """Plan a forced-name-reuse launch without mutating any name state.
 
     Returns ``None`` when *prompt* requests no forced reuse (the common case,
@@ -81,14 +81,14 @@ def plan_force_reuse_launch(prompt: str) -> _ForceReuseLaunchPlan | None:
     segment_envs = [
         force_reuse_bead_env(association) or None for association in bead_associations
     ]
-    return _ForceReuseLaunchPlan(
+    return ForceReuseLaunchPlan(
         rewritten_prompt=rewritten_prompt,
         owner_names=owner_names,
         segment_envs=segment_envs,
     )
 
 
-def apply_force_reuse_launch(plan: _ForceReuseLaunchPlan) -> None:
+def apply_force_reuse_launch(plan: ForceReuseLaunchPlan) -> None:
     """Wipe the reserved owner names described by *plan*."""
     from sase.agent.launch_validation import wipe_names_for_forced_reuse
 
@@ -96,6 +96,7 @@ def apply_force_reuse_launch(plan: _ForceReuseLaunchPlan) -> None:
 
 
 __all__ = [
+    "ForceReuseLaunchPlan",
     "apply_force_reuse_launch",
     "plan_force_reuse_launch",
 ]

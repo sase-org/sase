@@ -24,6 +24,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "persist-cleanup",
         "persist-directive",
         "prompts",
+        "restart",
         "retire-v1",
         "revert",
         "show",
@@ -36,7 +37,7 @@ def test_agents_help_renders_sorted_subcommands() -> None:
     assert help_commands == sorted(expected_commands)
     assert (
         "{archive,artifacts,index,kill,list,names,persist-cleanup,"
-        "persist-directive,prompts,retire-v1,revert,show,sync,tribe}"
+        "persist-directive,prompts,restart,retire-v1,revert,show,sync,tribe}"
         in agents_parser.format_help()
     )
 
@@ -119,6 +120,25 @@ def test_agent_show_takes_name_positionally(
         create_parser().parse_args(["agent", "show", "-n", "brisk-otter"])
     assert old_option_form.value.code == 2
     assert "unrecognized arguments: -n" in capsys.readouterr().err
+
+
+def test_agent_restart_takes_name_positionally(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``sase agent restart`` takes NAME positionally; ``-n`` is dry-run."""
+    restart_help = flat_help(parser_for(("sase", "agent", "restart")).format_help())
+    args = create_parser().parse_args(["agent", "restart", "02p", "-n"])
+
+    assert args.name == "02p"
+    assert args.dry_run is True
+    assert "NAME" in restart_help
+    assert "--dry-run" in restart_help
+    assert "sase agent restart 02p" in restart_help
+
+    with pytest.raises(SystemExit) as missing_name:
+        create_parser().parse_args(["agent", "restart"])
+    assert missing_name.value.code == 2
+    assert "the following arguments are required: NAME" in capsys.readouterr().err
 
 
 def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:

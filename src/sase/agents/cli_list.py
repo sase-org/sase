@@ -11,20 +11,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.agents.status_style import agent_status_text
 from sase.integrations.agent_list_entries import AgentListEntry, agent_list_entries
 from sase.project_display_names import (
     project_display_name_for,
     humanize_vcs_refs_in_text,
 )
-
-_STATUS_COLORS: dict[str, str] = {
-    "STARTING": "cyan",
-    "RUNNING": "green",
-    "QUEUED": "#5F87FF",
-    "WAITING": "yellow",
-    "DONE": "bright_black",
-    "FAILED": "red",
-}
 
 
 def _get_provider_colors() -> dict[str, str]:
@@ -156,8 +148,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
 
 
 def _status_badge(status: str) -> Text:
-    color = _STATUS_COLORS.get(status, "")
-    return Text(status, style=color) if color else Text(status)
+    return agent_status_text(status)
 
 
 def _provider_badge(provider: str | None) -> Text:

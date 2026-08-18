@@ -59,6 +59,24 @@ def test_parser_registers_list_flags() -> None:
     assert args.project == "proj"
 
 
+def test_dispatch_restart() -> None:
+    """``sase agent restart`` dispatches to the restart handler."""
+    args = argparse.Namespace(
+        agent_subcommand="restart",
+        name="02p",
+        json=False,
+        dry_run=True,
+        yes=False,
+        model=None,
+    )
+    with (
+        patch("sase.agents.cli_restart.handle_agents_restart", return_value=0),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agent_command(args)
+    assert excinfo.value.code == 0
+
+
 def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     """Unknown subcommand prints usage and exits 1."""
     args = argparse.Namespace(agent_subcommand="bogus")

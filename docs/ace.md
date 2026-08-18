@@ -2001,6 +2001,9 @@ Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN
 `TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from
 the Agents header's "stopped" attention bucket for rows paused on user action.
 
+The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: it stops
+the named agent and immediately relaunches the stored prompt under the same name.
+
 If any agents are marked, `,x` acts on that marked set instead of the focused row. Stale
 marks are ignored; if any remaining marked agent has no recoverable prompt, ACE warns
 and leaves the set untouched. After confirmation, ACE kills or dismisses the marked

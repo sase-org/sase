@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.names._common import NamedAgent
-from sase.agent.running import kill_named_agent
+from sase.agent.running import dismiss_named_agent, kill_named_agent
 from tests._kill_named_agent_dismiss_helpers import (
     _isolated_dismissed_index as _isolated_dismissed_index,
 )
@@ -343,3 +343,33 @@ def test_kill_named_agent_dismissal_is_idempotent(
     notifications = _notifications_by_id()
     assert list(notifications) == ["question"]
     assert notifications["question"].dismissed is True
+
+
+def test_dismiss_named_agent_retires_done_row_without_kill(tmp_path: Path) -> None:
+    artifacts_dir = _setup_home_agent(tmp_path, with_cl_name=True)
+    (artifacts_dir / "done.json").write_text('{"outcome": "completed"}')
+    (artifacts_dir / "running.json").write_text('{"pid": 11111}')
+    found = NamedAgent(
+        name="home_agent",
+        artifacts_dir=str(artifacts_dir),
+        is_done=True,
+        outcome="completed",
+    )
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch("sase.agent.running.request_user_kill") as kill_proc,
+    ):
+        result = dismiss_named_agent("home_agent")
+
+    assert result.success is True
+    assert result.status == "dismissed"
+    assert result.changed is True
+    kill_proc.assert_not_called()
+    assert not (artifacts_dir / "running.json").exists()
+
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    dismissed = load_dismissed_agents()
+    assert (AgentType.RUNNING, "home_feature", "20260510120000") in dismissed

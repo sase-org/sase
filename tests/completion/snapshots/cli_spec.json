@@ -1754,6 +1754,91 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "847a6e435767eca3",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "restart",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "model",
+                "hidden": false,
+                "kind": "model",
+                "repeatable": false,
+                "strings": [
+                  "-m",
+                  "--model"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "agent",
+              "restart"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "name",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "NAME",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "3f31624169bf7eb6",
             "hidden": false,
             "mutex_groups": [],

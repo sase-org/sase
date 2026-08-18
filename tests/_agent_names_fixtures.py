@@ -25,6 +25,8 @@ def make_agent(
     agent_family: str | None = None,
     role_suffix: str | None = None,
     response_path: str | None = None,
+    raw_prompt: str | None = None,
+    extra_meta: dict[str, object] | None = None,
 ) -> Path:
     """Create a fake agent artifact directory with agent_meta.json."""
     artifact_dir = (
@@ -42,7 +44,11 @@ def make_agent(
         meta["agent_family"] = agent_family
     if role_suffix is not None:
         meta["role_suffix"] = role_suffix
+    if extra_meta:
+        meta.update(extra_meta)
     (artifact_dir / "agent_meta.json").write_text(json.dumps(meta))
+    if raw_prompt is not None:
+        (artifact_dir / "raw_xprompt.md").write_text(raw_prompt, encoding="utf-8")
     if done:
         done_data: dict[str, object] = {}
         if outcome:

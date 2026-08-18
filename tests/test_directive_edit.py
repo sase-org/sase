@@ -13,11 +13,26 @@ from sase.xprompt.directive_edit import (
     rewrite_prompt_clan_member_name,
     set_prompt_auto_mode,
     set_prompt_clan_tribe,
+    set_prompt_model,
     set_prompt_name,
     set_prompt_tribe,
     set_prompt_wait,
 )
 from sase.xprompt.directives import extract_prompt_directives
+
+
+def test_set_prompt_model_replaces_model_only() -> None:
+    prompt = "%model:sonnet\n%effort:low\nDo work"
+    assert set_prompt_model(prompt, "opus") == "%model:opus\n%effort:low\nDo work"
+
+
+def test_set_prompt_model_with_effort_removes_standalone_effort() -> None:
+    prompt = "%model:sonnet\n%effort:low\nDo work"
+    assert set_prompt_model(prompt, "opus@high") == "%model:opus@high\nDo work"
+
+
+def test_set_prompt_model_quotes_values_with_spaces() -> None:
+    assert set_prompt_model("Do work", "my model") == '%model("my model")\nDo work'
 
 
 def test_set_prompt_name_inserts_when_absent() -> None:

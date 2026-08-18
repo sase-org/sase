@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.agent.names import find_named_agent, is_process_alive
+from sase.agent.names import NamedAgent, find_named_agent, is_process_alive
 from sase.agent.running_listing import (
     _DONE_AGENTS_CAP_PER_PROJECT as _DONE_AGENTS_CAP_PER_PROJECT,
     RunningAgentInfo as RunningAgentInfo,
@@ -84,28 +84,13 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             artifacts_dir=agent.artifacts_dir,
         )
 
-    # Derive project context from artifacts_dir.
-    from sase.ace.patch.project_spec_path import preferred_project_spec_path
-    from sase.core.agent_artifact_paths import parse_agent_artifact_path
-
-    artifacts_path = Path(agent.artifacts_dir)
-    path_info = parse_agent_artifact_path(artifacts_path)
-    if path_info is None:
-        timestamp = artifacts_path.name
-        project_dir = artifacts_path.parent.parent.parent
-        project_name = project_dir.name
-    else:
-        timestamp = path_info.timestamp
-        project_name = path_info.project_name
-        project_dir = artifacts_path
-        while project_dir.name != project_name and project_dir.parent != project_dir:
-            project_dir = project_dir.parent
-    project_file = preferred_project_spec_path(str(project_dir), project_name)
+    artifacts_path, project_name, project_file, timestamp, is_home = (
+        _named_agent_project_fields(agent)
+    )
 
     # Find PID
     pid: int | None = None
     cl_name: str | None = None
-    is_home = project_name == "home"
 
     if is_home:
         # Home mode: read PID from running.json
@@ -202,6 +187,80 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         project=project_name,
         timestamp=timestamp,
     )
+
+
+def dismiss_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
+    """Retire a named agent's inbox row without sending SIGTERM.
+
+    ``kill_named_agent`` refuses a completed agent with
+    ``reason="already_completed"``. Restarting a DONE agent still needs the
+    old row gone, so this path releases a non-home workspace claim, drops
+    running/waiting markers, and records the dismissal. Index and
+    notification bookkeeping stay best-effort, matching
+    :func:`kill_named_agent`.
+    """
+    agent = find_named_agent(name)
+    if agent is None:
+        return _KillResult(
+            False,
+            f"No agent found with name '{name}'",
+            reason="not_found",
+            status="not_found",
+        )
+
+    if exact_name and not _agent_meta_name_matches(agent.artifacts_dir, name):
+        return _KillResult(
+            False,
+            f"No agent found with name '{name}'",
+            reason="not_found",
+            status="not_found",
+        )
+
+    artifacts_path, project_name, project_file, timestamp, is_home = (
+        _named_agent_project_fields(agent)
+    )
+    cl_name = _read_cl_name_from_artifacts(artifacts_path)
+    if not is_home:
+        _release_workspace_claim(project_file, timestamp)
+    _remove_agent_state_markers(
+        artifacts_path,
+        remove_running=True,
+        remove_waiting=True,
+    )
+    _record_dismissal(cl_name, timestamp)
+    _dismiss_agent_notifications(cl_name, timestamp)
+    return _KillResult(
+        True,
+        f"Dismissed agent '{name}'",
+        status="dismissed",
+        changed=True,
+        artifacts_dir=agent.artifacts_dir,
+        project=project_name,
+        timestamp=timestamp,
+    )
+
+
+def _named_agent_project_fields(
+    agent: NamedAgent,
+) -> tuple[Path, str, str, str, bool]:
+    """Return artifacts path, project, spec path, timestamp, and home flag."""
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+    artifacts_path = Path(agent.artifacts_dir)
+    path_info = parse_agent_artifact_path(artifacts_path)
+    if path_info is None:
+        timestamp = artifacts_path.name
+        project_dir = artifacts_path.parent.parent.parent
+        project_name = project_dir.name
+    else:
+        timestamp = path_info.timestamp
+        project_name = path_info.project_name
+        project_dir = artifacts_path
+        while project_dir.name != project_name and project_dir.parent != project_dir:
+            project_dir = project_dir.parent
+    project_file = preferred_project_spec_path(str(project_dir), project_name)
+    return artifacts_path, project_name, project_file, timestamp, project_name == "home"
 
 
 def _valid_pid(value: object) -> int | None:
