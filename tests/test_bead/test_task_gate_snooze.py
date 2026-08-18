@@ -217,6 +217,30 @@ def test_task_triage_snooze_translation_requires_a_wake_time(
     assert "requires a wake time" in str(exc_info.value)
 
 
+def test_typed_task_triage_gate_still_exposes_the_snooze_option(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = task_triage_spec(
+        request_id="task-triage-typed-snooze",
+        task_type="flake",
+        task_type_fields={
+            "node_id": "tests/x.py::test_y",
+            "evidence": "3/50 under -n 8",
+        },
+    )
+    gate = create_gate(spec)
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+
+    assert request["payload"]["task_type"] == "flake"
+    assert request["presentation"]["tags"] == ["bead", "task", "flake"]
+    assert [option["id"] for option in request["options"]] == [
+        "launch",
+        "close",
+        "snooze",
+    ]
+
+
 def test_task_triage_snooze_helper_refuses_a_mismatched_decision() -> None:
     decision = SimpleNamespace(
         bead_id="sase-task.1",

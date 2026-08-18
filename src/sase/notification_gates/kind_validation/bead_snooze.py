@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sase.notification_gates.kind_validation.bead_snooze_payload import (
     BeadSnoozePayload,
@@ -144,33 +145,23 @@ def _validate_bead_snooze_resources(spec: GateSpec) -> str | None:
 def _validate_bead_snooze_presentation(
     spec: GateSpec, payload: BeadSnoozePayload
 ) -> None:
-    from sase.bead.snooze_gate import (
-        BEAD_SNOOZE_PREVIEW_PATH,
-        bead_snooze_presentation_note,
-    )
+    from sase.bead.snooze_gate import bead_snooze_presentation
 
+    origin_agent = _presentation_origin_agent(
+        spec.presentation, "invalid_bead_snooze_presentation"
+    )
     task = payload.task
-    expected_note = bead_snooze_presentation_note(
-        task.bead_id,
-        task.title,
-        task.plus_one_count,
+    expected = bead_snooze_presentation(
+        bead_id=task.bead_id,
+        title=task.title,
+        plus_one_count=task.plus_one_count,
         until=payload.snooze.until,
         reopen_count=len(task.close_history),
+        origin_agent=origin_agent,
+        task_type=task.task_type,
+        task_type_display=task.task_type_display,
     )
-    presentation = spec.presentation
-    origin_agent = presentation.get("origin_agent")
-    if (
-        presentation.get("sender") != "bead"
-        or presentation.get("icon") != "◈"
-        or presentation.get("notes") != [expected_note]
-        or presentation.get("tags") != ["bead", "task"]
-        or presentation.get("panel") != "beads"
-        or presentation.get("snooze_until") != payload.snooze.until
-        or (origin_agent is not None and not isinstance(origin_agent, str))
-        or (isinstance(origin_agent, str) and not origin_agent)
-        or presentation.get("files") != [BEAD_SNOOZE_PREVIEW_PATH]
-        or presentation.get("preview") != BEAD_SNOOZE_PREVIEW_PATH
-    ):
+    if spec.presentation != expected:
         raise GateError(
             "invalid_bead_snooze_presentation",
             "presentation",
@@ -211,6 +202,7 @@ def _validate_bead_snooze_preview(
             close_history=task.close_history,
             task_type=task.task_type,
             task_type_fields=task.task_type_fields,
+            task_type_display=task.task_type_display,
         )
 
     matches = preview_matches_renderer(
@@ -225,3 +217,16 @@ def _validate_bead_snooze_preview(
             BEAD_SNOOZE_PREVIEW_PATH,
             "bead snooze preview does not match the registered adapter",
         )
+
+
+def _presentation_origin_agent(presentation: Mapping[str, Any], code: str) -> str:
+    origin_agent = presentation.get("origin_agent")
+    if origin_agent is None:
+        return ""
+    if not isinstance(origin_agent, str) or not origin_agent:
+        raise GateError(
+            code,
+            "presentation",
+            "bead snooze presentation does not match the registered adapter",
+        )
+    return origin_agent

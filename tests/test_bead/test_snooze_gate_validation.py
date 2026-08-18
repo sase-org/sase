@@ -216,3 +216,91 @@ def test_bead_snooze_kind_validation_rejects_blank_notes_preview_injection(
         create_gate(spec)
 
     assert exc_info.value.code == code
+
+
+_FLAKE_FIELDS = {
+    "node_id": "tests/x.py::test_y",
+    "evidence": "3/50 under -n 8",
+}
+
+
+def test_bead_snooze_kind_validation_accepts_typed_gate(gate_home: Path) -> None:
+    del gate_home
+    create_gate(
+        bead_snooze_spec(
+            request_id="bead-snooze-typed-ok",
+            task_type="flake",
+            task_type_fields=_FLAKE_FIELDS,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        (
+            lambda spec: spec["presentation"]["chip"].update(glyph="?"),
+            "invalid_bead_snooze_presentation",
+        ),
+        (
+            lambda spec: spec["presentation"].update(tags=["bead", "task", "ci"]),
+            "invalid_bead_snooze_presentation",
+        ),
+        (
+            lambda spec: spec["presentation"]["notes"].__setitem__(
+                1, "forged type line"
+            ),
+            "invalid_bead_snooze_presentation",
+        ),
+        (
+            lambda spec: spec["payload"]["task_type_display"].update(
+                name="Not a flake"
+            ),
+            "invalid_bead_snooze_presentation",
+        ),
+        (
+            lambda spec: spec["payload"]["task_type_display"].update(
+                accent_color="red"
+            ),
+            "invalid_bead_snooze_payload",
+        ),
+    ],
+)
+def test_bead_snooze_kind_validation_rejects_forged_type_presentation(
+    gate_home: Path,
+    mutation: Any,
+    code: str,
+) -> None:
+    del gate_home
+    spec = deepcopy(
+        bead_snooze_spec(
+            request_id=f"forged-type-{code}",
+            task_type="flake",
+            task_type_fields=_FLAKE_FIELDS,
+        )
+    )
+    mutation(spec)
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == code
+
+
+def test_bead_snooze_kind_validation_rejects_display_without_task_type(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = deepcopy(bead_snooze_spec(request_id="forged-display-without-type"))
+    spec["payload"]["task_type_display"] = {
+        "glyph": "≈",
+        "name": "Flaky test",
+        "accent_color": "#00D7D7",
+        "facts": [],
+    }
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_bead_snooze_payload"
+    assert exc_info.value.target == "payload.task_type_display"

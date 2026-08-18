@@ -35,6 +35,10 @@ from sase.bead.reopen_presentation import (
     reopen_badge,
 )
 from sase.bead_time_presentation import bead_created_cli, bead_created_label
+from sase.task_type_gate_presentation import (
+    TaskTypeGateDisplay,
+    task_type_gate_markdown_fact,
+)
 from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 
 _MAX_GATE_TITLE_LENGTH = 120
@@ -68,6 +72,7 @@ def render_task_triage_preview(
     closed_at: str | None = None,
     task_type: str = "",
     task_type_fields: Mapping[str, str] | None = None,
+    task_type_display: TaskTypeGateDisplay | None = None,
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients.
 
@@ -79,15 +84,16 @@ def render_task_triage_preview(
     it is omitted entirely when notes are blank rather than rendered with a
     placeholder.
 
-    The typed body block renders after Notes rather than directly below
-    Description: gate validation recovers the agent-authored description and
-    notes by locating them between two markers rendered into this same
-    template, so anything placed between those two fields must itself be a
-    pure function of ``(task_type, task_type_fields)`` alone -- which the
-    block already is, but sitting between Description and Notes would corrupt
-    that recovery whenever notes are blank (the block's own Markdown could be
-    mistaken for part of the description). Placing it strictly after Notes
-    keeps it outside the marker-delimited region entirely.
+    The ``**Task type:**`` metadata fact sits with Size and References, above
+    Description, so it is outside the marker-delimited region kind validation
+    uses to recover the agent-authored description and notes. The typed body
+    block renders after Notes rather than directly below Description: anything
+    placed between those two fields must itself be a pure function of
+    ``(task_type, task_type_fields)`` alone -- which the block already is, but
+    sitting between Description and Notes would corrupt that recovery whenever
+    notes are blank (the block's own Markdown could be mistaken for part of
+    the description). Placing it strictly after Notes keeps it outside the
+    marker-delimited region entirely.
     """
     description_text = description.strip() or "_No description._"
     type_body = _task_type_body(task_type, task_type_fields or {})
@@ -106,6 +112,8 @@ def render_task_triage_preview(
     if refs:
         rendered_refs = ", ".join(f"`{_markdown_code(ref)}`" for ref in refs)
         metadata += f"**References:** {rendered_refs}\n\n"
+    if task_type_display is not None:
+        metadata += f"{task_type_gate_markdown_fact(task_type_display, task_type)}\n\n"
     close_history_section = _task_triage_close_history_preview(close_history)
     evidence_section = _task_triage_evidence_preview(
         plus_one_evidence,

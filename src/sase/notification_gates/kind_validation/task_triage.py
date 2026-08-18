@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from sase.notification_gates.kind_validation.preview_recovery import (
     preview_matches_renderer,
@@ -144,46 +145,24 @@ def _validate_task_triage_resources(spec: GateSpec) -> str | None:
 def _validate_task_triage_presentation(
     spec: GateSpec, payload: TaskTriagePayload
 ) -> None:
-    from sase.bead.task_gate import (
-        TASK_TRIAGE_PREVIEW_PATH,
-        task_triage_presentation_note,
+    from sase.bead.task_gate import task_triage_presentation
+
+    origin_agent = _presentation_origin_agent(
+        spec.presentation, "invalid_task_triage_presentation"
     )
-    from sase.bead.plus_one_presentation import post_close_plus_one_count
-    from sase.bead.model import Issue, IssueType, Status
-
-    post_close_count = 0
-    if payload.closed_at:
-        issue = Issue(
-            "preview",
-            "",
-            status=Status.CLOSED,
-            issue_type=IssueType.TASK,
-            closed_at=payload.closed_at,
-            plus_one_evidence=list(payload.plus_one_evidence),
-        )
-        post_close_count = post_close_plus_one_count(issue)
-
-    expected_note = task_triage_presentation_note(
-        payload.bead_id,
-        payload.title,
-        payload.plus_one_count,
+    expected = task_triage_presentation(
+        bead_id=payload.bead_id,
+        title=payload.title,
+        plus_one_count=payload.plus_one_count,
         created_at=payload.created_at,
-        reopen_count=len(payload.close_history),
-        post_close_count=post_close_count,
+        plus_one_evidence=payload.plus_one_evidence,
+        close_history=payload.close_history,
+        closed_at=payload.closed_at,
+        origin_agent=origin_agent,
+        task_type=payload.task_type,
+        task_type_display=payload.task_type_display,
     )
-    presentation = spec.presentation
-    origin_agent = presentation.get("origin_agent")
-    if (
-        presentation.get("sender") != "bead"
-        or presentation.get("icon") != "✦"
-        or presentation.get("notes") != [expected_note]
-        or presentation.get("tags") != ["bead", "task"]
-        or presentation.get("panel") != "beads"
-        or (origin_agent is not None and not isinstance(origin_agent, str))
-        or (isinstance(origin_agent, str) and not origin_agent)
-        or presentation.get("files") != [TASK_TRIAGE_PREVIEW_PATH]
-        or presentation.get("preview") != TASK_TRIAGE_PREVIEW_PATH
-    ):
+    if spec.presentation != expected:
         raise GateError(
             "invalid_task_triage_presentation",
             "presentation",
@@ -223,6 +202,7 @@ def _validate_task_triage_preview(
             closed_at=payload.closed_at,
             task_type=payload.task_type,
             task_type_fields=payload.task_type_fields,
+            task_type_display=payload.task_type_display,
         )
 
     matches = preview_matches_renderer(
@@ -237,3 +217,16 @@ def _validate_task_triage_preview(
             TASK_TRIAGE_PREVIEW_PATH,
             "task triage preview does not match the registered adapter",
         )
+
+
+def _presentation_origin_agent(presentation: Mapping[str, Any], code: str) -> str:
+    origin_agent = presentation.get("origin_agent")
+    if origin_agent is None:
+        return ""
+    if not isinstance(origin_agent, str) or not origin_agent:
+        raise GateError(
+            code,
+            "presentation",
+            "task triage presentation does not match the registered adapter",
+        )
+    return origin_agent

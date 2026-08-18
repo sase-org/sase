@@ -11,6 +11,7 @@ from sase.bead.task_gate import (
     render_task_triage_preview,
     task_triage_presentation_note,
 )
+from sase.task_type_gate_presentation import resolve_task_type_gate_display
 
 
 def test_task_triage_close_history_placeholders_for_missing_fields() -> None:
@@ -187,3 +188,48 @@ def test_task_triage_preview_marks_post_close_evidence() -> None:
 
     assert "**+1 agent.beta · 2026-08-01T15:00:00Z post-close evidence**" in preview
     assert "> **Observed since:** 2026-01-01T00:00:00Z" in preview
+
+
+def test_task_triage_preview_puts_task_type_fact_in_metadata() -> None:
+    display = resolve_task_type_gate_display(
+        "flake",
+        {"node_id": "tests/x.py::test_y", "evidence": "3/50 under -n 8"},
+    )
+    assert display is not None
+
+    preview = render_task_triage_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="Make invalidation deterministic.",
+        notes="Discovered while landing sase-bg.",
+        size="medium",
+        refs=("research:202608/cache.md",),
+        task_type="flake",
+        task_type_fields={
+            "node_id": "tests/x.py::test_y",
+            "evidence": "3/50 under -n 8",
+        },
+        task_type_display=display,
+    )
+
+    size_index = preview.index("**Size:** `medium`")
+    refs_index = preview.index("**References:**")
+    type_index = preview.index("**Task type:** ≈ `flake`")
+    description_index = preview.index("## Description")
+    notes_index = preview.index("## Notes")
+    assert size_index < refs_index < type_index < description_index < notes_index
+    assert "## Flake report" in preview
+
+
+def test_task_triage_preview_omits_type_fact_without_frozen_display() -> None:
+    preview = render_task_triage_preview(
+        bead_id="sase-task.1",
+        title="Follow up on the cache",
+        description="Make invalidation deterministic.",
+        notes="",
+        task_type="flake",
+        task_type_fields={"node_id": "tests/x.py::test_y"},
+    )
+
+    assert "**Task type:**" not in preview
+    assert preview.index("## Description") < preview.index("## Flake report")

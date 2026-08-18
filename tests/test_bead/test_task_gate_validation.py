@@ -252,3 +252,137 @@ def test_task_triage_kind_validation_rejects_blank_notes_preview_injection(
         create_gate(spec)
 
     assert exc_info.value.code == code
+
+
+_FLAKE_FIELDS = {
+    "node_id": "tests/x.py::test_y",
+    "evidence": "3/50 under -n 8",
+}
+
+
+def _typed_spec(*, request_id: str, **overrides: Any) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "bead_id": "sase-task.1",
+        "project": "sase",
+        "title": "Follow up on the cache",
+        "description": "Make invalidation deterministic.",
+        "notes": "Discovered while landing sase-bg.",
+        "created_by": "claude_coder",
+        "created_at": "2026-01-01T00:00:00Z",
+        "task_type": "flake",
+        "task_type_fields": _FLAKE_FIELDS,
+        "producer": {"agent_name": "triage-test"},
+    }
+    fields.update(overrides)
+    return build_task_triage_gate_spec(request_id=request_id, **fields)
+
+
+def test_task_triage_kind_validation_accepts_typed_gate(gate_home: Path) -> None:
+    del gate_home
+    create_gate(_typed_spec(request_id="task-triage-typed-ok"))
+
+
+def test_task_triage_kind_validation_accepts_typed_gate_with_blank_notes(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    create_gate(_typed_spec(request_id="task-triage-typed-blank-notes", notes=""))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        (
+            lambda spec: spec["presentation"]["chip"].update(glyph="?"),
+            "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["presentation"].update(tags=["bead", "task", "ci"]),
+            "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["presentation"]["notes"].__setitem__(
+                1, "forged type line"
+            ),
+            "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["payload"]["task_type_display"].update(
+                name="Not a flake"
+            ),
+            "invalid_task_triage_presentation",
+        ),
+        (
+            lambda spec: spec["payload"]["task_type_display"].update(
+                accent_color="red"
+            ),
+            "invalid_task_triage_payload",
+        ),
+    ],
+)
+def test_task_triage_kind_validation_rejects_forged_type_presentation(
+    gate_home: Path,
+    mutation: Any,
+    code: str,
+) -> None:
+    del gate_home
+    spec = deepcopy(_typed_spec(request_id=f"forged-type-{code}"))
+    mutation(spec)
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == code
+
+
+def test_task_triage_kind_validation_rejects_forged_chip_on_untyped_gate(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = deepcopy(task_triage_spec(request_id="forged-untyped-chip"))
+    spec["presentation"]["chip"] = {
+        "glyph": "≈",
+        "label": "flake",
+        "color": "#00D7D7",
+    }
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_task_triage_presentation"
+
+
+def test_task_triage_kind_validation_rejects_display_without_task_type(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = deepcopy(task_triage_spec(request_id="forged-display-without-type"))
+    spec["payload"]["task_type_display"] = {
+        "glyph": "≈",
+        "name": "Flaky test",
+        "accent_color": "#00D7D7",
+        "facts": [],
+    }
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_task_triage_payload"
+    assert exc_info.value.target == "payload.task_type_display"
+
+
+def test_task_triage_kind_validation_rejects_mutated_preview_type_fact(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = deepcopy(_typed_spec(request_id="forged-type-fact", notes=""))
+    preview_resource = _preview_resource(spec)
+    preview_resource["content"] = preview_resource["content"].replace(
+        "**Task type:** ≈ `flake`",
+        "**Task type:** ⨯ `bug`",
+    )
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(spec)
+
+    assert exc_info.value.code == "invalid_task_triage_preview"

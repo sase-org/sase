@@ -77,6 +77,8 @@ def test_task_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "sase-task.1 — Follow up on the cache · ⧖ 2025-12-31"
     ]
     assert request["presentation"]["tags"] == ["bead", "task"]
+    assert "chip" not in request["presentation"]
+    assert "task_type_display" not in request["payload"]
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["panel_icon"] == "◈"
     assert request["presentation"]["origin_agent"] == "claude_coder"
@@ -164,11 +166,38 @@ def test_task_triage_preview_shows_task_type_and_field_values(gate_home: Path) -
         "repro": "Open ACE, press Ctrl+].",
         "impact": "Confuses new users.",
     }
+    assert request["payload"]["task_type_display"] == {
+        "glyph": "⨯",
+        "name": "Bug",
+        "accent_color": "#FF5F5F",
+        "facts": [
+            ["Location", "src/sase/ace/help.py"],
+            ["Repro", "Open ACE, press Ctrl+]."],
+        ],
+    }
+    assert request["presentation"]["chip"] == {
+        "glyph": "⨯",
+        "label": "bug",
+        "color": "#FF5F5F",
+    }
+    assert request["presentation"]["notes"] == [
+        "sase-task.3 — Ctrl+] hint is wrong",
+        "Bug · Location: src/sase/ace/help.py · Repro: Open ACE, press Ctrl+].",
+    ]
+    assert request["presentation"]["tags"] == ["bead", "task", "bug"]
     preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "**Task type:** ⨯ `bug`" in preview
+    assert preview.index("**Task type:**") < preview.index("## Description")
     assert "## Bug" in preview
     assert "**Location:** `src/sase/ace/help.py`" in preview
     assert "Open ACE, press Ctrl+]." in preview
     assert "Confuses new users." in preview
+    [notification] = load_notifications()
+    assert notification.tags == ["bead", "task", "bug"]
+    assert notification.notes[1].startswith("Bug · Location:")
+    assert notification.action_data["gate_chip_glyph"] == "⨯"
+    assert notification.action_data["gate_chip_label"] == "bug"
+    assert notification.action_data["gate_chip_color"] == "#FF5F5F"
 
 
 def test_task_triage_presents_prior_close_history(gate_home: Path) -> None:
@@ -254,3 +283,32 @@ def test_task_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
     assert "Filed by" not in preview
     [notification] = load_notifications()
     assert "origin_agent" not in notification.action_data
+
+
+def test_task_triage_unresolved_type_degrades_honestly(gate_home: Path) -> None:
+    del gate_home
+    gate = create_task_triage_gate(
+        request_id="task-triage-unknown-type",
+        bead_id="sase-task.4",
+        project="sase",
+        title="Plugin type after uninstall",
+        task_type="ghost-type",
+        task_type_fields={"k": "v"},
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["task_type_display"] == {
+        "glyph": "?",
+        "name": "ghost-type",
+        "accent_color": "#6C6C6C",
+        "facts": [["k", "v"]],
+    }
+    assert request["presentation"]["chip"] == {
+        "glyph": "?",
+        "label": "ghost-type",
+        "color": "#6C6C6C",
+    }
+    assert request["presentation"]["notes"][1] == "ghost-type · k: v"
+    assert request["presentation"]["tags"] == ["bead", "task", "ghost-type"]
+    preview = (gate.bundle_path / TASK_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "**Task type:** ? `ghost-type`" in preview

@@ -14,7 +14,7 @@ from sase.bead.model import IssueType, Status, TaskPlusOneEvidence
 from sase.bead.project import BeadProject
 from sase.bead.snooze_gate import (
     BEAD_SNOOZE_PREVIEW_PATH,
-    bead_snooze_presentation_note,
+    bead_snooze_presentation,
     create_bead_snooze_gate,
     render_bead_snooze_preview,
 )
@@ -86,6 +86,9 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
     assert input_schema["additionalProperties"] is False
     assert request["presentation"]["panel"] == "beads"
     assert request["presentation"]["panel_icon"] == "◈"
+    assert request["presentation"]["tags"] == ["bead", "task"]
+    assert "chip" not in request["presentation"]
+    assert "task_type_display" not in request["payload"]
     assert request["presentation"]["snooze_until"] == WAKE_TIME
 
     preview = (gate.bundle_path / BEAD_SNOOZE_PREVIEW_PATH).read_text(encoding="utf-8")
@@ -114,9 +117,12 @@ def test_bead_snooze_gate_builds_canonical_spec_and_snoozed_notification(
 def test_bead_snooze_presentation_note_is_clock_independent() -> None:
     def render(now: datetime) -> str:
         with patch("sase.core.time.local_now", return_value=now):
-            return bead_snooze_presentation_note(
-                "sase-task.1", "Follow up on the cache", 1, until=WAKE_TIME
-            )
+            return bead_snooze_presentation(
+                bead_id="sase-task.1",
+                title="Follow up on the cache",
+                plus_one_count=1,
+                until=WAKE_TIME,
+            )["notes"][0]
 
     tz = ZoneInfo("America/New_York")
     early = render(datetime(2026, 8, 6, 12, 0, tzinfo=tz))
@@ -220,3 +226,48 @@ def test_bead_snooze_gate_carries_plus_one_evidence_like_task_triage(
     preview = (gate.bundle_path / BEAD_SNOOZE_PREVIEW_PATH).read_text(encoding="utf-8")
     assert "## +1 Evidence" in preview
     assert "Reproduced after clearing the cache." in preview
+
+
+def test_bead_snooze_typed_gate_declares_frozen_type(gate_home: Path) -> None:
+    del gate_home
+    gate = create_bead_snooze_gate(
+        request_id="bead-snooze-typed",
+        bead_id="sase-task.3",
+        project="sase",
+        title="Ctrl+] hint is wrong",
+        snooze=snooze_record(),
+        task_type="flake",
+        task_type_fields={
+            "node_id": "tests/x.py::test_y",
+            "evidence": "3/50 under -n 8",
+        },
+    )
+
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["task_type"] == "flake"
+    assert request["payload"]["task_type_display"] == {
+        "glyph": "≈",
+        "name": "Flaky test",
+        "accent_color": "#00D7D7",
+        "facts": [
+            ["Test node ID", "tests/x.py::test_y"],
+            ["Evidence", "3/50 under -n 8"],
+        ],
+    }
+    assert request["presentation"]["chip"] == {
+        "glyph": "≈",
+        "label": "flake",
+        "color": "#00D7D7",
+    }
+    assert request["presentation"]["notes"][1] == (
+        "Flaky test · Test node ID: tests/x.py::test_y · Evidence: 3/50 under -n 8"
+    )
+    assert request["presentation"]["tags"] == ["bead", "task", "flake"]
+    preview = (gate.bundle_path / BEAD_SNOOZE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "**Task type:** ≈ `flake`" in preview
+    assert preview.index("**Task type:**") < preview.index("## Description")
+    [notification] = load_notifications()
+    assert notification.tags == ["bead", "task", "flake"]
+    assert notification.action_data["gate_chip_glyph"] == "≈"
+    assert notification.action_data["gate_chip_label"] == "flake"
+    assert notification.action_data["gate_chip_color"] == "#00D7D7"

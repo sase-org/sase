@@ -28,6 +28,13 @@ from sase.bead.snooze_gate_input import (
 )
 from sase.bead.snooze_time import SnoozeTimeError
 from sase.notification_gates.entrypoints import gate_command_entrypoint
+from sase.task_type_gate_presentation import (
+    TaskTypeGateDisplay,
+    resolve_task_type_gate_display,
+    task_type_gate_chip,
+    task_type_gate_display_payload,
+    task_type_gate_note,
+)
 
 TaskTriageAction = Literal["launch", "close", "snooze"]
 
@@ -69,6 +76,62 @@ TASK_TRIAGE_OPTION_ICONS: dict[TaskTriageAction, str] = {
 TASK_TRIAGE_SNOOZE_REASON = "Deferred from triage."
 
 
+def apply_task_type_gate_presentation(
+    presentation: dict[str, Any],
+    *,
+    task_type: str,
+    display: TaskTypeGateDisplay | None,
+) -> None:
+    """Declare the chip, typed note, and type tag from a frozen display."""
+    if display is None:
+        return
+    presentation["chip"] = task_type_gate_chip(display, task_type)
+    presentation["notes"].append(task_type_gate_note(display))
+    presentation["tags"].append(task_type)
+
+
+def task_triage_presentation(
+    *,
+    bead_id: str,
+    title: str,
+    plus_one_count: int,
+    created_at: str = "",
+    plus_one_evidence: Sequence[TaskPlusOneEvidence] = (),
+    close_history: Sequence[CloseRecord] = (),
+    closed_at: str | None = None,
+    origin_agent: str = "",
+    task_type: str = "",
+    task_type_display: TaskTypeGateDisplay | None = None,
+) -> dict[str, Any]:
+    """Return the only presentation mapping a TaskTriage gate is accepted with."""
+    presentation: dict[str, Any] = {
+        "sender": "bead",
+        "icon": "✦",
+        "title": bounded_gate_title(bead_id, title),
+        "notes": [
+            task_triage_presentation_note(
+                bead_id,
+                title,
+                plus_one_count,
+                created_at=created_at,
+                reopen_count=len(close_history),
+                post_close_count=_post_close_count(plus_one_evidence, closed_at),
+            )
+        ],
+        "tags": ["bead", "task"],
+        "panel": "beads",
+        "panel_icon": "◈",
+        "files": [TASK_TRIAGE_PREVIEW_PATH],
+        "preview": TASK_TRIAGE_PREVIEW_PATH,
+    }
+    if origin_agent:
+        presentation["origin_agent"] = origin_agent
+    apply_task_type_gate_presentation(
+        presentation, task_type=task_type, display=task_type_display
+    )
+    return presentation
+
+
 def build_task_triage_gate_spec(
     *,
     request_id: str,
@@ -94,62 +157,55 @@ def build_task_triage_gate_spec(
     evidence = tuple(plus_one_evidence)
     count = len(evidence)
     history = tuple(close_history)
-    post_close_count = _post_close_count(evidence, closed_at)
-    presentation: dict[str, Any] = {
-        "sender": "bead",
-        "icon": "✦",
-        "title": bounded_gate_title(bead_id, title),
-        "notes": [
-            task_triage_presentation_note(
-                bead_id,
-                title,
-                count,
-                created_at=created_at,
-                reopen_count=len(history),
-                post_close_count=post_close_count,
-            )
+    display = resolve_task_type_gate_display(task_type, stored_fields)
+    presentation = task_triage_presentation(
+        bead_id=bead_id,
+        title=title,
+        plus_one_count=count,
+        created_at=created_at,
+        plus_one_evidence=evidence,
+        close_history=history,
+        closed_at=closed_at,
+        origin_agent=origin_agent,
+        task_type=task_type,
+        task_type_display=display,
+    )
+    payload: dict[str, Any] = {
+        "bead_id": bead_id,
+        "project": project,
+        "title": title,
+        "created_at": created_at,
+        "size": size,
+        "refs": list(refs),
+        "plus_one_count": count,
+        **({"closed_at": closed_at} if closed_at else {}),
+        "task_type": task_type,
+        "task_type_fields": stored_fields,
+        "plus_one_evidence": [
+            {
+                "timestamp": item.timestamp,
+                "reporter": item.reporter,
+                "note": item.note,
+                "refs": list(item.refs),
+                **(
+                    {"observed_since": item.observed_since}
+                    if item.observed_since
+                    else {}
+                ),
+            }
+            for item in evidence
         ],
-        "tags": ["bead", "task"],
-        "panel": "beads",
-        "panel_icon": "◈",
-        "files": [TASK_TRIAGE_PREVIEW_PATH],
-        "preview": TASK_TRIAGE_PREVIEW_PATH,
+        "close_history": [close_record_payload(record) for record in history],
     }
-    if origin_agent:
-        presentation["origin_agent"] = origin_agent
+    if display is not None:
+        payload["task_type_display"] = task_type_gate_display_payload(display)
     return {
         "schema_version": 3,
         "kind": TASK_TRIAGE_KIND,
         "request_id": request_id,
         "producer": dict(producer or {}),
         "continuation_mode": TASK_TRIAGE_CONTINUATION_MODE,
-        "payload": {
-            "bead_id": bead_id,
-            "project": project,
-            "title": title,
-            "created_at": created_at,
-            "size": size,
-            "refs": list(refs),
-            "plus_one_count": count,
-            **({"closed_at": closed_at} if closed_at else {}),
-            "task_type": task_type,
-            "task_type_fields": stored_fields,
-            "plus_one_evidence": [
-                {
-                    "timestamp": item.timestamp,
-                    "reporter": item.reporter,
-                    "note": item.note,
-                    "refs": list(item.refs),
-                    **(
-                        {"observed_since": item.observed_since}
-                        if item.observed_since
-                        else {}
-                    ),
-                }
-                for item in evidence
-            ],
-            "close_history": [close_record_payload(record) for record in history],
-        },
+        "payload": payload,
         "presentation": presentation,
         "query": TASK_TRIAGE_QUERY,
         "primary_branch": list(TASK_TRIAGE_PRIMARY_BRANCH),
@@ -182,6 +238,7 @@ def build_task_triage_gate_spec(
                     closed_at=closed_at,
                     task_type=task_type,
                     task_type_fields=stored_fields,
+                    task_type_display=display,
                 ),
             },
         ],

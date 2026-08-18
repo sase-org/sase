@@ -8,11 +8,15 @@ from dataclasses import field as dataclass_field
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.notification_gates.models import GateError
+from sase.task_type_gate_presentation import (
+    TaskTypeGateDisplay,
+    parse_task_type_gate_display,
+)
 
 if TYPE_CHECKING:
     from sase.bead.model import CloseRecord, TaskPlusOneEvidence
 
-_TASK_TRIAGE_PAYLOAD_FIELDS = frozenset(
+_TASK_BEAD_REQUIRED_PAYLOAD_FIELDS = frozenset(
     {
         "bead_id",
         "project",
@@ -21,14 +25,18 @@ _TASK_TRIAGE_PAYLOAD_FIELDS = frozenset(
         "size",
         "refs",
         "plus_one_count",
-        "closed_at",
         "plus_one_evidence",
         "close_history",
         "task_type",
         "task_type_fields",
     }
 )
-_LEGACY_TASK_TRIAGE_PAYLOAD_FIELDS = _TASK_TRIAGE_PAYLOAD_FIELDS - {"closed_at"}
+_TASK_BEAD_OPTIONAL_PAYLOAD_FIELDS = frozenset(
+    {
+        "closed_at",
+        "task_type_display",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -47,6 +55,7 @@ class TaskTriagePayload:
     close_history: tuple[CloseRecord, ...]
     task_type: str = ""
     task_type_fields: Mapping[str, str] = dataclass_field(default_factory=dict)
+    task_type_display: TaskTypeGateDisplay | None = None
 
 
 def parse_task_triage_payload(payload: Mapping[str, Any]) -> TaskTriagePayload:
@@ -72,9 +81,9 @@ def parse_task_bead_payload(
     from sase.core.paths import is_valid_sase_project_name
 
     payload_fields = set(payload)
-    expected_fields = _TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields
-    legacy_fields = _LEGACY_TASK_TRIAGE_PAYLOAD_FIELDS | extra_fields
-    if payload_fields not in (expected_fields, legacy_fields):
+    required_fields = _TASK_BEAD_REQUIRED_PAYLOAD_FIELDS | extra_fields
+    allowed_fields = required_fields | _TASK_BEAD_OPTIONAL_PAYLOAD_FIELDS
+    if not required_fields <= payload_fields <= allowed_fields:
         raise GateError(
             code,
             "payload",
@@ -135,6 +144,7 @@ def parse_task_bead_payload(
             f"{label} payload closed_at must be null or a string",
         )
     task_type, task_type_fields = _parse_task_type(payload, code, label)
+    task_type_display = _parse_task_type_display(payload, task_type, code, label)
     return TaskTriagePayload(
         bead_id=cast(str, payload["bead_id"]),
         project=project,
@@ -148,6 +158,7 @@ def parse_task_bead_payload(
         close_history=close_history,
         task_type=task_type,
         task_type_fields=task_type_fields,
+        task_type_display=task_type_display,
     )
 
 
@@ -178,6 +189,23 @@ def _parse_task_type(
             f"{label} payload task_type_fields requires task_type",
         )
     return task_type, dict(cast("Mapping[str, str]", raw_fields))
+
+
+def _parse_task_type_display(
+    payload: Mapping[str, Any], task_type: str, code: str, label: str
+) -> TaskTypeGateDisplay | None:
+    if "task_type_display" not in payload:
+        return None
+    if not task_type:
+        raise GateError(
+            code,
+            "payload.task_type_display",
+            f"{label} payload task_type_display requires task_type",
+        )
+    try:
+        return parse_task_type_gate_display(payload["task_type_display"])
+    except ValueError as exc:
+        raise GateError(code, "payload.task_type_display", str(exc)) from exc
 
 
 def _parse_plus_one_evidence(

@@ -29,10 +29,16 @@ from sase.bead.snooze_gate_input import (
 )
 from sase.bead.snooze_time import SnoozeTimeError, parse_snooze_request
 from sase.bead.task_gate import (
+    apply_task_type_gate_presentation,
     bead_gate_actor,
     bounded_gate_title,
     render_task_triage_preview,
     task_triage_presentation_note,
+)
+from sase.task_type_gate_presentation import (
+    TaskTypeGateDisplay,
+    resolve_task_type_gate_display,
+    task_type_gate_display_payload,
 )
 from sase.bead_time_presentation import bead_instant_label
 from sase.notification_gates.entrypoints import gate_command_entrypoint
@@ -64,6 +70,46 @@ BEAD_SNOOZE_OPTION_FEEDBACK: dict[BeadSnoozeAction, str] = {
     BEAD_SNOOZE_SNOOZE_OPTION_ID: "optional",
 }
 BEAD_SNOOZE_READY_NOTE = "Woken from snooze and returned to triage."
+
+
+def bead_snooze_presentation(
+    *,
+    bead_id: str,
+    title: str,
+    plus_one_count: int,
+    until: str,
+    reopen_count: int = 0,
+    origin_agent: str = "",
+    task_type: str = "",
+    task_type_display: TaskTypeGateDisplay | None = None,
+) -> dict[str, Any]:
+    """Return the only presentation mapping a BeadSnooze gate is accepted with."""
+    presentation: dict[str, Any] = {
+        "sender": "bead",
+        "icon": "◈",
+        "title": bounded_gate_title(bead_id, title),
+        "notes": [
+            _bead_snooze_presentation_note(
+                bead_id,
+                title,
+                plus_one_count,
+                until=until,
+                reopen_count=reopen_count,
+            )
+        ],
+        "tags": ["bead", "task"],
+        "panel": "beads",
+        "panel_icon": "◈",
+        "files": [BEAD_SNOOZE_PREVIEW_PATH],
+        "preview": BEAD_SNOOZE_PREVIEW_PATH,
+        "snooze_until": until,
+    }
+    if origin_agent:
+        presentation["origin_agent"] = origin_agent
+    apply_task_type_gate_presentation(
+        presentation, task_type=task_type, display=task_type_display
+    )
+    return presentation
 
 
 def _bead_snooze_close_reason(until: str) -> str:
@@ -159,61 +205,53 @@ def _build_bead_snooze_gate_spec(
     count = len(evidence)
     history = tuple(close_history)
     stored_fields = dict(task_type_fields or {})
-    presentation: dict[str, Any] = {
-        "sender": "bead",
-        "icon": "◈",
-        "title": bounded_gate_title(bead_id, title),
-        "notes": [
-            bead_snooze_presentation_note(
-                bead_id,
-                title,
-                count,
-                until=snooze.until,
-                reopen_count=len(history),
-            )
+    display = resolve_task_type_gate_display(task_type, stored_fields)
+    presentation = bead_snooze_presentation(
+        bead_id=bead_id,
+        title=title,
+        plus_one_count=count,
+        until=snooze.until,
+        reopen_count=len(history),
+        origin_agent=origin_agent,
+        task_type=task_type,
+        task_type_display=display,
+    )
+    payload: dict[str, Any] = {
+        "bead_id": bead_id,
+        "project": project,
+        "title": title,
+        "created_at": created_at,
+        "size": size,
+        "refs": list(refs),
+        "plus_one_count": count,
+        "task_type": task_type,
+        "task_type_fields": stored_fields,
+        "plus_one_evidence": [
+            {
+                "timestamp": item.timestamp,
+                "reporter": item.reporter,
+                "note": item.note,
+                "refs": list(item.refs),
+                **(
+                    {"observed_since": item.observed_since}
+                    if item.observed_since
+                    else {}
+                ),
+            }
+            for item in evidence
         ],
-        "tags": ["bead", "task"],
-        "panel": "beads",
-        "panel_icon": "◈",
-        "files": [BEAD_SNOOZE_PREVIEW_PATH],
-        "preview": BEAD_SNOOZE_PREVIEW_PATH,
-        "snooze_until": snooze.until,
+        "close_history": [close_record_payload(record) for record in history],
+        "snooze": _bead_snooze_payload_record(snooze),
     }
-    if origin_agent:
-        presentation["origin_agent"] = origin_agent
+    if display is not None:
+        payload["task_type_display"] = task_type_gate_display_payload(display)
     return {
         "schema_version": 3,
         "kind": BEAD_SNOOZE_KIND,
         "request_id": request_id,
         "producer": dict(producer or {}),
         "continuation_mode": BEAD_SNOOZE_CONTINUATION_MODE,
-        "payload": {
-            "bead_id": bead_id,
-            "project": project,
-            "title": title,
-            "created_at": created_at,
-            "size": size,
-            "refs": list(refs),
-            "plus_one_count": count,
-            "task_type": task_type,
-            "task_type_fields": stored_fields,
-            "plus_one_evidence": [
-                {
-                    "timestamp": item.timestamp,
-                    "reporter": item.reporter,
-                    "note": item.note,
-                    "refs": list(item.refs),
-                    **(
-                        {"observed_since": item.observed_since}
-                        if item.observed_since
-                        else {}
-                    ),
-                }
-                for item in evidence
-            ],
-            "close_history": [close_record_payload(record) for record in history],
-            "snooze": _bead_snooze_payload_record(snooze),
-        },
+        "payload": payload,
         "presentation": presentation,
         "query": BEAD_SNOOZE_QUERY,
         "primary_branch": list(BEAD_SNOOZE_PRIMARY_BRANCH),
@@ -246,6 +284,7 @@ def _build_bead_snooze_gate_spec(
                     close_history=history,
                     task_type=task_type,
                     task_type_fields=stored_fields,
+                    task_type_display=display,
                 ),
             },
         ],
@@ -312,6 +351,7 @@ def render_bead_snooze_preview(
     close_history: Sequence[CloseRecord] = (),
     task_type: str = "",
     task_type_fields: Mapping[str, str] | None = None,
+    task_type_display: TaskTypeGateDisplay | None = None,
 ) -> str:
     """Render the woken task's detail, snooze block first.
 
@@ -332,6 +372,7 @@ def render_bead_snooze_preview(
         close_history=close_history,
         task_type=task_type,
         task_type_fields=task_type_fields,
+        task_type_display=task_type_display,
     )
 
 
@@ -355,7 +396,7 @@ def _bead_snooze_block(snooze: SnoozeRecord) -> str:
     return "\n".join(lines) + "\n\n"
 
 
-def bead_snooze_presentation_note(
+def _bead_snooze_presentation_note(
     bead_id: str,
     title: str,
     count: int,
@@ -676,7 +717,7 @@ __all__ = [
     "BeadSnoozeAction",
     "bead_snooze_gate_command_script",
     "bead_snooze_option_spec",
-    "bead_snooze_presentation_note",
+    "bead_snooze_presentation",
     "close_bead_snooze",
     "create_bead_snooze_gate",
     "execute_bead_snooze_gate_command",
