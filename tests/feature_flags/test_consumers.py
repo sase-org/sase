@@ -23,15 +23,15 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
 
     assert coder.kind == "beta"
     assert coder.default is False
-    assert coder.bead == "sase-nw"
+    assert coder.bead == "sase-qe"
 
     assert refresh.kind == "beta"
     assert refresh.default is False
-    assert refresh.bead == "sase-om"
+    assert refresh.bead == "sase-qg"
 
     assert prettier.kind == "sunset"
     assert prettier.default is True
-    assert prettier.bead == "sase-nx"
+    assert prettier.bead == "sase-qf"
 
 
 def test_consumer_flags_resolve_from_every_layer() -> None:

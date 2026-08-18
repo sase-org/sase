@@ -36,7 +36,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Opt-in beta: the follow-up coder inherits the planner's chat "
             "via #fork instead of starting from the approved plan file alone."
         ),
-        bead="sase-nw",
+        bead="sase-qe",
     ),
     FeatureFlag.commit_finalizer_shared_clone_exempt: FeatureFlagDefinition(
         key=FeatureFlag.commit_finalizer_shared_clone_exempt,
@@ -48,7 +48,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "discards in the commit finalizer's dirty-work guard. Disable to "
             "fall back to strict single-owner classification."
         ),
-        bead="sase-pk",
+        bead="sase-qi",
     ),
     FeatureFlag.completion_refresh_on_update: FeatureFlagDefinition(
         key=FeatureFlag.completion_refresh_on_update,
@@ -58,7 +58,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "restamp installed shell completion scripts. Off by default "
             "while the generator soaks."
         ),
-        bead="sase-om",
+        bead="sase-qg",
     ),
     FeatureFlag.epic_resume_gate: FeatureFlagDefinition(
         key=FeatureFlag.epic_resume_gate,
@@ -67,7 +67,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Opt-in beta: the epic_resume chop raises an EpicResume gate "
             "when a failed phase agent stalls an epic."
         ),
-        bead="sase-pa",
+        bead="sase-qh",
     ),
     FeatureFlag.prettier_enabled: FeatureFlagDefinition(
         key=FeatureFlag.prettier_enabled,
@@ -76,7 +76,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Format markdown with prettier when it is installed. "
             "SASE_DISABLE_PRETTIER remains a deprecated alias."
         ),
-        bead="sase-nx",
+        bead="sase-qf",
     ),
 }
 
