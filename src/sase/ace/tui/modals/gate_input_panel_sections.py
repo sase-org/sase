@@ -11,6 +11,7 @@ from textual.containers import Vertical
 from textual.widgets import Static, TextArea
 
 from sase.ace.tui.widgets.typed_input_form import TypedFormField, TypedInputForm
+from sase.ace.tui.widgets.vim_mode_routing import VimModeRoutingMixin
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.notification_gates.input_collection import input_arg_for_field
 from sase.notification_gates.model_inputs import GateInputField
@@ -19,35 +20,8 @@ from sase.notification_gates.models import GateOption
 
 from .gate_input_panel_model import GateInputSectionSpec
 
-_MODE_LABELS = {
-    "insert": "INSERT",
-    "normal": "NORMAL",
-    "visual": "VISUAL",
-    "visual_line": "V-LINE",
-}
 
-
-class _PanelVimModeMixin:
-    """Route a panel editor's vim mode to the host screen when it wants it."""
-
-    def _update_vim_mode_display(self, indicator: str = "") -> None:
-        try:
-            setter = getattr(
-                getattr(self, "screen", None), "_set_editor_mode_label", None
-            )
-        except Exception:
-            setter = None
-        if not callable(setter):
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-            return
-        mode = _MODE_LABELS.get(getattr(self, "_vim_mode", ""), "")
-        try:
-            setter(mode, indicator)
-        except Exception:
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-
-
-class _RawYamlEditor(_PanelVimModeMixin, VimTextArea):
+class _RawYamlEditor(VimModeRoutingMixin, VimTextArea):
     """YAML editor for an option that declared a raw ``input_schema``."""
 
     def __init__(self, text: str = "", **kwargs: object) -> None:

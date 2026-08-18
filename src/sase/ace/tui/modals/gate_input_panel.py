@@ -17,6 +17,7 @@ from sase.ace.tui.keymaps import (
     key_display_name,
 )
 from sase.ace.tui.widgets.typed_input_form import TypedInputForm
+from sase.ace.tui.widgets.vim_mode_routing import VimModeRoutingMixin
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.xprompt.models import InputType, XPromptValidationError
 
@@ -28,33 +29,6 @@ from .gate_input_panel_model import (
 )
 from .gate_input_panel_sections import GateInputSection
 
-_MODE_LABELS = {
-    "insert": "INSERT",
-    "normal": "NORMAL",
-    "visual": "VISUAL",
-    "visual_line": "V-LINE",
-}
-
-
-class _PanelVimModeMixin:
-    """Route a panel editor's vim mode to the host screen when it wants it."""
-
-    def _update_vim_mode_display(self, indicator: str = "") -> None:
-        try:
-            setter = getattr(
-                getattr(self, "screen", None), "_set_editor_mode_label", None
-            )
-        except Exception:
-            setter = None
-        if not callable(setter):
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-            return
-        mode = _MODE_LABELS.get(getattr(self, "_vim_mode", ""), "")
-        try:
-            setter(mode, indicator)
-        except Exception:
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-
 
 @dataclass(frozen=True)
 class GateInputPanelResult:
@@ -65,7 +39,7 @@ class GateInputPanelResult:
     draft: GateInputDraft
 
 
-class _NoteInput(_PanelVimModeMixin, VimTextArea):
+class _NoteInput(VimModeRoutingMixin, VimTextArea):
     """Multi-line vim editor for the reviewer's note."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -84,59 +58,6 @@ class GateInputPanel(ModalScreen[GateInputPanelResult | None]):
         Binding("ctrl+s", "submit", "Submit", priority=True),
         Binding("escape", "cancel", "Cancel"),
     ]
-
-    DEFAULT_CSS = """
-    GateInputPanel {
-        align: center middle;
-    }
-    GateInputPanel > #gate-input-container {
-        width: 90%;
-        max-width: 120;
-        min-width: 56;
-        height: auto;
-        max-height: 90%;
-        background: $surface;
-        border: double $accent;
-        border-title-align: left;
-        padding: 0 1;
-    }
-    GateInputPanel #gate-input-body {
-        height: auto;
-        max-height: 32;
-        scrollbar-gutter: stable;
-    }
-    GateInputPanel .gate-input-section-title {
-        height: auto;
-        text-style: bold;
-        margin-top: 1;
-    }
-    GateInputPanel .input-field-block {
-        margin-bottom: 1;
-    }
-    GateInputPanel .field-header {
-        text-wrap: nowrap;
-    }
-    GateInputPanel .gate-input-conflict {
-        color: $error;
-    }
-    GateInputPanel VimTextArea {
-        height: 8;
-    }
-    GateInputPanel SingleLineVimTextArea,
-    GateInputPanel SecretVimTextArea {
-        height: 3;
-        text-wrap: nowrap;
-    }
-    GateInputPanel #gate-input-buttons {
-        height: auto;
-        align-horizontal: right;
-    }
-    GateInputPanel #gate-input-footer {
-        height: auto;
-        color: $text-muted;
-        border-top: solid $secondary;
-    }
-    """
 
     def __init__(
         self,

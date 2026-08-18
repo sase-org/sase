@@ -23,17 +23,12 @@ from sase.xprompt.models import UNSET, InputArg, InputType, XPromptValidationErr
 
 from .secret_vim_text_area import SecretVimTextArea
 from .single_line_vim_text_area import SingleLineVimTextArea
+from .vim_mode_routing import VimModeRoutingMixin
 from .vim_text_area import VimTextArea
 
 __all__ = ["TypedFormField", "TypedInputForm"]
 
 _ENUM_SENTINEL = "— select —"
-_MODE_LABELS = {
-    "insert": "INSERT",
-    "normal": "NORMAL",
-    "visual": "VISUAL",
-    "visual_line": "V-LINE",
-}
 
 
 @dataclass(frozen=True)
@@ -54,27 +49,7 @@ class TypedFormField:
         return self.arg.default is UNSET
 
 
-class _FormVimModeMixin:
-    """Route a form editor's vim mode to the host screen when it wants it."""
-
-    def _update_vim_mode_display(self, indicator: str = "") -> None:
-        try:
-            setter = getattr(
-                getattr(self, "screen", None), "_set_editor_mode_label", None
-            )
-        except Exception:
-            setter = None
-        if not callable(setter):
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-            return
-        mode = _MODE_LABELS.get(getattr(self, "_vim_mode", ""), "")
-        try:
-            setter(mode, indicator)
-        except Exception:
-            super()._update_vim_mode_display(indicator)  # type: ignore[misc]
-
-
-class _InputCollectionInput(_FormVimModeMixin, SingleLineVimTextArea):
+class _InputCollectionInput(VimModeRoutingMixin, SingleLineVimTextArea):
     """Single-line vim editor for typed input values."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -82,7 +57,7 @@ class _InputCollectionInput(_FormVimModeMixin, SingleLineVimTextArea):
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
 
-class _SecretInput(_FormVimModeMixin, SecretVimTextArea):
+class _SecretInput(VimModeRoutingMixin, SecretVimTextArea):
     """Form-hosted secret editor; stays single-line even when the type is text."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -90,7 +65,7 @@ class _SecretInput(_FormVimModeMixin, SecretVimTextArea):
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
 
-class _MultilineInput(_FormVimModeMixin, VimTextArea):
+class _MultilineInput(VimModeRoutingMixin, VimTextArea):
     """Multi-line vim editor for text-typed and repeatable fields."""
 
     DEFAULT_CSS = """

@@ -3241,10 +3241,14 @@ created by `sase memory write --notify` use `memory_review` with
 inside the review UI.
 
 The custom-gate modal shows the sender and notes or verified preview, one icon-led
-button per terminal choice, checkboxes for that choice's independently selectable add-on
-commands, and a feedback input. Required feedback blocks submission until non-empty text
-is present; optional and disabled modes adjust the affordance accordingly. Unsupported
-future actions produce a warning instead of silently doing nothing.
+button per terminal choice, and checkboxes for that choice's independently selectable
+add-on commands. The Decision column holds those controls only; an option that declares
+typed input wears a dim `✎ n inputs` badge and collects those values in the dedicated
+input panel instead (see [Remapping Gate Modal Keys](#remapping-gate-modal-keys)).
+Required feedback also opens that panel, whose submit stays blocked until non-empty text
+is present; optional feedback still answers in one keystroke and is attached by pressing
+`i` first, and disabled feedback shows no note field at all. Unsupported future actions
+produce a warning instead of silently doing nothing.
 
 Custom gates and neutral HITL gates execute through the shared hash-verifying gate
 executor. ACE schedules the terminal command and each selected add-on through the
