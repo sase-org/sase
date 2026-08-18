@@ -3416,9 +3416,10 @@ the head of the VCS xprompt MRU store. There is no separate "set current project
 command — launching an agent is what moves it. Click the top-bar `+<project>` chip to
 open the `+` launch picker, which is the surface that actually records that launch.
 
-The chip sits immediately after the provider-disables pill, so in the normal case — when
-the override and disable pills are empty — it reads flush against the default-model
-indicator. Its color is unique among currently enabled projects. Hovering names the
+The chip sits immediately after the provider-disables pill. It renders as a boxed
+`+<project>`, with both the walls and the body drawn from the project's own accent —
+unique among currently enabled projects — deliberately set apart from the model
+indicators on its left and the notification chips on its right. Hovering names the
 project, the MRU ref it came from, and (when the head was a Patch) the Patch; the
 tooltip also says to launch an agent to make a project current. Hide the chip with
 `ace.current_project.indicator: false`.
@@ -3467,10 +3468,10 @@ so it is counted separately from — and never blocks — ACE's own procs.
 ### Current Project Indicator
 
 The uniquely colored `+<project>` chip mounts immediately after the provider-disables
-pill. When those intervening override/disable pills are empty, it sits visually flush
-against the default-model indicator. Clicking it opens the `+` launch picker. See
-[Current project](#current-project) for what the chip means, what it seeds, and how to
-turn each part off.
+pill, boxed by two accent-colored rails and a tinted plate so it reads as its own object
+rather than running flush against its neighbours. Clicking it opens the `+` launch
+picker. See [Current project](#current-project) for what the chip means, what it seeds,
+and how to turn each part off.
 
 ### Runners Modal
 

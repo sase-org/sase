@@ -15,6 +15,8 @@ from collections.abc import Iterable, Mapping
 import functools
 import hashlib
 
+from textual.color import Color
+
 # 18 colors spaced evenly around the OKLCH hue wheel (20 degrees apart),
 # each chroma-adjusted so every entry lands at approximately the same WCAG
 # relative luminance (~0.196) as the existing ``_PROVIDER_ACCENTS`` band in
@@ -90,3 +92,21 @@ def project_accent(project_key: str, *, among: Iterable[str] | None = None) -> s
     if among is None:
         return PROJECT_ACCENTS[_hash_index(project_key, len(PROJECT_ACCENTS))]
     return _project_accent_map(set(among) | {project_key})[project_key]
+
+
+# The chip plate is one surface step above the app background, tinted with the
+# project's own accent. 0.12 puts plate-vs-background at contrast 1.11-1.12 for
+# every palette entry -- the same step the pinned theme's $surface (#1C1B1A)
+# takes over its $background (#100F0F) -- so the chip reads as raised material,
+# not a highlight, while accent-on-plate keeps >= 87% of the accent's contrast
+# against the bare background.
+PROJECT_CHIP_PLATE_BLEND = 0.12
+
+
+@functools.lru_cache(maxsize=256)
+def project_chip_plate(accent: str, *, background: str) -> str:
+    """Return the plate color behind a project chip drawn on ``background``."""
+
+    return (
+        Color.parse(background).blend(Color.parse(accent), PROJECT_CHIP_PLATE_BLEND).hex
+    )
