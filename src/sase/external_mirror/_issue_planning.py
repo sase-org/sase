@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.flag_fields import is_flag_bead
+from sase.bead.model import Issue, Status
 from sase.bug_links import normalize_external_ref
 from sase.vcs_provider import IssueWire
 
@@ -195,7 +196,7 @@ def blocked_reason(
 def build_identity_index(beads: list[Issue], *, project: str) -> dict[str, CoveredBead]:
     index: dict[str, CoveredBead] = {}
     for bead in beads:
-        if bead.issue_type is IssueType.FLAG:
+        if is_flag_bead(bead):
             # Temporary feature-flag hygiene is internal-only; flag beads must
             # not cover or reconcile external tracker issues.
             continue
@@ -203,7 +204,7 @@ def build_identity_index(beads: list[Issue], *, project: str) -> dict[str, Cover
         if normalized and normalized not in index:
             index[normalized] = CoveredBead(bead, mirrored=True)
     for bead in beads:
-        if bead.issue_type is IssueType.FLAG:
+        if is_flag_bead(bead):
             continue
         for raw_ref in bead.refs:
             if not raw_ref.strip().casefold().startswith("bug:"):

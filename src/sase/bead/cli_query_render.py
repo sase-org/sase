@@ -287,6 +287,7 @@ def invalid_search_regex_message(exc: ValueError) -> str | None:
 
 
 def search_field_value(issue: Issue, field: str) -> str:
+    fields = flag_fields(issue)
     values = {
         "id": issue.id,
         "title": issue.title,
@@ -306,9 +307,11 @@ def search_field_value(issue: Issue, field: str) -> str:
         "status": issue.status.value,
         "type": issue.issue_type.value,
         "tier": issue.tier.value if issue.tier else "",
-        "flag_key": issue.flag.key if issue.flag else "",
-        "flag_remove_by_date": issue.flag.remove_by_date if issue.flag else "",
-        "flag_remove_by_release": (issue.flag.remove_by_release if issue.flag else ""),
+        "flag_key": fields.key if fields is not None else "",
+        "flag_remove_by_date": fields.remove_by_date if fields is not None else "",
+        "flag_remove_by_release": (
+            fields.remove_by_release if fields is not None else ""
+        ),
     }
     return values.get(field, "")
 

@@ -5561,7 +5561,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "091d8981eed6766b",
+            "description_digest": "1eccb51132297517",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -5685,8 +5685,7 @@
                 "choices": [
                   "plan",
                   "phase",
-                  "task",
-                  "flag"
+                  "task"
                 ],
                 "dest": "type",
                 "hidden": false,
@@ -6251,7 +6250,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "391b8af40f70fb4c",
+            "description_digest": "9a1f641fcfbf3e4d",
             "hidden": false,
             "mutex_groups": [],
             "name": "search",
@@ -6374,8 +6373,7 @@
                 "choices": [
                   "plan",
                   "phase",
-                  "task",
-                  "flag"
+                  "task"
                 ],
                 "dest": "type",
                 "hidden": false,

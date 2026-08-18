@@ -97,3 +97,32 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
         "plugins\\_enabled<br>2026-12-01<br>v0.19.0 | — | open | unknown |" in rendered
     )
     assert "sase-ai.1" not in rendered
+
+
+def test_roster_flag_column_reads_task_type_fields() -> None:
+    flag = Issue(
+        "sase-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+
+    rendered = render_bead_pages_roster_bytes(
+        (flag,),
+        BeadAssociationIndex(MappingProxyType({})),
+    ).decode()
+
+    assert (
+        "| [sase-flag](sase-flag/README.md) | Remove plugin switch | ◆ task |"
+        " ⚑ flag | plugins\\_enabled<br>2026-12-01<br>v0.19.0 | — | open | unknown |"
+        in rendered
+    )

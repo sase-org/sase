@@ -95,6 +95,59 @@ def test_summary_counts_due_flags_and_renders_the_urgency_clause(
     assert "\x1b[1;7m⧗\x1b[0m 1 due flag" in colored
 
 
+def test_summary_counts_typed_flag_tasks_as_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.model import Issue
+
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.bead_summary_presentation.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    due = Issue(
+        "sase-due",
+        "Due flag",
+        issue_type=IssueType.TASK,
+        status=Status.OPEN,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+    live = Issue(
+        "sase-live",
+        "Live flag",
+        issue_type=IssueType.TASK,
+        status=Status.OPEN,
+        task_type="flag",
+        task_type_fields={
+            "key": "new_checkout",
+            "kind": "sunset",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2027-12-01",
+            "remove_by_release": "9.99.0",
+        },
+    )
+
+    summary = summarize_bead_rows([due, live], matched=2)
+
+    assert summary.by_type == {"plan": 0, "phase": 0, "task": 0, "flag": 2}
+    assert summary.due_flags == 1
+    assert (
+        bead_list_summary_line(summary, use_color=False, implicit_limit=False)
+        == "2 open flags · ⧗ 1 due flag"
+    )
+
+
 @pytest.mark.parametrize(
     ("rows", "expected"),
     [

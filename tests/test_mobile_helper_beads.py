@@ -521,6 +521,46 @@ def test_beads_list_bridge_lists_ready_task_beads_by_default_and_by_filter(
     ]
 
 
+def test_beads_list_bridge_treats_flag_task_beads_as_flags(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alpha_root = tmp_path / "alpha"
+    alpha_dir, _, _, _ = seed_bead_project(alpha_root)
+    with BeadProject.init(alpha_root) as project:
+        flag = project.create(
+            "Retire demo_key",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "new path",
+                "when_disabled": "old path",
+                "remove_when": "when proven",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        )
+    seed_known_projects(tmp_path, {"alpha": alpha_dir})
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    code, data, stderr = run_bridge(
+        {"schema_version": 1, "project": "alpha", "bead_type": "flag"},
+        "beads-list",
+    )
+
+    assert code == 0
+    assert stderr == ""
+    summary = next(
+        row
+        for row in data["beads"]  # type: ignore[index]
+        if row["id"] == flag.id
+    )
+    assert summary["bead_type"] == "flag"
+    assert summary["task_type"] == "flag"
+
+
 def test_beads_list_bridge_reports_partial_project_read_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -217,7 +217,7 @@ def _handle_bead_work_locked(
                     json_output=json_output,
                 )
         if issue.issue_type != IssueType.PLAN:
-            if issue.issue_type in (IssueType.TASK, IssueType.FLAG):
+            if issue.issue_type is IssueType.TASK:
                 from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
 
                 captured = io.StringIO()

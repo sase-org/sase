@@ -145,6 +145,20 @@ def test_non_stale_beads_are_never_counted(
     assert [bead["bead_id"] for bead in created[0]["beads"]] == ["sase-task.stale"]
 
 
+def test_ready_flag_task_beads_are_never_counted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    flag_task = make_task("sase-flag.ready", task_type="flag")
+    mixed = [flag_task, make_task("sase-task.stale")]
+    patch_projects(monkeypatch, tmp_path, mixed, stale_cleanup_min_beads=1)
+    created = capture_created(monkeypatch)
+
+    result = stale_cleanup._run(make_runtime(tmp_path))
+
+    assert result.counters == expected_counters(gated=1, stale=1, offered=1)
+    assert [bead["bead_id"] for bead in created[0]["beads"]] == ["sase-task.stale"]
+
+
 def test_typed_bead_below_its_own_higher_type_bar_is_stale_despite_global_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

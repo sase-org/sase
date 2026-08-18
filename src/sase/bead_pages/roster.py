@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 
 from sase.agents_sync.rendering_markdown import md_cell, page_bytes
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Issue, IssueType
 from sase.bead_pages.associations import BeadAssociationIndex
 from sase.bead_pages.paths import bead_lineage_root
@@ -74,13 +75,13 @@ def _task_type_roster_cell(issue: Issue) -> str:
 
 
 def _flag_roster_cell(issue: Issue) -> str:
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return "—"
     return (
-        f"{md_cell(record.key)}<br>"
-        f"{md_cell(record.remove_by_date)}<br>"
-        f"v{md_cell(record.remove_by_release)}"
+        f"{md_cell(fields.key)}<br>"
+        f"{md_cell(fields.remove_by_date)}<br>"
+        f"v{md_cell(fields.remove_by_release)}"
     )
 
 

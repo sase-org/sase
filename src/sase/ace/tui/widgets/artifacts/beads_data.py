@@ -13,6 +13,7 @@ from sase.ace.tui.external_issues import (
     list_project_issues,
     resolve_issue_tracker_scope,
 )
+from sase.bead.flag_fields import flag_fields, is_flag_bead, is_flag_task_bead
 from sase.bead_flag_presentation import FlagDuePresentation, flag_due_presentation
 from sase.bead.model import IssueType
 from sase.bug_links import find_external_ref_links, normalize_external_ref
@@ -115,22 +116,23 @@ def load_beads_snapshot(
 
         local_beads.extend(ProjectBead(project_name, issue) for issue in issues)
         project_tasks = tuple(
-            issue for issue in issues if issue.issue_type is IssueType.TASK
+            issue
+            for issue in issues
+            if issue.issue_type is IssueType.TASK and not is_flag_task_bead(issue)
         )
         tasks.extend(ProjectBead(project_name, issue) for issue in project_tasks)
         project_epics = tuple(
             issue for issue in issues if issue.issue_type is IssueType.PLAN
         )
         epics.extend(ProjectBead(project_name, issue) for issue in project_epics)
-        project_flags = tuple(
-            issue for issue in issues if issue.issue_type is IssueType.FLAG
-        )
+        project_flags = tuple(issue for issue in issues if is_flag_bead(issue))
         for issue in project_flags:
             flags.append(ProjectBead(project_name, issue))
-            if issue.flag is not None:
+            fields = flag_fields(issue)
+            if fields is not None:
                 flag_due[(project_name, issue.id)] = flag_due_presentation(
-                    issue.flag.remove_by_date,
-                    issue.flag.remove_by_release,
+                    fields.remove_by_date,
+                    fields.remove_by_release,
                     today=today,
                     release=release,
                 )
@@ -424,7 +426,7 @@ def _local_external_refs(
     item: ProjectBead,
 ) -> tuple[tuple[str, ExternalIssueRelation], ...]:
     issue = item.issue
-    if issue.issue_type is IssueType.FLAG:
+    if is_flag_bead(issue):
         # Temporary feature-flag hygiene is internal-only; flag beads must not
         # cover, create, or reconcile external tracker issues.
         return ()

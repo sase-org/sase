@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from types import MappingProxyType
 
+from sase.bead.flag_fields import is_flag_bead
 from sase.bead.plus_one_presentation import plus_one_evidence_search_text
 from sase.bead.reopen_presentation import close_history_search_text
 from sase.bug_links import normalize_external_ref
@@ -86,7 +87,9 @@ def _record(
     project = item.project
     issue_key = (project, issue.id)
     display_name = snapshot.display_names.get(project, project)
-    type_labels = _fold_labels((issue.issue_type.value,))
+    type_labels = _fold_labels(
+        ("flag",) if is_flag_bead(issue) else (issue.issue_type.value,)
+    )
     task_type_labels = _fold_labels(
         (issue_task_type_slug(issue.task_type),)
         if issue.issue_type.value == "task"

@@ -140,6 +140,7 @@ def register_bead_list_parser(
             "  sase bead list\n"
             "  sase bead list --status open --type phase\n"
             "  sase bead list --type task --since 1w --status all\n"
+            "  sase bead list -T flag\n"
             "  sase bead list --task-type flake\n"
             "  sase bead list --task-type untyped\n"
             "  sase bead list --format json\n"
@@ -215,9 +216,11 @@ def register_bead_list_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase", "task", "flag"],
+        choices=["plan", "phase", "task"],
         action="append",
-        help="Filter by type (repeatable)",
+        help=(
+            "Filter by issue type (repeatable). Flag beads are task beads; use -T flag"
+        ),
     )
     parser.add_argument(
         "-u",
@@ -258,6 +261,7 @@ def register_bead_search_parser(
             "  sase bead search auth --format json\n"
             "  sase bead search auth --format full --limit 3\n"
             "  sase bead search auth --status open --type phase\n"
+            "  sase bead search prettier -T flag\n"
             "  sase bead search flake --task-type flake"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -325,9 +329,11 @@ def register_bead_search_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase", "task", "flag"],
+        choices=["plan", "phase", "task"],
         action="append",
-        help="Filter by type (repeatable)",
+        help=(
+            "Filter by issue type (repeatable). Flag beads are task beads; use -T flag"
+        ),
     )
 
 

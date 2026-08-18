@@ -17,6 +17,7 @@ from sase.agent.bead_display import (
     lookup_bead_issue,
     normalize_bead_text,
 )
+from sase.bead.flag_fields import flag_fields, is_flag_bead
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead_type_presentation import BeadTypeValue
 from sase.phase_size_presentation import normalize_phase_size
@@ -410,15 +411,15 @@ def _resolve_bead_plan_association(
     notes = _normalize_bead_notes(issue.notes)
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
-    is_task = issue.issue_type is IssueType.TASK
-    is_flag = issue.issue_type is IssueType.FLAG
+    is_flag = is_flag_bead(issue)
+    is_task = issue.issue_type is IssueType.TASK and not is_flag
     role: Literal["phase", "task", "flag", "land"] | None = (
         "phase"
         if is_phase
-        else "task"
-        if is_task
         else "flag"
         if is_flag
+        else "task"
+        if is_task
         else "land"
         if is_epic
         else None
@@ -470,15 +471,15 @@ def _resolve_bead_issue_association(
         return _ResolvedPlanAssociation(None)
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
-    is_task = issue.issue_type is IssueType.TASK
-    is_flag = issue.issue_type is IssueType.FLAG
+    is_flag = is_flag_bead(issue)
+    is_task = issue.issue_type is IssueType.TASK and not is_flag
     role: Literal["phase", "task", "flag", "land"] | None = (
         "phase"
         if is_phase
-        else "task"
-        if is_task
         else "flag"
         if is_flag
+        else "task"
+        if is_task
         else "land"
         if is_epic
         else None
@@ -497,7 +498,10 @@ def _resolve_bead_issue_association(
 
 def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
     """Project one task or flag issue into render-ready BEAD metadata."""
-    flag = issue.flag
+    fields = flag_fields(issue)
+    bead_type: BeadTypeValue = (
+        "flag" if is_flag_bead(issue) else cast(BeadTypeValue, issue.issue_type.value)
+    )
     return BeadSummary(
         id=issue.id,
         phase_title=normalize_bead_text(issue.title) or None,
@@ -509,12 +513,12 @@ def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
         epic_title=None,
         size=normalize_phase_size(issue.size),
         created_at=issue.created_at,
-        bead_type=cast(BeadTypeValue, issue.issue_type.value),
+        bead_type=bead_type,
         notes=_normalize_bead_notes(issue.notes),
         plus_one_evidence=tuple(issue.plus_one_evidence),
-        flag_key=None if flag is None else flag.key,
-        flag_remove_by_date=None if flag is None else flag.remove_by_date,
-        flag_remove_by_release=None if flag is None else flag.remove_by_release,
+        flag_key=None if fields is None else fields.key,
+        flag_remove_by_date=None if fields is None else fields.remove_by_date,
+        flag_remove_by_release=None if fields is None else fields.remove_by_release,
         task_type=issue.task_type,
     )
 

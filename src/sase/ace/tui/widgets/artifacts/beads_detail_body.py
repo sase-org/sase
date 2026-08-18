@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Issue
 from sase.task_types import TASK_TYPE_BODY_SEPARATOR, render_task_type_display_block
 from sase.bead.plus_one_presentation import (
@@ -73,15 +74,15 @@ def plus_one_evidence_markdown(issue: Issue) -> list[str]:
 
 
 def flag_markdown(issue: Issue) -> list[str]:
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return []
     return [
         "## Flag",
         "",
-        f"- Key: `{_inline_code(record.key)}`",
-        f"- Remove by date: `{_inline_code(record.remove_by_date)}`",
-        f"- Remove by release: `v{_inline_code(record.remove_by_release)}`",
+        f"- Key: `{_inline_code(fields.key)}`",
+        f"- Remove by date: `{_inline_code(fields.remove_by_date)}`",
+        f"- Remove by release: `v{_inline_code(fields.remove_by_release)}`",
         "",
     ]
 

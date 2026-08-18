@@ -237,6 +237,47 @@ def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:
     assert _matched_records(value, "-due:due type:flag") == []
 
 
+def test_type_flag_filter_matches_flag_task_beads(tmp_path: Path) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+        flag_due={
+            ("alpha", flag.id): flag_due_presentation(
+                "2026-08-01",
+                "0.19.0",
+                today=date(2026, 8, 16),
+                release="0.19.0",
+            )
+        },
+    )
+
+    assert [record.bead_id for record in _matched_records(value, "type:flag")] == [
+        "alpha-flag"
+    ]
+    assert [record.bead_id for record in _matched_records(value, "task_type:flag")] == [
+        "alpha-flag"
+    ]
+    assert [record.bead_id for record in _matched_records(value, "type:task")] == [
+        "alpha-ready",
+        "alpha-open",
+    ]
+
+
 def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) -> None:
     value = snapshot(tmp_path)
     value.tasks[1].issue.plus_one_evidence.append(

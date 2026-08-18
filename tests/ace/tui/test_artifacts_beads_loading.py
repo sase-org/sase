@@ -110,6 +110,73 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
     assert first.plan_links[("alpha", epic.id)].endswith("resolved.md")
 
 
+def test_snapshot_groups_flag_task_beads_with_flags_not_tasks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    task = Issue(
+        "alpha-task",
+        "Task",
+        issue_type=IssueType.TASK,
+        status=Status.READY,
+    )
+    flag_task = Issue(
+        "alpha-flag",
+        "Flag",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+
+    monkeypatch.setattr(
+        beads_data,
+        "_resolve_projects",
+        lambda _project: (
+            SimpleNamespace(
+                project="alpha",
+                display_name="Alpha",
+                workspace_dir=str(tmp_path / "workspace"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
+    monkeypatch.setattr(
+        beads_data, "_project_document_roots", lambda _project: {"plans": tmp_path}
+    )
+    monkeypatch.setattr(
+        beads_data, "_store_mtime_key", lambda _path: (("store", 1, 1),)
+    )
+    monkeypatch.setattr(
+        beads_data, "_notifications_mtime_key", lambda: (("notifications", 1, 1),)
+    )
+    monkeypatch.setattr(
+        beads_data,
+        "_load_project_beads",
+        lambda _path: ([task, flag_task], frozenset(), frozenset()),
+    )
+    monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_data.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+
+    snapshot = load_beads_snapshot("alpha", force=True)
+
+    assert [item.issue.id for item in snapshot.tasks] == [task.id]
+    assert [item.issue.id for item in snapshot.flags] == [flag_task.id]
+    assert snapshot.flag_due[("alpha", flag_task.id)].state == "due"
+
+
 def test_snapshot_isolates_per_project_read_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

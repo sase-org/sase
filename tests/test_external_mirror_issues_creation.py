@@ -128,6 +128,38 @@ def test_flag_bead_bug_ref_does_not_cover_external_issue(
     assert created.task_type == "github"
 
 
+def test_flag_task_bead_bug_ref_does_not_cover_external_issue(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with open_bead_project_for_beads_dir(bead_store) as project:
+        project.create(
+            "Temporary plugin flag",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            refs=["bug:sase#42"],
+            task_type_fields={
+                "key": "plugins_enabled",
+                "kind": "beta",
+                "when_enabled": "new path",
+                "when_disabled": "old path",
+                "remove_when": "when proven",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        )
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    report = run_mirror()
+
+    assert report.beads_created == 1
+    mirrored = beads(bead_store)
+    assert sum(1 for bead in mirrored if bead.task_type == "flag") == 1
+    created = next(bead for bead in mirrored if bead.task_type == "github")
+    assert created.external_ref == "bug:sase#42"
+
+
 def test_conflict_created_between_plan_and_apply_is_detected_under_lock(
     bead_store: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

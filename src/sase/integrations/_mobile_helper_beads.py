@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.bead.flag_fields import is_flag_bead, is_flag_task_bead
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.store_locator import (
     canonical_beads_dir_for_project,
@@ -258,7 +259,7 @@ def _bead_summary_wire(
         "id": issue.id,
         "title": issue.title,
         "status": issue.status.value,
-        "bead_type": issue.issue_type.value,
+        "bead_type": "flag" if is_flag_bead(issue) else issue.issue_type.value,
         "task_type": issue.task_type or None,
         "tier": issue.tier.value if issue.tier is not None else None,
         "project": project,
@@ -443,7 +444,12 @@ def _filter_bead_issues(
         result = [issue for issue in result if issue.status in status_set]
     if issue_types is not None:
         type_set = set(issue_types)
-        result = [issue for issue in result if issue.issue_type in type_set]
+        result = [
+            issue
+            for issue in result
+            if issue.issue_type in type_set
+            or (IssueType.FLAG in type_set and is_flag_task_bead(issue))
+        ]
     if tiers is not None:
         tier_set = set(tiers)
         result = [issue for issue in result if issue.tier in tier_set]

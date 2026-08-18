@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import BeadTier, FlagRecord, IssueType, Status
+from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 
 from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond
@@ -65,12 +65,18 @@ def test_work_accepts_flag_bead(
     with BeadProject(project_dir) as proj:
         flag = proj.create(
             "Remove the demo flag",
-            IssueType.FLAG,
-            flag=FlagRecord(
-                key="demo_flag",
-                remove_by_date="2026-08-01",
-                remove_by_release="0.1.0",
-            ),
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_flag",
+                "kind": "beta",
+                "when_enabled": "new path",
+                "when_disabled": "old path",
+                "remove_when": "when proven",
+                "remove_by_date": "2026-08-01",
+                "remove_by_release": "0.1.0",
+            },
         )
     monkeypatch.setattr(
         "sase.bead.cli_work_task.checkpoint_task_work_launch",

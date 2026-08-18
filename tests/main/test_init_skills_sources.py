@@ -515,6 +515,7 @@ def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
     assert re.search(r"sase bead list --type task(?! --since)", flat) is None
     assert re.search(r"sase bead list --type task[^`]*--format full", flat) is None
     assert "sase bead list --type plan --tier epic" in flat
+    assert "sase flag new <key>" in flat
 
 
 def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:

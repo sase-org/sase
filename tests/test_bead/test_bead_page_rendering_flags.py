@@ -38,3 +38,35 @@ def test_flag_bead_page_renders_stable_identity_and_thresholds() -> None:
     assert "- **Remove by release:** `v0.19.0`" in rendered
     assert "- **Due states:** `live`, `soon`, `due`" in rendered
     assert "DUE" not in rendered
+
+
+def test_flag_task_bead_page_reads_task_type_fields() -> None:
+    flag = Issue(
+        "sase-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+
+    rendered = render_bead_page(
+        cast(BeadProject, View((flag,))),
+        flag,
+        BeadAssociationIndex(MappingProxyType({})),
+    )
+
+    assert "**Type:** ◆ task" in rendered
+    assert "**Task type:** ⚑ flag" in rendered
+    assert "**Flag:** ⚑ `plugins_enabled`" in rendered
+    assert "## Flag" in rendered
+    assert "- **Key:** `plugins_enabled`" in rendered
+    assert "- **Remove by date:** `2026-12-01`" in rendered
+    assert "- **Remove by release:** `v0.19.0`" in rendered

@@ -194,6 +194,58 @@ def test_flag_group_rows_status_and_detail_render_due_metadata(tmp_path: Path) -
     assert "**Due state:** due (DUE ⧗ +6d)" in preview
 
 
+def test_flag_task_rows_keep_countdown_and_gain_task_type_chip(
+    tmp_path: Path,
+) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "new path",
+            "when_disabled": "old path",
+            "remove_when": "when proven",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
+    )
+    due = flag_due_presentation(
+        "2026-12-01",
+        "0.19.0",
+        today=date(2026, 12, 7),
+        release="0.19.0",
+    )
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+        flag_due={("alpha", flag.id): due},
+    )
+
+    options, rows = build_bead_options(
+        value,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics=set(),
+    )
+    prompts = {option.id: option.prompt.plain for option in options if option.id}
+    row = flag_text(flag, due=due).plain
+    preview = bead_preview_markdown(flag, value, project="alpha")
+    body = bead_body_markdown(flag)
+
+    assert rows["flag:alpha-flag"].kind == "flag"
+    assert prompts["header:flags"].startswith("── Flags (1)")
+    assert "⚑ alpha-flag Remove plugin switch" in row
+    assert "⚑ plugins_enabled" in row
+    assert "DUE ⧗ +6d" in row
+    assert "**Task type:** flag" in preview
+    assert "**Flag key:** plugins_enabled" in preview
+    assert "## Flag" in body
+    assert "- Key: `plugins_enabled`" in body
+
+
 def test_flag_detail_omits_due_state_when_unresolved(tmp_path: Path) -> None:
     flag = Issue(
         "alpha-flag",

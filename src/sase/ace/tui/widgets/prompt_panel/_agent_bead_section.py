@@ -166,6 +166,8 @@ class ResponsiveBeadSection:
                 (self._label("Flag Key"), self._flag_key_value()),
                 (self._label("Remove By"), self._flag_removal_value()),
             ]
+            if self.summary.task_type:
+                rows.append((self._label("Task Type"), self._task_type_value()))
             if self.summary.notes and self.summary.notes.strip():
                 rows.append(
                     (self._label("Notes"), self._foldable_value(self._notes_value()))

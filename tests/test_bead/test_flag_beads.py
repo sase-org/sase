@@ -115,38 +115,63 @@ def test_show_json_reports_the_flag_section(
     assert flag["due_state"] in {"live", "soon", "due"}
 
 
-def test_list_json_finds_the_flag_bead_by_type(
+def test_list_json_finds_the_flag_bead_by_task_type(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    bead_id = _create_flag_bead(project_dir)
-    capsys.readouterr()  # discard the "Created flag: ..." line
+    bead_id = _create_flag_task_bead(project_dir)
 
     args = create_parser().parse_args(
-        ["bead", "list", "--type", "flag", "--format", "json"]
+        ["bead", "list", "-T", "flag", "--format", "json"]
     )
     bead_cli.handle_bead_list(args)
 
     envelope = json.loads(capsys.readouterr().out)
     ids = [result["id"] for result in envelope["results"]]
     assert ids == [bead_id]
+    assert envelope["by_type"]["flag"] == 1
+    assert envelope["by_type"]["task"] == 0
 
 
 def test_list_compact_renders_the_flag_glyph(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    _create_flag_bead(project_dir)
-    capsys.readouterr()  # discard the "Created flag: ..." line
+    _create_flag_task_bead(project_dir)
 
     args = create_parser().parse_args(
-        ["bead", "list", "--type", "flag", "--format", "compact", "--color", "never"]
+        ["bead", "list", "-T", "flag", "--format", "compact", "--color", "never"]
     )
     bead_cli.handle_bead_list(args)
 
     out = capsys.readouterr().out
     assert "⚑" in out
     assert "Retire demo_key" in out
+
+
+def test_list_rejects_issue_type_flag_filter(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        create_parser().parse_args(["bead", "list", "--type", "flag"])
+
+    assert "invalid choice: 'flag'" in capsys.readouterr().err
+
+
+def test_list_and_search_help_point_at_task_type_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        create_parser().parse_args(["bead", "list", "-h"])
+    list_help = capsys.readouterr().out
+    assert "sase bead list -T flag" in list_help
+    assert "use -T flag" in list_help
+
+    with pytest.raises(SystemExit):
+        create_parser().parse_args(["bead", "search", "-h"])
+    search_help = capsys.readouterr().out
+    assert "sase bead search prettier -T flag" in search_help
+    assert "use -T flag" in search_help
 
 
 def test_show_full_renders_the_flag_section(
@@ -166,6 +191,38 @@ def test_show_full_renders_the_flag_section(
     assert "demo_key" in out
     assert "2026-12-01" in out
     assert "0.19.0" in out
+
+
+def test_show_full_renders_the_flag_section_for_flag_task_beads(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    bead_id = _create_flag_task_bead(project_dir)
+
+    args = create_parser().parse_args(
+        ["bead", "show", bead_id, "--format", "full", "--color", "never"]
+    )
+    bead_cli.handle_bead_show(args)
+
+    out = capsys.readouterr().out
+    assert "FLAG" in out
+    assert "demo_key" in out
+    assert "2026-12-01" in out
+    assert "0.19.0" in out
+    assert "task" in out
+    assert "flag" in out
+
+
+def test_stats_counts_typed_flag_tasks(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _create_flag_task_bead(project_dir)
+
+    bead_cli.handle_bead_stats(create_parser().parse_args(["bead", "stats"]))
+
+    out = capsys.readouterr().out
+    assert "  Flags:       1" in out
 
 
 def _create_flag_task_bead(project_dir: Path) -> str:

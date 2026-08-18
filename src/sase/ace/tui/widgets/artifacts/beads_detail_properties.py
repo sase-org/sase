@@ -6,6 +6,7 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from sase.bead.flag_fields import flag_fields
 from sase.bead_flag_presentation import flag_key_chip
 from sase.bead.model import CloseRecord, Issue, PhaseSize, Status
 from sase.bead.reopen_presentation import (
@@ -69,15 +70,15 @@ def flag_properties(
     *,
     project: str,
 ) -> list[DetailProperty]:
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return []
     due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))
     properties: list[DetailProperty] = [
-        ("Flag", flag_key_chip(record.key)),
+        ("Flag", flag_key_chip(fields.key)),
         (
             "Removal",
-            f"{record.remove_by_date} · v{record.remove_by_release}",
+            f"{fields.remove_by_date} · v{fields.remove_by_release}",
         ),
     ]
     if due is not None:

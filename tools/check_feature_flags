@@ -737,15 +737,16 @@ def _list_flag_beads(
 def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
     """List every flag bead through ``BD_COMMAND``.
 
-    Merges ``--type flag`` (legacy issue type) with ``-T flag`` (typed task)
-    so the coexistence window stays green.
+    Flag beads are task beads of type ``flag``, so the list uses ``-T flag``.
+    Named registry beads that this filter omits (legacy issue-type rows
+    during the coexistence window) are filled in by
+    :func:`resolve_named_flag_beads`.
     """
-    by_id: dict[str, MarkerBead] = {}
-    for extra in (("--type", "flag"), ("-T", "flag")):
-        for bead in _list_flag_beads(repo_root, bd_command, extra):
-            if bead.id:
-                by_id[bead.id] = bead
-    return list(by_id.values())
+    return [
+        bead
+        for bead in _list_flag_beads(repo_root, bd_command, ("-T", "flag"))
+        if bead.id
+    ]
 
 
 def show_bead(
@@ -779,7 +780,7 @@ def resolve_named_flag_beads(
     repo_root: Path,
     bd_command: str,
 ) -> list[MarkerBead]:
-    """Add ``show`` hits for named beads that ``list --type flag`` omitted."""
+    """Add ``show`` hits for named beads that ``list -T flag`` omitted."""
     by_id = {bead.id: bead for bead in listed if bead.id}
     resolved = list(listed)
     for marker in markers:

@@ -162,8 +162,7 @@ def _settle_close_task_gates(
     gateable_ids = {
         issue.id
         for issue in issues
-        if issue.id in candidate_ids
-        and issue.issue_type in (IssueType.TASK, IssueType.FLAG)
+        if issue.id in candidate_ids and issue.issue_type is IssueType.TASK
     }
     if not gateable_ids:
         return

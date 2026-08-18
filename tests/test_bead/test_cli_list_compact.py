@@ -279,6 +279,48 @@ def test_list_compact_renders_flag_key_and_due_cells(
     assert output.endswith("\n\n1 open flag · ⧗ 1 due flag\n")
 
 
+def test_list_compact_renders_typed_flag_task_cells(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.bead_summary_presentation.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_query_render.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    with BeadProject(project_dir) as proj:
+        issue = proj.create(
+            "Flag Bead",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "new path",
+                "when_disabled": "old path",
+                "remove_when": "when proven",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        )
+
+    bead_cli.handle_bead_list(
+        parse_sase_args(["bead", "list", "-T", "flag", "--color", "never"])
+    )
+    output = capsys.readouterr().out
+    line = next(line for line in _compact_row_lines(output) if issue.id in line)
+
+    assert "⚑" in line
+    assert "· Flag Bead  ⚑ demo_key DUE ⧗ +6d" in line
+    assert output.endswith("\n\n1 open flag · ⧗ 1 due flag\n")
+
+
 def test_list_compact_no_color_env_suppresses_escapes(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

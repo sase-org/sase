@@ -12,7 +12,8 @@ from typing import Protocol, cast
 import sase
 from sase.ansi_style import ansi_sgr, apply_ansi
 from sase.bead.flag_due import flag_removal_due
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FLAG_TASK_TYPE, flag_fields
+from sase.bead.model import FlagRecord, Issue, IssueType
 from sase.bead_flag_presentation import FLAG_DUE_GLYPH, FLAG_DUE_STYLES
 from sase.bead_status_presentation import (
     BeadStatusValue,
@@ -77,7 +78,7 @@ def summarize_bead_rows(
     due_flags = 0
     today = core_time.local_now().date()
     for row in rows:
-        type_counts[_normalize_bead_type_value(row.issue_type)] += 1
+        type_counts[_row_type_value(row)] += 1
         status_counts[_normalize_bead_status_value(row.status)] += 1
         if _row_flag_is_due(row, today=today):
             due_flags += 1
@@ -133,6 +134,22 @@ def _normalize_bead_type_value(value: object) -> BeadTypeValue:
     return cast(BeadTypeValue, candidate)
 
 
+def _row_is_flag(row: BeadSummaryRow) -> bool:
+    issue_type = getattr(row, "issue_type", None)
+    if issue_type is IssueType.FLAG:
+        return True
+    candidate = issue_type.value if isinstance(issue_type, Enum) else issue_type
+    if candidate == "flag":
+        return True
+    return getattr(row, "task_type", "") == FLAG_TASK_TYPE
+
+
+def _row_type_value(row: BeadSummaryRow) -> BeadTypeValue:
+    if _row_is_flag(row):
+        return "flag"
+    return _normalize_bead_type_value(row.issue_type)
+
+
 def _normalize_bead_status_value(value: object) -> BeadStatusValue:
     bead_status_presentation(value)
     candidate = value.value if isinstance(value, Enum) else value
@@ -140,6 +157,19 @@ def _normalize_bead_status_value(value: object) -> BeadStatusValue:
 
 
 def _row_flag_is_due(row: BeadSummaryRow, *, today: date) -> bool:
+    if isinstance(row, Issue):
+        fields = flag_fields(row)
+        if fields is None:
+            return False
+        return (
+            flag_removal_due(
+                fields.remove_by_date,
+                fields.remove_by_release,
+                today=today,
+                release=sase.__version__,
+            )
+            == "due"
+        )
     record = getattr(row, "flag", None)
     if not isinstance(record, FlagRecord):
         return False

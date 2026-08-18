@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.console import RenderableType
 from rich.text import Text
 
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
@@ -199,13 +200,13 @@ def bead_preview_markdown(
         lines.append(f"**Size:** {issue.size.value}  ")
     if issue.issue_type is IssueType.TASK:
         lines.append(f"**Task type:** {issue_task_type_slug(issue.task_type)}  ")
-    if issue.flag is not None:
-        record = issue.flag
+    fields = flag_fields(issue)
+    if fields is not None:
         lines.extend(
             [
-                f"**Flag key:** {record.key}  ",
-                f"**Remove by date:** {record.remove_by_date}  ",
-                f"**Remove by release:** v{record.remove_by_release}  ",
+                f"**Flag key:** {fields.key}  ",
+                f"**Remove by date:** {fields.remove_by_date}  ",
+                f"**Remove by release:** v{fields.remove_by_release}  ",
             ]
         )
         due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))

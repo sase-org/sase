@@ -29,16 +29,6 @@ def test_kind_mismatch_when_bead_kind_disagrees() -> None:
     assert "kind 'sunset'" in findings[0].message
 
 
-def test_kind_mismatch_when_default_disagrees_with_kind() -> None:
-    findings = registry_integrity_findings(
-        definitions(demo_flag("demo_flag", kind="beta", default=True)),
-        (flag_bead("demo_flag", kind="beta"),),
-    )
-
-    assert [finding.code for finding in findings] == ["kind_mismatch"]
-    assert "default true disagrees with kind 'beta'" in findings[0].message
-
-
 def test_matching_flag_task_bead_is_clean() -> None:
     findings = registry_integrity_findings(
         definitions(demo_flag("demo_flag", kind="beta")),

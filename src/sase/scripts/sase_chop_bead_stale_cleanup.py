@@ -27,6 +27,7 @@ from sase.bead.config import (
     get_task_triage_stale_after_days,
     get_task_triage_stale_cleanup_min_beads,
 )
+from sase.bead.flag_fields import is_flag_task_bead
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.stale_cleanup_gate import (
     BEAD_STALE_CLEANUP_KIND,
@@ -276,6 +277,8 @@ def _collect_stale(
             continue
         projects += 1
         for issue in issues:
+            if is_flag_task_bead(issue):
+                continue
             if stale_task_bead(
                 issue,
                 min_plus_ones=effective_min_plus_ones(

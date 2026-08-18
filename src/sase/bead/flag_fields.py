@@ -32,6 +32,15 @@ def is_flag_task_bead(issue: Issue) -> bool:
     return issue.issue_type == IssueType.TASK and issue.task_type == FLAG_TASK_TYPE
 
 
+def is_flag_bead(issue: Issue) -> bool:
+    """Return whether *issue* is a flag for surface grouping.
+
+    True for a ``flag`` task bead and, during the coexistence window, a
+    legacy ``flag`` issue-type bead.
+    """
+    return is_flag_task_bead(issue) or issue.issue_type == IssueType.FLAG
+
+
 def flag_fields(issue: Issue) -> FlagFields | None:
     """Return key, kind, and both thresholds for a flag bead, else ``None``.
 
@@ -85,6 +94,7 @@ __all__ = [
     "FLAG_TASK_TYPE",
     "FlagFields",
     "flag_fields",
+    "is_flag_bead",
     "is_flag_task_bead",
     "replace_flag_thresholds",
 ]

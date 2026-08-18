@@ -6,8 +6,9 @@ from collections.abc import Mapping
 
 from rich.text import Text
 
+from sase.bead.flag_fields import flag_fields, is_flag_task_bead
 from sase.bead_flag_presentation import FlagDuePresentation, flag_key_chip
-from sase.bead.model import Issue, IssueType, PhaseSize, Status
+from sase.bead.model import Issue, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     POST_CLOSE_RICH_STYLE,
@@ -245,13 +246,19 @@ def flag_text(
     project_badge: str | None = None,
 ) -> Text:
     text = single_line_text()
-    presentation = bead_type_presentation(flag.issue_type)
-    text.append(f"{presentation.glyph} ", style=presentation.rich_style)
+    if is_flag_task_bead(flag):
+        task_chip = task_type_presentation(flag.task_type)
+        glyph, style = task_chip.glyph, task_chip.rich_style
+    else:
+        flag_chip = bead_type_presentation("flag")
+        glyph, style = flag_chip.glyph, flag_chip.rich_style
+    text.append(f"{glyph} ", style=style)
     text.append(f"{flag.id} ", style="bold #FFD700")
     text.append(flag.title, style="white")
-    if flag.flag is not None:
+    fields = flag_fields(flag)
+    if fields is not None:
         text.append("  ")
-        text.append_text(flag_key_chip(flag.flag.key))
+        text.append_text(flag_key_chip(fields.key))
     if due is not None:
         text.append("  ")
         text.append(due.label, style=due.style.rich)

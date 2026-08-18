@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 from sase.agents_sync.rendering_markdown import md_cell, md_code, md_escape
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_detail import IssueDetail
+from sase.bead.flag_fields import flag_fields
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
@@ -207,16 +208,16 @@ def render_snooze(issue: Issue) -> list[str]:
 
 def render_flag(issue: Issue) -> list[str]:
     """Render stable feature-flag identity for published bead pages."""
-    record = issue.flag
-    if record is None:
+    fields = flag_fields(issue)
+    if fields is None:
         return []
     return [
         "",
         "## Flag",
         "",
-        f"- **Key:** `{md_code(record.key)}`",
-        f"- **Remove by date:** `{md_code(record.remove_by_date)}`",
-        f"- **Remove by release:** `v{md_code(record.remove_by_release)}`",
+        f"- **Key:** `{md_code(fields.key)}`",
+        f"- **Remove by date:** `{md_code(fields.remove_by_date)}`",
+        f"- **Remove by release:** `v{md_code(fields.remove_by_release)}`",
         "- **Due states:** `live`, `soon`, `due`",
     ]
 
@@ -266,9 +267,10 @@ def _primary_facts(issue: Issue) -> str:
         task_presentation = task_type_presentation(issue.task_type)
         task_slug = issue_task_type_slug(issue.task_type)
         values.append(f"**Task type:** {task_presentation.glyph} {md_code(task_slug)}")
-    if issue.flag is not None:
+    fields = flag_fields(issue)
+    if fields is not None:
         glyph = bead_type_presentation("flag").glyph
-        values.append(f"**Flag:** {glyph} `{md_code(issue.flag.key)}`")
+        values.append(f"**Flag:** {glyph} `{md_code(fields.key)}`")
     if badge := plus_one_badge(issue.plus_one_count):
         values.append(f"**+1 reports:** {badge}")
     if badge := post_close_plus_one_badge(post_close_plus_one_count(issue)):

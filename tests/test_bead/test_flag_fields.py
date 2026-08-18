@@ -5,6 +5,7 @@ from __future__ import annotations
 from sase.bead.flag_fields import (
     FlagFields,
     flag_fields,
+    is_flag_bead,
     is_flag_task_bead,
     replace_flag_thresholds,
 )
@@ -41,6 +42,7 @@ def test_flag_fields_reads_task_type_fields() -> None:
         remove_by_release="0.19.0",
     )
     assert is_flag_task_bead(_flag_task())
+    assert is_flag_bead(_flag_task())
 
 
 def test_flag_fields_reads_legacy_flag_record() -> None:
@@ -62,6 +64,7 @@ def test_flag_fields_reads_legacy_flag_record() -> None:
         remove_by_release="0.19.0",
     )
     assert not is_flag_task_bead(issue)
+    assert is_flag_bead(issue)
 
 
 def test_flag_fields_returns_none_for_other_task_types() -> None:
@@ -74,6 +77,7 @@ def test_flag_fields_returns_none_for_other_task_types() -> None:
     )
 
     assert flag_fields(issue) is None
+    assert not is_flag_bead(issue)
 
 
 def test_flag_fields_returns_none_when_thresholds_are_missing() -> None:
