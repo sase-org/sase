@@ -27,15 +27,13 @@ from sase.notification_gates.input_collection import (
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_validation import GateError, first_schema_error
 from sase.notification_gates.models import GateOption
-from sase.xprompt.models import InputType, XPromptValidationError
+from sase.xprompt.models import XPromptValidationError
 
-#: Properties a raw-schema editor never renders because a sibling control on
-#: the modal already collects them (and the executor injects/merges them).
-DEFAULT_HOST_COLLECTED_PROPERTIES = frozenset({"feedback"})
-
-
-class GateBranchInputError(Exception):
-    """Inputs could not be collected; the message is reviewer-facing."""
+from .gate_input_panel_model import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
+    GateBranchInputError,
+    gate_declares_inputs,
+)
 
 
 def _schema_extra_properties(
@@ -46,28 +44,6 @@ def _schema_extra_properties(
     if not isinstance(properties, Mapping):
         return ()
     return tuple(name for name in properties if name not in host_collected_properties)
-
-
-def gate_declares_inputs(
-    options: Sequence[GateOption], host_collected_properties: frozenset[str]
-) -> tuple[bool, bool]:
-    """Whether *options* render an Inputs section, and whether any is ``path``.
-
-    Used by the gate modals to decide whether their footer needs an inputs
-    hint, without duplicating :class:`GateBranchInputSection`'s own per-branch
-    bookkeeping.
-    """
-    has_any = False
-    has_path = False
-    for option in options:
-        if option.inputs:
-            has_any = True
-            if any(field.type is InputType.PATH for field in option.inputs):
-                has_path = True
-            continue
-        if _schema_extra_properties(option.input_schema, host_collected_properties):
-            has_any = True
-    return has_any, has_path
 
 
 class GateBranchInputSection(Vertical):

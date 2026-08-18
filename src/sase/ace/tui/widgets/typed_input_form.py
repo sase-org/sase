@@ -9,7 +9,7 @@ extraction this widget grew out of.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -193,6 +193,12 @@ class _EnumField(Button):
         self._index = (self._index + 1) % len(self._values)
         self.label = self._current_label()
 
+    def set_value(self, value: str) -> None:
+        if value not in self._values:
+            return
+        self._index = self._values.index(value)
+        self.label = self._current_label()
+
 
 class TypedInputForm(Vertical):
     """Typed, validated single-page field collection driven by ``InputArg`` rules."""
@@ -202,6 +208,13 @@ class TypedInputForm(Vertical):
 
     class Submitted(Message):
         """``<enter>`` was pressed past this form's last visible field."""
+
+        @property
+        def control(self) -> TypedInputForm:
+            """The form that posted this message."""
+            sender = self._sender
+            assert isinstance(sender, TypedInputForm)
+            return sender
 
     def __init__(
         self,
@@ -353,6 +366,21 @@ class TypedInputForm(Vertical):
                 continue
             result[field.arg.name] = raw
         return result
+
+    def set_raw_values(self, values: Mapping[str, str]) -> None:
+        """Write raw text into mounted editors by field name."""
+        for index, field in enumerate(self._fields):
+            if field.arg.name not in values:
+                continue
+            raw = values[field.arg.name]
+            widget = self.query_one(f"#{self._input_id(index)}")
+            if isinstance(widget, _EnumField):
+                widget.set_value(raw)
+            else:
+                widget.value = raw  # type: ignore[attr-defined]
+            if self.is_mounted:
+                self._validate_field(index)
+        self.post_message(self.Changed())
 
     def typed_values(self) -> dict[str, Any]:
         """Converted values per field name, omitting hidden and empty optional fields.

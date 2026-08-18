@@ -15,9 +15,11 @@ from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.models import GateFeedbackMode, GateOption
 
 from .gate_branch_input_section import (
-    DEFAULT_HOST_COLLECTED_PROPERTIES,
     GateBranchInputError,
     GateBranchInputSection,
+)
+from .gate_input_panel_model import (
+    DEFAULT_HOST_COLLECTED_PROPERTIES,
     gate_declares_inputs,
 )
 from .gate_branch_layout import (

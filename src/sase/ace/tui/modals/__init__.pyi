@@ -108,6 +108,9 @@ from .gate_branch_controls import GateBranchData as GateBranchData
 from .gate_action_runner import GateCommandOutcome as GateCommandOutcome
 from .gate_debug_modal import GateDebugModal as GateDebugModal
 from .gate_action_runner import GateEditOutcome as GateEditOutcome
+from .gate_input_panel import GateInputPanel as GateInputPanel
+from .gate_input_panel import GateInputPanelResult as GateInputPanelResult
+from .gate_input_panel_model import GateInputRequest as GateInputRequest
 from .gate_retry_modal import GateRetryModal as GateRetryModal
 from .glossary_panel import GlossaryPanel as GlossaryPanel
 from .help_modal import HelpModal as HelpModal
