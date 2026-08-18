@@ -47,10 +47,10 @@ def _entry_points(entries: list[_EntryPoint]) -> Any:
 def _spec(**overrides: Any) -> dict[str, Any]:
     spec = {
         "schema_version": 1,
-        "task_type": "bug",
-        "label": "Bug",
-        "summary": "A defect an agent found while doing unrelated work.",
-        "when_to_use": "File one when you find a bug outside the current task's scope.",
+        "task_type": "incident",
+        "label": "Incident",
+        "summary": "A production incident that needs a tracked follow-up.",
+        "when_to_use": "File one when an incident is outside the current task's scope.",
     }
     spec.update(overrides)
     return spec
@@ -60,14 +60,21 @@ def _empty_layers() -> list[ConfigLayer]:
     return []
 
 
-def test_registry_is_empty_with_no_plugins_or_project_config(
+def test_registry_includes_builtins_with_no_plugins_or_project_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         "sase.task_types._project_config.load_config_layers", _empty_layers
     )
     registry = assemble_task_type_registry(entry_points_fn=_entry_points([]))
-    assert registry.records == ()
+    assert [record.task_type for record in registry.records] == [
+        "bug",
+        "ci",
+        "feature",
+        "flake",
+        "memory",
+    ]
+    assert all(record.provenance.builtin for record in registry.records)
     assert registry.diagnostics == ()
 
 
@@ -87,7 +94,7 @@ def test_registry_discovers_plugin_task_type_with_resolved_presentation(
             [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
         )
     )
-    record = registry.by_slug["bug"]
+    record = registry.by_slug["incident"]
     assert record.provenance.package == "sase-github"
     assert record.resolved_accent_color
     assert record.resolved_glyph
@@ -109,7 +116,9 @@ def test_registry_project_config_overrides_plugin_type(
         list_strategy="concatenate",
         data={
             "bead": {
-                "task_types": [{"use": "sase-github@bug", "agent_creatable": False}]
+                "task_types": [
+                    {"use": "sase-github@incident", "agent_creatable": False}
+                ]
             }
         },
     )
@@ -121,7 +130,29 @@ def test_registry_project_config_overrides_plugin_type(
             [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
         )
     )
-    record = registry.by_slug["bug"]
+    record = registry.by_slug["incident"]
     assert record.provenance.source == "project"
     assert record.agent_creatable is False
     assert record not in registry.agent_creatable
+
+
+def test_registry_rejects_plugin_shadowing_a_builtin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Plugin:
+        @hookimpl
+        def task_type_specs(self) -> tuple[dict[str, Any], ...]:
+            return (_spec(task_type="bug", label="Not the builtin"),)
+
+    monkeypatch.setattr(
+        "sase.task_types._project_config.load_config_layers", _empty_layers
+    )
+    registry = assemble_task_type_registry(
+        entry_points_fn=_entry_points(
+            [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
+        )
+    )
+    record = registry.by_slug["bug"]
+    assert record.provenance.builtin is True
+    assert record.spec["label"] == "Bug"
+    assert [d.code for d in registry.diagnostics] == ["builtin_task_type_shadowed"]

@@ -33,7 +33,7 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     # Rust create fast path cannot resolve the acting SASE agent that
     # ``handle_bead_create`` records as the bead's creator. ``epic-symbols``
     # is a Python working-tree scan, not a bead-store query.
-    if argv[0] in {"close", "create", "epic-symbols"}:
+    if argv[0] in {"close", "create", "epic-symbols", "task-type"}:
         return None
     if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
         return None

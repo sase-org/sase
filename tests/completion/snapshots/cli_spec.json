@@ -6599,6 +6599,138 @@
           },
           {
             "aliases": [],
+            "default_child": "list",
+            "description_digest": "f7d46a004bc04619",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "task-type",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "bead",
+              "task-type"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "da2d8f18267118fa",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "all",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--all"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "task-type",
+                  "list"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "428a965702a3b8a4",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "bead",
+                  "task-type",
+                  "show"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "slug",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "<slug>",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
             "default_child": null,
             "description_digest": "b75bc1d8c4a6e927",
             "hidden": false,

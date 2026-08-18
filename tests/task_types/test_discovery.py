@@ -46,18 +46,20 @@ def _entry_points(entries: list[_EntryPoint]) -> Any:
 def _spec(**overrides: Any) -> dict[str, Any]:
     spec = {
         "schema_version": 1,
-        "task_type": "bug",
-        "label": "Bug",
-        "summary": "A defect an agent found while doing unrelated work.",
-        "when_to_use": "File one when you find a bug outside the current task's scope.",
+        "task_type": "incident",
+        "label": "Incident",
+        "summary": "A production incident that needs a tracked follow-up.",
+        "when_to_use": "File one when an incident is outside the current task's scope.",
     }
     spec.update(overrides)
     return spec
 
 
-def test_discovery_collects_builtins_with_no_specs_yet() -> None:
+def test_discovery_collects_builtin_specs() -> None:
     discovery = discover_task_type_specs(entry_points_fn=_entry_points([]))
-    assert discovery.candidates == ()
+    slugs = [spec["task_type"] for spec, _ in discovery.candidates]
+    assert slugs == ["bug", "ci", "feature", "flake", "memory"]
+    assert all(provenance.source == "builtin" for _, provenance in discovery.candidates)
     assert discovery.diagnostics == ()
 
 
@@ -72,9 +74,16 @@ def test_discovery_collects_entry_point_specs_with_provenance() -> None:
             [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
         )
     )
-    assert len(discovery.candidates) == 1
-    spec, provenance = discovery.candidates[0]
-    assert spec["task_type"] == "bug"
+    assert [spec["task_type"] for spec, _ in discovery.candidates] == [
+        "bug",
+        "ci",
+        "feature",
+        "flake",
+        "memory",
+        "incident",
+    ]
+    spec, provenance = discovery.candidates[-1]
+    assert spec["task_type"] == "incident"
     assert provenance.source == "plugin"
     assert provenance.package == "sase-github"
     assert provenance.version == "1.2.3"
@@ -86,7 +95,13 @@ def test_discovery_isolates_entry_point_load_failures() -> None:
             [_EntryPoint("broken", TASK_TYPE_ENTRY_POINT_GROUP, RuntimeError("boom"))]
         )
     )
-    assert discovery.candidates == ()
+    assert [spec["task_type"] for spec, _ in discovery.candidates] == [
+        "bug",
+        "ci",
+        "feature",
+        "flake",
+        "memory",
+    ]
     assert [d.code for d in discovery.diagnostics] == ["entry_point_load_failed"]
     assert discovery.diagnostics[0].severity == "error"
 
@@ -103,7 +118,13 @@ def test_discovery_honors_disable_env(monkeypatch: pytest.MonkeyPatch) -> None:
             [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
         )
     )
-    assert discovery.candidates == ()
+    assert [spec["task_type"] for spec, _ in discovery.candidates] == [
+        "bug",
+        "ci",
+        "feature",
+        "flake",
+        "memory",
+    ]
     assert discovery.disabled_env == ("SASE_DISABLE_PLUGIN_TASK_TYPES",)
 
 
@@ -119,5 +140,11 @@ def test_discovery_honors_global_disable_env(monkeypatch: pytest.MonkeyPatch) ->
             [_EntryPoint("github", TASK_TYPE_ENTRY_POINT_GROUP, Plugin)]
         )
     )
-    assert discovery.candidates == ()
+    assert [spec["task_type"] for spec, _ in discovery.candidates] == [
+        "bug",
+        "ci",
+        "feature",
+        "flake",
+        "memory",
+    ]
     assert discovery.disabled_env == ("SASE_DISABLE_PLUGINS",)

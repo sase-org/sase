@@ -37,6 +37,7 @@ from sase.main.parser_bead_store import (
     register_bead_sync_external_parser,
     register_bead_sync_parser,
 )
+from sase.main.parser_bead_task_type import register_bead_task_type_parser
 
 
 def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -77,8 +78,9 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_stats_parser(bead_subparsers)
     register_bead_sync_parser(bead_subparsers)
     register_bead_sync_external_parser(bead_subparsers)
-    register_bead_work_parser(bead_subparsers)
+    register_bead_task_type_parser(bead_subparsers)
     register_bead_update_parser(bead_subparsers)
+    register_bead_work_parser(bead_subparsers)
 
 
 __all__ = ["nonnegative_int", "register_bead_parser"]
