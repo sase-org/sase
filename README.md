@@ -97,15 +97,15 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 
 ## Works with your agents
 
-| Agent                                                                           | Status                       |
-| ------------------------------------------------------------------------------- | ---------------------------- |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code)                   | **Supported**                |
-| [Antigravity CLI (`agy`)](https://antigravity.google/)                          | **Supported**                |
-| [Codex](https://github.com/openai/codex)                                        | **Supported**                |
-| [Qwen Code](https://github.com/QwenLM/qwen-code)                                | **Supported**                |
-| [OpenCode](https://opencode.ai/)                                                | **Supported**                |
-| [Muse Code](https://developer.meta.com/ai/resources/blog/build-with-muse-code/) | **Supported; explicit-only** |
-| [Grok Build](https://docs.x.ai/build/overview)                                  | **Supported; explicit-only** |
+| Agent                                                                           | Status        |
+| ------------------------------------------------------------------------------- | ------------- |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code)                   | **Supported** |
+| [Antigravity CLI (`agy`)](https://antigravity.google/)                          | **Supported** |
+| [Codex](https://github.com/openai/codex)                                        | **Supported** |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)                                | **Supported** |
+| [OpenCode](https://opencode.ai/)                                                | **Supported** |
+| [Muse Code](https://developer.meta.com/ai/resources/blog/build-with-muse-code/) | **Supported** |
+| [Grok Build](https://docs.x.ai/build/overview)                                  | **Supported** |
 
 ## Learn more
 
