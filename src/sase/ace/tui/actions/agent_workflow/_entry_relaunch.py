@@ -13,6 +13,7 @@ from sase.core.paths import sase_projects_dir
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ._entry_name_prompts import (
+    KillAndEditPromptError,
     prepare_kill_and_edit_prompt,
     prompt_facing_agent_name,
 )
@@ -35,26 +36,39 @@ def prepare_kill_edit_agent_prompt(
     if raw_prompt is None:
         return None
 
+    is_family_root = bool(getattr(agent, "is_family_root_entry", False))
     family_name: str | None = None
     agent_family = getattr(agent, "agent_family", None)
     role_suffix = getattr(agent, "role_suffix", None)
-    if (
+    serial_family_member = bool(
         agent_family
         and not getattr(agent, "agent_family_parallel", False)
         and role_suffix
-    ):
-        family_name = (
-            agent.presented_family_reference_name()
-            if hasattr(agent, "presented_family_reference_name")
-            else prompt_facing_agent_name(agent_family)
-        )
+    )
+    if serial_family_member or is_family_root:
+        family_name = _kill_edit_family_reference_name(agent, agent_family)
     return prepare_kill_and_edit_prompt(
         raw_prompt,
         agent.agent_name,
         family_name=family_name,
         role_suffix=role_suffix,
         phase_bead_id=getattr(agent, "phase_bead_id", None),
+        is_family_root=is_family_root,
     )
+
+
+def _kill_edit_family_reference_name(
+    agent: object,
+    agent_family: str | None,
+) -> str | None:
+    presenter = getattr(agent, "presented_family_reference_name", None)
+    if callable(presenter):
+        presented = presenter()
+        if presented:
+            return presented
+    if agent_family:
+        return prompt_facing_agent_name(agent_family)
+    return None
 
 
 def schedule_relaunch_prompt_resolution(
@@ -71,17 +85,23 @@ def schedule_relaunch_prompt_resolution(
         # Narrow mixin unit tests do not have Textual worker infrastructure.
         try:
             on_complete(resolver())
-        except Exception:
+        except Exception as exc:
             log.exception("Failed to prepare relaunch prompt")
-            owner.notify(failure_message, severity="error")  # type: ignore[attr-defined]
+            owner.notify(  # type: ignore[attr-defined]
+                _relaunch_prompt_failure_message(failure_message, exc),
+                severity="error",
+            )
         return
 
     async def prepare_prompt() -> None:
         try:
             result = await asyncio.to_thread(resolver)
-        except Exception:
+        except Exception as exc:
             log.exception("Failed to prepare relaunch prompt")
-            owner.notify(failure_message, severity="error")  # type: ignore[attr-defined]
+            owner.notify(  # type: ignore[attr-defined]
+                _relaunch_prompt_failure_message(failure_message, exc),
+                severity="error",
+            )
             return
         on_complete(result)
 
@@ -93,10 +113,22 @@ def schedule_relaunch_prompt_resolution(
             group="agent-relaunch-prompt",
             exclusive=True,
         )
-    except Exception:
+    except Exception as exc:
         worker_coro.close()
         log.exception("Failed to schedule relaunch prompt preparation")
-        owner.notify(failure_message, severity="error")  # type: ignore[attr-defined]
+        owner.notify(  # type: ignore[attr-defined]
+            _relaunch_prompt_failure_message(failure_message, exc),
+            severity="error",
+        )
+
+
+def _relaunch_prompt_failure_message(failure_message: str, exc: BaseException) -> str:
+    if isinstance(exc, KillAndEditPromptError):
+        return str(exc)
+    detail = str(exc).strip()
+    if detail:
+        return f"{failure_message}: {detail}"
+    return failure_message
 
 
 def resolve_agent_identity(owner: object, identity: object) -> Agent | None:
@@ -191,6 +223,18 @@ class EntryRelaunchMixin:
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        if getattr(agent, "is_clan_container", False):
+            label = (
+                getattr(agent, "presented_agent_name", None)
+                or getattr(agent, "agent_clan", None)
+                or "clan"
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"'{label}' is a clan container; mark its members and use "
+                ",x on the marked set instead.",
+                severity="warning",
+            )
             return
 
         identity = getattr(agent, "identity", agent)

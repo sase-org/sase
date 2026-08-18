@@ -247,3 +247,169 @@ async def test_family_member_relaunch_aborts_when_row_goes_stale(
                     "warning",
                 )
             ]
+
+
+_EPIC_ROOT_PROMPT = (
+    "#gh:gh_sase-org__sase\n"
+    "%id(sase-pw.1, bead=sase-pw.1)\n"
+    "%clan(sase-pw, tribe=epic, summary_script=sase_clan_summary_epic)\n"
+    "%model:@medium\n"
+    "%auto\n"
+    "#bd/work_phase_bead:sase-pw.1"
+)
+
+
+def _write_prompt(directory: Path, prompt: str) -> Path:
+    directory.mkdir()
+    (directory / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+    return directory
+
+
+def _epic_family_root(tmp_path: Path) -> Agent:
+    artifacts = _write_prompt(tmp_path / "epic-root", _EPIC_ROOT_PROMPT)
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature",
+        project_file="/tmp/projects/project/project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 23, 12, 0, 0),
+        raw_suffix="20260723120000",
+        artifacts_dir=str(artifacts),
+        agent_name="sase-pw.1--plan",
+        agent_family="sase-pw.1",
+        agent_family_role="root",
+        plan_chain_root=True,
+        role_suffix="--plan",
+        agent_clan="sase-pw",
+        phase_bead_id="sase-pw.1",
+    )
+
+
+def _plain_plan_root(tmp_path: Path) -> Agent:
+    artifacts = _write_prompt(
+        tmp_path / "plain-root",
+        "#gh:gh_sase-org__sase #plan",
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature",
+        project_file="/tmp/projects/project/project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 23, 12, 0, 0),
+        raw_suffix="20260723120100",
+        artifacts_dir=str(artifacts),
+        agent_name="06d--plan",
+        agent_family="06d",
+        agent_family_role="root",
+        plan_chain_root=True,
+        role_suffix="--plan",
+    )
+
+
+def _self_attaching_family_row(tmp_path: Path) -> Agent:
+    artifacts = _write_prompt(tmp_path / "self-attach", "Do work")
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature",
+        project_file="/tmp/projects/project/project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 23, 12, 0, 0),
+        raw_suffix="20260723120200",
+        artifacts_dir=str(artifacts),
+        agent_name="sase-pw.1",
+        agent_family="sase-pw.1",
+        role_suffix="--code",
+        phase_bead_id="sase-pw.1",
+    )
+
+
+def _clan_container_row() -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="feature",
+        project_file="/tmp/projects/project/project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 23, 12, 0, 0),
+        raw_suffix="20260723120300",
+        agent_name="sase-pw.1",
+        agent_clan="sase-pw",
+        is_clan_container=True,
+    )
+
+
+async def test_family_root_relaunch_keeps_clan_and_not_self_family(
+    tmp_path: Path,
+) -> None:
+    root = _epic_family_root(tmp_path)
+    app = _FamilyRelaunchApp([root], root)
+
+    async with app.run_test(size=(110, 40)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+
+        seeded = app.query_one(PromptInputBar).all_prompt_texts()[0]
+        assert seeded.startswith("%id(!1, clan=sase-pw, bead=sase-pw.1)")
+        assert "%clan" not in seeded
+        assert "family=" not in seeded
+
+    assert app.dismissed == [root]
+    assert app.killed == []
+    assert app.notifications == []
+
+
+async def test_plain_plan_root_relaunch_forces_family_name_reuse(
+    tmp_path: Path,
+) -> None:
+    root = _plain_plan_root(tmp_path)
+    app = _FamilyRelaunchApp([root], root)
+
+    async with app.run_test(size=(110, 40)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+
+        seeded = app.query_one(PromptInputBar).all_prompt_texts()[0]
+        assert seeded.startswith("%id:!06d")
+        assert "family=" not in seeded
+
+    assert app.dismissed == [root]
+    assert app.killed == []
+
+
+async def test_self_attaching_family_rewrite_notifies_and_kills_nothing(
+    tmp_path: Path,
+) -> None:
+    row = _self_attaching_family_row(tmp_path)
+    app = _FamilyRelaunchApp([row], row)
+
+    async with app.run_test(size=(110, 40)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: bool(app.notifications))
+
+        assert app.killed == []
+        assert app.dismissed == []
+        assert not app.query(PromptInputBar)
+        assert len(app.notifications) == 1
+        message, severity = app.notifications[0]
+        assert severity == "error"
+        assert "sase-pw.1" in message
+        assert "family=" in message
+
+
+async def test_clan_container_focused_relaunch_warns_and_kills_nothing() -> None:
+    container = _clan_container_row()
+    app = _FamilyRelaunchApp([container], container)
+
+    async with app.run_test(size=(110, 40)) as pilot:
+        app._kill_and_edit_agent()
+        await wait_for(pilot, lambda: bool(app.notifications))
+
+        assert app.killed == []
+        assert app.dismissed == []
+        assert not app.query(PromptInputBar)
+        assert app.notifications == [
+            (
+                "'sase-pw' is a clan container; mark its members and use "
+                ",x on the marked set instead.",
+                "warning",
+            )
+        ]

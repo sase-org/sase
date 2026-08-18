@@ -146,6 +146,65 @@ def test_plan_refuses_multi_segment_prompt(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
+_EPIC_ROOT_PROMPT = (
+    "#gh:gh_sase-org__sase\n"
+    "%id(sase-pw.1, bead=sase-pw.1)\n"
+    "%clan(sase-pw, tribe=epic, summary_script=sase_clan_summary_epic)\n"
+    "%model:@medium\n"
+    "%auto\n"
+    "#bd/work_phase_bead:sase-pw.1"
+)
+
+
+def test_plan_family_root_keeps_clan_not_family(tmp_path: Path) -> None:
+    plan, _artifacts, spies = _plan(
+        tmp_path,
+        name="sase-pw.1--plan",
+        raw_prompt=_EPIC_ROOT_PROMPT,
+        agent_family="sase-pw.1",
+        role_suffix="--plan",
+        extra_meta={
+            "phase_bead_id": "sase-pw.1",
+            "plan_chain_root": True,
+            "agent_family_role": "root",
+        },
+    )
+    assert plan.rewritten_prompt.startswith(
+        "%id(!1, clan=sase-pw, bead=sase-pw.1)\n#gh:gh_sase-org__sase\n"
+    )
+    assert "family=" not in plan.rewritten_prompt
+    assert "%clan" not in plan.rewritten_prompt
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
+def test_plan_refuses_self_attaching_family_identity(tmp_path: Path) -> None:
+    spies = mutation_spies()
+    artifacts = make_restartable_agent(
+        tmp_path,
+        name="sase-pw.1",
+        raw_prompt="Do work",
+        agent_family="sase-pw.1",
+        role_suffix="--code",
+    )
+    agent = named_agent_for(artifacts, name="sase-pw.1")
+    with (
+        patch("sase.agent.names.find_named_agent", return_value=agent),
+        patch("sase.agent.names.lookup_registered_name", return_value=None),
+        patch("sase.agent.running.kill_named_agent", spies["kill"]),
+        patch("sase.agent.running.dismiss_named_agent", spies["dismiss"]),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch", spies["apply"]),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", spies["launch"]),
+        pytest.raises(AgentRestartError) as caught,
+    ):
+        plan_agent_restart("sase-pw.1")
+    assert caught.value.reason == "identity"
+    assert "family=" in caught.value.message
+    assert caught.value.hint
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
 def test_plan_family_member_keeps_role_and_bead(tmp_path: Path) -> None:
     plan, _artifacts, spies = _plan(
         tmp_path,
@@ -248,8 +307,8 @@ def test_plan_injects_forced_id_for_plain_prompt(tmp_path: Path) -> None:
         raw_prompt=raw,
         force_plan=fake_force,
     )
-    assert plan.name_reuse_source == "injected"
-    assert "injected" in plan.preview.name_reuse
+    assert plan.name_reuse_source == "prompt"
+    assert "from prompt" in plan.preview.name_reuse
     assert "%id:!061" in plan.rewritten_prompt
     assert plan.rewritten_prompt.startswith("%id:!061")
     from sase.xprompt import extract_vcs_workflow_tag

@@ -9,6 +9,7 @@ import pytest
 
 from sase.agent.retry_prompt import rewrite_retry_prompt_name
 from sase.ace.tui.actions.agent_workflow._entry_name_prompts import (
+    KillAndEditPromptError,
     prepare_kill_and_edit_prompt,
 )
 from sase.ace.tui.actions.agent_workflow._entry_points import (
@@ -49,6 +50,8 @@ class _Agent:
     agent_family_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
+    is_family_root_entry: bool = False
+    is_clan_container: bool = False
 
     def get_raw_xprompt_content(self) -> str | None:
         return self.raw_prompt
@@ -253,7 +256,7 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
 @pytest.mark.parametrize(
     ("raw_prompt", "agent_name", "expected"),
     [
-        ("%i:foo\nDo work", "foo", "%i:!foo\nDo work"),
+        ("%i:foo\nDo work", "foo", "%id:!foo\nDo work"),
         ("%id:foo\nDo work", "foo", "%id:!foo\nDo work"),
         ("%id:@.cld\nDo work", "0.cld", "%id:!0.cld\nDo work"),
         ("%id:!foo\nDo work", "foo", "%id:!foo\nDo work"),
@@ -272,7 +275,11 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
             "sase-8k.2--plan",
             "%id(!2, clan=sase-8k, bead=sase-8k.2)\nDo work",
         ),
-        ("Do work", None, "Do work"),
+        (
+            "#gh:gh_sase-org__sase Describe this repo.",
+            "068",
+            "%id:!068\n#gh:gh_sase-org__sase Describe this repo.",
+        ),
     ],
 )
 def test_prepare_kill_and_edit_prompt_contract(
@@ -281,6 +288,76 @@ def test_prepare_kill_and_edit_prompt_contract(
     expected: str,
 ) -> None:
     assert prepare_kill_and_edit_prompt(raw_prompt, agent_name) == expected
+
+
+_EPIC_ROOT_PROMPT = (
+    "#gh:gh_sase-org__sase\n"
+    "%id(sase-pw.1, bead=sase-pw.1)\n"
+    "%clan(sase-pw, tribe=epic, summary_script=sase_clan_summary_epic)\n"
+    "%model:@medium\n"
+    "%auto\n"
+    "#bd/work_phase_bead:sase-pw.1"
+)
+_EPIC_ROOT_RELAUNCH = (
+    "%id(!1, clan=sase-pw, bead=sase-pw.1)\n"
+    "#gh:gh_sase-org__sase\n"
+    "%model:@medium\n"
+    "%auto\n"
+    "#bd/work_phase_bead:sase-pw.1"
+)
+
+
+def test_prepare_kill_and_edit_prompt_family_root_keeps_clan() -> None:
+    rewritten = prepare_kill_and_edit_prompt(
+        _EPIC_ROOT_PROMPT,
+        "sase-pw.1--plan",
+        family_name="sase-pw.1",
+        role_suffix="--plan",
+        phase_bead_id="sase-pw.1",
+        is_family_root=True,
+    )
+    assert rewritten == _EPIC_ROOT_RELAUNCH
+    assert "family=" not in rewritten
+    assert "%clan" not in rewritten
+
+
+def test_prepare_kill_and_edit_epic_root_without_flag_still_keeps_clan() -> None:
+    rewritten = prepare_kill_and_edit_prompt(
+        _EPIC_ROOT_PROMPT,
+        "sase-pw.1--plan",
+        family_name="sase-pw.1",
+        role_suffix="--plan",
+        phase_bead_id="sase-pw.1",
+    )
+    assert rewritten == _EPIC_ROOT_RELAUNCH
+
+
+def test_prepare_kill_and_edit_prompt_plain_family_root_forces_reuse() -> None:
+    rewritten = prepare_kill_and_edit_prompt(
+        "#gh:gh_sase-org__sase #plan",
+        "06d--plan",
+        family_name="06d",
+        role_suffix="--plan",
+        is_family_root=True,
+    )
+    assert rewritten == "%id:!06d\n#gh:gh_sase-org__sase #plan"
+    assert "family=" not in rewritten
+
+
+def test_prepare_kill_and_edit_prompt_refuses_missing_identity() -> None:
+    with pytest.raises(KillAndEditPromptError, match="no %id identity") as caught:
+        prepare_kill_and_edit_prompt("Do work", None)
+    assert caught.value.produced == "Do work"
+
+
+def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
+    with pytest.raises(KillAndEditPromptError, match="attaches the agent to itself"):
+        prepare_kill_and_edit_prompt(
+            "Do work",
+            "sase-pw.1",
+            family_name="sase-pw.1",
+            role_suffix="--code",
+        )
 
 
 @pytest.mark.parametrize(
@@ -545,7 +622,7 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%i:!foo\nDo work",
+        "%id:!foo\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -599,6 +676,43 @@ def test_kill_and_edit_agent_replaces_template_with_concrete_name() -> None:
 
     assert app.launched == (
         "%id:!0.cld\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+    assert app.notifications == []
+
+
+def test_kill_and_edit_agent_injects_forced_id_when_prompt_has_none() -> None:
+    app = _App(_Agent("#gh:gh_sase-org__sase Describe this repo.", agent_name="068"))
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        "%id:!068\n#gh:gh_sase-org__sase Describe this repo.",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+    assert app.notifications == []
+
+
+def test_kill_and_edit_family_root_keeps_clan_identity() -> None:
+    app = _App(
+        _Agent(
+            _EPIC_ROOT_PROMPT,
+            agent_name="sase-pw.1--plan",
+            agent_family="sase-pw.1",
+            role_suffix="--plan",
+            phase_bead_id="sase-pw.1",
+            is_family_root_entry=True,
+        )
+    )
+
+    app._kill_and_edit_agent()
+
+    assert app.launched == (
+        _EPIC_ROOT_RELAUNCH,
         "/tmp/proj/proj.sase",
         "branch",
         False,

@@ -131,6 +131,7 @@ def plan_agent_restart(
         preview_agent_name_wipe,
     )
     from sase.agent.relaunch_prompt import (
+        KillAndEditPromptError,
         ensure_forced_name_reuse,
         prepare_kill_and_edit_prompt,
     )
@@ -191,14 +192,25 @@ def plan_agent_restart(
     meta_name = _optional_str(meta.get("name")) or agent.name
     presented_name = present_agent_name(meta_name)
     _refuse_container_name(meta_name, presented_name, lookup_registered_name)
-    family_name, role_suffix = _family_rewrite_args(meta)
-    rewritten = prepare_kill_and_edit_prompt(
-        raw_prompt,
-        meta_name,
-        family_name=family_name,
-        role_suffix=role_suffix,
-        phase_bead_id=_optional_str(meta.get("phase_bead_id")),
-    )
+    family_name, role_suffix, is_family_root = _family_rewrite_args(meta)
+    try:
+        rewritten = prepare_kill_and_edit_prompt(
+            raw_prompt,
+            meta_name,
+            family_name=family_name,
+            role_suffix=role_suffix,
+            phase_bead_id=_optional_str(meta.get("phase_bead_id")),
+            is_family_root=is_family_root,
+        )
+    except KillAndEditPromptError as exc:
+        raise AgentRestartError(
+            reason="identity",
+            message=str(exc),
+            hint=(
+                "Fix the stored prompt identity, or relaunch under a new "
+                "name with `sase run`."
+            ),
+        ) from exc
     if model_override:
         from sase.xprompt.directive_edit import set_prompt_model
 
@@ -614,12 +626,19 @@ def _resolved_path(path: Path | str) -> Path:
     return Path(path).expanduser().resolve(strict=False)
 
 
-def _family_rewrite_args(meta: dict[str, Any]) -> tuple[str | None, str | None]:
+def _family_rewrite_args(
+    meta: dict[str, Any],
+) -> tuple[str | None, str | None, bool]:
     agent_family = _optional_str(meta.get("agent_family"))
     role_suffix = _optional_str(meta.get("role_suffix"))
+    is_family_root = (
+        meta.get("plan_chain_root") is True or meta.get("agent_family_role") == "root"
+    )
     if agent_family and meta.get("agent_family_parallel") is not True and role_suffix:
-        return agent_family, role_suffix
-    return None, None
+        return agent_family, role_suffix, is_family_root
+    if is_family_root:
+        return agent_family, role_suffix, True
+    return None, None, False
 
 
 def _preview_warnings(

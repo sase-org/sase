@@ -221,7 +221,7 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
     assert len(app.edit_calls) == 1
     assert app.edit_calls[0]["prompts"] == [
         "%id:!done\nWork done",
-        "%i:!run\nWork run",
+        "%id:!run\nWork run",
     ]
 
 
@@ -260,7 +260,7 @@ async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
         assert len(bar._stack) == 2
         assert bar.all_prompt_texts() == [
             "%id:!0.cld\nWork templated",
-            "%i:!literal.wait\nWork literal",
+            "%id:!literal.wait\nWork literal",
         ]
 
     assert len(app.bulk_kill_calls) == 1
@@ -274,6 +274,7 @@ def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
         cl_name="solo",
         raw_suffix="20240101120000",
         raw_prompt="Just do it",
+        agent_name="solo",
         status="RUNNING",
         pid=222,
     )
@@ -283,7 +284,7 @@ def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
     app._bulk_kill_marked_agents_and_edit()
     _confirm(app)
 
-    assert app.edit_calls[0]["prompts"] == ["Just do it"]
+    assert app.edit_calls[0]["prompts"] == ["%id:!solo\nJust do it"]
 
 
 def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
@@ -336,6 +337,7 @@ def test_bulk_kill_and_edit_does_not_split_embedded_separator() -> None:
         cl_name="multi",
         raw_suffix="20240101120000",
         raw_prompt="part one\n---\npart two",
+        agent_name="multi",
         status="RUNNING",
         pid=333,
     )
@@ -346,7 +348,7 @@ def test_bulk_kill_and_edit_does_not_split_embedded_separator() -> None:
     _confirm(app)
 
     # The embedded ``---`` stays inside the single pane for this one agent.
-    assert app.edit_calls[0]["prompts"] == ["part one\n---\npart two"]
+    assert app.edit_calls[0]["prompts"] == ["%id:!multi\npart one\n---\npart two"]
 
 
 # --- cancel / no-op paths --------------------------------------------------
@@ -357,6 +359,7 @@ def test_bulk_kill_and_edit_cancel_preserves_marks_and_mounts_nothing() -> None:
         cl_name="run",
         raw_suffix="20240101120000",
         raw_prompt="Work",
+        agent_name="run",
         status="RUNNING",
         pid=111,
     )
@@ -406,6 +409,7 @@ def test_bulk_kill_and_edit_prunes_stale_marks() -> None:
         cl_name="live",
         raw_suffix="20240101120000",
         raw_prompt="Work live",
+        agent_name="live",
         status="RUNNING",
         pid=111,
     )
@@ -419,7 +423,7 @@ def test_bulk_kill_and_edit_prunes_stale_marks() -> None:
     _confirm(app)
 
     # Only the live marked agent becomes a pane.
-    assert app.edit_calls[0]["prompts"] == ["Work live"]
+    assert app.edit_calls[0]["prompts"] == ["%id:!live\nWork live"]
 
 
 def test_bulk_kill_and_edit_missing_prompt_aborts_before_kill() -> None:
@@ -427,6 +431,7 @@ def test_bulk_kill_and_edit_missing_prompt_aborts_before_kill() -> None:
         cl_name="ok",
         raw_suffix="20240101120000",
         raw_prompt="Work ok",
+        agent_name="ok",
         status="RUNNING",
         pid=111,
     )
@@ -450,3 +455,35 @@ def test_bulk_kill_and_edit_missing_prompt_aborts_before_kill() -> None:
     assert app.notifications == [
         ("1 marked agent missing a prompt; nothing killed", "warning")
     ]
+
+
+def test_bulk_kill_and_edit_unverified_identity_aborts_before_kill() -> None:
+    good = _FakeAgent(
+        cl_name="ok",
+        raw_suffix="20240101120000",
+        raw_prompt="%id:ok\nWork ok",
+        agent_name="ok",
+        status="RUNNING",
+        pid=111,
+    )
+    bad = _FakeAgent(
+        cl_name="bad",
+        raw_suffix="20240101130000",
+        raw_prompt="Do work",
+        status="RUNNING",
+        pid=222,
+    )
+    app = _FakeBulkEditApp([good, bad])
+    _mark_in_order(app, good, bad)
+
+    app._bulk_kill_marked_agents_and_edit()
+
+    assert app.pushed_modals == []
+    assert app.bulk_kill_calls == []
+    assert app.edit_calls == []
+    assert app._marked_agents == {good.identity, bad.identity}
+    assert len(app.notifications) == 1
+    message, severity = app.notifications[0]
+    assert severity == "error"
+    assert "Cannot relaunch" in message
+    assert "Do work" in message
