@@ -9,6 +9,7 @@ from .binding_common import (
     custom_mode_sections,
     glossary_panel_section,
     key_sequence_display,
+    memory_panel_section,
     sk,
 )
 from .patches_artifact_bindings import artifact_sections
@@ -284,6 +285,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     sections.extend(custom_mode_sections(km))
     sections.append(PROMPT_INPUT_SECTION)
     sections.append(glossary_panel_section(km))
+    sections.append(memory_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)
     sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(

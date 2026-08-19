@@ -97,3 +97,39 @@ def test_config_schema_rejects_invalid_scoped_gate_keymaps(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate({"ace": {"keymaps": {"gate": gate}}})
+
+
+def test_config_schema_accepts_scoped_memory_keymaps() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "memory": {
+                        "next_note": "down",
+                        "prev_note": "up",
+                        "filter_notes": "f12",
+                        "next_scope": "f11",
+                        "prev_scope": "f10",
+                        "pick_scope": "f8",
+                        "edit_note": "f7",
+                        "publish": "f6",
+                        "help": "f9",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "memory",
+    [
+        {"next_note": 12},
+        {"unknown_action": "x"},
+    ],
+)
+def test_config_schema_rejects_invalid_scoped_memory_keymaps(
+    memory: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"ace": {"keymaps": {"memory": memory}}})

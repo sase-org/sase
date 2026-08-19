@@ -12,6 +12,7 @@ from sase.ace.tui.keymaps import (
     GateModalKeymaps,
     GlossaryPanelKeymaps,
     LeaderModeKeymaps,
+    MemoryPanelKeymaps,
     ModeKeymaps,
     StatisticsPaneKeymaps,
     load_keymap_registry,
@@ -56,6 +57,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
     assert isinstance(reg.glossary, GlossaryPanelKeymaps)
+    assert isinstance(reg.memory, MemoryPanelKeymaps)
     assert reg.gate.toggle_option == "space"
     assert reg.gate.submit_branch == "ctrl+s"
     assert reg.gate.open_inputs == "i"
@@ -80,6 +82,15 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.glossary.next_project == "p"
     assert reg.glossary.prev_project == "P"
     assert reg.glossary.help == "question_mark"
+    assert reg.memory.next_note == "j"
+    assert reg.memory.prev_note == "k"
+    assert reg.memory.filter_notes == "slash"
+    assert reg.memory.next_scope == "p"
+    assert reg.memory.prev_scope == "P"
+    assert reg.memory.pick_scope == "ctrl+p"
+    assert reg.memory.edit_note == "e"
+    assert reg.memory.publish == "I"
+    assert reg.memory.help == "question_mark"
 
 
 def test_app_query_and_help_overrides_are_honored_while_leader_help_is_retired(
@@ -228,6 +239,37 @@ def test_glossary_panel_keys_can_be_overridden_independently() -> None:
     assert reg.glossary.delete_term == "d"
 
 
+def test_memory_panel_keys_can_be_overridden_independently() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "memory": {
+                    "next_note": "down",
+                    "prev_note": "up",
+                    "filter_notes": "f12",
+                    "next_scope": "f11",
+                    "prev_scope": "f10",
+                    "pick_scope": "f8",
+                    "help": "f9",
+                }
+            }
+        }
+    )
+
+    assert reg.memory.next_note == "down"
+    assert reg.memory.prev_note == "up"
+    assert reg.memory.filter_notes == "f12"
+    assert reg.memory.next_scope == "f11"
+    assert reg.memory.prev_scope == "f10"
+    assert reg.memory.pick_scope == "f8"
+    assert reg.memory.help == "f9"
+    # Unoverridden fields keep their bundled defaults.
+    assert reg.memory.add_note == "a"
+    assert reg.memory.edit_note == "e"
+    assert reg.memory.delete_note == "d"
+    assert reg.memory.publish == "I"
+
+
 def test_duplicate_glossary_help_override_reverts_to_default(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -236,6 +278,26 @@ def test_duplicate_glossary_help_override_reverts_to_default(
 
     assert reg.glossary.help == "question_mark"
     assert "Duplicate glossary key" in caplog.text
+
+
+def test_duplicate_memory_help_override_reverts_to_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"memory": {"help": "r"}}})
+
+    assert reg.memory.help == "question_mark"
+    assert "Duplicate memory key" in caplog.text
+
+
+def test_unknown_memory_action_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"memory": {"not_a_real_action": "x"}}})
+
+    assert reg.memory.next_note == "j"
+    assert "Unknown memory keymap action" in caplog.text
 
 
 def test_retired_activate_control_override_aliases_submit_primary(

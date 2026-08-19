@@ -1615,6 +1615,113 @@
                 }
               }
             },
+            "memory": {
+              "type": "object",
+              "description": "Bindings active only while the Memory panel is focused",
+              "additionalProperties": false,
+              "properties": {
+                "next_note": {
+                  "type": "string",
+                  "description": "Select the next memory note"
+                },
+                "prev_note": {
+                  "type": "string",
+                  "description": "Select the previous memory note"
+                },
+                "first_note": {
+                  "type": "string",
+                  "description": "Jump to the first memory note"
+                },
+                "last_note": {
+                  "type": "string",
+                  "description": "Jump to the last memory note"
+                },
+                "scroll_body_down": {
+                  "type": "string",
+                  "description": "Scroll the note body down by half a page"
+                },
+                "scroll_body_up": {
+                  "type": "string",
+                  "description": "Scroll the note body up by half a page"
+                },
+                "filter_notes": {
+                  "type": "string",
+                  "description": "Open the note filter input"
+                },
+                "toggle_body_filter": {
+                  "type": "string",
+                  "description": "Toggle matching note bodies, not just stems and descriptions, in the filter"
+                },
+                "next_link": {
+                  "type": "string",
+                  "description": "Select the next parent or child link chip"
+                },
+                "prev_link": {
+                  "type": "string",
+                  "description": "Select the previous parent or child link chip"
+                },
+                "follow_link": {
+                  "type": "string",
+                  "description": "Follow the selected parent or child link chip"
+                },
+                "travel_back": {
+                  "type": "string",
+                  "description": "Travel back along the note trail"
+                },
+                "next_scope": {
+                  "type": "string",
+                  "description": "Cycle to the next memory scope"
+                },
+                "prev_scope": {
+                  "type": "string",
+                  "description": "Cycle to the previous memory scope"
+                },
+                "pick_scope": {
+                  "type": "string",
+                  "description": "Open the memory scope picker"
+                },
+                "add_note": {
+                  "type": "string",
+                  "description": "Add a new memory note"
+                },
+                "edit_note": {
+                  "type": "string",
+                  "description": "Edit the selected memory note's frontmatter"
+                },
+                "delete_note": {
+                  "type": "string",
+                  "description": "Delete the selected memory note"
+                },
+                "publish": {
+                  "type": "string",
+                  "description": "Publish unpublished memory writes with sase memory init"
+                },
+                "open_source": {
+                  "type": "string",
+                  "description": "Open the note's source file in the editor"
+                },
+                "open_viewer": {
+                  "type": "string",
+                  "description": "Open the note's source file in the viewer"
+                },
+                "copy_body": {
+                  "type": "string",
+                  "description": "Copy the selected note's body"
+                },
+                "copy_source_path": {
+                  "type": "string",
+                  "description": "Copy the note's source file path"
+                },
+                "refresh": {
+                  "type": "string",
+                  "description": "Refresh the current memory scope"
+                },
+                "help": {
+                  "type": "string",
+                  "description": "Open contextual Memory panel help"
+                }
+              }
+            },
             "projects": {
               "type": "object",
               "description": "Bindings active only while the Admin Center Projects tab is focused, shared by its Projects/Repos/Workspaces sub-tabs",

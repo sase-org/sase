@@ -8,6 +8,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
+    MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
 )
@@ -17,6 +18,7 @@ from sase.ace.tui.keymaps.metadata import (
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
     _GLOSSARY_BINDING_META,
+    _MEMORY_BINDING_META,
     _PROJECTS_BINDING_META,
     _PROJECTS_INVENTORY_BINDING_META,
     _STATISTICS_BINDING_META,
@@ -123,6 +125,31 @@ def glossary_help_bindings(
     return [
         (key_display_name(getattr(keymaps, action)), description)
         for action, description in _GLOSSARY_BINDING_META
+    ]
+
+
+def build_memory_bindings(keymaps: MemoryPanelKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Memory panel."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+        )
+        for action, description in _MEMORY_BINDING_META
+    ]
+
+
+def memory_help_bindings(
+    keymaps: MemoryPanelKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Memory panel keys and descriptions for help surfaces."""
+
+    return [
+        (key_display_name(getattr(keymaps, action)), description)
+        for action, description in _MEMORY_BINDING_META
     ]
 
 

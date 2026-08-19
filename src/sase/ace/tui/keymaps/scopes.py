@@ -8,12 +8,14 @@ from typing import Any
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
+    load_builtin_memory_defaults,
     load_builtin_projects_defaults,
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     GateModalKeymaps,
     GlossaryPanelKeymaps,
+    MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
 )
@@ -166,6 +168,17 @@ def load_glossary_keymaps(keymaps_cfg: dict[str, Any]) -> GlossaryPanelKeymaps:
         scope="glossary",
         dataclass_type=GlossaryPanelKeymaps,
         defaults=load_builtin_glossary_defaults(),
+    )
+
+
+def load_memory_keymaps(keymaps_cfg: dict[str, Any]) -> MemoryPanelKeymaps:
+    """Load and validate the focused Memory-panel binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="memory",
+        dataclass_type=MemoryPanelKeymaps,
+        defaults=load_builtin_memory_defaults(),
     )
 
 

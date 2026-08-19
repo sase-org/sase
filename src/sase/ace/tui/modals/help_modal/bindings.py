@@ -14,6 +14,7 @@ from .binding_common import (
     _custom_mode_sections,
     _sk,
     glossary_panel_section,
+    memory_panel_section,
 )
 from .patches_bindings import cls_bindings
 
@@ -32,4 +33,5 @@ __all__ = [
     "axe_bindings",
     "cls_bindings",
     "glossary_panel_section",
+    "memory_panel_section",
 ]

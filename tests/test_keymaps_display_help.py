@@ -341,6 +341,29 @@ def test_help_modal_lists_glossary_panel() -> None:
                 assert len(description) <= 32, description
 
 
+def test_help_modal_lists_memory_panel() -> None:
+    """The Memory Panel section advertises gm / Ctrl+G m and panel keys."""
+    reg = load_keymap_registry({})
+    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+        pairs = {
+            (key, label) for _section, bindings in sections for key, label in bindings
+        }
+        names = {name for name, _bindings in sections}
+        assert ("gm / Ctrl+G m", "Open from prompt") in pairs
+        assert "Memory Panel" in names
+        assert ("j / k", "Move through notes") in pairs
+        assert ("Ctrl+P", "Pick a scope") in pairs
+        assert ("I", "Publish unpublished") in pairs
+        assert ("1-9", "Follow numbered chip") in pairs
+        assert ("Esc", "Close and restore prompt") in pairs
+        for _name, bindings in sections:
+            if _name != "Memory Panel":
+                continue
+            for key, description in bindings:
+                assert len(key) <= 16, key
+                assert len(description) <= 32, description
+
+
 def test_help_modal_lists_frontmatter_panel_toggle() -> None:
     """The Prompt Input section advertises the g-prefix properties toggle."""
     reg = load_keymap_registry({})

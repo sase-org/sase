@@ -159,6 +159,38 @@ def glossary_panel_section(
     )
 
 
+def memory_panel_section(
+    km: KeymapRegistry,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build the Memory panel keybinding section from configured keys."""
+    d = key_display_name
+    m = km.memory
+    return (
+        "Memory Panel",
+        [
+            ("gm / Ctrl+G m", "Open from prompt"),
+            (f"{d(m.next_note)} / {d(m.prev_note)}", "Move through notes"),
+            (f"{d(m.first_note)} / {d(m.last_note)}", "First / last note"),
+            (d(m.filter_notes), "Filter notes"),
+            (d(m.toggle_body_filter), "Match note bodies"),
+            (f"{d(m.next_link)} / {d(m.prev_link)}", "Move link chip"),
+            (d(m.follow_link), "Follow link"),
+            ("1-9", "Follow numbered chip"),
+            (d(m.travel_back), "Walk back along trail"),
+            (f"{d(m.next_scope)} / {d(m.prev_scope)}", "Cycle visible scope"),
+            (d(m.pick_scope), "Pick a scope"),
+            (d(m.add_note), "Add a note"),
+            (d(m.edit_note), "Edit selected note"),
+            (d(m.delete_note), "Delete selected note"),
+            (d(m.publish), "Publish unpublished"),
+            (d(m.open_source), "Open source in editor"),
+            (d(m.copy_body), "Copy note body"),
+            (d(m.help), "Panel-scoped help"),
+            ("Esc", "Close and restore prompt"),
+        ],
+    )
+
+
 _custom_mode_sections = custom_mode_sections
 
 

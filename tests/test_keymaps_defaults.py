@@ -16,12 +16,14 @@ from sase.ace.tui.keymaps import (
     GlossaryPanelKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
+    MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     StatisticsPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
+    load_builtin_memory_defaults,
     load_builtin_projects_defaults,
     load_builtin_statistics_defaults,
     load_keymap_registry,
@@ -480,6 +482,41 @@ def test_default_config_covers_all_glossary_keymaps() -> None:
         "open_source": "o",
         "open_viewer": "Z",
         "copy_definition": "y",
+        "copy_source_path": "Y",
+        "refresh": "r",
+        "help": "question_mark",
+    }
+    assert field_names == set(defaults)
+
+
+def test_default_config_covers_all_memory_keymaps() -> None:
+    """The bundled config is the source of truth for Memory-panel keys."""
+    defaults = load_builtin_memory_defaults()
+    field_names = {field.name for field in fields(MemoryPanelKeymaps)}
+
+    assert defaults == {
+        "next_note": "j",
+        "prev_note": "k",
+        "first_note": "g",
+        "last_note": "G",
+        "scroll_body_down": "ctrl+d",
+        "scroll_body_up": "ctrl+u",
+        "filter_notes": "slash",
+        "toggle_body_filter": "full_stop",
+        "next_link": "tab",
+        "prev_link": "shift+tab",
+        "follow_link": "enter,l",
+        "travel_back": "backspace,h",
+        "next_scope": "p",
+        "prev_scope": "P",
+        "pick_scope": "ctrl+p",
+        "add_note": "a",
+        "edit_note": "e",
+        "delete_note": "d",
+        "publish": "I",
+        "open_source": "o",
+        "open_viewer": "Z",
+        "copy_body": "y",
         "copy_source_path": "Y",
         "refresh": "r",
         "help": "question_mark",

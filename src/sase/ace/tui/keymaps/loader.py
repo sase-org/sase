@@ -9,14 +9,17 @@ from sase.ace.tui.keymaps.bindings import (
     build_gate_input_panel_bindings,
     build_gate_modal_bindings,
     build_glossary_bindings,
+    build_memory_bindings,
     build_statistics_bindings,
     glossary_help_bindings,
+    memory_help_bindings,
     statistics_help_bindings,
 )
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_app_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
+    load_builtin_memory_defaults,
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.display import (
@@ -31,6 +34,7 @@ __all__ = [
     "build_gate_input_panel_bindings",
     "build_gate_modal_bindings",
     "build_glossary_bindings",
+    "build_memory_bindings",
     "build_statistics_bindings",
     "footer_key_display",
     "glossary_help_bindings",
@@ -39,7 +43,9 @@ __all__ = [
     "load_builtin_app_defaults",
     "load_builtin_gate_defaults",
     "load_builtin_glossary_defaults",
+    "load_builtin_memory_defaults",
     "load_builtin_statistics_defaults",
     "load_keymap_registry",
+    "memory_help_bindings",
     "statistics_help_bindings",
 ]

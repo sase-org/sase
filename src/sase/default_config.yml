@@ -313,6 +313,34 @@ ace:
       copy_source_path: "Y"
       refresh: "r"
       help: "question_mark"
+    # Focused Memory-panel bindings. These keys are inactive everywhere
+    # else, even when they overlap app-level actions.
+    memory:
+      next_note: "j"
+      prev_note: "k"
+      first_note: "g"
+      last_note: "G"
+      scroll_body_down: "ctrl+d"
+      scroll_body_up: "ctrl+u"
+      filter_notes: "slash"
+      toggle_body_filter: "full_stop"
+      next_link: "tab"
+      prev_link: "shift+tab"
+      follow_link: "enter,l"
+      travel_back: "backspace,h"
+      next_scope: "p"
+      prev_scope: "P"
+      pick_scope: "ctrl+p"
+      add_note: "a"
+      edit_note: "e"
+      delete_note: "d"
+      publish: "I"
+      open_source: "o"
+      open_viewer: "Z"
+      copy_body: "y"
+      copy_source_path: "Y"
+      refresh: "r"
+      help: "question_mark"
     # Focused Admin Center Projects-tab bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.
     projects:

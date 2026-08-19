@@ -263,6 +263,37 @@ _GLOSSARY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("help", "Help"),
 )
 
+# Scoped bindings owned by the Memory panel. These are deliberately
+# excluded from ``AppKeymaps`` so common keys such as ``j``/``k``/``p``
+# never become globally active.
+_MEMORY_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("next_note", "Next Note"),
+    ("prev_note", "Previous Note"),
+    ("first_note", "First Note"),
+    ("last_note", "Last Note"),
+    ("scroll_body_down", "Scroll Body Down"),
+    ("scroll_body_up", "Scroll Body Up"),
+    ("filter_notes", "Filter"),
+    ("toggle_body_filter", "Toggle Body Match"),
+    ("next_link", "Next Link Chip"),
+    ("prev_link", "Previous Link Chip"),
+    ("follow_link", "Follow Link"),
+    ("travel_back", "Travel Back"),
+    ("next_scope", "Next Scope"),
+    ("prev_scope", "Previous Scope"),
+    ("pick_scope", "Pick Scope"),
+    ("add_note", "Add Note"),
+    ("edit_note", "Edit Note"),
+    ("delete_note", "Delete Note"),
+    ("publish", "Publish"),
+    ("open_source", "Open in Editor"),
+    ("open_viewer", "Open in Viewer"),
+    ("copy_body", "Copy Body"),
+    ("copy_source_path", "Copy Source Path"),
+    ("refresh", "Refresh"),
+    ("help", "Help"),
+)
+
 # Maps mode name -> the app-level action that activates it.
 _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "fold_mode": "start_fold_mode",
