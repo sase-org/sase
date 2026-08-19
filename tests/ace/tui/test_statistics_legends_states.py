@@ -7,14 +7,12 @@ from rich.console import Console
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import StatisticsPaneKeymaps
-from sase.ace.tui.modals.statistics_pane import (
-    OVERVIEW_TILE_TARGETS,
-    StatisticsPane,
-)
+from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import (
     VIEW_ORDER,
     StatisticsView,
 )
+from sase.ace.tui.modals.statistics_pane_layout import OVERVIEW_TILE_TARGETS
 from sase.ace.tui.modals.statistics_pane_legends import VIEW_LEGENDS
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats.ranges import StatsRange

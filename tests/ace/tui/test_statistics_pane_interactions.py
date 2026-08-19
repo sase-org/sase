@@ -7,6 +7,7 @@ from textual.widgets import Input, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import statistics_pane as sp
+from sase.ace.tui.modals import statistics_pane_layout as layout
 from sase.ace.tui.modals.statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
@@ -354,13 +355,13 @@ def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
     tier: str,
 ) -> None:
     strip = PanelTabStrip(
-        sp._VIEW_TABS,
+        layout._VIEW_TABS,
         "overview",
         show_numbers=True,
         uppercase_active=True,
-        compact_below=sp._VIEWS_COMPACT_BELOW_WIDTH,
+        compact_below=layout._VIEWS_COMPACT_BELOW_WIDTH,
         compact_separator="│",
-        micro_below=sp._VIEWS_MICRO_BELOW_WIDTH,
+        micro_below=layout._VIEWS_MICRO_BELOW_WIDTH,
         micro_separator="│",
     )
     strip._tier = tier  # type: ignore[assignment]

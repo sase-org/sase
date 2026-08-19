@@ -6,7 +6,7 @@ import pytest
 from textual import on
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.modals import statistics_pane as sp
+from sase.ace.tui.modals import statistics_pane_layout as layout
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 
@@ -178,18 +178,18 @@ async def test_compact_labels_preserve_active_treatment_and_click_ranges() -> No
 @pytest.mark.parametrize("width", (120, 90))
 def test_eight_statistics_tabs_fit_standard_admin_center_widths(width: int) -> None:
     strip = PanelTabStrip(
-        sp._VIEW_TABS,
+        layout._VIEW_TABS,
         "overview",
         show_numbers=True,
         uppercase_active=True,
-        compact_below=sp._VIEWS_COMPACT_BELOW_WIDTH,
+        compact_below=layout._VIEWS_COMPACT_BELOW_WIDTH,
         compact_separator="│",
-        micro_below=sp._VIEWS_MICRO_BELOW_WIDTH,
+        micro_below=layout._VIEWS_MICRO_BELOW_WIDTH,
         micro_separator="│",
     )
-    if width < sp._VIEWS_MICRO_BELOW_WIDTH:
+    if width < layout._VIEWS_MICRO_BELOW_WIDTH:
         strip._tier = "micro"
-    elif width < sp._VIEWS_COMPACT_BELOW_WIDTH:
+    elif width < layout._VIEWS_COMPACT_BELOW_WIDTH:
         strip._tier = "compact"
     else:
         strip._tier = "full"

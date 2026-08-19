@@ -11,7 +11,8 @@ from rich.console import Console, Group
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.statistics_pane import StatisticsPane, _StatTile
+from sase.ace.tui.modals.statistics_pane import StatisticsPane
+from sase.ace.tui.modals.statistics_pane_layout import _StatTile
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
 from sase.core.time import format_local
 from sase.stats import build_perf_view
