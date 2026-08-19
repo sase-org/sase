@@ -894,16 +894,17 @@ overlays), not project-local `sase/sase.yml`.
 
 #### `ace.notification_tabs`
 
-`ace.notification_tabs` colors and iconifies the per-tab counts the top-bar notification
-indicator renders, keyed by notification-panel tab key. Keys use the user-facing tab
-names: the synthetic `hitl`, `errors`, `general`, `snoozed`, and `muted` tabs (never the
-internal `__snoozed__` / `__muted__` spellings), a gate-declared panel name such as
-`beads`, or a notification tag.
+`ace.notification_tabs` colors, iconifies, and reorders the per-tab counts the top-bar
+notification indicator renders, keyed by notification-panel tab key. Keys use the
+user-facing tab names: the synthetic `hitl`, `errors`, `general`, `snoozed`, and `muted`
+tabs (never the internal `__snoozed__` / `__muted__` spellings), a gate-declared panel
+name such as `beads`, or a notification tag.
 
-| Field   | Type | Default | Description                                                                                                                 |
-| ------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `color` | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab. |
-| `icon`  | str  | `""`    | One emoji or display glyph for that tab's chip and tab-strip icon. Set `""` to restore the built-in default for the tab.    |
+| Field      | Type | Default | Description                                                                                                                          |
+| ---------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `color`    | str  | `""`    | `#RRGGBB` foreground for that tab's count chip and its tooltip label. Set `""` to restore the built-in default for the tab.          |
+| `icon`     | str  | `""`    | One emoji or display glyph for that tab's chip and tab-strip icon. Set `""` to restore the built-in default for the tab.             |
+| `priority` | int  | inherit | Sort weight for that tab in the panel strip and the indicator; higher sorts earlier. Omit to inherit the default for the tab's kind. |
 
 Colors resolve by precedence, highest first: this setting, then a color the sending gate
 declared through `presentation.color`, then the built-in default for a tab ACE ships
@@ -928,6 +929,16 @@ collision it derives an unused ASCII letter or digit from the tab key, and if th
 exhausted it keeps the generic mark rather than inventing one. Run
 `sase doctor -C config.notification_tabs` to report two configured tabs that use the
 same glyph.
+
+Priority is an integer in `-1000..1000`. Omit the field to inherit the default for the
+tab's kind; there is no empty-string reset, because `0` is a legitimate value. Writing
+the number you want at a lower config layer is how an override is cancelled. The
+defaults restated from the core's tab order are `Gates` (`hitl`) `60`, any declared
+panel `50`, `Errors` `40`, `General` `30`, `Done` (a `done` tag) `20`, any other tag
+`10`, `Snoozed` `-10`, and `Muted` `-20`. The shipped `beads` default is `0`, which
+drops `Beads` below every ordinary tab and above the two put-away tabs. A tab whose
+effective priority differs from its default renders a compact `▴` (raised) or `▾`
+(lowered) mark in the panel strip and the indicator tooltip.
 
 #### `ace.notification_indicator_max_counts`
 

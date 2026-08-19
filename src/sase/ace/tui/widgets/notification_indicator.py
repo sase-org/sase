@@ -156,15 +156,33 @@ class NotificationIndicator(Static):
 
 def _tab_detail(tab: NotificationTagTab) -> str:
     """Return the trailing time phrase for one tooltip line, if any."""
+    from sase.ace.tui.widgets.notification_tab_style import (
+        default_notification_tab_priority,
+        notification_tab_priority_mark,
+        resolve_notification_tab_priority,
+    )
     from sase.notifications.models import format_relative_time, format_relative_until
 
     if tab.tag == SNOOZED_TAB_KEY:
-        if tab.next_wake_at:
-            return f"next wakes in {format_relative_until(tab.next_wake_at)}"
-        return ""
-    if tab.tag == MUTED_TAB_KEY:
+        detail = (
+            f"next wakes in {format_relative_until(tab.next_wake_at)}"
+            if tab.next_wake_at
+            else ""
+        )
+    elif tab.tag == MUTED_TAB_KEY:
         # A muted backlog has no deadline, so a timestamp would only add noise.
-        return ""
-    if tab.oldest_activity_at:
-        return f"oldest {format_relative_time(tab.oldest_activity_at)}"
-    return ""
+        detail = ""
+    elif tab.oldest_activity_at:
+        detail = f"oldest {format_relative_time(tab.oldest_activity_at)}"
+    else:
+        detail = ""
+    effective = resolve_notification_tab_priority(tab)
+    if effective == default_notification_tab_priority(tab):
+        return detail
+    mark = notification_tab_priority_mark(tab)
+    if mark is None:
+        return detail
+    fragment = f"{mark.glyph} priority {effective}"
+    if detail:
+        return f"{detail} · {fragment}"
+    return fragment

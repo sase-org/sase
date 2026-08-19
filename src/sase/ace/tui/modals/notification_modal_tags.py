@@ -163,7 +163,15 @@ def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
 
     The snapshot the indicator polls already carries these tabs, so the
     indicator refresh paths translate them here rather than reclassifying.
+    This is the single place tab order is finalized: a stable sort by
+    effective priority descending, with the core's order as the tiebreak.
     """
+    # Imported lazily: ``widgets/__init__`` is loaded from inside this
+    # package's own import, so a module-scope import would cycle.
+    from sase.ace.tui.widgets.notification_tab_style import (
+        resolve_notification_tab_priority,
+    )
+
     tabs: list[NotificationTagTab] = []
     for tab in core_tabs or []:
         tag = _modal_tag_from_core_key(tab.key)
@@ -182,6 +190,7 @@ def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
                 icon=getattr(tab, "icon", None),
             )
         )
+    tabs.sort(key=lambda tab: -resolve_notification_tab_priority(tab))
     return tabs
 
 
@@ -271,6 +280,8 @@ class NotificationTagStrip(Static):
         # Imported lazily: ``widgets/__init__`` is loaded from inside this
         # package's own import, so a module-scope import would cycle.
         from sase.ace.tui.widgets.notification_tab_style import (
+            NotificationTabPriorityMark,
+            notification_tab_priority_mark,
             resolve_notification_tab_color,
             resolve_notification_tab_icons,
         )
@@ -302,6 +313,10 @@ class NotificationTagStrip(Static):
                 append(shorten_notification_tag(tab.label), style)
                 append(" ", style)
             append(str(tab.count), count_style)
+            mark = notification_tab_priority_mark(tab)
+            if isinstance(mark, NotificationTabPriorityMark):
+                mark_style = mark.color if is_active else f"dim {mark.color}"
+                append(mark.glyph, mark_style)
             append(" ", style)
             self._tab_ranges[tab.tag] = (start, column)
 

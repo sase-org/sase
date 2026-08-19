@@ -16,18 +16,23 @@ from sase.ace.tui.modals.notification_modal_tags import (
 from sase.ace.tui.widgets import notification_tab_style
 from sase.ace.tui.widgets.notification_tab_style import (
     DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS,
+    MAX_NOTIFICATION_TAB_PRIORITY,
+    MIN_NOTIFICATION_TAB_PRIORITY,
     _AUTO_PALETTE,
     _BUILTIN_TAB_COLORS,
     _BUILTIN_TAB_ICONS,
     _KIND_TAB_ICONS,
     _LAST_RESORT_TAB_ICON,
     _default_notification_tab_color,
+    default_notification_tab_priority,
     notification_indicator_max_counts,
     _notification_tab_config_key,
     _notification_tab_key,
     notification_tab_label,
+    notification_tab_priority_mark,
     resolve_notification_tab_color,
     resolve_notification_tab_icons,
+    resolve_notification_tab_priority,
 )
 from sase.bead_type_presentation import bead_type_presentation
 from sase.task_type_presentation import task_type_presentation
@@ -379,6 +384,112 @@ def test_every_bundled_glyph_is_single_cell() -> None:
 
     assert {glyph for glyph in glyphs if cell_len(glyph) != 1} == set()
     assert cell_len(_LAST_RESORT_TAB_ICON) == 1
+    assert cell_len("▴") == 1
+    assert cell_len("▾") == 1
+
+
+@pytest.mark.parametrize(
+    ("tab", "priority"),
+    [
+        (_tab("hitl", kind="hitl"), 60),
+        (_tab("beads", kind="panel"), 50),
+        (_tab("errors", kind="errors"), 40),
+        (_tab(None, kind="general"), 30),
+        (_tab("done", kind="tag"), 20),
+        (_tab("review", kind="tag"), 10),
+        (_tab("mystery"), 10),
+        (_tab(SNOOZED_TAB_KEY, kind="snoozed"), -10),
+        (_tab(MUTED_TAB_KEY, kind="muted"), -20),
+    ],
+)
+def test_default_priority_follows_the_kind_ladder(
+    tab: NotificationTagTab,
+    priority: int,
+) -> None:
+    assert default_notification_tab_priority(tab) == priority
+    assert resolve_notification_tab_priority(tab) == priority
+    assert notification_tab_priority_mark(tab) is None
+
+
+def test_done_as_a_declared_panel_keeps_the_panel_priority() -> None:
+    """A gate may legally declare ``panel: "done"``; the core ranks it as a panel."""
+    tab = _tab("done", kind="panel")
+
+    assert default_notification_tab_priority(tab) == 50
+
+
+def test_a_literal_muted_tag_uses_the_key_rung() -> None:
+    """The core pins ``__muted__`` by key even when the kind is an ordinary tag."""
+    tab = _tab(MUTED_TAB_KEY, kind="tag")
+
+    assert default_notification_tab_priority(tab) == -20
+
+
+def test_a_configured_priority_outranks_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"review": {"priority": 70}}})
+    tab = _tab("review", kind="tag")
+
+    assert resolve_notification_tab_priority(tab) == 70
+    mark = notification_tab_priority_mark(tab)
+    assert mark is not None
+    assert mark.glyph == "▴"
+    assert mark.color == "#FFAF00"
+
+
+def test_configured_panel_priority_cancels_the_shipped_beads_drop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``priority: 50`` puts a panel tab back on the ladder and drops the mark."""
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": 50}}})
+    tab = _tab("beads", kind="panel")
+
+    assert resolve_notification_tab_priority(tab) == 50
+    assert notification_tab_priority_mark(tab) is None
+
+
+def test_a_lowered_priority_renders_the_down_mark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": 0}}})
+    tab = _tab("beads", kind="panel")
+
+    mark = notification_tab_priority_mark(tab)
+    assert resolve_notification_tab_priority(tab) == 0
+    assert mark is not None
+    assert mark.glyph == "▾"
+    assert mark.color == "#8A8A8A"
+
+
+@pytest.mark.parametrize(
+    "configured",
+    [
+        "5",
+        True,
+        MAX_NOTIFICATION_TAB_PRIORITY + 1,
+        MIN_NOTIFICATION_TAB_PRIORITY - 1,
+        None,
+        1.5,
+    ],
+)
+def test_a_junk_configured_priority_falls_back_to_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+    configured: object,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": configured}}})
+    tab = _tab("beads", kind="panel")
+
+    assert resolve_notification_tab_priority(tab) == 50
+    assert notification_tab_priority_mark(tab) is None
+
+
+def test_the_shipped_beads_priority_is_a_deviation_from_the_panel_default() -> None:
+    from sase.config.core import _load_default_config
+
+    configured = _load_default_config()["ace"]["notification_tabs"]
+
+    assert configured["beads"]["priority"] == 0
 
 
 def test_sase_owned_default_icons_are_pairwise_distinct() -> None:

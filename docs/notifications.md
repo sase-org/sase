@@ -77,22 +77,28 @@ It is hidden only at zero tabs, which is also when the list itself is replaced b
 never shifts, as dismiss, mute, and snooze actions collapse the tabs down to one.
 **Every notification belongs to exactly one tab** — the Rust core decides which one by a
 fixed precedence, so the panel, the top-bar indicator, and the mobile snapshot always
-agree; see [Tags](#tags) below for that precedence in full. The tabs, in the panel's
-display order:
+agree; see [Tags](#tags) below for that precedence in full. Tabs then sort by
+[priority](configuration.md#acenotification_tabs) descending, with the core's order as
+the tiebreak at equal priority. The tabs, at their default priorities:
 
-| Tab       | Icon | Contents                                                                                                                                                                                                                           |
-| --------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Gates`   | `⚑`  | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                                                                                      |
-| Panel     | `◆`  | Gates with `presentation.panel`, sorted alphabetically after `Gates`; built-in task triage gates use the `Beads` panel (`◈`), and woken `BeadSnooze`, due `FlagTriage`, `BeadStaleCleanup`, and `EpicResume` gates land there too. |
-| `Errors`  | `✖`  | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                                                                                    |
-| `General` | `✉`  | Untagged, unmuted notifications with no other classification.                                                                                                                                                                      |
-| `Done`    | `#`  | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                                                                            |
-| Custom    | `#`  | Other normalized notification tags, sorted alphabetically after `Done`.                                                                                                                                                            |
-| `Snoozed` | `☾`  | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                                                                                |
-| `Muted`   | `⊘`  | Muted notifications with no wake time.                                                                                                                                                                                             |
+| Tab       | Icon | Priority | Contents                                                                                                                                                                                                                                                                                                                                                                       |
+| --------- | ---- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Gates`   | `⚑`  | `60`     | Plan and epic approvals, user questions, workflow HITL prompts, launch approvals, and generic gates without a declared panel.                                                                                                                                                                                                                                                  |
+| Panel     | `◆`  | `50`     | Gates with `presentation.panel`. At equal priority they keep the core's label order after `Gates`; built-in task triage gates use the `Beads` panel (`◈`), and woken `BeadSnooze`, due `FlagTriage`, `BeadStaleCleanup`, and `EpicResume` gates land there too. The shipped `beads` priority is `0`, so `Beads` sits between custom tags and `Snoozed` and renders a `▾` mark. |
+| `Errors`  | `✖`  | `40`     | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                                                                                                                                                                                                                                |
+| `General` | `✉`  | `30`     | Untagged, unmuted notifications with no other classification.                                                                                                                                                                                                                                                                                                                  |
+| `Done`    | `#`  | `20`     | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                                                                                                                                                                                                                        |
+| Custom    | `#`  | `10`     | Other normalized notification tags, sorted alphabetically after `Done` at equal priority.                                                                                                                                                                                                                                                                                      |
+| `Snoozed` | `☾`  | `-10`    | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                                                                                                                                                                                                                            |
+| `Muted`   | `⊘`  | `-20`    | Muted notifications with no wake time.                                                                                                                                                                                                                                                                                                                                         |
 
 Each tab's icon resolves through the same chain as its color; see
-[Tab icons](#tab-icons) below.
+[Tab icons](#tab-icons) below. A tab whose effective priority differs from its default
+renders one extra cell immediately after the count: `▴` (amber `#FFAF00`) when raised,
+`▾` (grey `#8A8A8A`) when lowered. Compact-mode tabs keep the mark after shedding the
+label. The top-bar indicator chips omit it — a chip is already `<icon><count>`, and the
+badge's left-to-right order plus the hover tooltip (`▾ priority 0`) spell out the
+deviation.
 
 The strip reflows to fit its measured width rather than clipping. When the full-label
 render would overflow, every inactive tab sheds its label and is identified by icon and

@@ -1076,6 +1076,12 @@
                 "maxLength": 32,
                 "description": "Single emoji or glyph rendered for this tab in the notification panel's tab strip and the top-bar indicator chip; an empty string restores the built-in default for that tab",
                 "default": ""
+              },
+              "priority": {
+                "type": "integer",
+                "description": "Sort weight for this tab in the notification panel's tab strip and the top-bar indicator; higher sorts earlier. Omit to inherit the default for the tab's kind (Gates 60, panel 50, Errors 40, General 30, Done 20, tag 10, Snoozed -10, Muted -20). A tab whose priority differs from that default renders a compact up/down mark.",
+                "minimum": -1000,
+                "maximum": 1000
               }
             }
           },

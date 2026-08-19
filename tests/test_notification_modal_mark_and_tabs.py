@@ -183,8 +183,8 @@ def test_panel_and_hyphenated_tag_labels_are_humanized() -> None:
     modal = NotificationModal([beads, code_review])
 
     assert [(tab.tag, tab.label) for tab in modal._tag_tabs()] == [
-        ("beads", "Beads"),
         ("code-review", "Code Review"),
+        ("beads", "Beads"),
     ]
 
 

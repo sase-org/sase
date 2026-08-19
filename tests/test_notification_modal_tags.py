@@ -12,6 +12,7 @@ from sase.ace.tui.modals.notification_modal_tags import (
     SNOOZED_TAB_KEY,
     classify_notification_modal_tabs,
     notification_matches_tag_tab,
+    notification_tabs_from_core,
 )
 from sase.core.notification_store_facade import (
     read_notifications_snapshot,
@@ -139,11 +140,14 @@ def test_modal_tabs_match_the_snapshot_tabs(tmp_path: Path) -> None:
 
     snapshot = read_notifications_snapshot(path)
     modal_tabs, _ = classify_notification_modal_tabs(list(snapshot.notifications))
+    adapted = notification_tabs_from_core(snapshot.tabs)
 
-    assert [(tab.key, tab.count) for tab in snapshot.tabs] == [
-        ("general" if tab.tag is None else tab.tag, tab.count) for tab in modal_tabs
+    assert [(tab.tag, tab.count, tab.kind) for tab in adapted] == [
+        (tab.tag, tab.count, tab.kind) for tab in modal_tabs
     ]
-    assert [tab.kind for tab in snapshot.tabs] == [tab.kind for tab in modal_tabs]
+    assert {tab.key for tab in snapshot.tabs} == {
+        "general" if tab.tag is None else tab.tag for tab in modal_tabs
+    }
 
 
 def test_snapshot_tab_counts_agree_with_the_legacy_counters(tmp_path: Path) -> None:

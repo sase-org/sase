@@ -21,6 +21,8 @@ from sase.ace.tui.widgets.notification_tab_style import (
     _BUILTIN_TAB_ICONS,
     _KIND_TAB_ICONS,
     _LAST_RESORT_TAB_ICON,
+    _LOWERED_PRIORITY_MARK,
+    _RAISED_PRIORITY_MARK,
 )
 from sase.config.loading import load_default_config
 from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
@@ -42,6 +44,11 @@ def _shipped_config_tab_icons() -> tuple[str, ...]:
         for raw in tabs.values()
         if isinstance(raw, dict) and isinstance(raw.get("icon"), str)
     )
+
+
+def _priority_mark_glyphs() -> tuple[str, ...]:
+    """Return the compact up/down marks the tab strip may render."""
+    return (_RAISED_PRIORITY_MARK.glyph, _LOWERED_PRIORITY_MARK.glyph)
 
 
 def _artifact_tab_icons() -> tuple[str, ...]:
@@ -68,6 +75,7 @@ _AUDITED_ICONS = tuple(
             *_BUILTIN_TAB_ICONS.values(),
             *_KIND_TAB_ICONS.values(),
             *_artifact_tab_icons(),
+            *_priority_mark_glyphs(),
             _LAST_RESORT_TAB_ICON,
             *string.ascii_lowercase,
             *string.digits,

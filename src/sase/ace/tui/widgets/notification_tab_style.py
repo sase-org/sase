@@ -1,4 +1,4 @@
-"""Stable per-tab colors, icons, and labels for the notification indicator.
+"""Stable per-tab colors, icons, labels, and sort priorities for the indicator.
 
 Every notification-panel tab renders with a color, so a brand-new tag tab is
 never colorless. The precedence, highest first, is the user's
@@ -11,6 +11,12 @@ rung is a default keyed by the core's own tab *kind*, then a generic mark, never
 a hash. An arbitrary color is still a usable identifier, but an arbitrary glyph
 would teach the reader something false, so icons are only ever meaningful or
 honestly generic.
+
+Priority is a third sibling of color and icon. Every tab has a default from a
+ladder that restates the core's ``ordered_tab_keys`` as numbers, and an
+effective value that is the configured override when one is set. Tabs sort by
+effective priority descending; a tab whose effective value differs from its
+default renders a one-cell up or down mark.
 """
 
 from __future__ import annotations
@@ -77,6 +83,22 @@ _KIND_TAB_ICONS = {
 # Reachable only for a tab that arrives with no kind at all.
 _LAST_RESORT_TAB_ICON = "•"
 
+# Default sort weights restating the core's ``ordered_tab_keys`` as numbers.
+# Key rungs beat kind rungs so a literal ``__muted__`` tag still sits last.
+_KEY_TAB_PRIORITIES = {SNOOZED_TAB_KEY: -10, MUTED_TAB_KEY: -20}
+_KIND_TAB_PRIORITIES = {
+    "hitl": 60,
+    "panel": 50,
+    "errors": 40,
+    "general": 30,
+    "tag": 10,
+}
+_DONE_TAB_PRIORITY = 20
+_UNKNOWN_KIND_TAB_PRIORITY = 10
+
+MIN_NOTIFICATION_TAB_PRIORITY = -1000
+MAX_NOTIFICATION_TAB_PRIORITY = 1000
+
 # A configured or declared icon wider than this would blow out the top bar.
 _MAX_TAB_ICON_CELLS = 2
 
@@ -92,14 +114,26 @@ _AUTO_PALETTE = (
 )
 
 
+class NotificationTabPriorityMark(NamedTuple):
+    """One-cell mark shown when a tab's priority differs from its default."""
+
+    glyph: str
+    color: str
+
+
+_RAISED_PRIORITY_MARK = NotificationTabPriorityMark(glyph="▴", color="#FFAF00")
+_LOWERED_PRIORITY_MARK = NotificationTabPriorityMark(glyph="▾", color="#8A8A8A")
+
+
 class _ConfiguredTabStyle(NamedTuple):
     """One tab's user-configured styling, empty where nothing was configured."""
 
     color: str
     icon: str
+    priority: int | None = None
 
 
-_EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="")
+_EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="", priority=None)
 
 
 class _IconRung(Enum):
@@ -137,6 +171,48 @@ def _notification_tab_config_key(tab: NotificationTagTab) -> str:
 def notification_tab_label(tab: NotificationTagTab) -> str:
     """Return the bounded label the indicator tooltip renders for *tab*."""
     return shorten_notification_tag(tab.label)
+
+
+def default_notification_tab_priority(tab: NotificationTagTab) -> int:
+    """Return the ladder default for *tab*, independent of any config override.
+
+    Resolution is key first (so a literal ``__muted__`` / ``__snoozed__`` tag
+    still sits in the put-away slot the core pins by key), then ``done`` only
+    when the kind is ``tag`` (a declared ``panel: "done"`` stays a panel), then
+    kind, then the unknown-kind fallback that matches the core's remaining
+    bucket.
+    """
+    key = _notification_tab_key(tab)
+    keyed = _KEY_TAB_PRIORITIES.get(key)
+    if keyed is not None:
+        return keyed
+    if key == "done" and tab.kind == "tag":
+        return _DONE_TAB_PRIORITY
+    kinded = _KIND_TAB_PRIORITIES.get(tab.kind)
+    if kinded is not None:
+        return kinded
+    return _UNKNOWN_KIND_TAB_PRIORITY
+
+
+def resolve_notification_tab_priority(tab: NotificationTagTab) -> int:
+    """Return the effective sort weight for one notification tab."""
+    configured = _configured_tab_style(_notification_tab_config_key(tab)).priority
+    if configured is not None:
+        return configured
+    return default_notification_tab_priority(tab)
+
+
+def notification_tab_priority_mark(
+    tab: NotificationTagTab,
+) -> NotificationTabPriorityMark | None:
+    """Return the one-cell deviation mark for *tab*, or ``None`` when equal."""
+    effective = resolve_notification_tab_priority(tab)
+    default = default_notification_tab_priority(tab)
+    if effective > default:
+        return _RAISED_PRIORITY_MARK
+    if effective < default:
+        return _LOWERED_PRIORITY_MARK
+    return None
 
 
 def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
@@ -271,6 +347,20 @@ def _sanitize_icon(raw: object) -> str:
     return icon
 
 
+def _sanitize_priority(raw: object) -> int | None:
+    """Return a legal sort weight, or ``None`` for stored junk.
+
+    ``bool`` is a subclass of ``int`` and must be rejected explicitly; an
+    out-of-range value is unset rather than clamped, so a rejected override
+    never looks like a deviation from the default.
+    """
+    if not isinstance(raw, int) or isinstance(raw, bool):
+        return None
+    if raw < MIN_NOTIFICATION_TAB_PRIORITY or raw > MAX_NOTIFICATION_TAB_PRIORITY:
+        return None
+    return raw
+
+
 def _ace_config() -> dict[str, Any]:
     try:
         config = load_merged_config()
@@ -286,10 +376,10 @@ def _ace_config() -> dict[str, Any]:
 def _configured_tab_styles_for_token(
     _token: tuple[Any, ...],
 ) -> dict[str, _ConfiguredTabStyle]:
-    """Resolve every configured tab color and icon per merged-config token.
+    """Resolve every configured tab color, icon, and priority per token.
 
-    Color and icon are parsed together so a render pays one config read rather
-    than one per styled attribute.
+    Color, icon, and priority are parsed together so a render pays one config
+    read rather than one per styled attribute.
     """
     tabs = _ace_config().get("notification_tabs", {})
     if not isinstance(tabs, dict):
@@ -301,6 +391,7 @@ def _configured_tab_styles_for_token(
         style = _ConfiguredTabStyle(
             color=_sanitize_color(raw.get("color", "")),
             icon=_sanitize_icon(raw.get("icon", "")),
+            priority=_sanitize_priority(raw.get("priority")),
         )
         if style != _EMPTY_TAB_STYLE:
             styles[name] = style
@@ -327,8 +418,12 @@ def _configured_tab_style(config_key: str) -> _ConfiguredTabStyle:
 __all__ = [
     "DEFAULT_NOTIFICATION_INDICATOR_MAX_COUNTS",
     "GENERAL_TAB_KEY",
+    "NotificationTabPriorityMark",
+    "default_notification_tab_priority",
     "notification_indicator_max_counts",
     "notification_tab_label",
+    "notification_tab_priority_mark",
     "resolve_notification_tab_color",
     "resolve_notification_tab_icons",
+    "resolve_notification_tab_priority",
 ]

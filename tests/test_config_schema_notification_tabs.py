@@ -68,6 +68,29 @@ def test_config_schema_rejects_invalid_notification_tab_settings(
         )
 
 
+def test_config_schema_accepts_notification_tab_priorities() -> None:
+    Draft7Validator(load_config_schema()).validate(
+        {
+            "ace": {
+                "notification_tabs": {
+                    "beads": {"priority": 0},
+                    "x": {"priority": -1000},
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize("priority", ["high", 1001, -1001, 1.5])
+def test_config_schema_rejects_invalid_notification_tab_priorities(
+    priority: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(load_config_schema()).validate(
+            {"ace": {"notification_tabs": {"hitl": {"priority": priority}}}}
+        )
+
+
 @pytest.mark.parametrize("maximum", [0, -1, "4", 1.5])
 def test_config_schema_rejects_an_unusable_indicator_maximum(
     maximum: object,

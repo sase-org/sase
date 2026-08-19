@@ -307,3 +307,48 @@ async def test_click_dispatches_show_notifications_action() -> None:
         await pilot.click("#notification-indicator")
         await pilot.pause()
         assert calls == ["shown"]
+
+
+def test_chip_order_follows_priority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": 0}}})
+    notifications = [
+        _notification("b", action="TaskTriage", action_data={"panel": "beads"}),
+        _notification("g", action="PlanApproval"),
+        _notification("t", tags=["review"]),
+    ]
+    tabs, _ = classify_notification_modal_tabs(notifications)
+    icons = resolve_notification_tab_icons(tabs)
+    expected = [tab for tab in tabs if tab.count]
+
+    assert [tab.tag for tab in expected] == ["hitl", "review", "beads"]
+    assert NotificationIndicator._build_content(tabs).plain == " {} ".format(
+        " ".join(f"{icons[tab.tag]}{tab.count}" for tab in expected)
+    )
+
+
+def test_tooltip_names_a_deviating_priority_and_leaves_unmarked_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": 0}}})
+    tabs = (
+        _tab("hitl", 2, label="HITL", kind="hitl", oldest_activity_at=_ago(14)),
+        _tab("beads", 3, kind="panel", oldest_activity_at=_ago(120)),
+        _tab(MUTED_TAB_KEY, 2, label="Muted", kind="muted"),
+    )
+    lines = NotificationIndicator._build_tooltip(tabs).plain.splitlines()
+
+    assert lines[1] == " ⚑ HITL   2   oldest 14m ago"
+    assert lines[2] == " ◈ Beads  3   oldest 2h ago · ▾ priority 0"
+    assert lines[3] == " ⊘ Muted  2"
+
+
+def test_tooltip_priority_fragment_stands_alone_when_there_is_no_time_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"muted": {"priority": 5}}})
+    tabs = (_tab(MUTED_TAB_KEY, 2, label="Muted", kind="muted"),)
+    lines = NotificationIndicator._build_tooltip(tabs).plain.splitlines()
+
+    assert lines[1] == " ⊘ Muted  2   ▴ priority 5"

@@ -80,6 +80,17 @@ def test_blank_and_invalid_notification_tab_icons_are_ignored(
     assert check.data["configured_icon_count"] == 0
 
 
+def test_a_priority_only_tab_is_ignored_by_the_duplicate_icon_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_config(monkeypatch, {"notification_tabs": {"beads": {"priority": 0}}})
+
+    check = check_config_notification_tabs()
+
+    assert check.status == "OK"
+    assert check.data["configured_icon_count"] == 0
+
+
 def test_notification_tab_icon_check_is_registered() -> None:
     specs = checks_config.config_check_specs(default_doctor_context())
 

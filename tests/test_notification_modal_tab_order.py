@@ -67,7 +67,11 @@ def test_mixed_tab_order_places_muted_last() -> None:
 
 
 def test_declared_panels_sort_after_hitl_and_before_other_tabs() -> None:
-    """Actionable panel queues precede errors, general, done, and tag tabs."""
+    """Actionable panel queues precede errors, general, done, and tag tabs.
+
+    The shipped ``beads`` priority of ``0`` is the exception: Beads drops below
+    custom tags and above Muted, which is the flagship use of the mark.
+    """
     notifications = [
         _make_notification("hitl", action="PlanApproval"),
         _make_notification(
@@ -93,12 +97,12 @@ def test_declared_panels_sort_after_hitl_and_before_other_tabs() -> None:
 
     assert [tab.tag for tab in modal._tag_tabs()] == [
         "hitl",
-        "beads",
         "zeta-panel",
         "errors",
         None,
         "done",
         "memory",
+        "beads",
         MUTED_TAB_KEY,
     ]
 

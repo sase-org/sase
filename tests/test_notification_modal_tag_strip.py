@@ -116,7 +116,7 @@ def test_a_narrow_tag_strip_sheds_inactive_labels_instead_of_whole_tabs() -> Non
 
     assert cell_len(content.plain) <= 43
     # The active tab keeps its name so the strip still says where you are.
-    assert " Beads 3 " in content.plain
+    assert " Beads 3▾" in content.plain
     assert "Gates" not in content.plain
     assert set(strip._tab_ranges) == {tab.tag for tab in tabs}
     assert strip._tab_ranges["done"][1] <= 43
@@ -212,3 +212,47 @@ def test_dismiss_that_collapses_two_tabs_to_one_leaves_the_strip_visible() -> No
     assert modal._active_notification_tag == "review"
     strip.remove_class.assert_called_with("hidden")
     strip.add_class.assert_not_called()
+
+
+def test_tag_strip_renders_a_down_mark_only_on_a_lowered_tab() -> None:
+    """The shipped beads priority is the flagship deviation; others stay bare."""
+    content = NotificationTagStrip(_four_icon_tabs(), "beads")._build_content().plain
+
+    assert "Beads 3▾" in content
+    assert "Gates 1 " in content
+    assert "Errors 1 " in content
+    assert "Done 1 " in content
+    assert "▴" not in content
+    assert content.count("▾") == 1
+
+
+def test_tag_strip_click_ranges_survive_a_priority_mark() -> None:
+    """A mark is one cell inside the tab range, so later clicks still land."""
+    tabs = [
+        NotificationTagTab(tag="beads", label="Beads", count=3, kind="panel"),
+        NotificationTagTab(tag="review", label="Review", count=2, kind="tag"),
+    ]
+    strip = NotificationTagStrip(tabs, None)
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+
+    content = strip._build_content()
+    assert "Beads 3▾" in content.plain
+    start, end = strip._tab_ranges["review"]
+    assert end == cell_len(content.plain)
+
+    strip.on_click(SimpleNamespace(x=start))
+    assert strip.post_message.call_args.args[0].tag == "review"
+
+    strip.on_click(SimpleNamespace(x=end - 1))
+    assert strip.post_message.call_args.args[0].tag == "review"
+
+
+def test_a_narrow_tag_strip_keeps_the_priority_mark_after_shedding_labels() -> None:
+    """A pushed-down tab is the one whose position most needs explaining."""
+    strip = NotificationTagStrip(_four_icon_tabs(), "hitl")
+    strip._width = 43
+    content = strip._build_content().plain
+
+    assert "Beads" not in content
+    assert "▾" in content
+    assert " 3▾" in content
