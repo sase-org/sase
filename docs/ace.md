@@ -4385,6 +4385,28 @@ ace:
 These bindings dispatch only while the panel is open. The full action list and defaults
 are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
 
+### Remapping Memory Panel Keys
+
+Override [Memory panel](#memory-panel) bindings under `ace.keymaps.memory`. A value may
+list more than one key, separated by commas:
+
+```yaml
+ace:
+  keymaps:
+    memory:
+      follow_link: "enter,l"
+      travel_back: "backspace,h"
+      filter_notes: "slash"
+      toggle_body_filter: "full_stop"
+      add_note: "a"
+      edit_note: "e"
+      delete_note: "d"
+      publish: "I"
+```
+
+These bindings dispatch only while the panel is open. The full action list and defaults
+are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
+
 ### Custom Modes
 
 Define user-defined prefix-key modes under `ace.keymaps.modes`. Each custom mode has a
@@ -4474,6 +4496,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
 | `Ctrl+G G`                   | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
+| `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
 | `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
 | `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
 | `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
@@ -4680,6 +4703,7 @@ prefix actions currently available.
 | `gJ` / `gK` | Move the active pane down / up in NORMAL mode; reorder cycles at the stack edges                                                         |
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
 | `gG`        | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
+| `gm`        | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
 | `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                           |
@@ -5159,6 +5183,110 @@ Most keys named above are remappable under
 and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
 list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
+
+<a id="memory-panel"></a>
+
+#### Memory panel
+
+The **Memory panel** is the browse-and-edit surface for SASE memory notes -- the
+Markdown files under a content root's `sase/memory/` (see [Memory](memory.md)). From a
+prompt pane, press `gm` in NORMAL mode or `Ctrl+G m` in INSERT or NORMAL. The which-key
+hint row lists `memory…` on both prefixes. If the cursor sits on a `#memory/<stem>`
+xprompt reference, that note is selected; otherwise the panel opens on the first note.
+Closing with `Esc` or `q` restores the prompt pane and the vim mode you left.
+
+The header reads `MEMORY · <scope> · N notes · scope i/N`, always using the configured
+`PROJECT_NAME:` for a project scope, never a `ProjectSpec` key, plus a right-aligned
+`⚠ UNPUBLISHED` badge once this scope has panel writes that have not been published (see
+below).
+
+The note rail is a tree, not a flat list, so the `parent` edge is visible before you
+follow any link: Tier 1 (`short`) notes sort first, then Tier 2 (`long`) root notes
+alphabetically, each immediately followed by its children indented one level under a
+`└ ` mark. Each row shows `●` for a Tier 1 note or `○` for Tier 2, then `⚙` for a
+generated note and `⚠` for a note with an invalid `type` or `parent`, then the stem and
+a dim description snippet.
+
+Two navigation axes stay synchronized:
+
+- **Tree.** `j`/`k` move the note rail cursor; the note card follows. `g`/`G` jump to
+  the first and last note. `/` filters notes by stem and description; `.` extends the
+  match into note bodies. `Esc` closes the filter and keeps the selection when it is
+  still visible. An empty result reads `no notes matched: <pattern>`.
+- **Relational.** The note card carries a numbered `PARENT` chip (omitted when the
+  parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN` chips,
+  numbered continuously so `1`–`9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
+  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `1`–`9`
+  jump straight to a numbered chip. Following pushes the previous note onto a trail
+  bounded at 32 entries and clears an active filter when the target is hidden. `h` or
+  `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
+  footer.
+
+`follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
+holds focus and consumes `Enter` for its own selection action. Use `l` or a chip number.
+
+The note card also shows a badge row (`TIER 1 · always loaded` / `TIER 2`, plus
+`GENERATED`, `SHADOWS HOME`, `ORPHANED`, and `INVALID` when they apply), the
+description, the rendered Markdown body, and a property grid: type, parent, child count,
+size (lines and approximate tokens), last modified, last audited read, and the on-disk
+source path.
+
+`p` and `P` cycle the scope ring -- every enabled project with a memory root, the
+project you opened from even when it has none (so `a` can bootstrap it), and one `Home`
+scope resolved through the active [`use_chezmoi`](configuration.md#use_chezmoi) mode,
+always ordered by display name with `Home` last. Precedence for the starting scope is
+the prompt's launch-workspace project, then the [current project](#current-project) when
+it appears in the ring, then the first ring entry. Switching scopes clears the trail and
+the filter and restores that scope's last-selected note for the life of the panel.
+`Ctrl+P` opens a filterable scope picker showing each scope's display name and note
+count, for reaching a scope with many registered projects without cycling through all of
+them.
+
+`a` opens an add form (stem, tier, parent, and description) with live validation; the
+parent list offers `AGENTS.md` plus every `long` note in the scope, illegal stems,
+tiers, parents, and parent cycles are rejected before any write, and a successful create
+offers to open the new note's body in `$EDITOR`. `e` opens the same form pre-filled to
+retype, reparent, or redescribe the selected note; the note body itself is not edited in
+the panel -- press `o` to open it in `$EDITOR` instead. `d` confirms and deletes the
+selected note; deleting a note that still has children is refused with an explanation of
+which children must be reparented first, and deleting a `short` note warns that
+always-loaded agent context is being removed. Every delete leaves a timestamped backup
+and the success toast names it. A generated note (`sase/memory/sase.md`,
+`sase/memory/task_types.md`, and the project-only `sase_beads.md` / `sase_sizes.md`)
+renders its `GENERATED` badge and refuses edit or delete with an explanation. A
+concurrent external edit is caught as a conflict: the write is refused, the panel
+toasts, and the scope reloads instead of silently overwriting the change.
+
+Every successful write marks its scope `UNPUBLISHED`, because the write is not visible
+to agents until `sase memory init` regenerates `AGENTS.md`, the provider shims, and the
+memory README. `I` -- also offered automatically right after a write -- opens a publish
+confirmation with a prefilled, editable commit subject and two explicit choices:
+**Publish & commit** runs `sase memory init --message "<subject>"`, and **Publish only**
+runs `sase memory init --no-commit`. Both run as a captured, non-interactive command in
+the scope's content root (`Home` for the Home scope); a failure surfaces the captured
+error and leaves the badge set, while success clears it.
+
+A scope with a memory root but no notes shows a centered invitation naming the scope and
+pointing at `a`. A scope with no memory root yet says `sase/memory/` will be created on
+the first add. A scope whose read root collided or failed to load shows its diagnostics
+and the offending paths instead of a note card.
+
+Passive keys: `o` opens the note body in `$EDITOR` and re-checks it for a conflicting
+change on return; `Z` hands the source file to the artifact viewer; `y` copies the note
+body and `Y` the source path; `r` re-reads the current scope; `?` opens a panel-scoped
+help overlay.
+
+The panel footer lists only conditional keys: scope keys when the ring has more than one
+scope, link keys when chips exist, back when a trail exists, edit/delete when a writable
+note is selected, and publish when the scope is unpublished. Always-available keys live
+in `?` and in this guide.
+
+Most keys named above are remappable under
+[`ace.keymaps.memory`](configuration.md#acekeymaps); see
+[Remapping Memory Panel Keys](#remapping-memory-panel-keys). Three sets are fixed and
+are not part of that scope: `Esc` and `q` (close), the `1`–`9` link-chip shortcuts, and
+the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying list widget
+supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 #### Repo names
 

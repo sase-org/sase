@@ -35,6 +35,13 @@ inspect loaded context with `sase memory list`, have agents use `sase memory rea
 audited long-term reads, have agents use `sase memory write` only to create proposals,
 then have a human approve or reject those proposals with `sase memory review`.
 
+ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
+deleting these notes by hand across every memory-bearing project plus Home. From a
+prompt, press `gm` or `Ctrl+G m`; see [Memory panel](ace.md#memory-panel). It is a human
+surface only: it does not replace the agent-facing `sase memory write` / `review`
+proposal path above, and it never edits `AGENTS.md` or the provider shims directly —
+only `sase memory init` (run from the panel's publish flow, or by hand) does that.
+
 ## XPrompt Inclusion
 
 Every valid, flat, non-README note is also available as an explicit `#memory/<stem>`

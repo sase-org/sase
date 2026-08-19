@@ -1055,6 +1055,41 @@ commas:
 Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
 app-level bindings.
 
+**`memory`** — Bindings active only inside the [Memory panel](ace.md#memory-panel), the
+browse-and-edit surface opened from a prompt pane with `gm` or `Ctrl+G m`. A value may
+list more than one key, separated by commas:
+
+| Field                | Default         | Description                                                         |
+| -------------------- | --------------- | ------------------------------------------------------------------- |
+| `next_note`          | `j`             | Move the note rail cursor to the next note.                         |
+| `prev_note`          | `k`             | Move the note rail cursor to the previous note.                     |
+| `first_note`         | `g`             | Jump to the first note.                                             |
+| `last_note`          | `G`             | Jump to the last note.                                              |
+| `scroll_body_down`   | `ctrl+d`        | Scroll the note card down by half a page.                           |
+| `scroll_body_up`     | `ctrl+u`        | Scroll the note card up by half a page.                             |
+| `filter_notes`       | `slash`         | Filter notes by stem and description.                               |
+| `toggle_body_filter` | `full_stop`     | Extend the active filter into note bodies.                          |
+| `next_link`          | `tab`           | Focus the next `PARENT` / `CHILDREN` chip.                          |
+| `prev_link`          | `shift+tab`     | Focus the previous link chip.                                       |
+| `follow_link`        | `enter,l`       | Travel to the focused chip's note (or chip ① when none focused).    |
+| `travel_back`        | `backspace,h`   | Walk back one step along the travel trail.                          |
+| `next_scope`         | `p`             | Cycle forward through the memory scope ring.                        |
+| `prev_scope`         | `P`             | Cycle backward through the memory scope ring.                       |
+| `pick_scope`         | `ctrl+p`        | Open the filterable scope picker.                                   |
+| `add_note`           | `a`             | Open the add-note form.                                             |
+| `edit_note`          | `e`             | Open the edit form for the selected note's type/parent/description. |
+| `delete_note`        | `d`             | Confirm and delete the selected note.                               |
+| `publish`            | `I`             | Open the publish confirmation (`sase memory init`).                 |
+| `open_source`        | `o`             | Open the note body in `$EDITOR`.                                    |
+| `open_viewer`        | `Z`             | Hand the source file to the artifact viewer.                        |
+| `copy_body`          | `y`             | Copy the note body to the clipboard.                                |
+| `copy_source_path`   | `Y`             | Copy the source path to the clipboard.                              |
+| `refresh`            | `r`             | Re-read the current scope.                                          |
+| `help`               | `question_mark` | Open the panel-scoped help overlay.                                 |
+
+Like gate, statistics, and glossary keys, memory keys are scoped to the panel and may
+overlap app-level bindings.
+
 **`projects`** — Bindings active on all three Admin Center
 [Projects-tab](ace.md#projects-tab) sub-tabs (Projects, Repos, Workspaces), so
 `focus_filter`, `jump_to_entry`, `reload`, and the sub-tab cycle keys stay identical
