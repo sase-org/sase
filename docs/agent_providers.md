@@ -183,10 +183,10 @@ per-action approval prompts.
 The `grok-4.6` model — the only model in the authenticated catalog — accepts only `low`,
 `medium`, `high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and
 `%effort:max` raise a clean SASE error rather than a Grok process crash. The shipped
-`@xlarge` alias carries `@max` on every fallback candidate, but that alias-borne effort
-is best-effort, not explicit: when the fallback selects Grok (or Codex, which also has
-no `max` level), `max` is logged and skipped and the CLI runs at its own default effort
-instead of erroring.
+Grok `@xlarge` candidate is `grok/grok-4.6@xhigh`, so a Grok-selected xlarge launch
+passes `--effort xhigh`. Codex's `@xlarge` candidate remains `@max`; that alias-borne
+effort is best-effort, not explicit, so when the fallback selects Codex, `max` is logged
+and skipped and the CLI runs at its own default effort instead of erroring.
 
 ### Usage is best-effort
 

@@ -873,10 +873,11 @@ are rejected by the CLI with a nonzero exit. SASE declares exactly the four supp
 levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
 `LLMInvocationError` instead of a Grok process crash, and a config-derived default at
 one of those levels is logged and skipped. See [Reasoning Effort](#reasoning-effort)
-below — the shipped `@xlarge` ordered fallback carries `@max` on every candidate, but
-`max` is not an explicit directive. When `@xlarge` selects Grok (or Codex, which
-likewise has no `max` level), the alias-borne `max` is best-effort: it is logged and
-skipped, and the CLI runs at its own default effort instead of erroring.
+below — the shipped `@xlarge` Grok candidate is `grok/grok-4.6@xhigh`, so a
+Grok-selected xlarge launch passes `--effort xhigh`. Codex's `@xlarge` candidate remains
+`@max`; that alias-borne `max` is best-effort, so when `@xlarge` selects Codex the
+unsupported level is logged and skipped and the CLI runs at its own default effort
+instead of erroring.
 
 ### The Event Stream
 
@@ -1253,7 +1254,7 @@ this section covers both. The current shipped size-alias defaults are generated 
 | `@small`  | Small launch alias for straightforward task and phase work.                                                                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
 | `@medium` | Medium launch alias for ordinary implementation work.                                                                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
 | `@large`  | Large launch alias for planning-heavy work and default launches; Grok is last resort when Claude and Codex are unavailable. | `(claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh) \|\| grok/grok-4.6@xhigh`                           |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                                                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                                                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@xhigh`                               |
 
 <!-- END GENERATED: model-alias-defaults -->
 

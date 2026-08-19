@@ -234,27 +234,31 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
 
 
 @pytest.mark.parametrize(
-    ("available", "expected_target"),
+    ("available", "expected_target", "expected_effort"),
     [
         (
             {"claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"},
             "claude/opus",
+            "max",
         ),
         (
             {"codex/gpt-5.6-sol", "grok/grok-4.6"},
             "codex/gpt-5.6-sol",
+            "max",
         ),
         (
             {"grok/grok-4.6"},
             "grok/grok-4.6",
+            "xhigh",
         ),
     ],
 )
-def test_shipped_smartest_ordered_fallback_selects_by_availability(
+def test_shipped_xlarge_ordered_fallback_selects_by_availability(
     real_model_alias_defaults: None,
     monkeypatch: pytest.MonkeyPatch,
     available: set[str],
     expected_target: str,
+    expected_effort: str,
 ) -> None:
     mock_provider_config(
         monkeypatch,
@@ -267,4 +271,4 @@ def test_shipped_smartest_ordered_fallback_selects_by_availability(
     )
 
     resolved = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (resolved.target, resolved.effort) == (expected_target, "max")
+    assert (resolved.target, resolved.effort) == (expected_target, expected_effort)
