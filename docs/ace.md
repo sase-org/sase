@@ -2430,6 +2430,14 @@ To save a query, prefix with `#`:
 On Patches these commands run inside the inline filter and leave both the active query
 and editor session in place.
 
+On first open, when `ace.current_project.seed_filters` is on and the Patches query
+carries no `project:` / `+name` term of any polarity or depth, ACE appends a visible
+`project:<name>` token for the current project (the configured project name, never the
+ProjectSpec key). An explicit term wins, including `NOT project:…` and a term nested
+inside parentheses. The seeded token is session-only: it is not written to
+`last_query.txt`. Press `p` and choose **All projects** to remove it. Submitting the
+query from the filter bar keeps the token as yours and persists it.
+
 ### Saved Queries
 
 On the Artifacts tab, press `0` followed by a slot digit (`1`-`9`, then `0` again for
@@ -3456,7 +3464,7 @@ press `c` on the Projects tab. Hide the chip with
 When `ace.current_project.seed_filters` is on (the default), first-open surfaces that
 can filter by project seed from the current project instead of starting at all projects:
 
-- the shared Artifacts project scope (Stitches, Beads, Plans, Files)
+- the shared Artifacts project scope (Stitches, Beads, Plans, Files, Patches)
 - the Statistics project filter
 - the Repos / Workspaces inventory filters
 - the Glossary project ring

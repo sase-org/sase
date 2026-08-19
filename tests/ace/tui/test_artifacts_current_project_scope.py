@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
+from typing import Any
 
 import pytest
 
-from sase.ace.testing import AcePage
+from sase.ace.query.project_scope import has_project_scope
+from sase.ace.saved_queries import load_last_query
+from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui.actions.artifacts import (
     _ArtifactsProjectChoices,
     _collect_artifacts_project_choices,
     _resolve_artifacts_scope_seed,
 )
+from sase.ace.tui.app import AceApp
 from sase.ace.tui.modals.inventory_project_picker import (
     InventoryProjectChoice,
     InventoryProjectPicker,
@@ -54,6 +59,53 @@ def _two_enabled_choices(
         display_names={"alpha": "Alpha", "beta": "Beta"},
         current_project=current_project,
     )
+
+
+def _needle_patches() -> list:
+    alpha = make_patch(
+        name="needle_alpha",
+        description="needle",
+        file_path="/tmp/alpha/alpha.sase",
+    )
+    alpha.project_display_name = "Alpha"
+    beta = make_patch(
+        name="needle_beta",
+        description="needle",
+        file_path="/tmp/beta/beta.sase",
+    )
+    beta.project_display_name = "Beta"
+    return [alpha, beta]
+
+
+def _capture_notify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[str]:
+    seen: list[str] = []
+    original = AceApp.notify
+
+    def _notify(self: AceApp, message: str, **kwargs: Any) -> None:
+        seen.append(message)
+        original(self, message, **kwargs)
+
+    monkeypatch.setattr(AceApp, "notify", _notify)
+    return seen
+
+
+async def _wait_for_choices(
+    page: AcePage,
+    choices: _ArtifactsProjectChoices,
+) -> None:
+    await page.wait_for(lambda _state: page.app._artifacts_project_choices is choices)
+
+
+async def _pick_inventory_row(page: AcePage, highlighted: int) -> None:
+    await page.press("p")
+    await page.expect_modal("InventoryProjectPicker")
+    picker = page.app.screen
+    assert isinstance(picker, InventoryProjectPicker)
+    picker.query_one("#inventory-project-picker-list").highlighted = highlighted
+    picker.action_select_highlighted()
+    await page.expect_no_modal()
 
 
 def _sole_enabled_choices(
@@ -193,6 +245,8 @@ async def test_seeded_scope_reaches_stitches_beads_files_and_plans(
         assert page.app.query_one(ArtifactsFilesPane).project_scope == "alpha"
         for pane in page.app.query(ArtifactsDocumentsPane):
             assert pane.project_scope == "alpha"
+        assert page.app.query_string == '"feature" AND project:Alpha'
+        assert "project:alpha" not in page.app.query_string
 
 
 async def test_seed_filters_false_keeps_today_s_unscoped_multi_project_behavior(
@@ -216,6 +270,7 @@ async def test_seed_filters_false_keeps_today_s_unscoped_multi_project_behavior(
         assert page.app._current_project_settings.seed_filters is False
         assert page.app.artifacts_project_scope is None
         assert page.app.query_one(CommitsPane).filters.project is None
+        assert page.app.query_string == '"feature"'
 
 
 async def test_explicit_query_term_wins_over_current_project(
@@ -234,6 +289,7 @@ async def test_explicit_query_term_wins_over_current_project(
         )
         assert page.app.artifacts_project_scope == "beta"
         assert page.app.query_one(CommitsPane).filters.project == "beta"
+        assert page.app.query_string == "project:beta"
 
 
 async def test_mid_session_current_project_change_does_not_re_scope(
@@ -249,6 +305,8 @@ async def test_mid_session_current_project_change_does_not_re_scope(
 
     async with AcePage(initial_tab="patches") as page:
         await page.wait_for(lambda _state: page.app.artifacts_project_scope == "alpha")
+        page.app.query_string = '"edited"'
+        page.app.parsed_query = page.app._parse_patch_query('"edited"')
 
         state["choices"] = second
         page.app._artifacts_project_choices = None
@@ -260,6 +318,7 @@ async def test_mid_session_current_project_change_does_not_re_scope(
         assert page.app.artifacts_project_scope == "alpha"
         assert page.app._artifacts_scope_was_picked is False
         assert page.app.query_one(CommitsPane).filters.project == "Alpha"
+        assert page.app.query_string == '"edited"'
 
 
 async def test_picked_all_projects_is_not_reseeded_after_inventory_reload(
@@ -294,3 +353,213 @@ async def test_picked_all_projects_is_not_reseeded_after_inventory_reload(
 
         assert page.app.artifacts_project_scope is None
         assert page.app.query_one(CommitsPane).filters.project is None
+        assert not has_project_scope(page.app.query_string)
+
+
+async def test_first_open_seeds_patches_query_with_display_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+
+    async with AcePage(
+        query='"needle"',
+        patches=_needle_patches(),
+        initial_tab="patches",
+    ) as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+        )
+
+        assert page.app.artifacts_project_scope == "alpha"
+        assert page.app.query_string == '"needle" AND project:Alpha'
+        assert [patch.name for patch in page.app.patches] == ["needle_alpha"]
+
+
+async def test_not_project_term_is_not_inverted_by_seed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    query = "NOT project:beta"
+
+    async with AcePage(query=query, initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app._patch_query_scope_seed_attempted is True
+        )
+
+        assert page.app.query_string == query
+        assert "NOT project:Alpha" not in page.app.query_string
+
+
+async def test_nested_project_term_is_left_byte_identical_without_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    seen = _capture_notify(monkeypatch)
+    query = '(project:beta OR "x")'
+
+    async with AcePage(query=query, initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app._patch_query_scope_seed_attempted is True
+        )
+
+        assert page.app.query_string == query
+        assert not any("grouped expression" in message for message in seen)
+
+
+async def test_startup_save_persists_pre_seed_query(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    last_query = tmp_path / "last_query.txt"
+    monkeypatch.setattr("sase.ace.saved_queries._LAST_QUERY_FILE", last_query)
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    starting = '"needle"'
+
+    async with AcePage(query=starting, initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+        )
+        page.app._save_startup_query()
+
+        persisted = last_query.read_text()
+        assert persisted == starting
+        assert load_last_query() == starting
+        assert "project:" not in persisted
+
+    async with AcePage(query=starting, initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+        )
+        assert page.app.query_string == '"needle" AND project:Alpha'
+
+
+async def test_user_commit_after_seed_persists_committed_query(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    last_query = tmp_path / "last_query.txt"
+    monkeypatch.setattr("sase.ace.saved_queries._LAST_QUERY_FILE", last_query)
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+
+    async with AcePage(query='"needle"', initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+        )
+        seeded = page.app.query_string
+        assert page.app._patch_query_scope_seed_baseline is not None
+
+        page.app._commit_patch_query(seeded)
+        assert page.app._patch_query_scope_seed_baseline is None
+        assert last_query.read_text() == page.app.canonical_query_string
+        assert "project:Alpha" in last_query.read_text()
+
+        page.app._save_current_query()
+        assert last_query.read_text() == page.app.canonical_query_string
+        assert last_query.read_text() != '"needle"'
+
+
+async def test_cross_pane_pick_rewrites_patches_query_without_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+    seen = _capture_notify(monkeypatch)
+
+    async with AcePage(query='"needle"', initial_tab="patches") as page:
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+        )
+        await page.press(page.artifacts_digit("beads"))
+        await page.expect_state("artifacts_subtab", "beads")
+        seen.clear()
+
+        await _pick_inventory_row(page, 2)
+        await page.wait_for(lambda _state: page.app.artifacts_project_scope == "beta")
+
+        assert page.app.query_string == '"needle" AND project:Beta'
+        assert page.app.artifacts_project_scope == "beta"
+        assert "Query updated" not in seen
+
+
+async def test_live_filter_session_suppresses_seed_and_consumes_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: choices,
+    )
+
+    async with AcePage(query='"needle"', initial_tab="agents") as page:
+        parsed = page.app._parse_patch_query('"needle"')
+        page.app._live_patch_query = ('"needle"', parsed)
+        page.app._ensure_artifacts_project_choices()
+        await _wait_for_choices(page, choices)
+        await page.wait_for(
+            lambda _state: page.app._patch_query_scope_seed_attempted is True
+        )
+
+        assert page.app.query_string == '"needle"'
+        assert page.app._patch_query_scope_seed_attempted is True
+
+        page.app._live_patch_query = None
+        page.app._artifacts_project_choices = None
+        page.app._ensure_artifacts_project_choices()
+        await _wait_for_choices(page, choices)
+
+        assert page.app.query_string == '"needle"'
+
+
+async def test_patches_pane_sync_triggers_project_inventory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    choices = _two_enabled_choices("alpha")
+    calls = {"n": 0}
+
+    def _collect() -> _ArtifactsProjectChoices:
+        calls["n"] += 1
+        return choices
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _collect,
+    )
+
+    async with AcePage(query='"needle"', initial_tab="agents") as page:
+        assert calls["n"] == 0
+        page.app.current_artifacts_subtab = "patches"
+        page.app.current_tab = "artifacts"
+        await _wait_for_choices(page, choices)
+
+        assert calls["n"] >= 1
+        assert page.app.current_artifacts_pane_key == "patches"

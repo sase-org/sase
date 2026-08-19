@@ -26,6 +26,8 @@ class PatchFilterSessionActionsMixin:
     _current_patch_group_key: tuple[str, ...] | None
     _query_history: dict[str, QueryHistoryStacks]
     _saved_queries: dict[str, dict[str, QueryRecord]]
+    _patch_query_scope_seed_attempted: bool
+    _patch_query_scope_seed_baseline: str | None
 
     def action_patches_filters(self) -> None:
         """Open the inline Patch filter bar."""
@@ -73,7 +75,7 @@ class PatchFilterSessionActionsMixin:
             self._current_patch_group_key = None  # type: ignore[attr-defined]
         self._refresh_display()  # type: ignore[attr-defined]
 
-    def _commit_patch_query(self, source: str) -> None:
+    def _commit_patch_query(self, source: str, *, notify: bool = True) -> None:
         from ....query_history import (
             QueryHistoryStacks,
             push_to_prev_stack,
@@ -86,6 +88,8 @@ class PatchFilterSessionActionsMixin:
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
         self._live_patch_query = None
         if new_canonical == current_canonical:
+            if self._patch_query_scope_seed_baseline is not None:
+                self._save_current_query()  # type: ignore[attr-defined]
             self._refresh_display()  # type: ignore[attr-defined]
             return
 
@@ -106,7 +110,8 @@ class PatchFilterSessionActionsMixin:
         self._load_patches()  # type: ignore[attr-defined]
         self._restore_selection_for_current_query()  # type: ignore[attr-defined]
         self._save_current_query()  # type: ignore[attr-defined]
-        self.notify("Query updated")  # type: ignore[attr-defined]
+        if notify:
+            self.notify("Query updated")  # type: ignore[attr-defined]
 
     def _save_patch_query_slot(self, text: str) -> None:
         from ....saved_queries import (

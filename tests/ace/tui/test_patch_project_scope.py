@@ -4,9 +4,20 @@ from __future__ import annotations
 
 from sase.ace.query.project_scope import (
     PROJECT_SCOPE_NESTED,
+    has_project_scope,
     project_scope_of,
     rewrite_project_scope,
 )
+
+
+def test_has_project_scope_detects_any_polarity_or_depth() -> None:
+    assert has_project_scope("project:alpha") is True
+    assert has_project_scope("+alpha") is True
+    assert has_project_scope('(project:alpha OR "x")') is True
+    assert has_project_scope("NOT project:alpha") is True
+    assert has_project_scope("") is False
+    assert has_project_scope('"needle"') is False
+    assert has_project_scope('"project:alpha"') is False
 
 
 def test_project_scope_of_reads_first_top_level_project_term() -> None:

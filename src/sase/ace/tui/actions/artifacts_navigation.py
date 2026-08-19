@@ -74,6 +74,7 @@ class ArtifactsNavigationActionsMixin:
         if self.current_tab != ARTIFACTS_TAB:
             return
         if self.current_artifacts_pane_key == "patches":
+            self._ensure_artifacts_project_choices()  # type: ignore[attr-defined]
             self._refresh_display()  # type: ignore[attr-defined]
             return
 

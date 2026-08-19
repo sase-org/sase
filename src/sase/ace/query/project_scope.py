@@ -38,6 +38,12 @@ def project_scope_of(query: str) -> str | None:
     return terms[0].value if terms else None
 
 
+def has_project_scope(query: str) -> bool:
+    """Return whether *query* carries any project term, at any depth."""
+    terms, nested = _project_terms(query)
+    return bool(terms) or nested
+
+
 def rewrite_project_scope(query: str, project: str | None) -> str:
     """Return *query* with only its top-level Patch project scope rewritten."""
 
@@ -193,4 +199,9 @@ def _unquote_value(value: str) -> str:
     return value
 
 
-__all__ = ["PROJECT_SCOPE_NESTED", "project_scope_of", "rewrite_project_scope"]
+__all__ = [
+    "PROJECT_SCOPE_NESTED",
+    "has_project_scope",
+    "project_scope_of",
+    "rewrite_project_scope",
+]

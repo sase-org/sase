@@ -54,6 +54,7 @@ from .profile_reference import (
 )
 from .project_scope import (
     PROJECT_SCOPE_NESTED,
+    has_project_scope,
     project_scope_of,
     rewrite_project_scope,
 )
@@ -92,6 +93,7 @@ __all__ = [
     "patch_query_stable_id",
     "parse_query_for_profile",
     "PROJECT_SCOPE_NESTED",
+    "has_project_scope",
     "project_scope_of",
     "rewrite_project_scope",
     # Types

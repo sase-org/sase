@@ -7,9 +7,10 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.query import get_sole_project_filter
+from sase.ace.query import QueryParseError, get_sole_project_filter
 from sase.ace.query.project_scope import (
     PROJECT_SCOPE_NESTED,
+    has_project_scope,
     project_scope_of,
     rewrite_project_scope,
 )
@@ -266,9 +267,59 @@ class ArtifactsMixin(
     _artifacts_project_picker_pending: bool
     _artifacts_scope_was_picked: bool
     _current_project_settings: CurrentProjectSettings
+    _live_patch_query: tuple[str, Any] | None
+    _patch_query_scope_seed_attempted: bool
+    _patch_query_scope_seed_baseline: str | None
 
     def _resolve_initial_artifacts_scope(self) -> str | None:
         return get_sole_project_filter(self.parsed_query)
+
+    def _apply_patches_project_scope(
+        self,
+        project_ref: str | None,
+        *,
+        seeded: bool,
+        notify: bool = True,
+    ) -> bool:
+        """Rewrite the Patches query's project term. Return False if refused."""
+        if seeded:
+            if self._patch_query_scope_seed_attempted:
+                return True
+            self._patch_query_scope_seed_attempted = True
+            if not project_ref:
+                return True
+            if has_project_scope(self.query_string):
+                return True
+            if self._live_patch_query is not None:
+                return True
+            rewritten = rewrite_project_scope(self.query_string, project_ref)
+            if rewritten == PROJECT_SCOPE_NESTED:
+                return True
+            try:
+                parsed = self._parse_patch_query(rewritten)  # type: ignore[attr-defined]
+            except QueryParseError:
+                log.exception("Failed to seed Patches project scope")
+                return True
+            self._patch_query_scope_seed_baseline = self.canonical_query_string  # type: ignore[attr-defined]
+            self.query_string = rewritten
+            self.parsed_query = parsed
+            self._refilter_current_patch_snapshot()  # type: ignore[attr-defined]
+            return True
+
+        self._patch_query_scope_seed_baseline = None
+        rewritten = rewrite_project_scope(self.query_string, project_ref)
+        if rewritten == PROJECT_SCOPE_NESTED:
+            self.notify(  # type: ignore[attr-defined]
+                "Project scope is inside a grouped expression; edit the query with <f>",
+                severity="warning",
+            )
+            return False
+        try:
+            self._commit_patch_query(rewritten, notify=notify)  # type: ignore[attr-defined]
+        except QueryParseError:
+            log.exception("Failed to apply Patches project scope")
+            return False
+        return True
 
     def _set_artifacts_project_scope(
         self,
@@ -344,6 +395,12 @@ class ArtifactsMixin(
                     ),
                     picked=False,
                 )
+                self._apply_patches_project_scope(
+                    result.project_ref_display.label_for_ref(
+                        self.artifacts_project_scope
+                    ),
+                    seeded=True,
+                )
             else:
                 scope = self.artifacts_project_scope
                 normalized = result.project_ref_display.project_key_for_ref(scope)
@@ -381,22 +438,23 @@ class ArtifactsMixin(
         def _on_picked(result: InventoryProjectPickerResult | None) -> None:
             if result is None:
                 return
-            if self.current_artifacts_pane_key == "patches":
-                project_ref = choices.project_ref_display.label_for_ref(
-                    result.project_key
+            project_ref = choices.project_ref_display.label_for_ref(result.project_key)
+            on_patches = self.current_artifacts_pane_key == "patches"
+            if on_patches:
+                applied = self._apply_patches_project_scope(
+                    project_ref,
+                    seeded=False,
+                    notify=True,
                 )
-                rewritten = rewrite_project_scope(self.query_string, project_ref)
-                if rewritten == PROJECT_SCOPE_NESTED:
-                    self.notify(  # type: ignore[attr-defined]
-                        "Project scope is inside a grouped expression; "
-                        "edit the query with <f>",
-                        severity="warning",
-                    )
+                if not applied:
                     return
-                self._set_artifacts_project_scope(result.project_key, picked=True)
-                self._commit_patch_query(rewritten)  # type: ignore[attr-defined]
-                return
             self._set_artifacts_project_scope(result.project_key, picked=True)
+            if not on_patches:
+                self._apply_patches_project_scope(
+                    project_ref,
+                    seeded=False,
+                    notify=False,
+                )
 
         current_project = self.artifacts_project_scope
         if self.current_artifacts_pane_key == "patches":

@@ -26,12 +26,23 @@ class PatchQueryMixin:
     _query_history: dict[str, QueryHistoryStacks]
     _query_selections: dict[str, dict[str, str]]
     _saved_queries: dict[str, dict[str, QueryRecord]]
+    _patch_query_scope_seed_baseline: str | None
 
     def _save_current_query(self) -> None:
         """Save the current query as the last used query."""
         from ....saved_queries import save_last_query
 
         save_last_query(self.canonical_query_string)  # type: ignore[attr-defined]
+        self._patch_query_scope_seed_baseline = None
+
+    def _save_startup_query(self) -> None:
+        """Persist the pre-seed query so a current-project seed never sticks."""
+        from ....saved_queries import save_last_query
+
+        baseline = self._patch_query_scope_seed_baseline
+        save_last_query(
+            baseline if baseline is not None else self.canonical_query_string  # type: ignore[attr-defined]
+        )
 
     def _load_query_patches(self) -> None:
         """Reload patches through the legacy-compatible app method."""

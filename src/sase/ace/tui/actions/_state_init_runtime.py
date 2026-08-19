@@ -167,6 +167,8 @@ def init_runtime_state(
     # Project inventory itself remains lazy and is read off-thread on the
     # first project-backed pane activation.
     self.artifacts_project_scope = get_sole_project_filter(self.parsed_query)
+    self._patch_query_scope_seed_attempted = False
+    self._patch_query_scope_seed_baseline = None
     self._artifacts_project_choices = None
     self._artifacts_project_choices_loading = False
     self._artifacts_project_picker_pending = False

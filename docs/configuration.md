@@ -844,8 +844,10 @@ prospective-clan selection — not just the visible list. Turning this on silent
 re-scopes those surfaces. The capability is fully built; one line of config enables it.
 
 When `seed_filters` is on, a filter that already has a value — an explicit `project:` /
-`+name` query term, or a pick made this session — is left alone. A mid-session MRU
-change moves the chip but does not re-scope surfaces that are already open.
+`+name` query term, or a pick made this session — is left alone. The Patches query is
+one of those seeded surfaces: the seed appends a visible `project:<name>` term for the
+session only and does not write it to `last_query.txt`. A mid-session MRU change moves
+the chip but does not re-scope surfaces that are already open.
 
 #### `ace.tribes`
 

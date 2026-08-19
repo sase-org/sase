@@ -212,10 +212,13 @@ def test_patches_footer_appends_toggle_when_keymap_is_live() -> None:
 
 
 def _parent_child_patches() -> list[Patch]:
-    return [
+    patches = [
         make_patch(name="feature_root"),
         make_patch(name="feature_child", parent="feature_root"),
     ]
+    for item in patches:
+        item.project_display_name = "Alpha"
+    return patches
 
 
 async def _open_pane(

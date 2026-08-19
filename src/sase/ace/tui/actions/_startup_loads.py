@@ -161,7 +161,7 @@ class StartupLoadsMixin:
 
             last_name = await asyncio.to_thread(self._read_last_selection_name)
             self._restore_last_selection(last_name)
-            await asyncio.to_thread(self._save_current_query)
+            await asyncio.to_thread(self._save_startup_query)
 
             # Resolving a git-derived dev version can block on subprocesses for
             # editable installs. Wheel installs usually keep the instant title.
