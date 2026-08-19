@@ -88,7 +88,7 @@ def test_builtin_field_names_and_required_flags_match_the_plan() -> None:
 
 def test_flake_requires_corroboration_and_ci_does_not() -> None:
     specs = _by_slug()
-    assert specs["flake"]["triage"]["min_plus_ones"] == 1
+    assert specs["flake"]["triage"]["min_plus_ones"] == 3
     assert specs["ci"]["triage"]["min_plus_ones"] == 0
     assert "triage" not in specs["bug"]
     assert "triage" not in specs["feature"]

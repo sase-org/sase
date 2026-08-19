@@ -224,7 +224,7 @@ def _flake_spec() -> dict[str, Any]:
             "\n"
             "{{ evidence }}\n"
         ),
-        "triage": {"min_plus_ones": 1},
+        "triage": {"min_plus_ones": 3},
     }
 
 

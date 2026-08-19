@@ -199,7 +199,7 @@ one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `�
 A type also carries its own triage bar. `triage.min_plus_ones` is the number of
 independent [`+1`](#task-corroboration-1) reports a ready bead of that type needs before
 it earns a `TaskTriage` gate; the spec default is `0`, and among the builtins only
-`flake` raises it (to `1`), because a test that failed once is the case most often
+`flake` raises it (to `3`), because a test that failed once is the case most often
 misread as a real defect. A bead whose type this machine does not have registered — and
 every legacy untyped bead — falls back to the configured
 [`bead.task_triage.min_plus_ones`](configuration.md#bead) instead.

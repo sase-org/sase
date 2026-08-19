@@ -277,11 +277,11 @@
       ],
       "body_template": "## Flake report\n\n- **Test:** `{{ node_id }}`\n- **Repro:** `{{ repro_cmd }}`\n\n{{ evidence }}\n",
       "triage": {
-        "min_plus_ones": 1
+        "min_plus_ones": 3
       },
       "source": "builtin",
       "package": "sase",
-      "digest": "f50350ab60ca76042bc5e1fde68ce76f40238b8a889c3cbdf5c55fdab6d72b8c"
+      "digest": "b5b410e11c62c945193bbc0594705ce9979b1627d3416b53c230f8311fa54cd1"
     },
     {
       "task_type": "github",
