@@ -205,8 +205,9 @@ source counterpart). Template variables and validation rules are listed in the
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
 during memory initialization, but it no longer generates a note. `sase memory init`
 instead renders a `Glossary Terms` H3 section inside Tier 2 of `AGENTS.md` and the
-provider instruction files, after the `Long-Term Memory Files` H3. It lists every
-displayed glossary term with its aliases in parentheses and points agents at
+provider instruction files, after the `Long-Term Memory Files` H3. The terms are
+rendered as one semicolon-separated `**GLOSSARY TERMS:**` paragraph at the end of the
+section, with aliases in parentheses, and the section points agents at
 `sase glossary read <term> [<term> ...] -r "<why>"` to fetch those definitions plus the
 terms they depend on. Pass every term you need in one command. An empty or absent
 glossary emits no section. If an earlier run of this project left behind a marked

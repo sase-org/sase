@@ -51,6 +51,18 @@ def _tier2_memory(agents: str) -> str:
     return agents.split("## 2. Tier 2 (long-term) Memory", 1)[1]
 
 
+def _normalized(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _glossary_section(tier2: str) -> str:
+    heading = "### "
+    marker = "Glossary Terms"
+    start = tier2.index(marker)
+    heading_start = tier2.rfind(heading, 0, start)
+    return tier2[heading_start:]
+
+
 def _glossary_note_path(project_root: Path) -> Path:
     return project_root / "sase" / "memory" / "glossary.md"
 
@@ -145,11 +157,16 @@ memory:
     assert files_index < intro_index < note_index < glossary_index
     assert '`sase glossary read <term> [<term> ...] -r "<why>"`' in tier2
     assert "in one command" in tier2
-    assert "Aliases follow in parentheses." in " ".join(tier2.split())
-    assert "- Agent Clan (clan)" in tier2
-    assert "- Workspace" in tier2
+    assert (
+        "Terms are separated by semicolons; aliases follow in parentheses."
+        in _normalized(tier2)
+    )
+    assert "**GLOSSARY TERMS:**" in agents
+    assert "**GLOSSARY TERMS:** Agent Clan (clan); Workspace" in _normalized(tier2)
     assert "agent clans" not in tier2
-    assert "**GLOSSARY TERMS:**" not in agents
+    assert not any(
+        line.startswith("- ") for line in _glossary_section(tier2).splitlines()
+    )
 
 
 def test_memory_plan_omits_parens_when_only_alias_is_term_plural(
@@ -175,7 +192,7 @@ memory:
     assert plan.blockers == ()
     action_by_path = {action.path: action for action in plan.actions}
     tier2 = _tier2_memory(str(action_by_path[project_root / "AGENTS.md"].new_content))
-    assert "- Patch\n" in tier2 or tier2.rstrip().endswith("- Patch")
+    assert "**GLOSSARY TERMS:** Patch" in _normalized(tier2)
     assert "Patch (patches)" not in tier2
     assert "patches" not in tier2
 
@@ -211,10 +228,62 @@ memory:
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
     tier2 = _tier2_memory(agents)
 
-    assert "- Agent Clan (hood, agent neighborhood)" in tier2
-    assert "- Artifact Reference (ref)" in tier2
+    assert (
+        "**GLOSSARY TERMS:** Agent Clan (hood, agent neighborhood); "
+        "Artifact Reference (ref)" in _normalized(tier2)
+    )
     assert "artifact references" not in tier2
     assert format_generated_memory_markdown(agents) == agents
+
+
+def test_memory_plan_glossary_terms_section_stays_compact_as_term_count_grows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    terms = (
+        "Agent Clan",
+        "Agent Family",
+        "Agent Hood",
+        "Agent Instruction File",
+        "Artifact Reference",
+        "Current Project",
+        "Feature Flag",
+        "Sase Workspace",
+        "Xprompt Memory",
+        "Xprompt Workflow",
+    )
+    glossary_yaml = "\n".join(
+        f"    {term}:\n      definition: Definition of {term}." for term in terms
+    )
+    _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config=f"""
+is_sase_managed: true
+memory:
+  glossary:
+{glossary_yaml}
+""",
+    )
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    action_by_path = {action.path: action for action in plan.actions}
+    agents = str(action_by_path[tmp_path / "project" / "AGENTS.md"].new_content)
+    tier2 = _tier2_memory(agents)
+    section = _glossary_section(tier2)
+    section_lines = section.splitlines()
+    terms_paragraph = section.split("**GLOSSARY TERMS:**", 1)[1]
+    terms_paragraph_lines = [line for line in terms_paragraph.splitlines() if line]
+    normalized = _normalized(section)
+
+    assert not any(line.startswith("- ") for line in section_lines)
+    assert "**GLOSSARY TERMS:**" in section
+    assert len(terms_paragraph_lines) < len(terms)
+    assert normalized.count("**GLOSSARY TERMS:**") == 1
+    for term in terms:
+        assert normalized.count(term) == 1
 
 
 def test_memory_apply_generates_glossary_block_idempotently_and_copies_provider_shims(
@@ -240,7 +309,7 @@ memory:
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "Glossary Terms" not in _tier1_memory(agents)
     assert "### 2.2 Glossary Terms" in _tier2_memory(agents)
-    assert "- Workspace" in _tier2_memory(agents)
+    assert "**GLOSSARY TERMS:** Workspace" in _normalized(_tier2_memory(agents))
     assert not _glossary_note_path(project_root).exists()
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents

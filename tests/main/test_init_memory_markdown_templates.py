@@ -237,8 +237,10 @@ def test_glossary_terms_block_is_sole_tier2_content_without_other_notes(
         plan.agents_content
     )
     assert "### 2.1 Glossary Terms" in plan.agents_content
-    assert "- Agent Hood (hood, agent neighborhood)" in plan.agents_content
-    assert "- Stitch" in plan.agents_content
+    assert (
+        "**GLOSSARY TERMS:** Agent Hood (hood, agent neighborhood); Stitch"
+        in " ".join(plan.agents_content.split())
+    )
     parsed = parse_amd_agents_document(plan.agents_content)
     assert parsed.long_memory_entries == ()
 

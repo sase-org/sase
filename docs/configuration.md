@@ -540,7 +540,8 @@ unsupported key by `sase config layers` instead of being silently ignored. Run
 `sase memory init` after editing glossary entries. A nonempty glossary no longer
 generates a `sase/memory/glossary.md` note; instead it renders a `Glossary Terms` H3
 section into the Tier 2 section of `AGENTS.md` and the provider instruction copies,
-naming every displayed term and alias and pointing agents at
+ending with a single semicolon-separated `**GLOSSARY TERMS:**` paragraph that names
+every displayed term and alias and pointing agents at
 `sase glossary read <term> [<term> ...] -r "<why>"` — see [Glossary](memory.md#glossary)
 — to fetch those definitions plus the terms they depend on in one command, instead of
 loading every definition into every agent's context. The plural of the term and of each

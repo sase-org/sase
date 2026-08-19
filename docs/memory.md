@@ -138,9 +138,10 @@ proposal/review actors.
 Project glossary entries authored under `memory.glossary` in `sase/sase.yml` (see
 [glossary configuration](configuration.md#memoryglossary)) are not rendered into an
 always-loaded memory note. `sase memory init` instead renders a compact `Glossary Terms`
-H3 section at the end of Tier 2 — after the `Long-Term Memory Files` H3 — that names
-every term with its aliases in parentheses. Agents fetch a definition on demand with the
-`sase glossary` command group:
+H3 section at the end of Tier 2 — after the `Long-Term Memory Files` H3 — that ends with
+a single `**GLOSSARY TERMS:**` line naming every term, semicolon-separated, with aliases
+in parentheses. Agents fetch a definition on demand with the `sase glossary` command
+group:
 
 ```bash
 sase glossary list
