@@ -23,7 +23,7 @@ sase-agent "acme"    before                     after `sase monitor start`
 ────────────────────────────────────────────────────────────────────────────────
 acme                 (one-shell agent, RUNNING) acme            (agent family)
                                                 ├─ acme--0      DONE       ← starter shell, killed
-                                                ├─ acme--mon    MONITORING ← monitor proc shell
+                                                ├─ acme--mon    TESTING    ← monitor proc shell
                                                 └─ acme--1      RUNNING    ← follow-up shell
 ```
 
@@ -55,12 +55,20 @@ sase monitor start \
   --command 'just check-full' \
   --reason 'Verify the refactor before replying to the user' \
   --timeout 45m \
+  --start-status TESTING \
+  --stop-status TESTED \
   --next 'Fix anything just check-full reported, then reply to the user.'
 ```
 
 - `--command` / `-c` is the full command handed to the shell.
 - `--reason` / `-r` and `--timeout` / `-t` (bare seconds, or `90s` / `45m` / `2h`) are
   required — a monitor always says why it exists and has a bounded budget.
+- `--start-status` / `-s` and `--stop-status` / `-S` are required — the present-tense
+  label shown while the command runs (e.g. `TESTING`) and the past-tense label shown
+  when it finishes (e.g. `TESTED`). Each is capped at 20 characters; over-length values
+  are truncated with a trailing `…` and a warning. `TESTING` / `TESTED` is the pair for
+  `just check` and `just check-full`; a different kind of wait picks its own pair (for
+  example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
 - `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
   for the given duration, while still allowing intentionally quiet commands when
   omitted.
@@ -70,9 +78,6 @@ sase monitor start \
 - `--next-output none|tail|file` controls how much retained command output is handed to
   the follow-up agent. `tail` is the default; `file` points at the on-disk log; `none`
   gives only the outcome summary and `sase monitor show --all-lines` pointer.
-- `--start-status` / `-s` and `--stop-status` / `-S` override the default `MONITORING` /
-  `MONITORED` labels shown on the row — useful for a `sleep`-based wait
-  (`SLEEPING FOR 300s` → `SLEPT FOR 300s`).
 - `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
   `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
   `sase monitor start --help` for the full list.
@@ -181,6 +186,22 @@ counting) is tracked separately from the label, from `monitor_state`:
 The stop-status label is descriptive text, not a success condition. It is reused for
 every terminal state, including an explicit stop; use the bucket, `monitor_state`, exit
 code, and output to decide what happened.
+
+### Display contract
+
+A monitor's identity on every surface is the ordered pair of its two labels. Three
+orthogonal signals carry the rest:
+
+| signal     | carries                         | mechanism                                                     |
+| ---------- | ------------------------------- | ------------------------------------------------------------- |
+| **hue**    | _which_ kind of monitor this is | one deterministic accent color per pair                       |
+| **weight** | live or settled                 | `bold` while running, normal weight once settled              |
+| **glyph**  | how it went                     | `✓` completed, `⊘` stopped, `✗` failed, `⧖` timeout, `⚠` lost |
+
+Failure keeps red: `failed`, `timeout`, and `lost` render bold red regardless of the
+pair accent. Two different pairs can share a color; the words still differ. Reusing one
+pair across related monitors (for example every `just check-full` wait as `TESTING` /
+`TESTED`) makes those rows read as one lane.
 
 A monitor is terminal only after it is settled: the command has exited or been
 reconciled, the log has been finalized, the workspace claim has been released or
@@ -304,12 +325,13 @@ work.
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted
 `Command`, then whichever of `Cwd`, `Reason`, and `Next action` were recorded, then
-`State` (a colored glyph plus the state name, with `(exit N)` appended once an exit code
-is known). `Timeout` reports elapsed time against the budget (`3m12s of 45m0s budget`),
-falling back to a plain `Elapsed` row for a record with no recorded budget, and an
-`--idle-timeout` adds its own `Idle timeout` row. The section ends with the full
-`Monitor id`, its short form, and the exact `sase monitor show <short-id> --follow`
-command to stream the rest from a shell.
+`Status` (the effective label in its pair accent, with the other half dim after a `→`)
+and `State` (a colored glyph plus the machine state name, with `(exit N)` appended once
+an exit code is known). `Timeout` reports elapsed time against the budget
+(`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row for a record with no
+recorded budget, and an `--idle-timeout` adds its own `Idle timeout` row. The section
+ends with the full `Monitor id`, its short form, and the exact
+`sase monitor show <short-id> --follow` command to stream the rest from a shell.
 
 Beneath that, an `OUTPUT` block renders the captured stdout/stderr. Because
 `live_reply.md` holds a command's raw merged output rather than prose, it is rendered as
@@ -399,7 +421,8 @@ Concretely:
 Before this command existed, agents got a successor by monitoring a no-op command:
 
 ```bash
-sase monitor start --command 'sleep 1' --reason '...' --next '<the real prompt>'
+sase monitor start --command 'sleep 1' --reason '...' \
+  --start-status SLEEPING --stop-status SLEPT --next '<the real prompt>'
 ```
 
 That only worked because `sase monitor start` already kills the caller and its

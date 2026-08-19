@@ -36,10 +36,19 @@ landing an epic's combined tree, when the change touches the broadening set, or 
 `just check`'s scoped run escalated or reported an unusual selection.
 
 `just check-full` routinely outruns a single agent turn, so run it **only** through
-`/sase_monitor` (`sase monitor start --command 'just check-full' …`), never inline. Hand
-a `--next` action so the follow-up agent acts on the result. `just check` may be run
-inline, but hand it to a monitor too whenever it is taking a long time — same `--next`
-rule applies.
+`/sase_monitor`, never inline:
+
+```bash
+sase monitor start --command 'just check-full' \
+  --start-status TESTING --stop-status TESTED --next '...'
+```
+
+`-s/--start-status` and `-S/--stop-status` are required on every monitor. `TESTING` /
+`TESTED` is the pair for `just check` and `just check-full`; a different kind of wait
+should pick its own present/past pair (max 20 characters). Hand a `--next` action so the
+follow-up agent acts on the result. `just check` may be run inline, but hand it to a
+monitor too whenever it is taking a long time — same `--next` rule and the same
+`TESTING` / `TESTED` pair apply.
 
 **IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
 sase.md file in this directory) is that you need to run `just install` before running

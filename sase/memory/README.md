@@ -56,8 +56,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 56
-- Approx. tokens: 727
+- Lines: 65
+- Approx. tokens: 812
 
 ### `sase/memory/feature_flags.md`
 
@@ -187,8 +187,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 15
 - Short notes: 7
 - Long notes: 8
-- Total lines: 928
-- Total approx. tokens: 11663
+- Total lines: 937
+- Total approx. tokens: 11748
 
 ## Commands
 

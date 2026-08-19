@@ -1865,11 +1865,14 @@ badges instead of verbose text:
 A monitor shell (a family member whose work is a supervised command, started with
 `sase monitor start`) renders its own amber `⚙` glyph beside the bash/python step glyphs
 below, with its configured label as the row title and a live elapsed suffix or
-exit-code/timeout badge instead of the statuses above. Two extra badges mark a stalled
-monitor handoff: a red `⚠` replaces the exit-code badge when a terminal monitor's
-supervisor never reported a real exit code, and an amber `⚑` follows the row when its
-`--next` follow-up was dropped or launched degraded — a monitor can finish cleanly and
-still strand its follow-up. See [Monitors](monitors.md).
+exit-code/timeout badge instead of the statuses above. The status token — the start
+label while running, the stop label once settled — is colored by a deterministic accent
+derived from that pair, so every `TESTING`/`TESTED` monitor is the same hue; failed,
+timed-out, and lost monitors stay red. Two extra badges mark a stalled monitor handoff:
+a red `⚠` replaces the exit-code badge when a terminal monitor's supervisor never
+reported a real exit code, and an amber `⚑` follows the row when its `--next` follow-up
+was dropped or launched degraded — a monitor can finish cleanly and still strand its
+follow-up. See [Monitors](monitors.md).
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
@@ -5781,6 +5784,10 @@ it the same way the rest of ACE does. See [Monitors](monitors.md).
   indicator. The same mark prefixes the output header.
 - **Agent name.** Each monitor names its member agent (`acme--mon`) on the list's
   secondary line (`acme--mon · Working...`) and on an `agent` line in the output header.
+- **Status chip.** When the matching agent row is loaded, the effective status label
+  (`TESTING` while running, `TESTED` once settled) appears in that pair's accent color
+  between the agent name and the secondary text (`acme--mon · TESTING · Working...`),
+  and again on the output header's `agent` line.
 - **Live `live_reply.md`.** The output pane streams the monitor's artifacts-owned log
   (`<artifacts_dir>/live_reply.md`) the same way the agent metadata panel does, so a
   running monitor is not an empty `Working...`.
