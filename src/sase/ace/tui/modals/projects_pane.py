@@ -404,7 +404,7 @@ class ProjectsPane(
         if event.state != WorkerState.SUCCESS:
             if not self._current_project_loaded:
                 self._current_project_loaded = True
-                self._refresh_options()
+                self._repaint_for_current_project()
             return
         result = event.worker.result
         if isinstance(result, _CurrentProjectSnapshot):
@@ -422,7 +422,19 @@ class ProjectsPane(
             self._current_project_accent = ""
         self._current_project_loaded = True
         self._store_current_project_session()
-        self._refresh_options()
+        self._repaint_for_current_project()
+
+    def _repaint_for_current_project(self) -> None:
+        """Repaint for a resolve without moving the user's highlighted row.
+
+        The resolve lands whenever its thread finishes, which can be before
+        the pane has handled the ``OptionHighlighted`` message for a row the
+        user just moved to. A bare ``_refresh_options()`` would fall back to
+        the stale session bookmark and yank the highlight back, so pin the
+        live highlight the way the inventory worker's completion does.
+        """
+
+        self._refresh_options(preferred_project=self._selected_project_name())
 
     def _apply_current_project_seed(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):

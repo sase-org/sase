@@ -149,6 +149,11 @@ def _patch_inventory_data(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_args, **_kwargs: project_records,
     )
+    # Keep the pane's current-project resolve off the developer's real MRU.
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.resolve_current_project",
+        lambda *_args, **_kwargs: None,
+    )
     counts = {
         "alpha": ProjectInventoryCounts(repo_count=3, workspace_count=3),
         "beta": ProjectInventoryCounts(repo_count=1, workspace_count=1),

@@ -35,7 +35,9 @@ from sase.xprompt.loader import get_known_project_workspaces
 # tick is a peek (time-gated ``os.stat`` + config token), not a resolve.
 _POLL_INTERVAL_SECONDS = 5.0
 _WORKER_GROUP = "current-project-indicator"
-_LAUNCH_HINT = "Launch an agent on a project to make it current."
+_LAUNCH_HINT = (
+    "Launch an agent on a project, or press c on the Projects tab, to make it current."
+)
 
 
 @dataclass(frozen=True, slots=True)

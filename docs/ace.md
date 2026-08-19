@@ -3449,7 +3449,8 @@ The chip sits immediately after the provider-disables pill, so in the normal cas
 the override and disable pills are empty — it reads flush against the default-model
 indicator. Its color is unique among currently enabled projects. Hovering names the
 project, the MRU ref it came from, and (when the head was a Patch) the Patch; the
-tooltip also says to launch an agent to make a project current. Hide the chip with
+tooltip also names the two ways to make a project current: launch an agent on it, or
+press `c` on the Projects tab. Hide the chip with
 `ace.current_project.indicator: false`.
 
 When `ace.current_project.seed_filters` is on (the default), first-open surfaces that

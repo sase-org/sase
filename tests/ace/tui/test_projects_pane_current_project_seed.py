@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 import threading
 
 import pytest
 from textual.widgets import OptionList
+from textual.worker import Worker, WorkerState
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
@@ -21,6 +24,7 @@ from sase.ace.tui.modals.project_inventory_panes import (
 )
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
+    _CurrentProjectSnapshot,
     _resolve_current_project_snapshot,
 )
 from sase.ace.tui.project_styles import project_accent
@@ -32,6 +36,20 @@ from tests.ace.tui.modals.project_management_modal_test_helpers import (
 from tests.ace.tui.test_projects_pane import _patch_panes
 
 _ACCENT = "#C5547D"
+
+
+def _resolve_success(
+    project: CurrentProject | None, accent: str
+) -> Worker.StateChanged:
+    """A successful resolve event, without waiting on a real worker thread."""
+
+    event = SimpleNamespace(
+        state=WorkerState.SUCCESS,
+        worker=SimpleNamespace(
+            result=_CurrentProjectSnapshot(project=project, accent=accent)
+        ),
+    )
+    return cast(Worker.StateChanged, event)
 
 
 def _current_project(
@@ -348,3 +366,42 @@ async def test_reload_reruns_current_project_resolve(
         await page.wait_for(lambda _s: len(resolve_calls) == 2)
         option_list = pane.query_one("#projects-list", OptionList)
         assert option_list.option_count == 2
+
+
+async def test_resolve_repaint_keeps_a_row_the_bookmark_has_not_caught_up_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The display repaint must not yank a just-moved highlight backwards.
+
+    ``OptionHighlighted`` reaches the pane by bubbling out of the option
+    list's own message queue, so a resolve posted straight to the pane can
+    overtake it. Repainting from the still-stale session bookmark used to
+    drop the user back on the previously highlighted row.
+    """
+
+    _patch_panes(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.projects_pane.resolve_current_project",
+        lambda: _current_project("alpha"),
+    )
+
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        option_list = pane.query_one("#projects-list", OptionList)
+        await page.wait_for(lambda _s: pane._current_project_key == "alpha")
+
+        # Move to "beta" and let a resolve land before the pane has handled
+        # the highlight message, so the bookmark still reads "alpha".
+        option_list.highlighted = 1
+        assert pane._session_state.projects.identity == "alpha"
+        pane._apply_current_project_display(
+            _resolve_success(_current_project("alpha"), _ACCENT)
+        )
+
+        assert option_list.highlighted == 1
+        assert pane._selected_project_name() == "beta"
+        assert pane._session_state.projects.identity == "beta"

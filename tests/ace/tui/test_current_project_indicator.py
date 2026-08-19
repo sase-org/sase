@@ -130,7 +130,8 @@ def test_patch_origin_renders_project_name_and_names_patch_in_tooltip() -> None:
         "sase\n"
         "via Patch my_patch\n"
         "#gh:my_patch\n"
-        "Launch an agent on a project to make it current."
+        "Launch an agent on a project, or press c on the Projects tab, "
+        "to make it current."
     )
 
 
@@ -140,7 +141,8 @@ def test_project_origin_tooltip_names_mru_ref_and_launch_hint() -> None:
     tooltip = CurrentProjectIndicator._build_tooltip(project, indicator=True)
 
     assert tooltip == (
-        "sase\n#gh:sase\nLaunch an agent on a project to make it current."
+        "sase\n#gh:sase\nLaunch an agent on a project, or press c on the "
+        "Projects tab, to make it current."
     )
 
 
