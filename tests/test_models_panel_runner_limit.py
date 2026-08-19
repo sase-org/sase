@@ -132,7 +132,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert (
             "ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit  "
-            "[green]p[/green]=Providers\n"
+            "[green]p[/green]=Providers  [green]t[/green]=tmux Agent\n"
         ) in footer
 
         await pilot.press("ctrl+r")

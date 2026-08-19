@@ -67,6 +67,7 @@ from .models_panel_providers import ModelsPanelProvidersMixin
 from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
 from .models_panel_runner_limit_edit import build_runner_limit_commit_offer
 from .models_panel_threshold import ModelsPanelThresholdMixin
+from .models_panel_tmux_agent import ModelsPanelTmuxAgentMixin
 from .models_panel_threshold_edit import (
     build_big_epic_phase_threshold_commit_offer,
 )
@@ -109,6 +110,7 @@ class ModelsPanel(
     ModelsPanelAliasEditMixin,
     ModelsPanelHistoryMixin,
     ModelsPanelJumpMixin,
+    ModelsPanelTmuxAgentMixin,
     OptionListNavigationMixin,
     ModalScreen[ModelsPanelResult],
 ):
@@ -138,6 +140,7 @@ class ModelsPanel(
         ("ctrl+e", "manage_default_effort", "Effort"),
         ("ctrl+r", "manage_runner_limit", "Limit"),
         ("p", "providers", "Providers"),
+        ("t", "tmux_agent", "tmux Agent"),
     ]
 
     def __init__(self) -> None:

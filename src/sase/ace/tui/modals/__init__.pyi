@@ -218,6 +218,7 @@ from .statistics_xprompt_picker_modal import (
 from .status_modal import StatusModal as StatusModal
 from .help_modal import TabName as TabName
 from .tag_input_modal import TagInputModal as TagInputModal
+from .tmux_agent_modal import TmuxAgentModal as TmuxAgentModal
 from .config_transaction_preview import TransactionDiagnostic as TransactionDiagnostic
 from .config_transaction_preview import (
     TransactionEffectivePreview as TransactionEffectivePreview,

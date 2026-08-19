@@ -2489,6 +2489,59 @@ ProviderRoutingModal {
     margin-top: 1;
 }
 
+TmuxAgentModal {
+    align: center middle;
+}
+
+#tmux-agent-container {
+    width: 86;
+    max-width: 95%;
+    height: auto;
+    max-height: 34;
+    border: double #7AA2F7;
+    background: $surface;
+    padding: 1 2;
+}
+
+#tmux-agent-title {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: #7AA2F7;
+    margin-bottom: 1;
+}
+
+#tmux-agent-summary {
+    width: 100%;
+    height: 2;
+    text-align: center;
+    color: $text-muted;
+}
+
+#tmux-agent-list {
+    height: auto;
+    max-height: 10;
+    margin-top: 1;
+}
+
+#tmux-agent-description {
+    height: 5;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
+#tmux-agent-footer {
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
 AliasHistoryModal {
     align: center middle;
 }

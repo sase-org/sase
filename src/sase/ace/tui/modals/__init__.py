@@ -277,6 +277,7 @@ _LAZY_EXPORTS = {
     "StatusModal": (".status_modal", "StatusModal"),
     "TabName": (".help_modal", "TabName"),
     "TagInputModal": (".tag_input_modal", "TagInputModal"),
+    "TmuxAgentModal": (".tmux_agent_modal", "TmuxAgentModal"),
     "TransactionDiagnostic": (
         ".config_transaction_preview",
         "TransactionDiagnostic",
@@ -519,6 +520,7 @@ __all__ = [
     "StatusModal",
     "TabName",
     "TagInputModal",
+    "TmuxAgentModal",
     "AliasEditPreviewModal",
     "ModelsPanel",
     "ModelsPanelResult",
