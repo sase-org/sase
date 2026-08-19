@@ -60,6 +60,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_glossary",
     ),
     _PromptGPrefixBinding(
+        "m",
+        "request_open_memory_panel",
+        "_g_prefix_label_memory",
+        "_g_prefix_available_memory",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -196,15 +202,16 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         Returns ``True`` when *key* is a prompt-specific ``g`` continuation
         (handled here, even if the action is a context no-op) so the caller can
         fall through to vim's own ``g`` commands (``gg``, ``ge``/``gE``,
-        ``gu``/``gU``/``g~``) for anything not in this table.  Dispatch is keyed
-        from the same table that feeds the hint panel, but it intentionally does
-        not consult hint availability: each action method keeps its own
-        prompt-mode / multi-pane guards, so an unavailable continuation is a
-        harmless swallowed no-op.  ``target_mode`` only affects pane focus /
-        reorder continuations; normal-mode callers keep the default while
-        insert-mode ``Ctrl+G`` callers can keep the destination pane in INSERT.
-        ``via_ctrl_g`` exposes continuations that belong only to the ``Ctrl+G``
-        prefix, not bare vim ``g``.
+        ``gu``/``gU``/``g~``) for anything not in this table.  ``gm`` is claimed
+        here and is unclaimed by the text area's vim ``g`` handling.  Dispatch
+        is keyed from the same table that feeds the hint panel, but it
+        intentionally does not consult hint availability: each action method
+        keeps its own prompt-mode / multi-pane guards, so an unavailable
+        continuation is a harmless swallowed no-op.  ``target_mode`` only
+        affects pane focus / reorder continuations; normal-mode callers keep
+        the default while insert-mode ``Ctrl+G`` callers can keep the
+        destination pane in INSERT. ``via_ctrl_g`` exposes continuations that
+        belong only to the ``Ctrl+G`` prefix, not bare vim ``g``.
         """
         for binding in _PROMPT_G_PREFIX_BINDINGS:
             if binding.key != key and not (
@@ -278,6 +285,22 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             )
         )
 
+    def request_open_memory_panel(self) -> None:
+        """Ask the app to open the memory panel.
+
+        Presentation-only: the bar captures the ``#memory/<stem>`` xprompt
+        reference under the cursor (if any) and posts
+        ``MemoryPanelRequested`` with that reference and the bar's current
+        mode. The app opens the panel and restores prompt focus and vim
+        mode on dismiss (boundary rule D6).
+        """
+        self.post_message(
+            self.MemoryPanelRequested(  # type: ignore[attr-defined]
+                self._memory_note_under_cursor(),
+                self._mode,
+            )
+        )
+
     def _glossary_term_under_cursor(self) -> str | None:
         """Return the highlighted glossary term at the cursor, if any.
 
@@ -293,6 +316,38 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return None
         term = getattr(match[2], "term", None)
         return term if isinstance(term, str) and term else None
+
+    def _memory_note_under_cursor(self) -> str | None:
+        """Return the ``#memory/<stem>`` reference at the cursor, if any.
+
+        Reuses the prompt-area jump-target detection used by definition
+        jumps. A non-memory xprompt, a nested path, or a miss is ``None``:
+        the panel loads its own catalog and opens on the seeded scope's
+        first note.
+        """
+        try:
+            from sase.ace.tui.widgets._prompt_jump_target import (
+                detect_jump_target_at_cursor,
+            )
+
+            text_area = self.active_text_area()
+            offset = text_area._absolute_offset(text_area.cursor_location)
+            target = detect_jump_target_at_cursor(text_area.text, offset)
+        except Exception:
+            return None
+        if target is None or getattr(target, "kind", None) != "xprompt":
+            return None
+        name = str(getattr(target, "target", "") or "")
+        if name.startswith("#"):
+            name = name[1:]
+        if not name.startswith("memory/"):
+            return None
+        stem = name.removeprefix("memory/")
+        if stem.endswith(".md"):
+            stem = stem[: -len(".md")]
+        if not stem or "/" in stem or stem.lower() == "readme":
+            return None
+        return f"#memory/{stem}"
 
     def _g_focus_next_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
@@ -353,6 +408,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_glossary(self) -> bool:
         """Whether ``gG`` / ``^GG`` can open the glossary panel."""
+        return self._mode == "prompt"
+
+    def _g_prefix_available_memory(self) -> bool:
+        """Whether ``gm`` / ``^Gm`` can open the memory panel."""
         return self._mode == "prompt"
 
     def _g_prefix_available_cancel_all(self) -> bool:
@@ -460,6 +519,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_glossary(self) -> str:
         return "glossary…"
+
+    def _g_prefix_label_memory(self) -> str:
+        return "memory…"
 
     def _g_prefix_label_cancel_all(self) -> str:
         """Return the ``Ctrl+G Ctrl+C`` label."""

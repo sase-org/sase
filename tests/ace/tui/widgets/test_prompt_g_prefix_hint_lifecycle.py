@@ -31,6 +31,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         plain = panel.render().plain
         assert "gf   format prompt" in plain
         assert "gG   glossary…" in plain
+        assert "gm   memory…" in plain
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
@@ -63,6 +64,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^Gg / ^G^G   edit in editor" in plain
         assert "^Gf   format prompt" in plain
         assert "^GG   glossary…" in plain
+        assert "^Gm   memory…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
@@ -96,6 +98,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^Gg / ^G^G   edit in editor" in plain
         assert "^Gf   format prompt" in plain
         assert "^GG   glossary…" in plain
+        assert "^Gm   memory…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain

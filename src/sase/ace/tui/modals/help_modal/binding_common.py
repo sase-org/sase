@@ -44,6 +44,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("gf / Ctrl+G f", "Format current prompt"),
         ("gG / Ctrl+G G", "Glossary panel"),
+        ("gm / Ctrl+G m", "Memory panel"),
         ("g=", "Frontmatter panel"),
         ("q/Esc (panel)", "Return to originating pane"),
         ("gj/gk (panel)", "Top / bottom prompt pane"),

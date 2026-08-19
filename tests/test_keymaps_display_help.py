@@ -349,6 +349,7 @@ def test_help_modal_lists_memory_panel() -> None:
             (key, label) for _section, bindings in sections for key, label in bindings
         }
         names = {name for name, _bindings in sections}
+        assert ("gm / Ctrl+G m", "Memory panel") in pairs
         assert ("gm / Ctrl+G m", "Open from prompt") in pairs
         assert "Memory Panel" in names
         assert ("j / k", "Move through notes") in pairs

@@ -122,6 +122,21 @@ class GlossaryPanelRequested(Message, namespace="prompt_input_bar"):
         self.mode = mode
 
 
+class MemoryPanelRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to open the memory panel.
+
+    Presentation-only (boundary rule D6): the bar captures the
+    ``#memory/<stem>`` xprompt reference under the cursor (or ``None``) and
+    its current ``mode``. The app opens the panel with that seed and restores
+    prompt focus and vim mode on dismiss.
+    """
+
+    def __init__(self, note_reference: str | None = None, mode: str = "prompt") -> None:
+        super().__init__()
+        self.note_reference = note_reference
+        self.mode = mode
+
+
 class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
     """Message sent when the user asks to update an existing pinned stash.
 

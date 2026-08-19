@@ -347,10 +347,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-qt.6(MemoryValidationError)" \
         --epic-symbol "sase-qt.6(create_memory_note)" \
         --epic-symbol "sase-qt.6(delete_memory_note)" \
-        --epic-symbol "sase-qt.6(memory_note_relative_path_for_stem)" \
         --epic-symbol "sase-qt.6(update_memory_note)" \
         --epic-symbol "sase-qt.6(validate_memory_note_draft)" \
-        --epic-symbol "sase-qt.7(MemoryPanel)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

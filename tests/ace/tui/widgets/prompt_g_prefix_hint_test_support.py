@@ -30,6 +30,7 @@ class GPrefixHintApp(App[None]):
         self.stashed: list[PromptInputBar.Stashed] = []
         self.restore_requests: list[PromptInputBar.RestoreRequested] = []
         self.glossary_requests: list[PromptInputBar.GlossaryPanelRequested] = []
+        self.memory_requests: list[PromptInputBar.MemoryPanelRequested] = []
         self.update_requests: list[PromptInputBar.UpdatePinnedRequested] = []
         self.save_xprompt_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
 
@@ -58,6 +59,11 @@ class GPrefixHintApp(App[None]):
         self, event: PromptInputBar.GlossaryPanelRequested
     ) -> None:
         self.glossary_requests.append(event)
+
+    def on_prompt_input_bar_memory_panel_requested(
+        self, event: PromptInputBar.MemoryPanelRequested
+    ) -> None:
+        self.memory_requests.append(event)
 
     def on_prompt_input_bar_update_pinned_requested(
         self, event: PromptInputBar.UpdatePinnedRequested
