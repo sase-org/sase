@@ -161,7 +161,8 @@ class TestAgentListProviderEmojiBadges:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "🤖 child-agent (RUNNING)" in left.plain
+        assert "🤖 (RUNNING)" in left.plain
+        assert "child-agent" not in left.plain
         assert "1/2" not in left.plain
 
     def test_non_agent_workflow_child_row_omits_provider_emoji(self) -> None:

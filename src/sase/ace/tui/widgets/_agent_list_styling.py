@@ -92,9 +92,10 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 }
 
 # Per-step-type glyphs for workflow child entries. Only python/bash get
-# a glyph: agent rows already carry a meaningful display name (and are
-# the common case, so a glyph would be noise), parallel uses its accent
-# + structural fan-out children, and prompt_part is invisible by default.
+# a glyph: that step name is their identity (sase shells use the
+# right-hand %id annotation instead, so a glyph would be noise), parallel
+# uses its accent + structural fan-out children, and prompt_part is
+# invisible by default.
 #
 # Bash and python steps are both "a command the machine runs"; the
 # per-step-type color carries the distinction, so one prompt chevron is

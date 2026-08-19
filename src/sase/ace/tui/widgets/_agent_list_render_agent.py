@@ -22,7 +22,7 @@ from sase.agent.status_buckets import (
 
 from ..agent_count_chip import format_agent_count_chip
 from ..models._agent_clan import ClanStatusCounts, clan_member_counts
-from ..models._agent_tree import agent_is_tree_child, agent_tree_depth
+from ..models._agent_tree import agent_is_tree_child, agent_tree_depth, agent_tree_title
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import (
@@ -277,12 +277,12 @@ def format_agent_option(
         else:
             name_style = "bold #00D7AF" if is_selected else "#00D7AF"
 
-        # Agent display name (workflow name for top-level workflows,
-        # Patch name otherwise).
-        # A monitor row shows its label only; the full command is long enough
-        # to swamp the tree, so it lives in the detail panel instead.
-        display_name = agent.monitor_label if agent.is_monitor else agent.display_name
-        text.append(display_name or agent.display_name, style=name_style)
+        # Bash/python workflow steps keep their step name as identity. Sase
+        # shells (family members, monitors, workflow agent steps) omit the
+        # left-side title; identity is the right-hand %id annotation.
+        title = agent_tree_title(agent)
+        if title:
+            text.append(title, style=name_style)
         if tribe_label:
             text.append(
                 f" @{tribe_label}",

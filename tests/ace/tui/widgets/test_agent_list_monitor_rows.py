@@ -100,7 +100,7 @@ def _monitor_starter() -> Agent:
     )
 
 
-def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
+def test_monitor_row_uses_glyph_without_label_or_command() -> None:
     left, _suffix, _option_id = format_agent_option(
         _monitor(status="MONITORING", monitor_state="running"),
         0,
@@ -108,9 +108,10 @@ def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
     )
 
     assert "⚙" in left.plain
-    assert "just check" in left.plain
+    assert "just check" not in left.plain
     assert "just check-full" not in left.plain
     assert "MONITORING" in left.plain
+    assert "alpha--mon" in left.plain
 
 
 def test_monitor_starter_row_uses_agent_rendering_not_monitor_rendering() -> None:

@@ -7,6 +7,7 @@ from textual.widgets.option_list import Option
 
 from sase.project_display_names import humanize_vcs_refs_in_text
 
+from ..models._agent_tree import agent_tree_title
 from ..models.agent import Agent, AgentType
 from ..models.agent_status import STOPPED_COLOR, STOPPED_GLYPH, STOPPED_STATUS
 
@@ -80,9 +81,15 @@ def format_agent_label(
     text.append(f"[{agent.display_type}]", style=f"bold {type_color}")
     text.append(" ")
 
-    text.append(agent.display_name, style="bold")
+    primary = (
+        agent_tree_title(agent)
+        or agent.presented_agent_name
+        or agent.agent_name
+        or agent.display_name
+    )
+    text.append(primary, style="bold")
 
-    if agent.presented_agent_name:
+    if agent.presented_agent_name and agent.presented_agent_name != primary:
         text.append("  ")
         text.append(f"@{agent.presented_agent_name}", style="#87D7FF")
 
@@ -129,7 +136,13 @@ def build_metadata_preview(agent: Agent, children: list[Agent]) -> Text:
     meta = Text()
 
     type_color = get_type_color(agent)
-    header = f"[{agent.display_type}] {agent.display_name}"
+    header_name = (
+        agent_tree_title(agent)
+        or agent.presented_agent_name
+        or agent.agent_name
+        or agent.display_name
+    )
+    header = f"[{agent.display_type}] {header_name}"
     meta.append("\u2501\u2501\u2501 ", style="dim")
     meta.append(header, style=f"bold {type_color}")
     meta.append(

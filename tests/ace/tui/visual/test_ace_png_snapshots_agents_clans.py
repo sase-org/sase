@@ -125,7 +125,7 @@ async def test_clan_tree_fold_levels_png_snapshots(
         await page.press("l")
         await page.expect_state("agent_count", 5)
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "audit-prompt")
+        assert any(agent.cl_name == "audit-prompt" for agent in page.app._agents)
         assert all(not agent.is_hidden_step for agent in page.app._agents)
         assert all(
             agent.agent_name != "research.family--code" for agent in page.app._agents

@@ -345,8 +345,11 @@ def test_same_position_row_change_patches_without_panel_rebuild(
 def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
     monkeypatch: Any,
 ) -> None:
+    # Family-member children no longer carry a left-side title, so the
+    # container name has to supply the row-width slack that a suffix patch
+    # (unread + pencil) needs.
     planner = _agent(
-        "build--plan",
+        "build-family-root",
         tribe="apple",
         suffix="build-plan",
         status="TALE APPROVED",

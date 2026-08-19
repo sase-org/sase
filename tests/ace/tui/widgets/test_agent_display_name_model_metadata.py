@@ -121,6 +121,21 @@ class TestAgentModelMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Model: CLAUDE(opus)\n" in header.plain
+        assert "Step: " not in header.plain
+
+    def test_agent_workflow_child_omits_step_field(self) -> None:
+        agent = make_agent(
+            agent_type=AgentType.WORKFLOW,
+            parent_workflow="wf",
+            step_name="main",
+            step_type="agent",
+            agent_name="08b--plan",
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Step: main" not in header.plain
+        assert "Name: 08b--plan\n" in header.plain
 
     def test_top_level_agent_renders_model(self) -> None:
         agent = make_agent(model="opus", llm_provider="claude")

@@ -157,7 +157,11 @@ def _append_project_fields(
     meta_patch: object,
 ) -> None:
     """Append project, workspace, and workflow identity fields."""
-    if agent.is_workflow_step_child and agent.step_name:
+    if (
+        agent.is_workflow_step_child
+        and agent.step_type in {"bash", "python"}
+        and agent.step_name
+    ):
         text.append("Step: ", style="bold #87D7FF")
         text.append(f"{agent.step_name}\n", style="#00D7AF")
     elif meta_patch:

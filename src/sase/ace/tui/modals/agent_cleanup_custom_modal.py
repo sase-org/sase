@@ -24,6 +24,7 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupPlanWire,
     AgentCleanupRequestWire,
 )
+from sase.ace.tui.models._agent_tree import agent_tree_title
 from sase.ace.tui.models.tribe_display import (
     compose_tribe_identity_style,
     named_tribe_identity_colors,
@@ -323,8 +324,14 @@ class AgentCleanupCustomModal(ModalScreen[AgentCleanupCustomResult | None]):
         selected = agent.identity in self._selected
         text = Text()
         text.append("[x] " if selected else "[ ] ", style="cyan" if selected else "dim")
-        text.append(agent.display_name, style="bold" if selected else "")
-        if agent.presented_agent_name:
+        primary = (
+            agent_tree_title(agent)
+            or agent.presented_agent_name
+            or agent.agent_name
+            or agent.display_name
+        )
+        text.append(primary, style="bold" if selected else "")
+        if agent.presented_agent_name and agent.presented_agent_name != primary:
             text.append(f" @{agent.presented_agent_name}", style="cyan")
         effective_tribe = self._effective_tribe(agent)
         if effective_tribe:

@@ -1928,13 +1928,14 @@ distinct shade from that provider's palette so multi-model fan-outs are easy to 
 Providers without a dedicated palette (anything outside the table above) fall back to a
 neutral purple palette and render no emoji badge.
 
-Workflow child rows for `python` and `bash` steps render a leading `❯` glyph after the
-`N/M` step number, styled with the matching step-type accent — bash amber, python green.
-The glyph's presence is a stronger signal than the step-type color alone for colorblind
-users and for rapid scanning; color still carries the bash/python distinction. Agent,
-parallel, and `prompt_part` step rows are left unchanged — agent rows already carry a
-meaningful display name, parallel rows fan out into structural children, and
-`prompt_part` rows are invisible by default.
+Workflow child rows for `python` and `bash` steps render a leading `❯` glyph plus the
+step name, styled with the matching step-type accent — bash amber, python green —
+because that name is those rows' identity. The glyph's presence is a stronger signal
+than the step-type color alone for colorblind users and for rapid scanning; color still
+carries the bash/python distinction. Sase shells (family-member agent shells, monitor
+proc shells, and workflow `agent` steps) omit a left-side title; their identity is the
+right-hand `%id` / family-member name. Parallel rows fan out into structural children,
+and `prompt_part` rows are invisible by default.
 
 The right-hand edge of each row carries a runtime suffix
 (`<start-timestamp> · <elapsed>`) right-aligned within the panel. Active rows that have

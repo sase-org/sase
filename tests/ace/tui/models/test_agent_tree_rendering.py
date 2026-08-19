@@ -69,7 +69,9 @@ def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -
         == "#00AFFF"
     )
     assert family_member.tree_depth == 2
-    assert member_text.plain.startswith("  │  └─ research.family--code")
+    assert member_text.plain.startswith("  │  └─ (RUNNING)")
+    assert "research.family--code" in member_text.plain
+    assert not member_text.plain.startswith("  │  └─ research.family--code")
 
 
 def test_family_identity_color_requires_a_real_member() -> None:

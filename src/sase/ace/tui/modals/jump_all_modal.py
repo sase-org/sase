@@ -26,6 +26,7 @@ from ..actions.navigation.jump_hints import (
     normalize_jump_key,
 )
 from ..bgcmd import get_slot_info
+from ..models._agent_tree import agent_tree_title
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
@@ -169,7 +170,13 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         _, ag_color = _TAB_STYLES["agents"]
         for idx, ag in enumerate(agents):
             style = _AGENT_STATUS_STYLES.get(ag.status, "")
-            name = ag.display_name or humanize_cl_name(ag.cl_name)
+            name = (
+                agent_tree_title(ag)
+                or ag.presented_agent_name
+                or ag.agent_name
+                or ag.display_name
+                or humanize_cl_name(ag.cl_name)
+            )
             if ag.raw_suffix:
                 name = f"{name}/{ag.raw_suffix}"
             entries.append(

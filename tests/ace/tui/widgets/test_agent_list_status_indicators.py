@@ -57,14 +57,8 @@ class TestAgentListRevertedIndicator:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "↺" not in left.plain
-        name_start = left.plain.index("test_cl")
-        name_end = name_start + len("test_cl")
-        assert not any(
-            span.start <= name_start
-            and span.end >= name_end
-            and "strike" in str(span.style).lower()
-            for span in left.spans
-        )
+        assert "test_cl" not in left.plain
+        assert not any("strike" in str(span.style).lower() for span in left.spans)
 
     def test_normal_row_omits_reverted_indicator(self) -> None:
         agent = make_agent(status="DONE", llm_provider=None)

@@ -85,6 +85,35 @@ def agent_is_tree_child(agent: Agent) -> bool:
     return agent_tree_depth(agent) > 0
 
 
+_NAMED_WORKFLOW_STEP_TYPES = frozenset({"bash", "python"})
+
+
+def agent_tree_title(agent: Agent) -> str | None:
+    """Return the Agents-tab left-side title, or ``None`` for sase shells.
+
+    Bash/python workflow steps use their step name as identity. Sase shells
+    (family members, monitors, workflow ``agent`` steps) keep identity on the
+    right-hand ``%id`` annotation. Clan containers, family containers, and
+    standalone roots keep ``display_name``.
+    """
+    if agent.is_workflow_step_child and agent.step_type in _NAMED_WORKFLOW_STEP_TYPES:
+        title = agent.step_name or agent.display_name
+        return title or None
+    if _is_untitled_sase_shell(agent):
+        return None
+    return agent.display_name or None
+
+
+def _is_untitled_sase_shell(agent: Agent) -> bool:
+    if agent.is_clan_container or agent.is_family_container_row:
+        return False
+    if agent.is_monitor:
+        return True
+    if agent.is_workflow_step_child and agent.step_type == "agent":
+        return True
+    return agent.is_family_member_child
+
+
 def tree_parent_lookup(agents: Iterable[Agent]) -> dict[str, Agent]:
     """Index artifact parents and synthetic clan parents by their tree keys."""
     lookup: dict[str, Agent] = {}
@@ -575,6 +604,7 @@ __all__ = [
     "agent_is_tree_child",
     "agent_parent_fold_key",
     "agent_tree_depth",
+    "agent_tree_title",
     "filter_tree_rows",
     "presentation_anchor",
     "presentation_anchor_lookup",

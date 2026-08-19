@@ -5,6 +5,7 @@ from __future__ import annotations
 from sase.ace.tui.models._agent_tree import (
     agent_fold_key,
     agent_parent_fold_key,
+    agent_tree_title,
     presentation_anchor,
     presentation_anchor_lookup,
     project_clan_tree,
@@ -186,3 +187,79 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
         == starter.raw_suffix
     )
     assert disk_monitor.tree_depth == tagged_monitor.tree_depth == 3
+
+
+def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
+    bash = _agent(
+        "setup",
+        "setup",
+        parent_workflow="ace-run",
+        parent_timestamp="family",
+        step_type="bash",
+        clan=None,
+        generation=None,
+    )
+    bash.step_name = "setup"
+    python = _agent(
+        "prepare",
+        "prepare",
+        parent_workflow="ace-run",
+        parent_timestamp="family",
+        step_type="python",
+        clan=None,
+        generation=None,
+    )
+    python.step_name = "prepare"
+    planner = _agent(
+        "main",
+        "plan",
+        parent_workflow="ace-run",
+        parent_timestamp="family",
+        step_type="agent",
+        clan=None,
+        generation=None,
+    )
+    planner.step_name = "main"
+    planner.agent_name = "08b--plan"
+    coder = _agent(
+        "sase",
+        "code",
+        parent_timestamp="family",
+        clan=None,
+        generation=None,
+    )
+    coder.agent_name = "08b--code"
+    monitor = _agent(
+        "monitor",
+        "mon",
+        parent_timestamp="family",
+        clan=None,
+        generation=None,
+    )
+    monitor.agent_family_role = "monitor"
+    monitor.role_suffix = "--mon"
+    monitor.monitor_label = "just check"
+    family = _agent("08b", "family", clan=None, generation=None)
+    family.agent_family = "08b"
+    family.agent_family_role = "root"
+    family.followup_agents = [coder]
+    parallel = _agent(
+        "fanout",
+        "fanout",
+        parent_workflow="ace-run",
+        parent_timestamp="family",
+        step_type="parallel",
+        clan=None,
+        generation=None,
+    )
+    parallel.step_name = "fanout"
+    standalone = _agent("sase", "root", clan=None, generation=None)
+
+    assert agent_tree_title(bash) == "setup"
+    assert agent_tree_title(python) == "prepare"
+    assert agent_tree_title(planner) is None
+    assert agent_tree_title(coder) is None
+    assert agent_tree_title(monitor) is None
+    assert agent_tree_title(family) == family.display_name
+    assert agent_tree_title(parallel) == parallel.display_name
+    assert agent_tree_title(standalone) == standalone.display_name
