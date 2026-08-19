@@ -19,7 +19,7 @@ from sase.plugins.catalog import (
 from sase.plugins.github_source import (
     GH_SEARCH_QUERY,
     CatalogFetchResult,
-    _GhCommandError,
+    GhCommandError,
     GhNotFoundError,
 )
 from sase.plugins.installed import InstalledInfo
@@ -328,7 +328,7 @@ def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
     )
 
     def _fail() -> list[dict[str, Any]]:
-        raise _GhCommandError("HTTP 401: Bad credentials")
+        raise GhCommandError("HTTP 401: Bad credentials")
 
     catalog = _load([], refresh=True, cached=cached, fetch_fn=_fail)
 
@@ -345,17 +345,17 @@ def test_old_query_cache_is_not_refresh_failure_fallback() -> None:
     )
 
     def _fail() -> list[dict[str, Any]]:
-        raise _GhCommandError("HTTP 401: Bad credentials")
+        raise GhCommandError("HTTP 401: Bad credentials")
 
-    with pytest.raises(_GhCommandError):
+    with pytest.raises(GhCommandError):
         _load([], refresh=True, cached=cached, fetch_fn=_fail)
 
 
 def test_gh_command_error_without_cache_raises() -> None:
     def _fail() -> list[dict[str, Any]]:
-        raise _GhCommandError("boom")
+        raise GhCommandError("boom")
 
-    with pytest.raises(_GhCommandError):
+    with pytest.raises(GhCommandError):
         _load([], refresh=True, cached=None, fetch_fn=_fail)
 
 

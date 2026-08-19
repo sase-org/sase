@@ -17,8 +17,8 @@ from sase.plugins.github_source import (
     GH_TIMEOUT_SECONDS,
     SASE_PLUGIN_TOPIC,
     CatalogFetchResult,
-    _CatalogParseError,
-    _GhCommandError,
+    CatalogParseError,
+    GhCommandError,
     GhNotFoundError,
     fetch_catalog_payload,
 )
@@ -346,7 +346,7 @@ def test_fetch_raises_when_gh_missing() -> None:
 def test_fetch_raises_on_nonzero_exit_with_detail() -> None:
     run_fn = _run_returning("", returncode=1, stderr="HTTP 401: Bad credentials")
 
-    with pytest.raises(_GhCommandError) as excinfo:
+    with pytest.raises(GhCommandError) as excinfo:
         fetch_catalog_payload(which_fn=_gh_present, run_fn=run_fn)
     assert "Bad credentials" in str(excinfo.value)
 
@@ -355,7 +355,7 @@ def test_fetch_raises_on_timeout() -> None:
     def _run(_args: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise subprocess.TimeoutExpired(cmd="gh", timeout=20.0)
 
-    with pytest.raises(_GhCommandError) as excinfo:
+    with pytest.raises(GhCommandError) as excinfo:
         fetch_catalog_payload(which_fn=_gh_present, run_fn=_run)
     assert "timed out" in str(excinfo.value)
 
@@ -395,12 +395,12 @@ def test_fetch_raises_on_os_error() -> None:
     def _run(_args: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise OSError("boom")
 
-    with pytest.raises(_GhCommandError):
+    with pytest.raises(GhCommandError):
         fetch_catalog_payload(which_fn=_gh_present, run_fn=_run)
 
 
 def test_fetch_raises_on_malformed_json() -> None:
-    with pytest.raises(_CatalogParseError):
+    with pytest.raises(CatalogParseError):
         fetch_catalog_payload(which_fn=_gh_present, run_fn=_run_returning("{not json"))
 
 
