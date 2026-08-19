@@ -5339,6 +5339,178 @@ GlossaryPanelHelpModal #glossary-panel-help-footer {
     padding-top: 1;
 }
 
+/* ===== Memory Panel Styling ===== */
+
+MemoryPanel {
+    align: center middle;
+}
+
+MemoryPanel #memory-panel-container {
+    width: 90%;
+    max-width: 150;
+    height: 90%;
+    max-height: 44;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryPanel #memory-panel-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryPanel #memory-panel-body {
+    height: 1fr;
+}
+
+MemoryPanel #memory-panel-notes {
+    width: 32;      /* default; fitted at runtime by note_rail_width() */
+    min-width: 32;  /* keep in sync with _NOTE_RAIL_MIN_WIDTH */
+    max-width: 52;  /* keep in sync with _NOTE_RAIL_MAX_WIDTH */
+    height: 100%;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+MemoryPanel #memory-panel-detail {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    margin-left: 1;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+MemoryPanel #memory-panel-card-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryPanel #memory-panel-card-description {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryPanel #memory-panel-card-body {
+    width: 100%;
+    height: auto;
+}
+
+MemoryPanel #memory-panel-card-meta {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
+MemoryPanel #memory-panel-filter {
+    height: 3;
+    margin-top: 1;
+    border: tall $accent;
+}
+
+MemoryPanel #memory-panel-trail {
+    height: auto;
+    margin-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+MemoryPanel #memory-panel-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ===== Memory Panel Help Modal Styling ===== */
+
+MemoryPanelHelpModal {
+    align: center middle;
+}
+
+MemoryPanelHelpModal #memory-panel-help-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryPanelHelpModal #memory-panel-help-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryPanelHelpModal #memory-panel-help-scroll {
+    height: auto;
+    max-height: 100%;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+MemoryPanelHelpModal #memory-panel-help-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+/* ===== Memory Scope Picker Modal Styling ===== */
+
+MemoryScopePicker {
+    align: center middle;
+}
+
+MemoryScopePicker #memory-panel-scope-picker-container {
+    width: 78;
+    max-width: 92%;
+    height: auto;
+    max-height: 80%;
+    border: double #FFAF5F;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryScopePicker #memory-panel-scope-picker-title {
+    height: 1;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+MemoryScopePicker #memory-panel-scope-picker-filter {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+}
+
+MemoryScopePicker #memory-panel-scope-picker-list {
+    height: auto;
+    max-height: 18;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+MemoryScopePicker #memory-panel-scope-picker-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
 /* ===== Repo Preview Modal Styling ===== */
 
 RepoPreviewModal {

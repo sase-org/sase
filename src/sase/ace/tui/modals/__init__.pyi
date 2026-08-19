@@ -133,6 +133,7 @@ from .jump_action_modal import JumpChoice as JumpChoice
 from .launch_approval_modal import LaunchApprovalModal as LaunchApprovalModal
 from .launch_approval_modal import LaunchApprovalResult as LaunchApprovalResult
 from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+from .memory_panel import MemoryPanel as MemoryPanel
 from .mentor_review_models import MentorApplyResult as MentorApplyResult
 from .mentor_review_models import MentorInfo as MentorInfo
 from .mentor_review_models import MentorKillResult as MentorKillResult

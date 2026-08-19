@@ -1,0 +1,206 @@
+"""Shared app harness and catalog builders for Memory panel tests."""
+
+from __future__ import annotations
+
+import threading
+from pathlib import Path
+
+import pytest
+from rich.console import Console, RenderableType
+from textual.app import App, ComposeResult
+from textual.widgets import Static
+
+from sase.ace.tui import memory_panel_catalog as panel_catalog
+from sase.ace.tui.memory_panel_catalog import (
+    MemoryNoteDigest,
+    MemoryScopeRef,
+    MemoryScopeSnapshot,
+)
+from sase.ace.tui.modals import memory_panel as memory_panel_module
+from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_panel_load import (
+    MemoryPanelInitialLoad,
+    MemoryScopeChoice,
+)
+from sase.memory.inventory import MemoryStats
+from sase.memory.notes import AGENTS_PARENT, MemoryNote
+from sase.memory.read_log import MemoryReadPathSummary
+
+
+class MemoryPanelTestApp(App[None]):
+    # The real ACE app disables the command palette; without this, its
+    # default ``ctrl+p`` binding would shadow the Memory panel's own
+    # ``ctrl+p`` (pick scope) binding in tests.
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, panel: MemoryPanel) -> None:
+        super().__init__()
+        self.panel = panel
+
+    def compose(self) -> ComposeResult:
+        yield Static("host")
+
+    def on_mount(self) -> None:
+        self.push_screen(self.panel)
+
+
+def _plain(renderable: RenderableType) -> str:
+    console = Console(width=200, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(renderable)
+    return capture.get()
+
+
+def panel_static_text(panel: MemoryPanel, widget_id: str) -> str:
+    return _plain(panel.query_one(f"#{widget_id}", Static).content)
+
+
+def note_row_text(panel: MemoryPanel, index: int) -> str:
+    option = panel._note_list().get_option_at_index(index)
+    return _plain(option.prompt)
+
+
+def scope_ref(
+    key: str,
+    display_name: str,
+    *,
+    kind: str = "project",
+    has_memory: bool = True,
+    memory_read_root: str | None = "/tmp/memory/sase/memory",
+    content_root: str = "/tmp/memory",
+) -> MemoryScopeRef:
+    return MemoryScopeRef(
+        kind=kind,  # type: ignore[arg-type]
+        key=key,
+        display_name=display_name,
+        content_root=content_root,
+        memory_read_root=memory_read_root,
+        has_memory=has_memory,
+    )
+
+
+def memory_note(
+    stem: str,
+    *,
+    note_type: str | None = "long",
+    parent: str = AGENTS_PARENT,
+    description: str | None = None,
+    body: str = "",
+    type_source: str = "frontmatter",
+    parent_source: str | None = None,
+) -> MemoryNote:
+    relative_path = f"sase/memory/{stem}.md"
+    if parent_source is None:
+        parent_source = "frontmatter" if parent != AGENTS_PARENT else "missing"
+    return MemoryNote(
+        path=Path(relative_path),
+        type=note_type,
+        parent=parent,
+        description=description,
+        body=body,
+        frontmatter={},
+        type_source=type_source,  # type: ignore[arg-type]
+        parent_source=parent_source,  # type: ignore[arg-type]
+        source_path=Path(relative_path),
+    )
+
+
+def scope_snapshot(
+    ref: MemoryScopeRef,
+    notes: tuple[MemoryNote, ...] = (),
+    *,
+    diagnostics: tuple[str, ...] = (),
+    generated_paths: frozenset[str] = frozenset(),
+    shadowed_stems: frozenset[str] = frozenset(),
+    digests: dict[str, MemoryNoteDigest] | None = None,
+    stats: dict[str, MemoryStats] | None = None,
+    read_summaries: dict[str, MemoryReadPathSummary] | None = None,
+) -> MemoryScopeSnapshot:
+    return MemoryScopeSnapshot(
+        scope=ref,
+        notes=notes,
+        tree=panel_catalog._build_note_tree(notes),
+        digests=digests or {},
+        stats=stats or {},
+        shadowed_stems=shadowed_stems,
+        generated_paths=generated_paths,
+        read_summaries=read_summaries or {},
+        diagnostics=diagnostics,
+    )
+
+
+def install_fixed_load(
+    monkeypatch: pytest.MonkeyPatch,
+    ring: tuple[MemoryScopeRef, ...],
+    snapshots: dict[str, MemoryScopeSnapshot],
+    *,
+    scope_index: int = 0,
+) -> list[bool]:
+    """Patch the panel's off-thread loaders and record which thread called them."""
+    off_main_thread: list[bool] = []
+
+    def fake_initial_load(
+        *,
+        launch_workspace: str | None = None,
+        initial_scope_key: str | None = None,
+        seed_from_current_project: bool = True,
+    ) -> MemoryPanelInitialLoad:
+        off_main_thread.append(
+            threading.current_thread() is not threading.main_thread()
+        )
+        index = scope_index
+        if initial_scope_key is not None:
+            for i, candidate in enumerate(ring):
+                if candidate.key == initial_scope_key:
+                    index = i
+                    break
+        if not ring:
+            return MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None)
+        return MemoryPanelInitialLoad(
+            ring=ring, scope_index=index, snapshot=snapshots[ring[index].key]
+        )
+
+    def fake_scope_load(ref: MemoryScopeRef) -> MemoryScopeSnapshot:
+        off_main_thread.append(
+            threading.current_thread() is not threading.main_thread()
+        )
+        return snapshots[ref.key]
+
+    monkeypatch.setattr(
+        memory_panel_module, "load_memory_panel_initial_state", fake_initial_load
+    )
+    monkeypatch.setattr(
+        memory_panel_module, "load_memory_scope_snapshot", fake_scope_load
+    )
+    return off_main_thread
+
+
+def install_fixed_scope_choices(
+    monkeypatch: pytest.MonkeyPatch,
+    choices: tuple[MemoryScopeChoice, ...],
+) -> list[bool]:
+    """Patch the panel's scope-picker loader with a fixed set of choices."""
+    off_main_thread: list[bool] = []
+
+    def fake_choices(
+        _ring: tuple[MemoryScopeRef, ...],
+    ) -> tuple[MemoryScopeChoice, ...]:
+        off_main_thread.append(
+            threading.current_thread() is not threading.main_thread()
+        )
+        return choices
+
+    monkeypatch.setattr(memory_panel_module, "load_memory_scope_choices", fake_choices)
+    return off_main_thread
+
+
+__all__ = [
+    "MemoryPanelTestApp",
+    "install_fixed_load",
+    "install_fixed_scope_choices",
+    "memory_note",
+    "note_row_text",
+    "panel_static_text",
+    "scope_ref",
+    "scope_snapshot",
+]

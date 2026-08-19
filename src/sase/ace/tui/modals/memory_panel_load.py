@@ -8,14 +8,18 @@ the event loop -- see the TUI performance rules in ``sase/memory/tui_perf.md``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from sase.ace.tui.memory_panel_catalog import (
+    MemoryNoteDigest,
     MemoryScopeRef,
     MemoryScopeSnapshot,
     build_memory_scope_ring,
     load_memory_scope_snapshot,
 )
 from sase.current_project import resolve_current_project
+from sase.memory.mutation import memory_note_digest
+from sase.memory.notes import MemoryNote
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +29,15 @@ class MemoryPanelInitialLoad:
     ring: tuple[MemoryScopeRef, ...]
     scope_index: int
     snapshot: MemoryScopeSnapshot | None
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryScopeChoice:
+    """One scope offered by :class:`~sase.ace.tui.modals.memory_panel_scope_picker.MemoryScopePicker`."""
+
+    key: str
+    display_name: str
+    note_count: int
 
 
 def load_memory_panel_initial_state(
@@ -75,7 +88,56 @@ def _ring_index_for_key(
     return None
 
 
+def load_memory_scope_choices(
+    ring: tuple[MemoryScopeRef, ...],
+) -> tuple[MemoryScopeChoice, ...]:
+    """Load every ring scope's snapshot and return its display choice.
+
+    Only ever call this off the event loop: loading each scope reads its
+    memory directory (behind the same cache :func:`load_memory_scope_snapshot`
+    keeps for the panel's own scope loads).
+    """
+    return tuple(
+        MemoryScopeChoice(
+            key=ref.key,
+            display_name=ref.display_name,
+            note_count=len(load_memory_scope_snapshot(ref).notes),
+        )
+        for ref in ring
+    )
+
+
+def note_digest_changed(
+    scope: MemoryScopeRef,
+    note: MemoryNote,
+    previous: MemoryNoteDigest | None,
+) -> bool:
+    """Return whether *note*'s on-disk bytes differ from *previous*'s digest.
+
+    Only ever call this off the event loop: a cache miss reads the note's
+    bytes from disk. Used to decide whether an external editor changed the
+    note the panel had open, so the scope can be reloaded.
+    """
+    path = Path(scope.content_root) / note.source_relative_path
+    try:
+        data = path.read_bytes()
+        file_stat = path.stat()
+    except OSError:
+        return previous is not None
+    if previous is None:
+        return True
+    if (
+        file_stat.st_mtime_ns == previous.mtime_ns
+        and file_stat.st_size == previous.size
+    ):
+        return False
+    return memory_note_digest(data) != previous.sha256
+
+
 __all__ = [
     "MemoryPanelInitialLoad",
+    "MemoryScopeChoice",
     "load_memory_panel_initial_state",
+    "load_memory_scope_choices",
+    "note_digest_changed",
 ]
