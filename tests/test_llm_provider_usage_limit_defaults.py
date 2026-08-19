@@ -22,14 +22,38 @@ from sase.llm_provider.usage_limit_config import (
 
 _CLAUDE_WEEKLY_LIMIT = "You've hit your weekly limit · resets 8pm (America/New_York)"
 
-# The >24h branch of the shipped ``swe(resetsAt, withZone)`` formatter, which
-# is what a `seven_day` limit actually produces (see the comment on
-# ``claude.py``'s ``llm_default_usage_limit_config``). This is the "equivalent
-# fix for other providers" case: before the parser learned the month-name
-# absolute form, this fell back to the flat 24h disable exactly like Codex's
-# captured failure below.
+# The >24h branch of Claude Code 2.1.235's ``fW(epoch, withZone)`` formatter,
+# which is what a `seven_day` limit actually produces (see the comment on
+# ``claude.py``'s ``llm_default_usage_limit_config``). Spaced meridiems are
+# kept as an ICU-shape regression; the live 083 capture below is compact.
 _CLAUDE_WEEKLY_LIMIT_WITH_RESET_DATE = (
     "You've hit your weekly limit · resets Aug 20, 6:38 am (America/New_York)"
+)
+
+# Verbatim trigger from agent 083 on 2026-08-19. Compact meridiem (`8pm`, no
+# space) is the live ``fW`` >24h spelling; minutes of zero are omitted.
+_CLAUDE_WEEKLY_LIMIT_083 = (
+    "You've hit your weekly limit · resets Aug 22, 8pm (America/New_York)"
+)
+_CLAUDE_WEEKLY_LIMIT_083_INVOKE_WRAPPER = (
+    "Error running LLM provider command (exit code 1)\n"
+    "stderr: [result] You've hit your weekly limit · resets Aug 22, 8pm "
+    "(America/New_York)\n"
+    "output: I'll start by exploring the codebase ...\n"
+    "You've hit your weekly limit · resets Aug 22, 8pm (America/New_York)"
+)
+_CLAUDE_WEEKLY_LIMIT_083_WORKFLOW_WRAPPER = (
+    "Step 'main' failed: Error running LLM provider command (exit code 1)\n"
+    "stderr: [result] You've hit your weekly limit · resets Aug 22, 8pm "
+    "(America/New_York)\n"
+    "output: I'll start by exploring the codebase ...\n"
+    "You've hit your weekly limit · resets Aug 22, 8pm (America/New_York)"
+)
+_CLAUDE_FABLE_5_LIMIT = (
+    "You've hit your Fable 5 limit · resets Aug 22, 8pm (America/New_York)"
+)
+_CLAUDE_USAGE_CREDIT_LIMIT = (
+    "You've hit your usage credit limit · resets Aug 22, 8pm (America/New_York)"
 )
 
 # U+2019 RIGHT SINGLE QUOTATION MARK in "You’ve", verified by hexdump per the
@@ -82,6 +106,7 @@ _CLAUDE_GRACE_WINDOW_ADVISORY = (
 _CLAUDE_FAST_MODE_COOLDOWN = (
     "Fast limit reached and temporarily disabled · resets in 5m"
 )
+_CLAUDE_FAST_LIMIT_HIT = "You've hit your fast limit · resets in 5m"
 _CLAUDE_CLOSE_TO_LIMIT_ADVISORY = "You're close to your usage limit"
 
 # Grok Build pager rate-limit strings: throttling, not quota exhaustion, and
@@ -102,7 +127,12 @@ class TestClaudeBuiltInDefaults:
         config = get_usage_limit_config("claude")
         assert config is not None
         assert "you've hit your weekly limit" in config.patterns
+        assert "you've hit your" in config.patterns
+        assert "you've reached your" in config.patterns
+        assert "you're out of usage credits" in config.patterns
+        assert "your org is out of usage" in config.patterns
         assert "usage limit approaching" in config.exclude_patterns
+        assert "you've hit your fast limit" in config.exclude_patterns
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_matches_captured_weekly_limit_failure(self, mock_config: object) -> None:
@@ -133,6 +163,27 @@ class TestClaudeBuiltInDefaults:
         assert is_usage_limit_error(_CLAUDE_FAST_MODE_COOLDOWN, config) is False
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_does_not_match_binary_fast_limit_hit(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("claude")
+        assert config is not None
+        assert is_usage_limit_error(_CLAUDE_FAST_LIMIT_HIT, config) is False
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_matches_fable_5_limit_label(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("claude")
+        assert config is not None
+        assert is_usage_limit_error(_CLAUDE_FABLE_5_LIMIT, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_matches_usage_credit_limit_label(self, mock_config: object) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("claude")
+        assert config is not None
+        assert is_usage_limit_error(_CLAUDE_USAGE_CREDIT_LIMIT, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_does_not_match_close_to_limit_advisory(self, mock_config: object) -> None:
         mock_config.return_value = {}  # type: ignore[union-attr]
         config = get_usage_limit_config("claude")
@@ -157,6 +208,56 @@ class TestClaudeBuiltInDefaults:
         assert detection.used_reset_hint is True
         assert detection.disable_seconds == pytest.approx(3 * 86400, abs=120)
         assert detection.disable_seconds != 86400
+
+    @pytest.mark.parametrize(
+        "error_text",
+        [
+            _CLAUDE_WEEKLY_LIMIT_083,
+            _CLAUDE_WEEKLY_LIMIT_083_INVOKE_WRAPPER,
+            _CLAUDE_WEEKLY_LIMIT_083_WORKFLOW_WRAPPER,
+        ],
+    )
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_captured_083_weekly_limit_uses_reset_hint_duration(
+        self, mock_config: object, error_text: str
+    ) -> None:
+        # Live 2.1.235 compact ``8pm`` spelling. This assertion would fail if
+        # ``_RESET_MONTH_DATE_RE`` required ``\s+`` before ``am|pm``.
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        detection = detect_usage_limit("claude", error_text, now=now)
+
+        assert detection is not None
+        assert "weekly limit" in detection.matched_pattern
+        assert detection.used_reset_hint is True
+        assert detection.reset_hint is not None
+        assert "Aug 22" in detection.reset_hint
+        assert "8pm" in detection.reset_hint
+        expected = datetime(2026, 8, 22, 20, 0, 0, tzinfo=tz).timestamp() + 60 - now
+        assert detection.disable_seconds == pytest.approx(expected, abs=2)
+        assert detection.disable_seconds != 86400
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_unanchored_reset_date_honored_after_usage_limit_match(
+        self, mock_config: object
+    ) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        detection = detect_usage_limit(
+            "claude",
+            "You've hit your weekly limit · Aug 22, 8pm (America/New_York)",
+            now=now,
+        )
+
+        assert detection is not None
+        assert detection.used_reset_hint is True
+        assert detection.reset_hint is not None
+        assert "Aug 22" in detection.reset_hint
+        assert "8pm" in detection.reset_hint
+        expected = datetime(2026, 8, 22, 20, 0, 0, tzinfo=tz).timestamp() + 60 - now
+        assert detection.disable_seconds == pytest.approx(expected, abs=2)
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_user_appends_custom_pattern_to_built_in(self, mock_config: object) -> None:

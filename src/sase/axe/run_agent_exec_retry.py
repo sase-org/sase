@@ -30,6 +30,7 @@ from sase.llm_provider.usage_limit_config import (
     detect_usage_limit,
     find_usage_limit_detection_for_error,
 )
+from sase.llm_provider.usage_limit_disable import handle_possible_usage_limit
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -220,9 +221,21 @@ def handle_workflow_error(
     or ``"raise"`` to propagate the exception.
     """
     error_str = str(exc)
-    _refresh_execution_provider(
-        tracker, state.current_artifacts_dir or ctx.artifacts_dir
-    )
+    artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
+    _refresh_execution_provider(tracker, artifacts_dir)
+
+    # Second writer: Claude quota errors match none of Claude's retry
+    # patterns, so this function used to ``return "raise"`` before any
+    # disable write. Skip when the execution provider is unknown so
+    # quoted another-provider prose cannot change policy. A successful
+    # ``_invoke`` write is a silent first-writer no-op here.
+    if tracker.execution_provider:
+        handle_possible_usage_limit(
+            provider=tracker.execution_provider,
+            error_text=error_str,
+            model=ctx.agent_model,
+            artifacts_dir=artifacts_dir,
+        )
 
     # Try the agent's own provider config first; fall back to
     # checking all configured providers (handles the case where

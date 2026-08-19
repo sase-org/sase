@@ -1,8 +1,10 @@
 """Runtime enforcement: detect usage-limit failures and disable the provider.
 
-Called from the LLM invocation error paths in :mod:`sase.llm_provider._invoke`.
-Writes go through the existing Rust-backed :mod:`sase.llm_provider.provider_disable`
-store — this module is the only writer that uses ``source="usage_limit"``.
+Called from the LLM invocation error paths in :mod:`sase.llm_provider._invoke`
+and again from :func:`sase.axe.run_agent_exec_retry.handle_workflow_error` as a
+backstop when the provider's retry patterns do not match. Writes go through the
+existing Rust-backed :mod:`sase.llm_provider.provider_disable` store — this
+module is the only writer that uses ``source="usage_limit"``.
 """
 
 from __future__ import annotations

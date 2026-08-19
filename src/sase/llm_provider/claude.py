@@ -163,27 +163,29 @@ class ClaudeCodeProvider(LLMProvider):
     def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
         from .usage_limit_config import ProviderUsageLimitConfig
 
-        # Anchored on the confirmed template "You've hit your <label>" from
-        # the shipped Claude Code binary, plus the observed weekly-limit
-        # failure (epic sase-n4 research). The exclude_patterns guard against
-        # near-miss advisory text the same binary injects into *successful*
-        # runs ("approaching", "grace window") and the fast-mode cooldown
-        # message, none of which are account-level usage limits.
+        # Anchored on Claude Code 2.1.235's own hard-limit classifier list
+        # (``YZe`` / ``XOt`` / ``GEn``), not today's seven-day wording:
+        # ``You've hit your <label>``, ``You've reached your``,
+        # ``You're out of usage credits``, ``Your org is out of usage``,
+        # plus the monthly spend/limit lines. Exact historical phrases are
+        # kept so existing tests stay meaningful. ``exclude_patterns``
+        # suppress the same binary's advisory/cooldown family, including
+        # the fast-mode line ``You've hit your fast limit`` (the older
+        # captured ``fast limit reached`` spelling is kept too).
         #
-        # The same binary's ``swe(resetsAt, withZone)`` formatter appends a
-        # " · resets <X>" suffix that branches on distance from now: within
-        # 24h it renders a bare zoned clock time ("resets 6:38pm (America/
-        # New_York)"), already handled by the zoned clock-time form; beyond
-        # 24h — which is what the `seven_day` limits produce — it renders
-        # "resets Aug 20, 6:38 am (America/New_York)" (no comma before the
-        # time; minutes omitted when zero: "resets Aug 20, 6 am (...)"; year
-        # inserted across a year boundary: "resets Aug 20, 2027, 6:38 am
-        # (...)"). A separate billing-error body renders "spend limit
-        # reached (monthly; resets 2026-08-20 06:38 UTC)". Both are parsed
-        # by usage_limit_config.py's absolute-timestamp forms. Two label-map
-        # entries (`seven_day_overage_included` → "Fable 5 limit",
-        # `overage` → "usage credit limit") have no corresponding pattern
-        # here yet — not guessed at, since the wording hasn't been captured.
+        # The binary's ``fW(epoch, withZone)`` formatter appends a
+        # " · resets <X>" suffix that branches on distance from now. The
+        # replace callback ``.replace(/ ([AP]M)/i, (_, mer) => mer.toLowerCase())``
+        # returns only the lowercased meridiem, so it strips the space
+        # ``toLocaleString`` inserted. Minutes of zero omit ``:00``.
+        # Within 24h: ``resets 6:38pm (America/New_York)``. Beyond 24h —
+        # which is what `seven_day` limits produce —
+        # ``resets Aug 22, 8pm (America/New_York)`` (no space before the
+        # meridiem; year inserted across a year boundary:
+        # ``resets Aug 20, 2027, 8pm (...)``). A separate billing-error
+        # body renders ``spend limit reached (monthly; resets 2026-08-20
+        # 06:38 UTC)``. Both are parsed by usage_limit_config.py's
+        # absolute-timestamp forms.
         return ProviderUsageLimitConfig(
             patterns=[
                 "you've hit your usage limit",
@@ -193,6 +195,12 @@ class ClaudeCodeProvider(LLMProvider):
                 "you've hit your sonnet limit",
                 "usage limit reached",
                 "claude usage limit reached",
+                "you've hit your",
+                "you've reached your",
+                "you're out of usage credits",
+                "your org is out of usage",
+                "you've hit your monthly spend limit",
+                "you've hit your monthly limit",
             ],
             exclude_patterns=[
                 "usage limit approaching",
@@ -200,6 +208,7 @@ class ClaudeCodeProvider(LLMProvider):
                 "approaching your",
                 "fast limit reached",
                 "close to your usage limit",
+                "you've hit your fast limit",
             ],
         )
 

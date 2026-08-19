@@ -291,12 +291,13 @@ _RESET_ANCHOR = r"(?:resets?|try\s+again)\s+(?:at\s+|on\s+)?"
 # also emit a parenthesized "(UTC)").
 _ZONE_NAME_RE = r"[A-Za-z_]+(?:/[A-Za-z_]+)+|UTC"
 
-_RESET_ISO_RE = re.compile(
-    _RESET_ANCHOR
-    + r"(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?"
-    + r"(?:\s*(Z|UTC|[+-]\d{2}:\d{2}))?",
-    re.IGNORECASE,
+# Shared ISO-ish timestamp payload (year-month-day and clock), used by both
+# the keyword-anchored form and the unanchored fallback.
+_ISO_DATETIME_PAYLOAD = (
+    r"(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?"
+    r"(?:\s*(Z|UTC|[+-]\d{2}:\d{2}))?"
 )
+
 _MONTH_ABBR_TO_NUM = {
     "jan": 1,
     "feb": 2,
@@ -311,16 +312,25 @@ _MONTH_ABBR_TO_NUM = {
     "nov": 11,
     "dec": 12,
 }
-_RESET_MONTH_DATE_RE = re.compile(
-    _RESET_ANCHOR
-    + r"([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+"
-    + r"(?:(\d{4}),?\s+)?"
-    + r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)"
-    + r"(?:\s*\(("
-    + _ZONE_NAME_RE
-    + r")\))?",
-    re.IGNORECASE,
+
+# Month-name date + 12h clock. Claude Code 2.1.235 ``fW(epoch, withZone)``
+# strips the space before the meridiem via
+# ``.replace(/ ([AP]M)/i, (full, mer) => mer.toLowerCase())``, which returns
+# only the lowercased ``am``/``pm``. Keep ``\s*`` so compact ``8pm`` /
+# ``6:38am`` parse; do not tighten to ``\s+``.
+_MONTH_NAME_DATETIME_PAYLOAD = (
+    r"([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+"
+    r"(?:(\d{4}),?\s+)?"
+    r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)"
+    r"(?:\s*\((" + _ZONE_NAME_RE + r")\))?"
 )
+
+_RESET_ISO_RE = re.compile(_RESET_ANCHOR + _ISO_DATETIME_PAYLOAD, re.IGNORECASE)
+_RESET_MONTH_DATE_RE = re.compile(
+    _RESET_ANCHOR + _MONTH_NAME_DATETIME_PAYLOAD, re.IGNORECASE
+)
+_UNANCHORED_ISO_RE = re.compile(_ISO_DATETIME_PAYLOAD, re.IGNORECASE)
+_UNANCHORED_MONTH_DATE_RE = re.compile(_MONTH_NAME_DATETIME_PAYLOAD, re.IGNORECASE)
 _RESET_TIME_WITH_ZONE_RE = re.compile(
     _RESET_ANCHOR + r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*\((" + _ZONE_NAME_RE + r")\)",
     re.IGNORECASE,
@@ -469,7 +479,48 @@ def _resolve_month_name_datetime(
     return best.timestamp()
 
 
-def parse_reset_hint(text: str, *, now: float) -> tuple[float | None, str | None]:
+def _hint_from_iso_match(
+    match: re.Match[str], normalized: str
+) -> tuple[float | None, str | None]:
+    year_str, month_str, day_str, hour_str, minute_str, second_str, zone_str = (
+        match.groups()
+    )
+    expires_at = _resolve_iso_datetime(
+        year_str, month_str, day_str, hour_str, minute_str, second_str, zone_str
+    )
+    if expires_at is None:
+        return None, None
+    hint = normalized[match.start(1) : match.end()]
+    return expires_at + _RESET_GRACE_SECONDS, hint
+
+
+def _hint_from_month_date_match(
+    match: re.Match[str], normalized: str, now: float
+) -> tuple[float | None, str | None]:
+    month_str, day_str, year_str, hour_str, minute_str, meridiem, zone_str = (
+        match.groups()
+    )
+    if zone_str is not None:
+        try:
+            tz: TzInfo = ZoneInfo(zone_str)
+        except (ZoneInfoNotFoundError, ValueError, KeyError):
+            return None, None
+    else:
+        from sase.core.time import get_timezone
+
+        tz = get_timezone()
+    expires_at = _resolve_month_name_datetime(
+        month_str, day_str, year_str, hour_str, minute_str, meridiem, tz, now
+    )
+    if expires_at is None:
+        return None, None
+    hint = normalized[match.start(1) : match.end()]
+    return expires_at + _RESET_GRACE_SECONDS, hint
+
+
+def parse_reset_hint(
+    text: str, *, now: float, allow_unanchored: bool = False
+) -> tuple[float | None, str | None]:
     """Parse a provider-reported reset time or duration from ``text``.
 
     Returns ``(expires_at_epoch, display_hint)``. Tries each form in
@@ -487,43 +538,22 @@ def parse_reset_hint(text: str, *, now: float) -> tuple[float | None, str | None
     ``timezone:`` config deliberately set to something other than the host
     zone will skew these parses, matching what the pre-existing bare
     clock-time form already assumed.
+
+    When ``allow_unanchored`` is true — used by :func:`detect_usage_limit`
+    after a usage-limit pattern has already matched — and no keyword form
+    matched at all, a month-name or ISO-ish timestamp is accepted without
+    ``resets`` / ``try again``. A keyword form that matched and then failed
+    to resolve still returns ``(None, None)`` without running that fallback.
     """
     normalized = _normalize_preserve_case(text)
 
     match = _RESET_ISO_RE.search(normalized)
     if match:
-        year_str, month_str, day_str, hour_str, minute_str, second_str, zone_str = (
-            match.groups()
-        )
-        expires_at = _resolve_iso_datetime(
-            year_str, month_str, day_str, hour_str, minute_str, second_str, zone_str
-        )
-        if expires_at is None:
-            return None, None
-        hint = normalized[match.start(1) : match.end()]
-        return expires_at + _RESET_GRACE_SECONDS, hint
+        return _hint_from_iso_match(match, normalized)
 
     match = _RESET_MONTH_DATE_RE.search(normalized)
     if match:
-        month_str, day_str, year_str, hour_str, minute_str, meridiem, zone_str = (
-            match.groups()
-        )
-        if zone_str is not None:
-            try:
-                tz: TzInfo = ZoneInfo(zone_str)
-            except (ZoneInfoNotFoundError, ValueError, KeyError):
-                return None, None
-        else:
-            from sase.core.time import get_timezone
-
-            tz = get_timezone()
-        expires_at = _resolve_month_name_datetime(
-            month_str, day_str, year_str, hour_str, minute_str, meridiem, tz, now
-        )
-        if expires_at is None:
-            return None, None
-        hint = normalized[match.start(1) : match.end()]
-        return expires_at + _RESET_GRACE_SECONDS, hint
+        return _hint_from_month_date_match(match, normalized, now)
 
     match = _RESET_TIME_WITH_ZONE_RE.search(normalized)
     if match:
@@ -561,6 +591,15 @@ def parse_reset_hint(text: str, *, now: float) -> tuple[float | None, str | None
         )
         if total_seconds > 0:
             return now + total_seconds + _RESET_GRACE_SECONDS, match.group(1).strip()
+        return None, None
+
+    if allow_unanchored:
+        match = _UNANCHORED_ISO_RE.search(normalized)
+        if match:
+            return _hint_from_iso_match(match, normalized)
+        match = _UNANCHORED_MONTH_DATE_RE.search(normalized)
+        if match:
+            return _hint_from_month_date_match(match, normalized, now)
 
     return None, None
 
@@ -613,7 +652,9 @@ def detect_usage_limit(
     used_reset_hint = False
 
     if honor_reset_hint:
-        parsed_expires_at, parsed_hint = parse_reset_hint(error_text, now=resolved_now)
+        parsed_expires_at, parsed_hint = parse_reset_hint(
+            error_text, now=resolved_now, allow_unanchored=True
+        )
         if parsed_expires_at is not None:
             duration = parsed_expires_at - resolved_now
             duration = min(

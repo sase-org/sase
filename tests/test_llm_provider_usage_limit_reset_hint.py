@@ -107,6 +107,73 @@ class TestParseResetHint:
         assert (resolved.year, resolved.month, resolved.day) == (2026, 8, 20)
         assert (resolved.hour, resolved.minute) == (6, 38)
 
+    def test_claude_compact_fw_meridiem_no_space_no_minutes(self) -> None:
+        # Live 2.1.235 ``fW`` spelling. Would fail if the month-date regex
+        # required ``\s+`` before ``am|pm``.
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 22, 8pm (America/New_York)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "Aug 22, 8pm (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day) == (2026, 8, 22)
+        assert (resolved.hour, resolved.minute) == (20, 0)
+
+    def test_claude_compact_fw_meridiem_with_minutes(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 20, 6:38am (America/New_York)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "Aug 20, 6:38am (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.hour, resolved.minute) == (6, 38)
+
+    def test_claude_compact_fw_meridiem_no_minutes(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 20, 6am (America/New_York)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "Aug 20, 6am (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.hour, resolved.minute) == (6, 0)
+
+    def test_unanchored_month_date_parses_only_when_allowed(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        text = "You've hit your weekly limit · Aug 22, 8pm (America/New_York)"
+        assert parse_reset_hint(text, now=now) == (None, None)
+        expires_at, hint = parse_reset_hint(text, now=now, allow_unanchored=True)
+        assert expires_at is not None
+        assert hint is not None
+        assert "Aug 22" in hint
+        assert "8pm" in hint
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day, resolved.hour) == (
+            2026,
+            8,
+            22,
+            20,
+        )
+
+    def test_incidental_date_does_not_parse_with_public_default(self) -> None:
+        assert parse_reset_hint("Aug 22, 8pm (America/New_York)", now=1755302400.0) == (
+            None,
+            None,
+        )
+
+    def test_unresolvable_keyword_form_does_not_run_unanchored_fallback(self) -> None:
+        assert parse_reset_hint(
+            "resets Aug 32nd, 2026 6:38 AM",
+            now=1755302400.0,
+            allow_unanchored=True,
+        ) == (None, None)
+
     def test_claude_month_name_with_zone_no_minutes(self) -> None:
         tz = ZoneInfo("America/New_York")
         now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()

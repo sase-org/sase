@@ -2719,7 +2719,7 @@
             },
             "honor_reset_hint": {
               "type": "boolean",
-              "description": "Prefer a reset time reported by the provider itself over the flat disable_seconds fallback. Parses a bare or zoned clock time ('resets at 8pm', 'resets 6:38pm (America/New_York)'), an absolute date ('try again at Aug 20th, 2026 6:38 AM', 'resets Aug 20, 6:38 am (America/New_York)', 'resets 2026-08-20 06:38 UTC'), or a relative duration ('try again in 2 hours').",
+              "description": "Prefer a reset time reported by the provider itself over the flat disable_seconds fallback. Parses a bare or zoned clock time ('resets at 8pm', 'resets 6:38pm (America/New_York)'), an absolute date ('try again at Aug 20th, 2026 6:38 AM', 'resets Aug 22, 8pm (America/New_York)', 'resets 2026-08-20 06:38 UTC'), or a relative duration ('try again in 2 hours').",
               "default": true
             },
             "notify": {

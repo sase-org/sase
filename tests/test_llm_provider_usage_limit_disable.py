@@ -1,7 +1,10 @@
 """Tests for the usage-limit runtime-enforcement entry point.
 
 ``handle_possible_usage_limit`` is called from the LLM invocation error
-paths; see ``tests/test_llm_provider_invoke.py`` for the call-site wiring.
+paths and from the workflow-error backstop; see
+``tests/test_llm_provider_invoke.py`` and
+``tests/test_axe_run_agent_exec_retry_usage_limits.py`` for the call-site
+wiring.
 """
 
 from __future__ import annotations
@@ -34,6 +37,16 @@ _AGY_INDIVIDUAL_QUOTA_REACHED = (
 _CODEX_TRY_AGAIN_AT_DATE = (
     "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to "
     "purchase more credits or try again at Aug 20th, 2026 6:38 AM."
+)
+
+# Verbatim 083 wrapper: ``_invoke`` CalledProcessError text plus the
+# workflow ``Step 'main' failed:`` prefix. Compact ``8pm``.
+_CLAUDE_WEEKLY_LIMIT_083_WRAPPER = (
+    "Step 'main' failed: Error running LLM provider command (exit code 1)\n"
+    "stderr: [result] You've hit your weekly limit · resets Aug 22, 8pm "
+    "(America/New_York)\n"
+    "output: I'll start by exploring the codebase ...\n"
+    "You've hit your weekly limit · resets Aug 22, 8pm (America/New_York)"
 )
 
 # Verbatim stderr from the three 2026-08-18 grok agent failures that
@@ -142,6 +155,41 @@ class TestHandlePossibleUsageLimit:
         )
         assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
         assert disable.expires_at != pytest.approx(fixed_now + 86400, abs=3600)
+
+    def test_claude_083_weekly_limit_writes_until_disable_at_parsed_instant(
+        self, monkeypatch: pytest.MonkeyPatch, registered_providers: None
+    ) -> None:
+        tz = ZoneInfo("America/New_York")
+        fixed_now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_config.time.time", lambda: fixed_now
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_config.load_merged_config",
+            lambda: {},
+        )
+
+        result = handle_possible_usage_limit(
+            provider="claude", error_text=_CLAUDE_WEEKLY_LIMIT_083_WRAPPER
+        )
+
+        assert result is not None
+        assert result.used_reset_hint is True
+        assert result.expires_at is not None
+
+        disable = get_active_provider_disable("claude", now=fixed_now)
+        assert disable is not None
+        assert disable.source == "usage_limit"
+        expected_expires_at = (
+            datetime(2026, 8, 22, 20, 0, 0, tzinfo=tz).timestamp() + 60
+        )
+        assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
+        assert disable.expires_at != pytest.approx(fixed_now + 86400, abs=3600)
+
+        notifications = [
+            note for note in load_notifications() if note.sender == "llm.usage_limit"
+        ]
+        assert len(notifications) == 1
 
     def test_grok_usage_balance_exhausted_writes_flat_48h_disable(
         self, registered_providers: None

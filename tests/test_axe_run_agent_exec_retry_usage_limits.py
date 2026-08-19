@@ -2,8 +2,10 @@
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,13 +20,23 @@ from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
+    get_active_provider_disable,
 )
 from sase.llm_provider.retry_config import ProviderRetryConfig, get_retry_config
+from sase.llm_provider.usage_limit_disable import handle_possible_usage_limit
 from tests._axe_run_agent_exec_retry_helpers import (
     CLAUDE_WEEKLY_LIMIT,
     _restore_model_override_env,  # noqa: F401 (registers the autouse fixture)
     make_ctx,
     make_state,
+)
+
+_CLAUDE_WEEKLY_LIMIT_083_WORKFLOW_WRAPPER = (
+    "Step 'main' failed: Error running LLM provider command (exit code 1)\n"
+    "stderr: [result] You've hit your weekly limit · resets Aug 22, 8pm "
+    "(America/New_York)\n"
+    "output: I'll start by exploring the codebase ...\n"
+    "You've hit your weekly limit · resets Aug 22, 8pm (America/New_York)"
 )
 
 
@@ -372,6 +384,65 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
         attempts = load_attempt_history(str(tmp_path / "artifacts"))
         assert attempts[-1].reason is not None
         assert "claude" in attempts[-1].reason
+
+    def test_claude_weekly_limit_without_retry_match_still_writes_disable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path))
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.registered_provider_names",
+            lambda: ["claude", "codex", "fakey", "grok", "agy"],
+        )
+        tz = ZoneInfo("America/New_York")
+        fixed_now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_config.time.time", lambda: fixed_now
+        )
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+
+        with patch(
+            "sase.llm_provider.retry_config.load_merged_config", return_value={}
+        ):
+            retry_cfg = get_retry_config("claude")
+        assert retry_cfg is not None
+        tracker = RetryTracker(retry_cfg=retry_cfg, execution_provider="claude")
+
+        with (
+            patch(
+                "sase.llm_provider.usage_limit_config.load_merged_config",
+                return_value={},
+            ),
+            patch(
+                "sase.axe.run_agent_exec_retry.time.sleep", MagicMock()
+            ) as mock_sleep,
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.handle_possible_usage_limit",
+                wraps=handle_possible_usage_limit,
+            ) as mock_handle,
+        ):
+            action = handle_workflow_error(
+                RuntimeError(_CLAUDE_WEEKLY_LIMIT_083_WORKFLOW_WRAPPER),
+                tracker,
+                ctx,
+                state,
+            )
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        mock_sleep.assert_not_called()
+        mock_handle.assert_called_once()
+        assert mock_handle.call_args.kwargs["provider"] == "claude"
+        assert "weekly limit" in mock_handle.call_args.kwargs["error_text"]
+
+        disable = get_active_provider_disable("claude", now=fixed_now)
+        assert disable is not None
+        assert disable.source == "usage_limit"
+        expected_expires_at = (
+            datetime(2026, 8, 22, 20, 0, 0, tzinfo=tz).timestamp() + 60
+        )
+        assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
 
 
 class TestDetectUsageLimitForError:

@@ -1985,25 +1985,28 @@ a different enabled provider; it cannot silently route back to the disabled prov
 When `honor_reset_hint` is on, SASE tries to read an expiry out of the provider's error
 text. Five forms are attempted, in this priority order:
 
-| #   | Form                          | Example                                      |
-| --- | ----------------------------- | -------------------------------------------- |
-| 1   | ISO-ish absolute timestamp    | `resets at 2026-08-18 09:00`                 |
-| 2   | Month-name absolute date      | `resets Aug 18, 2026 9am (America/New_York)` |
-| 3   | Clock time with explicit zone | `resets at 8pm (UTC)`                        |
-| 4   | Bare clock time               | `resets at 8pm`                              |
-| 5   | Relative duration             | `try again in 2 hours`                       |
+| #   | Form                          | Example                                                                                            |
+| --- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1   | ISO-ish absolute timestamp    | `resets at 2026-08-18 09:00`                                                                       |
+| 2   | Month-name absolute date      | `resets Aug 18, 2026 9am (America/New_York)`; weekly-limit `resets Aug 22, 8pm (America/New_York)` |
+| 3   | Clock time with explicit zone | `resets at 8pm (UTC)`                                                                              |
+| 4   | Bare clock time               | `resets at 8pm`                                                                                    |
+| 5   | Relative duration             | `try again in 2 hours`                                                                             |
 
 Form 1 accepts an optional `Z`, `UTC`, or `±HH:MM` marker. Forms 1–4 share one keyword
 anchor: `reset`, `resets`, or `try again`, followed by an optional `at`/`on`. Form 5
 needs the keyword to end in `in` (`resets in 90m`, `try again in 2 hours`). A date or
 time must follow the keyword immediately, so incidental prose such as "connection reset
-by peer" cannot match.
+by peer" cannot match. Claude Code's `seven_day` formatter emits a compact meridiem
+(`8pm`, not `8 pm`) and omits `:00` when minutes are zero.
 
 Parsing commits to the first form whose keyword matches; it does **not** fall through to
 a lower-priority form when that form then fails to resolve. That is why forms 3 and 4
 are listed separately: `resets at 8pm (Not/AZone)` matches form 3, and an unrecognized
 zone name there is treated as a failed parse rather than silently reinterpreted as the
-bare form 4.
+bare form 4. Once a usage-limit pattern has already matched, if none of those keyword
+forms match, SASE also scans for an unanchored month-name or ISO-ish timestamp so a date
+without `resets`/`try again` can still set the expiry.
 
 Forms carrying no zone marker — form 1 without a marker, form 2 without a parenthesized
 zone, and form 4 — resolve through the configured SASE `timezone:`. Setting that to
