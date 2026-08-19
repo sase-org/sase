@@ -64,9 +64,9 @@ def run_enrich_curve(
             f"enrich fetch_calls at n={size}: {stats['fetch_calls']} "
             f"!= {expected['fetch_calls']}"
         )
-        assert stats["installed_lookups"] == expected["installed_lookups"], (
-            f"enrich installed_lookups at n={size}: {stats['installed_lookups']} "
-            f"!= {expected['installed_lookups']}"
+        assert stats["catalog_passes"] == expected["catalog_passes"], (
+            f"enrich catalog_passes at n={size}: {stats['catalog_passes']} "
+            f"!= {expected['catalog_passes']}"
         )
         assert stats["scan_work"] == expected["scan_work"], (
             f"enrich scan_work at n={size}: {stats['scan_work']} "
@@ -102,9 +102,10 @@ def test_bench_enrich_and_fetch_scale_curves() -> None:
     """Record enrich/fetch cost curves at 10/250/1000/2000 entries."""
     enrich = run_enrich_curve()
     fetch = run_fetch_curve()
-    # Doubling n from 1000 to 2000 must not grow eager fetches (O(installed)).
-    assert enrich["1000"]["scan_work"] == 0.0
-    assert enrich["2000"]["scan_work"] == 0.0
+    # Doubling n from 1000 to 2000 must not grow eager fetches (O(installed))
+    # and must exactly double the catalog walk (linear, not quadratic).
+    assert enrich["1000"]["scan_work"] == expected_enrich_ops(1000)["scan_work"]
+    assert enrich["2000"]["scan_work"] == 2.0 * enrich["1000"]["scan_work"]
     assert enrich["1000"]["fetch_calls"] == float(INSTALLED_SCALE_COUNT)
     assert enrich["2000"]["fetch_calls"] == enrich["1000"]["fetch_calls"]
     assert fetch["2000"]["pages"] / fetch["1000"]["pages"] == 2.0

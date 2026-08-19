@@ -437,8 +437,9 @@ keystroke, 20 j presses (through the queued `OptionHighlighted` handler), `'` ju
 allocation, and one `I` mark toggle, plus non-TUI enrich/fetch cost curves. The
 committed numbers live in `tests/perf/baselines/plugin_catalog_scale_baseline.json`.
 Filter-keystroke and j-press p95 must stay under 16 ms at n=2000; eager enrich fetches
-must stay O(installed). Rewrite the recorded rows after a capture run with
-`python -m tests.perf.bench_plugin_catalog_scale --write-baseline` and
+must stay O(installed) and enrich's `scan_work` (catalog rows walked, counted through
+`CountingEntries`) must stay linear in `n`. Rewrite the recorded rows after a capture
+run with `python -m tests.perf.bench_plugin_catalog_scale --write-baseline` and
 `SASE_PLUGIN_CATALOG_SCALE_WRITE_BASELINE=1 pytest -s -m slow tests/ace/tui/bench_plugins_catalog_scale.py`.
 `just plugin-catalog-scale-check` is the CI regression floor.
 

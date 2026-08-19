@@ -90,9 +90,8 @@ def test_check_fails_when_eager_fetches_scale_with_catalog() -> None:
     baseline = load_baseline()
     current = _payload(
         enrich_2000={
+            **expected_enrich_ops(2000),
             "fetch_calls": 2000.0,
-            "scan_work": 0.0,
-            "installed_lookups": 0.0,
         }
     )
 
@@ -100,6 +99,25 @@ def test_check_fails_when_eager_fetches_scale_with_catalog() -> None:
 
     failed = [result for result in results if not result.passed]
     assert any(result.metric == "enrich.2000.fetch_calls" for result in failed)
+
+
+def test_check_fails_when_enrich_rescans_the_catalog_per_miss() -> None:
+    baseline = load_baseline()
+    quadratic = expected_enrich_ops(2000)
+    current = _payload(
+        enrich_2000={
+            **quadratic,
+            # One extra whole-catalog rescan per installed miss.
+            "catalog_passes": quadratic["catalog_passes"] + INSTALLED_SCALE_COUNT,
+            "scan_work": quadratic["scan_work"] + INSTALLED_SCALE_COUNT * 2000.0,
+        }
+    )
+
+    results = check_plugin_catalog_scale(current=current, baseline=baseline)
+
+    failed = [result for result in results if not result.passed]
+    assert any(result.metric == "enrich.2000.scan_work" for result in failed)
+    assert all(result.metric != "enrich.1000.scan_work" for result in failed)
 
 
 def test_check_fails_when_truncation_is_silent() -> None:

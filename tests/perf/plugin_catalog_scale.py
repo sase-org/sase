@@ -9,12 +9,13 @@ it is smaller) so the keystroke curve stays comparable across sizes.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import statistics
 import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,8 @@ FETCH_PAGE_SIZE = 100
 GITHUB_SEARCH_CAP_ENTRIES = 1000
 INSTALLED_SCALE_COUNT = 5
 TARGET_P95_MS = 16.0
+ENRICH_CATALOG_PASSES = 3
+ENRICH_SCAN_WORK_PASS_CEILING = 4
 ENFORCED_TUI_SCENARIOS: tuple[str, ...] = ("filter_keystroke", "j_press")
 BASELINE_SCHEMA_VERSION = 1
 BASELINE_PATH = (
@@ -43,6 +46,35 @@ BASELINE_PATH = (
 )
 
 _FETCHED_AT = 1_700_000_000.0
+
+EnrichFn = Callable[..., PluginCatalog]
+
+
+class CountingEntries(tuple[PluginCatalogEntry, ...]):
+    """Catalog rows that count how much of the catalog a caller walks.
+
+    ``enrich_with_latest`` walks ``catalog.entries`` a fixed
+    :data:`ENRICH_CATALOG_PASSES` times, so visits stay linear in catalog
+    size. The pre-scale quadratic rescanned the whole catalog once per
+    fetched miss; that shows up here as visits growing with
+    ``misses * n``, which wall-clock samples alone cannot separate from a
+    slow machine.
+    """
+
+    visits: int
+    passes: int
+
+    def __new__(cls, entries: Iterable[PluginCatalogEntry]) -> CountingEntries:
+        counting = super().__new__(cls, entries)
+        counting.visits = 0
+        counting.passes = 0
+        return counting
+
+    def __iter__(self) -> Iterator[PluginCatalogEntry]:
+        self.passes += 1
+        for entry in tuple.__iter__(self):
+            self.visits += 1
+            yield entry
 
 
 def scale_filter_match_count(n: int) -> int:
@@ -150,13 +182,14 @@ def measure_enrich_cost(
     clock: Callable[[], float] = time.perf_counter,
     scope: EagerScope = "installed",
     installed_count: int | None = None,
+    enrich_fn: EnrichFn = enrich_with_latest,
 ) -> dict[str, float]:
     """Time ``enrich_with_latest`` with a zero-latency ``fetch_fn``.
 
     Default *scope* is ``installed``: eager network calls track the
-    installed count, not catalog size. Installed-version lookup is a
-    single dict built before the miss loop, so ``installed_lookups`` /
-    ``scan_work`` stay 0 after the enrich-phase quadratic fix.
+    installed count, not catalog size. ``catalog_passes`` / ``scan_work``
+    come from a separate untimed pass over :class:`CountingEntries`, so
+    the instrumentation never lands in the wall-clock samples.
     """
     marked = scale_installed_count(n) if installed_count is None else installed_count
     catalog = make_scale_catalog(n, installed_count=marked)
@@ -172,7 +205,7 @@ def measure_enrich_cost(
     for iteration in range(warmup + runs):
         fetch_calls = 0
         started = clock()
-        enrich_with_latest(
+        enrich_fn(
             catalog,
             fetch_fn=fetch_fn,
             read_cache_fn=dict,
@@ -189,11 +222,47 @@ def measure_enrich_cost(
             samples.append(elapsed_ms)
 
     stats = summarize_ms(samples)
+    stats.update(
+        measure_enrich_scan_work(
+            n, scope=scope, installed_count=marked, enrich_fn=enrich_fn
+        )
+    )
     stats["fetch_calls"] = float(last_fetch_calls)
-    stats["installed_lookups"] = 0.0
-    stats["scan_work"] = 0.0
     stats["installed_count"] = float(marked)
     return stats
+
+
+def measure_enrich_scan_work(
+    n: int,
+    *,
+    scope: EagerScope = "installed",
+    installed_count: int | None = None,
+    enrich_fn: EnrichFn = enrich_with_latest,
+) -> dict[str, float]:
+    """Count how many catalog rows one enrich pass walks at size *n*.
+
+    The installed-version lookup is one dict built before the miss loop,
+    so the walk count is fixed and ``scan_work`` is linear in *n*. A
+    reintroduced per-miss rescan multiplies both by the miss count.
+    """
+    marked = scale_installed_count(n) if installed_count is None else installed_count
+    catalog = make_scale_catalog(n, installed_count=marked)
+    counting = CountingEntries(catalog.entries)
+    enrich_fn(
+        dataclasses.replace(catalog, entries=counting),
+        fetch_fn=lambda _dist_name: "1.0.0",
+        read_cache_fn=dict,
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: _FETCHED_AT,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        scope=scope,
+    )
+    return {
+        "catalog_passes": float(counting.passes),
+        "scan_work": float(counting.visits),
+    }
 
 
 def _search_item(index: int) -> dict[str, Any]:
@@ -409,14 +478,19 @@ def expected_enrich_ops(n: int, *, scope: EagerScope = "installed") -> dict[str,
     """Return the post-guard operation-count curve at size *n*.
 
     Scoped eager enrichment fetches once per installed row. The
-    installed-version lookup is O(1) per miss, so scan_work is 0 even
-    when *scope* is ``all``.
+    installed-version lookup is one dict built before the miss loop, so
+    enrichment walks the catalog :data:`ENRICH_CATALOG_PASSES` times
+    whatever the miss count is, and ``scan_work`` stays linear in *n*
+    even when *scope* is ``all``. ``max_scan_work`` leaves one pass of
+    headroom: another structural walk added later is fine, a per-miss
+    rescan is not.
     """
     fetch_calls = float(n) if scope == "all" else float(scale_installed_count(n))
     return {
         "fetch_calls": fetch_calls,
-        "installed_lookups": 0.0,
-        "scan_work": 0.0,
+        "catalog_passes": float(ENRICH_CATALOG_PASSES),
+        "scan_work": float(ENRICH_CATALOG_PASSES * n),
+        "max_scan_work": float(ENRICH_SCAN_WORK_PASS_CEILING * n),
         "installed_count": float(scale_installed_count(n)),
     }
 

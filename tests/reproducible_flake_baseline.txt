@@ -151,3 +151,20 @@ tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_
 # entry with a `# fixed-at:` line naming the commit rather than just deleting
 # it, so the pre-fix evidence retires instead of lingering.
 tests/ace/tui/modals/test_project_inventory_subtabs.py::test_cross_navigation_and_escape_surface_disabled_workspaces
+# sase-n4.5: the epic that added both try_disable_provider and this contention
+# test (665a22ac5) owns the Rust lock-acquire timeout that starves. Two
+# independent failures on unrelated dirty trees -- workspace sase_18 at
+# 24f0c9539656 (2026-08-17) and sase_12 at bdc3f2f74c51 (2026-08-19) -- and it
+# passes 3/3 serially at 0e36971e0. When the epic raises or derives that timeout,
+# replace this entry with a `# fixed-at:` line naming the commit.
+tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process_contention
+#
+# sase-qn.5: fixed by ce5ddf13c "perf(plugins): enforce catalog-scale budgets
+# and keep lazy latest" (committed 2026-08-19T03:02:02Z). Phase sase-qn.2 added
+# _apply_plugin_latest, which rewrote _catalog and _grouped; phase sase-qn.4
+# then added the name-keyed _plugin_entry_by_name map that _entry_by_name reads.
+# Between those two commits the map kept the pre-enrichment entry, so the node
+# failed 3/3 serially rather than intermittently. Every recorded failure is from
+# a tree at 17592d904 or 2633d3c2b, both ancestors of the fix; the node passes
+# 3/3 serially at 0e36971e0.
+# fixed-at: 2026-08-19T03:02:02Z tests/ace/tui/test_plugins_browser_pane_detail.py::test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on

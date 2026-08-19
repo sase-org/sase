@@ -227,12 +227,16 @@ def check_plugin_catalog_scale(
         expected = expected_enrich_ops(size)
         enrich = _section(current, "enrich", str(size))
         results.append(
-            _check_equal(
-                name=f"n={size} enrich scan_work stays 0",
+            _check_ceiling(
+                name=f"n={size} enrich scan work stays linear",
                 metric=f"enrich.{size}.scan_work",
                 current=_float_field(enrich, "scan_work"),
-                expected=0.0,
-                rationale="installed-version lookup is a one-shot dict, not n²",
+                max_value=expected["max_scan_work"],
+                rationale=(
+                    "installed-version lookup is a one-shot dict, so enrichment "
+                    "walks the catalog a fixed number of times instead of once "
+                    "per fetched miss"
+                ),
             )
         )
         results.append(

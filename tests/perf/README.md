@@ -10,8 +10,9 @@ just bench-plugin-catalog-scale
 ```
 
 That runs the slow pytest benches. They print p50/p95/max tables and enforce the
-fetch/enrich _operation-count_ curves (page count, O(installed) eager PyPI fetches, zero
-n² scan work) plus filter-keystroke and j-press p95 under 16 ms at n=2000.
+fetch/enrich _operation-count_ curves (page count, O(installed) eager PyPI fetches, and
+an enrich catalog walk that stays linear in `n` instead of rescanning the catalog once
+per fetched miss) plus filter-keystroke and j-press p95 under 16 ms at n=2000.
 `just plugin-catalog-scale-check` is the CI regression floor: live enrich/fetch/
 truncation gates plus the committed TUI p95 ceilings in
 `tests/perf/baselines/plugin_catalog_scale_baseline.json`. The filter fixture holds the

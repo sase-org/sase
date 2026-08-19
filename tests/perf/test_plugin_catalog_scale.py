@@ -8,11 +8,13 @@ cap, and truncation warnings.
 
 from __future__ import annotations
 
+from sase.plugins.catalog import PluginCatalog
 from sase.plugins.latest import enrich_with_latest
 from tests.perf.plugin_catalog_scale import (
     BASELINE_PATH,
     CATALOG_SCALE_SIZES,
     ENFORCED_TUI_SCENARIOS,
+    ENRICH_CATALOG_PASSES,
     FILTER_KEYSTROKE,
     FILTER_MATCH_COUNT,
     GITHUB_SEARCH_CAP_ENTRIES,
@@ -23,6 +25,7 @@ from tests.perf.plugin_catalog_scale import (
     load_baseline,
     make_scale_catalog,
     measure_enrich_cost,
+    measure_enrich_scan_work,
     measure_fetch_pages,
     measure_fetch_truncation,
     scale_filter_match_count,
@@ -70,22 +73,47 @@ def test_enrich_cost_curve_is_not_quadratic_in_catalog_size() -> None:
     small = measure_enrich_cost(8, runs=1, warmup=0)
     large = measure_enrich_cost(16, runs=1, warmup=0)
     assert small["fetch_calls"] == expected_enrich_ops(8)["fetch_calls"]
-    assert small["installed_lookups"] == 0.0
-    assert small["scan_work"] == 0.0
+    assert small["catalog_passes"] == float(ENRICH_CATALOG_PASSES)
+    assert small["scan_work"] == expected_enrich_ops(8)["scan_work"]
     assert large["fetch_calls"] == expected_enrich_ops(16)["fetch_calls"]
-    assert large["installed_lookups"] == 0.0
-    assert large["scan_work"] == 0.0
+    assert large["catalog_passes"] == small["catalog_passes"]
+    # Doubling the catalog doubles the walk; a per-miss rescan would square it.
+    assert large["scan_work"] == 2.0 * small["scan_work"]
     thousand = expected_enrich_ops(1000)
     two_thousand = expected_enrich_ops(2000)
-    assert thousand["scan_work"] == 0.0
-    assert two_thousand["scan_work"] == 0.0
+    assert two_thousand["scan_work"] == 2.0 * thousand["scan_work"]
+    assert two_thousand["max_scan_work"] == 2.0 * thousand["max_scan_work"]
+    assert thousand["scan_work"] < thousand["max_scan_work"]
     assert thousand["fetch_calls"] == float(INSTALLED_SCALE_COUNT)
     assert two_thousand["fetch_calls"] == thousand["fetch_calls"]
     all_scope = measure_enrich_cost(16, runs=1, warmup=0, scope="all")
     assert (
         all_scope["fetch_calls"] == expected_enrich_ops(16, scope="all")["fetch_calls"]
     )
-    assert all_scope["scan_work"] == 0.0
+    # Every miss fetches under "all" scope, and the walk still does not grow.
+    assert all_scope["scan_work"] == large["scan_work"]
+
+
+def test_enrich_scan_work_detects_a_reintroduced_per_miss_rescan() -> None:
+    """The measuring stick must fail when the pre-scale quadratic returns."""
+
+    def quadratic_enrich(catalog: PluginCatalog, **kwargs: object) -> PluginCatalog:
+        enriched = enrich_with_latest(catalog, **kwargs)  # type: ignore[arg-type]
+        # What `_installed_version_for_key` used to do: rescan the whole
+        # catalog once per fetched miss.
+        for entry in catalog.entries:
+            if entry.installed.installed:
+                sum(1 for _ in catalog.entries)
+        return enriched
+
+    n = 16
+    honest = measure_enrich_scan_work(n)
+    quadratic = measure_enrich_scan_work(n, enrich_fn=quadratic_enrich)
+    ceiling = expected_enrich_ops(n)["max_scan_work"]
+
+    assert honest["scan_work"] <= ceiling
+    assert quadratic["scan_work"] > ceiling
+    assert quadratic["catalog_passes"] > honest["catalog_passes"]
 
 
 def test_fetch_page_count_scales_with_catalog_size_not_github_cap() -> None:
@@ -126,7 +154,7 @@ def test_committed_baseline_enforces_scale_budgets() -> None:
         tui = baseline["tui"][key]
         expected = expected_enrich_ops(n)
         assert enrich["fetch_calls"] == expected["fetch_calls"]
-        assert enrich["installed_lookups"] == expected["installed_lookups"]
+        assert enrich["catalog_passes"] == expected["catalog_passes"]
         assert enrich["scan_work"] == expected["scan_work"]
         assert enrich["installed_count"] == float(scale_installed_count(n))
         for stat in ("p50_ms", "p95_ms", "max_ms"):

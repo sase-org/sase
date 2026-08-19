@@ -16,85 +16,89 @@
     "j_press"
   ],
   "budgets_enforced": true,
-  "notes": "Phase guard (sase-qn.5) enforces filter-keystroke and j-press p95 < 16 ms at n=2000, enrich scan_work=0 (sub-quadratic), and eager fetch_calls = installed_count (5), not catalog size. Enrich wall-clock rows are historical all-scope captures; operation counts are the enforced scoped curve. Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap and must warn rather than silently drop. TUI filter holds match count at 100 (10 at n=10). Jump-hint rebuilds the unfiltered list and is not under the 16 ms key-to-paint budget.",
+  "notes": "Phase guard (sase-qn.5) enforces filter-keystroke and j-press p95 < 16 ms at n=2000, enrich scan_work linear in n (3 catalog passes, ceiling 4n) instead of one rescan per fetched miss, and eager fetch_calls = installed_count (5), not catalog size. Enrich/fetch wall-clock rows are recorded, not enforced; only the operation counts gate. Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap and must warn rather than silently drop. TUI filter holds match count at 100 (10 at n=10). Jump-hint rebuilds the unfiltered list and is not under the 16 ms key-to-paint budget.",
   "enrich": {
     "10": {
-      "n": 3.0,
-      "p50_ms": 0.14575800742022693,
-      "p95_ms": 0.16165900160558522,
-      "max_ms": 0.16165900160558522,
+      "n": 7.0,
+      "p50_ms": 0.10615299106575549,
+      "p95_ms": 0.11216397979296744,
+      "max_ms": 0.11216397979296744,
+      "catalog_passes": 3.0,
+      "scan_work": 30.0,
       "fetch_calls": 5.0,
-      "installed_lookups": 0.0,
-      "scan_work": 0.0,
       "installed_count": 5.0
     },
     "250": {
-      "n": 3.0,
-      "p50_ms": 22.12172601139173,
-      "p95_ms": 22.480190003989264,
-      "max_ms": 22.480190003989264,
+      "n": 7.0,
+      "p50_ms": 2.0684899936895818,
+      "p95_ms": 2.0843209931626916,
+      "max_ms": 2.0843209931626916,
+      "catalog_passes": 3.0,
+      "scan_work": 750.0,
       "fetch_calls": 5.0,
-      "installed_lookups": 0.0,
-      "scan_work": 0.0,
       "installed_count": 5.0
     },
     "1000": {
-      "n": 3.0,
-      "p50_ms": 317.24638599553145,
-      "p95_ms": 318.1015369773377,
-      "max_ms": 318.1015369773377,
+      "n": 7.0,
+      "p50_ms": 8.235576999140903,
+      "p95_ms": 8.332624012837186,
+      "max_ms": 8.332624012837186,
+      "catalog_passes": 3.0,
+      "scan_work": 3000.0,
       "fetch_calls": 5.0,
-      "installed_lookups": 0.0,
-      "scan_work": 0.0,
       "installed_count": 5.0
     },
     "2000": {
-      "n": 3.0,
-      "p50_ms": 1260.1953530102037,
-      "p95_ms": 1272.0069909992162,
-      "max_ms": 1272.0069909992162,
+      "n": 7.0,
+      "p50_ms": 16.780853999080136,
+      "p95_ms": 16.93091099150479,
+      "max_ms": 16.93091099150479,
+      "catalog_passes": 3.0,
+      "scan_work": 6000.0,
       "fetch_calls": 5.0,
-      "installed_lookups": 0.0,
-      "scan_work": 0.0,
       "installed_count": 5.0
     }
   },
   "fetch": {
     "10": {
-      "n": 3.0,
-      "p50_ms": 0.04366398206911981,
-      "p95_ms": 0.049233989557251334,
-      "max_ms": 0.049233989557251334,
+      "n": 7.0,
+      "p50_ms": 0.09709500591270626,
+      "p95_ms": 0.10814698180183768,
+      "max_ms": 0.10814698180183768,
       "pages": 1.0,
       "returned_entries": 10.0,
-      "github_search_cap_entries": 1000.0
+      "github_search_cap_entries": 1000.0,
+      "requests": 1.0
     },
     "250": {
-      "n": 3.0,
-      "p50_ms": 0.9712850151117891,
-      "p95_ms": 0.9801409905776381,
-      "max_ms": 0.9801409905776381,
+      "n": 7.0,
+      "p50_ms": 2.0377819892019033,
+      "p95_ms": 2.040826977463439,
+      "max_ms": 2.040826977463439,
       "pages": 3.0,
       "returned_entries": 250.0,
-      "github_search_cap_entries": 1000.0
+      "github_search_cap_entries": 1000.0,
+      "requests": 3.0
     },
     "1000": {
-      "n": 3.0,
-      "p50_ms": 4.276498017134145,
-      "p95_ms": 4.505402990616858,
-      "max_ms": 4.505402990616858,
+      "n": 7.0,
+      "p50_ms": 12.204375001601875,
+      "p95_ms": 12.682828994002193,
+      "max_ms": 12.682828994002193,
       "pages": 10.0,
       "returned_entries": 1000.0,
-      "github_search_cap_entries": 1000.0
+      "github_search_cap_entries": 1000.0,
+      "requests": 10.0
     },
     "2000": {
-      "n": 3.0,
-      "p50_ms": 8.842518000165,
-      "p95_ms": 10.314859013305977,
-      "max_ms": 10.314859013305977,
+      "n": 7.0,
+      "p50_ms": 68.83691099938005,
+      "p95_ms": 81.05091599281877,
+      "max_ms": 81.05091599281877,
       "pages": 20.0,
       "returned_entries": 2000.0,
-      "github_search_cap_entries": 1000.0
+      "github_search_cap_entries": 1000.0,
+      "requests": 28.0
     }
   },
   "tui": {
