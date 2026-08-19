@@ -52,30 +52,41 @@ class _KnownKindsResult:
     generation: int = 0
 
 
+def resolve_artifact_ref_warm_workspace(
+    project: str | None,
+    workspace_dir: str | None,
+    workspace_num: int,
+) -> tuple[Path, int]:
+    """Resolve the workspace backing one target project's warm ref state.
+
+    A target-project namespace wins over the caller's session workspace because
+    the resulting catalog is cached by target project. The caller workspace is
+    the fallback, followed by the current directory. Shared by the completion
+    catalog warm path and the ``@<kind>::`` sync gesture so both read/write the
+    same on-disk clone.
+    """
+    project_workspace = (
+        known_project_namespaces().get(project) if project is not None else None
+    )
+    if project_workspace is not None:
+        return project_workspace, 1
+    if workspace_dir:
+        return Path(workspace_dir), workspace_num if workspace_num > 0 else 1
+    return Path.cwd(), 1
+
+
 def _load_known_artifact_ref_kinds(
     project: str | None,
     workspace_dir: str | None,
     workspace_num: int,
     generation: int = 0,
 ) -> _KnownKindsResult:
-    """Load known kinds from the workspace represented by the cache key.
-
-    A target-project namespace wins over the caller's session workspace because
-    the resulting catalog is cached by target project. The caller workspace is
-    the fallback, followed by the current directory.
-    """
-    project_workspace = (
-        known_project_namespaces().get(project) if project is not None else None
+    """Load known kinds from the workspace represented by the cache key."""
+    workspace, effective_workspace_num = resolve_artifact_ref_warm_workspace(
+        project,
+        workspace_dir,
+        workspace_num,
     )
-    if project_workspace is not None:
-        workspace = project_workspace
-        effective_workspace_num = 1
-    elif workspace_dir:
-        workspace = Path(workspace_dir)
-        effective_workspace_num = workspace_num if workspace_num > 0 else 1
-    else:
-        workspace = Path.cwd()
-        effective_workspace_num = 1
 
     try:
         context = artifact_ref_context(
@@ -335,6 +346,13 @@ class ArtifactRefHighlightMixin(_MixinBase):
                     )
                     if callable(refresh_completion):
                         refresh_completion()
+                finish_sync_reload = getattr(
+                    self,
+                    "_finish_artifact_ref_sync_reload_for_project",
+                    None,
+                )
+                if callable(finish_sync_reload):
+                    finish_sync_reload(result.project)
                 return
         elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
             project = self._artifact_ref_kind_worker_projects.pop(

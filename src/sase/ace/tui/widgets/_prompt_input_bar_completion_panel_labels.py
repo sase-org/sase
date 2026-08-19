@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceLoadingCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
+    ArtifactRefSyncCompletionMetadata,
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -33,6 +34,11 @@ from sase.ace.tui.widgets.placeholder_completion import (
 )
 
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
+_SYNC_TITLE_STATUS = {
+    "running": "syncing",
+    "settled_ok": "synced",
+    "settled_error": "sync failed",
+}
 
 
 def completion_panel_title(
@@ -91,6 +97,17 @@ def _at_reference_panel_title(
     directory: str,
 ) -> str:
     """Return the adaptive title for an ``@`` Kind-stage menu."""
+    sync_metadata = next(
+        (
+            candidate.metadata
+            for candidate in rows
+            if isinstance(candidate.metadata, ArtifactRefSyncCompletionMetadata)
+        ),
+        None,
+    )
+    if sync_metadata is not None:
+        status = _SYNC_TITLE_STATUS.get(sync_metadata.phase, sync_metadata.phase)
+        return f"@ {sync_metadata.kind} · {status}"
     has_artifacts = any(
         isinstance(candidate.metadata, ArtifactRefKindCompletionMetadata)
         for candidate in rows
@@ -272,9 +289,36 @@ def artifact_ref_completion_subtitle(
         if subtitle:
             subtitle.append(" · ")
         subtitle.append("[^T] files", style="dim")
+
+    sync_metadata = next(
+        (
+            candidate.metadata
+            for candidate in visible
+            if isinstance(candidate.metadata, ArtifactRefSyncCompletionMetadata)
+        ),
+        None,
+    )
+    if sync_metadata is not None:
+        combined = _sync_subtitle_segment(sync_metadata)
+        if subtitle:
+            combined.append(" · ", style="dim")
+            combined.append_text(subtitle)
+        if inner_width <= 0 or combined.cell_len <= inner_width:
+            return combined
+        # Narrow panel: drop the sync segment first, keep the base subtitle.
+
     if inner_width > 0:
         subtitle.truncate(inner_width, overflow="ellipsis")
     return subtitle
+
+
+def _sync_subtitle_segment(metadata: ArtifactRefSyncCompletionMetadata) -> Text:
+    """Return the ``syncing``/``synced``/``sync failed`` subtitle segment."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append(_SYNC_TITLE_STATUS.get(metadata.phase, metadata.phase), style="dim")
+    if metadata.detail:
+        text.append(f" · {metadata.detail}", style="dim")
+    return text
 
 
 def history_word_completion_subtitle(

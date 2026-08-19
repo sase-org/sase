@@ -10,6 +10,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
+    artifact_ref_next_selectable_index,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
@@ -188,8 +189,15 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             return False
         self._completion_selection_moved = True
         self._artifact_ref_completion_force = False
-        size = len(self._file_completion_candidates)
-        self._file_completion_index = (self._file_completion_index + delta) % size
+        if self._completion_kind == ARTIFACT_REF_COMPLETION_KIND:
+            self._file_completion_index = artifact_ref_next_selectable_index(
+                self._file_completion_candidates,
+                self._file_completion_index,
+                delta,
+            )
+        else:
+            size = len(self._file_completion_candidates)
+            self._file_completion_index = (self._file_completion_index + delta) % size
         if self._completion_kind == "jinja":
             jinja_result = build_jinja_completion_result(
                 self.text,

@@ -571,6 +571,21 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="commit.fetch",
         restart_recovery="not durable; pane fetch is session-local",
     ),
+    _site(
+        "ace.ref_sync",
+        "src/sase/ace/tui/widgets/_artifact_ref_sync.py",
+        "_start_artifact_ref_sync",
+        "session_worker",
+        "ref-sync",
+        "ui_only",
+        "ArtifactRefSyncMixin._start_artifact_ref_sync",
+        "",
+        identifiers=("project", "kind"),
+        result_kind="ref.sync",
+        concurrency_keys=("ace:ref-sync:{project}:{kind}",),
+        optimistic_ui="pinned sync row + spinner",
+        restart_recovery="not durable; session-local refresh",
+    ),
 )
 
 

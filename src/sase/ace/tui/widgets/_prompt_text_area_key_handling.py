@@ -79,6 +79,8 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _get_artifact_ref_completion_context(
             self,
         ) -> ArtifactRefCompletionContext | None: ...
+        def _artifact_ref_sync_trigger(self) -> str | None: ...
+        def _start_artifact_ref_sync(self, kind: str) -> None: ...
         def _accept_file_completion(self) -> bool: ...
         def _accept_or_build_soft_completion(self) -> bool: ...
         def _apply_xprompt_colon_arg_hint(self) -> bool: ...
@@ -453,6 +455,16 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.stop()
             event.prevent_default()
             return
+
+        # Detect the '@<kind>::' ref-sync gesture before the second ':' is
+        # inserted: consumed entirely by `_artifact_ref_sync_trigger`'s guards.
+        if event.character == ":":
+            sync_kind = self._artifact_ref_sync_trigger()
+            if sync_kind is not None:
+                event.stop()
+                event.prevent_default()
+                self._start_artifact_ref_sync(sync_kind)
+                return
 
         # Detect '#@' trigger before the '@' is inserted (skip in feedback mode).
         if event.character == "@":

@@ -74,6 +74,21 @@ class ArtifactRefPayloadCompletionMetadata:
     label_match: tuple[tuple[int, int], ...] = ()
     title_match: tuple[tuple[int, int], ...] = ()
     match_tier: int = 0
+    is_new: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRefSyncCompletionMetadata:
+    """Non-selectable pinned row showing ``@<kind>::`` sync status.
+
+    ``phase`` is one of ``running``/``settled_ok``/``settled_error``.
+    """
+
+    kind: str
+    phase: str
+    label: str
+    detail: str = ""
+    frame: int = 0
 
 
 @dataclass(frozen=True, slots=True)

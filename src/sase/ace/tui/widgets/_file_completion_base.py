@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -14,6 +15,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionCatalog,
     ArtifactRefCompletionResult,
     ArtifactRefKindCompletionMetadata,
+    ArtifactRefPayloadCompletionMetadata,
     build_artifact_ref_completion_result,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -131,6 +133,16 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
         def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
         def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
+        def _artifact_ref_sync_row(
+            self,
+            project: str | None,
+            kind: str,
+        ) -> CompletionCandidate | None: ...
+        def _artifact_ref_sync_new_payloads(
+            self,
+            project: str | None,
+            kind: str,
+        ) -> frozenset[str]: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -333,7 +345,7 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             if commit_snapshot is not None:
                 commit_rows = commit_snapshot.rows
                 commits_truncated_payloads = commit_snapshot.truncated_payloads
-        return build_artifact_ref_completion_result(
+        result = build_artifact_ref_completion_result(
             context,
             catalog,
             include_files=self._artifact_ref_files_revealed,
@@ -344,6 +356,21 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             paths=() if path_snapshot is None else path_snapshot.rows,
             paths_loading=context.stage == "kind" and path_snapshot is None,
         )
+        if context.stage == "payload" and context.kind:
+            project = self._xprompt_arg_assist_project_from_text()
+            new_payloads = self._artifact_ref_sync_new_payloads(project, context.kind)
+            if new_payloads:
+                for candidate in result.candidates:
+                    metadata = candidate.metadata
+                    if (
+                        isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
+                        and metadata.payload in new_payloads
+                    ):
+                        candidate.metadata = replace(metadata, is_new=True)
+            sync_row = self._artifact_ref_sync_row(project, context.kind)
+            if sync_row is not None:
+                result.candidates.insert(0, sync_row)
+        return result
 
     def _snapshot_artifact_ref_bug_candidates(
         self,

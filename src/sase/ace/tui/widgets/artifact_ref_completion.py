@@ -32,6 +32,7 @@ from sase.ace.tui.widgets._artifact_ref_completion_models import (
     ArtifactRefLoadedCandidates,
     ArtifactRefPayloadCompletionMetadata,
     ArtifactRefPayloadSource,
+    ArtifactRefSyncCompletionMetadata,
     AtReferenceFileCompletionMetadata,
     AtReferenceLoadingCompletionMetadata,
 )
@@ -69,6 +70,22 @@ def at_reference_leading_match_count(
 ) -> int:
     """Count selectable rows in the menu's leading shared-core group."""
     return _context.at_reference_leading_match_count(candidates)
+
+
+def artifact_ref_first_selectable_index(
+    candidates: Sequence[CompletionCandidate],
+) -> int:
+    """Return the first selectable row, skipping pinned status rows."""
+    return _context.artifact_ref_first_selectable_index(candidates)
+
+
+def artifact_ref_next_selectable_index(
+    candidates: Sequence[CompletionCandidate],
+    current: int,
+    delta: int,
+) -> int:
+    """Step *current* by *delta*, wrapping past pinned status rows."""
+    return _context.artifact_ref_next_selectable_index(candidates, current, delta)
 
 
 def detect_artifact_ref_completion_context(
@@ -189,6 +206,9 @@ __all__ = [
     "ArtifactRefCompletionResult",
     "ArtifactRefKindCompletionMetadata",
     "ArtifactRefPayloadCompletionMetadata",
+    "ArtifactRefSyncCompletionMetadata",
+    "artifact_ref_first_selectable_index",
+    "artifact_ref_next_selectable_index",
     "at_reference_leading_match_count",
     "build_artifact_ref_completion_result",
     "detect_artifact_ref_completion_context",

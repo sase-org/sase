@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
+    artifact_ref_first_selectable_index,
     at_reference_leading_match_count,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -261,7 +262,9 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._completion_kind = ARTIFACT_REF_COMPLETION_KIND
         self._file_completion_active = True
         self._file_completion_candidates = result.candidates
-        self._file_completion_index = 0
+        self._file_completion_index = artifact_ref_first_selectable_index(
+            result.candidates
+        )
         self._completion_selection_moved = False
         self._artifact_ref_completion_force = force
         self._artifact_ref_completion_stats = (

@@ -8,9 +8,16 @@ from typing import Any
 from sase.artifact_refs import at_reference_context
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
     ArtifactRefCompletionContext,
+    ArtifactRefSyncCompletionMetadata,
     AtReferenceLoadingCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+
+
+_NON_SELECTABLE_ARTIFACT_REF_METADATA = (
+    AtReferenceLoadingCompletionMetadata,
+    ArtifactRefSyncCompletionMetadata,
+)
 
 
 def at_reference_leading_match_count(
@@ -20,7 +27,10 @@ def at_reference_leading_match_count(
     if not candidates:
         return 0
     first_metadata = candidates[0].metadata
-    if isinstance(first_metadata, AtReferenceLoadingCompletionMetadata):
+    if isinstance(
+        first_metadata,
+        (AtReferenceLoadingCompletionMetadata, ArtifactRefSyncCompletionMetadata),
+    ):
         return 0
     first_group = type(first_metadata)
     count = 0
@@ -29,6 +39,40 @@ def at_reference_leading_match_count(
             break
         count += 1
     return count
+
+
+def artifact_ref_first_selectable_index(
+    candidates: Sequence[CompletionCandidate],
+) -> int:
+    """Return the first selectable row, skipping pinned status rows."""
+    for index, candidate in enumerate(candidates):
+        if not isinstance(candidate.metadata, _NON_SELECTABLE_ARTIFACT_REF_METADATA):
+            return index
+    return 0
+
+
+def artifact_ref_next_selectable_index(
+    candidates: Sequence[CompletionCandidate],
+    current: int,
+    delta: int,
+) -> int:
+    """Step *current* by *delta*, wrapping past pinned status rows.
+
+    Bounded to one lap so a menu with only non-selectable rows (e.g. a lone
+    sync status row) leaves the index unchanged instead of spinning.
+    """
+    size = len(candidates)
+    if size == 0:
+        return current
+    index = current
+    for _ in range(size):
+        index = (index + delta) % size
+        if not isinstance(
+            candidates[index].metadata,
+            _NON_SELECTABLE_ARTIFACT_REF_METADATA,
+        ):
+            return index
+    return current
 
 
 def detect_artifact_ref_completion_context(

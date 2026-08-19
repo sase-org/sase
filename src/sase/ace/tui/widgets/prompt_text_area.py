@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._alt_syntax_highlight import AltSyntaxHighlightMixin
 from sase.ace.tui.widgets._artifact_ref_highlight import ArtifactRefHighlightMixin
+from sase.ace.tui.widgets._artifact_ref_sync import ArtifactRefSyncMixin
 from sase.ace.tui.widgets._bullet_highlight import BulletHighlightMixin
 from sase.ace.tui.widgets._codeblock_syntax_highlight import (
     CodeBlockHighlightMixin,
@@ -85,6 +86,7 @@ class PromptTextArea(
     TodoHighlightMixin,
     AltSyntaxHighlightMixin,
     ArtifactRefHighlightMixin,
+    ArtifactRefSyncMixin,
     XPromptSyntaxHighlightMixin,
     BulletHighlightMixin,
     PromptSearchMixin,

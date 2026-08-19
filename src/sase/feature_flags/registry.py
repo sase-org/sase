@@ -27,6 +27,7 @@ class FeatureFlag(StrEnum):
     epic_resume_gate = "epic_resume_gate"
     plugin_catalog_scoped_latest = "plugin_catalog_scoped_latest"
     prettier_enabled = "prettier_enabled"
+    ref_sync_gesture = "ref_sync_gesture"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -90,6 +91,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "SASE_DISABLE_PRETTIER remains a deprecated alias."
         ),
         bead="sase-qf",
+    ),
+    FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
+        key=FeatureFlag.ref_sync_gesture,
+        kind="sunset",
+        description=(
+            "A second ':' typed immediately after '@<kind>:' with an empty "
+            "payload is consumed and refreshes that kind's backing sidecar "
+            "(clone-if-missing or force-pull past the freshness TTL, else a "
+            "catalog rescan), then reopens the '@' payload menu with "
+            "newly-arrived rows badged."
+        ),
+        bead="sase-qu",
     ),
 }
 

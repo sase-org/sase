@@ -174,12 +174,18 @@ def ensure_workspace_sdd_clone(
 def ensure_beads_sidecar_clone(
     workspace_dir: str | Path,
     workspace_num: int,
+    *,
+    fresh: bool = False,
 ) -> Path | None:
-    """Materialize the recorded beads sidecar for one workspace, if present."""
+    """Materialize the recorded beads sidecar for one workspace, if present.
+
+    ``fresh`` forces a remote integration even within the configured TTL.
+    """
 
     return _ensure_beads_sidecar_clone(
         workspace_dir,
         workspace_num,
+        fresh=fresh,
         primary_workspace_resolver=get_primary_workspace_dir,
     )
 
@@ -190,14 +196,19 @@ def ensure_sdd_kind_clone(
     kind: str,
     *,
     strict: bool = False,
+    fresh: bool = False,
 ) -> Path:
-    """Materialize and synchronize the sidecar clone backing *kind*."""
+    """Materialize and synchronize the sidecar clone backing *kind*.
+
+    ``fresh`` forces a remote integration even within the configured TTL.
+    """
 
     return _ensure_sdd_kind_clone(
         workspace_dir,
         workspace_num,
         kind,
         strict=strict,
+        fresh=fresh,
         resolve_store=resolve_sdd_store,
         primary_workspace_resolver=get_primary_workspace_dir,
     )

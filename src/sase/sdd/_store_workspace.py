@@ -72,10 +72,14 @@ def ensure_sdd_kind_clone(
     kind: str,
     *,
     strict: bool = False,
+    fresh: bool = False,
     resolve_store: StoreResolver = resolve_sdd_store,
     primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> Path:
-    """Materialize and synchronize the sidecar clone backing *kind*."""
+    """Materialize and synchronize the sidecar clone backing *kind*.
+
+    ``fresh`` forces a remote integration even within the configured TTL.
+    """
 
     owner_anchor = _inherited_sdd_record_owner_anchor(
         workspace_dir,
@@ -88,6 +92,7 @@ def ensure_sdd_kind_clone(
             workspace_num,
             kind,
             strict=strict,
+            fresh=fresh,
             resolve_store=resolve_store,
             primary_workspace_resolver=primary_workspace_resolver,
         )
@@ -109,6 +114,7 @@ def ensure_sdd_kind_clone(
         clone = ensure_beads_sidecar_clone(
             workspace_dir,
             workspace_num,
+            fresh=fresh,
             primary_workspace_resolver=primary_workspace_resolver,
         )
         if clone is None and strict:
@@ -129,6 +135,7 @@ def ensure_sdd_kind_clone(
         root if kind != "beads" else root.parent,
         remote_url,
         strict=strict,
+        fresh=fresh,
     )
     return root
 
@@ -137,12 +144,14 @@ def ensure_beads_sidecar_clone(
     workspace_dir: str | Path,
     workspace_num: int,
     *,
+    fresh: bool = False,
     primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> Path | None:
     """Materialize the recorded beads sidecar for one workspace.
 
     Schema-2 stores deliberately keep bead state in the plans sidecar, so they
-    return ``None`` without creating a ``sase/repos/beads`` clone.
+    return ``None`` without creating a ``sase/repos/beads`` clone. ``fresh``
+    forces a remote integration even within the configured TTL.
     """
 
     owner_anchor = _inherited_sdd_record_owner_anchor(
@@ -154,6 +163,7 @@ def ensure_beads_sidecar_clone(
         return ensure_beads_sidecar_clone(
             owner_anchor,
             workspace_num,
+            fresh=fresh,
             primary_workspace_resolver=primary_workspace_resolver,
         )
 
@@ -181,6 +191,7 @@ def ensure_beads_sidecar_clone(
                 clone_dir,
                 record.beads.remote_url,
                 strict=True,
+                fresh=fresh,
             )
         except Exception as exc:
             detail = str(exc) or type(exc).__name__

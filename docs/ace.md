@@ -4896,7 +4896,21 @@ token under the cursor:
   sidecar. Agent rows display the readable local name when possible but insert the
   durable global `@agent:<username>.<machine>.<name>` spelling. Commit and bug rows
   appear only from snapshots the mounted Artifacts panes have already loaded, so typing
-  never launches Git, contacts a tracker, or performs unbounded filesystem scans.
+  never launches Git, contacts a tracker, or performs unbounded filesystem scans, with
+  one explicit, user-initiated exception: typing a second `:` right after `@<kind>:`
+  with an empty payload (the `@<kind>::` gesture, gated by the `ref_sync_gesture` flag)
+  consumes that keystroke and refreshes the kind's backing sources now — cloning a
+  missing sidecar, force-pulling an existing one past the freshness TTL, or rescanning a
+  local/session-only kind — then reopens the payload menu. A pinned, non-selectable
+  status row shows a live spinner while the sync runs (`cloning <repo> …` on a
+  first-ever clone, `syncing <repo> …` otherwise) and settles to `<repo> synced · N new`
+  or `<repo> sync failed · <detail>`; rows that arrived from the sync are badged `[✦]`
+  in place of their usual source badge until the panel closes. A successful sync
+  dismisses its status row after 2.5 seconds; a failed one stays until the panel closes
+  and falls back to a toast if the panel is already gone. The gesture never fires with a
+  non-empty payload (so `@file:default:` still inserts a literal colon), and repeating
+  it while a sync is already running for that kind is a no-op. Disable
+  `ref_sync_gesture` to fall back to a literal second colon with no sync ever triggered.
   Payload acceptance replaces the complete `@kind:payload` context, including when the
   cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits and
   dismisses the menu until you type a query character or move the selection; `Ctrl+L`

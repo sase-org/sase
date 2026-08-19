@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_utils import (
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefKindCompletionMetadata,
     ArtifactRefPayloadCompletionMetadata,
+    ArtifactRefSyncCompletionMetadata,
     AtReferenceFileCompletionMetadata,
     AtReferenceLoadingCompletionMetadata,
 )
@@ -31,6 +32,14 @@ _ARTIFACT_SOURCE_BADGES = {
     "agent": ("[A] ", "bold #FF5FD7"),
 }
 
+# Stand-in "accent" color: this rendering module has no access to the live
+# app theme (every other color here is a hardcoded Rich style too).
+_SYNC_ACCENT_STYLE = "bold #5FD7AF"
+_SYNC_SUCCESS_STYLE = "bold #5FFF5F"
+_SYNC_ERROR_STYLE = "bold #FF5F5F"
+_NEW_PAYLOAD_BADGE = ("[✦] ", _SYNC_ACCENT_STYLE)
+_SYNC_SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
 
 def append_artifact_ref_completion_row(
     content: Text,
@@ -43,6 +52,13 @@ def append_artifact_ref_completion_row(
     metadata = candidate.metadata
     if isinstance(metadata, AtReferenceLoadingCompletionMetadata):
         content.append(candidate.display, style="dim")
+        return
+    if isinstance(metadata, ArtifactRefSyncCompletionMetadata):
+        glyph, glyph_style = _sync_glyph(metadata)
+        content.append(f"{glyph}  ", style=glyph_style)
+        content.append(metadata.label, style="dim")
+        if metadata.detail:
+            content.append(f" · {metadata.detail}", style="dim")
         return
     if isinstance(metadata, ArtifactRefKindCompletionMetadata):
         content.append("@  ", style="bold #5FD7AF")
@@ -79,7 +95,11 @@ def append_artifact_ref_completion_row(
         content.append(candidate.display, style="bold" if is_selected else "")
         return
 
-    badge, badge_style = _ARTIFACT_SOURCE_BADGES[metadata.source]
+    badge, badge_style = (
+        _NEW_PAYLOAD_BADGE
+        if metadata.is_new
+        else _ARTIFACT_SOURCE_BADGES[metadata.source]
+    )
     content.append(badge, style=badge_style)
     append_highlighted(
         content,
@@ -103,6 +123,16 @@ def append_artifact_ref_completion_row(
             row_width = 4 + Text(candidate.display).cell_len
             available = max(0, inner_width - 2 - row_width)
         _append_payload_tail(content, details, available)
+
+
+def _sync_glyph(metadata: ArtifactRefSyncCompletionMetadata) -> tuple[str, str]:
+    """Return the status glyph and style for one ``@<kind>::`` sync row."""
+    if metadata.phase == "running":
+        frame = _SYNC_SPINNER_FRAMES[metadata.frame % len(_SYNC_SPINNER_FRAMES)]
+        return frame, _SYNC_ACCENT_STYLE
+    if metadata.phase == "settled_error":
+        return "✗", _SYNC_ERROR_STYLE
+    return "✓", _SYNC_SUCCESS_STYLE
 
 
 def _basename_start(text: str) -> int:
