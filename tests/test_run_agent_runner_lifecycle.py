@@ -1,52 +1,27 @@
+"""Workspace hold/release behavior of ``finalize_runner_shutdown``."""
+
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from sase.axe.run_agent_runner_lifecycle import (
-    RunnerShutdownContext,
-    RunnerShutdownDeps,
-    RunnerShutdownState,
     finalize_runner_shutdown,
     _should_hold_workspace,
 )
-from sase.bead.claims import (
-    BEAD_CLAIM_MARKER,
-    BeadClaimReleaseOutcome,
-    write_bead_claim_marker,
-)
 from sase.running_field import ClaimResult, WorkspaceClaim
-
-
-def _state(**overrides: object) -> RunnerShutdownState:
-    state = RunnerShutdownState(
-        success=False,
-        duration="1s",
-        workspace_num=17,
-        workspace_dir="/tmp/workspace-17",
-        current_artifacts_dir="/tmp/artifacts",
-        running_marker_path=None,
-        agent_name="worker",
-        agent_model="model",
-        agent_llm_provider="provider",
-        agent_hidden=False,
-        saved_path=None,
-        diff_path=None,
-        markdown_pdf_paths=[],
-        markdown_source_count=0,
-        image_paths=[],
-        video_paths=[],
-        step_output=None,
-        exec_outcome="",
-        error_summary="RuntimeError: boom",
-        error_traceback_str=None,
-        suppress_completion_notification=False,
-        runtime="1s",
-    )
-    return replace(state, **overrides)
+from sase.workspace_provider.occupant import (
+    new_occupant_record,
+    read_occupant_record,
+    write_occupant_record,
+)
+from tests._run_agent_runner_lifecycle_helpers import (
+    make_context,
+    make_deps,
+    make_state,
+)
 
 
 @pytest.mark.parametrize(
@@ -82,7 +57,7 @@ def test_should_hold_workspace_matches_terminal_failed_rows(
 ) -> None:
     assert (
         _should_hold_workspace(
-            _state(**overrides),
+            make_state(**overrides),
             was_killed=was_killed,
             auto_dismiss=auto_dismiss,
             steps_hidden=steps_hidden,
@@ -95,28 +70,14 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
-    output_path = tmp_path / "output.log"
-    output_path.write_text("run output", encoding="utf-8")
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="ace(run)-260712_120000",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(output_path),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
+    (tmp_path / "output.log").write_text("run output", encoding="utf-8")
+    context = make_context(tmp_path, workflow_name="ace(run)-260712_120000")
     write_error_report = MagicMock(return_value="/tmp/error_report.md")
     send_notification = MagicMock()
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
+    deps = make_deps(
         all_steps_hidden=MagicMock(return_value=False),
         write_error_report=write_error_report,
         send_completion_notification=send_notification,
-        auto_dismiss_completed_agent=MagicMock(),
     )
 
     with (
@@ -126,7 +87,7 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
         ) as hold,
         patch("sase.running_field.release_workspace") as release,
     ):
-        finalize_runner_shutdown(context=context, state=_state(), deps=deps)
+        finalize_runner_shutdown(context=context, state=make_state(), deps=deps)
 
     hold.assert_called_once_with(
         "/tmp/project.sase",
@@ -159,26 +120,12 @@ def test_finalize_releases_failed_workspace_without_visible_notification(
     suppress_completion_notification: bool,
 ) -> None:
     monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
+    context = make_context(tmp_path)
     all_steps_hidden = MagicMock(return_value=steps_hidden)
     send_notification = MagicMock()
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
+    deps = make_deps(
         all_steps_hidden=all_steps_hidden,
-        write_error_report=MagicMock(),
         send_completion_notification=send_notification,
-        auto_dismiss_completed_agent=MagicMock(),
     )
 
     with (
@@ -187,7 +134,7 @@ def test_finalize_releases_failed_workspace_without_visible_notification(
     ):
         finalize_runner_shutdown(
             context=context,
-            state=_state(
+            state=make_state(
                 error_summary=None,
                 suppress_completion_notification=suppress_completion_notification,
             ),
@@ -207,12 +154,6 @@ def test_finalize_clears_occupant_record_on_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A released workspace must no longer name this agent as occupant."""
-    from sase.workspace_provider.occupant import (
-        new_occupant_record,
-        read_occupant_record,
-        write_occupant_record,
-    )
-
     monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
     workspace_dir = tmp_path / "workspace-17"
     workspace_dir.mkdir()
@@ -220,25 +161,8 @@ def test_finalize_clears_occupant_record_on_release(
         str(workspace_dir),
         new_occupant_record(pid=1234, workflow="run", project="sase", workspace_num=17),
     )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
+    context = make_context(tmp_path)
+    deps = make_deps()
 
     with (
         patch("sase.running_field.hold_workspace_claim"),
@@ -246,7 +170,7 @@ def test_finalize_clears_occupant_record_on_release(
     ):
         finalize_runner_shutdown(
             context=context,
-            state=_state(
+            state=make_state(
                 workspace_dir=str(workspace_dir),
                 error_summary=None,
                 suppress_completion_notification=False,
@@ -258,32 +182,16 @@ def test_finalize_clears_occupant_record_on_release(
 
 
 def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
+    context = make_context(tmp_path)
+    deps = make_deps()
+
     with (
         patch("sase.running_field.hold_workspace_claim") as hold,
         patch("sase.running_field.release_workspace") as release,
     ):
         finalize_runner_shutdown(
             context=context,
-            state=_state(
+            state=make_state(
                 exec_outcome="failed_retried",
                 error_summary=None,
             ),
@@ -299,25 +207,8 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
 def test_finalize_does_not_touch_workspace_for_monitored_handoff(
     tmp_path: Path,
 ) -> None:
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
+    context = make_context(tmp_path)
+    deps = make_deps()
 
     with (
         patch(
@@ -337,7 +228,7 @@ def test_finalize_does_not_touch_workspace_for_monitored_handoff(
     ):
         finalize_runner_shutdown(
             context=context,
-            state=_state(
+            state=make_state(
                 success=True,
                 exec_outcome="monitored",
                 error_summary=None,
@@ -352,25 +243,8 @@ def test_finalize_does_not_touch_workspace_for_monitored_handoff(
 def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
     tmp_path: Path,
 ) -> None:
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=False,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
+    context = make_context(tmp_path)
+    deps = make_deps()
 
     with (
         patch("sase.running_field.get_claimed_workspaces", return_value=[]),
@@ -379,7 +253,7 @@ def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
     ):
         finalize_runner_shutdown(
             context=context,
-            state=_state(
+            state=make_state(
                 success=True,
                 exec_outcome="monitored",
                 error_summary=None,
@@ -391,363 +265,3 @@ def test_finalize_releases_monitored_workspace_without_live_monitor_claim(
     release.assert_called_once_with(
         "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
     )
-
-
-def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:
-    output_path = tmp_path / "output.log"
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(output_path),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch(
-        "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=BeadClaimReleaseOutcome.RELEASED,
-    ) as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-                held_bead_claim_id="sase-1.2",
-                held_bead_claim_agent="sase-1.2",
-                held_bead_claim_project="sase",
-            ),
-            deps=deps,
-        )
-
-    release.assert_called_once_with(
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-
-
-def test_finalize_releases_marker_only_prelaunch_bead_claim(tmp_path: Path) -> None:
-    output_path = tmp_path / "output.log"
-    assert write_bead_claim_marker(
-        tmp_path,
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(output_path),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch(
-        "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=BeadClaimReleaseOutcome.RELEASED,
-    ) as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    release.assert_called_once_with(
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
-
-
-@pytest.mark.parametrize(
-    "outcome",
-    [
-        BeadClaimReleaseOutcome.RELEASED,
-        BeadClaimReleaseOutcome.NOTHING_TO_RELEASE,
-    ],
-)
-def test_finalize_clears_marker_after_non_error_release_outcome(
-    tmp_path: Path,
-    outcome: BeadClaimReleaseOutcome,
-) -> None:
-    assert write_bead_claim_marker(
-        tmp_path,
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch(
-        "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=outcome,
-    ):
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    assert not (tmp_path / BEAD_CLAIM_MARKER).exists()
-
-
-def test_finalize_preserves_marker_after_release_error(tmp_path: Path) -> None:
-    assert write_bead_claim_marker(
-        tmp_path,
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch(
-        "sase.bead.claims.release_bead_claim_for_agent",
-        return_value=BeadClaimReleaseOutcome.ERROR,
-    ):
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    assert (tmp_path / BEAD_CLAIM_MARKER).exists()
-
-
-def test_finalize_does_not_release_promoted_marker_claim(tmp_path: Path) -> None:
-    assert write_bead_claim_marker(
-        tmp_path,
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    (tmp_path / "agent_meta.json").write_text(
-        '{"bead_claim_promoted": true}',
-        encoding="utf-8",
-    )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    release.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    "marker",
-    [".sase_plan_pending", ".sase_questions_pending", ".sase_pipe_pending"],
-)
-def test_finalize_preserves_held_bead_claim_for_pending_handoff(
-    tmp_path: Path, marker: str
-) -> None:
-    (tmp_path / marker).touch()
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-                held_bead_claim_id="sase-1.2",
-                held_bead_claim_agent="sase-1.2",
-                held_bead_claim_project="sase",
-            ),
-            deps=deps,
-        )
-
-    release.assert_not_called()
-
-
-def test_finalize_preserves_marker_only_bead_claim_for_pending_handoff(
-    tmp_path: Path,
-) -> None:
-    (tmp_path / ".sase_plan_pending").touch()
-    assert write_bead_claim_marker(
-        tmp_path,
-        project_name="sase",
-        bead_id="sase-1.2",
-        agent_name="sase-1.2",
-    )
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=False),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    release.assert_not_called()
-    assert (tmp_path / BEAD_CLAIM_MARKER).exists()
-
-
-def test_finalize_ignores_corrupt_bead_claim_marker_with_warning(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    (tmp_path / BEAD_CLAIM_MARKER).write_text("{", encoding="utf-8")
-    context = RunnerShutdownContext(
-        project_file="/tmp/project.sase",
-        workflow_name="run",
-        cl_name="feature",
-        artifacts_timestamp="20260712120000",
-        artifacts_dir=str(tmp_path),
-        output_path=str(tmp_path / "output.log"),
-        submitted_xprompt="do work",
-        prompt="do work",
-        is_home_mode=True,
-    )
-    deps = RunnerShutdownDeps(
-        update_artifact_index=MagicMock(),
-        was_killed=MagicMock(return_value=True),
-        all_steps_hidden=MagicMock(return_value=True),
-        write_error_report=MagicMock(),
-        send_completion_notification=MagicMock(),
-        auto_dismiss_completed_agent=MagicMock(),
-    )
-
-    with patch("sase.bead.claims.release_bead_claim_for_agent") as release:
-        finalize_runner_shutdown(
-            context=context,
-            state=_state(
-                error_summary=None,
-                suppress_completion_notification=True,
-            ),
-            deps=deps,
-        )
-
-    release.assert_not_called()
-    assert "Warning: Failed to read bead claim marker" in capsys.readouterr().err
