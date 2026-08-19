@@ -10,10 +10,12 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.css.query import NoMatches
-from textual.events import Key
+from textual.events import Click, Key, Mount
 from textual.message import Message
+from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
+from sase.ace.query.profile_highlighting import highlight_query
 from sase.ace.query_profile import CompiledQueryProfile
 from sase.ace.tui.widgets._filter_bar_completion import (
     FilterBarCompletionList as _FilterBarCompletionList,
@@ -92,6 +94,9 @@ class FilterBar(FilterBarCompletionMixin, Static):
     class Dismissed(Message):
         """The user dismissed the bar after closing any completion menu."""
 
+    class Clicked(Message):
+        """An idle persistent bar was clicked, requesting edit mode."""
+
     def __init__(
         self,
         *args: Any,
@@ -117,6 +122,8 @@ class FilterBar(FilterBarCompletionMixin, Static):
         # Keep the widget out of layout even in small test apps that don't load
         # the application stylesheet.
         self.display = self.PERSISTENT
+        if self.PERSISTENT:
+            self.add_class("persistent")
 
     def _configure_from_profile(self, profile: CompiledQueryProfile) -> None:
         """Derive this instance's dialect from *profile*, overriding the
@@ -305,8 +312,12 @@ class FilterBar(FilterBarCompletionMixin, Static):
             return None
 
     def _closed_display_text(self, text: str) -> Text | None:
-        del text
-        return None
+        if not text:
+            hint = self.FREE_TEXT_HINT
+            return Text(hint, style="dim italic") if hint else Text("")
+        if self._profile is not None:
+            return highlight_query(text, self._profile)
+        return Text(text)
 
     def _update_closed_display(self, text: str) -> bool:
         display = self._closed_display()
@@ -326,6 +337,56 @@ class FilterBar(FilterBarCompletionMixin, Static):
             return False
         display.display = visible
         return True
+
+    def _sigil(self) -> Static | None:
+        if not self.is_mounted:
+            return None
+        try:
+            return self.query_one(f"#{self.SIGIL_ID}", Static)
+        except NoMatches:
+            return None
+
+    def _on_mount(self, event: Mount) -> None:
+        super()._on_mount(event)
+        if self.PERSISTENT:
+            self._apply_accent()
+
+    def _apply_accent(self) -> None:
+        """Resolve border, sigil, and completion-list colors from ACCENT.
+
+        Applied per instance rather than in CSS so a runtime-configured
+        accent (a document provider's ``contract.accent``) renders
+        correctly even though it is unknown at CSS-authoring time. Scoped to
+        persistent bars: non-persistent bars keep their existing per-class
+        CSS colors until they gain this idle presentation too.
+
+        Called from ``_on_mount``, where Textual has already attached this
+        widget's composed children (so they are queryable) but has not yet
+        flipped ``is_mounted`` to ``True`` -- so this queries the DOM
+        directly rather than through the ``is_mounted``-gated helpers.
+        """
+        sigil = self._query_child(self.SIGIL_ID)
+        if sigil is not None:
+            sigil.styles.color = self.ACCENT
+        for widget_id in (self.INPUT_ID, self.DISPLAY_ID, self.COMPLETION_ID):
+            widget = self._query_child(widget_id)
+            if widget is not None:
+                widget.styles.border = ("solid", self.ACCENT)
+
+    def _query_child(self, widget_id: str | None) -> Widget | None:
+        if widget_id is None:
+            return None
+        try:
+            return self.query_one(f"#{widget_id}")
+        except NoMatches:
+            return None
+
+    def on_click(self, event: Click) -> None:
+        """Open an idle persistent bar for editing when it is clicked."""
+        if not self.PERSISTENT or self._editing:
+            return
+        event.stop()
+        self.post_message(self.Clicked())
 
 
 __all__ = [

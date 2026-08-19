@@ -288,6 +288,8 @@ QUERY_TOKEN_STYLES: dict[str, str] = {
     "shorthand": "bold #AF87D7",
     "property_key": "bold #87D7FF",
     "property_value": "#D7AF5F",
+    "unknown_key": "bold #FFD700 on #5F0000",
+    "any_special": "bold #FFFFFF on #5F00AF",
     "whitespace": "",
 }
 

@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.query import QueryParseError
+from sase.ace.tui.widgets.filter_bar import FilterBar
 
 from .entry_navigation import ArtifactEntryTarget
 from .patch_filter_bar import PatchFilterBar
@@ -33,6 +34,10 @@ class PatchesFilterSessionMixin(_MixinBase):
         self._patch_filter_session_open = False
         self._patch_filter_restore_query = None
         self._patch_filter_restore_selection = None
+
+    def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
+        event.stop()
+        self.show_filters()
 
     def show_filters(self) -> None:
         """Open and focus the inline Patch filter bar."""

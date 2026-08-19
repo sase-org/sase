@@ -266,6 +266,21 @@ async def test_patch_filter_save_slot_grammar_keeps_active_query(
         assert bar._editing  # type: ignore[attr-defined]
 
 
+async def test_clicking_idle_bar_opens_the_filter_session() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        pane = page.query_one_widget("#artifacts-patches-pane", ArtifactsPatchesPane)
+        bar = pane.query_one(PatchFilterBar)
+        assert not pane._patch_filter_session_open
+
+        await page.click("#patch-filter-bar")
+        await page.pause()
+
+        assert pane._patch_filter_session_open
+        assert bar._editing  # type: ignore[attr-defined]
+
+
 async def test_action_patches_filters_is_scoped_to_patches_pane() -> None:
     async with AcePage(initial_tab="patches") as page:
         await page.press(page.artifacts_digit("beads"))

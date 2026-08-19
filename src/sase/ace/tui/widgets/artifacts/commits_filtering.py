@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from textual.worker import Worker
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
@@ -276,6 +277,10 @@ class CommitsFilteringMixin(_MixinBase):
             exact=False,
             error=error,
         )
+
+    def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
+        event.stop()
+        self.show_filters()
 
     def show_filters(self) -> None:
         """Open and focus the inline commit filter bar."""

@@ -192,26 +192,20 @@ FilterBar .filter-bar-completion {
     scrollbar-size-vertical: 1;
 }
 
-CommitFilterBar .filter-bar-sigil {
-    color: #FFD700;
-}
-
-CommitFilterBar {
-    display: block;
+/* Shared by every persistent bar (border/sigil/completion colors are
+   resolved per instance from ACCENT in FilterBar._apply_accent, since a
+   document provider's accent is a runtime value unknown at CSS-authoring
+   time). */
+FilterBar.persistent {
     height: 3;
     min-height: 3;
 }
 
-CommitFilterBar .filter-bar-input,
-CommitFilterBar .filter-bar-completion {
-    border: solid #FFD700;
-}
-
-CommitFilterBar .filter-bar-status {
+FilterBar.persistent .filter-bar-status {
     min-width: 0;
 }
 
-CommitFilterBar .filter-bar-status.error {
+FilterBar.persistent .filter-bar-status.error {
     min-width: 24;
 }
 
@@ -219,30 +213,6 @@ CommitFilterBar .filter-bar-completion > .option-list--option-highlighted {
     color: $background;
     background: #FFD700;
     text-style: bold;
-}
-
-PatchFilterBar .filter-bar-sigil {
-    color: #00D7AF;
-}
-
-PatchFilterBar {
-    display: block;
-    height: 3;
-    min-height: 3;
-}
-
-PatchFilterBar .filter-bar-input,
-PatchFilterBar .filter-bar-display,
-PatchFilterBar .filter-bar-completion {
-    border: solid #00D7AF;
-}
-
-PatchFilterBar .filter-bar-status {
-    min-width: 0;
-}
-
-PatchFilterBar .filter-bar-status.error {
-    min-width: 24;
 }
 
 PatchFilterBar .filter-bar-completion > .option-list--option-highlighted {

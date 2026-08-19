@@ -16,7 +16,6 @@ from sase.ace.tui.widgets.filter_bar import (
     filter_candidate_metadata,
 )
 
-from ..patch_detail import build_query_text
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -195,7 +194,9 @@ class PatchFilterBar(FilterBar):
         return candidates
 
     def _closed_display_text(self, text: str) -> Text | None:
-        rendered = build_query_text(text)
+        rendered = super()._closed_display_text(text)
+        if rendered is None:
+            return None
         slot = self._matching_saved_slot(text)
         if slot is not None:
             rendered.append("  ")

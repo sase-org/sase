@@ -36,6 +36,7 @@ class CommitFilterBar(FilterBar):
     STATUS_ID = "commit-filter-status"
     COMPLETION_ID = "commit-filter-completion"
     CANDIDATE_ID_PREFIX = "commit-filter-candidate"
+    DISPLAY_ID = "commit-filter-display"
     KEY_COMPLETIONS = (
         ("project", "single project name; omitted means all projects"),
         ("repo", "repository name or alias"),

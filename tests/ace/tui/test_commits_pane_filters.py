@@ -359,3 +359,18 @@ async def test_commits_negative_repo_reconciles_before_collection_and_persists(
             )
         )
         assert pane.filters.excluded_repos == ("sase-core-foundation",)
+
+
+async def test_clicking_idle_bar_opens_the_filter_session() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("stitches"))
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        assert not pane._filter_session_open
+
+        await page.click("#commit-filter-bar")
+        await page.pause()
+
+        assert pane._filter_session_open
+        assert bar._editing  # type: ignore[attr-defined]
