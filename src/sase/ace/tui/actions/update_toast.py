@@ -62,6 +62,7 @@ class UpdateToastMixin:
     _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
     _automatic_update_provider_names: tuple[str, ...] | None
+    _automatic_update_status: UpdateStatus | None
 
     def _schedule_startup_update_toast_check(self) -> None:
         """Start periodic checks and schedule the first one after first paint."""
@@ -220,6 +221,7 @@ class UpdateToastMixin:
         # comprehensive-update shortcut. Failed/in-flight checks never reach
         # this method, and a successful empty result intentionally replaces a
         # prior non-empty projection.
+        self._automatic_update_status = status
         self._automatic_update_provider_names = tuple(
             candidate.provider for candidate in status.provider_candidates
         )

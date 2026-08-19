@@ -17,9 +17,10 @@ from ..agents_sync_format import (
     agents_sync_status_needs_attention,
     captured_agent_hood_label,
 )
-
-_AGENTS_SYNC_ACCENT = "#5FD787"
-_AGENTS_SYNC_GLYPH = "⇅"
+from .update_accents import (
+    AGENTS_SYNC_ACCENT as _AGENTS_SYNC_ACCENT,
+    AGENTS_SYNC_GLYPH as _AGENTS_SYNC_GLYPH,
+)
 
 
 class AgentsSyncIndicator(Static):

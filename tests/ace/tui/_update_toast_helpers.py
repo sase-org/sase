@@ -127,6 +127,8 @@ class _AutomaticCheckApp(UpdateToastMixin):
         self._automatic_update_check_in_flight = False
         self._automatic_update_check_timer = None
         self._update_toast_shown = False
+        self._automatic_update_status = None
+        self._automatic_update_provider_names = None
         self.indicator = _Indicator(indicator_count)
         self.workers: list[tuple[Callable[[], None], dict[str, object]]] = []
         self.intervals: list[tuple[float, Callable[[], None], str]] = []

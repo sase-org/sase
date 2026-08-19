@@ -318,15 +318,16 @@ def test_completed_automatic_results_atomically_replace_provider_projection() ->
 
     app._apply_startup_update_status(first, config)
     assert app._automatic_update_provider_names == ("claude", "codex")
+    assert app._automatic_update_status is first
 
     app._complete_automatic_update_check(None)
     assert app._automatic_update_provider_names == ("claude", "codex")
+    assert app._automatic_update_status is first
 
-    app._apply_startup_update_status(
-        UpdateStatus(checked_at=200.0, components=()),
-        config,
-    )
+    empty = UpdateStatus(checked_at=200.0, components=())
+    app._apply_startup_update_status(empty, config)
     assert app._automatic_update_provider_names == ()
+    assert app._automatic_update_status is empty
 
 
 def test_provider_only_status_updates_indicator_and_provider_toast(

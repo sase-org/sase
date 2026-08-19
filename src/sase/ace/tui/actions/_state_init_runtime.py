@@ -103,6 +103,7 @@ def init_runtime_state(
     # Provider names from the last *completed* automatic update result.
     # ``None`` means no completed result has supplied authority yet; an
     # empty tuple is an authoritative completed result with no candidates.
+    self._automatic_update_status = None
     self._automatic_update_provider_names = None
     self._automatic_update_check_in_flight = False
     self._automatic_update_check_interval_seconds = (

@@ -5,10 +5,13 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-_UPDATES_ACCENT = "#AF87FF"
-_CORE_UPDATE_ACCENT = "#FFAF5F"
-_AGENT_CLI_ACCENT = "#00D7FF"
-_UPDATE_GLYPH = "↑"
+from .update_accents import (
+    AGENT_CLI_ACCENT as _AGENT_CLI_ACCENT,
+    CORE_UPDATE_ACCENT as _CORE_UPDATE_ACCENT,
+    UPDATE_GLYPH as _UPDATE_GLYPH,
+    UPDATES_ACCENT as _UPDATES_ACCENT,
+)
+
 _CORE_UPDATE_GLYPH = "*"
 
 

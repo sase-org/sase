@@ -10,6 +10,8 @@ from ._state_init_navigation import init_navigation_state
 from ._state_init_runtime import init_runtime_state
 
 if TYPE_CHECKING:
+    from sase.updates import UpdateStatus
+
     from ..app import TabName
 
 __all__ = ["StateInitMixin"]
@@ -19,6 +21,7 @@ class StateInitMixin:
     """Mixin housing the composed ``_init_app_state`` method."""
 
     _automatic_update_provider_names: tuple[str, ...] | None
+    _automatic_update_status: UpdateStatus | None
 
     def _init_app_state(
         self,
