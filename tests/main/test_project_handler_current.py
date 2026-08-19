@@ -34,14 +34,14 @@ def _install_current(
     monkeypatch: pytest.MonkeyPatch,
     current: CurrentProject | None,
 ) -> None:
-    from sase.main import project_handler
+    from sase.main import project_handler_current
 
     monkeypatch.setattr(
-        project_handler, "resolve_current_project", lambda **_kwargs: current
+        project_handler_current, "resolve_current_project", lambda **_kwargs: current
     )
     if current is not None:
         monkeypatch.setattr(
-            project_handler,
+            project_handler_current,
             "_enabled_project_keys",
             lambda: [current.project_key],
         )
@@ -167,13 +167,13 @@ class TestProjectCurrent:
     ) -> None:
         from rich.console import Console
 
-        from sase.main import project_handler
+        from sase.main import project_handler_current
 
         current = _project()
         _install_current(monkeypatch, current)
         console = Console(record=True, force_terminal=True, color_system="truecolor")
 
-        project_handler._print_current_human(current, console=console)
+        project_handler_current._print_current_human(current, console=console)
 
         accent = project_accent(current.project_key, among=[current.project_key])
         html = console.export_html(inline_styles=True)

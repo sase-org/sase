@@ -25,17 +25,17 @@ def _install_set(
     monkeypatch: pytest.MonkeyPatch,
     outcome: SetCurrentProjectOutcome,
 ) -> None:
-    from sase.main import project_handler
+    from sase.main import project_handler_current
 
     monkeypatch.setattr(
-        project_handler,
+        project_handler_current,
         "set_current_project",
         lambda *_args, **_kwargs: outcome,
     )
     project = outcome.project
     if project is not None:
         monkeypatch.setattr(
-            project_handler,
+            project_handler_current,
             "_enabled_project_keys",
             lambda: [project.project_key],
         )

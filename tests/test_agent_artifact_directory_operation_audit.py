@@ -262,7 +262,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "workspace-local SDD sidecar clone, not an agent artifact directory."
         ),
     ),
-    "src/sase/main/project_handler.py:delete_project_locked": DirOpReview(
+    "src/sase/main/project_handler_lifecycle.py:delete_project_locked": DirOpReview(
         exemption=(
             "Deletes the entire SASE project state directory only after blocking "
             "live RUNNING claims and live artifact markers; project-local "
