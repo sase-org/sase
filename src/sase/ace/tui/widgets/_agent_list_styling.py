@@ -96,6 +96,9 @@ _STEP_TYPE_GLYPHS: dict[str, str] = {"python": _STEP_RUN_GLYPH, "bash": _STEP_RU
 
 _MONITOR_GLYPH = MONITOR_GLYPH
 _MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
+# Same non-bold grey as ``_MONITOR_SETTLED_COUNT_GLYPH_STYLE`` below; do not
+# bold this — the weight-plus-hue rationale there applies to the row gear too.
+_MONITOR_SETTLED_GLYPH_STYLE = MONITOR_SETTLED_GLYPH_COLOR
 _MONITOR_ROW_STYLE = MONITOR_GLYPH_COLOR
 _MONITOR_COUNT_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 

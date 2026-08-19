@@ -14,6 +14,7 @@ from sase.ace.tui.models._agent_clan import ClanStatusCounts
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
+    agent_render_key,
     cached_format_agent_option,
     format_agent_option,
 )
@@ -575,6 +576,49 @@ def _family_container_with_running_monitor() -> tuple[Agent, Agent]:
     )
     root.followup_agents = [monitor]
     return root, monitor
+
+
+def _monitor_row_render_key(
+    *,
+    monitor_state: str,
+    stop_time: datetime | None,
+) -> tuple[object, ...]:
+    started = datetime(2026, 4, 25, 14, 30, 0)
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha-mon",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING" if stop_time is None else "MONITORED",
+        start_time=started,
+        stop_time=stop_time,
+        raw_suffix="20260425143001",
+        parent_timestamp="20260425143000",
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m1",
+        monitor_state=monitor_state,
+        monitor_label="just check",
+    )
+    return agent_render_key(
+        monitor,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
+
+
+def test_agent_render_key_differs_for_running_and_settled_monitor_rows() -> None:
+    running_key = _monitor_row_render_key(monitor_state="running", stop_time=None)
+    settled_key = _monitor_row_render_key(
+        monitor_state="completed",
+        stop_time=datetime(2026, 4, 25, 14, 33, 0),
+    )
+
+    assert running_key != settled_key
 
 
 def test_cached_container_row_invalidates_when_monitor_settles() -> None:

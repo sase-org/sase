@@ -38,6 +38,7 @@ from ..models.agent_family_members import (
     MonitorLaneCounts,
     is_sequential_family_container,
     monitor_lane_counts,
+    monitor_row_is_settled,
 )
 from ..models.agent_status import (
     RUNNING_COLOR,
@@ -88,6 +89,7 @@ from ._agent_list_styling import (
     _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
     _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
+    _MONITOR_SETTLED_GLYPH_STYLE,
     _MONITOR_STALLED_GLYPH,
     _MONITOR_STALLED_GLYPH_STYLE,
     _REVERTED_GLYPH,
@@ -111,6 +113,19 @@ def _has_file_change_hint(agent: Agent) -> bool:
 
 def _should_render_reverted_badge(agent: Agent) -> bool:
     return agent.reverted and not agent_is_tree_child(agent)
+
+
+def _monitor_glyph_style(agent: Agent) -> str:
+    """Return the row gear style for a monitor shell.
+
+    Shares ``monitor_row_is_settled`` with the ``⚙N`` lane counts so a grey
+    gear on a row and the grey count it feeds can never disagree.
+    """
+    return (
+        _MONITOR_SETTLED_GLYPH_STYLE
+        if monitor_row_is_settled(agent)
+        else _MONITOR_GLYPH_STYLE
+    )
 
 
 def _append_tree_indent(text: Text, depth: int) -> None:
@@ -194,14 +209,14 @@ def format_agent_option(
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
         if agent.is_monitor:
-            text.append(f"{_MONITOR_GLYPH} ", style=_MONITOR_GLYPH_STYLE)
+            text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
         elif agent.is_workflow_step_child:
             step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
             if step_glyph is not None:
                 glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
                 text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
     elif agent.is_monitor:
-        text.append(f"{_MONITOR_GLYPH} ", style=_MONITOR_GLYPH_STYLE)
+        text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:

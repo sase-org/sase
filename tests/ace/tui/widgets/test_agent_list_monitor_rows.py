@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts as ParallelFamilyStatusCounts,
 )
@@ -15,15 +17,17 @@ from sase.ace.tui.models.agent_family_members import (
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_styling import (
     _MONITOR_COUNT_GLYPH_STYLE,
+    _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
     _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
+    _MONITOR_SETTLED_GLYPH_STYLE,
 )
 
 
 def _monitor(
     *,
     status: str,
-    monitor_state: str,
+    monitor_state: str | None,
     exit_code: int | None = None,
     followup_error: str | None = None,
     followup_outcome: str | None = None,
@@ -231,6 +235,84 @@ def test_monitor_row_without_followup_error_has_no_flag_badge() -> None:
     )
 
     assert "⚑" not in left.plain
+
+
+def _gear_style(text) -> str | None:
+    return _style_at(text, text.plain.index("⚙"))
+
+
+def test_running_monitor_row_renders_amber_gear() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORING", monitor_state="running"),
+        0,
+        is_selected=False,
+    )
+
+    assert _gear_style(left) == _MONITOR_GLYPH_STYLE
+
+
+@pytest.mark.parametrize(
+    "monitor_state",
+    ("completed", "failed", "timeout", "stopped", "lost"),
+)
+def test_terminal_monitor_row_renders_grey_gear(monitor_state: str) -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state=monitor_state),
+        0,
+        is_selected=False,
+    )
+
+    assert _gear_style(left) == _MONITOR_SETTLED_GLYPH_STYLE
+
+
+def test_unreported_monitor_row_renders_amber_gear() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORING", monitor_state=None),
+        0,
+        is_selected=False,
+    )
+
+    assert _gear_style(left) == _MONITOR_GLYPH_STYLE
+
+
+def test_running_monitor_row_with_stop_time_renders_grey_gear() -> None:
+    monitor = _monitor(status="MONITORING", monitor_state="running")
+    monitor.stop_time = datetime(2026, 8, 12, 9, 3, 0)
+
+    left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)
+
+    assert _gear_style(left) == _MONITOR_SETTLED_GLYPH_STYLE
+
+
+def test_tree_child_settled_monitor_row_renders_grey_gear() -> None:
+    container = _family_container("completed")
+    monitor = container.followup_agents[0]
+
+    left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)
+
+    assert _gear_style(left) == _MONITOR_SETTLED_GLYPH_STYLE
+
+
+def test_top_level_settled_monitor_row_renders_grey_gear() -> None:
+    monitor = _monitor(status="MONITORED", monitor_state="completed")
+    monitor.parent_timestamp = None
+
+    left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)
+
+    assert _gear_style(left) == _MONITOR_SETTLED_GLYPH_STYLE
+
+
+def test_settled_row_gear_style_matches_container_settled_badge_style() -> None:
+    container = _family_container("completed")
+    monitor = container.followup_agents[0]
+
+    row_left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)
+    container_left, _c_suffix, _c_option_id = format_agent_option(
+        container, 0, is_selected=False
+    )
+
+    assert _gear_style(row_left) == _MONITOR_SETTLED_COUNT_GLYPH_STYLE
+    assert _gear_style(container_left) == _MONITOR_SETTLED_COUNT_GLYPH_STYLE
 
 
 def _style_at(text, position: int) -> str | None:

@@ -13,6 +13,7 @@ from sase.ace.tui.models.agent_family_members import (
     family_member_status_buckets,
     is_sequential_family_container,
     monitor_lane_counts,
+    monitor_row_is_settled,
     panel_monitor_lane_counts,
 )
 
@@ -366,6 +367,43 @@ def _monitor_member(
     monitor.monitor_id = monitor_id
     monitor.monitor_state = monitor_state
     return monitor
+
+
+def test_monitor_row_is_settled_matches_lane_partition() -> None:
+    running = _monitor_member(
+        "alpha--mon-running",
+        root=_agent("alpha--0", role="root"),
+        monitor_id="m-running",
+        monitor_state="running",
+    )
+    assert monitor_row_is_settled(running) is False
+
+    for state in ("completed", "stopped", "failed", "timeout", "lost"):
+        settled = _monitor_member(
+            f"alpha--mon-{state}",
+            root=_agent("alpha--0", role="root"),
+            monitor_id=state,
+            monitor_state=state,
+            stop_offset=5,
+        )
+        assert monitor_row_is_settled(settled) is True
+
+    unknown = _monitor_member(
+        "alpha--mon-unknown",
+        root=_agent("alpha--0", role="root"),
+        monitor_id="m-unknown",
+        monitor_state=None,
+    )
+    assert monitor_row_is_settled(unknown) is False
+
+    unknown_stopped = _monitor_member(
+        "alpha--mon-unknown-stopped",
+        root=_agent("alpha--0", role="root"),
+        monitor_id="m-unknown-stopped",
+        monitor_state=None,
+        stop_offset=5,
+    )
+    assert monitor_row_is_settled(unknown_stopped) is True
 
 
 def test_monitor_lane_counts_partitions_running_and_every_terminal_state() -> None:

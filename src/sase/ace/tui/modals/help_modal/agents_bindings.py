@@ -440,7 +440,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("×N", "N steps (collapsed)"),
                 ("×N +M / −M", "M shown / hidden steps or family members"),
-                ("⚙", "Monitor shell (label)"),
+                ("⚙", "Monitor shell, running (amber)"),
+                ("⚙", "Monitor shell, finished (grey)"),
                 ("⚙N", "N running monitors (amber)"),
                 ("⚙N", "N finished monitors (grey)"),
                 ("❯", "Bash / python step"),

@@ -32,7 +32,7 @@ def agent_row_is_in_flight(agent: Agent) -> bool:
     return agent_is_active(agent.status) and agent.stop_time is None
 
 
-def _monitor_row_is_settled(row: Agent) -> bool:
+def monitor_row_is_settled(row: Agent) -> bool:
     """Return whether one monitor row belongs in the settled (grey) lane.
 
     A ``stop_time`` alone settles a row even when its ``monitor_state`` was
@@ -41,6 +41,9 @@ def _monitor_row_is_settled(row: Agent) -> bool:
     neither lane. Unknown/missing ``monitor_state`` with no ``stop_time``
     is not settled, matching :func:`monitor_state_is_terminal`'s doctrine
     that a monitor which has not (yet) reported never reads as finished.
+
+    Shared by the ``⚙N`` lane counts and the per-row gear style so a grey
+    gear on a row and the grey count it feeds can never drift apart.
     """
     return monitor_state_is_terminal(row.monitor_state) or row.stop_time is not None
 
@@ -78,7 +81,7 @@ class _MonitorLaneTally:
         if row.identity not in self._seen_identities:
             self._seen_identities.add(row.identity)
             if row.is_monitor:
-                if _monitor_row_is_settled(row):
+                if monitor_row_is_settled(row):
                     self.settled += 1
                 else:
                     self.running += 1
@@ -334,5 +337,6 @@ __all__ = [
     "family_roster_container",
     "is_sequential_family_container",
     "monitor_lane_counts",
+    "monitor_row_is_settled",
     "panel_monitor_lane_counts",
 ]
