@@ -8,6 +8,7 @@ the same update services used by the CLI.
 from __future__ import annotations
 
 import time
+from collections import OrderedDict
 from typing import Any
 
 from textual.containers import Vertical
@@ -282,6 +283,15 @@ class PluginsBrowserPane(
         self._agent_cli_selection_guard = ProgrammaticSelectionGuard()
         self._updates_loaded_once = False
         self._grouped: list[tuple[str, str, list[PluginCatalogEntry]]] = []
+        #: entry.name -> casefolded filter haystack, rebuilt once per catalog
+        #: load instead of rejoined per entry on every filter keystroke.
+        self._plugin_haystacks: dict[str, str] = {}
+        #: Name-keyed lookup maps rebuilt once per `_rebuild_options()` call so
+        #: highlight/mark/detail lookups stay O(1) instead of scanning the
+        #: option list or `_grouped` per call.
+        self._plugin_option_index: dict[str, int] = {}
+        self._plugin_logical_row: dict[str, int] = {}
+        self._plugin_entry_by_name: dict[str, PluginCatalogEntry] = {}
         self._worker: Worker[Any] | None = None
         #: Worker computing an install plan/preview before the confirm modal.
         self._plan_worker: Worker[Any] | None = None
@@ -311,7 +321,11 @@ class PluginsBrowserPane(
         self._incoming_commits_enabled = incoming_config.enabled
         self._incoming_commits_limit = incoming_config.max_per_repo
         self._incoming_commits_confirm_limit = incoming_config.confirm_max_per_repo
-        self._incoming_commit_cache: dict[IncomingCommitsCacheKey, IncomingCommits] = {}
+        #: Bounded LRU: a long session highlighting many installed-and-
+        #: updatable rows must not grow this without limit.
+        self._incoming_commit_cache: OrderedDict[
+            IncomingCommitsCacheKey, IncomingCommits
+        ] = OrderedDict()
         self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
         self._core_incoming_commits: dict[str, IncomingCommits] = {}

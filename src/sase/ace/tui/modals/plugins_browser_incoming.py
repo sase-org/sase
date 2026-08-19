@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,12 +46,28 @@ class IncomingCommitsConfig:
 
 ConfirmIncomingCommitsLoader = Callable[[], tuple[RepoIncomingCommits, ...]]
 
+#: Cap on `_incoming_commit_cache`. Already bounded in practice by
+#: installed-and-updatable count rather than catalog size, so this is a leak
+#: fix for a long session, not a scale fix.
+_INCOMING_COMMIT_CACHE_MAX = 128
+
+
+def _put_incoming_commit_cache(
+    cache: OrderedDict[IncomingCommitsCacheKey, IncomingCommits],
+    key: IncomingCommitsCacheKey,
+    value: IncomingCommits,
+) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > _INCOMING_COMMIT_CACHE_MAX:
+        cache.popitem(last=False)
+
 
 class PluginsBrowserIncomingCommitsMixin:
     """Lazy plugin incoming-commit fetches for the detail panel."""
 
     if TYPE_CHECKING:
-        _incoming_commit_cache: dict[IncomingCommitsCacheKey, IncomingCommits]
+        _incoming_commit_cache: OrderedDict[IncomingCommitsCacheKey, IncomingCommits]
         _incoming_commit_loading: set[IncomingCommitsCacheKey]
         _incoming_commit_workers: dict[int, IncomingCommitsCacheKey]
         _incoming_commits_enabled: bool
@@ -131,14 +148,18 @@ class PluginsBrowserIncomingCommitsMixin:
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             if isinstance(result, IncomingCommits):
-                self._incoming_commit_cache[key] = result
+                _put_incoming_commit_cache(self._incoming_commit_cache, key, result)
         elif event.state == WorkerState.ERROR:
             error = self._worker_error_text(event.worker, kind="incoming commits")
-            self._incoming_commit_cache[key] = IncomingCommits(
-                total=0,
-                commits=(),
-                source="unavailable",
-                error=error,
+            _put_incoming_commit_cache(
+                self._incoming_commit_cache,
+                key,
+                IncomingCommits(
+                    total=0,
+                    commits=(),
+                    source="unavailable",
+                    error=error,
+                ),
             )
         entry = self._current_entry()
         if entry is None:

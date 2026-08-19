@@ -37,6 +37,13 @@ async def test_scale_catalog_fixture_filters_and_marks_at_n10(
 
         filter_input = pane.query_one("#plugins-filter-input", Input)
         pane.on_input_changed(Input.Changed(filter_input, FILTER_KEYSTROKE))
+        # The rebuild is debounced, so wait for it to settle before counting.
+        await page.wait_for(
+            lambda _s: (
+                sum(len(entries) for _, _, entries in pane._grouped)
+                == scale_filter_match_count(10)
+            )
+        )
         matched = sum(len(entries) for _, _, entries in pane._grouped)
         assert matched == scale_filter_match_count(10) == 10
 

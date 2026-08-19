@@ -258,4 +258,7 @@ async def test_updates_plugins_filter_change_clears_jump_hints(
         await page.pause()
 
         assert pane.jump_mode_active is False
-        assert not any(label.startswith("[") for label in _option_labels(pane))
+        # The row rebuild that clears painted hint prefixes is debounced.
+        await page.wait_for(
+            lambda _s: not any(label.startswith("[") for label in _option_labels(pane))
+        )

@@ -6,11 +6,15 @@ Run explicitly with::
 
 The harness stubs the catalog at ``_load_plugins_catalog`` (the same seam
 the functional pane tests use), then records p50/p95/max for pane open, one
-filter keystroke through ``on_input_changed``, 20 j presses driven through
-the queued ``OptionHighlighted`` handler, ``'`` jump-hint allocation, and
-one ``I`` install-mark toggle. Filter match count is held at 100 rows
-(or the full catalog when it is smaller) so the curve does not invert
-when *n* grows.
+settled filter keystroke, 20 j presses driven through the queued
+``OptionHighlighted`` handler, ``'`` jump-hint allocation, and one ``I``
+install-mark toggle. Filter match count is held at 100 rows (or the full
+catalog when it is smaller) so the curve does not invert when *n* grows.
+
+The filter keystroke scenario drives the real ``on_input_changed`` path and
+then fires its debounced rebuild synchronously (instead of waiting out the
+real timer) so the sample reflects the settled-filter cost the debouncer
+pays once per typing burst, not the (now near-zero) cost of scheduling it.
 
 Wall-clock budgets are recorded, not enforced. Phase ``guard`` flips them on.
 """
@@ -154,9 +158,18 @@ def _measure_install_mark(pane: PluginsBrowserPane) -> dict[str, float]:
 
 
 def _apply_filter(pane: PluginsBrowserPane, value: str) -> None:
-    """Run the real ``on_input_changed`` path for one filter value."""
+    """Run the real ``on_input_changed`` path, then settle its debounce.
+
+    ``on_input_changed`` only schedules the rebuild now, so the pending
+    timer is cancelled and its callback invoked directly to measure the
+    settled cost instead of waiting out the real debounce delay.
+    """
     filter_input = pane.query_one("#plugins-filter-input", Input)
     pane.on_input_changed(Input.Changed(filter_input, value))
+    debouncer = pane._detail_debouncer
+    if debouncer is not None:
+        debouncer.cancel()
+    pane._apply_filter()
 
 
 def _measure_filter_keystroke(pane: PluginsBrowserPane) -> dict[str, float]:

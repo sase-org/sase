@@ -15,6 +15,8 @@ from .plugins_browser_input import PluginsFilterInput
 if TYPE_CHECKING:
     from textual.app import App
 
+    from sase.ace.tui.util.debounce import DetailPanelDebouncer
+
 
 class PluginsBrowserControlsMixin:
     """User-input actions and widget lookup helpers for PluginsBrowserPane."""
@@ -22,6 +24,7 @@ class PluginsBrowserControlsMixin:
     if TYPE_CHECKING:
         _filter_text: str
         _active_subtab: str
+        _detail_debouncer: DetailPanelDebouncer | None
         _loading: bool
         _offline: bool
         _verbose: bool
@@ -162,8 +165,19 @@ class PluginsBrowserControlsMixin:
             return
         self._filter_text = event.value
         # Filtering rewrites the row list, so drop hints and the back stack
-        # before the rebuild below repaints the rows.
+        # right away; the (expensive) rebuild itself is debounced below so a
+        # fast typing burst collapses to one rebuild instead of one per key.
         self.reset_jump_state()
+        self._schedule_filter_apply()
+
+    def _schedule_filter_apply(self) -> None:
+        debouncer = self._detail_debouncer
+        if debouncer is None:
+            self._apply_filter()
+            return
+        debouncer.schedule(self._apply_filter)
+
+    def _apply_filter(self) -> None:
         self._rebuild_groups()
         self._rebuild_options()
         self._sync_state_visibility()
@@ -179,10 +193,10 @@ class PluginsBrowserControlsMixin:
         if self._filter_text:
             self._filter_text = ""
             self._set_filter_value("")
-            self._rebuild_groups()
-            self._rebuild_options()
-            self._sync_state_visibility()
-            self._render_detail_now(force=True)
+            if self._detail_debouncer is not None:
+                # Supersede any filter rebuild still pending from typing.
+                self._detail_debouncer.cancel()
+            self._apply_filter()
         self.focus_default()
 
     def _option_list(self) -> OptionList | None:

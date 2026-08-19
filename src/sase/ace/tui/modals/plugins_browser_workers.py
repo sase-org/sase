@@ -102,6 +102,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
 
         def _on_update_preview(self, result: Any) -> None: ...
 
+        def _refresh_plugin_haystacks(self) -> None: ...
+
         def _render_all(self) -> None: ...
 
         def _start_sase_update_preview(
@@ -250,6 +252,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             self._loading = False
             self._updates_loaded_once = True
             self._catalog = getattr(result, "catalog", None)
+            self._refresh_plugin_haystacks()
             self._error = getattr(result, "error", None)
             self._now = getattr(result, "now", self._now)
             fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))

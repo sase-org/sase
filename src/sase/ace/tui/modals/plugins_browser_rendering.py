@@ -63,6 +63,10 @@ class PluginsBrowserRenderingMixin:
         _uv_tool: object | None
         _verbose: bool
         _dev_root: str | None
+        _plugin_haystacks: dict[str, str]
+        _plugin_option_index: dict[str, int]
+        _plugin_logical_row: dict[str, int]
+        _plugin_entry_by_name: dict[str, PluginCatalogEntry]
 
         def _detail_widget(self) -> Static | None: ...
 
@@ -122,8 +126,9 @@ class PluginsBrowserRenderingMixin:
         catalog = self._catalog
         if catalog is None:
             return
-        builtin = [e for e in catalog.builtin_entries if self._matches(e)]
-        community = [e for e in catalog.community_entries if self._matches(e)]
+        needle = self._filter_text.strip().casefold()
+        builtin = [e for e in catalog.builtin_entries if self._matches(e, needle)]
+        community = [e for e in catalog.community_entries if self._matches(e, needle)]
         if builtin:
             self._grouped.append((_BUILTIN_GROUP, "bold dim", builtin))
         if community:
@@ -131,16 +136,34 @@ class PluginsBrowserRenderingMixin:
                 (_COMMUNITY_GROUP, f"bold {_COMMUNITY_STYLE}", community)
             )
 
-    def _matches(self, entry: PluginCatalogEntry) -> bool:
-        needle = self._filter_text.strip().casefold()
+    def _matches(self, entry: PluginCatalogEntry, needle: str) -> bool:
         if not needle:
             return True
-        haystack = "\n".join(
+        haystack = self._plugin_haystacks.get(entry.name)
+        if haystack is None:
+            haystack = self._plugin_haystack(entry)
+        return needle in haystack
+
+    def _refresh_plugin_haystacks(self) -> None:
+        """Rebuild the name-keyed filter-haystack cache for the live catalog.
+
+        Called once per catalog load rather than per filter keystroke, so
+        `_matches` never rejoins an entry's fields while the user types.
+        """
+        catalog = self._catalog
+        self._plugin_haystacks = (
+            {entry.name: self._plugin_haystack(entry) for entry in catalog.entries}
+            if catalog is not None
+            else {}
+        )
+
+    @staticmethod
+    def _plugin_haystack(entry: PluginCatalogEntry) -> str:
+        return "\n".join(
             part
             for part in (entry.name, entry.repo, entry.description, *entry.topics)
             if part
         ).casefold()
-        return needle in haystack
 
     def _rebuild_options(self) -> None:
         option_list = self._option_list()
@@ -152,8 +175,9 @@ class PluginsBrowserRenderingMixin:
         selected_name: str | None = None
         self._plugin_selection_guard.clear()
         option_list.clear_options()
-        for opt in self._create_options():
-            option_list.add_option(opt)
+        options = self._create_options()
+        option_list.add_options(options)
+        self._rebuild_plugin_identity_maps(options, entries)
         if entries:
             row = restore_selection_by_identity(
                 entries,
@@ -162,13 +186,13 @@ class PluginsBrowserRenderingMixin:
                 identity_fn=lambda entry: entry.name,
             )
             selected_name = entries[row].name
-            option_index = self._option_index_for_plugin(option_list, selected_name)
+            option_index = self._option_index_for_plugin(selected_name)
             if option_index is not None:
                 self._plugin_selection_guard.prepare(selected_name, row)
                 option_list.highlighted = option_index
             else:
                 selected_name = entries[0].name
-                option_index = self._option_index_for_plugin(option_list, selected_name)
+                option_index = self._option_index_for_plugin(selected_name)
                 if option_index is not None:
                     self._plugin_selection_guard.prepare(selected_name, 0)
                     option_list.highlighted = option_index
@@ -183,20 +207,32 @@ class PluginsBrowserRenderingMixin:
     def _flat_plugin_entries(self) -> list[PluginCatalogEntry]:
         return [entry for _, _, entries in self._grouped for entry in entries]
 
-    @staticmethod
-    def _option_index_for_plugin(option_list: OptionList, name: str) -> int | None:
-        target = f"{_ITEM_PREFIX}{name}"
-        for index in range(option_list.option_count):
-            opt = option_list.get_option_at_index(index)
-            if opt.id == target:
-                return index
-        return None
+    def _rebuild_plugin_identity_maps(
+        self, options: list[Option], entries: list[PluginCatalogEntry]
+    ) -> None:
+        """(Re)build the name-keyed lookup maps for the just-rebuilt rows.
+
+        Built once here, right after the options they describe, instead of
+        scanned per lookup — highlight moves, mark toggles, and detail
+        lookups stay O(1) as the catalog grows. Any row-set change goes
+        through `_rebuild_options`, so rebuilding here keeps the maps valid
+        everywhere else without a separate invalidation step.
+        """
+        self._plugin_option_index = {
+            str(opt.id).removeprefix(_ITEM_PREFIX): index
+            for index, opt in enumerate(options)
+            if opt.id and not str(opt.id).startswith(_HEADER_PREFIX)
+        }
+        self._plugin_logical_row = {
+            entry.name: row for row, entry in enumerate(entries)
+        }
+        self._plugin_entry_by_name = {entry.name: entry for entry in entries}
+
+    def _option_index_for_plugin(self, name: str) -> int | None:
+        return self._plugin_option_index.get(name)
 
     def _logical_row_for_plugin(self, name: str) -> int | None:
-        for row, entry in enumerate(self._flat_plugin_entries()):
-            if entry.name == name:
-                return row
-        return None
+        return self._plugin_logical_row.get(name)
 
     def _record_plugin_bookmark(self, name: str | None) -> None:
         if name is None:
@@ -300,13 +336,11 @@ class PluginsBrowserRenderingMixin:
 
     def _highlight_named(self, option_list: OptionList, name: str) -> bool:
         """Highlight the row for *name* if it is present; return success."""
-        target = f"{_ITEM_PREFIX}{name}"
-        for index in range(option_list.option_count):
-            opt = option_list.get_option_at_index(index)
-            if opt.id == target:
-                option_list.highlighted = index
-                return True
-        return False
+        index = self._plugin_option_index.get(name)
+        if index is None:
+            return False
+        option_list.highlighted = index
+        return True
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -548,11 +582,7 @@ class PluginsBrowserRenderingMixin:
         return self._entry_by_name(str(opt.id).removeprefix(_ITEM_PREFIX))
 
     def _entry_by_name(self, name: str) -> PluginCatalogEntry | None:
-        for _, _, entries in self._grouped:
-            for entry in entries:
-                if entry.name == name:
-                    return entry
-        return None
+        return self._plugin_entry_by_name.get(name)
 
     def _highlighted_name(self) -> str | None:
         entry = self._current_entry()
@@ -568,15 +598,11 @@ class PluginsBrowserRenderingMixin:
         """Patch one plugin row after its mark bit changes."""
         option_list = self._option_list()
         entry = self._entry_by_name(name)
-        if option_list is None or entry is None:
+        index = self._plugin_option_index.get(name)
+        if option_list is None or entry is None or index is None:
             return False
-        target = f"{_ITEM_PREFIX}{name}"
-        for index in range(option_list.option_count):
-            option = option_list.get_option_at_index(index)
-            if option.id == target:
-                option_list.replace_option_prompt_at_index(index, self._row_text(entry))
-                return True
-        return False
+        option_list.replace_option_prompt_at_index(index, self._row_text(entry))
+        return True
 
     def _advance_install_mark_selection(self) -> None:
         """Move the cursor to the next installable row after a mark toggle."""
