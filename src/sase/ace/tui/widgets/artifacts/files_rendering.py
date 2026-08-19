@@ -14,7 +14,7 @@ from sase.core.time import parse_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .files_data import FileOrigin, FileVersion, FilesSnapshot, LogicalFile
-from .files_filtering import FilesFilterValues, to_query_tokens
+from .files_filtering import FilesFilterValues
 from .shell import ArtifactsPaneState, build_footer_hints, build_state_badge
 from .types import ARTIFACTS_ACCENTS
 
@@ -120,10 +120,6 @@ def build_files_info(
             f"filtered {visible:,}/{len(snapshot.rows):,}",
             style=f"bold {accent}",
         )
-        tokens = to_query_tokens(filters)
-        if tokens:
-            text.append("  ·  ", style="dim")
-            text.append(" ".join(tokens), style=accent)
     return text
 
 

@@ -33,6 +33,8 @@ class FileFilterBar(FilterBar):
     STATUS_ID = "file-filter-status"
     COMPLETION_ID = "file-filter-completion"
     CANDIDATE_ID_PREFIX = "file-filter-candidate"
+    DISPLAY_ID = "file-filter-display"
+    PERSISTENT = True
     KEY_COMPLETIONS = (
         ("kind", "stored artifact kind"),
         ("project", "project key"),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
+from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
 
 from .entry_navigation import ArtifactEntryTarget
@@ -53,6 +54,10 @@ class FilesFilterSessionMixin(_MixinBase):
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
+
+    def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
+        event.stop()
+        self.show_filters()
 
     def show_filters(self) -> None:
         """Open and focus the inline Files filter bar."""

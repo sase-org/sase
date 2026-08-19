@@ -241,9 +241,12 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
             )
         )
 
-        await page.press("/")
         bar = pane.query_one(FileFilterBar)
-        await page.wait_for(lambda _state: bar.display)
+        assert bar.display
+        display = bar.query_one("#file-filter-display", Static)
+
+        await page.press("/")
+        assert bar._editing  # type: ignore[attr-defined]
         bar.set_query("kind:image")
         bar.post_message(FileFilterBar.QueryChanged("kind:image"))
         await page.wait_for(lambda _state: len(pane.entry_targets()) == 2)
@@ -253,16 +256,22 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
             value for values in bar._completion_sources.values() for value in values
         }
         await page.press("enter")
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
+        assert bar.display
         assert pane.filters.kinds == ("image",)
         assert "filtered 2/3" in pane.query_one("#files-info", Static).content.plain
+        assert display.render().plain == "kind:image"
 
         await page.press("z")
         assert pane.filters.kinds == ("markdown",)
         assert pane.selected_entry is not None
         assert pane.selected_entry.id == rows[2].id
+        assert display.render().plain == "kind:markdown"
         await page.press("z")
         assert pane.filters.kinds == ()
+        profile = compiled_profile_for_builtin_pane("files")
+        assert profile is not None
+        assert display.render().plain == profile.free_text_hint
 
         pane.filters = replace(pane.filters, text=("missing",))
         pane._refresh_options()
@@ -271,3 +280,62 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         assert "No matches" in str(empty.content)
         assert "active file filter" in str(empty.content)
         assert "Press f to edit or clear it." in str(empty.content)
+
+
+async def test_clicking_idle_file_bar_opens_the_filter_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = (artifact_file("image-one", kind="image", path="/stored/image-one.png"),)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        files_pane,
+        "load_files_snapshot",
+        lambda project, _limit: snapshot(rows, project=project),
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("files"), "(")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        bar = pane.query_one(FileFilterBar)
+        assert not pane._filter_session_open
+
+        await page.click("#file-filter-bar")
+        await page.pause()
+
+        assert pane._filter_session_open
+        assert bar._editing  # type: ignore[attr-defined]
+
+
+async def test_file_bar_geometry_is_unchanged_between_idle_and_editing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = (artifact_file("image-one", kind="image", path="/stored/image-one.png"),)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        files_pane,
+        "load_files_snapshot",
+        lambda project, _limit: snapshot(rows, project=project),
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("files"), "(")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        option_list = pane.query_one("#files-list")
+        idle_region = option_list.region
+        assert idle_region.height > 0
+
+        await page.press("/")
+        await page.pause()
+        assert option_list.region == idle_region
+
+        await page.press("escape")
+        await page.pause()
+        assert option_list.region == idle_region

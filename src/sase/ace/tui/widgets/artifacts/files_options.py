@@ -69,6 +69,7 @@ class FilesOptionsMixin(_MixinBase):
     _option_id_by_target: dict[ArtifactEntryTarget, str]
     _pending_entry_target: ArtifactEntryTarget | None
     _syncing_options: bool
+    filters: FilesFilterValues
     _filter_session_open: bool
     _filter_query_error: FilesFilterQueryError | None
     _filtered_count: int | None
@@ -142,12 +143,7 @@ class FilesOptionsMixin(_MixinBase):
         values = self._display_filter_values()
         filtered, exact, pending = self._filtered_snapshot(values)
         if pending:
-            if self._filter_session_open and self._filter_query_error is None:
-                self.query_one(FileFilterBar).set_status(
-                    None,
-                    exact=False,
-                    error=None,
-                )
+            self._sync_query_bar(None, exact=False)
             return
         self._filtered_count = None if filtered is None else len(filtered.rows)
         mode = self._active_grouping_mode()
@@ -217,12 +213,11 @@ class FilesOptionsMixin(_MixinBase):
         self._update_status()
         self._update_static("#files-info", self._scope_text())
         self._update_static("#files-hints", self._hints_text())
-        if self._filter_session_open and self._filter_query_error is None:
-            self.query_one(FileFilterBar).set_status(
-                self._filtered_count,
-                exact=exact,
-                error=None,
-            )
+        self._sync_query_bar(
+            self._filtered_count,
+            exact=exact,
+            blank=not self._filter_session_open and values.is_empty,
+        )
         self._schedule_detail()
 
     def _filtered_snapshot(
@@ -299,6 +294,31 @@ class FilesOptionsMixin(_MixinBase):
     def _accent(self) -> str:
         contract = self.contract
         return ARTIFACTS_ACCENTS["files"] if contract is None else contract.accent
+
+    def _sync_query_bar(
+        self,
+        match_count: int | None,
+        *,
+        exact: bool,
+        blank: bool = False,
+    ) -> None:
+        """Keep the persistent Files bar's text and status lane truthful.
+
+        Called from every ``_refresh_options()`` exit path, including the
+        pending-query early return, since a permanent bar must stay correct
+        even while the user is not editing it. *blank* clears the status
+        lane for an idle, empty query, where the placeholder already says
+        there is no filter.
+        """
+        bar = self.query_one(FileFilterBar)
+        if not self._filter_session_open:
+            bar.set_query(to_query_string(self.filters))
+        if self._filter_query_error is not None:
+            return
+        if blank:
+            bar.clear_status()
+        else:
+            bar.set_status(match_count, exact=exact, error=None)
 
     def _scope_text(self) -> RenderableType:
         snapshot = self._current_snapshot()

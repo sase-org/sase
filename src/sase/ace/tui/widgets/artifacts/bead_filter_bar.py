@@ -42,6 +42,8 @@ class BeadFilterBar(FilterBar):
     STATUS_ID = "bead-filter-status"
     COMPLETION_ID = "bead-filter-completion"
     CANDIDATE_ID_PREFIX = "bead-filter-candidate"
+    DISPLAY_ID = "bead-filter-display"
+    PERSISTENT = True
     KEY_COMPLETIONS = (
         ("type", ", ".join(BEAD_FILTER_TYPE_VALUES)),
         ("task_type", "task-type slug or untyped"),

@@ -261,6 +261,18 @@ class FilterBar(FilterBarCompletionMixin, Static):
             content.append(label, style=self.ACCENT if exact else "dim #FFD75F")
         status.update(content)
 
+    def clear_status(self) -> None:
+        """Blank the status lane for an idle, empty query.
+
+        The closed display's placeholder already says there is no filter;
+        a match count or coverage label next to it would be noise.
+        """
+        status = self._status()
+        if status is None:
+            return
+        status.set_class(False, "error")
+        status.update(Text())
+
     @on(TextArea.Changed)
     def _on_query_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id != self.INPUT_ID:

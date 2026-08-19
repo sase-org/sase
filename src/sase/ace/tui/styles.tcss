@@ -236,18 +236,15 @@ PlanFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
-FileFilterBar .filter-bar-sigil {
-    color: #FFAF5F;
-}
-
-FileFilterBar .filter-bar-input,
-FileFilterBar .filter-bar-completion {
-    border: solid #FFAF5F;
-}
-
 FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
     color: $background;
     background: #FFAF5F;
+    text-style: bold;
+}
+
+BeadFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #D787FF;
     text-style: bold;
 }
 

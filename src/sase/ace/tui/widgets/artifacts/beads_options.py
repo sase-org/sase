@@ -9,7 +9,7 @@ from textual.widgets import Static
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.bead.filter_query import BeadFilterQueryError, BeadFilterValues
-from sase.bead.filter_query import to_query_string, to_query_tokens
+from sase.bead.filter_query import to_query_string
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
 from ...models.group_fold import GroupFoldRegistry
@@ -154,12 +154,7 @@ class BeadsOptionsMixin(_MixinBase):
                 self._display_matched_counts = matched_counts
                 self._display_matched_triage_count = triage_count
         if pending_query:
-            if self._filter_session_open and self._filter_query_error is None:
-                self.query_one(BeadFilterBar).set_status(
-                    None,
-                    exact=False,
-                    error=None,
-                )
+            self._sync_query_bar(None, exact=False)
             return
         options, rows = build_bead_options(
             self._snapshot,
@@ -206,12 +201,11 @@ class BeadsOptionsMixin(_MixinBase):
             self._pending_entry_target = None
         self._update_static("#beads-status", self._status_text())
         self._update_static("#beads-info", self._scope_text())
-        if self._filter_session_open and self._filter_query_error is None:
-            self.query_one(BeadFilterBar).set_status(
-                match_count,
-                exact=match_count is not None,
-                error=None,
-            )
+        self._sync_query_bar(
+            match_count,
+            exact=match_count is not None,
+            blank=not self._filter_session_open and values.is_empty,
+        )
         if update_detail:
             if self._detail_debouncer is None:
                 self._update_detail()
@@ -219,12 +213,36 @@ class BeadsOptionsMixin(_MixinBase):
                 self._detail_debouncer.schedule(self._update_detail)
         self._sync_artifacts_footer()
 
+    def _sync_query_bar(
+        self,
+        match_count: int | None,
+        *,
+        exact: bool,
+        blank: bool = False,
+    ) -> None:
+        """Keep the persistent Beads bar's text and status lane truthful.
+
+        Called from every ``_refresh_options()`` exit path, including the
+        pending-query early return, since a permanent bar must stay correct
+        even while the user is not editing it. *blank* clears the status
+        lane for an idle, empty query, where the placeholder already says
+        there is no filter.
+        """
+        bar = self.query_one(BeadFilterBar)
+        if not self._filter_session_open:
+            bar.set_query(to_query_string(self.filters))
+        if self._filter_query_error is not None:
+            return
+        if blank:
+            bar.clear_status()
+        else:
+            bar.set_status(match_count, exact=exact, error=None)
+
     def _scope_text(self) -> Any:
         return build_beads_scope(
             self._registry,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
-            filter_tokens=to_query_tokens(self.filters),
             accent=self._accent(),
         )
 

@@ -471,7 +471,10 @@ async def test_hide_closed_default_is_visible_and_clearable(
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         assert pane.filters.excluded_statuses == ("closed",)
-        assert "-status:closed" in pane.query_one("#beads-info", Static).content.plain
+        bar = pane.query_one(BeadFilterBar)
+        assert bar.display
+        display = bar.query_one("#bead-filter-display", Static)
+        await page.wait_for(lambda _state: "-status:closed" in display.render().plain)
 
         assert pane.select_entry_target(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
@@ -483,17 +486,127 @@ async def test_hide_closed_default_is_visible_and_clearable(
         )
 
         await page.press("/")
-        bar = pane.query_one(BeadFilterBar)
-        await page.wait_for(lambda _state: bar.display)
+        assert bar._editing  # type: ignore[attr-defined]
         bar.set_query("")
         bar.post_message(BeadFilterBar.Submitted(""))
-        await page.wait_for(lambda _state: not bar.display)
+        await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
 
         assert pane.filters.is_empty
-        assert (
-            "-status:closed" not in pane.query_one("#beads-info", Static).content.plain
-        )
+        assert bar.display
+        assert display.render().plain == pane._query_profile.free_text_hint
         assert (
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "phase", "alpha-1.1"))
             in pane.entry_targets()
         )
+
+
+async def test_clicking_idle_bead_bar_opens_the_filter_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = snapshot(tmp_path, project=None)
+    monkeypatch.setattr(
+        beads_pane,
+        "load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("3")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is value)
+        bar = pane.query_one(BeadFilterBar)
+        assert not pane._filter_session_open
+
+        await page.click("#bead-filter-bar")
+        await page.pause()
+
+        assert pane._filter_session_open
+        assert bar._editing  # type: ignore[attr-defined]
+
+
+async def test_committing_bead_query_updates_idle_bar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = snapshot(tmp_path, project=None)
+    monkeypatch.setattr(
+        beads_pane,
+        "load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("3")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is value)
+        bar = pane.query_one(BeadFilterBar)
+        display = bar.query_one("#bead-filter-display", Static)
+
+        await page.press("/")
+        bar.set_query("tier:epic")
+        bar.post_message(BeadFilterBar.Submitted("tier:epic"))
+        await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
+
+        assert pane.filters.tiers == ("epic",)
+        assert display.render().plain == "tier:epic"
+
+
+async def test_changing_project_scope_keeps_idle_bead_bar_in_sync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha = snapshot(tmp_path, project="alpha")
+    beta = snapshot(tmp_path, project="beta")
+    monkeypatch.setattr(
+        beads_pane,
+        "load_beads_snapshot",
+        lambda project, **_kwargs: alpha if project == "alpha" else beta,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("3")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        pane.set_project_scope("alpha")
+        await page.wait_for(lambda _state: pane.snapshot is alpha)
+        bar = pane.query_one(BeadFilterBar)
+        display = bar.query_one("#bead-filter-display", Static)
+
+        await page.press("/")
+        bar.set_query("tier:epic")
+        bar.post_message(BeadFilterBar.Submitted("tier:epic"))
+        await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
+        assert display.render().plain == "tier:epic"
+
+        pane.set_project_scope("beta")
+        await page.wait_for(lambda _state: pane.snapshot is beta)
+
+        assert display.render().plain == "tier:epic"
+
+
+async def test_bead_bar_geometry_is_unchanged_between_idle_and_editing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = snapshot(tmp_path, project=None)
+    monkeypatch.setattr(
+        beads_pane,
+        "load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("3")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is value)
+        option_list = pane.query_one("#beads-list")
+        idle_region = option_list.region
+        assert idle_region.height > 0
+
+        await page.press("/")
+        await page.pause()
+        assert option_list.region == idle_region
+
+        await page.press("escape")
+        await page.pause()
+        assert option_list.region == idle_region

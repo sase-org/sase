@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.bead.filter_query import (
     BeadFilterQueryError,
     BeadFilterValues,
@@ -58,6 +59,10 @@ class BeadsFilterSessionMixin(_MixinBase):
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
+
+    def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
+        event.stop()
+        self.show_filters()
 
     def show_filters(self) -> None:
         """Open and focus the inline Beads filter bar."""
