@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+import logging
+from collections.abc import Callable, Collection, Sequence
 
 from sase.agent.launch_cwd_common import internal_agent_name_bypass_for_launch
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
+
+log = logging.getLogger(__name__)
 
 
 def _canonicalize_bead_work_ref(ref: str) -> str:
@@ -155,6 +158,12 @@ def launch_planned_bead_work_agents(
 
     add_or_update_prompt(normalized_query, allow_short=True)
 
+    _guard_hard_disabled_bead_work(
+        normalized_query,
+        segments=normalized_segments,
+        record_failed_launch_prompt=record_failed_launch_prompt,
+    )
+
     preplanned_fanout_plans = [
         plan_fake_fanout("multi_prompt", [segment]) for segment in normalized_segments
     ]
@@ -175,3 +184,30 @@ def launch_planned_bead_work_agents(
     except Exception:
         record_failed_launch_prompt(normalized_query)
         raise
+
+
+def _guard_hard_disabled_bead_work(
+    submitted_query: str,
+    *,
+    segments: Sequence[str],
+    record_failed_launch_prompt: Callable[[str], None],
+) -> None:
+    """Refuse a confirmed hard-disable block; fail open on guard surprises."""
+    from sase.agent.launch_guard import (
+        DisabledProviderLaunchError,
+        LaunchUnitInput,
+        guard_launch_units,
+    )
+
+    unit_inputs = tuple(LaunchUnitInput(prompt=segment) for segment in segments)
+    try:
+        guard_launch_units(submitted_query, units=unit_inputs)
+    except DisabledProviderLaunchError:
+        record_failed_launch_prompt(submitted_query)
+        raise
+    except Exception:
+        log.warning(
+            "provider-disable launch guard failed open; continuing with "
+            "bead-work launch",
+            exc_info=True,
+        )

@@ -2787,12 +2787,14 @@ that counts only pool members (a last-resort tail does not inflate the denominat
 the tail is selected. After the last pool member, a `fallback:` separator introduces
 last-resort rows. An ordered fallback labels candidates in priority order, marks the
 current winner, and never reads rotation state. The row's provider/model/effort badge is
-derived from that same selected member. Temporarily disabled providers count as
-unavailable for this display. If a temporary alias override targets a disabled provider,
-the override is preserved but paused: the row shows the live fallback/pool target, the
-state tag says the override is paused, and the description names the disabled provider
-that must expire or be re-enabled before the override resumes. An active override whose
-provider remains available still bypasses selector choice for the override's lifetime.
+derived from that same selected member. Temporarily **hard**-disabled providers count as
+unavailable for this display. Soft-disabled providers stay selectable (shown as `soft`)
+and still count in `pool <available>/<total>`. If a temporary alias override targets a
+**hard**-disabled provider, the override is preserved but paused: the row shows the live
+fallback/pool target, the state tag says the override is paused, and the description
+names the disabled provider that must expire or be re-enabled before the override
+resumes. An active override whose provider remains available, including a soft-disabled
+one, still bypasses selector choice for the override's lifetime.
 
 If a builtin size alias is mistakenly configured under
 `llm_provider.model_aliases.custom`, opening the panel emits one warning toast listing

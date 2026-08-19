@@ -1720,10 +1720,12 @@ resolution order, state-file format, and precedence relative to
 The same panel's `p=Providers` flow manages temporary provider disables in
 `~/.sase/llm_provider_disables.json`. This is runtime state, not configuration: it does
 not add a `disabled_providers` key, does not edit `llm_provider.provider`, and does not
-rewrite any alias. Alias selectors route around disabled providers, temporary alias
-overrides targeting disabled providers pause until the disable clears or expires, and
+rewrite any alias. A **hard** disable is fail-closed: alias selectors skip that member,
+temporary alias overrides targeting it pause until the disable clears or expires, and
 direct explicit provider/model requests fail with an actionable diagnostic instead of
-silently switching providers. See
+silently switching providers. A **soft** disable is spared in `|` pools while another
+member can cover, never diverts a `||` fallback, and does not pause overrides or fail
+explicit requests. See
 [Temporary Provider Disables](llms.md#temporary-provider-disables).
 
 #### `llm_provider.usage_limit`

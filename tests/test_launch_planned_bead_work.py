@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from sase.agent.launch_guard import DisabledProviderLaunchError
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_MODE_SOFT
+from tests.agent._launch_guard_helpers import (
+    disable,
+    install_disables,
+    pin_cli_available,
+)
 
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
@@ -45,6 +54,7 @@ def test_adapter_passes_one_slot_preplanned_plans(
         "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
     )
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    install_disables(monkeypatch, {})
 
     results = launch_cwd.launch_planned_bead_work_agents(
         segments=segments,
@@ -121,6 +131,126 @@ def test_adapter_rejects_mismatched_env_length() -> None:
             expected_names=set(),
             project_name="proj",
         )
+
+
+def _explicit_claude_segment() -> tuple[list[str], list[dict[str, str]], set[str]]:
+    segments = [
+        "#git:proj\n%id(proj-epic.1, bead=proj-epic.1)\n"
+        "%clan(proj-epic, tribe=epic)\n%model:claude/opus\n"
+        "%auto\n#bd/work_phase_bead:proj-epic.1",
+    ]
+    envs = [{"SASE_BEAD_ID": "proj-epic.1", "SASE_INTERNAL_AGENT_NAME_BYPASS": "1"}]
+    return segments, envs, {"proj-epic.1"}
+
+
+def test_adapter_refuses_hard_disabled_provider_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent import launch_cwd
+
+    segments, envs, expected = _explicit_claude_segment()
+    pin_cli_available(monkeypatch)
+    install_disables(monkeypatch, {"claude": disable("claude")})
+    recorded: list[str] = []
+    monkeypatch.setattr(
+        "sase.history.prompt.record_failed_launch_prompt",
+        recorded.append,
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
+    )
+    monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        lambda **kwargs: pytest.fail("must not spawn a hard-disabled bead-work unit"),
+    )
+
+    with pytest.raises(DisabledProviderLaunchError) as exc_info:
+        launch_cwd.launch_planned_bead_work_agents(
+            segments=segments,
+            segment_extra_env=envs,
+            expected_names=expected,
+            project_name="proj",
+        )
+
+    assert recorded
+    assert "Launch Control" in str(exc_info.value)
+
+
+def test_adapter_launches_when_provider_is_only_soft_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent import launch_cwd
+
+    segments, envs, expected = _explicit_claude_segment()
+    pin_cli_available(monkeypatch)
+    install_disables(
+        monkeypatch,
+        {"claude": disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+    )
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
+    )
+    monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    launched: list[object] = []
+
+    def fake_launch_multi(**kwargs: Any) -> list[object]:
+        launched.append(kwargs)
+        return [object()]
+
+    monkeypatch.setattr(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        fake_launch_multi,
+    )
+
+    results = launch_cwd.launch_planned_bead_work_agents(
+        segments=segments,
+        segment_extra_env=envs,
+        expected_names=expected,
+        project_name="proj",
+    )
+
+    assert len(results) == 1
+    assert launched
+
+
+def test_adapter_guard_failure_logs_and_launches(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from sase.agent import launch_cwd
+
+    segments, envs, expected = _bead_segments()
+    monkeypatch.setattr(
+        "sase.history.prompt.add_or_update_prompt", lambda *a, **k: None
+    )
+    monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", lambda: set())
+    monkeypatch.setattr(
+        "sase.agent.launch_guard.blocked_launch_units",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("guard exploded")),
+    )
+    launched: list[object] = []
+
+    def fake_launch_multi(**kwargs: Any) -> list[object]:
+        launched.append(kwargs)
+        return [object(), object()]
+
+    monkeypatch.setattr(
+        "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+        fake_launch_multi,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="sase.agent.launch_cwd_bead_work"):
+        results = launch_cwd.launch_planned_bead_work_agents(
+            segments=segments,
+            segment_extra_env=envs,
+            expected_names=expected,
+            project_name="proj",
+        )
+
+    assert len(results) == 2
+    assert launched
+    assert "failed open" in caplog.text
 
 
 def test_bead_work_ref_canonicalizes_owner_repo_known_project(
