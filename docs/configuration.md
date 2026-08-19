@@ -354,23 +354,24 @@ SASE/plugin updates, amber `↑ N *` when `sase-core-rs` requires a Rust rebuild
 tooltip spells out both counts plus any manual-only CLI updates. Clicking the badge
 opens this tab without mutating anything.
 
-The global `,U` action captures the provider names from the latest completed automatic
-snapshot at keypress time, revalidates those names against the live inventory, and
-captures the exact pending incoming hood cache items from other owners from a no-network
-agents-repository status snapshot. Its foreground load cannot add a newly discovered
-provider or a subsequently fetched hood to that invocation. Safe commands run
-sequentially; Homebrew, non-writable npm, and unknown-provenance installs remain visible
-with manual guidance. The pane-wide `u` remains SASE/core/plugins-only, pane-wide `A`
-remains the deliberate action for the current agent-CLI inventory, and pane-wide `a`
-performs an explicit full-network sync of all enabled agents repositories.
+The global `,U` action opens the **Update panel** from already-fetched update and
+agents-sync snapshots (no Admin Center, no live inventory load). Choosing Everything,
+SASE, providers, or agents plans only that scope; the providers and agents legs still
+capture provider names and pending incoming hood cache items from the latest completed
+automatic snapshots and never add a newly discovered provider or a subsequently fetched
+hood to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+unknown-provenance installs remain visible with manual guidance. The pane-wide `u`
+remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for the
+current agent-CLI inventory, and pane-wide `a` performs an explicit full-network sync of
+all enabled agents repositories.
 
 Every mutation **previews first**, and long confirmation panes scroll with `Ctrl+D` /
 `Ctrl+U`. Plugin and core actions show the exact `uv` command or editable-checkout plan.
 When commit previews are enabled and a comparable range is available, confirmations for
 core and installed-plugin **updates** load incoming commits by repository in the
 background; install, uninstall, and mode-switch confirmations do not claim a commit
-range. The global `,U` comprehensive confirmation groups SASE, Agent CLI, and **Cached
-agent hoods** work into labeled sections with update/current/skipped glyphs, counts, and
+range. An Everything confirmation from `,U` groups SASE, Agent CLI, and **Cached agent
+hoods** work into labeled sections with update/current/skipped glyphs, counts, and
 commands (home paths display as `~/`). The cached-hood section is runnable only when
 captured incoming hoods from other owners exist, and it lists their exact projects and
 hood counts. The tracked proc runs Agent CLI commands first, the SASE/core/plugin leg

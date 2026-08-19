@@ -447,10 +447,10 @@ publication diagnostics. Clicking it imports exactly the displayed cache items a
 tracked task; publication diagnostics stay informational and are cleared by a later
 commit's inline drain or an explicit sync. That path does not fetch, pull, push, export,
 or mutate the sidecar checkout; successful receipts clear the corresponding cache
-entries. The `,U` comprehensive update preview likewise captures only the cache items
-visible when the preview is built, lists their exact project and hood counts under
-**Agents repos**, and imports them after its other legs without network access. A later
-periodic fetch cannot widen an already confirmed preview.
+entries. Choosing Agents or Everything from the `,U` Update panel likewise captures only
+the cache items visible when the preview is built, lists their exact project and hood
+counts under **Agents repos**, and imports them after any other selected legs without
+network access. A later periodic fetch cannot widen an already confirmed preview.
 
 For an explicit full network reconciliation, open SASE Admin Center's Updates pane and
 press `a` (**Sync agents**). That tracked action covers every enabled project, drains

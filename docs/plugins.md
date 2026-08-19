@@ -273,10 +273,11 @@ Axe restarted (pid 12345) to load the updated code.
 - **The Admin Center mirrors the split.** In the Updates tab's **Plugins** sub-tab, `U`
   updates the highlighted installed plugin and `m` switches install mode. Pane-wide `u`
   still runs only the SASE core + plugins update, while pane-wide `A` deliberately
-  targets the current supported agent-CLI inventory. Global `,U` is snapshot-gated: it
-  includes only provider names from the latest completed automatic check, revalidates
-  them live, and then previews one comprehensive tracked update. Manual-only providers
-  are guidance, never guessed or privileged commands.
+  targets the current supported agent-CLI inventory. Global `,U` opens the Update panel
+  from cached snapshots and lets you choose Everything, SASE, providers, or agents. The
+  providers leg is still snapshot-gated: it includes only provider names from the latest
+  completed automatic check, revalidates them live, and never guesses or privileges
+  manual-only providers.
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would
   run and exits `0` without changing anything. uv itself has no dry-run, so sase
   resolves and prints the managed plan itself.

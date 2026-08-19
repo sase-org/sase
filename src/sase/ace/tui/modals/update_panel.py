@@ -167,6 +167,11 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     def _rich_accent(self, accent: str) -> str:
         if not accent.startswith("$"):
             return accent
+        # $primary is also OptionList's highlight color, so applying it
+        # to the default Everything row makes the key badge and chip
+        # vanish. Leave theme-primary accents uncolored.
+        if accent == "$primary":
+            return ""
         name = accent[1:]
         variables = getattr(self.app, "theme_variables", None)
         if isinstance(variables, Mapping):

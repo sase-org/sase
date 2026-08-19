@@ -282,6 +282,26 @@ async def test_set_state_preserves_highlight() -> None:
     assert dismissed == [UpdatePanelResult(scope="sase")]
 
 
+async def test_everything_row_keeps_key_and_chip_visible() -> None:
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_populated_state())
+        dismissed = await _push(pilot, modal)
+        option_list = modal.query_one("#update-panel-list", OptionList)
+        prompt = option_list.get_option_at_index(0).prompt
+        plain = _prompt_plain(option_list.get_option_at_index(0))
+        assert plain.lstrip().startswith("e")
+        assert "Everything" in plain
+        assert "↑ 6 available" in plain
+        assert modal._rich_accent("$primary") == ""
+        if isinstance(prompt, Text):
+            key_style = str(prompt.spans[0].style) if prompt.spans else ""
+            assert "bold" in key_style
+            assert "#" not in key_style
+        modal.action_cancel()
+        await pilot.pause()
+    assert dismissed == [None]
+
+
 async def test_never_checked_state_renders_four_selectable_rows() -> None:
     async with _TestApp().run_test(size=(100, 40)) as pilot:
         modal = UpdatePanel(_state())

@@ -821,7 +821,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,C`       | Review mentors (opens Mentor Review modal)                                                  |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                        |
+| `,U`       | Open Update panel (SASE, providers, agents)                                                 |
 | `,L`       | Jump to the log entry for the most recent error toast                                       |
 | `,M`       | Kill running mentors                                                                        |
 | `,R`       | Show runners info                                                                           |
@@ -2023,7 +2023,7 @@ modal.
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
-| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                              |
+| `,U`       | Open Update panel (SASE, providers, agents)                                                       |
 | `,L`       | Jump to the log entry for the most recent error toast                                             |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
@@ -2370,7 +2370,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,,`      | Repeat the last leader command                                                              |
 | `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
 | `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
-| `,U`      | Update SASE/agent CLIs and import cached agent hoods                                        |
+| `,U`      | Open Update panel (SASE, providers, agents)                                                 |
 | `,L`      | Jump to the log entry for the most recent error toast                                       |
 | `,R`      | Show runners info                                                                           |
 | `,.`      | Open prompt history modal                                                                   |
@@ -6011,25 +6011,30 @@ segments with separate counts.
 Every mutation opens a confirmation preview first, and `Ctrl+D` / `Ctrl+U` scroll long
 preview panes. When commit previews are enabled and a comparable range is available,
 core and installed-plugin **update** confirmations load incoming commits by repository
-in the background; install confirmations do not. The global `,U` comprehensive
-confirmation additionally groups SASE, Agent CLI, and agents-repository work into
-labeled sections with update/current/skipped glyphs, counts, and commands. Its **Agents
-repos** section uses a captured no-network status snapshot from the enabled-project
-inventory. Every represented project remains runnable even when its cached status is
-current; lifecycle-disabled projects are absent rather than shown as skipped. The
-tracked proc runs Agent CLI commands first, the SASE/core/plugin leg second, and one
+in the background; install confirmations do not. The global `,U` chord opens the
+**Update panel** from already-fetched update and agents-sync snapshots — no Admin
+Center, no live inventory load. `e` / `s` / `p` / `a` (or `⏎` on the highlighted row)
+choose Everything, SASE, providers, or agents; `r` re-checks in place; `q` / `Esc`
+cancel. Choosing a row plans that scope as a background preview proc and then shows the
+same `y`/`n` confirmation ACE uses elsewhere, containing only the selected legs. An
+Everything confirmation groups SASE, Agent CLI, and agents-repository work into labeled
+sections with update/current/skipped glyphs, counts, and commands. Its **Agents repos**
+section uses a captured no-network status snapshot from the enabled-project inventory.
+Every represented project remains runnable even when its cached status is current;
+lifecycle-disabled projects are absent rather than shown as skipped. The tracked proc
+runs Agent CLI commands first, the SASE/core/plugin leg second, and one
 all-enabled-project agent sync last. A failure in the final leg is reported alongside
 the independent earlier results. After a changed core/plugin update restarts ACE, the
 one-shot result toast can show applied commits grouped by repository as well as
 file/line statistics. Configure the toast with `ace.updates.post_update_toast_commits`,
 `post_update_toast_max_commits`, and `post_update_toast_diffstat`.
 
-Global `,U` captures the agent-CLI candidates from the latest completed automatic
-result, revalidates exactly those names, and previews one comprehensive tracked update;
-the Updates-pane load cannot broaden the captured set. Manual-only providers remain in
-the preview with their suggested command or docs. A real SASE/core/plugin code change
-restarts ACE and axe only after provider and agents-repository work finishes, while
-provider-only updates refresh in place.
+The providers leg still captures the agent-CLI candidates from the latest completed
+automatic result, revalidates exactly those names, and never broadens the captured set
+from an Updates-pane load. Manual-only providers remain in the preview with their
+suggested command or docs. A real SASE/core/plugin code change restarts ACE and axe only
+after provider and agents-repository work finishes, while provider-only updates refresh
+in place.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: on the Agent CLIs sub-tab it updates the marked `Space`
