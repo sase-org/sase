@@ -13,6 +13,9 @@ import pytest
 
 import sase.llm_provider.provider_disable as provider_state
 from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     ProviderDisableStateError,
     ProviderDisableWriteOutcome,
     TemporaryProviderDisable,
@@ -68,6 +71,9 @@ def test_facade_round_trips_multiple_providers_and_honors_sase_home(
     assert list(records) == ["claude", "codex"]
     assert records["claude"] == claude
     assert get_active_provider_disable("codex", _NOW) == codex
+    assert claude.is_hard
+    assert claude.mode == PROVIDER_DISABLE_MODE_HARD
+    assert not claude.is_soft
 
 
 def test_facade_replacement_exact_expiry_and_idempotent_clear(
@@ -208,19 +214,32 @@ def test_write_outcome_rehydration_rejects_stale_or_malformed_payloads() -> None
         ProviderDisableWriteOutcome.from_wire(None)
     with pytest.raises(ProviderDisableStateError, match="unknown extra"):
         ProviderDisableWriteOutcome.from_wire(
-            {"version": 1, "inserted": True, "record": record, "extra": True}
+            {
+                "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+                "inserted": True,
+                "record": record,
+                "extra": True,
+            }
         )
     with pytest.raises(ProviderDisableStateError, match="unsupported"):
         ProviderDisableWriteOutcome.from_wire(
-            {"version": 2, "inserted": True, "record": record}
+            {"version": 3, "inserted": True, "record": record}
         )
     with pytest.raises(ProviderDisableStateError, match="boolean"):
         ProviderDisableWriteOutcome.from_wire(
-            {"version": 1, "inserted": 1, "record": record}
+            {
+                "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+                "inserted": 1,
+                "record": record,
+            }
         )
     with pytest.raises(ProviderDisableStateError):
         ProviderDisableWriteOutcome.from_wire(
-            {"version": 1, "inserted": True, "record": {"version": 1}}
+            {
+                "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+                "inserted": True,
+                "record": {"version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION},
+            }
         )
 
 
@@ -252,34 +271,47 @@ def test_disable_validates_registered_provider_but_clear_remains_uninstall_safe(
             "created_at": _NOW,
             "expires_at": None,
             "source": "test",
+            "mode": PROVIDER_DISABLE_MODE_HARD,
         },
         {
-            "version": 1,
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
             "provider": " claude",
             "created_at": _NOW,
             "expires_at": None,
             "source": "test",
+            "mode": PROVIDER_DISABLE_MODE_HARD,
         },
         {
-            "version": 1,
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
             "provider": "claude",
             "created_at": 0.0,
             "expires_at": None,
             "source": "test",
+            "mode": PROVIDER_DISABLE_MODE_HARD,
         },
         {
-            "version": 1,
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
             "provider": "claude",
             "created_at": math.nan,
             "expires_at": None,
             "source": "test",
+            "mode": PROVIDER_DISABLE_MODE_HARD,
         },
         {
-            "version": 1,
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
             "provider": "claude",
             "created_at": _NOW,
             "expires_at": _NOW,
             "source": "test",
+            "mode": PROVIDER_DISABLE_MODE_HARD,
+        },
+        {
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+            "provider": "claude",
+            "created_at": _NOW,
+            "expires_at": None,
+            "source": "test",
+            "mode": "warm",
         },
     ],
 )
@@ -292,14 +324,18 @@ def test_snapshot_rehydration_rejects_bad_shape_and_unsorted_records() -> None:
     with pytest.raises(ProviderDisableStateError, match="snapshot is not an object"):
         provider_state._snapshot_from_wire(None)
     with pytest.raises(ProviderDisableStateError, match="must be a list"):
-        provider_state._snapshot_from_wire({"version": 1, "disables": {}})
+        provider_state._snapshot_from_wire(
+            {"version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION, "disables": {}}
+        )
     with pytest.raises(ProviderDisableStateError, match="not sorted"):
         provider_state._snapshot_from_wire(
             {
-                "version": 1,
+                "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
                 "disables": [_wire("codex"), _wire("claude")],
             }
         )
+    with pytest.raises(ProviderDisableStateError, match="unsupported"):
+        provider_state._snapshot_from_wire({"version": 1, "disables": []})
 
 
 def test_facade_surfaces_binding_errors(
@@ -317,11 +353,66 @@ def test_facade_surfaces_binding_errors(
         get_active_provider_disables(_NOW)
 
 
-def _wire(provider: str) -> dict[str, object]:
+def test_mode_round_trips_defaults_to_hard_and_rejects_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    registered_providers: None,
+    real_provider_disable_reads: None,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+
+    defaulted = disable_provider("claude", 900.0, source="test", now=_NOW)
+    assert defaulted.is_hard
+    assert not defaulted.is_soft
+    assert defaulted.mode == PROVIDER_DISABLE_MODE_HARD
+
+    soft = disable_provider(
+        "codex",
+        1_200.0,
+        source="test",
+        mode=PROVIDER_DISABLE_MODE_SOFT,
+        now=_NOW,
+    )
+    assert soft.is_soft
+    assert not soft.is_hard
+    stored = get_active_provider_disables(_NOW)
+    assert stored["claude"].is_hard
+    assert stored["codex"] == soft
+
+    with pytest.raises(ValueError, match="mode must be hard or soft"):
+        disable_provider("claude", 60.0, source="test", mode="warm", now=_NOW)
+    assert get_active_provider_disable("claude", _NOW) == defaulted
+
+
+def test_snapshot_from_wire_accepts_v2_hard_disable_from_ace() -> None:
+    """Regression: Ace crashed when Rust started returning schema version 2."""
+    payload = {
+        "version": 2,
+        "disables": [
+            {
+                "version": 2,
+                "provider": "codex",
+                "created_at": 1786962179.1084504,
+                "expires_at": 1787223600.0,
+                "source": "ace",
+                "mode": "hard",
+            }
+        ],
+    }
+    records = provider_state._snapshot_from_wire(payload)
+    assert list(records) == ["codex"]
+    assert records["codex"].is_hard
+    assert records["codex"].source == "ace"
+
+
+def _wire(
+    provider: str, *, mode: str = PROVIDER_DISABLE_MODE_HARD
+) -> dict[str, object]:
     return {
-        "version": 1,
+        "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
         "provider": provider,
         "created_at": _NOW,
         "expires_at": None,
         "source": "test",
+        "mode": mode,
     }

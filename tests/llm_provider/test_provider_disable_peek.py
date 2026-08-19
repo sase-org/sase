@@ -9,6 +9,11 @@ from pathlib import Path
 import pytest
 
 from sase.llm_provider import provider_disable_peek as disable_peek
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -138,9 +143,56 @@ def test_peek_invalid_entry_and_read_only_expiry_do_not_mutate(
         path.chmod(0o644)
 
 
-def _write_state(path: Path, disables: dict[str, dict[str, object]]) -> None:
+def test_peek_v1_file_reads_as_hard_and_is_not_rewritten(
+    reset_peek_cache: Path,
+) -> None:
+    path = reset_peek_cache
+    _write_state(
+        path,
+        {"claude": _entry(provider="claude", expires_at=None)},
+        version=1,
+    )
+    before = path.read_bytes()
+
+    result = disable_peek.peek_active_provider_disables(now=100.0)
+
+    assert list(result) == ["claude"]
+    assert result["claude"].is_hard
+    assert result["claude"].mode == PROVIDER_DISABLE_MODE_HARD
+    assert path.read_bytes() == before
+
+
+def test_peek_v2_file_preserves_soft_mode(reset_peek_cache: Path) -> None:
+    path = reset_peek_cache
+    _write_state(
+        path,
+        {
+            "codex": _entry(
+                provider="codex",
+                expires_at=None,
+                version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            )
+        },
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    )
+    before = path.read_bytes()
+
+    result = disable_peek.peek_active_provider_disables(now=100.0)
+
+    assert list(result) == ["codex"]
+    assert result["codex"].is_soft
+    assert path.read_bytes() == before
+
+
+def _write_state(
+    path: Path,
+    disables: dict[str, dict[str, object]],
+    *,
+    version: int = 1,
+) -> None:
     path.write_text(
-        json.dumps({"version": 1, "disables": disables}),
+        json.dumps({"version": version, "disables": disables}),
         encoding="utf-8",
     )
 
@@ -149,11 +201,16 @@ def _entry(
     *,
     provider: str,
     expires_at: float | None,
+    version: int = 1,
+    mode: str | None = None,
 ) -> dict[str, object]:
-    return {
-        "version": 1,
+    payload: dict[str, object] = {
+        "version": version,
         "provider": provider,
         "created_at": 1.0,
         "expires_at": expires_at,
         "source": "test",
     }
+    if mode is not None:
+        payload["mode"] = mode
+    return payload

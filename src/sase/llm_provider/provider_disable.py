@@ -9,7 +9,10 @@ from typing import Any
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 
-PROVIDER_DISABLE_WIRE_SCHEMA_VERSION = 1
+PROVIDER_DISABLE_WIRE_SCHEMA_VERSION = 2
+PROVIDER_DISABLE_MODE_HARD = "hard"
+PROVIDER_DISABLE_MODE_SOFT = "soft"
+PROVIDER_DISABLE_MODES = (PROVIDER_DISABLE_MODE_HARD, PROVIDER_DISABLE_MODE_SOFT)
 
 
 class ProviderDisableStateError(RuntimeError):
@@ -25,13 +28,21 @@ class TemporaryProviderDisable:
     created_at: float
     expires_at: float | None
     source: str
+    mode: str = PROVIDER_DISABLE_MODE_HARD
 
     @classmethod
     def from_wire(cls, payload: object) -> TemporaryProviderDisable:
         """Strictly rehydrate the stable Rust wire record."""
         if not isinstance(payload, dict):
             raise ProviderDisableStateError("provider-disable record is not an object")
-        required = {"version", "provider", "created_at", "expires_at", "source"}
+        required = {
+            "version",
+            "provider",
+            "created_at",
+            "expires_at",
+            "source",
+            "mode",
+        }
         if set(payload) != required:
             missing = sorted(required - set(payload))
             extra = sorted(set(payload) - required)
@@ -49,6 +60,7 @@ class TemporaryProviderDisable:
         created_at = payload["created_at"]
         expires_at = payload["expires_at"]
         source = payload["source"]
+        mode = payload["mode"]
         if type(version) is not int or version != PROVIDER_DISABLE_WIRE_SCHEMA_VERSION:
             raise ProviderDisableStateError(
                 f"unsupported provider-disable wire version: {version!r}"
@@ -67,13 +79,28 @@ class TemporaryProviderDisable:
             raise ProviderDisableStateError("expires_at must be later than created_at")
         if not isinstance(source, str) or not source.strip():
             raise ProviderDisableStateError("source must be a non-empty string")
+        if not isinstance(mode, str) or mode not in PROVIDER_DISABLE_MODES:
+            raise ProviderDisableStateError(
+                f"unsupported provider-disable mode: {mode!r}"
+            )
         return cls(
             version=version,
             provider=provider,
             created_at=float(created_at),
             expires_at=float(expires_at) if expires_at is not None else None,
             source=source,
+            mode=mode,
         )
+
+    @property
+    def is_hard(self) -> bool:
+        """Return whether this disable is fail-closed."""
+        return self.mode == PROVIDER_DISABLE_MODE_HARD
+
+    @property
+    def is_soft(self) -> bool:
+        """Return whether this disable is sparing rather than fail-closed."""
+        return self.mode == PROVIDER_DISABLE_MODE_SOFT
 
     def is_active(self, now: float) -> bool:
         """Return whether this captured record is still active at *now*."""
@@ -146,15 +173,18 @@ def disable_provider(
     duration_seconds: float | None,
     *,
     source: str,
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
     now: float | None = None,
 ) -> TemporaryProviderDisable:
     """Disable a registered provider for a relative duration or until cleared."""
     provider = _require_registered_provider(provider)
+    mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_set_relative")
     payload: Any = binding(
         str(sase_home()),
         provider,
         source,
+        mode,
         duration_seconds,
         now,
     )
@@ -166,12 +196,21 @@ def disable_provider_until(
     expires_at: float,
     *,
     source: str,
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
     now: float | None = None,
 ) -> TemporaryProviderDisable:
     """Disable a registered provider until an exact Unix timestamp."""
     provider = _require_registered_provider(provider)
+    mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_set_until")
-    payload: Any = binding(str(sase_home()), provider, expires_at, source, now)
+    payload: Any = binding(
+        str(sase_home()),
+        provider,
+        expires_at,
+        source,
+        mode,
+        now,
+    )
     return TemporaryProviderDisable.from_wire(payload)
 
 
@@ -180,20 +219,23 @@ def try_disable_provider(
     duration_seconds: float | None,
     *,
     source: str,
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
     now: float | None = None,
 ) -> ProviderDisableWriteOutcome:
     """Disable *provider* only when no active record exists.
 
     Returns the stored record and whether this caller created it. An already
     active disable is left unchanged, including its ``created_at``, expiry,
-    and source.
+    source, and mode.
     """
     provider = _require_registered_provider(provider)
+    mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_try_set_relative")
     payload: Any = binding(
         str(sase_home()),
         provider,
         source,
+        mode,
         duration_seconds,
         now,
     )
@@ -205,12 +247,21 @@ def try_disable_provider_until(
     expires_at: float,
     *,
     source: str,
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
     now: float | None = None,
 ) -> ProviderDisableWriteOutcome:
     """Disable *provider* until *expires_at* only when no active record exists."""
     provider = _require_registered_provider(provider)
+    mode = _require_mode(mode)
     binding = require_rust_binding("provider_disable_try_set_until")
-    payload: Any = binding(str(sase_home()), provider, expires_at, source, now)
+    payload: Any = binding(
+        str(sase_home()),
+        provider,
+        expires_at,
+        source,
+        mode,
+        now,
+    )
     return ProviderDisableWriteOutcome.from_wire(payload)
 
 
@@ -287,6 +338,14 @@ def _require_provider_id(provider: object) -> str:
     return provider
 
 
+def _require_mode(mode: str) -> str:
+    if mode not in PROVIDER_DISABLE_MODES:
+        raise ValueError(
+            "mode must be " + " or ".join(PROVIDER_DISABLE_MODES) + f", got {mode!r}"
+        )
+    return mode
+
+
 def _is_provider_id(value: object) -> bool:
     return (
         isinstance(value, str)
@@ -305,6 +364,9 @@ def _is_finite_number(value: object) -> bool:
 
 
 __all__ = [
+    "PROVIDER_DISABLE_MODES",
+    "PROVIDER_DISABLE_MODE_HARD",
+    "PROVIDER_DISABLE_MODE_SOFT",
     "PROVIDER_DISABLE_WIRE_SCHEMA_VERSION",
     "ProviderDisableStateError",
     "ProviderDisableWriteOutcome",

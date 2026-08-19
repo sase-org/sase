@@ -10,9 +10,12 @@ from pathlib import Path
 from sase.core.paths import sase_home
 
 from .provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
+
+_PROVIDER_DISABLE_WIRE_SCHEMA_V1 = 1
 
 _STATE_FILENAME = "llm_provider_disables.json"
 
@@ -84,20 +87,36 @@ def _read_peek_entries(path: Path) -> dict[str, TemporaryProviderDisable]:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or set(data) != {"version", "disables"}:
             return {}
-        if data["version"] != PROVIDER_DISABLE_WIRE_SCHEMA_VERSION:
+        version = data["version"]
+        if version not in {
+            _PROVIDER_DISABLE_WIRE_SCHEMA_V1,
+            PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        }:
             return {}
         raw_entries = data["disables"]
         if not isinstance(raw_entries, dict):
             return {}
+        default_hard = version == _PROVIDER_DISABLE_WIRE_SCHEMA_V1
         records: dict[str, TemporaryProviderDisable] = {}
         for provider in sorted(raw_entries):
-            record = TemporaryProviderDisable.from_wire(raw_entries[provider])
+            record = _peek_record(raw_entries[provider], default_hard=default_hard)
             if record.provider != provider:
                 return {}
             records[provider] = record
         return records
     except Exception:  # noqa: BLE001 - display reads always degrade to empty.
         return {}
+
+
+def _peek_record(payload: object, *, default_hard: bool) -> TemporaryProviderDisable:
+    """Rehydrate one peek record, mapping leftover v1 files to hard disables."""
+    if default_hard and isinstance(payload, dict):
+        payload = {
+            **payload,
+            "version": PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+            "mode": PROVIDER_DISABLE_MODE_HARD,
+        }
+    return TemporaryProviderDisable.from_wire(payload)
 
 
 __all__ = ["peek_active_provider_disables", "provider_disable_state_path"]
