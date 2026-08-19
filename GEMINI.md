@@ -313,6 +313,7 @@ Aliases follow in parentheses.
 - Agent Shell
 - Agent Tribe
 - Artifact Reference (ref)
+- Current Project
 - Feature Flag
 - Flag Bead (flag bead)
 - Patch
