@@ -17,10 +17,15 @@ from sase.llm_provider import (
     disable_provider_until,
     enable_provider,
 )
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
+)
 
 from .base import OptionListNavigationMixin
 from .duration_choice_modal import DurationChoiceCancelled
 from .models_panel_duration import (
+    KeepCurrentWindow,
     OpenOverrideUntil,
     OverrideDurationResult,
     OverrideUntilCleared,
@@ -50,6 +55,29 @@ _SNAPSHOT_GROUP = "provider-routing-snapshot"
 _WRITE_GROUP = "provider-routing-write"
 
 
+def _disable_success_toast(
+    outcome: ProviderWriteOutcome,
+    duration: (
+        RelativeOverrideDuration
+        | OverrideUntilCleared
+        | ResolvedOverrideUntil
+        | KeepCurrentWindow
+        | None
+    ),
+) -> str:
+    """Return the success toast for a provider-disable write."""
+    verb = "soft-disabled" if outcome.mode == PROVIDER_DISABLE_MODE_SOFT else "disabled"
+    suffix = duration_suffix(duration)
+    was = ""
+    if outcome.previous_mode is not None and outcome.previous_mode != outcome.mode:
+        was = (
+            " (was soft)"
+            if outcome.previous_mode == PROVIDER_DISABLE_MODE_SOFT
+            else " (was disabled)"
+        )
+    return f"{outcome.provider.upper()} {verb} {suffix}{was}; alias routing refreshed."
+
+
 class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
     """Manage temporary provider routing state."""
 
@@ -66,6 +94,7 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         ("ctrl+p", "prev_option", "Previous"),
         ("d", "disable_or_change", "Disable"),
         ("enter", "disable_or_change", "Disable"),
+        ("s", "soft_disable", "Soft disable"),
         ("x", "enable", "Enable"),
     ]
 
@@ -87,10 +116,13 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         self._updating_highlight = False
         self._changed = False
         self._pending_provider = ""
+        self._pending_mode = PROVIDER_DISABLE_MODE_HARD
+        self._pending_keep_current: KeepCurrentWindow | None = None
         self._pending_duration: (
             RelativeOverrideDuration
             | OverrideUntilCleared
             | ResolvedOverrideUntil
+            | KeepCurrentWindow
             | None
         ) = None
         self._snapshot_worker: Worker[ProviderRoutingSnapshot] | None = None
@@ -110,7 +142,8 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
             )
             yield Static("", id="provider-routing-description")
             yield Static(
-                "[green]d/enter[/green]=Disable or change duration  "
+                "[green]d/enter[/green]=Disable  "
+                "[yellow]s[/yellow]=Soft disable "
                 "[green]x[/green]=Enable  "
                 "[dim]j/k[/dim]=Navigate  [dim]esc[/dim]=Back",
                 id="provider-routing-footer",
@@ -137,16 +170,40 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         self.dismiss(self._changed)
 
     def action_disable_or_change(self) -> None:
+        self._begin_disable(PROVIDER_DISABLE_MODE_HARD)
+
+    def action_soft_disable(self) -> None:
+        self._begin_disable(PROVIDER_DISABLE_MODE_SOFT)
+
+    def _begin_disable(self, mode: str) -> None:
         if self._write_busy():
             return
         status = self._selected_status()
         if status is None:
             return
         self._pending_provider = status.provider
+        self._pending_mode = mode
+        disable = active_disable(status.active_disable, now=self._now())
+        keep_current = None
+        if disable is not None and disable.mode != mode:
+            keep_current = KeepCurrentWindow(expires_at=disable.expires_at)
+        self._pending_keep_current = keep_current
         self.app.push_screen(
-            provider_duration_modal(status.provider),
+            provider_duration_modal(
+                status.provider,
+                mode=mode,
+                keep_current=keep_current,
+            ),
             callback=self._on_provider_duration_picked,
         )
+
+    def _until_modal_title(self) -> str:
+        verb = (
+            "Soft-disable"
+            if self._pending_mode == PROVIDER_DISABLE_MODE_SOFT
+            else "Disable"
+        )
+        return f"{verb} {self._pending_provider.upper()} Until"
 
     def action_enable(self) -> None:
         if self._write_busy():
@@ -171,7 +228,7 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         if isinstance(result, OpenOverrideUntil):
             self.app.push_screen(
                 OverrideUntilModal(
-                    title=f"Disable {self._pending_provider.upper()} Until",
+                    title=self._until_modal_title(),
                     submit_label="Set disable",
                 ),
                 callback=self._on_provider_until_picked,
@@ -188,7 +245,11 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         if isinstance(result, OverrideUntilBack):
             provider = self._pending_provider
             self.app.push_screen(
-                provider_duration_modal(provider),
+                provider_duration_modal(
+                    provider,
+                    mode=self._pending_mode,
+                    keep_current=self._pending_keep_current,
+                ),
                 callback=self._on_provider_duration_picked,
             )
             return
@@ -217,23 +278,53 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
 
     def _submit_disable(
         self,
-        result: RelativeOverrideDuration | OverrideUntilCleared | ResolvedOverrideUntil,
+        result: (
+            RelativeOverrideDuration
+            | OverrideUntilCleared
+            | ResolvedOverrideUntil
+            | KeepCurrentWindow
+        ),
     ) -> None:
         if self._write_busy() or not self._pending_provider:
             return
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
         provider = self._pending_provider
+        mode = self._pending_mode
         before = provider_disable_route_key(self._snapshot.provider_disables)
+        previous = active_disable(
+            self._snapshot.provider_disables.get(provider),
+            now=self._now(),
+        )
+        previous_mode = previous.mode if previous is not None else None
 
         def task() -> ProviderWriteOutcome:
             try:
-                if isinstance(result, ResolvedOverrideUntil):
+                captured_now = now()
+                if isinstance(result, KeepCurrentWindow):
+                    if result.expires_at is None:
+                        disable_provider(
+                            provider,
+                            None,
+                            source="ace",
+                            mode=mode,
+                            now=captured_now,
+                        )
+                    else:
+                        disable_provider_until(
+                            provider,
+                            result.expires_at,
+                            source="ace",
+                            mode=mode,
+                            now=captured_now,
+                        )
+                elif isinstance(result, ResolvedOverrideUntil):
                     disable_provider_until(
                         provider,
                         result.expires_at,
                         source="ace",
-                        now=now(),
+                        mode=mode,
+                        now=captured_now,
                     )
                 else:
                     seconds = (
@@ -241,7 +332,13 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
                         if isinstance(result, RelativeOverrideDuration)
                         else None
                     )
-                    disable_provider(provider, seconds, source="ace", now=now())
+                    disable_provider(
+                        provider,
+                        seconds,
+                        source="ace",
+                        mode=mode,
+                        now=captured_now,
+                    )
                 snapshot = self._load_snapshot()
                 return ProviderWriteOutcome(
                     action="disable",
@@ -249,6 +346,8 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
                     changed=before
                     != provider_disable_route_key(snapshot.provider_disables),
                     snapshot=snapshot,
+                    mode=mode,
+                    previous_mode=previous_mode,
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
                 return ProviderWriteOutcome(
@@ -257,6 +356,8 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
                     changed=False,
                     snapshot=None,
                     error=str(exc),
+                    mode=mode,
+                    previous_mode=previous_mode,
                 )
 
         self._pending_duration = result
@@ -357,11 +458,7 @@ class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         )
         if outcome.action == "disable":
             if outcome.changed:
-                suffix = duration_suffix(duration)
-                self.notify(
-                    f"{outcome.provider.upper()} disabled {suffix}; "
-                    "alias routing refreshed."
-                )
+                self.notify(_disable_success_toast(outcome, duration))
                 self._changed = True
             else:
                 self.notify(

@@ -224,6 +224,35 @@ def test_state_tag_pool_availability_chip(
     assert color in str(chip.style).lower()
 
 
+def test_state_tag_counts_sparing_members_as_available() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=make_pool_members((True, True), sparing=(True, False)),
+    )
+
+    assert _state_tag(view, now=0.0).plain == "configured · pool 2/2"
+
+
+def test_description_marks_sparing_member_with_soft_chip() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/gpt-5.5",
+        selector_mode="round_robin",
+        selector_members=make_pool_members((True, True), sparing=(True, False)),
+    )
+
+    description = _description_text_for_view(view).plain
+    assert "✓ claude/opus@medium soft" in description
+    assert "✓ codex/gpt-5.5" in description
+    assert "×" not in description
+
+
 def test_state_tag_overridden_pool_keeps_override_chip() -> None:
     view = make_alias_view(
         "pool",

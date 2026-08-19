@@ -25,6 +25,7 @@ from .model_picker_modal import (
 )
 from .models_panel_duration import (
     DurationPickerModal,
+    KeepCurrentWindow,
     OpenOverrideUntil,
     OverrideDurationResult,
     OverrideUntilCleared,
@@ -42,7 +43,10 @@ from .models_panel_rows import (
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
 )
-from .models_panel_provider_state import disabled_explicit_provider_message
+from .models_panel_provider_state import (
+    disabled_explicit_provider_message,
+    soft_explicit_provider_note,
+)
 from .models_panel_runner_limit_cards import RunnerLimitAction
 from .models_panel_selector import parse_selector_for_display
 from .models_panel_time import (
@@ -279,6 +283,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
                 severity="warning",
             )
             return
+        note = soft_explicit_provider_note(
+            raw_model,
+            self._provider_disables,
+            now=self._models_panel_now(),
+        )
+        if note is not None:
+            self.notify(note)
         _, effort = split_model_effort(raw_model)
         if effort is None:
             self._open_override_model_effort_picker(raw_model)
@@ -315,6 +326,8 @@ class ModelsPanelOverrideMixin(_MixinBase):
         self, result: OverrideDurationResult | DurationChoiceCancelled | None
     ) -> None:
         if result is None or isinstance(result, DurationChoiceCancelled):
+            return
+        if isinstance(result, KeepCurrentWindow):
             return
         if isinstance(result, OpenOverrideUntil):
             self.app.push_screen(

@@ -138,6 +138,8 @@ def rows_to_options(
             label.overflow = "ellipsis"
         elif row.kind == "provider" and row.provider is not None:
             label = provider_header_text(row.provider, row.model_count or 0)
+            if row.soft:
+                label.append("  soft", style="bold #FFD75F")
         elif row.kind == "model" and row.model_id is not None:
             label = model_option_text(
                 provider=row.provider,
@@ -147,6 +149,8 @@ def rows_to_options(
                 advisory_label=row.advisory_label,
                 advisory_severity=row.advisory_severity,
             )
+            if row.soft:
+                label.stylize("dim")
         elif jump_hints is not None and not row.disabled:
             hint = jump_hints.get(row.option_id)
             label = Text()

@@ -1765,7 +1765,9 @@ A **soft** disable never fails a launch; it only deprioritizes the provider:
 
 `source` and `mode` are independent axes: a manual Launch Control disable may be set to
 either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
-**hard** disable — nothing in this phase changes that.
+**hard** disable — nothing in routing changes that. Create, flip, and inspect a soft
+disable from ACE Launch Control → Provider Routing (`p` from `,m`); see
+[Provider routing controls](ace.md#provider-routing-controls).
 
 Each top-level routing operation captures active disables once and passes that snapshot
 through alias resolution, autodetection, model-picker rows, completion overlays, and the

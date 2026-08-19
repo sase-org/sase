@@ -154,6 +154,10 @@ def append_model_completion_row(
         kind_label = "model"
         kind_style = "bold magenta"
         state = Text(metadata.short_alias, style="dim")
+        if metadata.provenance == "soft":
+            if metadata.short_alias:
+                state.append(" · ", style="dim")
+            state.append("soft", style="bold #FFD75F")
     else:
         kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
         name_style = _selected_style(kind_style, is_selected)
@@ -209,6 +213,9 @@ def _append_provider_completion_row(
     target = _model_completion_target_text(metadata)
     target.truncate(target_width, overflow="ellipsis", pad=True)
     content.append_text(target)
+    if metadata.provenance == "soft":
+        content.append("  ")
+        content.append("soft", style="bold #FFD75F")
 
 
 def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:

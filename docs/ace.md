@@ -2909,29 +2909,43 @@ these states:
 | ------------------------------------------------ | -------------------------------------------------------------------- |
 | `available`                                      | The provider is registered and its declared CLI is present.          |
 | `CLI unavailable`                                | Automatic alias routing already skips it because its CLI is missing. |
-| `disabled · manual · <time> left`                | Launch Control manually disabled it until expiry or clearing.        |
-| `disabled · usage-limit automatic · <time> left` | Usage-limit detection automatically disabled it.                     |
+| `disabled · manual · <time> left`                | Launch Control manually hard-disabled it until expiry or clearing.   |
+| `disabled · usage-limit automatic · <time> left` | Usage-limit detection automatically hard-disabled it.                |
+| `soft · manual · <time> left`                    | Launch Control manually soft-disabled it until expiry or clearing.   |
+| `soft · usage-limit automatic · <time> left`     | A usage-limit automatic disable that was flipped to soft.            |
 
 Hidden testing providers stay out of this human-facing modal. Disabling a provider does
 not unregister it, change `sase.yml`, change model aliases, or stop provider processes
-that are already running. It only affects new launches, follow-ups, later retry/fallback
-resolution, model pickers, and completion catalogs.
+that are already running. A **hard** disable (`d` / Enter) keeps today's fail-closed
+behavior: new launches, follow-ups, later retry/fallback resolution, model pickers, and
+`%model` completion drop that provider. A **soft** disable (`s`) spares the provider in
+`|` pools while another member can cover, never diverts a `||` fallback, and still
+accepts explicit `%model` / picker / completion choices for that provider.
 
-On an enabled row, press `d` or Enter to choose how long new launches should route
-around that provider. The flow uses the same duration choices as alias overrides: `15m`,
+On any row, press `d` or Enter for a hard disable or `s` for a soft disable, then choose
+how long. The duration picker is the same set of choices as alias overrides: `15m`,
 `30m`, `1h`, `2h`, `4h`, `Until cleared`, a custom duration, or `t` for an exact local
-time/date. On a disabled row, `d` or Enter replaces the duration and `x` enables the
-provider immediately, including an automatic usage-limit disable. Pressing `x` on an
-enabled row warns without mutating state. Successful changes refresh the provider rows,
-Launch Control title, alias routing rows, and the top-bar indicators without closing the
-modal, so several providers can be managed in one pass. Unknown disable sources are
-shown as readable labels instead of being folded into the manual state.
+time/date. When the highlighted row already has an active disable in the _other_ mode,
+the picker's first row is `x  Keep current window (<time> left)` — one keypress to flip
+hard ↔ soft without re-choosing a window. That row is omitted when the mode already
+matches, so it is never a no-op. On a disabled row, `x` enables the provider
+immediately, including an automatic usage-limit disable. Pressing `x` on an enabled row
+warns without mutating state. Successful changes refresh the provider rows, Launch
+Control title, alias routing rows, and the top-bar indicators without closing the modal,
+so several providers can be managed in one pass. Unknown disable sources are shown as
+readable labels instead of being folded into the manual state.
+
+A sparing (soft) pool member still counts toward `pool <available>/<total>` and renders
+a `soft` chip; it remains selectable. Soft-disabled providers stay in the model picker
+(header labelled `soft`, rows dimmed one step) and in `%model` completion (annotated
+`soft` in the provenance column). Hard-disabled providers are still omitted from both.
 
 ACE also shows active provider disables in a compact top-bar pill beside the model
-override indicators. One disabled provider renders like `CLAUDE off 42m`; several render
-as the alphabetically first provider plus a count, such as `CLAUDE +2`. Hover lists
-every active provider, provenance, and expiry, and clicking the pill opens Launch
-Control.
+override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one
+soft-disabled provider renders like `CLAUDE soft 42m`. Several render the most severe
+(hard first) provider plus a count, such as `CLAUDE +2`, and use the soft palette only
+when every active disable is soft. Hover lists every active provider, its mode,
+provenance, and expiry, and clicking the pill opens Launch Control.
 
 ### Alias History
 

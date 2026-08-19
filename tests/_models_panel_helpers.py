@@ -88,11 +88,13 @@ def make_pool_members(
     availability: tuple[bool, ...] = (True, True),
     *,
     next_index: int = 0,
+    sparing: tuple[bool, ...] | None = None,
 ) -> tuple[ModelAliasSelectorMember, ...]:
     values = ("claude/opus@medium", "codex/gpt-5.5")
     targets = ("claude/opus", "codex/gpt-5.5")
     efforts = ("medium", None)
     providers = ("claude", "codex")
+    sparing_flags = sparing or (False,) * len(availability)
     return tuple(
         ModelAliasSelectorMember(
             value=value,
@@ -101,6 +103,7 @@ def make_pool_members(
             provider=providers[index],
             available=available,
             selected=index == next_index,
+            sparing=sparing_flags[index],
         )
         for index, (value, available) in enumerate(
             zip(values, availability, strict=True)

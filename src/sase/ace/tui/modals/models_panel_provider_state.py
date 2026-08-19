@@ -61,6 +61,8 @@ class ProviderWriteOutcome:
     changed: bool
     snapshot: ProviderRoutingSnapshot | None
     error: str | None = None
+    mode: str | None = None
+    previous_mode: str | None = None
 
 
 def load_provider_routing_snapshot(
@@ -125,10 +127,13 @@ def active_disable(
 
 def provider_disable_route_key(
     disables: Mapping[str, TemporaryProviderDisable],
-) -> tuple[tuple[str, float | None], ...]:
+) -> tuple[tuple[str, float | None, str], ...]:
     """Return the routing-relevant shape of a provider-disable snapshot."""
     return tuple(
-        sorted((provider, disable.expires_at) for provider, disable in disables.items())
+        sorted(
+            (provider, disable.expires_at, disable.mode)
+            for provider, disable in disables.items()
+        )
     )
 
 
@@ -146,10 +151,32 @@ def disabled_explicit_provider_message(
     if not provider:
         return None
     disable = active_disable(disables.get(provider), now=now)
-    if disable is None:
+    if disable is None or disable.is_soft:
         return None
     return (
         f"{provider.upper()} is temporarily disabled "
         f"{remaining_label(disable, now=now)}; choose another provider "
         "or enable it in Provider Routing"
+    )
+
+
+def soft_explicit_provider_note(
+    value: str,
+    disables: Mapping[str, TemporaryProviderDisable],
+    *,
+    now: float,
+) -> str | None:
+    """Return an informational note for an explicit soft-disabled target."""
+    target, _effort = split_model_effort(value.strip())
+    if target.startswith("@") or "/" not in target:
+        return None
+    provider, _model = target.split("/", 1)
+    if not provider:
+        return None
+    disable = active_disable(disables.get(provider), now=now)
+    if disable is None or not disable.is_soft:
+        return None
+    return (
+        f"{provider.upper()} is soft-disabled "
+        f"{remaining_label(disable, now=now)}; explicit targets still run"
     )

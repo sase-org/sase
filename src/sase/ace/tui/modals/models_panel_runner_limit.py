@@ -19,6 +19,7 @@ from .config_commit import (
 from .duration_choice_modal import DurationChoiceCancelled
 from .models_panel_duration import (
     DurationPickerModal,
+    KeepCurrentWindow,
     OpenOverrideUntil,
     OverrideDurationResult,
     OverrideUntilCleared,
@@ -182,6 +183,8 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         result: OverrideDurationResult | DurationChoiceCancelled | None,
     ) -> None:
         if result is None or isinstance(result, DurationChoiceCancelled):
+            return
+        if isinstance(result, KeepCurrentWindow):
             return
         if isinstance(result, OpenOverrideUntil):
             self.app.push_screen(  # type: ignore[attr-defined]

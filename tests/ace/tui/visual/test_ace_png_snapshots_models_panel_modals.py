@@ -6,7 +6,11 @@ import pytest
 from textual.widgets import Input, Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
+from sase.ace.tui.modals.models_panel_duration import (
+    DurationPickerModal,
+    KeepCurrentWindow,
+)
+import sase.ace.tui.modals.models_panel_duration as models_panel_duration
 from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortActionModal,
     DefaultEffortLevelModal,
@@ -207,6 +211,34 @@ async def test_models_panel_provider_duration_picker_png_snapshot(
             page,
             "models_panel_provider_duration_picker_120x40",
             title="ACE provider-disable duration picker",
+        )
+
+
+async def test_models_panel_provider_duration_picker_keep_window_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(models_panel_duration, "now", lambda: FROZEN_NOW)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(
+            provider_duration_modal(
+                "claude",
+                keep_current=KeepCurrentWindow(expires_at=FROZEN_NOW + 6_120.0),
+            )
+        )
+        await page.expect_modal("DurationPickerModal")
+        await wait_for_svg_contains(page, "Keep current window")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_duration_picker_keep_window_120x40",
+            title="ACE provider-disable duration picker keep-current window",
         )
 
 

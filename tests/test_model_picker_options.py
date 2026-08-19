@@ -3,6 +3,10 @@
 from rich.text import Text
 
 from sase.ace.tui.modals.model_picker_modal import CUSTOM_SENTINEL, DEFAULT_SENTINEL
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    TemporaryProviderDisable,
+)
 from sase.ace.tui.modals.model_picker_options import (
     build_model_options,
     rows_to_options,
@@ -182,3 +186,48 @@ def test_model_picker_claude_h4_5_row_includes_alias() -> None:
         assert row.model_id == model_id
         assert row.alias == alias
         assert row.label == f"    {model_id}  ({alias})"
+
+
+def _picker_disable(provider: str, *, mode: str) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+        mode=mode,
+    )
+
+
+def test_model_picker_omits_hard_disabled_provider_models() -> None:
+    rows = build_model_rows(
+        provider_disables={"claude": _picker_disable("claude", mode="hard")}
+    )
+    ids = {row.option_id for row in rows}
+
+    assert "__header_claude__" not in ids
+    assert "claude-fable-5" not in ids
+    assert "__header_codex__" in ids
+
+
+def test_model_picker_keeps_soft_disabled_provider_models_marked() -> None:
+    rows = build_model_rows(
+        provider_disables={"claude": _picker_disable("claude", mode="soft")}
+    )
+    header = next(row for row in rows if row.option_id == "__header_claude__")
+    model = next(row for row in rows if row.option_id == "claude-fable-5")
+    options = [option for option in rows_to_options(rows) if option is not None]
+    header_option = next(
+        option for option in options if option.id == "__header_claude__"
+    )
+    model_option = next(option for option in options if option.id == "claude-fable-5")
+
+    assert header.soft is True
+    assert model.soft is True
+    assert model.disabled is False
+    assert header_option is not None
+    assert isinstance(header_option.prompt, Text)
+    assert "soft" in header_option.prompt.plain
+    assert model_option is not None
+    assert not model_option.disabled
+    assert any("dim" in str(span.style).lower() for span in model_option.prompt.spans)

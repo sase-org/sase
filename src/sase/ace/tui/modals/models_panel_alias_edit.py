@@ -43,7 +43,10 @@ from .models_panel_rows import (
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
 )
-from .models_panel_provider_state import disabled_explicit_provider_message
+from .models_panel_provider_state import (
+    disabled_explicit_provider_message,
+    soft_explicit_provider_note,
+)
 from .models_panel_runner_limit_cards import RunnerLimitAction
 from .models_panel_selector import member_rejection, parse_selector_for_display
 from .models_panel_selector_builder import SelectorBuilderModal
@@ -293,6 +296,13 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                         severity="warning",
                     )
                     return
+                note = soft_explicit_provider_note(
+                    member,
+                    self._provider_disables,
+                    now=self._models_panel_now(),
+                )
+                if note is not None:
+                    self.notify(note)
                 rejection = member_rejection(self._pending_alias_selection, member)
                 if rejection is not None:
                     self.notify(
@@ -322,6 +332,13 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 severity="warning",
             )
             return
+        note = soft_explicit_provider_note(
+            raw_model,
+            self._provider_disables,
+            now=self._models_panel_now(),
+        )
+        if note is not None:
+            self.notify(note)
         _, effort = split_model_effort(raw_model)
         if effort is not None:
             self._pending_edit_raw_model = raw_model

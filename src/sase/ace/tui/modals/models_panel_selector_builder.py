@@ -34,18 +34,25 @@ from sase.llm_provider.config import (
 )
 from sase.llm_provider.load_balancing import (
     MAX_POOL_MEMBER_WEIGHT,
+    MemberAvailability,
     ModelAliasSelectorError,
     ModelAliasSelectorMode,
     parse_model_alias_selector,
 )
-from sase.llm_provider.model_alias_resolution import resolved_target_is_available
+from sase.llm_provider.model_alias_resolution import (
+    resolved_target_availability,
+    resolved_target_is_available,
+)
 from sase.xprompt.effort import split_model_effort
 
 from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import CUSTOM_SENTINEL, AliasSelectionContext, ModelPickerModal
 from .models_panel_effort_cards import DefaultEffortLevelChoice, DefaultEffortLevelModal
-from .models_panel_provider_state import disabled_explicit_provider_message
+from .models_panel_provider_state import (
+    disabled_explicit_provider_message,
+    soft_explicit_provider_note,
+)
 from .models_panel_selector import (
     compose_selector,
     member_rejection,
@@ -58,6 +65,7 @@ _MODE_LABELS: dict[ModelAliasSelectorMode, str] = {
 }
 _AVAILABLE_STYLE = "#87D787"
 _UNAVAILABLE_STYLE = "#D78787"
+_SOFT_STYLE = "bold #FFD75F"
 _INVALID_STYLE = "bold #FF875F"
 _KEYS_HINT = (
     "a=add  d=remove  J/K=reorder  E=effort  w/W=weight  t=toggle mode  "
@@ -117,11 +125,18 @@ def _member_option(
             resolved_target,
             provider_disables=provider_disables,
         )
-        text.append("  ")
-        text.append(
-            "✓" if available else "×",
-            style=_AVAILABLE_STYLE if available else _UNAVAILABLE_STYLE,
+        state = resolved_target_availability(
+            resolved_target,
+            provider_disables=provider_disables,
+            available=available,
         )
+        text.append("  ")
+        if state is MemberAvailability.UNAVAILABLE:
+            text.append("×", style=_UNAVAILABLE_STYLE)
+        else:
+            text.append("✓", style=_AVAILABLE_STYLE)
+            if state is MemberAvailability.SPARING:
+                text.append(" soft", style=_SOFT_STYLE)
     else:
         text.append(member, style=_INVALID_STYLE)
     append_effort_suffix(text, effort or "")
@@ -324,6 +339,13 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if disabled is not None:
             self.notify(f"Cannot add {raw}: {disabled}.", severity="warning")
             return
+        note = soft_explicit_provider_note(
+            raw,
+            self._provider_disables,
+            now=self._now,
+        )
+        if note is not None:
+            self.notify(note)
         _, effort = split_model_effort(raw)
         if effort is not None:
             self._append_member(raw)

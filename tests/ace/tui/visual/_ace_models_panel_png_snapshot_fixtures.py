@@ -97,6 +97,7 @@ def provider_disable(
     *,
     expires_at: float | None = None,
     source: str = "ace",
+    mode: str = "hard",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -104,6 +105,7 @@ def provider_disable(
         created_at=FROZEN_NOW,
         expires_at=expires_at,
         source=source,
+        mode=mode,
     )
 
 

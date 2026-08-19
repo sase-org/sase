@@ -260,6 +260,35 @@ async def test_custom_override_rejects_disabled_explicit_provider(
         assert panel.notify.call_args.kwargs["severity"] == "warning"
 
 
+async def test_custom_override_allows_soft_disabled_explicit_provider(
+    monkeypatch,
+) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
+    disable = TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider="codex",
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+        mode="soft",
+    )
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "medium"
+        panel._provider_disables = {"codex": disable}
+        panel._on_custom_picked("codex/o3@medium")
+        await pilot.pause()
+
+        assert panel._pending_raw_model == "codex/o3@medium"
+        panel.notify.assert_called_once()
+        assert "CODEX is soft-disabled until cleared" in panel.notify.call_args.args[0]
+        assert panel.notify.call_args.kwargs.get("severity") is None
+
+
 async def test_custom_override_rejects_fallback_selector(monkeypatch) -> None:
     patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 

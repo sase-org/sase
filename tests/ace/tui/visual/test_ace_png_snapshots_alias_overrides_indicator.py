@@ -66,6 +66,7 @@ def _disable(
     provider: str,
     *,
     expires_at: float | None = None,
+    mode: str = "hard",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -73,6 +74,7 @@ def _disable(
         created_at=_FROZEN_NOW,
         expires_at=expires_at,
         source="visual",
+        mode=mode,
     )
 
 
@@ -194,4 +196,29 @@ async def test_provider_disables_indicator_multiple_png_snapshot(
             page,
             "provider_disables_indicator_multiple_120x40",
             title="ACE multiple disabled provider pill",
+        )
+
+
+async def test_provider_disables_indicator_soft_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_disables",
+        lambda: {"claude": _disable("claude", mode="soft")},
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "provider_disables_indicator_soft_120x40",
+            title="ACE CLAUDE soft-disabled provider pill",
         )

@@ -66,6 +66,7 @@ class ModelPickerRow:
     rendered_label: Text | None = None
     advisory_label: str | None = None
     advisory_severity: str | None = None
+    soft: bool = False
 
     @property
     def disabled(self) -> bool:
@@ -98,6 +99,7 @@ class ModelPickerRow:
                 self.rendered_label.plain if self.rendered_label else None,
                 self.disabled_reason,
                 self.advisory_label,
+                "soft" if self.soft else None,
             )
             if part
         )
@@ -266,9 +268,19 @@ def build_model_rows(
     aliases = model_short_alias_map()
     advisories = model_advisory_map()
     hidden_providers = model_picker_hidden_provider_names()
+    hard_providers = {
+        provider
+        for provider, disable in active_provider_disables.items()
+        if disable.is_hard
+    }
+    soft_providers = {
+        provider
+        for provider, disable in active_provider_disables.items()
+        if disable.is_soft
+    }
     provider_models: dict[str, list[str]] = {}
     for model, provider in model_to_provider_map().items():
-        if provider in hidden_providers or provider in active_provider_disables:
+        if provider in hidden_providers or provider in hard_providers:
             continue
         provider_models.setdefault(provider, []).append(model)
 
@@ -283,13 +295,18 @@ def build_model_rows(
         )
 
     for provider, models in provider_models.items():
+        soft = provider in soft_providers
+        header_label = f"  {provider.upper()}  {len(models)} models"
+        if soft:
+            header_label = f"{header_label}  soft"
         rows.append(
             ModelPickerRow(
                 kind="provider",
-                label=f"  {provider.upper()}  {len(models)} models",
+                label=header_label,
                 option_id=f"__header_{provider}__",
                 provider=provider,
                 model_count=len(models),
+                soft=soft,
             )
         )
         for model in models:
@@ -318,6 +335,7 @@ def build_model_rows(
                     advisory_severity=(
                         advisory.get("severity") if advisory_label else None
                     ),
+                    soft=soft,
                 )
             )
 

@@ -323,6 +323,40 @@ async def test_on_edit_custom_rejects_disabled_explicit_provider_before_preview(
         assert "CLAUDE is temporarily disabled until cleared" in message
 
 
+async def test_on_edit_custom_allows_soft_disabled_explicit_provider(
+    monkeypatch: Any,
+) -> None:
+    view = _view("medium", "role")
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+    disable = TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider="claude",
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+        mode="soft",
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = view
+        panel._provider_disables = {"claude": disable}
+
+        panel._on_edit_custom_picked("claude/opus@medium")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
+        assert panel._pending_edit_raw_model == "claude/opus@medium"
+        panel.notify.assert_called_once()
+        assert "CLAUDE is soft-disabled until cleared" in panel.notify.call_args.args[0]
+
+
 async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
     monkeypatch: Any,
 ) -> None:

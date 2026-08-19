@@ -15,6 +15,7 @@ from sase.llm_provider.config import (
     LaunchModelSettingSnapshot,
 )
 from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
@@ -26,6 +27,7 @@ def disable(
     *,
     expires_at: float | None = None,
     source: str = "test",
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -33,6 +35,7 @@ def disable(
         created_at=100.0,
         expires_at=expires_at,
         source=source,
+        mode=mode,
     )
 
 

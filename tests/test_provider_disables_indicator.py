@@ -6,11 +6,13 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets._override_pill import PROVIDER_SOFT_DISABLE_PALETTE
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _ACTIVE_STYLE,
 )
 from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
@@ -23,6 +25,7 @@ def _disable(
     *,
     expires_at: float | None = 1_000.0,
     source: str = "test",
+    mode: str = "hard",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -30,6 +33,7 @@ def _disable(
         created_at=100.0,
         expires_at=expires_at,
         source=source,
+        mode=mode,
     )
 
 
@@ -99,10 +103,13 @@ def test_tooltip_lists_active_provider_disables() -> None:
 
     assert tooltip == (
         "Disabled providers:\n"
-        "CLAUDE - manual, until cleared\n"
-        "CODEX - usage-limit automatic, 1h2m left\n"
-        "GROK - external plugin, 1h5m left\n"
-        "New launches route around them; running processes continue.\n"
+        "CLAUDE - hard · manual, until cleared\n"
+        "CODEX - hard · usage-limit automatic, 1h2m left\n"
+        "GROK - hard · external plugin, 1h5m left\n"
+        "Hard disables skip the provider on new launches; "
+        "running processes continue.\n"
+        "Pools spare a soft provider while another member can cover; "
+        "|| fallbacks and explicit %model still use it.\n"
         "Press ,m for Launch Control."
     )
 
@@ -121,10 +128,84 @@ def test_tooltip_renders_day_unit_for_multi_day_disable() -> None:
 
     assert tooltip == (
         "Disabled providers:\n"
-        "CODEX - usage-limit automatic, 3d4h left\n"
-        "New launches route around them; running processes continue.\n"
+        "CODEX - hard · usage-limit automatic, 3d4h left\n"
+        "Hard disables skip the provider on new launches; "
+        "running processes continue.\n"
+        "Pools spare a soft provider while another member can cover; "
+        "|| fallbacks and explicit %model still use it.\n"
         "Press ,m for Launch Control."
     )
+
+
+def test_soft_provider_disable_renders_soft_countdown() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {
+            "claude": _disable(
+                expires_at=3_820.0,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            )
+        },
+        now=100.0,
+    )
+
+    assert text.plain == " CLAUDE soft 1h2m "
+    assert str(text.style) == PROVIDER_SOFT_DISABLE_PALETTE.base_style
+
+
+def test_mixed_provider_disables_prefer_hard_in_pill() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {
+            "claude": _disable(
+                "claude",
+                expires_at=None,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+            "codex": _disable("codex", expires_at=5_000.0),
+        },
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX +1 "
+    assert str(text.style) == _ACTIVE_STYLE
+
+
+def test_soft_only_multiple_provider_disables_use_soft_palette() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {
+            "claude": _disable(
+                "claude",
+                expires_at=None,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+            "codex": _disable(
+                "codex",
+                expires_at=5_000.0,
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+        },
+        now=100.0,
+    )
+
+    assert text.plain == " CLAUDE +1 "
+    assert str(text.style) == PROVIDER_SOFT_DISABLE_PALETTE.base_style
+
+
+def test_tooltip_lists_soft_mode() -> None:
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {
+            "claude": _disable(
+                "claude",
+                expires_at=None,
+                source="ace",
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            )
+        },
+        now=100.0,
+    )
+
+    assert tooltip is not None
+    assert "CLAUDE - soft · manual, until cleared" in tooltip
+    assert "Pools spare a soft provider" in tooltip
 
 
 def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> None:

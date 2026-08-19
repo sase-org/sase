@@ -192,6 +192,28 @@ async def test_custom_member_rejects_disabled_explicit_provider() -> None:
         assert "CLAUDE is temporarily disabled until cleared" in message
 
 
+async def test_custom_member_allows_soft_disabled_explicit_provider() -> None:
+    disable = TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider="claude",
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+        mode="soft",
+    )
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("", provider_disables={"claude": disable})
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal._on_member_custom_picked("claude/sonnet@xhigh")
+        await pilot.pause()
+
+        assert modal._members == ["claude/sonnet@xhigh"]
+        modal.notify.assert_called_once()
+        assert "CLAUDE is soft-disabled until cleared" in modal.notify.call_args.args[0]
+
+
 async def test_custom_member_rejects_unknown_alias() -> None:
     async with ModelPickerTestApp().run_test() as pilot:
         modal = _modal("")

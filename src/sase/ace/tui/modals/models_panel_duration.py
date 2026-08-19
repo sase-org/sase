@@ -49,6 +49,13 @@ class RelativeOverrideDuration:
     seconds: float
 
 
+@dataclass(frozen=True)
+class KeepCurrentWindow:
+    """Reuse the active disable's stored expiry when flipping mode."""
+
+    expires_at: float | None
+
+
 class OverrideUntilCleared:
     """Sentinel for an override with no expiry."""
 
@@ -61,8 +68,18 @@ OVERRIDE_UNTIL_CLEARED = OverrideUntilCleared()
 OPEN_OVERRIDE_UNTIL = OpenOverrideUntil()
 
 type OverrideDurationResult = (
-    RelativeOverrideDuration | OverrideUntilCleared | OpenOverrideUntil
+    RelativeOverrideDuration
+    | OverrideUntilCleared
+    | OpenOverrideUntil
+    | KeepCurrentWindow
 )
+
+
+def _keep_current_remaining(expires_at: float | None) -> str:
+    """Format the keep-current-window remaining label."""
+    if expires_at is None:
+        return "until cleared"
+    return f"{format_remaining(expires_at - now())} left"
 
 
 def _parse_override_custom(raw: str) -> OverrideDurationResult:
@@ -85,6 +102,7 @@ class DurationPickerModal(
     - :class:`RelativeOverrideDuration` - a finite duration was chosen.
     - :class:`OverrideUntilCleared` - no expiry.
     - :class:`OpenOverrideUntil` - open the exact-time input.
+    - :class:`KeepCurrentWindow` - reuse the stored expiry when flipping mode.
     - shared cancel sentinel - user cancelled.
     """
 
@@ -101,10 +119,22 @@ class DurationPickerModal(
         until_time_subtitle: str = "Choose a local clock time or date.",
         custom_placeholder: str = "e.g., 30m, 2h, 1h30m, until cleared",
         id_prefix: str = "override-duration",
+        keep_current: KeepCurrentWindow | None = None,
     ) -> None:
-        super().__init__(
-            title=title,
-            choices=[
+        choices: list[DurationChoice[OverrideDurationResult]] = []
+        if keep_current is not None:
+            remaining = _keep_current_remaining(keep_current.expires_at)
+            choices.append(
+                DurationChoice(
+                    key="x",
+                    title=f"Keep current window ({remaining})",
+                    subtitle="Flip the mode without changing the remaining window.",
+                    value=keep_current,
+                    tone="accent",
+                )
+            )
+        choices.extend(
+            [
                 DurationChoice(
                     key="1",
                     title="15 minutes",
@@ -150,7 +180,11 @@ class DurationPickerModal(
                     value=OPEN_OVERRIDE_UNTIL,
                     tone="primary",
                 ),
-            ],
+            ]
+        )
+        super().__init__(
+            title=title,
+            choices=choices,
             parse_custom=_parse_override_custom,
             custom_placeholder=custom_placeholder,
             cancel_result=DURATION_CHOICE_CANCELLED,

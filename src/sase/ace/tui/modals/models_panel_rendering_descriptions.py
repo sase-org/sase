@@ -25,6 +25,8 @@ from .models_panel_rows import (
     RunnerLimitSettingRow,
 )
 
+_POOL_SOFT_STYLE = "bold #FFD75F"
+
 _CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
 _BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
 
@@ -213,6 +215,8 @@ def description_text_for_view(
                 dimmed = suspended or not member.selected
                 style = f"dim {color}" if dimmed else color
                 text.append(f"{marker} {target}", style=style)
+                if member.sparing:
+                    text.append(" soft", style=_POOL_SOFT_STYLE)
             else:
                 style = (
                     "dim #FFD75F"

@@ -439,6 +439,83 @@ async def test_models_panel_provider_disabled_png_snapshot(
         )
 
 
+async def test_models_panel_provider_soft_disabled_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    views = calm_views()
+    disable = provider_disable(
+        "codex",
+        expires_at=FROZEN_NOW + 2_520.0,
+        source="visual",
+        mode="soft",
+    )
+    snapshot = ProviderRoutingSnapshot(
+        statuses=(
+            provider_status(
+                "claude",
+                model_count=11,
+                affected_aliases=("small", "large", "xlarge"),
+            ),
+            provider_status(
+                "codex",
+                model_count=7,
+                active_disable=disable,
+                affected_aliases=("medium", "xsmall", "legacy_blog"),
+            ),
+            provider_status("gemini", model_count=2, cli_available=False),
+        ),
+        provider_disables={"codex": disable},
+        alias_views=tuple(views),
+        provider_colors={
+            "claude": "#D97757",
+            "codex": "#10A37F",
+            "gemini": "#87D7FF",
+        },
+        captured_at=FROZEN_NOW,
+    )
+    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(
+        models_panel_provider_state, "build_alias_views", lambda *a, **k: views
+    )
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_state, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(
+        models_panel_providers,
+        "load_provider_routing_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        panel = ModelsPanel()
+        page.app.push_screen(panel)
+        await page.expect_modal("ModelsPanel")
+
+        def provider_line_is_visible() -> bool:
+            try:
+                title = panel.query_one("#models-panel-title", Static)
+            except Exception:
+                return False
+            return "disabled providers: CODEX soft 42m" in title.content.plain
+
+        await wait_for_state(
+            page,
+            provider_line_is_visible,
+            description="Launch Control soft provider disable title line",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_soft_disabled_120x40",
+            title="ACE Launch Control - provider soft-disabled",
+        )
+
+
 async def test_models_panel_custom_builtin_warning_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

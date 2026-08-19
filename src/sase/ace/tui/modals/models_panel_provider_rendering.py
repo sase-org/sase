@@ -10,9 +10,14 @@ from rich.text import Text
 from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.core.time import get_timezone
 from sase.llm_provider import ProviderRoutingStatus, TemporaryProviderDisable
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
+)
 
 from .models_panel_duration import (
     DurationPickerModal,
+    KeepCurrentWindow,
     OverrideUntilCleared,
     RelativeOverrideDuration,
     format_duration_chosen,
@@ -23,6 +28,7 @@ from .models_panel_time import ResolvedOverrideUntil
 _PROVIDER_CELL = 14
 _COUNT_CELL = 10
 _DISABLED_STYLE = "bold #FFAF5F"
+_SOFT_DISABLED_STYLE = "bold #FFD75F"
 _AVAILABLE_STYLE = "bold #87D787"
 _CLI_MISSING_STYLE = "dim #A8A8A8"
 _DESCRIPTION_STYLE = "#B0B0B0"
@@ -59,10 +65,17 @@ def render_provider_row(
     disable = active_disable(status.active_disable, now=now)
     if disable is not None:
         provenance = provider_disable_provenance_label(disable)
-        text.append(
-            f"disabled · {provenance} · {remaining_label(disable, now=now)}",
-            style=_DISABLED_STYLE,
-        )
+        remaining = remaining_label(disable, now=now)
+        if disable.is_soft:
+            text.append(
+                f"soft · {provenance} · {remaining}",
+                style=_SOFT_DISABLED_STYLE,
+            )
+        else:
+            text.append(
+                f"disabled · {provenance} · {remaining}",
+                style=_DISABLED_STYLE,
+            )
     elif status.cli_available:
         text.append("available", style=_AVAILABLE_STYLE)
     else:
@@ -76,17 +89,28 @@ def provider_title_line(
     now: float,
 ) -> Text | None:
     """Return the conditional Models-title provider-disable summary."""
-    entries: list[str] = []
+    entries: list[tuple[str, TemporaryProviderDisable]] = []
     for provider, disable in sorted(disables.items()):
         if active_disable(disable, now=now) is None:
             continue
-        entries.append(
-            f"{provider.upper()} {remaining_label(disable, now=now, include_left=False)}"
-        )
+        entries.append((provider, disable))
     if not entries:
         return None
     text = Text("disabled providers: ", style="dim")
-    text.append(" · ".join(entries), style=_DISABLED_STYLE)
+    for index, (provider, disable) in enumerate(entries):
+        if index:
+            text.append(" · ", style="dim")
+        remaining = remaining_label(disable, now=now, include_left=False)
+        if disable.is_soft:
+            text.append(
+                f"{provider.upper()} soft {remaining}",
+                style=_SOFT_DISABLED_STYLE,
+            )
+        else:
+            text.append(
+                f"{provider.upper()} {remaining}",
+                style=_DISABLED_STYLE,
+            )
     return text
 
 
@@ -113,11 +137,6 @@ def provider_description_text(
     disable = active_disable(status.active_disable, now=now)
     if disable is not None:
         provenance = provider_disable_provenance_label(disable)
-        text.append(
-            f"New launches and fallbacks route around {label}; "
-            "running provider processes continue.",
-            style=_DISABLED_STYLE,
-        )
         if disable.expires_at is None:
             end = "until cleared"
         else:
@@ -125,10 +144,27 @@ def provider_description_text(
                 "%b %-d %-I:%M%p"
             )
             end = f"until {end} ({remaining_label(disable, now=now)})"
-        text.append(
-            f"\n{provenance} disable {end}. {_affected_aliases_text(status)}",
-            style="dim",
-        )
+        if disable.is_soft:
+            text.append(
+                f"Pools spare {label} while another member can cover; "
+                "|| fallbacks and explicit %model still use it.",
+                style=_SOFT_DISABLED_STYLE,
+            )
+            text.append(
+                f"\nRunning processes continue. {provenance} soft disable {end}. "
+                f"{_affected_aliases_text(status)}",
+                style="dim",
+            )
+        else:
+            text.append(
+                f"New launches and fallbacks route around {label}; "
+                "running provider processes continue.",
+                style=_DISABLED_STYLE,
+            )
+            text.append(
+                f"\n{provenance} disable {end}. {_affected_aliases_text(status)}",
+                style="dim",
+            )
     elif not status.cli_available:
         text.append(
             f"{label} CLI is unavailable; automatic selector routing already skips it.",
@@ -151,9 +187,37 @@ def provider_description_text(
     return text
 
 
-def provider_duration_modal(provider: str) -> DurationPickerModal:
+def provider_duration_modal(
+    provider: str,
+    *,
+    mode: str = PROVIDER_DISABLE_MODE_HARD,
+    keep_current: KeepCurrentWindow | None = None,
+) -> DurationPickerModal:
     """Build the duration picker used to disable ``provider``."""
     label = provider.upper()
+    if mode == PROVIDER_DISABLE_MODE_SOFT:
+        return DurationPickerModal(
+            title=f"Soft-disable {label}",
+            quick_subtitle=(
+                f"Spare {label} in pools that have another option; "
+                "explicit %model still runs."
+            ),
+            short_subtitle=(
+                f"Spare {label} through a short task; explicit %model still runs."
+            ),
+            hour_subtitle=(
+                f"Spare {label} for a focused session; explicit %model still runs."
+            ),
+            two_hour_subtitle=f"Spare {label} for a longer implementation block.",
+            four_hour_subtitle=f"Spare {label} for half a day.",
+            until_cleared_subtitle=(
+                f"Spare {label} until you enable it; explicit %model still runs."
+            ),
+            until_time_subtitle="Choose a local clock time or date.",
+            custom_placeholder="e.g., 30m, 2h, 1h30m, until cleared",
+            id_prefix="provider-duration",
+            keep_current=keep_current,
+        )
     return DurationPickerModal(
         title=f"Disable {label}",
         quick_subtitle=f"Route new launches around {label} briefly.",
@@ -165,15 +229,22 @@ def provider_duration_modal(provider: str) -> DurationPickerModal:
         until_time_subtitle="Choose a local clock time or date.",
         custom_placeholder="e.g., 30m, 2h, 1h30m, until cleared",
         id_prefix="provider-duration",
+        keep_current=keep_current,
     )
 
 
 def duration_suffix(
     result: (
-        RelativeOverrideDuration | OverrideUntilCleared | ResolvedOverrideUntil | None
+        RelativeOverrideDuration
+        | OverrideUntilCleared
+        | ResolvedOverrideUntil
+        | KeepCurrentWindow
+        | None
     ),
 ) -> str:
     """Return the toast suffix describing a chosen disable duration."""
+    if isinstance(result, KeepCurrentWindow):
+        return "with its current window"
     if isinstance(result, ResolvedOverrideUntil):
         return f"until {result.notification_display}"
     if isinstance(result, OverrideUntilCleared):

@@ -235,13 +235,20 @@ def _apply_provider_disables(
     *,
     overrides: Mapping[str, TemporaryLLMOverride] | None,
 ) -> list[_ModelCompletionEntry]:
-    """Drop disabled concrete entries and refresh alias target metadata."""
-    disabled_providers = set(disables)
+    """Drop hard-disabled concrete entries and refresh alias target metadata."""
+    hard_providers = {
+        provider for provider, disable in disables.items() if disable.is_hard
+    }
+    soft_providers = {
+        provider for provider, disable in disables.items() if disable.is_soft
+    }
     filtered = [
-        entry
+        replace(entry, provenance="soft")
+        if (entry.kind in {"model", "provider"} and entry.provider in soft_providers)
+        else entry
         for entry in entries
         if not (
-            entry.provider in disabled_providers and entry.kind in {"model", "provider"}
+            entry.provider in hard_providers and entry.kind in {"model", "provider"}
         )
     ]
     try:

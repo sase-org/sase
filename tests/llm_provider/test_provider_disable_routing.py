@@ -9,6 +9,7 @@ import pytest
 from sase.llm_provider import config as llm_config
 from sase.llm_provider.alias_view import build_alias_views
 from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
@@ -32,7 +33,10 @@ from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
 def _disable(
-    provider: str, *, expires_at: float | None = None
+    provider: str,
+    *,
+    expires_at: float | None = None,
+    mode: str = "hard",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -40,6 +44,7 @@ def _disable(
         created_at=100.0,
         expires_at=expires_at,
         source="test",
+        mode=mode,
     )
 
 
@@ -312,6 +317,27 @@ def test_model_completion_omits_disabled_concrete_provider(
     assert "opus" not in disabled_values
     assert "claude/" not in disabled_values
     assert "gpt-5.6-sol" in disabled_values
+
+
+def test_model_completion_keeps_soft_disabled_concrete_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", metadata_payload)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog(
+        provider_disables={
+            "claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)
+        }
+    )
+    by_value = {entry.value: entry for entry in entries}
+
+    assert "opus" in by_value
+    assert "claude/" in by_value
+    assert by_value["opus"].provenance == "soft"
+    assert by_value["claude/"].provenance == "soft"
+    assert by_value["gpt-5.6-sol"].provenance != "soft"
 
 
 def test_provider_routing_statuses_include_disable_and_affected_aliases(
