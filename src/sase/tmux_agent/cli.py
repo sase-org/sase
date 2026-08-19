@@ -6,7 +6,6 @@ import argparse
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 import difflib
-from importlib import import_module
 import json
 import os
 from pathlib import Path
@@ -28,6 +27,7 @@ from sase.llm_provider import effective_default_effort_snapshot
 from sase.llm_provider import registry as llm_registry
 from sase.llm_provider.types import LLMInvocationError
 
+from .cache import cached_tmux_agent_config, refresh_catalog_cache
 from .catalog import build_tmux_agent_catalog
 from .launch import TmuxAgentLaunch, TmuxAgentLaunchError, launch_agent_window
 from .launch_spec import (
@@ -67,7 +67,7 @@ def handle_tmux_agent_cli(
     *,
     console: Console | None = None,
     catalog_fn: CatalogFn = build_tmux_agent_catalog,
-    config_fn: ConfigFn = get_tmux_agent_config,
+    config_fn: ConfigFn | None = None,
     launch_fn: LaunchFn = launch_agent_window,
     menu_fn: MenuFn = run_display_menu,
     override_fn: OverrideFn | None = None,
@@ -83,6 +83,7 @@ def handle_tmux_agent_cli(
     out = console or Console()
     tmux = runner or TmuxRunner()
     apply_overrides = override_fn or _apply_launch_overrides
+    resolved_config_fn = config_fn or _default_config
     as_json = bool(getattr(args, "json", False))
     as_list = bool(getattr(args, "list", False))
     dry_run = bool(getattr(args, "dry_run", False))
@@ -93,7 +94,7 @@ def handle_tmux_agent_cli(
 
     if getattr(args, "renumber", False):
         return _handle_renumber(
-            config_fn=config_fn,
+            config_fn=resolved_config_fn,
             runner=tmux,
             renumber_fn=renumber_fn,
             tmux_available_fn=tmux_available_fn,
@@ -135,7 +136,7 @@ def handle_tmux_agent_cli(
             explicit_effort=explicit_effort,
             safe=safe,
             as_json=as_json,
-            config_fn=config_fn,
+            config_fn=resolved_config_fn,
             override_fn=apply_overrides,
             runner=tmux,
             tmux_available_fn=tmux_available_fn,
@@ -159,7 +160,7 @@ def handle_tmux_agent_cli(
             explicit_effort=explicit_effort,
             safe=safe,
             as_json=as_json,
-            config_fn=config_fn,
+            config_fn=resolved_config_fn,
             override_fn=apply_overrides,
             launch_fn=launch_fn,
             runner=tmux,
@@ -168,14 +169,13 @@ def handle_tmux_agent_cli(
 
 
 def _default_refresh() -> None:
-    """Rebuild the catalog cache when the cache phase has landed."""
-    try:
-        cache_mod = import_module("sase.tmux_agent.cache")
-    except ImportError:
-        return
-    refresh = getattr(cache_mod, "refresh_catalog_cache", None)
-    if callable(refresh):
-        refresh()
+    """Rebuild the catalog cache before the menu or launch path continues."""
+    refresh_catalog_cache()
+
+
+def _default_config() -> TmuxAgentConfig:
+    """Prefer the config captured with the catalog cache; fall back to a live load."""
+    return cached_tmux_agent_config() or get_tmux_agent_config()
 
 
 def _handle_renumber(
