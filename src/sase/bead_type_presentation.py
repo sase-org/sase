@@ -12,7 +12,7 @@ from rich.text import Text
 from sase.ansi_style import ANSI_RESET as _ANSI_RESET
 from sase.ansi_style import xterm256_foreground_style
 
-BeadTypeValue = Literal["plan", "phase", "task", "flag"]
+BeadTypeValue = Literal["plan", "phase", "task"]
 
 
 @dataclass(frozen=True)
@@ -53,12 +53,6 @@ BEAD_TYPE_PRESENTATIONS: dict[BeadTypeValue, _BeadTypePresentation] = {
         accent_color="#D787FF",
         chip_style="bold black on #D787FF",
         label="Task",
-    ),
-    "flag": _BeadTypePresentation(
-        glyph="⚑",
-        accent_color="#FF875F",
-        chip_style="bold black on #FF875F",
-        label="Flag",
     ),
 }
 BEAD_TYPE_VALUES: tuple[BeadTypeValue, ...] = tuple(BEAD_TYPE_PRESENTATIONS)

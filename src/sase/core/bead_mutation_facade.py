@@ -5,11 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.bead.flag_codec import flag_to_dict
 from sase.bead.model import (
     BeadTier,
     Dependency,
-    FlagRecord,
     Issue,
     IssueType,
     PhaseSize,
@@ -56,7 +54,6 @@ def create(
     changespec_name: str | int | None = "",
     changespec_bug_id: str | int | None = "",
     external_ref: str | int | None = "",
-    flag: FlagRecord | None = None,
     model: str = "",
     size: PhaseSize | str | None = None,
     created_by: str | None = None,
@@ -94,7 +91,6 @@ def create(
             "changespec_name": _optional_text(changespec_name),
             "changespec_bug_id": _optional_text(changespec_bug_id),
             "external_ref": _optional_text(external_ref),
-            "flag": None if flag is None else flag_to_dict(flag),
             "model": model,
             "size": None if size is None else phase_size_value(size),
             "created_by": created_by,

@@ -249,7 +249,7 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or "
+            "phase(<parent_id>), or "
             "task(<slug>); parent IDs may be full or shorthand. New tasks "
             "require a catalog slug; list them with `sase bead task-type`"
         ),

@@ -12,7 +12,7 @@ import pytest
 from sase.ace.testing import make_patch
 from sase.ace.tui.widgets.artifacts import beads_data, beads_data_sources
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
-from sase.bead.model import BeadTier, FlagRecord, Issue, IssueType, Status
+from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.notifications.models import Notification
 from sase.vcs_provider import IssueWire
@@ -45,12 +45,17 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
     flag = Issue(
         "alpha-flag",
         "Flag",
-        issue_type=IssueType.FLAG,
-        flag=FlagRecord(
-            key="plugins_enabled",
-            remove_by_date="2026-12-01",
-            remove_by_release="0.19.0",
-        ),
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "on",
+            "when_disabled": "off",
+            "remove_when": "done",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
     )
     calls = 0
 

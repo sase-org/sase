@@ -516,9 +516,7 @@ def check_bead_status(
             )
             continue
         if marker.source == "flag":
-            is_flag_task = bead.issue_type == "flag" or (
-                bead.issue_type == "task" and bead.task_type == "flag"
-            )
+            is_flag_task = bead.issue_type == "task" and bead.task_type == "flag"
             if not is_flag_task:
                 findings.append(
                     Finding(

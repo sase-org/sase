@@ -14,7 +14,7 @@ from sase.bead.cli_common import (
     init_beads,
     storage_plan_path,
 )
-from sase.bead.model import BeadTier, FlagRecord, IssueType
+from sase.bead.model import BeadTier, IssueType
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.cli_file_values import CliFileValueError, read_at_path_value
 from sase.task_types import (
@@ -26,8 +26,7 @@ from sase.task_types import (
 
 _TYPE_ARG_USAGE = (
     "plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-    "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), "
-    "or task(<slug>)"
+    "phase(<parent_id>), or task(<slug>)"
 )
 
 
@@ -43,10 +42,10 @@ def handle_bead_init(args: argparse.Namespace) -> None:
 
 def parse_type_arg(
     value: str,
-) -> tuple[IssueType, str | None, str | None, FlagRecord | None, str]:
+) -> tuple[IssueType, str | None, str | None, str]:
     """Parse the ``--type`` argument into type metadata.
 
-    Returns ``(issue_type, plan_path, parent_id, flag, task_type)``.
+    Returns ``(issue_type, plan_path, parent_id, task_type)``.
 
     Accepted forms:
     - ``task``                              -> TASK, empty slug (rejected at create)
@@ -54,12 +53,11 @@ def parse_type_arg(
     - ``plan(<path>)``                      -> PLAN, design=path
     - ``plan(<path>,<parent_id>)``          -> PLAN, design=path, parent_id
     - ``phase(<parent_id>)``                -> PHASE, parent_id
-    - ``flag(<key>,<YYYY-MM-DD>,<release>)`` -> FLAG, flag=FlagRecord(...)
     """
     if value == "task":
-        return IssueType.TASK, None, None, None, ""
+        return IssueType.TASK, None, None, ""
 
-    m = re.match(r"^(plan|phase|flag|task)\((.+)\)$", value)
+    m = re.match(r"^(plan|phase|task)\((.+)\)$", value)
     if not m:
         print(
             f"Error: invalid --type value: {value}\nExpected: {_TYPE_ARG_USAGE}",
@@ -72,9 +70,9 @@ def parse_type_arg(
 
     if kind == "plan":
         if len(parts) == 1:
-            return IssueType.PLAN, parts[0], None, None, ""
+            return IssueType.PLAN, parts[0], None, ""
         if len(parts) == 2:
-            return IssueType.PLAN, parts[0], parts[1], None, ""
+            return IssueType.PLAN, parts[0], parts[1], ""
         print(
             f"Error: plan() expects 1 or 2 arguments, got {len(parts)}",
             file=sys.stderr,
@@ -82,39 +80,23 @@ def parse_type_arg(
         sys.exit(1)
     if kind == "phase":
         if len(parts) == 1:
-            return IssueType.PHASE, None, parts[0], None, ""
+            return IssueType.PHASE, None, parts[0], ""
         print(
             f"Error: phase() expects exactly 1 argument, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
-    if kind == "task":
-        if len(parts) == 1 and parts[0]:
-            return IssueType.TASK, None, None, None, parts[0]
-        print(
-            f"Error: task() expects exactly 1 argument, got {len(parts)}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    if len(parts) == 3:
-        return (
-            IssueType.FLAG,
-            None,
-            None,
-            FlagRecord(
-                key=parts[0], remove_by_date=parts[1], remove_by_release=parts[2]
-            ),
-            "",
-        )
+    if len(parts) == 1 and parts[0]:
+        return IssueType.TASK, None, None, parts[0]
     print(
-        f"Error: flag() expects exactly 3 arguments, got {len(parts)}",
+        f"Error: task() expects exactly 1 argument, got {len(parts)}",
         file=sys.stderr,
     )
     sys.exit(1)
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
-    issue_type, plan_path, parent_id, flag_record, task_type = parse_type_arg(args.type)
+    issue_type, plan_path, parent_id, task_type = parse_type_arg(args.type)
     try:
         field_values = parse_field_args(getattr(args, "field", None))
         if field_values and issue_type != IssueType.TASK:
@@ -222,7 +204,6 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,
                 external_ref=getattr(args, "external_ref", None) or "",
-                flag=flag_record,
                 model=getattr(args, "model", None) or "",
                 size=size,
                 created_by=creator,

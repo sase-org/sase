@@ -6,10 +6,11 @@ from sase.bead._flag_gate_preview import (
     flag_triage_presentation_note,
     render_flag_triage_preview,
 )
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FlagFields
 
-_FLAG = FlagRecord(
+_FLAG = FlagFields(
     key="prettier_enabled",
+    kind="sunset",
     remove_by_date="2026-08-01",
     remove_by_release="0.16.0",
 )
@@ -77,8 +78,9 @@ def test_countdown_text_comes_from_pinned_due_as_of_and_release() -> None:
     assert "DUE ⧗ +15d (as of 2026-08-16, release v0.16.0)" in overdue
 
     live = _render(
-        flag=FlagRecord(
+        flag=FlagFields(
             key="prettier_enabled",
+            kind="sunset",
             remove_by_date="2026-12-01",
             remove_by_release="0.20.0",
         ),

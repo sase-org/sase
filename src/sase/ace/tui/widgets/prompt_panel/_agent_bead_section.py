@@ -10,17 +10,18 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
-from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE, bead_created_label
-from sase.bead_type_presentation import bead_type_presentation
-from sase.bead_flag_presentation import flag_key_chip
+from sase.bead.flag_fields import FLAG_TASK_TYPE
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     plus_one_badge,
     plus_one_evidence_label,
     plus_one_reports_label,
 )
+from sase.bead_flag_presentation import flag_key_chip
+from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE, bead_created_label
+from sase.bead_type_presentation import bead_type_presentation
 from sase.phase_size_presentation import phase_size_chip
-from sase.task_type_presentation import task_type_chip
+from sase.task_type_presentation import task_type_chip, task_type_presentation
 
 from ...models.agent_associated_plan import BeadSummary
 from ...models.fold_scale import FoldScale, fold_scale_position
@@ -118,12 +119,24 @@ class ResponsiveBeadSection:
             table.add_row(Text(label, style=COLOR_SUMMARY), value)
         yield from console.render(table, options.update_width(width))
 
+    def _is_flag_summary(self) -> bool:
+        return self.summary.task_type == FLAG_TASK_TYPE
+
     def _lane_header(self) -> Text:
         text = Text(end="")
-        presentation = bead_type_presentation(self.summary.bead_type)
+        if self._is_flag_summary():
+            flag_presentation = task_type_presentation(self.summary.task_type)
+            glyph = flag_presentation.glyph
+            type_style = flag_presentation.rich_style
+            type_label = self.summary.task_type
+        else:
+            bead_presentation = bead_type_presentation(self.summary.bead_type)
+            glyph = bead_presentation.glyph
+            type_style = bead_presentation.rich_style
+            type_label = self.summary.bead_type
         details = Text()
-        details.append(f"{presentation.glyph} ", style=presentation.rich_style)
-        details.append(self.summary.bead_type, style=COLOR_SUMMARY)
+        details.append(f"{glyph} ", style=type_style)
+        details.append(type_label, style=COLOR_SUMMARY)
         details.append(" ", style=COLOR_SUMMARY)
         details.append(self.summary.id, style=COLOR_BEAD_PRIMARY)
         if badge := plus_one_badge(self.summary.plus_one_count):
@@ -137,6 +150,20 @@ class ResponsiveBeadSection:
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
+        if self._is_flag_summary():
+            rows = [
+                (self._label("Flag Title"), self._bead_title_value()),
+                (self._label("Description"), self._description_value()),
+                (self._label("Flag Key"), self._flag_key_value()),
+                (self._label("Remove By"), self._flag_removal_value()),
+                (self._label("Task Type"), self._task_type_value()),
+            ]
+            if self.summary.notes and self.summary.notes.strip():
+                rows.append(
+                    (self._label("Notes"), self._foldable_value(self._notes_value()))
+                )
+            rows.append((self._label("Created"), self._created_value()))
+            return tuple(rows)
         if self.summary.bead_type == "task":
             rows = [
                 (self._label("Task Title"), self._bead_title_value()),
@@ -156,21 +183,6 @@ class ResponsiveBeadSection:
                         self._label("+1 Evidence"),
                         self._foldable_value(self._plus_one_evidence_value()),
                     )
-                )
-            rows.append((self._label("Created"), self._created_value()))
-            return tuple(rows)
-        if self.summary.bead_type == "flag":
-            rows = [
-                (self._label("Flag Title"), self._bead_title_value()),
-                (self._label("Description"), self._description_value()),
-                (self._label("Flag Key"), self._flag_key_value()),
-                (self._label("Remove By"), self._flag_removal_value()),
-            ]
-            if self.summary.task_type:
-                rows.append((self._label("Task Type"), self._task_type_value()))
-            if self.summary.notes and self.summary.notes.strip():
-                rows.append(
-                    (self._label("Notes"), self._foldable_value(self._notes_value()))
                 )
             rows.append((self._label("Created"), self._created_value()))
             return tuple(rows)

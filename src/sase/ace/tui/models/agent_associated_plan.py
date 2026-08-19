@@ -499,9 +499,7 @@ def _resolve_bead_issue_association(
 def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
     """Project one task or flag issue into render-ready BEAD metadata."""
     fields = flag_fields(issue)
-    bead_type: BeadTypeValue = (
-        "flag" if is_flag_bead(issue) else cast(BeadTypeValue, issue.issue_type.value)
-    )
+    bead_type: BeadTypeValue = cast(BeadTypeValue, issue.issue_type.value)
     return BeadSummary(
         id=issue.id,
         phase_title=normalize_bead_text(issue.title) or None,

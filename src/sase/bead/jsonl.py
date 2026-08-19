@@ -13,7 +13,6 @@ from pathlib import Path
 from sase.bead import db as db_mod
 from sase.bead._db_codec import (
     close_history_json,
-    flag_json,
     plus_one_evidence_json,
     snooze_json,
 )
@@ -21,7 +20,6 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
-from sase.bead.flag_codec import flag_from_dict, flag_to_dict
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 from sase.bead.model import (
     BeadTier,
@@ -131,7 +129,6 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
             else {}
         ),
         **({"snooze": snooze_to_dict(issue.snooze)} if issue.snooze else {}),
-        **({"flag": flag_to_dict(issue.flag)} if issue.flag else {}),
         "model": issue.model,
         **({"size": issue.size.value} if issue.size else {}),
         "is_ready_to_work": issue.is_ready_to_work,
@@ -192,7 +189,6 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         plus_one_evidence=_plus_one_evidence_list(data.get("plus_one_evidence")),
         close_history=close_history_from_dicts(data.get("close_history")),
         snooze=snooze_from_dict(data.get("snooze")),
-        flag=flag_from_dict(data.get("flag")),
         model=_optional_str(data.get("model", "")),
         size=PhaseSize(str(data["size"])) if data.get("size") else None,
         is_ready_to_work=bool(data.get("is_ready_to_work", False)),
@@ -282,7 +278,6 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     plus_one_evidence=plus_one_evidence_json(issue.plus_one_evidence),
                     close_history=close_history_json(issue.close_history),
                     snooze=snooze_json(issue.snooze),
-                    flag=flag_json(issue.flag),
                     model=issue.model,
                     size=issue.size.value if issue.size else None,
                     tier=issue.tier.value if issue.tier else None,

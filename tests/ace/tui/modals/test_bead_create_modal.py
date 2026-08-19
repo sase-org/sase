@@ -59,32 +59,3 @@ async def test_create_task_returns_the_selected_size() -> None:
             },
         )
     ]
-
-
-async def test_create_flag_returns_flag_metadata_without_size() -> None:
-    dismissed: list[BeadCreateResult | None] = []
-    async with _TestApp().run_test(size=(100, 40)) as pilot:
-        modal = BeadCreateModal("sase")
-        pilot.app.push_screen(modal, callback=dismissed.append)
-        await pilot.pause()
-
-        modal.query_one("#bead-create-type", Select).value = "flag"
-        modal.query_one("#bead-create-title", Input).value = "Remove plugin switch"
-        modal.query_one("#bead-create-flag-key", Input).value = "plugins_enabled"
-        modal.query_one("#bead-create-flag-date", Input).value = "2026-12-01"
-        modal.query_one("#bead-create-flag-release", Input).value = "0.19.0"
-        modal.action_save()
-        await pilot.pause()
-
-    assert dismissed == [
-        BeadCreateResult(
-            title="Remove plugin switch",
-            description="",
-            size="",
-            ready=False,
-            issue_type="flag",
-            flag_key="plugins_enabled",
-            flag_remove_by_date="2026-12-01",
-            flag_remove_by_release="0.19.0",
-        )
-    ]

@@ -12,7 +12,7 @@ from rich.cells import cell_len
 from sase.ansi_style import xterm256_foreground_style
 from sase.bead import cli as bead_cli
 from sase.bead import cli_query
-from sase.bead.model import FlagRecord, IssueType
+from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
@@ -226,12 +226,18 @@ def test_list_compact_color_modes_override_non_tty(
     with BeadProject(project_dir) as proj:
         proj.create(
             "Flag Bead",
-            IssueType.FLAG,
-            flag=FlagRecord(
-                key="demo_key",
-                remove_by_date="2026-12-01",
-                remove_by_release="0.19.0",
-            ),
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "on",
+                "when_disabled": "off",
+                "remove_when": "done",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
         )
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
@@ -263,12 +269,18 @@ def test_list_compact_renders_flag_key_and_due_cells(
     with BeadProject(project_dir) as proj:
         issue = proj.create(
             "Flag Bead",
-            IssueType.FLAG,
-            flag=FlagRecord(
-                key="demo_key",
-                remove_by_date="2026-12-01",
-                remove_by_release="0.19.0",
-            ),
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "on",
+                "when_disabled": "off",
+                "remove_when": "done",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
         )
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
@@ -276,7 +288,7 @@ def test_list_compact_renders_flag_key_and_due_cells(
     line = next(line for line in _compact_row_lines(output) if issue.id in line)
 
     assert "· Flag Bead  ⚑ demo_key DUE ⧗ +6d" in line
-    assert output.endswith("\n\n1 open flag · ⧗ 1 due flag\n")
+    assert output.endswith("\n\n1 open task · ⧗ 1 due flag\n")
 
 
 def test_list_compact_renders_typed_flag_task_cells(
@@ -318,7 +330,7 @@ def test_list_compact_renders_typed_flag_task_cells(
 
     assert "⚑" in line
     assert "· Flag Bead  ⚑ demo_key DUE ⧗ +6d" in line
-    assert output.endswith("\n\n1 open flag · ⧗ 1 due flag\n")
+    assert output.endswith("\n\n1 open task · ⧗ 1 due flag\n")
 
 
 def test_list_compact_no_color_env_suppresses_escapes(

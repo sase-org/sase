@@ -9,7 +9,7 @@ from sase.bead.flag_fields import (
     is_flag_task_bead,
     replace_flag_thresholds,
 )
-from sase.bead.model import FlagRecord, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, Status
 
 
 def _flag_task(**overrides: object) -> Issue:
@@ -43,28 +43,6 @@ def test_flag_fields_reads_task_type_fields() -> None:
     )
     assert is_flag_task_bead(_flag_task())
     assert is_flag_bead(_flag_task())
-
-
-def test_flag_fields_reads_legacy_flag_record() -> None:
-    issue = Issue(
-        id="sase-nw",
-        title="Retire demo_key",
-        issue_type=IssueType.FLAG,
-        flag=FlagRecord(
-            key="demo_key",
-            remove_by_date="2026-12-01",
-            remove_by_release="0.19.0",
-        ),
-    )
-
-    assert flag_fields(issue) == FlagFields(
-        key="demo_key",
-        kind="",
-        remove_by_date="2026-12-01",
-        remove_by_release="0.19.0",
-    )
-    assert not is_flag_task_bead(issue)
-    assert is_flag_bead(issue)
 
 
 def test_flag_fields_returns_none_for_other_task_types() -> None:

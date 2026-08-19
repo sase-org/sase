@@ -20,9 +20,8 @@ DEFAULT_TASK_TYPE_GLYPH = "•"  # •
 #: task-type color can never repaint them: the issue-type accents
 #: (`sase.bead_type_presentation`), the flag "soon" accent
 #: (`sase.bead_flag_presentation`), the pinned ``flag`` task-type accent
-#: (``#FF875F``, still the flag issue-type accent until that type retires),
-#: and the six pinned builtin task-type accents from the plan
-#: (bug/ci/feature/flake/memory/github).
+#: (``#FF875F``, the retired flag issue-type color), and the six pinned
+#: builtin task-type accents from the plan (bug/ci/feature/flake/memory/github).
 _RESERVED_ACCENT_COLORS: frozenset[str] = frozenset(
     {
         "#FFD700",

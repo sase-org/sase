@@ -96,7 +96,21 @@ def test_beads_source_emits_parent_dependencies_and_plan_link() -> None:
     )
     flag = ProjectBead(
         "alpha",
-        Issue(id="f1", title="flag", issue_type=IssueType.FLAG),
+        Issue(
+            id="f1",
+            title="flag",
+            issue_type=IssueType.TASK,
+            task_type="flag",
+            task_type_fields={
+                "key": "demo_key",
+                "kind": "beta",
+                "when_enabled": "on",
+                "when_disabled": "off",
+                "remove_when": "done",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
+        ),
     )
     snapshot = BeadsSnapshot(
         project="alpha",

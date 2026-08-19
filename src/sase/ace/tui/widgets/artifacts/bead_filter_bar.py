@@ -8,6 +8,7 @@ from textual.message import Message
 
 from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.bead.filter_query import (
+    BEAD_FILTER_TYPE_VALUES,
     BEAD_FLAG_DUE_VALUES,
     BEAD_HAS_VALUES,
     DERIVED_BEAD_STATUS_VALUES,
@@ -15,7 +16,6 @@ from sase.bead.filter_query import (
 )
 from sase.bead.model import BeadTier
 from sase.bead_status_presentation import bead_status_display_order
-from sase.bead_type_presentation import BEAD_TYPE_VALUES
 from sase.phase_size_presentation import PHASE_SIZE_VALUES
 
 from .types import ARTIFACTS_ACCENTS
@@ -43,7 +43,7 @@ class BeadFilterBar(FilterBar):
     COMPLETION_ID = "bead-filter-completion"
     CANDIDATE_ID_PREFIX = "bead-filter-candidate"
     KEY_COMPLETIONS = (
-        ("type", ", ".join(BEAD_TYPE_VALUES)),
+        ("type", ", ".join(BEAD_FILTER_TYPE_VALUES)),
         ("task_type", "task-type slug or untyped"),
         ("tier", "plan or epic"),
         ("status", "open, closed, blocked, triage"),
@@ -60,7 +60,7 @@ class BeadFilterBar(FilterBar):
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
     )
     STATIC_VALUE_COMPLETIONS = {
-        "type": BEAD_TYPE_VALUES,
+        "type": BEAD_FILTER_TYPE_VALUES,
         "tier": tuple(value.value for value in BeadTier),
         "status": (*bead_status_display_order(), *DERIVED_BEAD_STATUS_VALUES),
         "size": PHASE_SIZE_VALUES,

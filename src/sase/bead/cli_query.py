@@ -432,7 +432,7 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
             issue
             for issue in view.list_issues(
                 statuses=ALL_LIST_STATUSES,
-                issue_types=[IssueType.TASK, IssueType.FLAG],
+                issue_types=[IssueType.TASK],
             )
             if is_flag_bead(issue)
         ]

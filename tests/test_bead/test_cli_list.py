@@ -35,7 +35,7 @@ def test_handle_bead_list_json_outputs_envelope(
     assert payload["total"] == 1
     assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
     assert payload["implied_status_closed"] is False
-    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
     assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 1,
@@ -98,7 +98,7 @@ def test_handle_bead_list_json_empty_store_is_valid_envelope(
     assert payload["count"] == 0
     assert payload["total"] == 0
     assert payload["implied_status_closed"] is False
-    assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0, "flag": 0}
+    assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0}
     assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 0,
@@ -146,7 +146,7 @@ def test_handle_bead_list_json_limit_preserves_total(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 1
     assert payload["total"] == 2
-    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
     assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 1,

@@ -10,7 +10,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, Select, TextArea
 
-from sase.bead.model import FlagRecord, IssueType, PhaseSize
+from sase.bead.model import IssueType, PhaseSize
 from sase.task_types import (
     TaskTypeCreateError,
     get_task_type_registry,
@@ -26,15 +26,12 @@ class BeadCreateResult:
     size: str
     ready: bool
     issue_type: str = IssueType.TASK.value
-    flag_key: str = ""
-    flag_remove_by_date: str = ""
-    flag_remove_by_release: str = ""
     task_type: str = ""
     task_type_fields: dict[str, str] = field(default_factory=dict)
 
 
 class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
-    """Collect the fields valid for a standalone task or flag bead."""
+    """Collect the fields valid for a standalone task bead."""
 
     BINDINGS = [("escape", "cancel", "Cancel"), ("ctrl+s", "save", "Create")]
 
@@ -52,7 +49,6 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
             yield Select(
                 [
                     ("Task", IssueType.TASK.value),
-                    ("Flag", IssueType.FLAG.value),
                 ],
                 value=IssueType.TASK.value,
                 allow_blank=False,
@@ -83,12 +79,6 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
                 "Task type fields (name=value per line)", classes="bead-modal-label"
             )
             yield TextArea("", id="bead-create-task-fields")
-            yield Label("Flag key", classes="bead-modal-label")
-            yield Input(id="bead-create-flag-key")
-            yield Label("Remove by date", classes="bead-modal-label")
-            yield Input(placeholder="YYYY-MM-DD", id="bead-create-flag-date")
-            yield Label("Remove by release", classes="bead-modal-label")
-            yield Input(placeholder="0.19.0", id="bead-create-flag-release")
             yield Checkbox("Ready for triage", id="bead-create-ready")
             with Horizontal(classes="bead-modal-buttons"):
                 yield Button(
@@ -114,26 +104,16 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
             self.notify("Bead title cannot be empty", severity="error")
             return
         issue_type = str(self.query_one("#bead-create-type", Select).value)
-        size = ""
-        flag = None
         ready = self.query_one("#bead-create-ready", Checkbox).value
-        task_type = ""
-        task_type_fields: dict[str, str] = {}
-        if issue_type == IssueType.FLAG.value:
-            flag = self._flag_record()
-            if flag is None:
-                return
-            ready = False
-        else:
-            size = str(self.query_one("#bead-create-size", Select).value)
-            if not size:
-                self.notify("Task size is required", severity="error")
-                self.query_one("#bead-create-size", Select).focus()
-                return
-            typed = self._typed_task()
-            if typed is None:
-                return
-            task_type, task_type_fields = typed
+        size = str(self.query_one("#bead-create-size", Select).value)
+        if not size:
+            self.notify("Task size is required", severity="error")
+            self.query_one("#bead-create-size", Select).focus()
+            return
+        typed = self._typed_task()
+        if typed is None:
+            return
+        task_type, task_type_fields = typed
         self.dismiss(
             BeadCreateResult(
                 title=title,
@@ -143,9 +123,6 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
                 size=size,
                 ready=ready,
                 issue_type=issue_type,
-                flag_key="" if flag is None else flag.key,
-                flag_remove_by_date="" if flag is None else flag.remove_by_date,
-                flag_remove_by_release=("" if flag is None else flag.remove_by_release),
                 task_type=task_type,
                 task_type_fields=task_type_fields,
             )
@@ -187,32 +164,6 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
         if record is None:
             return ()
         return required_task_type_field_names(record.spec)
-
-    def _flag_record(self) -> FlagRecord | None:
-        key = self.query_one("#bead-create-flag-key", Input).value.strip()
-        remove_by_date = self.query_one("#bead-create-flag-date", Input).value.strip()
-        remove_by_release = self.query_one(
-            "#bead-create-flag-release", Input
-        ).value.strip()
-        record = FlagRecord(
-            key=key,
-            remove_by_date=remove_by_date,
-            remove_by_release=remove_by_release,
-        )
-        try:
-            record.validate()
-        except ValueError as exc:
-            self.notify(str(exc), severity="error")
-            target = (
-                "#bead-create-flag-key"
-                if not key
-                else "#bead-create-flag-date"
-                if not remove_by_date
-                else "#bead-create-flag-release"
-            )
-            self.query_one(target, Input).focus()
-            return None
-        return record
 
     def action_cancel(self) -> None:
         self.dismiss(None)

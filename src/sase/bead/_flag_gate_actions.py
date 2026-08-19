@@ -84,9 +84,7 @@ def extend_flag_triage(decision: FlagTriageResponse) -> None:
             "flag triage extend helper requires extend with new thresholds",
         )
     from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
-    from sase.bead.flag_codec import flag_to_dict
     from sase.bead.flag_fields import is_flag_task_bead, replace_flag_thresholds
-    from sase.bead.model import FlagRecord, IssueType
     from sase.bead.mutation_commit import require_mutation_commit_message
 
     note = (
@@ -98,32 +96,20 @@ def extend_flag_triage(decision: FlagTriageResponse) -> None:
     with bead_store_mutation(auto_commit_bead_store, cwd=cwd) as mutation:
         actor = bead_gate_actor(mutation.project)
         issue = mutation.project.show(decision.bead_id)
-        if is_flag_task_bead(issue):
-            mutation.project.update(
-                decision.bead_id,
-                task_type_fields=replace_flag_thresholds(
-                    issue.task_type_fields,
-                    remove_by_date=decision.remove_by_date,
-                    remove_by_release=decision.remove_by_release,
-                ),
-            )
-        elif issue.issue_type == IssueType.FLAG:
-            mutation.project.update(
-                decision.bead_id,
-                flag=flag_to_dict(
-                    FlagRecord(
-                        key=decision.key,
-                        remove_by_date=decision.remove_by_date,
-                        remove_by_release=decision.remove_by_release,
-                    )
-                ),
-            )
-        else:
+        if not is_flag_task_bead(issue):
             raise GateError(
                 "invalid_flag_action",
                 decision.action,
                 f"{decision.bead_id} is not a flag bead",
             )
+        mutation.project.update(
+            decision.bead_id,
+            task_type_fields=replace_flag_thresholds(
+                issue.task_type_fields,
+                remove_by_date=decision.remove_by_date,
+                remove_by_release=decision.remove_by_release,
+            ),
+        )
         mutation.project.append_note(decision.bead_id, note, author=actor)
         mutation.commit(require_mutation_commit_message("update", [decision.bead_id]))
 

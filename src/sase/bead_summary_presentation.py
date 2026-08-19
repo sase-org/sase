@@ -13,7 +13,7 @@ import sase
 from sase.ansi_style import ansi_sgr, apply_ansi
 from sase.bead.flag_due import flag_removal_due
 from sase.bead.flag_fields import FLAG_TASK_TYPE, flag_fields
-from sase.bead.model import FlagRecord, Issue, IssueType
+from sase.bead.model import Issue
 from sase.bead_flag_presentation import FLAG_DUE_GLYPH, FLAG_DUE_STYLES
 from sase.bead_status_presentation import (
     BeadStatusValue,
@@ -31,7 +31,6 @@ BEAD_TYPE_NOUNS: dict[BeadTypeValue, tuple[str, str]] = {
     "plan": ("plan", "plans"),
     "phase": ("phase", "phases"),
     "task": ("task", "tasks"),
-    "flag": ("flag", "flags"),
 }
 
 BEAD_STATUS_ADJECTIVES: dict[BeadStatusValue, str] = {
@@ -135,18 +134,10 @@ def _normalize_bead_type_value(value: object) -> BeadTypeValue:
 
 
 def _row_is_flag(row: BeadSummaryRow) -> bool:
-    issue_type = getattr(row, "issue_type", None)
-    if issue_type is IssueType.FLAG:
-        return True
-    candidate = issue_type.value if isinstance(issue_type, Enum) else issue_type
-    if candidate == "flag":
-        return True
     return getattr(row, "task_type", "") == FLAG_TASK_TYPE
 
 
 def _row_type_value(row: BeadSummaryRow) -> BeadTypeValue:
-    if _row_is_flag(row):
-        return "flag"
     return _normalize_bead_type_value(row.issue_type)
 
 
@@ -170,13 +161,19 @@ def _row_flag_is_due(row: BeadSummaryRow, *, today: date) -> bool:
             )
             == "due"
         )
-    record = getattr(row, "flag", None)
-    if not isinstance(record, FlagRecord):
+    if not _row_is_flag(row):
+        return False
+    fields_map = getattr(row, "task_type_fields", None)
+    if not isinstance(fields_map, Mapping):
+        return False
+    remove_by_date = str(fields_map.get("remove_by_date", "")).strip()
+    remove_by_release = str(fields_map.get("remove_by_release", "")).strip()
+    if not remove_by_date or not remove_by_release:
         return False
     return (
         flag_removal_due(
-            record.remove_by_date,
-            record.remove_by_release,
+            remove_by_date,
+            remove_by_release,
             today=today,
             release=sase.__version__,
         )

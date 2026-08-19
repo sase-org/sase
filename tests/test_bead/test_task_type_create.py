@@ -62,7 +62,6 @@ def test_parse_type_arg_accepts_task_slug() -> None:
         IssueType.TASK,
         None,
         None,
-        None,
         "flake",
     )
 

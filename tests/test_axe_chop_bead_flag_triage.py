@@ -233,29 +233,6 @@ def test_task_bead_gate_is_not_duplicated_when_a_flag_bead_is_also_reconciled(
     }
 
 
-def test_legacy_flag_issue_type_bead_is_not_gateable(tmp_path: Path) -> None:
-    from sase.bead.model import FlagRecord
-
-    with BeadProject.init(tmp_path) as proj:
-        legacy = proj.create(
-            "Remove the legacy flag",
-            IssueType.FLAG,
-            flag=FlagRecord(
-                key="legacy_flag",
-                remove_by_date="2020-01-01",
-                remove_by_release="0.1.0",
-            ),
-        )
-
-    gateable_ids = {
-        issue.id
-        for issue in gateable_beads(
-            proj.beads_dir, today=date(2026, 8, 16), release="0.16.0"
-        )
-    }
-    assert legacy.id not in gateable_ids
-
-
 def test_expected_gate_kind_is_flag_triage_for_flag_task_type() -> None:
     from sase.scripts._bead_task_triage_gates import expected_gate_kind
 

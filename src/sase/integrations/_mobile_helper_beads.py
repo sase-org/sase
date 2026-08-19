@@ -42,10 +42,12 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
         optional_string(request.get("status"), "status"),
         include_closed=optional_bool(request.get("include_closed"), "include_closed"),
     )
-    issue_types = _optional_enum_filter(
-        optional_string(request.get("bead_type"), "bead_type"),
-        IssueType,
-        "bead_type",
+    raw_bead_type = optional_string(request.get("bead_type"), "bead_type")
+    flag_only = raw_bead_type == "flag"
+    issue_types = (
+        None
+        if flag_only
+        else _optional_enum_filter(raw_bead_type, IssueType, "bead_type")
     )
     tiers = _optional_enum_filter(
         optional_string(request.get("tier"), "tier"),
@@ -66,6 +68,7 @@ def beads_list_response(request: dict[str, Any]) -> dict[str, Any]:
             all_issues,
             statuses=statuses,
             issue_types=issue_types,
+            flag_only=flag_only,
             tiers=tiers,
         )
         for issue in filtered:
@@ -437,19 +440,17 @@ def _filter_bead_issues(
     statuses: list[Status] | None,
     issue_types: list[IssueType] | None,
     tiers: list[BeadTier] | None,
+    flag_only: bool = False,
 ) -> list[Issue]:
     result = issues
     if statuses is not None:
         status_set = set(statuses)
         result = [issue for issue in result if issue.status in status_set]
-    if issue_types is not None:
+    if flag_only:
+        result = [issue for issue in result if is_flag_task_bead(issue)]
+    elif issue_types is not None:
         type_set = set(issue_types)
-        result = [
-            issue
-            for issue in result
-            if issue.issue_type in type_set
-            or (IssueType.FLAG in type_set and is_flag_task_bead(issue))
-        ]
+        result = [issue for issue in result if issue.issue_type in type_set]
     if tiers is not None:
         tier_set = set(tiers)
         result = [issue for issue in result if issue.tier in tier_set]

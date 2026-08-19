@@ -13,7 +13,7 @@ from sase.bead._flag_gate_response import (
     translate_flag_triage_response,
 )
 from sase.bead._flag_gate_spec import FlagTriageAction
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FlagFields
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from tests.test_bead.flag_gate_test_helpers import flag_triage_spec
@@ -99,8 +99,9 @@ def test_flag_triage_translation_trusts_request_identity_and_current_thresholds(
             bead_id="sase-flag.actual",
             project="sase",
             title="Trusted flag bead title",
-            flag=FlagRecord(
+            flag=FlagFields(
                 key="actual_flag",
+                kind="sunset",
                 remove_by_date="2026-09-01",
                 remove_by_release="0.18.0",
             ),

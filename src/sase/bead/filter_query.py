@@ -29,6 +29,8 @@ from sase.vcs_log.dates import (
     parse_time_bound,
 )
 
+BEAD_FILTER_TYPE_VALUES: tuple[str, ...] = (*BEAD_TYPE_VALUES, "flag")
+
 BeadCompletionKind = Literal[
     "key",
     "type",
@@ -378,7 +380,7 @@ def _validate_static_values(
 ) -> None:
     allowed: tuple[str, ...] | None = None
     if key == "type":
-        allowed = BEAD_TYPE_VALUES
+        allowed = BEAD_FILTER_TYPE_VALUES
     elif key == "tier":
         allowed = _BEAD_TIER_VALUES
     elif key == "status":

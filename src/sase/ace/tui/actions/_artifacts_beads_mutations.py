@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.bead.model import FlagRecord, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, Status
 
 from ..widgets.artifacts.beads_list import BeadRow
 from ..widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -249,15 +249,6 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                     IssueType(result.issue_type),
                     description=result.description,
                     size=result.size or None,
-                    flag=(
-                        FlagRecord(
-                            key=result.flag_key,
-                            remove_by_date=result.flag_remove_by_date,
-                            remove_by_release=result.flag_remove_by_release,
-                        )
-                        if result.issue_type == IssueType.FLAG.value
-                        else None
-                    ),
                     task_type=result.task_type,
                     task_type_fields=result.task_type_fields,
                 )

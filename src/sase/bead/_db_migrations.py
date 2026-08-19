@@ -14,7 +14,6 @@ _EXTERNAL_REF_INDEX_SQL = """\
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
     WHERE external_ref IS NOT NULL AND external_ref != ''
-      AND issue_type != 'flag'
 """
 
 
@@ -121,11 +120,16 @@ def _migrate_external_ref(conn: sqlite3.Connection) -> None:
         migration_sql = require_rust_binding("bead_external_ref_migration_sql")
         conn.executescript(migration_sql())
         conn.commit()
-    _migrate_external_ref_index(conn)
 
 
 def _migrate_external_ref_index(conn: sqlite3.Connection) -> None:
-    """Exclude flag beads from the external-ref uniqueness index."""
+    """Rebuild the external-ref unique index after flag rows are gone.
+
+    Historical ``external_ref`` SQL still carves ``issue_type != 'flag'`` out
+    of uniqueness. The drop-flag rebuild owns the current index; this pass
+    only strips a leftover predicate on stores that no longer have flag
+    rows, so it must run after :func:`_migrate_drop_flag_type`.
+    """
     columns = _columns(conn)
     if "external_ref" not in columns or "issue_type" not in columns:
         return
@@ -134,7 +138,7 @@ def _migrate_external_ref_index(conn: sqlite3.Connection) -> None:
         "WHERE type='index' AND name='idx_issues_external_ref'"
     ).fetchone()
     sql = "" if row is None or row["sql"] is None else str(row["sql"])
-    if "issue_type != 'flag'" in sql or "issue_type!='flag'" in sql:
+    if row is not None and "issue_type" not in sql:
         return
     conn.execute("DROP INDEX IF EXISTS idx_issues_external_ref")
     conn.execute(_EXTERNAL_REF_INDEX_SQL)
@@ -297,6 +301,12 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     # After every rebuild: those copy an explicit legacy column list that
     # predates task_type, so a column added before them would be dropped.
     _migrate_add_task_type(conn)
+    # Runs last: its rebuild copies task_type and drops the retired flag
+    # type, column, and CHECKs.
+    _migrate_drop_flag_type(conn)
+    # After drop-flag: leftover ``issue_type != 'flag'`` predicates are safe
+    # to strip only once those rows are gone.
+    _migrate_external_ref_index(conn)
 
 
 def _migrate_add_task_type(conn: sqlite3.Connection) -> None:
@@ -305,4 +315,13 @@ def _migrate_add_task_type(conn: sqlite3.Connection) -> None:
     if not needs_migration(_create_table_sql(conn)):
         return
     migration_sql = require_rust_binding("bead_task_type_migration_sql")
+    conn.executescript(migration_sql())
+
+
+def _migrate_drop_flag_type(conn: sqlite3.Connection) -> None:
+    """Drop the retired flag issue type using the Rust migration policy."""
+    needs_migration = require_rust_binding("bead_needs_drop_flag_type_migration")
+    if not needs_migration(_create_table_sql(conn)):
+        return
+    migration_sql = require_rust_binding("bead_drop_flag_type_migration_sql")
     conn.executescript(migration_sql())

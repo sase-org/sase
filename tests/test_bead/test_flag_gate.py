@@ -13,7 +13,7 @@ from sase.bead.flag_gate import (
     FLAG_TRIAGE_PREVIEW_PATH,
     create_flag_triage_gate,
 )
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FlagFields
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -30,8 +30,9 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
         bead_id="sase-flag.1",
         project="sase",
         title="Remove the prettier_enabled flag",
-        flag=FlagRecord(
+        flag=FlagFields(
             key="prettier_enabled",
+            kind="sunset",
             remove_by_date="2026-08-01",
             remove_by_release="0.16.0",
         ),
@@ -148,8 +149,9 @@ def test_flag_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
         bead_id="sase-flag.1",
         project="sase",
         title="Remove the prettier_enabled flag",
-        flag=FlagRecord(
+        flag=FlagFields(
             key="prettier_enabled",
+            kind="sunset",
             remove_by_date="2026-08-01",
             remove_by_release="0.16.0",
         ),

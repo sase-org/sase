@@ -8,13 +8,13 @@ from typing import Any
 
 from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
 from sase.bead.cli_crud_common import mutation_outcome_ids
-from sase.bead.flag_codec import flag_to_dict
 from sase.bead.flag_fields import (
+    FlagFields,
     flag_fields,
     is_flag_task_bead,
     replace_flag_thresholds,
 )
-from sase.bead.model import FlagRecord, Issue, IssueType
+from sase.bead.model import Issue
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.cli_file_values import CliFileValueError, read_at_path_value
 
@@ -35,8 +35,8 @@ def _print_update_results(
         print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
 
 
-def _parse_remove_by_arg(value: str, existing_key: str) -> FlagRecord:
-    """Parse ``--remove-by <YYYY-MM-DD>/<release>`` into a new flag record."""
+def _parse_remove_by_arg(value: str, existing_key: str) -> FlagFields:
+    """Parse ``--remove-by <YYYY-MM-DD>/<release>`` into new thresholds."""
     remove_by_date, sep, remove_by_release = value.partition("/")
     if not sep:
         print(
@@ -44,8 +44,9 @@ def _parse_remove_by_arg(value: str, existing_key: str) -> FlagRecord:
             file=sys.stderr,
         )
         sys.exit(1)
-    record = FlagRecord(
+    record = FlagFields(
         key=existing_key,
+        kind="",
         remove_by_date=remove_by_date,
         remove_by_release=remove_by_release,
     )
@@ -127,20 +128,17 @@ def handle_bead_update(args: argparse.Namespace) -> None:
                 )
                 sys.exit(1)
             new_flag = _parse_remove_by_arg(args.remove_by, current.key)
-            if is_flag_task_bead(target):
-                fields["task_type_fields"] = replace_flag_thresholds(
-                    target.task_type_fields,
-                    remove_by_date=new_flag.remove_by_date,
-                    remove_by_release=new_flag.remove_by_release,
-                )
-            elif target.issue_type == IssueType.FLAG:
-                fields["flag"] = flag_to_dict(new_flag)
-            else:
+            if not is_flag_task_bead(target):
                 print(
                     f"Error: --remove-by requires a flag bead: {args.ids[0]}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            fields["task_type_fields"] = replace_flag_thresholds(
+                target.task_type_fields,
+                remove_by_date=new_flag.remove_by_date,
+                remove_by_release=new_flag.remove_by_release,
+            )
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

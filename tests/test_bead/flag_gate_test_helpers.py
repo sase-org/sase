@@ -6,7 +6,7 @@ from typing import Any
 
 from sase.bead._flag_gate_spec import build_flag_triage_gate_spec
 from sase.bead.flag_fields import FLAG_TASK_TYPE
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FlagFields
 
 
 def flag_triage_spec(
@@ -17,8 +17,9 @@ def flag_triage_spec(
         "bead_id": "sase-flag.1",
         "project": "sase",
         "title": "Remove the prettier_enabled flag",
-        "flag": FlagRecord(
+        "flag": FlagFields(
             key="prettier_enabled",
+            kind="sunset",
             remove_by_date="2026-08-01",
             remove_by_release="0.16.0",
         ),

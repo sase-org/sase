@@ -10,7 +10,6 @@ from pathlib import Path
 
 from sase.bead._db_codec import (
     close_history_json,
-    flag_json,
     plus_one_evidence_from_json,
     plus_one_evidence_json,
     snooze_json,
@@ -49,11 +48,11 @@ def create_issue(
         "tier, created_at, created_by, updated_at, closed_at, close_reason, "
         "resolution, "
         "description, notes, design, refs, plus_one_evidence, close_history, "
-        "snooze, flag, model, size, task_type, task_type_fields, "
+        "snooze, model, size, task_type, task_type_fields, "
         "is_ready_to_work, "
         "changespec_name, changespec_bug_id, external_ref) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?, ?, ?)",
+        "?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -76,7 +75,6 @@ def create_issue(
             plus_one_evidence_json(issue.plus_one_evidence),
             close_history_json(issue.close_history),
             snooze_json(issue.snooze),
-            flag_json(issue.flag),
             issue.model,
             issue.size.value if issue.size else None,
             issue.task_type or None,
@@ -150,7 +148,6 @@ def update_issue(
         "plus_one_evidence",
         "close_history",
         "snooze",
-        "flag",
         "model",
         "size",
         "tier",

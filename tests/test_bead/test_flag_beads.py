@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import FlagRecord, Issue, IssueType, Status
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
@@ -30,89 +30,15 @@ def project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     yield tmp_path
 
 
-def test_parse_type_arg_accepts_the_flag_form() -> None:
-    result = bead_cli._parse_type_arg("flag(demo_key,2026-12-01,0.19.0)")
-
-    assert result == (
-        IssueType.FLAG,
-        None,
-        None,
-        FlagRecord(
-            key="demo_key", remove_by_date="2026-12-01", remove_by_release="0.19.0"
-        ),
-        "",
-    )
-
-
-def test_parse_type_arg_rejects_wrong_flag_arity(
+def test_parse_type_arg_rejects_the_retired_flag_form(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit):
-        bead_cli._parse_type_arg("flag(demo_key,2026-12-01)")
+        bead_cli._parse_type_arg("flag(demo_key,2026-12-01,0.19.0)")
 
-    assert "flag() expects exactly 3 arguments, got 2" in capsys.readouterr().err
-
-
-def _create_flag_bead(project_dir: Path) -> str:
-    args = create_parser().parse_args(
-        [
-            "bead",
-            "create",
-            "--title",
-            "Retire demo_key",
-            "--type",
-            "flag(demo_key,2026-12-01,0.19.0)",
-        ]
-    )
-    bead_cli.handle_bead_create(args)
-    with BeadProject(project_dir) as project:
-        issues = project.list_issues(issue_types=[IssueType.FLAG])
-    assert len(issues) == 1
-    return issues[0].id
-
-
-def test_create_prints_the_flag_type_and_stores_thresholds(
-    project_dir: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    args = create_parser().parse_args(
-        [
-            "bead",
-            "create",
-            "--title",
-            "Retire demo_key",
-            "--type",
-            "flag(demo_key,2026-12-01,0.19.0)",
-        ]
-    )
-
-    bead_cli.handle_bead_create(args)
-
-    with BeadProject(project_dir) as project:
-        issue = project.list_issues(issue_types=[IssueType.FLAG])[0]
-    assert issue.flag == FlagRecord(
-        key="demo_key", remove_by_date="2026-12-01", remove_by_release="0.19.0"
-    )
-    assert issue.parent_id is None
-    assert capsys.readouterr().out == f"Created flag: {issue.id} — Retire demo_key\n"
-
-
-def test_show_json_reports_the_flag_section(
-    project_dir: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    bead_id = _create_flag_bead(project_dir)
-    capsys.readouterr()  # discard the "Created flag: ..." line
-
-    args = create_parser().parse_args(["bead", "show", bead_id, "--format", "json"])
-    bead_cli.handle_bead_show(args)
-
-    envelope = json.loads(capsys.readouterr().out)
-    flag = envelope["issue"]["flag"]
-    assert flag["key"] == "demo_key"
-    assert flag["remove_by_date"] == "2026-12-01"
-    assert flag["remove_by_release"] == "0.19.0"
-    assert flag["due_state"] in {"live", "soon", "due"}
+    err = capsys.readouterr().err
+    assert "invalid --type value" in err
+    assert "flag(" not in err.split("Expected:", 1)[-1]
 
 
 def test_list_json_finds_the_flag_bead_by_task_type(
@@ -129,8 +55,8 @@ def test_list_json_finds_the_flag_bead_by_task_type(
     envelope = json.loads(capsys.readouterr().out)
     ids = [result["id"] for result in envelope["results"]]
     assert ids == [bead_id]
-    assert envelope["by_type"]["flag"] == 1
-    assert envelope["by_type"]["task"] == 0
+    assert envelope["by_type"]["task"] == 1
+    assert "flag" not in envelope["by_type"]
 
 
 def test_list_compact_renders_the_flag_glyph(
@@ -172,25 +98,6 @@ def test_list_and_search_help_point_at_task_type_flag(
     search_help = capsys.readouterr().out
     assert "sase bead search prettier -T flag" in search_help
     assert "use -T flag" in search_help
-
-
-def test_show_full_renders_the_flag_section(
-    project_dir: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    bead_id = _create_flag_bead(project_dir)
-    capsys.readouterr()  # discard the "Created flag: ..." line
-
-    args = create_parser().parse_args(
-        ["bead", "show", bead_id, "--format", "full", "--color", "never"]
-    )
-    bead_cli.handle_bead_show(args)
-
-    out = capsys.readouterr().out
-    assert "FLAG" in out
-    assert "demo_key" in out
-    assert "2026-12-01" in out
-    assert "0.19.0" in out
 
 
 def test_show_full_renders_the_flag_section_for_flag_task_beads(
@@ -279,42 +186,28 @@ def test_update_remove_by_writes_task_type_field_thresholds(
     assert issue.task_type_fields["remove_by_date"] == "2026-12-15"
     assert issue.task_type_fields["remove_by_release"] == "0.20.0"
     assert issue.task_type_fields["key"] == "demo_key"
-    assert issue.flag is None
-    assert f"✓ Updated issue: {bead_id}" in capsys.readouterr().out
-
-
-def test_update_remove_by_extends_the_thresholds(
-    project_dir: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    bead_id = _create_flag_bead(project_dir)
-
-    args = create_parser().parse_args(
-        ["bead", "update", bead_id, "--remove-by", "2026-12-15/0.20.0"]
-    )
-    bead_cli.handle_bead_update(args)
-
-    with BeadProject(project_dir) as project:
-        issue: Issue = project.show(bead_id)
-    assert issue.flag == FlagRecord(
-        key="demo_key", remove_by_date="2026-12-15", remove_by_release="0.20.0"
-    )
     assert f"✓ Updated issue: {bead_id}" in capsys.readouterr().out
 
 
 def test_update_remove_by_rejects_multiple_ids(
     project_dir: Path,
 ) -> None:
-    first = _create_flag_bead(project_dir)
+    first = _create_flag_task_bead(project_dir)
     with BeadProject(project_dir) as project:
         second = project.create(
             "Retire other_key",
-            IssueType.FLAG,
-            flag=FlagRecord(
-                key="other_key",
-                remove_by_date="2026-12-01",
-                remove_by_release="0.19.0",
-            ),
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields={
+                "key": "other_key",
+                "kind": "beta",
+                "when_enabled": "on",
+                "when_disabled": "off",
+                "remove_when": "done",
+                "remove_by_date": "2026-12-01",
+                "remove_by_release": "0.19.0",
+            },
         ).id
 
     args = create_parser().parse_args(
@@ -328,7 +221,7 @@ def test_update_remove_by_rejects_malformed_value(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    bead_id = _create_flag_bead(project_dir)
+    bead_id = _create_flag_task_bead(project_dir)
 
     args = create_parser().parse_args(
         ["bead", "update", bead_id, "--remove-by", "not-a-valid-value"]
@@ -343,7 +236,7 @@ def test_close_closes_the_flag_bead(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    bead_id = _create_flag_bead(project_dir)
+    bead_id = _create_flag_task_bead(project_dir)
 
     args = create_parser().parse_args(
         ["bead", "close", bead_id, "--reason", "flag removed"]
@@ -353,5 +246,5 @@ def test_close_closes_the_flag_bead(
     with BeadProject(project_dir) as project:
         issue = project.show(bead_id)
     assert issue.status is Status.CLOSED
-    assert issue.flag is not None
+    assert issue.task_type == "flag"
     assert "✓ Closed" in capsys.readouterr().out

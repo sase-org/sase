@@ -10,11 +10,16 @@ from rich.style import Style
 from sase.ace.query_profile.profiles import beads_query_schema
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ansi_style import ANSI_RESET
-from sase.bead.filter_query import parse_bead_filter_query
+from sase.bead.filter_query import BEAD_FILTER_TYPE_VALUES, parse_bead_filter_query
 from sase.bead.flag_due import FlagRemovalState
 from sase.bead_flag_presentation import (
+    FLAG_ACCENT,
+    FLAG_CHIP_STYLE,
+    FLAG_CLI_STYLE,
     FLAG_DUE_GLYPH,
     FLAG_DUE_STYLES,
+    FLAG_GLYPH,
+    FLAG_RICH_STYLE,
     flag_due_chip,
     flag_due_cli_cell,
     flag_due_presentation,
@@ -41,31 +46,27 @@ RUST_ANSI_TYPE_FLAG = "\x1b[38;5;209m"
 
 
 def test_flag_type_glyph_and_accent_are_the_look_vocabulary() -> None:
-    presentation = bead_type_presentation("flag")
-
-    assert presentation.glyph == "⚑"
-    assert presentation.accent_color == "#FF875F"
+    assert FLAG_GLYPH == "⚑"
+    assert FLAG_ACCENT == "#FF875F"
     assert FLAG_DUE_GLYPH == "⧗"
-    assert presentation.chip_style == "bold black on #FF875F"
-    assert presentation.label == "Flag"
-    assert presentation.rich_style == "bold #FF875F"
-    assert presentation.cli_style == RUST_ANSI_TYPE_FLAG
+    assert FLAG_CHIP_STYLE == "bold black on #FF875F"
+    assert FLAG_RICH_STYLE == "bold #FF875F"
+    assert FLAG_CLI_STYLE == RUST_ANSI_TYPE_FLAG
     assert BEAD_TYPE_CHIP_WIDTH == 9
-    assert len(bead_type_chip("flag").plain) <= BEAD_TYPE_CHIP_WIDTH
+    assert "flag" not in BEAD_TYPE_VALUES
 
 
 def test_flag_cli_style_matches_rust_ansi_type_flag() -> None:
-    assert bead_type_presentation("flag").cli_style == RUST_ANSI_TYPE_FLAG
+    assert FLAG_CLI_STYLE == RUST_ANSI_TYPE_FLAG
 
 
 def test_flag_key_chip_uses_the_type_accent_on_both_surfaces() -> None:
     chip = flag_key_chip("plugins_enabled")
     plain = flag_key_cli_cell("plugins_enabled", use_color=False)
     colored = flag_key_cli_cell("plugins_enabled", use_color=True)
-    presentation = bead_type_presentation("flag")
 
     assert chip.plain == "⚑ plugins_enabled"
-    assert Style.parse(str(chip.style)) == Style.parse(presentation.rich_style)
+    assert Style.parse(str(chip.style)) == Style.parse(FLAG_RICH_STYLE)
     assert plain == "⚑ plugins_enabled"
     assert colored == f"{RUST_ANSI_TYPE_FLAG}⚑ plugins_enabled{ANSI_RESET}"
 
@@ -135,7 +136,8 @@ def test_soon_after_the_date_shows_calendar_overshoot_not_due() -> None:
 
 
 def test_derived_surfaces_accept_type_flag_from_the_type_table() -> None:
-    assert "flag" in BEAD_TYPE_VALUES
+    assert "flag" not in BEAD_TYPE_VALUES
+    assert "flag" in BEAD_FILTER_TYPE_VALUES
     parsed = parse_bead_filter_query("type:flag")
     assert parsed.types == ("flag",)
     due = parse_bead_filter_query("due:soon -due:live")
@@ -148,13 +150,15 @@ def test_derived_surfaces_accept_type_flag_from_the_type_table() -> None:
     due_field = next(
         field for field in beads_query_schema().fields if field.key == "due"
     )
-    assert type_field.static_values == BEAD_TYPE_VALUES
+    assert type_field.static_values == BEAD_FILTER_TYPE_VALUES
     assert "flag" in type_field.static_values
-    assert type_field.hint == ", ".join(BEAD_TYPE_VALUES)
+    assert type_field.hint == ", ".join(BEAD_FILTER_TYPE_VALUES)
     assert due_field.static_values == ("live", "soon", "due")
     assert due_field.hint == "live, soon, or due"
 
-    assert BeadFilterBar.STATIC_VALUE_COMPLETIONS["type"] == BEAD_TYPE_VALUES
+    assert BeadFilterBar.STATIC_VALUE_COMPLETIONS["type"] == BEAD_FILTER_TYPE_VALUES
     assert BeadFilterBar.STATIC_VALUE_COMPLETIONS["due"] == ("live", "soon", "due")
-    assert dict(BeadFilterBar.KEY_COMPLETIONS)["type"] == ", ".join(BEAD_TYPE_VALUES)
+    assert dict(BeadFilterBar.KEY_COMPLETIONS)["type"] == ", ".join(
+        BEAD_FILTER_TYPE_VALUES
+    )
     assert dict(BeadFilterBar.KEY_COMPLETIONS)["due"] == "live, soon, or due"

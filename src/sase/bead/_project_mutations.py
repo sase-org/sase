@@ -10,7 +10,6 @@ from sase.bead._project_types import EpicPreclaimRollback
 from sase.bead.model import (
     BeadTier,
     Dependency,
-    FlagRecord,
     Issue,
     IssueType,
     PhaseSize,
@@ -54,7 +53,6 @@ class BeadProjectMutationMixin:
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
         external_ref: str | int | None = "",
-        flag: FlagRecord | None = None,
         model: str = "",
         size: PhaseSize | str | None = None,
         created_by: str | None = None,
@@ -90,7 +88,6 @@ class BeadProjectMutationMixin:
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
             external_ref=external_ref,
-            flag=flag,
             model=model,
             size=size,
             created_by=created_by,

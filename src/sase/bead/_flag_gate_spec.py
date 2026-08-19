@@ -18,12 +18,11 @@ from sase.bead._flag_gate_preview import (
     flag_triage_presentation_note,
     render_flag_triage_preview,
 )
-from sase.bead.flag_fields import FLAG_TASK_TYPE
+from sase.bead.flag_fields import FLAG_TASK_TYPE, FlagFields
 from sase.bead.flag_gate_input import (
     flag_triage_extend_inputs,
     resolve_flag_triage_extend,
 )
-from sase.bead.model import FlagRecord
 from sase.bead.snooze_time import SnoozeTimeError
 from sase.bead.task_gate import apply_task_type_gate_presentation, bounded_gate_title
 from sase.notification_gates.entrypoints import gate_command_entrypoint
@@ -75,7 +74,7 @@ _FLAG_TRIAGE_WINNER_FIELD_ID = "winner"
 _FLAG_TRIAGE_WINNER_CHOICES = ("enabled", "disabled")
 
 
-def flag_triage_flag_payload(flag: FlagRecord, kind: str) -> dict[str, str]:
+def flag_triage_flag_payload(flag: FlagFields, kind: str) -> dict[str, str]:
     """Return the persisted flag identity block: key, kind, and thresholds."""
     return {
         "key": flag.key,
@@ -89,7 +88,7 @@ def flag_triage_presentation(
     *,
     bead_id: str,
     title: str,
-    flag: FlagRecord,
+    flag: FlagFields,
     due_as_of: str,
     release: str,
     origin_agent: str = "",
@@ -130,7 +129,7 @@ def build_flag_triage_gate_spec(
     bead_id: str,
     project: str,
     title: str,
-    flag: FlagRecord,
+    flag: FlagFields,
     due_state: str,
     due_as_of: str,
     release: str,

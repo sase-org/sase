@@ -12,8 +12,7 @@
   "by_type": {
     "plan": 3,
     "phase": 3,
-    "task": 0,
-    "flag": 0
+    "task": 0
   },
   "by_status": {
     "open": 5,

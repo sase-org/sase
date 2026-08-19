@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS issues (
     status      TEXT NOT NULL DEFAULT 'open'
                   CHECK(status IN ('open', 'claimed', 'ready', 'snoozed', 'in_progress', 'closed')),
     issue_type  TEXT NOT NULL DEFAULT 'phase'
-                  CHECK(issue_type IN ('plan', 'phase', 'task', 'flag')),
+                  CHECK(issue_type IN ('plan', 'phase', 'task')),
     tier        TEXT
                   CHECK(tier IN ('plan', 'epic')),
     parent_id   TEXT
@@ -33,7 +33,6 @@ CREATE TABLE IF NOT EXISTS issues (
     plus_one_evidence TEXT NOT NULL DEFAULT '[]',
     close_history TEXT NOT NULL DEFAULT '[]',
     snooze      TEXT,
-    flag        TEXT,
     model       TEXT NOT NULL DEFAULT '',
     size        TEXT
                   CHECK(
@@ -50,8 +49,7 @@ CREATE TABLE IF NOT EXISTS issues (
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan') OR
-        (issue_type = 'task' AND parent_id IS NULL) OR
-        (issue_type = 'flag' AND parent_id IS NULL)
+        (issue_type = 'task' AND parent_id IS NULL)
     ),
     CHECK(issue_type = 'plan' OR tier IS NULL),
     CHECK(is_ready_to_work IN (0, 1)),
@@ -59,7 +57,6 @@ CREATE TABLE IF NOT EXISTS issues (
     CHECK(status != 'ready' OR issue_type = 'task'),
     CHECK(status != 'snoozed' OR issue_type = 'task'),
     CHECK((status = 'snoozed') = (snooze IS NOT NULL)),
-    CHECK((issue_type = 'flag') = (flag IS NOT NULL)),
     CHECK(
         issue_type = 'plan' OR
         (changespec_name = '' AND changespec_bug_id = '')
@@ -85,8 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
 CREATE INDEX IF NOT EXISTS idx_issues_task_type ON issues(task_type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
-    WHERE external_ref IS NOT NULL AND external_ref != ''
-      AND issue_type != 'flag';
+    WHERE external_ref IS NOT NULL AND external_ref != '';
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
 

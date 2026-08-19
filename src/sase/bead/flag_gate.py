@@ -63,7 +63,7 @@ from sase.bead._flag_gate_spec import (
     flag_triage_result_schema,
 )
 from sase.bead.flag_fields import FLAG_TASK_TYPE
-from sase.bead.model import FlagRecord
+from sase.bead.flag_fields import FlagFields
 
 
 def create_flag_triage_gate(
@@ -72,7 +72,7 @@ def create_flag_triage_gate(
     bead_id: str,
     project: str,
     title: str,
-    flag: FlagRecord,
+    flag: FlagFields,
     due_state: str,
     due_as_of: str,
     release: str,

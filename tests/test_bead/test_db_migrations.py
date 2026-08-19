@@ -33,8 +33,7 @@ _EXTERNAL_REF_COLUMN_DEFINITION = "    external_ref TEXT,\n"
 _EXTERNAL_REF_INDEX_DEFINITION = """\
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
-    WHERE external_ref IS NOT NULL AND external_ref != ''
-      AND issue_type != 'flag';
+    WHERE external_ref IS NOT NULL AND external_ref != '';
 """
 _TASK_TYPE_COLUMN_DEFINITION = "    task_type   TEXT,\n"
 _TASK_TYPE_FIELDS_COLUMN_DEFINITION = (
@@ -43,6 +42,35 @@ _TASK_TYPE_FIELDS_COLUMN_DEFINITION = (
 _TASK_TYPE_INDEX_DEFINITION = (
     "CREATE INDEX IF NOT EXISTS idx_issues_task_type ON issues(task_type);\n"
 )
+
+
+def _flag_era_schema() -> str:
+    """Return the current schema rebuilt as the historical flag-issue-type shape."""
+    return (
+        SCHEMA_SQL.replace(
+            "CHECK(issue_type IN ('plan', 'phase', 'task'))",
+            "CHECK(issue_type IN ('plan', 'phase', 'task', 'flag'))",
+        )
+        .replace(
+            "    snooze      TEXT,\n    model",
+            "    snooze      TEXT,\n    flag        TEXT,\n    model",
+        )
+        .replace(
+            "        (issue_type = 'task' AND parent_id IS NULL)\n    )",
+            "        (issue_type = 'task' AND parent_id IS NULL) OR\n"
+            "        (issue_type = 'flag' AND parent_id IS NULL)\n    )",
+        )
+        .replace(
+            "    CHECK((status = 'snoozed') = (snooze IS NOT NULL)),\n    CHECK(",
+            "    CHECK((status = 'snoozed') = (snooze IS NOT NULL)),\n"
+            "    CHECK((issue_type = 'flag') = (flag IS NOT NULL)),\n    CHECK(",
+        )
+        .replace(
+            "WHERE external_ref IS NOT NULL AND external_ref != '';",
+            "WHERE external_ref IS NOT NULL AND external_ref != ''\n"
+            "      AND issue_type != 'flag';",
+        )
+    )
 
 
 def _assert_columns_survive_rebuild(
@@ -227,22 +255,6 @@ class TestMigrationAddsColumn:
                 "UPDATE issues SET external_ref='bug:sase#42' WHERE id='e-old'"
             )
             conn.commit()
-            conn.execute(
-                "INSERT INTO issues "
-                "(id, title, status, issue_type, tier, created_at, updated_at, "
-                " flag, external_ref) "
-                "VALUES ('e-flag', 'Flag', 'open', 'flag', NULL, ?, ?, ?, ?)",
-                (
-                    NOW,
-                    NOW,
-                    (
-                        '{"key":"demo_key","remove_by_date":"2026-12-01",'
-                        '"remove_by_release":"0.19.0"}'
-                    ),
-                    "bug:sase#42",
-                ),
-            )
-            conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO issues "
@@ -289,17 +301,12 @@ class TestMigrationAddsColumn:
         finally:
             conn.close()
 
-    def test_existing_external_ref_index_stops_reserving_flag_refs(
+    def test_drop_flag_type_removes_flag_rows_and_universalizes_external_ref(
         self, tmp_path
     ) -> None:
-        db_path = tmp_path / "old_external_ref_index.db"
+        db_path = tmp_path / "flag_era.db"
         old = sqlite3.connect(str(db_path))
-        old_index = """\
-CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
-    ON issues(external_ref)
-    WHERE external_ref IS NOT NULL AND external_ref != '';
-"""
-        old.executescript(SCHEMA_SQL.replace(_EXTERNAL_REF_INDEX_DEFINITION, old_index))
+        old.executescript(_flag_era_schema())
         old.execute(
             "INSERT INTO issues "
             "(id, title, status, issue_type, tier, created_at, updated_at, "
@@ -307,51 +314,45 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
             "VALUES ('e-old', 'Old', 'open', 'plan', 'epic', ?, ?, ?)",
             (NOW, NOW, "bug:sase#42"),
         )
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, status, issue_type, created_at, updated_at, "
+            " flag, external_ref) "
+            "VALUES ('e-flag', 'Flag', 'open', 'flag', ?, ?, ?, ?)",
+            (
+                NOW,
+                NOW,
+                (
+                    '{"key":"demo_key","remove_by_date":"2026-12-01",'
+                    '"remove_by_release":"0.19.0"}'
+                ),
+                "bug:sase#42",
+            ),
+        )
         old.commit()
         old.close()
 
         conn = init_db(db_path)
         try:
-            conn.execute(
-                "INSERT INTO issues "
-                "(id, title, status, issue_type, tier, created_at, updated_at, "
-                " flag, external_ref) "
-                "VALUES ('e-flag', 'Flag', 'open', 'flag', NULL, ?, ?, ?, ?)",
-                (
-                    NOW,
-                    NOW,
-                    (
-                        '{"key":"demo_key","remove_by_date":"2026-12-01",'
-                        '"remove_by_release":"0.19.0"}'
-                    ),
-                    "bug:sase#42",
-                ),
-            )
-            conn.commit()
+            assert get_issue(conn, "e-flag") is None
+            remaining = get_issue(conn, "e-old")
+            assert remaining is not None
+            assert remaining.external_ref == "bug:sase#42"
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO issues "
-                    "(id, title, status, issue_type, tier, created_at, updated_at, "
-                    " external_ref) "
-                    "VALUES ('e-dupe', 'Dupe', 'open', 'plan', 'epic', ?, ?, ?)",
+                    "(id, title, status, issue_type, created_at, updated_at) "
+                    "VALUES ('e-flag', 'Flag', 'open', 'flag', ?, ?)",
+                    (NOW, NOW),
+                )
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO issues "
+                    "(id, title, status, issue_type, created_at, updated_at, "
+                    " task_type, external_ref) "
+                    "VALUES ('e-task', 'Task', 'open', 'task', ?, ?, 'bug', ?)",
                     (NOW, NOW, "bug:sase#42"),
                 )
-        finally:
-            conn.close()
-
-        conn = init_db(db_path)
-        try:
-            issue = get_issue(conn, "e-flag")
-            assert issue is not None
-            assert issue.external_ref == "bug:sase#42"
-        finally:
-            conn.close()
-
-        conn = init_db(db_path)
-        try:
-            issue = get_issue(conn, "e-old")
-            assert issue is not None
-            assert issue.external_ref == "bug:sase#42"
         finally:
             conn.close()
 

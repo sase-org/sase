@@ -14,7 +14,7 @@ from sase.task_type_gate_presentation import (
 )
 
 if TYPE_CHECKING:
-    from sase.bead.model import FlagRecord
+    from sase.bead.flag_fields import FlagFields
 
 _FLAG_TRIAGE_REQUIRED_PAYLOAD_FIELDS = frozenset(
     {
@@ -52,7 +52,7 @@ class FlagTriagePayload:
     created_at: str
     size: str | None
     refs: tuple[str, ...]
-    flag: FlagRecord
+    flag: FlagFields
     kind: str
     due_state: str
     due_as_of: str
@@ -154,8 +154,8 @@ def parse_flag_triage_payload(payload: Mapping[str, Any]) -> FlagTriagePayload:
     )
 
 
-def _parse_flag_block(value: object) -> tuple[FlagRecord, str]:
-    from sase.bead.flag_codec import flag_from_dict
+def _parse_flag_block(value: object) -> tuple[FlagFields, str]:
+    from sase.bead.flag_fields import FlagFields
 
     if not isinstance(value, Mapping) or set(value) != _FLAG_TRIAGE_FLAG_FIELDS:
         raise GateError(
@@ -170,13 +170,20 @@ def _parse_flag_block(value: object) -> tuple[FlagRecord, str]:
             "payload.flag.kind",
             "flag triage payload kind must be empty, beta, or sunset",
         )
-    record = flag_from_dict(dict(value))
-    if record is None:
+    record = FlagFields(
+        key=str(value.get("key", "")),
+        kind=kind,
+        remove_by_date=str(value.get("remove_by_date", "")),
+        remove_by_release=str(value.get("remove_by_release", "")),
+    )
+    try:
+        record.validate()
+    except ValueError as exc:
         raise GateError(
             "invalid_flag_triage_payload",
             "payload.flag",
-            "flag triage payload requires a flag record",
-        )
+            str(exc),
+        ) from exc
     return record, kind
 
 

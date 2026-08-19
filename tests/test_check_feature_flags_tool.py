@@ -89,11 +89,11 @@ def _bead(
     bead_id: str = "sase-nb.test",
     key: str = "demo_flag",
     status: str = "open",
-    issue_type: str = "flag",
+    issue_type: str = "task",
     remove_by_date: str = "2026-12-01",
     remove_by_release: str = "0.19.0",
     source: str = "flag",
-    task_type: str = "",
+    task_type: str = "flag",
     kind: str | None = None,
 ) -> Any:
     return tool.MarkerBead(
@@ -280,6 +280,7 @@ def test_rule_6_rejects_missing_wrong_type_and_key_mismatch() -> None:
             bead_id="sase-nb.task",
             key="wrong_type",
             issue_type="task",
+            task_type="",
         ),
         _bead(tool, bead_id="sase-nb.key", key="other_key"),
     ]

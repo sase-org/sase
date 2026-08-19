@@ -9,6 +9,7 @@ from sase.agents_sync.rendering_markdown import md_cell, md_code, md_escape
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_detail import IssueDetail
 from sase.bead.flag_fields import flag_fields
+from sase.bead_flag_presentation import FLAG_GLYPH
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_SECTION_LABEL,
@@ -269,7 +270,7 @@ def _primary_facts(issue: Issue) -> str:
         values.append(f"**Task type:** {task_presentation.glyph} {md_code(task_slug)}")
     fields = flag_fields(issue)
     if fields is not None:
-        glyph = bead_type_presentation("flag").glyph
+        glyph = FLAG_GLYPH
         values.append(f"**Flag:** {glyph} `{md_code(fields.key)}`")
     if badge := plus_one_badge(issue.plus_one_count):
         values.append(f"**+1 reports:** {badge}")

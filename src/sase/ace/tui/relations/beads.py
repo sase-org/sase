@@ -5,7 +5,8 @@ from __future__ import annotations
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract
 from sase.ace.tui.relations._support import decls_by_name, emit_edge
 from sase.ace.tui.widgets.artifacts.beads_data_models import BeadsSnapshot, ProjectBead
-from sase.bead.model import IssueType, Status
+from sase.bead.flag_fields import is_flag_bead
+from sase.bead.model import Issue, IssueType, Status
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relations import (
     RelationEdge,
@@ -18,7 +19,6 @@ _KIND: dict[IssueType, str] = {
     IssueType.TASK: "task",
     IssueType.PLAN: "epic",
     IssueType.PHASE: "phase",
-    IssueType.FLAG: "flag",
 }
 
 
@@ -41,8 +41,10 @@ def _bead_target(project: str, kind: str, bead_id: str) -> ArtifactEntryTarget:
     return ArtifactEntryTarget(pane_id="beads", parts=(project, kind, bead_id))
 
 
-def _kind_for(issue_type: IssueType) -> str:
-    return _KIND.get(issue_type, "task")
+def _kind_for(issue: Issue) -> str:
+    if is_flag_bead(issue):
+        return "flag"
+    return _KIND.get(issue.issue_type, "task")
 
 
 class _BeadsRelationSource(RelationSource):
@@ -55,7 +57,7 @@ class _BeadsRelationSource(RelationSource):
         self._beads = _all_beads(snapshot)
         self._by_id = {
             (item.project, item.issue.id): _bead_target(
-                item.project, _kind_for(item.issue.issue_type), item.issue.id
+                item.project, _kind_for(item.issue), item.issue.id
             )
             for item in self._beads
         }

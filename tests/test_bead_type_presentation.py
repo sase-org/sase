@@ -20,7 +20,7 @@ from sase.bead_type_presentation import (
 
 
 def test_bead_type_presentations_follow_model_display_order() -> None:
-    assert BEAD_TYPE_VALUES == ("plan", "phase", "task", "flag")
+    assert BEAD_TYPE_VALUES == ("plan", "phase", "task")
     assert tuple(BEAD_TYPE_PRESENTATIONS) == BEAD_TYPE_VALUES
     assert tuple(issue_type.value for issue_type in IssueType) == BEAD_TYPE_VALUES
 
@@ -49,7 +49,6 @@ def test_bead_type_normalization_accepts_only_exact_known_values(
         (IssueType.PLAN, "▸", "#FFD700", "bold black on #FFD700", "Plan"),
         (IssueType.PHASE, "↳", "#87D7FF", "bold black on #87D7FF", "Phase"),
         (IssueType.TASK, "◆", "#D787FF", "bold black on #D787FF", "Task"),
-        (IssueType.FLAG, "⚑", "#FF875F", "bold black on #FF875F", "Flag"),
     ],
 )
 def test_bead_type_presentations_are_shared_across_rich_surfaces(
@@ -85,7 +84,7 @@ def test_fixed_width_and_unavailable_bead_type_presentations_are_honest() -> Non
 
     assert fixed.plain == " ▸ plan  "
     assert len(fixed.plain) == BEAD_TYPE_CHIP_WIDTH
-    assert BEAD_TYPE_CHIP_WIDTH == 9
+    assert BEAD_TYPE_CHIP_WIDTH == 9  # " ↳ phase " is still the widest chip
     assert unavailable.plain == "unavailable"
     assert Style.parse(str(unavailable.style)) == Style.parse("dim italic")
 
@@ -101,7 +100,6 @@ def test_unknown_bead_type_is_not_presented() -> None:
         (IssueType.PLAN, "\x1b[38;5;220m"),
         (IssueType.PHASE, "\x1b[38;5;117m"),
         (IssueType.TASK, "\x1b[38;5;177m"),
-        (IssueType.FLAG, "\x1b[38;5;209m"),
     ],
 )
 def test_bead_type_cli_style_matches_pinned_xterm256_accent(

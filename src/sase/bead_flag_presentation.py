@@ -4,9 +4,8 @@ Every surface that shows a flag bead -- the CLI, the TUI, bead pages, and the
 FlagTriage preview -- renders the key and the removal countdown through this
 module, so the glyph, accent, wording, and urgency colors agree everywhere.
 
-The type glyph and coral accent live on the ``flag`` entry of
-:mod:`sase.bead_type_presentation`. This module owns the two chips that sit
-beside that type marker:
+This module owns the flag glyph, coral accent, and the two chips that sit
+beside a flag task-type marker:
 
 - :func:`flag_key_chip` / :func:`flag_key_cli_cell` -- ``⚑ plugins_enabled``,
   the flag's identity, on the type accent.
@@ -28,11 +27,14 @@ from datetime import date
 
 from rich.text import Text
 
-from sase.ansi_style import ANSI_RESET, ansi_sgr
+from sase.ansi_style import ANSI_RESET, ansi_sgr, xterm256_foreground_style
 from sase.bead.flag_due import FlagRemovalState, flag_removal_due
-from sase.bead_type_presentation import bead_type_presentation
 
-_FLAG_TYPE = bead_type_presentation("flag")
+FLAG_GLYPH = "⚑"
+FLAG_ACCENT = "#FF875F"
+FLAG_CHIP_STYLE = f"bold black on {FLAG_ACCENT}"
+FLAG_RICH_STYLE = f"bold {FLAG_ACCENT}"
+FLAG_CLI_STYLE = xterm256_foreground_style(FLAG_ACCENT)
 FLAG_DUE_GLYPH = "⧗"
 _FLAG_SOON_ACCENT = "#FFAF00"
 
@@ -71,17 +73,17 @@ class FlagDuePresentation:
 def flag_key_chip(key: str) -> Text:
     """Return the ``⚑ <key>`` Rich identity cell on the flag type accent."""
     return Text(
-        f"{_FLAG_TYPE.glyph} {key}",
-        style=_FLAG_TYPE.rich_style,
+        f"{FLAG_GLYPH} {key}",
+        style=FLAG_RICH_STYLE,
         no_wrap=True,
     )
 
 
 def flag_key_cli_cell(key: str, *, use_color: bool) -> str:
     """Return the ``⚑ <key>`` ANSI identity cell for compact CLI rows."""
-    cell = f"{_FLAG_TYPE.glyph} {key}"
+    cell = f"{FLAG_GLYPH} {key}"
     if use_color:
-        return f"{_FLAG_TYPE.cli_style}{cell}{ANSI_RESET}"
+        return f"{FLAG_CLI_STYLE}{cell}{ANSI_RESET}"
     return cell
 
 
@@ -143,8 +145,13 @@ def _due_label(
 
 
 __all__ = [
+    "FLAG_ACCENT",
+    "FLAG_CHIP_STYLE",
+    "FLAG_CLI_STYLE",
     "FLAG_DUE_GLYPH",
     "FLAG_DUE_STYLES",
+    "FLAG_GLYPH",
+    "FLAG_RICH_STYLE",
     "FlagDuePresentation",
     "flag_due_chip",
     "flag_due_cli_cell",

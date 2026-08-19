@@ -36,7 +36,6 @@ from sase.bead.filter_query import (
 )
 from sase.bead.model import (
     CloseRecord,
-    FlagRecord,
     Issue,
     IssueType,
     ReopenCause,
@@ -207,21 +206,25 @@ def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:
     flag = Issue(
         "alpha-flag",
         "Remove plugin switch",
-        issue_type=IssueType.FLAG,
-        flag=FlagRecord(
-            key="plugins_enabled",
-            remove_by_date="2026-08-01",
-            remove_by_release="0.19.0",
-        ),
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "on",
+            "when_disabled": "off",
+            "remove_when": "done",
+            "remove_by_date": "2026-08-01",
+            "remove_by_release": "0.19.0",
+        },
     )
-    assert flag.flag is not None
     value = replace(
         snapshot(tmp_path),
         flags=(ProjectBead("alpha", flag),),
         flag_due={
             ("alpha", flag.id): flag_due_presentation(
-                flag.flag.remove_by_date,
-                flag.flag.remove_by_release,
+                flag.task_type_fields["remove_by_date"],
+                flag.task_type_fields["remove_by_release"],
                 today=date(2026, 8, 16),
                 release="0.19.0",
             )

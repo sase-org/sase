@@ -7,7 +7,6 @@ from types import MappingProxyType
 from sase.bead.model import (
     BeadTier,
     CloseRecord,
-    FlagRecord,
     Issue,
     IssueType,
     ReopenCause,
@@ -70,12 +69,17 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
     flag = Issue(
         "sase-flag",
         "Remove plugin switch",
-        issue_type=IssueType.FLAG,
-        flag=FlagRecord(
-            key="plugins_enabled",
-            remove_by_date="2026-12-01",
-            remove_by_release="0.19.0",
-        ),
+        issue_type=IssueType.TASK,
+        task_type="flag",
+        task_type_fields={
+            "key": "plugins_enabled",
+            "kind": "beta",
+            "when_enabled": "on",
+            "when_disabled": "off",
+            "remove_when": "done",
+            "remove_by_date": "2026-12-01",
+            "remove_by_release": "0.19.0",
+        },
     )
 
     rendered = render_bead_pages_roster_bytes(
@@ -93,8 +97,9 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
         " · untyped | — | — | ready | unknown |" in rendered
     )
     assert (
-        "| [sase-flag](sase-flag/README.md) | Remove plugin switch | ⚑ flag | — | "
-        "plugins\\_enabled<br>2026-12-01<br>v0.19.0 | — | open | unknown |" in rendered
+        "| [sase-flag](sase-flag/README.md) | Remove plugin switch | ◆ task | "
+        "⚑ flag | plugins\\_enabled<br>2026-12-01<br>v0.19.0 | — | open | unknown |"
+        in rendered
     )
     assert "sase-ai.1" not in rendered
 

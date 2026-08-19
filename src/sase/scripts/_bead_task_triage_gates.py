@@ -12,7 +12,7 @@ from typing import Any, Literal
 from sase.bead.flag_due import flag_removal_due
 from sase.bead.flag_fields import FLAG_TASK_TYPE, flag_fields
 from sase.bead.flag_gate import FLAG_TRIAGE_KIND
-from sase.bead.model import FlagRecord, Issue, SnoozeRecord, Status
+from sase.bead.model import Issue, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND
 from sase.bead.task_gate import TASK_TRIAGE_KIND
 from sase.core.time import get_timezone
@@ -279,11 +279,7 @@ def create_gate(
             bead_id=bead_id,
             project=project_name,
             title=issue.title,
-            flag=FlagRecord(
-                key=fields.key,
-                remove_by_date=fields.remove_by_date,
-                remove_by_release=fields.remove_by_release,
-            ),
+            flag=fields,
             kind=fields.kind,
             due_state=due_state,
             due_as_of=today.isoformat(),

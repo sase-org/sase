@@ -22,13 +22,13 @@ from typing import Any, get_args
 from sase.ace.query.tokenizer import STATUS_SHORTHANDS
 from sase.ace.query.tokenizer import VALID_PROPERTY_KEYS as _PATCH_PROPERTY_KEYS
 from sase.bead.filter_query import (
+    BEAD_FILTER_TYPE_VALUES,
     BEAD_FLAG_DUE_VALUES,
     BEAD_HAS_VALUES,
     DERIVED_BEAD_STATUS_VALUES,
 )
 from sase.bead.model import BeadTier
 from sase.bead_status_presentation import bead_status_display_order
-from sase.bead_type_presentation import BEAD_TYPE_VALUES
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
 from sase.core.vcs_log_wire import CommitOrigin
 from sase.phase_size_presentation import PHASE_SIZE_VALUES
@@ -184,10 +184,10 @@ def beads_query_schema() -> ArtifactQuerySchema:
         QueryFieldSpec(
             key="type",
             value_kind="enum",
-            static_values=BEAD_TYPE_VALUES,
+            static_values=BEAD_FILTER_TYPE_VALUES,
             repeatable=True,
             negatable=True,
-            hint=", ".join(BEAD_TYPE_VALUES),
+            hint=", ".join(BEAD_FILTER_TYPE_VALUES),
         ),
         QueryFieldSpec(
             key="tier",

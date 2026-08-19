@@ -62,7 +62,7 @@ def resolve_flag_triage_extend(raw_input: Mapping[str, Any]) -> tuple[str, str]:
     so every deferral surface in this codebase accepts the same vocabulary; only
     its date part is kept, since a flag's removal threshold is a calendar date
     rather than an instant. *release* is validated by constructing a
-    :class:`~sase.bead.model.FlagRecord` and calling ``.validate()``, so the
+    :class:`~sase.bead.flag_fields.FlagFields` and calling ``.validate()``, so the
     release-string rule cannot drift from the store's.
 
     Raises:
@@ -71,7 +71,7 @@ def resolve_flag_triage_extend(raw_input: Mapping[str, Any]) -> tuple[str, str]:
         ValueError: If *release* is missing, of the wrong type, or is not a
             valid release string.
     """
-    from sase.bead.model import FlagRecord
+    from sase.bead.flag_fields import FlagFields
     from sase.bead.snooze_time import parse_snooze_request
 
     until = raw_input.get(FLAG_TRIAGE_UNTIL_FIELD_ID)
@@ -87,8 +87,9 @@ def resolve_flag_triage_extend(raw_input: Mapping[str, Any]) -> tuple[str, str]:
         raise ValueError(
             f"{FLAG_TRIAGE_RELEASE_FIELD_ID} must be a non-empty release string"
         )
-    record = FlagRecord(
+    record = FlagFields(
         key="placeholder",
+        kind="",
         remove_by_date=remove_by_date,
         remove_by_release=release.strip(),
     )

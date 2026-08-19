@@ -51,15 +51,13 @@ class FlagBeadSnapshot:
 
 def _is_loaded_flag_bead(issue: Issue) -> bool:
     """Return whether *issue* belongs in the flag-bead snapshot list."""
-    return is_flag_task_bead(issue) or issue.issue_type == IssueType.FLAG
+    return is_flag_task_bead(issue)
 
 
 def _flag_bead_snapshot_from_issue(issue: Issue) -> FlagBeadSnapshot:
     """Project one bead :class:`Issue` into a :class:`FlagBeadSnapshot`."""
     fields: FlagFields | None = flag_fields(issue)
-    task_type = issue.task_type or (
-        FLAG_TASK_TYPE if issue.issue_type == IssueType.FLAG else ""
-    )
+    task_type = issue.task_type
     return FlagBeadSnapshot(
         id=issue.id,
         status=issue.status.value,
@@ -81,7 +79,7 @@ def load_flag_bead_snapshots(
         return None
     try:
         project = BeadProject(location.root, beads_dirname=location.beads_dirname)
-        issues = project.list_issues(issue_types=[IssueType.TASK, IssueType.FLAG])
+        issues = project.list_issues(issue_types=[IssueType.TASK])
     except Exception:  # noqa: BLE001 - doctor/CLI must stay read-only and best-effort.
         return None
     return tuple(

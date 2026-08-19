@@ -91,8 +91,8 @@ def test_a_sender_declared_color_outranks_the_builtin_default(
     assert resolve_notification_tab_color(_tab("beads")) == _BUILTIN_TAB_COLORS["beads"]
 
 
-def test_flag_notification_tag_uses_bead_type_presentation() -> None:
-    presentation = bead_type_presentation("flag")
+def test_flag_notification_tag_uses_flag_task_type_presentation() -> None:
+    presentation = task_type_presentation("flag")
     tab = _tab("flag", kind="tag")
 
     assert resolve_notification_tab_color(tab) == presentation.accent_color

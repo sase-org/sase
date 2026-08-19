@@ -6,7 +6,6 @@ import sqlite3
 
 from sase.bead._db_codec import (
     close_history_from_json,
-    flag_from_json,
     plus_one_evidence_from_json,
     snooze_from_json,
     task_type_fields_from_json,
@@ -45,7 +44,6 @@ def row_to_issue(row: sqlite3.Row) -> Issue:
         plus_one_evidence=plus_one_evidence_from_json(row["plus_one_evidence"]),
         close_history=close_history_from_json(row["close_history"]),
         snooze=snooze_from_json(row["snooze"]),
-        flag=flag_from_json(row["flag"]),
         model=row["model"] or "",
         size=PhaseSize(row["size"]) if row["size"] else None,
         is_ready_to_work=bool(row["is_ready_to_work"]),

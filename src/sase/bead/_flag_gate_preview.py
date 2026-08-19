@@ -13,7 +13,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 
-from sase.bead.model import FlagRecord, Issue, IssueType, Status
+from sase.bead.flag_fields import FlagFields
+from sase.bead.model import Issue, IssueType, Status
 from sase.bead_flag_presentation import flag_due_presentation
 from sase.bead_time_presentation import bead_created_label
 from sase.task_type_gate_presentation import (
@@ -42,7 +43,7 @@ def render_flag_triage_preview(
     title: str,
     description: str,
     notes: str,
-    flag: FlagRecord,
+    flag: FlagFields,
     due_as_of: str,
     release: str,
     definition: Mapping[str, str] | None = None,
@@ -114,7 +115,7 @@ def _flag_task_type_body(task_type: str, task_type_fields: Mapping[str, str]) ->
 def flag_triage_presentation_note(
     bead_id: str,
     title: str,
-    flag: FlagRecord,
+    flag: FlagFields,
     *,
     due_as_of: str,
     release: str,
@@ -137,7 +138,7 @@ def flag_triage_presentation_note(
 
 
 def _flag_triage_warning_block(
-    flag: FlagRecord, *, due_as_of: str, release: str
+    flag: FlagFields, *, due_as_of: str, release: str
 ) -> str:
     """Render the callout naming the flag, its thresholds, and its status."""
     presentation = flag_due_presentation(
