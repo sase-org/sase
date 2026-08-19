@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING
 
 from sase.ace.tui.graphics.capability import image_render_context
 from sase.diagnostics import CheckStatus, DiagnosticCheck
+from sase.tmux_agent.tmux import parse_tmux_version
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 _VERSION_TIMEOUT_SECONDS = 2.0
 _TMUX_PASSTHROUGH_MIN_VERSION = (3, 3)
-_TMUX_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?")
 
 
 def check_kitty_graphics(context: DoctorContext) -> DiagnosticCheck:
@@ -118,7 +118,7 @@ def check_tmux_version(context: DoctorContext) -> DiagnosticCheck:
         )
 
     raw_version = str(probe["version"] or "")
-    parsed = _parse_tmux_version(raw_version)
+    parsed = parse_tmux_version(raw_version)
     if parsed is None:
         return DiagnosticCheck(
             id="tools.tmux_version",
@@ -318,13 +318,6 @@ def _run_tmux_version_probe(tmux_path: str) -> dict[str, str | int | None]:
         "version": version,
         "returncode": result.returncode,
     }
-
-
-def _parse_tmux_version(output: str) -> tuple[int, int] | None:
-    match = _TMUX_VERSION_RE.search(output)
-    if match is None:
-        return None
-    return (int(match.group(1)), int(match.group(2) or "0"))
 
 
 def _format_tmux_version(version: tuple[int, int]) -> str:
