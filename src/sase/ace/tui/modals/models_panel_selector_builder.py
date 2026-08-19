@@ -68,25 +68,30 @@ _UNAVAILABLE_STYLE = "#D78787"
 _SOFT_STYLE = "bold #FFD75F"
 _INVALID_STYLE = "bold #FF875F"
 _KEYS_HINT = (
-    "a=add  d=remove  J/K=reorder  E=effort  w/W=weight  t=toggle mode  "
-    "enter=confirm  esc=cancel"
+    "a=add  f=fallback  d=remove  J/K=reorder  E=effort  w/W=weight  "
+    "t=toggle mode  enter=confirm  esc=cancel"
 )
 _MIN_MEMBERS = 2
 
 
 def _seed_selector(
     value: str,
-) -> tuple[ModelAliasSelectorMode, list[str], list[int]]:
-    """Return the initial mode, members, and weights for the builder."""
+) -> tuple[ModelAliasSelectorMode, list[str], list[int], list[str]]:
+    """Return the initial mode, pool members, weights, and last-resort tail."""
     try:
         selector = parse_model_alias_selector(value)
     except ModelAliasSelectorError:
         selector = None
     if selector is not None:
-        return selector.mode, list(selector.members), list(selector.weights)
+        return (
+            selector.mode,
+            list(selector.members),
+            list(selector.weights),
+            list(selector.fallback_members),
+        )
     cleaned = value.strip()
     members = [cleaned] if cleaned else []
-    return "round_robin", members, [1] * len(members)
+    return "round_robin", members, [1] * len(members), []
 
 
 def _resolved_target_text(
@@ -111,12 +116,18 @@ def _member_option(
     views_by_name: dict[str, AliasView],
     provider_disables: Mapping[str, TemporaryProviderDisable],
     weight: int = 1,
+    *,
+    last_resort: bool = False,
+    display_index: int | None = None,
 ) -> Option:
     """Render one member row: position, provider/model badge, effort, availability."""
     raw_target, effort = split_model_effort(member)
     resolved_target = _resolved_target_text(raw_target, views_by_name)
     text = Text()
-    text.append(f"{index + 1}. ", style="bold #5FD7D7")
+    if last_resort:
+        text.append("fallback ", style="dim #AF87FF")
+    shown = index if display_index is None else display_index
+    text.append(f"{shown + 1}. ", style="bold #5FD7D7")
     if resolved_target is not None:
         text.append_text(
             Text.from_markup(provider_model_badge_markup(None, resolved_target))
@@ -152,6 +163,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         Binding("a", "add_member", "Add", show=False),
+        Binding("f", "add_fallback", "Fallback", show=False),
         Binding("d", "remove_member", "Remove", show=False),
         Binding("J", "move_down", "Move down", show=False),
         Binding("K", "move_up", "Move up", show=False),
@@ -180,12 +192,14 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._now = now
         self._provider_disables = dict(provider_disables or {})
         self._views_by_name = {view.name: view for view in alias_context.views}
-        mode, members, weights = _seed_selector(current_value)
+        mode, members, weights, fallback_members = _seed_selector(current_value)
         self._mode: ModelAliasSelectorMode = mode
         self._members = members
         self._weights = weights
+        self._fallback_members = fallback_members
         self._pending_member = ""
         self._pending_effort_index: int | None = None
+        self._pending_target: str = "pool"
 
     # -- compose ----------------------------------------------------------
 
@@ -206,17 +220,25 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         text.append(f"@{self._alias}  ", style="bold")
         text.append(_MODE_LABELS[self._mode], style="bold #AF87FF")
         text.append("\n")
-        if self._members:
+        if self._members or self._fallback_members:
             text.append(
-                compose_selector(self._mode, self._members, self._weights),
+                compose_selector(
+                    self._mode,
+                    self._members,
+                    self._weights,
+                    self._fallback_members,
+                ),
                 style="dim",
             )
         else:
             text.append("(no members yet)", style="dim")
         return text
 
+    def _row_count(self) -> int:
+        return len(self._members) + len(self._fallback_members)
+
     def _render_options(self) -> list[Option]:
-        if not self._members:
+        if not self._row_count():
             return [
                 Option(
                     Text("  (no members yet — press a to add one)", style="dim"),
@@ -224,7 +246,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                     disabled=True,
                 )
             ]
-        return [
+        options = [
             _member_option(
                 index,
                 member,
@@ -234,11 +256,28 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
             )
             for index, member in enumerate(self._members)
         ]
+        options.extend(
+            _member_option(
+                len(self._members) + index,
+                member,
+                self._views_by_name,
+                self._provider_disables,
+                last_resort=True,
+                display_index=index,
+            )
+            for index, member in enumerate(self._fallback_members)
+        )
+        return options
 
     def _validation_errors(self) -> tuple[str, ...]:
         if len(self._members) < _MIN_MEMBERS:
             return ()
-        expression = compose_selector(self._mode, self._members, self._weights)
+        expression = compose_selector(
+            self._mode,
+            self._members,
+            self._weights,
+            self._fallback_members,
+        )
         return validate_model_alias_selector_value(self._alias, expression)
 
     def _validation_text(self) -> Text:
@@ -261,26 +300,43 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         option_list.clear_options()
         option_list.add_options(self._render_options())
-        if self._members:
+        if self._row_count():
             index = 0 if preferred_index is None else preferred_index
-            index = max(0, min(index, len(self._members) - 1))
+            index = max(0, min(index, self._row_count() - 1))
             option_list.highlighted = index
         self.query_one("#selector-builder-validation", Static).update(
             self._validation_text()
         )
 
     def _highlighted_index(self) -> int | None:
-        if not self._members:
+        if not self._row_count():
             return None
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         return option_list.highlighted
 
+    def _is_pool_index(self, index: int) -> bool:
+        return 0 <= index < len(self._members)
+
     # -- add member -----------------------------------------------------
 
     def action_add_member(self) -> None:
+        self._pending_target = "pool"
+        self._open_member_picker(f"Add Member — @{self._alias}")
+
+    def action_add_fallback(self) -> None:
+        if self._mode != "round_robin":
+            self.notify(
+                "Last-resort candidates require a round-robin pool.",
+                severity="warning",
+            )
+            return
+        self._pending_target = "fallback"
+        self._open_member_picker(f"Add Last-Resort — @{self._alias}")
+
+    def _open_member_picker(self, title: str) -> None:
         self.app.push_screen(
             ModelPickerModal(
-                title=f"Add Member — @{self._alias}",
+                title=title,
                 include_default_option=False,
                 alias_context=self._member_context,
                 provider_disables=self._provider_disables,
@@ -373,6 +429,10 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._append_member(member)
 
     def _append_member(self, member: str) -> None:
+        if self._pending_target == "fallback":
+            self._fallback_members.append(member)
+            self._refresh_view(preferred_index=self._row_count() - 1)
+            return
         self._members.append(member)
         self._weights.append(1)
         self._refresh_view(preferred_index=len(self._members) - 1)
@@ -383,8 +443,11 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         index = self._highlighted_index()
         if index is None:
             return
-        del self._members[index]
-        del self._weights[index]
+        if self._is_pool_index(index):
+            del self._members[index]
+            del self._weights[index]
+        else:
+            del self._fallback_members[index - len(self._members)]
         self._refresh_view(preferred_index=index)
 
     def action_move_down(self) -> None:
@@ -398,16 +461,26 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if index is None:
             return
         target = index + delta
-        if not (0 <= target < len(self._members)):
+        if not (0 <= target < self._row_count()):
             return
-        self._members[index], self._members[target] = (
-            self._members[target],
-            self._members[index],
-        )
-        self._weights[index], self._weights[target] = (
-            self._weights[target],
-            self._weights[index],
-        )
+        if self._is_pool_index(index) != self._is_pool_index(target):
+            return
+        if self._is_pool_index(index):
+            self._members[index], self._members[target] = (
+                self._members[target],
+                self._members[index],
+            )
+            self._weights[index], self._weights[target] = (
+                self._weights[target],
+                self._weights[index],
+            )
+        else:
+            local = index - len(self._members)
+            local_target = target - len(self._members)
+            self._fallback_members[local], self._fallback_members[local_target] = (
+                self._fallback_members[local_target],
+                self._fallback_members[local],
+            )
         self._refresh_view(preferred_index=target)
 
     # -- effort -------------------------------------------------------------
@@ -417,7 +490,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if index is None:
             return
         self._pending_effort_index = index
-        target, _ = split_model_effort(self._members[index])
+        target, _ = split_model_effort(self._row_member(index))
         self.app.push_screen(
             DefaultEffortLevelModal(
                 "model",
@@ -428,15 +501,28 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
             callback=self._on_member_effort_edited,
         )
 
+    def _row_member(self, index: int) -> str:
+        if self._is_pool_index(index):
+            return self._members[index]
+        return self._fallback_members[index - len(self._members)]
+
+    def _set_row_member(self, index: int, member: str) -> None:
+        if self._is_pool_index(index):
+            self._members[index] = member
+            return
+        self._fallback_members[index - len(self._members)] = member
+
     def _on_member_effort_edited(self, result: DefaultEffortLevelChoice | None) -> None:
         if result is None:
             return
         index = self._pending_effort_index
         self._pending_effort_index = None
-        if index is None or not (0 <= index < len(self._members)):
+        if index is None or not (0 <= index < self._row_count()):
             return
-        target, _ = split_model_effort(self._members[index])
-        self._members[index] = f"{target}@{result.effort}" if result.effort else target
+        target, _ = split_model_effort(self._row_member(index))
+        self._set_row_member(
+            index, f"{target}@{result.effort}" if result.effort else target
+        )
         self._refresh_view(preferred_index=index)
 
     # -- mode / confirm -------------------------------------------------
@@ -451,7 +537,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if self._mode != "round_robin":
             return
         index = self._highlighted_index()
-        if index is None:
+        if index is None or not self._is_pool_index(index):
             return
         self._weights[index] = max(
             1,
@@ -460,6 +546,13 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._refresh_view(preferred_index=index)
 
     def action_toggle_mode(self) -> None:
+        if self._fallback_members:
+            self.notify(
+                "Cannot toggle pool/fallback while a last-resort tail is "
+                "present; remove fallback rows first.",
+                severity="warning",
+            )
+            return
         if self._mode == "round_robin":
             dropped = any(weight > 1 for weight in self._weights)
             self._mode = "fallback"
@@ -476,7 +569,14 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
     def action_confirm(self) -> None:
         if len(self._members) < _MIN_MEMBERS or self._validation_errors():
             return
-        self.dismiss(compose_selector(self._mode, self._members, self._weights))
+        self.dismiss(
+            compose_selector(
+                self._mode,
+                self._members,
+                self._weights,
+                self._fallback_members,
+            )
+        )
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()

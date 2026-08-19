@@ -1,13 +1,15 @@
 """Model-alias selector parsing and load-balancing rotation state.
 
 Alias values may opt into a round-robin pool with ``|`` separators or an
-ordered fallback chain with ``||`` separators.  A pool member may carry a
-leading positive-integer weight (``3 grok/grok-4.6``); fallback candidates
-cannot.  Parsing lives here so runtime, validation, diagnostics, and display
-callers share one grammar.  This module deliberately knows nothing about
-alias-chain resolution: callers pass the already-resolved provider/model
-target for each member when asking about availability, then select from the
-resulting boolean mask.
+ordered fallback chain with ``||`` separators.  Parentheses group a ``|``
+pool as the primary of a last-resort ``||`` tail (``(A | B) || C``);
+unparenthesized mixing of the operators is still rejected.  A pool member
+may carry a leading positive-integer weight (``3 grok/grok-4.6``); fallback
+and last-resort candidates cannot.  Parsing lives here so runtime,
+validation, diagnostics, and display callers share one grammar.  This
+module deliberately knows nothing about alias-chain resolution: callers
+pass the already-resolved provider/model target for each member when asking
+about availability, then select from the resulting boolean mask.
 
 Rotation state is machine-global and best-effort.  The persisted cursor is
 the next position in the pool's (possibly weighted) cycle schedule.  A
@@ -80,18 +82,21 @@ class ModelAliasSelector:
     mode: ModelAliasSelectorMode
     members: tuple[str, ...]
     weights: tuple[int, ...] = ()
+    fallback_members: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         weights = self.weights
         if not weights:
             object.__setattr__(self, "weights", (1,) * len(self.members))
-            return
-        if len(weights) != len(self.members):
-            raise ValueError("selector weights must match member count")
-        if any(weight < 1 or weight > MAX_POOL_MEMBER_WEIGHT for weight in weights):
-            raise ValueError(
-                f"selector weights must be between 1 and {MAX_POOL_MEMBER_WEIGHT}"
-            )
+        else:
+            if len(weights) != len(self.members):
+                raise ValueError("selector weights must match member count")
+            if any(weight < 1 or weight > MAX_POOL_MEMBER_WEIGHT for weight in weights):
+                raise ValueError(
+                    f"selector weights must be between 1 and {MAX_POOL_MEMBER_WEIGHT}"
+                )
+        if self.fallback_members and self.mode != "round_robin":
+            raise ValueError("last-resort fallback requires a load-balanced pool")
 
     @property
     def weighted(self) -> bool:
@@ -106,7 +111,11 @@ class ModelAliasSelector:
             f"{weight} {member}" if weight > 1 else member
             for weight, member in zip(self.weights, self.members, strict=True)
         )
-        return operator.join(rendered)
+        pool = operator.join(rendered)
+        if not self.fallback_members:
+            return pool
+        tail = " || ".join(self.fallback_members)
+        return f"({pool}) || {tail}"
 
     @property
     def fingerprint(self) -> str:
@@ -130,19 +139,37 @@ class ModelAliasSelector:
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def concatenated_selector_members(selector: ModelAliasSelector) -> tuple[str, ...]:
+    """Return pool members followed by last-resort candidates."""
+    return selector.members + selector.fallback_members
+
+
 def parse_model_alias_selector(value: str) -> ModelAliasSelector | None:
     """Parse *value* when it contains selector syntax, else return ``None``.
 
     Whitespace around members is ignored.  Leading, trailing, or consecutive
     separators are rejected rather than silently discarding an empty member.
-    Mixing ``|`` and ``||`` in one value is rejected.  A pool member may carry
-    a leading ``<weight> <member>`` prefix; the same prefix in a fallback
-    chain is an error.  A value without either operator retains the historical
+    Mixing ``|`` and ``||`` in one unparenthesized value is rejected.
+    Parentheses may wrap a ``|`` pool, optionally followed by a ``||``
+    last-resort tail.  A pool member may carry a leading
+    ``<weight> <member>`` prefix; the same prefix in a fallback chain is an
+    error.  A value without either operator retains the historical
     single-target behavior, including when it starts with a weight-like token.
     """
     if "|" not in value:
         return None
+    stripped = value.strip()
+    if stripped.startswith("("):
+        return _parse_grouped_selector(stripped)
+    if "(" in stripped or ")" in stripped:
+        raise ModelAliasSelectorError(
+            "parentheses may only wrap a '|' load-balanced pool"
+        )
+    return _parse_flat_selector(stripped)
 
+
+def _parse_flat_selector(value: str) -> ModelAliasSelector:
+    """Parse a parenthesis-free ``|`` pool or ``||`` fallback chain."""
     if "||" in value:
         if "|" in value.replace("||", ""):
             raise ModelAliasSelectorError(
@@ -183,6 +210,75 @@ def parse_model_alias_selector(value: str) -> ModelAliasSelector | None:
         mode=mode,
         members=tuple(parsed_members),
         weights=tuple(parsed_weights),
+    )
+
+
+def _split_leading_group(value: str) -> tuple[str, str]:
+    """Return ``(inside, rest)`` for a leading parenthesized group."""
+    depth = 0
+    for index, char in enumerate(value):
+        if char == "(":
+            if depth != 0:
+                raise ModelAliasSelectorError("nested parentheses are not allowed")
+            depth = 1
+        elif char == ")":
+            if depth != 1:
+                raise ModelAliasSelectorError("unmatched parentheses")
+            return value[1:index], value[index + 1 :].strip()
+    raise ModelAliasSelectorError("unmatched parentheses")
+
+
+def _parse_last_resort_tail(rest: str) -> tuple[str, ...]:
+    """Parse ``|| C [|| D]...`` after a parenthesized pool."""
+    if not rest.startswith("||"):
+        raise ModelAliasSelectorError(
+            "parenthesized pools may only be followed by '||' last-resort candidates"
+        )
+    if "(" in rest or ")" in rest:
+        raise ModelAliasSelectorError(
+            "last-resort candidates cannot be parenthesized pools"
+        )
+    if "|" in rest.replace("||", ""):
+        raise ModelAliasSelectorError(
+            "model alias values cannot mix '|' load balancing with '||' "
+            "ordered fallback"
+        )
+    parts = [part.strip() for part in rest.split("||")]
+    if parts[0]:
+        raise ModelAliasSelectorError(
+            "parenthesized pools may only be followed by '||' last-resort candidates"
+        )
+    candidates = parts[1:]
+    if any(not candidate for candidate in candidates):
+        raise ModelAliasSelectorError("empty last-resort candidate")
+    parsed: list[str] = []
+    for position, candidate in enumerate(candidates, start=1):
+        prefix = split_pool_member_weight_prefix(candidate)
+        if prefix is not None:
+            token, _rest = prefix
+            raise ModelAliasSelectorError(
+                "ordered fallback chains cannot weight candidates; remove "
+                f"the '{token} ' prefix from candidate {position}"
+            )
+        parsed.append(candidate)
+    return tuple(parsed)
+
+
+def _parse_grouped_selector(value: str) -> ModelAliasSelector:
+    """Parse ``(A | B)`` grouping or ``(A | B) || C [|| D]...`` last-resort."""
+    inside, rest = _split_leading_group(value)
+    if "||" in inside or "|" not in inside:
+        raise ModelAliasSelectorError(
+            "parentheses may only wrap a '|' load-balanced pool"
+        )
+    pool = _parse_flat_selector(inside)
+    if not rest:
+        return pool
+    return ModelAliasSelector(
+        mode="round_robin",
+        members=pool.members,
+        weights=pool.weights,
+        fallback_members=_parse_last_resort_tail(rest),
     )
 
 
@@ -439,6 +535,37 @@ def select_model_alias_fallback_member(availability: Sequence[bool]) -> int:
     if not availability:
         raise ValueError("ordered fallback chain is empty")
     return next((index for index, available in enumerate(availability) if available), 0)
+
+
+def select_model_alias_selector_index(
+    alias: str,
+    selector: ModelAliasSelector,
+    states: Sequence[MemberAvailability],
+    *,
+    consume: bool = False,
+) -> int:
+    """Return the selected index into the concatenated member list.
+
+    Pool members are chosen with today's round-robin cursor when any pool
+    member is selectable (including an all-soft pool).  The last-resort tail
+    is used only when every pool member is unavailable.  Diverting to the
+    tail never reads or advances the pool cursor.
+    """
+    members = concatenated_selector_members(selector)
+    if len(states) != len(members):
+        raise ValueError("availability states do not match selector members")
+    if selector.mode == "fallback":
+        return select_model_alias_fallback_member(fallback_availability_mask(states))
+    pool_count = len(selector.members)
+    pool_mask = pool_availability_mask(states[:pool_count])
+    if any(pool_mask) or not selector.fallback_members:
+        return select_model_alias_pool_member(
+            alias, selector, pool_mask, consume=consume
+        )
+    tail_index = select_model_alias_fallback_member(
+        fallback_availability_mask(states[pool_count:])
+    )
+    return pool_count + tail_index
 
 
 class MemberAvailability(StrEnum):

@@ -147,7 +147,7 @@ def test_launch_default_override_is_not_an_alias_view_row(
     )
     patch_available_providers(monkeypatch)
     monkeypatch.setattr(
-        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        "sase.llm_provider.load_balancing.select_model_alias_pool_member",
         lambda *_args, **_kwargs: 0,
     )
 

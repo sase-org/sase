@@ -76,7 +76,11 @@ def state_tag(view: AliasView, now: float) -> Text:
         reference = view.references
     elif not view.configured and view.implicit_fallback is not None:
         reference = view.implicit_fallback
-    members = view.selector_members if view.selector_mode == "round_robin" else ()
+    members = (
+        tuple(member for member in view.selector_members if not member.last_resort)
+        if view.selector_mode == "round_robin"
+        else ()
+    )
     text = alias_state_text("configured" if view.configured else "implicit")
     if members:
         append_pool_chip(

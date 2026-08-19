@@ -537,3 +537,60 @@ def test_model_aliases_notes_sparing_pool_member_distinct_from_unavailable(
         "model_aliases.builtin.medium pool member 'codex/gpt-5.5' is "
         "soft-disabled and will be spared while another member is available",
     )
+
+
+def test_model_aliases_still_warns_on_unparenthesized_mix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {
+                    "large": (
+                        "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh || "
+                        "grok/grok-4.6@xhigh"
+                    )
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    messages = " ".join(row["message"] for row in check.data["problems"])
+    assert "cannot mix" in messages
+
+
+def test_model_aliases_notes_last_resort_selection_not_pool_retention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {
+                    "large": (
+                        "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || "
+                        "grok/grok-4.6@xhigh"
+                    )
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda target: target.startswith("grok/"),
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert check.data["problems"] == ()
+    assert len(check.data["notes"]) == 1
+    assert (
+        "last-resort fallback currently selects 'grok/grok-4.6@xhigh'"
+        in (check.details[0])
+    )
+    assert "retained" not in check.details[0]

@@ -9,11 +9,9 @@ from typing import TYPE_CHECKING, Any, Literal
 from .load_balancing import (
     MemberAvailability,
     ModelAliasSelectorError,
-    fallback_availability_mask,
+    concatenated_selector_members,
     parse_model_alias_selector,
-    pool_availability_mask,
-    select_model_alias_fallback_member,
-    select_model_alias_pool_member,
+    select_model_alias_selector_index,
 )
 from .model_alias_resolution import normalize_model_alias_reference
 from .types import ModelTier
@@ -191,6 +189,9 @@ def build_launch_model_setting_snapshot(
     else:
         raw_selector = parse_model_alias_selector(raw_value)
         if raw_selector is not None:
+            values = concatenated_selector_members(raw_selector)
+            pool_count = len(raw_selector.members)
+            weights = raw_selector.weights + (1,) * len(raw_selector.fallback_members)
             resolved_members = [
                 resolve_model_alias_with_effort(
                     member,
@@ -198,7 +199,7 @@ def build_launch_model_setting_snapshot(
                     model_tier=model_tier,
                     provider_disables=disables,
                 )
-                for member in raw_selector.members
+                for member in values
             ]
             availability = [
                 member.valid
@@ -216,17 +217,12 @@ def build_launch_model_setting_snapshot(
                     resolved_members, availability, strict=True
                 )
             ]
-            if raw_selector.mode == "round_robin":
-                selected_index = select_model_alias_pool_member(
-                    override_key,
-                    raw_selector,
-                    pool_availability_mask(states),
-                    consume=consume,
-                )
-            else:
-                selected_index = select_model_alias_fallback_member(
-                    fallback_availability_mask(states)
-                )
+            selected_index = select_model_alias_selector_index(
+                override_key,
+                raw_selector,
+                states,
+                consume=consume,
+            )
             selected = resolved_members[selected_index]
             provider, model, _target_effort = resolve_model_provider_with_effort(
                 selected.target,
@@ -251,13 +247,14 @@ def build_launch_model_setting_snapshot(
                     selected=index == selected_index,
                     weight=weight,
                     sparing=state == MemberAvailability.SPARING,
+                    last_resort=index >= pool_count,
                 )
                 for index, (value, result, available, weight, state) in enumerate(
                     zip(
-                        raw_selector.members,
+                        values,
                         resolved_members,
                         availability,
-                        raw_selector.weights,
+                        weights,
                         states,
                         strict=True,
                     )

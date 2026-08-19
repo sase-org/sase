@@ -1611,7 +1611,7 @@ llm_provider:
 | `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
 | `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
 | `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                   |
-| `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                         |
+| `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, `\|\|` ordered fallbacks, or `(A \| B) \|\| C` last-resort.          |
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
 
@@ -1628,28 +1628,32 @@ descriptions. `A | B` round-robins across real launches, skips providers whose C
 unavailable, and stores its machine-global cursor in `~/.sase/llm_lb.json`; display and
 preview surfaces only peek. `A || B` always selects the first installed provider CLI
 that is not **hard**-disabled (a **soft**-disabled first candidate still wins) and never
-reads or advances that cursor. Ordered fallback is based on CLI installation plus
-temporary provider-disable state, not later model/runtime success, and preserves its
-first candidate for normal diagnostics when none are available. Members may carry a
-trailing effort. The operators cannot be mixed, selectors cannot be nested, and
-selectors are not accepted in `%model` directives or launch-scoped/temporary overrides.
-In ACE Launch Control, the pool row reports the available/total count, selector member
-lists mark the current selection with `→`, and active temporary overrides label
-selection suspended unless their provider is **hard**-disabled; then the override is
-paused and the underlying alias resolves. A **soft** disable does not pause the
-override.
+reads or advances that cursor. `(A | B) || C` load-balances the parenthesized pool and
+uses the `||` tail only when every pool member is unavailable (CLI missing or
+**hard**-disabled); an all-**soft** pool still rotates and does not divert, and tail
+selection does not consume the pool cursor. Unparenthesized mixing is still rejected.
+Ordered fallback is based on CLI installation plus temporary provider-disable state, not
+later model/runtime success, and preserves its first candidate for normal diagnostics
+when none are available. Members may carry a trailing effort. Selectors cannot be
+nested, and selectors are not accepted in `%model` directives or launch-scoped/temporary
+overrides. In ACE Launch Control, the pool row reports the available/total count,
+selector member lists mark the current selection with `→`, and active temporary
+overrides label selection suspended unless their provider is **hard**-disabled; then the
+override is paused and the underlying alias resolves. A **soft** disable does not pause
+the override.
 
 On top of any configured aliases, SASE ships a fixed set of **built-in size aliases**
 that resolve even when unset: `@xsmall`, `@small`, `@medium`, `@large`, and `@xlarge`.
 Each is a direct selector with no fallback chain to another alias — override one by
 setting `model_aliases.builtin.<size>` to a concrete model, an `A | B` round-robin pool,
-or an `A || B` ordered fallback. Phase and task launches route directly to the size
-alias matching their size metadata; a legacy phase or task with no size metadata routes
-through `@small`. New tasks require an explicit size after `/sase_new_task` has ruled
-out a semantic duplicate and a causally related in-progress epic. See
-[Built-in size aliases](llms.md#implicit-role-aliases) for the full shipped-defaults
-table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for
-how delegated launches pick a model.
+an `A || B` ordered fallback, or a parenthesized `(A | B) || C` last-resort. Phase and
+task launches route directly to the size alias matching their size metadata; a legacy
+phase or task with no size metadata routes through `@small`. New tasks require an
+explicit size after `/sase_new_task` has ruled out a semantic duplicate and a causally
+related in-progress epic. See [Built-in size aliases](llms.md#implicit-role-aliases) for
+the full shipped-defaults table and
+[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how
+delegated launches pick a model.
 
 Three scalar `llm_provider` fields choose the model for launches that aren't driven by
 phase/task/tale size routing: `default_model` (used when a launch has no explicit
@@ -1657,12 +1661,12 @@ phase/task/tale size routing: `default_model` (used when a launch has no explici
 `bead.big_epic_phase_threshold` authored phases), and `big_epic_lander_model` (used by
 epic land agents at or above that threshold). Each accepts the same grammar as an alias
 target — a concrete model, a provider-qualified model, an `@alias` reference (optionally
-with a trailing effort such as `@large@high`), an `A | B` pool, or an `A || B` fallback.
-Precedence is unchanged from before the migration: an explicit
-prompt/plan/phase/task/approval-picker `%model` wins first, then an active temporary
-override of the selected setting, then the config field resolves through the normal
-alias/effort/selector/provider-disable machinery, and a missing or malformed field falls
-back to its shipped default (`@large` / `@large` / `@xlarge`).
+with a trailing effort such as `@large@high`), an `A | B` pool, an `A || B` fallback, or
+a parenthesized `(A | B) || C` last-resort. Precedence is unchanged from before the
+migration: an explicit prompt/plan/phase/task/approval-picker `%model` wins first, then
+an active temporary override of the selected setting, then the config field resolves
+through the normal alias/effort/selector/provider-disable machinery, and a missing or
+malformed field falls back to its shipped default (`@large` / `@large` / `@xlarge`).
 
 `model_alias_history_limit` bounds the number of prior runs requested for each alias in
 Launch Control's agent-history panel. It defaults to `10`, must be at least `1`, and

@@ -13,6 +13,7 @@ from sase.llm_provider import (
     TemporaryProviderDisable,
 )
 from sase.llm_provider.config import validate_model_alias_selector_value
+from sase.llm_provider.load_balancing import concatenated_selector_members
 from sase.xprompt.effort import split_model_effort
 
 from .config_commit import push_config_commit_prompt, submit_config_commit_task
@@ -258,7 +259,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                     hint=(
                         "Single values may end in @effort; selectors keep "
                         "per-member effort: A@low | B@high. "
-                        "A | 3 B weights B three-to-one"
+                        "A | 3 B weights B three-to-one. "
+                        "(A | B) || C is last-resort when the pool is unavailable"
                     ),
                     placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
                     initial=view.raw_value or "",
@@ -283,7 +285,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             )
             return
         if parsed.selector is not None:
-            for member in parsed.selector.members:
+            for member in concatenated_selector_members(parsed.selector):
                 disabled = disabled_explicit_provider_message(
                     member,
                     self._provider_disables,

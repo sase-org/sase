@@ -271,7 +271,9 @@ def _apply_provider_disables(
         if view is None:
             overlaid.append(entry)
             continue
-        selector_members = view.selector_members
+        selector_members = tuple(
+            member for member in view.selector_members if not member.last_resort
+        )
         provenance = "configured" if view.configured else "implicit"
         if view.override is not None:
             provenance = "override_paused" if view.is_override_paused else "override"
@@ -545,7 +547,9 @@ def _append_alias_entry(
     if view is not None:
         description = description or view.description or ""
         reference = view.references or view.implicit_fallback or ""
-        selector_members = view.selector_members
+        selector_members = tuple(
+            member for member in view.selector_members if not member.last_resort
+        )
         entry = _ModelCompletionEntry(
             value=display_value,
             display=display_value,

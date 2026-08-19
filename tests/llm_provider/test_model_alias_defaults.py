@@ -9,6 +9,7 @@ import yaml  # type: ignore[import-untyped]
 
 from sase.llm_provider.load_balancing import (
     ModelAliasSelectorError,
+    concatenated_selector_members,
     parse_model_alias_selector,
 )
 from sase.llm_provider import registry
@@ -213,7 +214,7 @@ def test_every_shipped_selector_member_names_a_registered_provider_model(
         selector = parse_model_alias_selector(target)
         if selector is None:
             continue
-        for member in selector.members:
+        for member in concatenated_selector_members(selector):
             clean_member, _effort = split_model_effort(member)
             if "/" not in clean_member:
                 continue

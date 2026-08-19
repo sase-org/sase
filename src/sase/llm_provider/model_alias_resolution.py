@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -13,11 +13,13 @@ from .load_balancing import (
     ModelAliasSelector,
     ModelAliasSelectorError,
     ModelAliasSelectorMode,
-    fallback_availability_mask,
+    concatenated_selector_members,
+    fallback_availability_mask as fallback_availability_mask,
     parse_model_alias_selector,
-    pool_availability_mask,
-    select_model_alias_fallback_member,
-    select_model_alias_pool_member,
+    pool_availability_mask as pool_availability_mask,
+    select_model_alias_fallback_member as select_model_alias_fallback_member,
+    select_model_alias_pool_member as select_model_alias_pool_member,
+    select_model_alias_selector_index,
     split_pool_member_weight_prefix,
 )
 from .model_alias_policy import (
@@ -133,6 +135,7 @@ class ModelAliasSelectorMember:
     selected: bool = False
     weight: int = 1
     sparing: bool = False
+    last_resort: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,6 +222,49 @@ def _with_suspended_override(
     )
 
 
+def _selector_member_states(
+    member_results: Sequence[_ResolvedModelAlias],
+    disables: ProviderDisableSnapshot,
+) -> list[MemberAvailability]:
+    from . import config
+
+    availability_check = config.__dict__.get(
+        "_resolved_target_is_available",
+        resolved_target_is_available,
+    )
+    return [
+        resolved_target_availability(
+            result.target,
+            disables,
+            available=_target_is_available(
+                availability_check,
+                result.target,
+                disables,
+            ),
+        )
+        for result in member_results
+    ]
+
+
+def _pick_selector_member(
+    *,
+    alias: str,
+    selector: ModelAliasSelector,
+    member_results: Sequence[_ResolvedModelAlias],
+    disables: ProviderDisableSnapshot,
+    consume: bool,
+) -> _ResolvedModelAlias | None:
+    if any(not result.valid for result in member_results):
+        return None
+    index = select_model_alias_selector_index(
+        alias,
+        selector,
+        _selector_member_states(member_results, disables),
+        consume=consume,
+    )
+    return member_results[index]
+
+
 def _resolve_model_alias_result(
     model: str,
     model_alias_overrides: Mapping[str, str] | None = None,
@@ -259,6 +305,32 @@ def _resolve_model_alias_result(
         nonlocal overrides
         current = value.strip()
         effort = inherited_effort
+
+        def resolve_selector(
+            selector: ModelAliasSelector,
+            *,
+            owner: str,
+            member_trail: tuple[str, ...],
+        ) -> _ResolvedModelAlias | None:
+            member_results = [
+                resolve(
+                    member,
+                    seen=set(seen),
+                    steps=steps + 1,
+                    selector_owner=owner,
+                    inherited_effort=effort,
+                    trail=member_trail,
+                )
+                for member in concatenated_selector_members(selector)
+            ]
+            return _pick_selector_member(
+                alias=owner,
+                selector=selector,
+                member_results=member_results,
+                disables=disables,
+                consume=consume,
+            )
+
         while steps < _ALIAS_RESOLUTION_DEPTH_LIMIT:
             current, current_effort = split_model_effort(current.strip())
             if effort is None:
@@ -312,48 +384,13 @@ def _resolve_model_alias_result(
                             if selector is not None:
                                 if selector_owner is not None:
                                     return fail()
-                                member_results = [
-                                    resolve(
-                                        member,
-                                        seen=set(seen),
-                                        steps=steps + 1,
-                                        selector_owner=bare,
-                                        inherited_effort=effort,
-                                        trail=next_trail,
-                                    )
-                                    for member in selector.members
-                                ]
-                                if any(not result.valid for result in member_results):
-                                    return fail()
-                                availability_check = config.__dict__.get(
-                                    "_resolved_target_is_available",
-                                    resolved_target_is_available,
+                                picked = resolve_selector(
+                                    selector, owner=bare, member_trail=next_trail
                                 )
-                                states = [
-                                    resolved_target_availability(
-                                        result.target,
-                                        disables,
-                                        available=_target_is_available(
-                                            availability_check,
-                                            result.target,
-                                            disables,
-                                        ),
-                                    )
-                                    for result in member_results
-                                ]
-                                if selector.mode == "round_robin":
-                                    index = select_model_alias_pool_member(
-                                        bare,
-                                        selector,
-                                        pool_availability_mask(states),
-                                        consume=consume,
-                                    )
-                                else:
-                                    index = select_model_alias_fallback_member(
-                                        fallback_availability_mask(states)
-                                    )
+                                if picked is None:
+                                    return fail()
                                 return _with_suspended_override(
-                                    member_results[index],
+                                    picked,
                                     override,
                                     suspended_disable,
                                 )
@@ -413,47 +450,10 @@ def _resolve_model_alias_result(
                     # invalid, matching cycle/depth fail-closed behavior.
                     if selector_owner is not None:
                         return fail()
-                    member_results = [
-                        resolve(
-                            member,
-                            seen=set(seen),
-                            steps=steps + 1,
-                            selector_owner=bare,
-                            inherited_effort=effort,
-                            trail=trail,
-                        )
-                        for member in selector.members
-                    ]
-                    if any(not result.valid for result in member_results):
+                    picked = resolve_selector(selector, owner=bare, member_trail=trail)
+                    if picked is None:
                         return fail()
-                    availability_check = config.__dict__.get(
-                        "_resolved_target_is_available",
-                        resolved_target_is_available,
-                    )
-                    states = [
-                        resolved_target_availability(
-                            result.target,
-                            disables,
-                            available=_target_is_available(
-                                availability_check,
-                                result.target,
-                                disables,
-                            ),
-                        )
-                        for result in member_results
-                    ]
-                    if selector.mode == "round_robin":
-                        index = select_model_alias_pool_member(
-                            bare,
-                            selector,
-                            pool_availability_mask(states),
-                            consume=consume,
-                        )
-                    else:
-                        index = select_model_alias_fallback_member(
-                            fallback_availability_mask(states)
-                        )
-                    return member_results[index]
+                    return picked
                 current = target
                 steps += 1
                 continue
@@ -520,9 +520,10 @@ def resolve_model_alias(
 ) -> str:
     """Resolve a model alias to its concrete target string.
 
-    Alias values may be round-robin pools or ordered fallback chains. Launch
-    overrides win first, followed by temporary overrides, configured aliases,
-    and implicit role fallbacks. Invalid chains fail closed to the input.
+    Alias values may be round-robin pools, ordered fallback chains, or a
+    parenthesized pool with a last-resort tail. Launch overrides win first,
+    followed by temporary overrides, configured aliases, and implicit role
+    fallbacks. Invalid chains fail closed to the input.
     """
     return resolve_model_alias_with_effort(
         model,
@@ -562,10 +563,13 @@ def model_alias_selector_details(
     if selector is None:
         return None
     disables = _capture_provider_disables(provider_disables)
+    values = concatenated_selector_members(selector)
+    pool_count = len(selector.members)
+    weights = selector.weights + (1,) * len(selector.fallback_members)
     resolved: list[
         tuple[str, _ResolvedModelAlias, str | None, bool, MemberAvailability]
     ] = []
-    for value in selector.members:
+    for value in values:
         result = _resolve_model_alias_result(
             value,
             provider_disables=disables,
@@ -591,15 +595,12 @@ def model_alias_selector_details(
         )
         resolved.append((value, result, provider, available, state))
 
-    states = [item[4] for item in resolved]
-    if selector.mode == "round_robin":
-        selected_index = select_model_alias_pool_member(
-            alias, selector, pool_availability_mask(states), consume=False
-        )
-    else:
-        selected_index = select_model_alias_fallback_member(
-            fallback_availability_mask(states)
-        )
+    selected_index = select_model_alias_selector_index(
+        alias,
+        selector,
+        [item[4] for item in resolved],
+        consume=False,
+    )
 
     members: list[ModelAliasSelectorMember] = []
     for index, (value, result, provider, available, state) in enumerate(resolved):
@@ -612,8 +613,9 @@ def model_alias_selector_details(
                 available=available,
                 valid=result.valid,
                 selected=index == selected_index,
-                weight=selector.weights[index],
+                weight=weights[index],
                 sparing=state == MemberAvailability.SPARING,
+                last_resort=index >= pool_count,
             )
         )
     return _ModelAliasSelectorDetails(mode=selector.mode, members=tuple(members))
@@ -640,10 +642,36 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
     aliases = config._get_model_aliases()
     errors: list[str] = []
     owner = name.strip() or "<alias>"
-    member_label = (
-        "pool member" if selector.mode == "round_robin" else "fallback candidate"
-    )
-    for position, member in enumerate(selector.members, start=1):
+    groups: list[tuple[str, tuple[str, ...]]] = []
+    if selector.mode == "round_robin":
+        groups.append(("pool member", selector.members))
+        if selector.fallback_members:
+            groups.append(("last-resort candidate", selector.fallback_members))
+    else:
+        groups.append(("fallback candidate", selector.members))
+    for member_label, group in groups:
+        errors.extend(
+            _validate_selector_member_group(
+                group,
+                member_label=member_label,
+                owner=owner,
+                aliases=aliases,
+            )
+        )
+    return tuple(dict.fromkeys(errors))
+
+
+def _validate_selector_member_group(
+    members: tuple[str, ...],
+    *,
+    member_label: str,
+    owner: str,
+    aliases: Mapping[str, str],
+) -> list[str]:
+    from . import config
+
+    errors: list[str] = []
+    for position, member in enumerate(members, start=1):
         current, _ = split_model_effort(member)
         seen = {owner}
         for _ in range(_ALIAS_RESOLUTION_DEPTH_LIMIT):
@@ -701,4 +729,4 @@ def validate_model_alias_selector_value(name: str, value: str) -> tuple[str, ...
             errors.append(
                 f"{member_label} {position} exceeds the alias resolution depth limit"
             )
-    return tuple(dict.fromkeys(errors))
+    return errors

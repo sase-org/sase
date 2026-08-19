@@ -151,7 +151,7 @@ def test_size_alias_uses_shipped_pool(
         lambda _target: True,
     )
     monkeypatch.setattr(
-        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        "sase.llm_provider.load_balancing.select_model_alias_pool_member",
         lambda *_args, **_kwargs: 0,
     )
 

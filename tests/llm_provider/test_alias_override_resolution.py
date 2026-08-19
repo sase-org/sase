@@ -178,7 +178,7 @@ def test_retired_coder_override_does_not_propagate(
         lambda _target: True,
     )
     monkeypatch.setattr(
-        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        "sase.llm_provider.load_balancing.select_model_alias_pool_member",
         lambda *_args, **_kwargs: 0,
     )
 
@@ -279,7 +279,7 @@ def test_default_override_does_not_move_explicit_size_aliases(
         lambda _target: True,
     )
     monkeypatch.setattr(
-        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        "sase.llm_provider.load_balancing.select_model_alias_pool_member",
         lambda *_args, **_kwargs: 0,
     )
 

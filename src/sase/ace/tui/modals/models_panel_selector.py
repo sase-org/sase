@@ -59,10 +59,12 @@ def compose_selector(
     mode: ModelAliasSelectorMode,
     members: Sequence[str],
     weights: Sequence[int] | None = None,
+    fallback_members: Sequence[str] | None = None,
 ) -> str:
-    """Return the canonical ``A | B`` / ``A || B`` spelling for *members*."""
+    """Return the canonical ``A | B`` / ``A || B`` / ``(A | B) || C`` spelling."""
     return ModelAliasSelector(
         mode=mode,
         members=tuple(members),
         weights=() if weights is None else tuple(weights),
+        fallback_members=() if fallback_members is None else tuple(fallback_members),
     ).normalized

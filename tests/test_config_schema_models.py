@@ -99,7 +99,10 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
                     "xsmall": "claude/sonnet@medium | codex/gpt-5.5@medium",
                     "small": "@xsmall@high",
                     "medium": "claude/sonnet@xhigh | codex/gpt-5.5@xhigh",
-                    "large": "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh",
+                    "large": (
+                        "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || "
+                        "grok/grok-4.6@xhigh"
+                    ),
                     "xlarge": "claude/opus@max || codex/gpt-5.6-sol@max",
                 }
             }

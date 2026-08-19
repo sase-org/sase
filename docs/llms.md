@@ -1136,45 +1136,54 @@ directive surface syntax: alias keys and xprompt values stay bare. A bare
 configured/implicit alias raises with a migration hint, and `@` in front of a non-alias
 raises.
 
-An alias value can instead use one of two selector operators. `A | B` is an
-availability-filtered round-robin pool: each real LLM invocation advances the
-machine-global cursor in `~/.sase/llm_lb.json` exactly once, under a machine-wide lock,
-immediately before the provider is called — never during metadata preparation, a
-display/marker preview, or a doctor/dry-run check, which only peek. The cursor is the
-next position in that pool's weighted cycle (identical to a member index when every
-weight is 1). Any alias that merely delegates to a pool-owning alias (directly or
-through further aliasing) shares that pool-owning alias's cursor rather than keeping one
-of their own. `A || B` is an ordered fallback chain: the first registered provider whose
-CLI is installed and not **hard**-disabled always wins — a **soft**-disabled first
-candidate still wins, so a soft disable never diverts the chain — and resolution never
-reads or changes the round-robin cursor, including during a real launch. Fallback is
-based on the cached CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a
-captured active-disable snapshot, not a later model or runtime failure; SASE does not
-relaunch with the next candidate after such a failure. If every provider is unavailable,
-both modes preserve a candidate for the ordinary provider lookup to report: fallback
-preserves its first member, while the pool preserves its current rotation choice.
+An alias value can instead use one of two selector operators, or a parenthesized
+last-resort form that combines them. `A | B` is an availability-filtered round-robin
+pool: each real LLM invocation advances the machine-global cursor in
+`~/.sase/llm_lb.json` exactly once, under a machine-wide lock, immediately before the
+provider is called — never during metadata preparation, a display/marker preview, or a
+doctor/dry-run check, which only peek. The cursor is the next position in that pool's
+weighted cycle (identical to a member index when every weight is 1). Any alias that
+merely delegates to a pool-owning alias (directly or through further aliasing) shares
+that pool-owning alias's cursor rather than keeping one of their own. `A || B` is an
+ordered fallback chain: the first registered provider whose CLI is installed and not
+**hard**-disabled always wins — a **soft**-disabled first candidate still wins, so a
+soft disable never diverts the chain — and resolution never reads or changes the
+round-robin cursor, including during a real launch. `(A | B) || C` is a last-resort
+expression: the parenthesized `|` pool is primary, and the `||` tail is used only when
+every pool member is **unavailable** (CLI missing, unregistered, or **hard**-disabled).
+An all-**soft** pool still rotates among itself and does not divert. Selecting a
+last-resort candidate does not consume the pool cursor. Unparenthesized `A | B || C` is
+still rejected. Fallback and last-resort selection are based on the cached
+CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable
+snapshot, not a later model or runtime failure; SASE does not relaunch with the next
+candidate after such a failure. If every provider is unavailable, both modes preserve a
+candidate for the ordinary provider lookup to report: fallback (and a last-resort tail)
+preserves its first member, while a pool with no tail preserves its current rotation
+choice.
 
 Both selectors accept two or more members using the same single-target grammar,
 including candidate-specific trailing reasoning effort. A load-balanced pool member may
 be prefixed with a positive integer weight and at least one space (`A | 3 B` selects B
 three times as often as A, spreading B's turns through the cycle). Valid weights are
 1–99; weight 1 is the default and is omitted from the canonical spelling. Weights are
-invalid in `||` ordered fallback chains. Whitespace is trimmed and empty members are
-invalid. `|` and `||` cannot be mixed in one value, and a member may follow an ordinary
-alias chain but cannot reach another pool or fallback. Selector expressions are
-config-only: `%model` values, launch-scoped alias overrides, and temporary overrides
-remain single targets. The ACE Launch Control's persistent Edit path authors selectors
-directly — hand-typed in the custom input or assembled with a guided pool/fallback
-builder (`w`/`W` raise and lower a pool member's weight) — while its temporary Override
-path refuses a typed pool or fallback outright, pointing at Edit, rather than silently
-accepting and corrupting it. An override on the alias that owns a selector bypasses that
-expression for the override's lifetime. The ACE Launch Control shows every member's
-availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a
-`→` on the current selection. A temporary alias override labels the member list
-suspended only while its provider is available. If its provider is **hard**-disabled,
-the stored override is paused, the live selector target is shown instead, and the
-override resumes automatically after the provider disable is cleared or expires while
-the override itself is still active. A **soft** disable does not pause the override.
+invalid in `||` ordered fallback chains and last-resort tails. Whitespace is trimmed and
+empty members are invalid. Unparenthesized `|` and `||` cannot be mixed in one value. A
+member may follow an ordinary alias chain but cannot reach another pool or fallback,
+including when it sits in a last-resort tail. Selector expressions are config-only:
+`%model` values, launch-scoped alias overrides, and temporary overrides remain single
+targets. The ACE Launch Control's persistent Edit path authors selectors directly —
+hand-typed in the custom input or assembled with a guided pool/fallback builder (`w`/`W`
+raise and lower a pool member's weight; `f` adds a last-resort candidate) — while its
+temporary Override path refuses a typed pool or fallback outright, pointing at Edit,
+rather than silently accepting and corrupting it. An override on the alias that owns a
+selector bypasses that expression for the override's lifetime. The ACE Launch Control
+shows every member's availability, an aggregate `pool <available>/<total>` chip that
+counts only pool members (not the last-resort tail), and a `→` on the current selection.
+A temporary alias override labels the member list suspended only while its provider is
+available. If its provider is **hard**-disabled, the stored override is paused, the live
+selector target is shown instead, and the override resumes automatically after the
+provider disable is cleared or expires while the override itself is still active. A
+**soft** disable does not pause the override.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has a matching `model_alias` value for the alias being audited
@@ -1228,22 +1237,23 @@ The check is provider-neutral and read-only.
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role
 aliases** that resolve even when you have not defined them: `@xsmall`, `@small`,
 `@medium`, `@large`, and `@xlarge`. Each is a direct selector — a concrete model, an
-`A | B` round-robin pool, or an `A || B` ordered fallback — with no further alias
-indirection. Three related scalar config fields, `llm_provider.default_model`,
-`llm_provider.epic_lander_model`, and `llm_provider.big_epic_lander_model`, are not
-aliases themselves, but ship with the same kind of automatic, shipped-default target and
-accept the same model-expression grammar; this section covers both. The current shipped
-size-alias defaults are generated from `src/sase/llm_provider/model_alias_defaults.yml`:
+`A | B` round-robin pool, an `A || B` ordered fallback, or a parenthesized
+`(A | B) || C` last-resort — with no further alias indirection. Three related scalar
+config fields, `llm_provider.default_model`, `llm_provider.epic_lander_model`, and
+`llm_provider.big_epic_lander_model`, are not aliases themselves, but ship with the same
+kind of automatic, shipped-default target and accept the same model-expression grammar;
+this section covers both. The current shipped size-alias defaults are generated from
+`src/sase/llm_provider/model_alias_defaults.yml`:
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                 | Shipped default                                                                                     |
-| --------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups. | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-high` |
-| `@small`  | Small launch alias for straightforward task and phase work.                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
-| `@medium` | Medium launch alias for ordinary implementation work.                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
-| `@large`  | Large launch alias for planning-heavy work and default launches.            | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh`                                                      |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
+| Alias     | Description                                                                                                                 | Shipped default                                                                                     |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups.                                                 | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-high` |
+| `@small`  | Small launch alias for straightforward task and phase work.                                                                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
+| `@medium` | Medium launch alias for ordinary implementation work.                                                                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
+| `@large`  | Large launch alias for planning-heavy work and default launches; Grok is last resort when Claude and Codex are unavailable. | `(claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh) \|\| grok/grok-4.6@xhigh`                           |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                                                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
 
 <!-- END GENERATED: model-alias-defaults -->
 

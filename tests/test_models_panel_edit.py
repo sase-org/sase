@@ -389,6 +389,13 @@ async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
         assert isinstance(pilot.app.screen, ModelsPanel)
         assert "cannot mix" in panel.notify.call_args.args[0]
 
+        panel._on_edit_custom_picked("(claude/opus | codex/o3) || grok/grok-4.6@xhigh")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
+        assert pilot.app.screen._op.value == (
+            "(claude/opus | codex/o3) || grok/grok-4.6@xhigh"
+        )
+
 
 async def test_on_edit_custom_preserves_alias_selector_member_efforts(
     monkeypatch: Any,

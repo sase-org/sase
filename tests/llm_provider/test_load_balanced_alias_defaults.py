@@ -11,6 +11,7 @@ from sase.llm_provider.config import (
 )
 from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_policy import (
+    LARGE_MODEL_ALIAS_NAME,
     MEDIUM_MODEL_ALIAS_NAME,
     SMALL_MODEL_ALIAS_NAME,
     XLARGE_MODEL_ALIAS_NAME,
@@ -112,6 +113,36 @@ def test_packaged_defaults_select_correct_effort_per_provider(
 
         assert selected.target == expected_target
         assert selected.effort == expected_effort
+
+
+def test_shipped_large_uses_last_resort_grok(
+    monkeypatch: pytest.MonkeyPatch,
+    real_model_alias_defaults: None,
+) -> None:
+    selector = parse_model_alias_selector(
+        implicit_alias_targets()[LARGE_MODEL_ALIAS_NAME]
+    )
+    assert selector is not None
+    assert selector.members == ("claude/opus@xhigh", "codex/gpt-5.6-sol@xhigh")
+    assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
+
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    for _ in range(4):
+        selected = resolve_model_alias("@large", consume=True)
+        assert not selected.startswith("grok/")
+
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("grok/"),
+    )
+    diverted = resolve_model_alias_with_effort("@large", consume=True)
+    assert (diverted.target, diverted.effort) == ("grok/grok-4.6", "xhigh")
 
 
 def test_small_size_alias_has_no_antigravity_member(

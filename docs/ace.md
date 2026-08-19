@@ -2781,16 +2781,18 @@ fixed descriptions. User aliases use
 one shows that config path as the fix. A non-pool alias with an explicit effort uses the
 second line to say whether it matches or overrides the configured default. For a
 selector-valued alias, the strip lists every parsed member with an available/unavailable
-marker. A round-robin pool's row state includes an availability count such as
-`pool 2/2`, and `→` marks the exact next peeked selection without advancing its cursor.
-An ordered fallback labels candidates in priority order, marks the current winner, and
-never reads rotation state. The row's provider/model/effort badge is derived from that
-same selected member. Temporarily disabled providers count as unavailable for this
-display. If a temporary alias override targets a disabled provider, the override is
-preserved but paused: the row shows the live fallback/pool target, the state tag says
-the override is paused, and the description names the disabled provider that must expire
-or be re-enabled before the override resumes. An active override whose provider remains
-available still bypasses selector choice for the override's lifetime.
+marker. A round-robin pool's row state includes an availability count such as `pool 2/2`
+that counts only pool members (a last-resort tail does not inflate the denominator), and
+`→` marks the exact next peeked selection without advancing its cursor — including when
+the tail is selected. After the last pool member, a `fallback:` separator introduces
+last-resort rows. An ordered fallback labels candidates in priority order, marks the
+current winner, and never reads rotation state. The row's provider/model/effort badge is
+derived from that same selected member. Temporarily disabled providers count as
+unavailable for this display. If a temporary alias override targets a disabled provider,
+the override is preserved but paused: the row shows the live fallback/pool target, the
+state tag says the override is paused, and the description names the disabled provider
+that must expire or be re-enabled before the override resumes. An active override whose
+provider remains available still bypasses selector choice for the override's lifetime.
 
 If a builtin size alias is mistakenly configured under
 `llm_provider.model_aliases.custom`, opening the panel emits one warning toast listing
@@ -3125,10 +3127,11 @@ Overrides are per-alias and per-launch-setting, and independent:
   in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any built-in size alias or custom alias** takes effect wherever that
   alias is resolved. A size-specific phase or task override affects only that alias. An
-  override on a selector-valued alias — a `|` load-balanced pool or `||` ordered
-  fallback, such as the shipped `@xsmall`, `@small`, `@medium`, `@large` pools or the
-  `@xlarge` ordered fallback — suspends that alias's own rotation/fallback for a single
-  concrete target until the override expires or is cleared.
+  override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
+  or parenthesized `(A | B) || C` last-resort, such as the shipped `@xsmall`, `@small`,
+  `@medium` pools, the `@large` pool-with-tail, or the `@xlarge` ordered fallback —
+  suspends that alias's own rotation/fallback for a single concrete target until the
+  override expires or is cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
   `default model` and of each other.
@@ -3181,9 +3184,10 @@ above it. Because `epic lander` and `big epic lander` are configured as raw alia
 references, a temporary override on the alias they reference (`@large` and `@xlarge` by
 default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
-override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`,
-`@medium`, and `@large` pools, or the `@xlarge` ordered fallback — suspends only that
-alias's own rotation and does not cascade to any other alias or launch setting.
+override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`, and
+`@medium` pools, the `@large` pool-with-tail, or the `@xlarge` ordered fallback —
+suspends only that alias's own rotation and does not cascade to any other alias or
+launch setting.
 
 ### Persistent edits
 
@@ -3210,24 +3214,27 @@ ignored for dependency/cycle checks but retained for the written value; unknown 
 Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases
 under `llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by
 deleting the whole custom alias entry. The custom input also accepts a `|`-separated
-load-balanced pool or a `||`-separated ordered fallback. The editor rejects empty or
-mixed selectors and alias references that would reach any nested selector before opening
-the write preview.
+load-balanced pool, a `||`-separated ordered fallback, or a parenthesized `(A | B) || C`
+last-resort. The editor rejects empty or unparenthesized mixed selectors and alias
+references that would reach any nested selector before opening the write preview.
 
 Choosing `Pool / fallback...` from the `e` picker opens a guided builder instead of
 typing an expression by hand. It seeds its state from the alias's current value — an
-existing `|` or `||` expression expands into its members and mode, a single target
-becomes a one-member list, and an empty value starts blank — and shows the live
-normalized expression as members change. `a` adds a member through the same model picker
-and effort ladder used elsewhere in the panel (its own `Custom...` accepts a bare model,
-`provider/model` path, or `@alias`, with an optional trailing `@effort`); `d` removes
-the highlighted member; `J` / `K` reorder it down and up; `E` sets or clears that
-member's effort; `t` toggles between round-robin pool and ordered fallback; `enter`
-confirms and routes the composed expression to the same preview/write path as a typed
-value; `esc` cancels back to the picker. As in the top-level Edit picker, an alias
-reference that would reach another pool or fallback is unselectable here. Confirm is
-blocked, with an inline reason, while the selector has fewer than two members or the
-live validation line reports an error.
+existing `|` or `||` expression expands into its members and mode, a parenthesized
+`(A | B) || C` value populates the pool plus last-resort tail, a single target becomes a
+one-member list, and an empty value starts blank — and shows the live normalized
+expression as members change. `a` adds a pool member through the same model picker and
+effort ladder used elsewhere in the panel (its own `Custom...` accepts a bare model,
+`provider/model` path, or `@alias`, with an optional trailing `@effort`); `f` adds a
+last-resort candidate the same way; `d` removes the highlighted member; `J` / `K`
+reorder it down and up without crossing the pool/tail boundary; `E` sets or clears that
+member's effort; `w` / `W` raise and lower a pool member's weight and ignore last-resort
+rows; `t` toggles between round-robin pool and ordered fallback, and refuses while a
+last-resort tail is present; `enter` confirms and routes the composed expression to the
+same preview/write path as a typed value; `esc` cancels back to the picker. As in the
+top-level Edit picker, an alias reference that would reach another pool or fallback is
+unselectable here. Confirm is blocked, with an inline reason, while the selector has
+fewer than two pool members or the live validation line reports an error.
 
 ### Examples
 
@@ -3241,8 +3248,9 @@ live validation line reports an error.
   and tasks without an explicit model use CLAUDE(opus) until you clear it; the violet
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
-  without an explicit model use that target; other-sized phase/task routing is
-  unchanged.
+  without an explicit model use that target, replacing the shipped
+  `(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh` last-resort;
+  other-sized phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.

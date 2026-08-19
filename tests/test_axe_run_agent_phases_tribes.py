@@ -469,7 +469,7 @@ def test_medium_directive_metadata_pins_concrete_lane(
         lambda _target: True,
     )
     monkeypatch.setattr(
-        "sase.llm_provider.model_alias_resolution.select_model_alias_pool_member",
+        "sase.llm_provider.load_balancing.select_model_alias_pool_member",
         lambda *_args, **_kwargs: 0,
     )
     set_temporary_override("codex/o3", 3600.0, source="test")

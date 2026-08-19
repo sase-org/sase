@@ -4,7 +4,8 @@
 # can override only these built-in names.
 #
 # Each entry carries a `target` (a concrete model, provider/model, `A | B`
-# pool, or `A || B` ordered fallback) and a `description`.
+# pool, `A || B` ordered fallback, or `(A | B) || C` last-resort) and a
+# `description`.
 schema_version: 1
 aliases:
   xsmall:
@@ -18,8 +19,10 @@ aliases:
     target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh | grok/grok-4.6@xhigh"
     description: "Medium launch alias for ordinary implementation work."
   large:
-    target: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh"
-    description: "Large launch alias for planning-heavy work and default launches."
+    target: "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh"
+    description: >-
+      Large launch alias for planning-heavy work and default launches; Grok is last
+      resort when Claude and Codex are unavailable.
   xlarge:
     target: "claude/opus@max || codex/gpt-5.6-sol@max || grok/grok-4.6@max"
     description: "Extra-large launch alias for maximum-effort work."

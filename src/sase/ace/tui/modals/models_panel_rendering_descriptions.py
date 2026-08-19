@@ -194,7 +194,11 @@ def description_text_for_view(
         text.append(f"{label}: ", style="dim")
         for index, member in enumerate(view.selector_members):
             if index:
-                text.append(" · ", style="dim")
+                previous = view.selector_members[index - 1]
+                if member.last_resort and not previous.last_resort:
+                    text.append(" · fallback: ", style="dim")
+                else:
+                    text.append(" · ", style="dim")
             if member.selected and not suspended:
                 arrow_style = (
                     "bold #FFD75F"

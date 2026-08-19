@@ -363,11 +363,17 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 if selector is None:
                     continue
                 if selector.mode == "round_robin":
-                    available = [
-                        member for member in selector.members if member.available
+                    pool_members = [
+                        member for member in selector.members if not member.last_resort
                     ]
-                    if available:
-                        for member in selector.members:
+                    tail_members = [
+                        member for member in selector.members if member.last_resort
+                    ]
+                    available_pool = [
+                        member for member in pool_members if member.available
+                    ]
+                    if available_pool:
+                        for member in pool_members:
                             if member.sparing:
                                 notes.append(
                                     f"{target_key} pool member '{member.value}' is "
@@ -380,6 +386,24 @@ def check_config_model_aliases() -> DiagnosticCheck:
                                     "currently unavailable and will be skipped while "
                                     "another member is available"
                                 )
+                    elif tail_members:
+                        selected = next(
+                            member for member in selector.members if member.selected
+                        )
+                        if selected.available:
+                            notes.append(
+                                f"{target_key} has no available load-balanced pool "
+                                "members; last-resort fallback currently selects "
+                                f"'{selected.value}'"
+                            )
+                        else:
+                            notes.append(
+                                f"{target_key} has no available load-balanced pool "
+                                "members or last-resort candidates; first "
+                                "last-resort candidate "
+                                f"'{selected.value}' is retained for provider "
+                                "diagnostics"
+                            )
                     else:
                         selected = next(
                             member for member in selector.members if member.selected

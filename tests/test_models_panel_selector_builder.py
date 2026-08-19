@@ -81,6 +81,15 @@ def test_seed_from_existing_fallback() -> None:
     assert modal._mode == "fallback"
     assert modal._members == ["claude/opus", "codex/o3"]
     assert modal._weights == [1, 1]
+    assert modal._fallback_members == []
+
+
+def test_seed_from_last_resort_expression() -> None:
+    modal = _modal("(claude/opus | codex/o3) || grok/grok-4.6")
+    assert modal._mode == "round_robin"
+    assert modal._members == ["claude/opus", "codex/o3"]
+    assert modal._weights == [1, 1]
+    assert modal._fallback_members == ["grok/grok-4.6"]
 
 
 def test_seed_from_single_target() -> None:
@@ -465,6 +474,63 @@ async def test_enter_key_on_focused_list_confirms() -> None:
         await pilot.press("enter")
         await pilot.pause()
         assert captured == ["claude/opus || codex/o3"]
+
+
+async def test_add_fallback_appends_last_resort_candidate() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("claude/opus | codex/o3")
+        captured: list[str | None] = []
+        pilot.app.push_screen(modal, captured.append)
+        await pilot.pause()
+        modal.action_add_fallback()
+        await pilot.pause()
+        modal._on_member_custom_picked("grok/grok-4.6@xhigh")
+        await pilot.pause()
+        assert modal._members == ["claude/opus", "codex/o3"]
+        assert modal._fallback_members == ["grok/grok-4.6@xhigh"]
+        modal.action_confirm()
+        await pilot.pause()
+        assert captured == ["(claude/opus | codex/o3) || grok/grok-4.6@xhigh"]
+
+
+async def test_toggle_refuses_while_last_resort_tail_exists() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("(claude/opus | codex/o3) || grok/grok-4.6")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal.action_toggle_mode()
+        await pilot.pause()
+        assert modal._mode == "round_robin"
+        assert modal._fallback_members == ["grok/grok-4.6"]
+        modal.notify.assert_called_once()
+        assert "last-resort tail" in modal.notify.call_args.args[0]
+
+
+async def test_weight_keys_ignore_last_resort_rows() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("(claude/opus | 3 codex/o3) || grok/grok-4.6")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        option_list = modal.query_one(f"#{modal._option_list_id}", OptionList)
+        option_list.highlighted = 2
+        modal.action_increase_weight()
+        await pilot.pause()
+        assert modal._weights == [1, 3]
+        assert modal._fallback_members == ["grok/grok-4.6"]
+
+
+async def test_reorder_does_not_cross_pool_tail_boundary() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("(claude/opus | codex/o3) || grok/grok-4.6")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        option_list = modal.query_one(f"#{modal._option_list_id}", OptionList)
+        option_list.highlighted = 1
+        modal.action_move_down()
+        await pilot.pause()
+        assert modal._members == ["claude/opus", "codex/o3"]
+        assert modal._fallback_members == ["grok/grok-4.6"]
 
 
 async def test_confirm_blocked_on_validation_error() -> None:

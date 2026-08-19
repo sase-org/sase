@@ -57,6 +57,71 @@ def test_selector_parser_normalizes_modes_and_rejects_invalid_members() -> None:
         parse_model_alias_selector("claude/opus | codex/o3 || claude/sonnet")
 
 
+def test_grouped_pool_normalizes_and_accepts_last_resort_tail() -> None:
+    grouped = parse_model_alias_selector("(A | B)")
+    assert grouped is not None
+    assert grouped.mode == "round_robin"
+    assert grouped.members == ("A", "B")
+    assert grouped.fallback_members == ()
+    assert grouped.normalized == "A | B"
+
+    tailed = parse_model_alias_selector("(A | B) || C")
+    assert tailed is not None
+    assert tailed.members == ("A", "B")
+    assert tailed.fallback_members == ("C",)
+    assert tailed.normalized == "(A | B) || C"
+
+    weighted = parse_model_alias_selector("(A | 3 B) || C")
+    assert weighted is not None
+    assert weighted.members == ("A", "B")
+    assert weighted.weights == (1, 3)
+    assert weighted.fallback_members == ("C",)
+    assert weighted.normalized == "(A | 3 B) || C"
+
+    chain = parse_model_alias_selector("(A | B) || C || D")
+    assert chain is not None
+    assert chain.fallback_members == ("C", "D")
+    assert chain.normalized == "(A | B) || C || D"
+
+    shipped = parse_model_alias_selector(
+        "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh"
+    )
+    bare = parse_model_alias_selector("claude/opus@xhigh | codex/gpt-5.6-sol@xhigh")
+    assert shipped is not None
+    assert bare is not None
+    assert shipped.fingerprint == bare.fingerprint
+
+
+def test_grouped_selector_parser_rejects_invalid_last_resort_forms() -> None:
+    with pytest.raises(ModelAliasSelectorError, match="cannot mix"):
+        parse_model_alias_selector("A | B || C")
+    with pytest.raises(
+        ModelAliasSelectorError,
+        match=r"parentheses may only wrap a '\|' load-balanced pool",
+    ):
+        parse_model_alias_selector("(A || B) || C")
+    with pytest.raises(
+        ModelAliasSelectorError,
+        match=r"parentheses may only wrap a '\|' load-balanced pool",
+    ):
+        parse_model_alias_selector("(A | B || C)")
+    with pytest.raises(ModelAliasSelectorError, match="nested parentheses"):
+        parse_model_alias_selector("((A | B)) || C")
+    with pytest.raises(
+        ModelAliasSelectorError,
+        match="last-resort candidates cannot be parenthesized pools",
+    ):
+        parse_model_alias_selector("(A | B) || (C | D)")
+    with pytest.raises(ModelAliasSelectorError, match="empty last-resort candidate"):
+        parse_model_alias_selector("(A | B) ||")
+    with pytest.raises(
+        ModelAliasSelectorError,
+        match="ordered fallback chains cannot weight candidates",
+    ) as weighted_tail:
+        parse_model_alias_selector("(A | B) || 2 C")
+    assert "remove the '2 ' prefix from candidate 1" in str(weighted_tail.value)
+
+
 def test_selector_parser_accepts_and_normalizes_pool_weights() -> None:
     pool = parse_model_alias_selector("claude/opus | 3 codex/gpt-5.5")
     assert pool is not None

@@ -28,7 +28,10 @@ from sase.ace.tui.modals.models_panel_rows import (
 )
 from sase.config import DEFAULT_MAX_RUNNING_AGENTS, EffectiveRunnerLimitSnapshot
 from sase.llm_provider import EffectiveDefaultEffortSnapshot, ModelsPanelSection
-from sase.llm_provider.config import LaunchModelSettingSnapshot
+from sase.llm_provider.config import (
+    LaunchModelSettingSnapshot,
+    ModelAliasSelectorMember,
+)
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
@@ -222,6 +225,75 @@ def test_state_tag_pool_availability_chip(
     )
     assert text.plain == expected
     assert color in str(chip.style).lower()
+
+
+def test_state_tag_pool_chip_ignores_last_resort_members() -> None:
+    members = make_pool_members((True, True)) + (
+        ModelAliasSelectorMember(
+            value="grok/grok-4.6@xhigh",
+            target="grok/grok-4.6",
+            effort="xhigh",
+            provider="grok",
+            available=True,
+            last_resort=True,
+        ),
+    )
+    view = make_alias_view(
+        "large",
+        "role",
+        configured=True,
+        configured_value=(
+            "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh"
+        ),
+        selector_mode="round_robin",
+        selector_members=members,
+    )
+
+    assert _state_tag(view, now=0.0).plain == "configured · pool 2/2"
+
+
+def test_description_inserts_fallback_separator_and_can_select_tail() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="claude/opus@xhigh",
+            target="claude/opus",
+            effort="xhigh",
+            provider="claude",
+            available=False,
+        ),
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.6-sol@xhigh",
+            target="codex/gpt-5.6-sol",
+            effort="xhigh",
+            provider="codex",
+            available=False,
+        ),
+        ModelAliasSelectorMember(
+            value="grok/grok-4.6@xhigh",
+            target="grok/grok-4.6",
+            effort="xhigh",
+            provider="grok",
+            available=True,
+            selected=True,
+            last_resort=True,
+        ),
+    )
+    view = make_alias_view(
+        "large",
+        "role",
+        description="Large launch alias.",
+        selector_mode="round_robin",
+        selector_members=members,
+    )
+
+    description = _description_text_for_view(view).plain
+    assert description.splitlines() == [
+        "Large launch alias.",
+        (
+            "pool: × claude/opus@xhigh · × codex/gpt-5.6-sol@xhigh · "
+            "fallback: → ✓ grok/grok-4.6@xhigh"
+        ),
+    ]
 
 
 def test_state_tag_counts_sparing_members_as_available() -> None:

@@ -1058,10 +1058,11 @@ llm_provider:
   # and @xlarge. Phase and tale size launches route through these aliases
   # directly, and the scalar launch defaults above choose the no-%model and
   # epic lander defaults.
-  # Use `A | B` for round-robin or `A || B` for ordered fallback; do not mix
-  # the operators. Prefix a pool member with a positive integer to weight it
-  # (`A | 3 B` selects B three times as often as A). Weights are invalid in
-  # `||` fallback chains.
+  # Use `A | B` for round-robin or `A || B` for ordered fallback. Parenthesize
+  # a pool to attach a last-resort tail: `(A | B) || C`. Unparenthesized
+  # mixing is still rejected. Prefix a pool member with a positive integer to
+  # weight it (`A | 3 B` selects B three times as often as A). Weights are
+  # invalid in `||` fallback chains and last-resort candidates.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an
@@ -1079,7 +1080,7 @@ llm_provider:
   #     xsmall: "claude/sonnet@medium | codex/gpt-5.5@medium"
   #     small: "claude/sonnet@high | codex/gpt-5.5@high"
   #     medium: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh | 3 grok/grok-4.6@xhigh"
-  #     large: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh"
+  #     large: "(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh"
   #     xlarge: "claude/opus@max || codex/gpt-5.6-sol@max"
   #   custom:
   #     blogger:
