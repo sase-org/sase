@@ -1,5 +1,29 @@
 # Performance Recipes
 
+## Plugins Catalog Scale
+
+Measure the Updates > Plugins sub-tab (and the shared fetch/enrich paths behind it) at
+10 / 250 / 1000 / 2000 synthetic catalog entries:
+
+```bash
+just bench-plugin-catalog-scale
+```
+
+That runs the slow pytest benches. They print p50/p95/max tables and assert the
+fetch/enrich _operation-count_ curves (page count, one PyPI fetch per catalog entry, n²
+installed-version scan work). Wall-clock budgets stay recorded, not enforced, in
+`tests/perf/baselines/plugin_catalog_scale_baseline.json` until phase `guard`. The
+filter fixture holds the match count at 100 rows (10 at n=10) so the keystroke curve
+does not invert with catalog size.
+
+```bash
+pytest -s -m slow tests/ace/tui/bench_plugins_catalog_scale.py
+pytest -s -m slow tests/perf/bench_plugin_catalog_scale.py
+python -m tests.perf.bench_plugin_catalog_scale --write-baseline
+SASE_PLUGIN_CATALOG_SCALE_WRITE_BASELINE=1 pytest -s -m slow \
+    tests/ace/tui/bench_plugins_catalog_scale.py
+```
+
 ## Admin Center First Paint
 
 Measure `#` dispatch through the painted, home-first SASE Admin Center under both empty

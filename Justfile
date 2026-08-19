@@ -1123,6 +1123,16 @@ bead-perf-smoke *args: _setup
 bench-status-state-machine *args: _setup
     {{ venv_bin }}/python tests/perf/bench_status_state_machine.py {{ args }}
 
+# Plugins catalog scale bench (sase-qn.1). Records p50/p95/max at
+# 10/250/1000/2000 entries and asserts fetch/enrich operation-count
+# curves. Wall-clock budgets are recorded, not enforced.
+bench-plugin-catalog-scale *args: _setup
+    @printf "\n---------- Plugins catalog scale (sase-qn.1) ----------\n"
+    {{ venv_bin }}/pytest -s -m slow \
+        tests/perf/bench_plugin_catalog_scale.py \
+        tests/ace/tui/bench_plugins_catalog_scale.py \
+        {{ args }}
+
 # Run the Git query-op parsers benchmark. Times parse_git_name_status_z
 # on synthetic NUL streams (small/medium/large), the smaller normalizers
 # (branch name, workspace name, conflicted files, local changes), and

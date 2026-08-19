@@ -425,6 +425,22 @@ agent fixtures, then drives the TUI through Textual Pilot without touching real
 `~/.sase` data. It is marked `pytest.mark.slow`, so it does not run as part of
 `just test`.
 
+For the Updates > Plugins catalog-scale path, use the focused benches and the committed
+measuring-stick baseline:
+
+```bash
+just bench-plugin-catalog-scale
+```
+
+That records p50/p95/max at 10 / 250 / 1000 / 2000 entries for pane open, one filter
+keystroke, 20 j presses (through the queued `OptionHighlighted` handler), `'` jump-hint
+allocation, and one `I` mark toggle, plus non-TUI enrich/fetch cost curves. The
+committed numbers live in `tests/perf/baselines/plugin_catalog_scale_baseline.json`.
+Wall-clock budgets are recorded, not enforced, until phase `guard`. Rewrite the recorded
+rows after a capture run with
+`python -m tests.perf.bench_plugin_catalog_scale --write-baseline` and
+`SASE_PLUGIN_CATALOG_SCALE_WRITE_BASELINE=1 pytest -s -m slow tests/ace/tui/bench_plugins_catalog_scale.py`.
+
 For the Admin Center home-first path, use the focused Textual Pilot benchmark:
 
 ```bash
