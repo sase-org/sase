@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.agents_sync.rendering_markdown import md_escape
 from sase.amd._config import resolve_markdown_template_override
 from sase.amd.inline_memory import validate_short_memory_structure
 from sase.amd.init import AmdMemorySyncPlan
@@ -36,6 +37,11 @@ from sase.task_types import (
 )
 
 from .formatting import format_generated_memory_markdown
+from .glossary import (
+    GENERATED_GLOSSARY_MARKER_KEY,
+    GENERATED_GLOSSARY_MARKER_VALUE,
+    ProjectGlossaryTerms,
+)
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 
 MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
@@ -46,10 +52,12 @@ MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
 MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
 MEMORY_SASE_SIZES_TEMPLATE_FILENAME = "memory-sase-sizes.template.md"
 MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME = "memory-sase-task-types.template.md"
+MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME = "memory-sase-glossary.template.md"
 MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
 _MEMORY_SASE_TASK_TYPES_TEMPLATE_VARS = frozenset({"task_type_entries"})
+_MEMORY_SASE_GLOSSARY_TEMPLATE_VARS = frozenset({"glossary_term_entries"})
 _MEMORY_README_TEMPLATE_VARS = frozenset(
     {
         "memory_notes",
@@ -124,8 +132,8 @@ def _generated_sase_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
 
 
-def retired_glossary_memory_relative_path() -> Path:
-    """Return the retired generated glossary note's root-relative path."""
+def generated_glossary_memory_relative_path() -> Path:
+    """Return the generated glossary note's root-relative path."""
     return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
 
 
@@ -306,6 +314,54 @@ def _generated_task_types_memory_content(generated_task_types_body: str) -> str:
         generated_task_types_body,
         note_type="short",
         parent=AGENTS_PARENT,
+    )
+
+
+def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> str:
+    escaped_term = md_escape(term)
+    if not display_aliases:
+        return escaped_term
+    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
+    return f"{escaped_term} ({escaped_aliases})"
+
+
+def render_generated_glossary_memory_body(
+    glossary_terms: ProjectGlossaryTerms,
+) -> tuple[str | None, str | None]:
+    """Render the stable ``sase/memory/glossary.md`` body or return a blocker."""
+    if not glossary_terms.terms:
+        return None, None
+    entries = "; ".join(
+        _render_glossary_term_entry(term, display_aliases)
+        for term, display_aliases in glossary_terms.terms
+    )
+    rendered, render_error = render_markdown_template(
+        package=_MEMORY_TEMPLATE_PACKAGE,
+        filename=f"templates/{MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME}",
+        required_variables=_MEMORY_SASE_GLOSSARY_TEMPLATE_VARS,
+        context={"glossary_term_entries": entries},
+    )
+    if render_error is not None or rendered is None:
+        return (
+            None,
+            render_error or "failed to render sase/memory/glossary.md template",
+        )
+    formatted = format_generated_memory_markdown(rendered)
+    structure_error = validate_short_memory_structure(formatted)
+    if structure_error is not None:
+        return (
+            None,
+            f"packaged {MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME}: {structure_error}",
+        )
+    return formatted, None
+
+
+def _generated_glossary_memory_content(generated_glossary_body: str) -> str:
+    return apply_memory_frontmatter(
+        generated_glossary_body,
+        note_type="short",
+        parent=AGENTS_PARENT,
+        extra={GENERATED_GLOSSARY_MARKER_KEY: GENERATED_GLOSSARY_MARKER_VALUE},
     )
 
 
@@ -530,6 +586,7 @@ def render_expected_memory_files(
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
     generated_task_types_body: str | None = None,
+    generated_glossary_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     include_project_memory: bool = False,
@@ -567,10 +624,18 @@ def render_expected_memory_files(
     generated_task_types_content = _generated_task_types_memory_content(
         generated_task_types_body
     )
+    generated_glossary_path = root / generated_glossary_memory_relative_path()
+    generated_glossary_content = (
+        _generated_glossary_memory_content(generated_glossary_body)
+        if generated_glossary_body is not None
+        else None
+    )
     note_overlay = {
         generated_sase_path: generated_sase_content,
         generated_task_types_path: generated_task_types_content,
     }
+    if generated_glossary_content is not None:
+        note_overlay[generated_glossary_path] = generated_glossary_content
     if include_project_memory and generated_project_long_contents is not None:
         for relative_path, content in generated_project_long_contents.items():
             note_overlay[root / relative_path] = content
@@ -598,6 +663,14 @@ def render_expected_memory_files(
             detail="generated task-type memory note",
         ),
     ]
+    if generated_glossary_content is not None:
+        expected.append(
+            MemoryExpectedFile(
+                path=generated_glossary_path,
+                content=generated_glossary_content,
+                detail="generated glossary memory note",
+            )
+        )
     if include_project_memory:
         snapshot_content, snapshot_error = _render_generated_task_type_snapshot_json()
         if snapshot_error is not None or snapshot_content is None:
@@ -674,15 +747,22 @@ def render_expected_memory_files(
 
 
 def generated_short_notes(
-    generated_sase_body: str, generated_task_types_body: str
+    generated_sase_body: str,
+    generated_task_types_body: str,
+    generated_glossary_body: str | None = None,
 ) -> dict[str, str]:
     """Return freshly generated short-note bodies keyed by relative path."""
-    return {
+    notes = {
         _generated_sase_memory_relative_path().as_posix(): generated_sase_body,
         _generated_task_types_memory_relative_path().as_posix(): (
             generated_task_types_body
         ),
     }
+    if generated_glossary_body is not None:
+        notes[generated_glossary_memory_relative_path().as_posix()] = (
+            generated_glossary_body
+        )
+    return notes
 
 
 def generated_long_notes(

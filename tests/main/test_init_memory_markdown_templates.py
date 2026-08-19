@@ -11,7 +11,6 @@ import sase.config.core as config_core
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd.init import plan_amd_memory_sync
 from sase.main import init_memory_handler
-from sase.main.init_memory.glossary import ProjectGlossaryTerms
 from sase.main.init_memory.root_rendering import (
     generated_long_notes,
     render_generated_project_long_memory_contents,
@@ -198,7 +197,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    assert "#### 2.1.1 `sase/memory/parent.md`" in plan.agents_content
+    assert "### 2.1 `sase/memory/parent.md`" in plan.agents_content
     assert "sase/memory/generated_child.md" not in plan.agents_content
     assert render_children_section((parent, generated_child), parent) == (
         "## Children\n\n"
@@ -212,69 +211,33 @@ def test_generated_child_long_note_metadata_renders_single_pass(
     )
 
 
-def test_glossary_terms_block_is_sole_tier2_content_without_other_notes(
-    tmp_path: Path,
-) -> None:
-    write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
-    glossary_terms = ProjectGlossaryTerms(
-        terms=(
-            ("Agent Hood", ("hood", "agent neighborhood")),
-            ("Stitch", ()),
-        )
-    )
-
-    plan = plan_amd_memory_sync(
-        tmp_path,
-        generated_short_notes={},
-        generated_long_notes={},
-        glossary_terms=glossary_terms,
-    )
-
-    assert plan.blockers == ()
-    assert plan.agents_content is not None
-    assert "Long-Term Memory Files" not in plan.agents_content
-    assert "The below files contain detailed reference material" not in (
-        plan.agents_content
-    )
-    assert "### 2.1 Glossary Terms" in plan.agents_content
-    assert (
-        "**GLOSSARY TERMS:** Agent Hood (hood, agent neighborhood); Stitch"
-        in " ".join(plan.agents_content.split())
-    )
-    parsed = parse_amd_agents_document(plan.agents_content)
-    assert parsed.long_memory_entries == ()
-
-
-def test_long_memory_files_section_precedes_glossary_terms(tmp_path: Path) -> None:
+def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
     write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
     write(
         tmp_path / "sase" / "memory" / "parent.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
     )
-    glossary_terms = ProjectGlossaryTerms(terms=(("Stitch", ()),))
 
     plan = plan_amd_memory_sync(
         tmp_path,
         generated_short_notes={},
         generated_long_notes={},
-        glossary_terms=glossary_terms,
     )
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    tier2_index = plan.agents_content.index("## 2. Tier 2 (long-term) Memory")
-    files_index = plan.agents_content.index("### 2.1 Long-Term Memory Files")
-    intro_index = plan.agents_content.index(
-        "The below files contain detailed reference material"
-    )
-    note_index = plan.agents_content.index("#### 2.1.1 `sase/memory/parent.md`")
-    glossary_index = plan.agents_content.index("### 2.2 Glossary Terms")
-    assert tier2_index < files_index < intro_index < note_index < glossary_index
-    between_h2_and_h3 = plan.agents_content[
-        tier2_index + len("## 2. Tier 2 (long-term) Memory") : files_index
+    content = plan.agents_content
+    tier2_index = content.index("## 2. Tier 2 (long-term) Memory")
+    intro_index = content.index("The below files contain detailed reference material")
+    note_index = content.index("### 2.1 `sase/memory/parent.md`")
+    assert tier2_index < intro_index < note_index
+    between_h2_and_intro = content[
+        tier2_index + len("## 2. Tier 2 (long-term) Memory") : intro_index
     ]
-    assert between_h2_and_h3.strip() == ""
-    parsed = parse_amd_agents_document(plan.agents_content)
+    assert between_h2_and_intro.strip() == ""
+    assert "Long-Term Memory Files" not in content
+    assert "Glossary Terms" not in content
+    parsed = parse_amd_agents_document(content)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/parent.md",
     )

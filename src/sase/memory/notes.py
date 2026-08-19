@@ -431,7 +431,7 @@ def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
 
 
 def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
-    """Render notes as AGENTS.md Tier 2 H4 subsections."""
+    """Render notes as AGENTS.md Tier 2 H3 subsections."""
     lines: list[str] = []
     long_notes = sorted(
         (note for note in notes if note.type == "long"),
@@ -440,7 +440,7 @@ def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
     for index, note in enumerate(long_notes):
         if index:
             lines.append("")
-        lines.append(f"#### `{note.relative_path}`")
+        lines.append(f"### `{note.relative_path}`")
         if note.description:
             lines.append("")
             lines.append(note.description)

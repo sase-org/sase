@@ -74,7 +74,23 @@ Flags are a `sase`-project concern, and a flag bead is a task bead of type `flag
 `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
 removing any flag.
 
-### 1.3 Code Conventions and Gotchas (gotchas)
+### 1.3 Glossary Terms (glossary)
+
+Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on any of these
+SASE terms; it prints each term's definition plus every term those definitions depend
+on. Pass every term you need in one command — one batched read costs far fewer tokens
+than one read per term, because terms shared between definitions are printed once. Terms
+are separated by semicolons; aliases follow in parentheses.
+
+**GLOSSARY TERMS:** Agent Clan; Agent Family; Agent Hood (hood, agent neighborhood);
+Agent Instruction File (agents.md file); Agent Neighbor; Agent Node; Agent Shell; Agent
+Tribe; Artifact Reference (ref); Current Project; Feature Flag; Flag Bead (flag bead);
+Patch; Proc (background task); Proc Shell; Required Plugin (required plugin); Sase Agent
+(agent); Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase Repo
+(repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Task Type (task type);
+Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt Swarm; Xprompt Workflow
+
+### 1.4 Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to
@@ -103,7 +119,7 @@ resolved `display_name`, falling back to the key only when no name is known. Thi
 includes query tokens, completions, picker rows, task labels, and notifications; keys
 remain identity and storage.
 
-### 1.4 Rust Core Backend Boundary (rust_core_backend_boundary)
+### 1.5 Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at
 `../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
@@ -117,9 +133,9 @@ Presentation-only Textual state, keybindings, layout, widget rendering, and Pyth
 can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
 bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
 
-### 1.5 SASE = Structured Agentic Software Engineering (sase)
+### 1.6 SASE = Structured Agentic Software Engineering (sase)
 
-#### 1.5.1 Ephemeral `sase_<N>` Workspace Directories
+#### 1.6.1 Ephemeral `sase_<N>` Workspace Directories
 
 SASE runs agents (like you) from ephemeral workspace directories, which are full clones
 of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
@@ -130,7 +146,7 @@ IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace dir
 in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
 implement the plan might not run in the same workspace directory as you!
 
-#### 1.5.2 Repositories
+#### 1.6.2 Repositories
 
 Configured linked and sidecar repositories for this context:
 
@@ -163,16 +179,16 @@ discussions.
 IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
 way than by using `/sase_repo`!
 
-### 1.6 Task Bead Types (task_types)
+### 1.7 Task Bead Types (task_types)
 
 Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase bead task-type list` always shows the live catalog and
 `sase bead task-type show <slug>` shows one type in full; this note is the generated,
 always-current snapshot of the agent-creatable types below.
 
-#### 1.6.1 Types
+#### 1.7.1 Types
 
-##### 1.6.1.1 `bug` — Bug
+##### 1.7.1.1 `bug` — Bug
 
 File one when you found a defect while doing unrelated work and it is not an external
 tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use
@@ -184,7 +200,7 @@ this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.
 Run `sase bead task-type show bug` for the full field list, validators, and body
 template.
 
-##### 1.6.1.2 `ci` — CI failure
+##### 1.7.1.2 `ci` — CI failure
 
 File one when a test or lint failed and you confirmed it is a true failure, not a flake.
 Record the pytest node ID, the failing SHA if known, and why this is not intermittent.
@@ -196,7 +212,7 @@ Use flake instead when a rerun on the same tree passed.
 Run `sase bead task-type show ci` for the full field list, validators, and body
 template.
 
-##### 1.6.1.3 `feature` — Feature
+##### 1.7.1.3 `feature` — Feature
 
 File one when you discovered a product or capability idea that is outside the current
 task or epic. State the proposal and why it is out of scope for the work you were doing.
@@ -207,7 +223,7 @@ Do not file one for in-scope follow-up that belongs on the current epic.
 Run `sase bead task-type show feature` for the full field list, validators, and body
 template.
 
-##### 1.6.1.4 `flake` — Flaky test
+##### 1.7.1.4 `flake` — Flaky test
 
 File one when a test or lint failed, a rerun on the same tree passed, and you did not
 cause the failure. Record the fail rate and whether it reproduces serially. Use ci
@@ -219,7 +235,7 @@ instead when the failure is confirmed and reproducible.
 Run `sase bead task-type show flake` for the full field list, validators, and body
 template.
 
-##### 1.6.1.5 `memory` — Memory
+##### 1.7.1.5 `memory` — Memory
 
 File one when a sase memory file or skill contains out-of-date information that should
 be updated. Closing still requires explicit user permission plus `sase memory init`.
@@ -230,7 +246,7 @@ Record the memory path and the proposed change.
 Run `sase bead task-type show memory` for the full field list, validators, and body
 template.
 
-#### 1.6.2 File Discovered Work As Task Beads
+#### 1.7.2 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD
@@ -255,59 +271,41 @@ closes them with a reason.
 
 ## 2. Tier 2 (long-term) Memory
 
-### 2.1 Long-Term Memory Files
-
 The below files contain detailed reference material. When working in their domain, you
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical
 memory files directly.
 
-#### 2.1.1 `sase/memory/cli_rules.md`
+### 2.1 `sase/memory/cli_rules.md`
 
 Read anytime new CLI subcommands or options are added.
 
-#### 2.1.2 `sase/memory/generated_skills.md`
+### 2.2 `sase/memory/generated_skills.md`
 
 Read when working with sase agent skills (aka xprompt skills), which are generated from
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-#### 2.1.3 `sase/memory/sase_beads.md`
+### 2.3 `sase/memory/sase_beads.md`
 
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-#### 2.1.4 `sase/memory/sase_flags.md`
+### 2.4 `sase/memory/sase_flags.md`
 
 Read before adding, deferring, or removing a SASE feature flag or flag bead.
 
-#### 2.1.5 `sase/memory/symvision.md`
+### 2.5 `sase/memory/symvision.md`
 
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-#### 2.1.6 `sase/memory/tui_perf.md`
+### 2.6 `sase/memory/tui_perf.md`
 
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-#### 2.1.7 `sase/memory/xprompts.md`
+### 2.7 `sase/memory/xprompts.md`
 
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.
-
-### 2.2 Glossary Terms
-
-Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on any of these
-SASE terms; it prints each term's definition plus every term those definitions depend
-on. Pass every term you need in one command — one batched read costs far fewer tokens
-than one read per term, because terms shared between definitions are printed once. Terms
-are separated by semicolons; aliases follow in parentheses.
-
-**GLOSSARY TERMS:** Agent Clan; Agent Family; Agent Hood (hood, agent neighborhood);
-Agent Instruction File (agents.md file); Agent Neighbor; Agent Node; Agent Shell; Agent
-Tribe; Artifact Reference (ref); Current Project; Feature Flag; Flag Bead (flag bead);
-Patch; Proc (background task); Proc Shell; Required Plugin (required plugin); Sase Agent
-(agent); Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase Repo
-(repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Task Type (task type);
-Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt Swarm; Xprompt Workflow

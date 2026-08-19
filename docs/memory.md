@@ -42,9 +42,12 @@ xprompt reference: `sase/memory/sase_beads.md` (or the home equivalent) expands 
 `#memory/sase_beads`. The `memory/` prefix is required — there is no bare `#<stem>`
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence
-described in [Audited Reads](#audited-reads) below. Project glossary terms are not a
-memory note and have no `#memory/glossary` form; fetch a definition on demand with
-`sase glossary read`, covered in [Glossary](#glossary) below.
+described in [Audited Reads](#audited-reads) below. A nonempty project glossary
+generates the short-term note `sase/memory/glossary.md`, so `#memory/glossary` is a
+valid xprompt reference and the note appears in `sase memory list`. Full definitions
+still come from `sase glossary read`, covered in [Glossary](#glossary) below;
+`sase memory read glossary.md` still fails because `read` rejects short notes as
+already-loaded context.
 
 This is explicit, launch-time prompt composition, not an audited lookup: expanding
 `#memory/<stem>` strips frontmatter and inlines the note body but does not append the
@@ -136,12 +139,13 @@ proposal/review actors.
 ## Glossary
 
 Project glossary entries authored under `memory.glossary` in `sase/sase.yml` (see
-[glossary configuration](configuration.md#memoryglossary)) are not rendered into an
-always-loaded memory note. `sase memory init` instead renders a compact `Glossary Terms`
-H3 section at the end of Tier 2 — after the `Long-Term Memory Files` H3 — that ends with
-a single `**GLOSSARY TERMS:**` line naming every term, semicolon-separated, with aliases
-in parentheses. Agents fetch a definition on demand with the `sase glossary` command
-group:
+[glossary configuration](configuration.md#memoryglossary)) generate a short-term
+`sase/memory/glossary.md` note. `sase memory init` inlines that note into Tier 1 of
+`AGENTS.md` as `Glossary Terms (glossary)`: a compact instruction paragraph plus a
+single `**GLOSSARY TERMS:**` roster naming every term, semicolon-separated, with aliases
+in parentheses. The note is listed by `sase memory list` and is available as
+`#memory/glossary`; `sase memory read glossary.md` still fails because `read` rejects
+short notes. Agents fetch a definition on demand with the `sase glossary` command group:
 
 ```bash
 sase glossary list

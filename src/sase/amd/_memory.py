@@ -20,8 +20,6 @@ from ._shared import (
 from ._template import render_agents_template
 from .constants import AGENTS_FILENAME
 from .inline_memory import inline_memory_section, validate_short_memory_structure
-from sase.agents_sync.rendering_markdown import md_escape
-from sase.main.init_memory.glossary import ProjectGlossaryTerms
 from sase.memory.notes import (
     AGENTS_PARENT,
     GeneratedLongMemoryNote,
@@ -32,24 +30,12 @@ from sase.memory.notes import (
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-_LONG_MEMORY_FILES_TITLE = "Long-Term Memory Files"
-_GLOSSARY_TERMS_TITLE = "Glossary Terms"
-_LONG_MEMORY_FILES_HEADING = f"### {_LONG_MEMORY_FILES_TITLE}"
-_GLOSSARY_TERMS_HEADING = f"### {_GLOSSARY_TERMS_TITLE}"
-_GLOSSARY_TERMS_LABEL = "**GLOSSARY TERMS:**"
-_GLOSSARY_TERMS_INTRO = (
-    'Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on '
-    "any of these SASE terms; it prints each term's definition plus every term "
-    "those definitions depend on. Pass every term you need in one command — one "
-    "batched read costs far fewer tokens than one read per term, because terms "
-    "shared between definitions are printed once. Terms are separated by "
-    "semicolons; aliases follow in parentheses."
-)
-_LONG_MEMORY_FILES_INTRO = (
+_LONG_MEMORY_INTRO = (
     "The below files contain detailed reference material. When working in "
     "their domain, you MUST use your `/sase_memory_read` skill to review "
     "their contents. Do not read canonical memory files directly."
 )
+_LONG_MEMORY_INTRO_FIRST_SENTENCE = _LONG_MEMORY_INTRO.split(".", 1)[0] + "."
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -256,44 +242,6 @@ def _long_memory_description_blockers(
     return tuple(blockers)
 
 
-def _heading_has_title(line: str, title: str) -> bool:
-    text = line.lstrip("#").strip()
-    return text == title or text.endswith(f" {title}")
-
-
-def _rendered_has_heading(text: str, title: str) -> bool:
-    return any(_heading_has_title(line, title) for _, line in iter_headings(text))
-
-
-def _render_glossary_term_entry(term: str, display_aliases: tuple[str, ...]) -> str:
-    escaped_term = md_escape(term)
-    if not display_aliases:
-        return escaped_term
-    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
-    return f"{escaped_term} ({escaped_aliases})"
-
-
-def _render_glossary_terms_section(glossary_terms: ProjectGlossaryTerms) -> str:
-    """Render the Tier 2 ``Glossary Terms`` H3 section."""
-    if not glossary_terms.terms:
-        return ""
-    entries = "; ".join(
-        _render_glossary_term_entry(term, display_aliases)
-        for term, display_aliases in glossary_terms.terms
-    )
-    return (
-        f"{_GLOSSARY_TERMS_HEADING}\n\n{_GLOSSARY_TERMS_INTRO}\n\n"
-        f"{_GLOSSARY_TERMS_LABEL} {entries}"
-    )
-
-
-def _render_long_memory_files_section(entries: str) -> str:
-    """Render the Tier 2 ``Long-Term Memory Files`` H3 section."""
-    if not entries:
-        return ""
-    return f"{_LONG_MEMORY_FILES_HEADING}\n\n{_LONG_MEMORY_FILES_INTRO}\n\n{entries}"
-
-
 def _render_managed_agents(
     root: Path,
     title: str,
@@ -303,7 +251,6 @@ def _render_managed_agents(
     short_memory_bodies: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
-    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
@@ -355,17 +302,10 @@ def _render_managed_agents(
             existing_agents_descriptions=existing_descriptions,
         )
         rendered_long_notes.append(replace(note, description=description))
-    tier2_sections = (
-        _render_long_memory_files_section(
-            render_long_memory_sections(rendered_long_notes)
-        ),
-        (
-            _render_glossary_terms_section(glossary_terms)
-            if glossary_terms is not None
-            else ""
-        ),
+    long_entries = render_long_memory_sections(rendered_long_notes)
+    tier2_entries = (
+        "" if not long_entries else f"{_LONG_MEMORY_INTRO}\n\n{long_entries}"
     )
-    tier2_entries = "\n\n".join(section for section in tier2_sections if section)
 
     rendered, render_error = render_agents_template(
         root,
@@ -404,21 +344,11 @@ def _render_managed_agents(
             "rendered AGENTS template has unexpected Tier 2 memory paths: "
             f"expected {expected_long_paths!r}, found {parsed_long_paths!r}",
         )
-    if top_level_long_notes and not _rendered_has_heading(
-        rendered, _LONG_MEMORY_FILES_TITLE
-    ):
+    if top_level_long_notes and _LONG_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
         return (
             None,
-            f"rendered AGENTS template is missing heading `{_LONG_MEMORY_FILES_TITLE}`",
-        )
-    if (
-        glossary_terms is not None
-        and glossary_terms.terms
-        and not _rendered_has_heading(rendered, _GLOSSARY_TERMS_TITLE)
-    ):
-        return (
-            None,
-            f"rendered AGENTS template is missing heading `{_GLOSSARY_TERMS_TITLE}`",
+            "rendered AGENTS template is missing the Tier 2 long-memory "
+            "instruction paragraph",
         )
     return rendered, None
 
@@ -461,7 +391,6 @@ def plan_amd_memory_sync(
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
-    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
@@ -470,13 +399,13 @@ def plan_amd_memory_sync(
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
     *generated_long_notes* maps generated long-note paths to their metadata so a
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
-    *glossary_terms* renders a ``Glossary Terms`` H3 section after the long-memory
-    files in Tier 2 when the project configures glossary entries; the home root never
-    passes this.
     """
     root = root or Path.cwd()
     generated_short_notes = generated_short_notes or {}
     generated_long_notes = generated_long_notes or {}
+    # Generated short notes overlay disk in the same pass, including type
+    # migrations from a leftover long note at the same path.
+    excluded_note_paths = excluded_note_paths | frozenset(generated_short_notes)
     title, title_error = resolve_amd_h1_title(
         root, derive_project_title=derive_project_title
     )
@@ -538,7 +467,6 @@ def plan_amd_memory_sync(
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
-        glossary_terms=glossary_terms,
     )
     if template_error is not None or agents_content is None:
         return AmdMemorySyncPlan(

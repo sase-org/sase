@@ -114,6 +114,50 @@ def test_amd_parser_reads_mixed_legacy_and_section_long_memory_entries() -> None
     assert parsed.long_memory_entries[1].description == "Legacy description."
 
 
+def test_amd_parser_reads_legacy_h4_long_memory_sections() -> None:
+    parsed = parse_amd_agents_document(
+        "## 2. Tier 2 (long-term) Memory\n\n"
+        "### 2.1 Long-Term Memory Files\n\n"
+        "The below files contain detailed reference material. When working in "
+        "their domain, you MUST use your `/sase_memory_read` skill.\n\n"
+        "#### 2.1.1 `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n\n"
+        "#### 2.1.2 `sase/memory/next.md`\n\n"
+        "Next description.\n"
+    )
+
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/block.md",
+        "sase/memory/next.md",
+    )
+    assert parsed.long_memory_entries[0].description == "Lead paragraph."
+    assert parsed.long_memory_entries[1].description == "Next description."
+
+
+def test_amd_parser_does_not_absorb_tier2_intro_into_description() -> None:
+    parsed = parse_amd_agents_document(
+        "## 2. Tier 2 (long-term) Memory\n\n"
+        "The below files contain detailed reference material. When working in "
+        "their domain, you MUST use your `/sase_memory_read` skill to review "
+        "their contents. Do not read canonical memory files directly.\n\n"
+        "### 2.1 `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n\n"
+        "### 2.2 `sase/memory/next.md`\n\n"
+        "Next description.\n"
+    )
+
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/block.md",
+        "sase/memory/next.md",
+    )
+    assert parsed.long_memory_entries[0].description == "Lead paragraph."
+    assert parsed.long_memory_entries[1].description == "Next description."
+    assert all(
+        "below files contain detailed reference material" not in entry.description
+        for entry in parsed.long_memory_entries
+    )
+
+
 def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
     assert (
         _long_memory_entry_path("### `sase/memory/cli_rules.md`")
@@ -121,6 +165,10 @@ def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
     )
     assert (
         _long_memory_entry_path("### 2.1 `memory/cli_rules.md`")
+        == "sase/memory/cli_rules.md"
+    )
+    assert (
+        _long_memory_entry_path("#### 2.1.1 `sase/memory/cli_rules.md`")
         == "sase/memory/cli_rules.md"
     )
     assert (

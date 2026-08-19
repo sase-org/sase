@@ -141,13 +141,10 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "### DYNAMIC MEMORY" not in agents
     assert "## 2. Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
-    assert "#### Long-Term Memory Files" not in agents
-    assert "### 2.1 Long-Term Memory Files" in agents
+    assert "Long-Term Memory Files" not in agents
     assert "Glossary Terms" not in agents
-    assert (
-        "#### 2.1.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
-    )
-    assert "#### 2.1.2 `sase/memory/described.md`\n\nExisting description." in agents
+    assert "### 2.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
+    assert "### 2.2 `sase/memory/described.md`\n\nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
 
     curated = (project_root / "sase" / "memory" / "curated.md").read_text(
@@ -278,7 +275,7 @@ def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert (
-        "#### 2.1.1 `sase/memory/block.md`\n\n"
+        "### 2.1 `sase/memory/block.md`\n\n"
         "Lead paragraph.\n\n- One\n- Two\n\nTrailer.\n"
     ) in agents
     parsed = parse_amd_agents_document(agents)
@@ -472,7 +469,7 @@ def test_tier2_section_heading_keeps_top_level_long_note_reachable(
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "#### 2.1.1 `sase/memory/only.md`" in agents
+    assert "### 2.1 `sase/memory/only.md`" in agents
     assert unreferenced_memory_files_for_init(project_root) == ()
 
 
@@ -555,6 +552,6 @@ def test_init_memory_allows_fenced_hash_in_long_memory_description(
 
     assert run_handler() == 0
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "#### 2.1.1 `sase/memory/foo.md`" in agents
+    assert "### 2.1 `sase/memory/foo.md`" in agents
     assert "# comment" in agents
     assert plan_memory().blockers == ()

@@ -203,30 +203,33 @@ source counterpart). Template variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
 
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
-during memory initialization, but it no longer generates a note. `sase memory init`
-instead renders a `Glossary Terms` H3 section inside Tier 2 of `AGENTS.md` and the
-provider instruction files, after the `Long-Term Memory Files` H3. The terms are
-rendered as one semicolon-separated `**GLOSSARY TERMS:**` paragraph at the end of the
-section, with aliases in parentheses, and the section points agents at
-`sase glossary read <term> [<term> ...] -r "<why>"` to fetch those definitions plus the
-terms they depend on. Pass every term you need in one command. An empty or absent
-glossary emits no section. If an earlier run of this project left behind a marked
-`sase/memory/glossary.md` (frontmatter `sase_generated: glossary`), initialization
-deletes it as part of the same migration; an unmarked, hand-authored
-`sase/memory/glossary.md` is left alone as an ordinary long note. See
+during memory initialization. A nonempty glossary generates a short-term
+`sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that
+`sase memory init` inlines into Tier 1 of `AGENTS.md` and the provider instruction files
+as `Glossary Terms (glossary)`. The note is a compact instruction paragraph plus one
+semicolon-separated `**GLOSSARY TERMS:**` roster, with aliases in parentheses, and
+points agents at `sase glossary read <term> [<term> ...] -r "<why>"` to fetch those
+definitions plus the terms they depend on. Pass every term you need in one command. An
+empty or absent glossary writes no note and deletes a leftover marked
+`sase/memory/glossary.md`. A marked leftover (including a stale `type: long` copy) is
+overwritten in place when terms are configured. An unmarked, hand-authored
+`sase/memory/glossary.md` plus configured terms is a blocker — migrate its content into
+`memory.glossary` entries in `sase.yml` or remove it before initializing. Without
+configured terms the unmarked note stays an ordinary hand-authored note. See
 [glossary configuration](configuration.md#memoryglossary) for the schema and matching
 behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command group.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
-and numbers every heading in the generated document, renders Tier 2 as one numbered
+and numbers every heading in the generated document, renders Tier 2 as one numbered H3
 subsection per long note (headed by the note path, with the description as the body),
-adds missing canonical frontmatter, and validates reachability. Those per-note
-subsections sit under Tier 2's `Long-Term Memory Files` H3, which carries the
-instruction paragraph pointing agents at `/sase_memory_read`; the H3 (with its
-paragraph) is omitted entirely when a root has no top-level long notes. Missing, false,
-merged-global, or `memory.h1_title`-only configuration does not authorize any project
-memory or root `AGENTS.md` creation, refresh, or validation. The retired
-`memory.enabled` key is not an alias. Existing projects must replace it once with:
+adds missing canonical frontmatter, and validates reachability. The instruction
+paragraph pointing agents at `/sase_memory_read` is direct body content of the
+`## Tier 2 (long-term) Memory` heading, immediately followed by those per-note H3
+subsections; both the paragraph and the subsections are omitted when a root has no
+top-level long notes. Missing, false, merged-global, or `memory.h1_title`-only
+configuration does not authorize any project memory or root `AGENTS.md` creation,
+refresh, or validation. The retired `memory.enabled` key is not an alias. Existing
+projects must replace it once with:
 
 ```yaml
 is_sase_managed: true

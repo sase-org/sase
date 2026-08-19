@@ -34,13 +34,14 @@ from .glossary import (
     is_generated_glossary_memory_content,
 )
 from .root_rendering import (
+    generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
+    render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
     render_generated_task_types_memory_body,
     render_expected_memory_files,
-    retired_glossary_memory_relative_path,
 )
 
 
@@ -206,14 +207,18 @@ def _retired_note_paths(
     return tuple(retired)
 
 
-def _retired_glossary_note_paths(root: Path) -> tuple[Path, ...]:
-    """Return a previously generated glossary memory note this root must delete.
+def _retired_glossary_note_paths(
+    root: Path, *, glossary_terms: ProjectGlossaryTerms | None
+) -> tuple[Path, ...]:
+    """Return a generated glossary memory note this root no longer manages.
 
-    The generated glossary note is retired: no root writes it any more, so any
-    marked copy left over from an earlier ``sase memory init`` is deleted on
-    every pass. An unmarked (hand-authored) note at the same path is left alone.
+    When *glossary_terms* has entries the path is generated, not retired. With
+    no configured terms, a marked leftover from an earlier ``sase memory init``
+    is deleted; an unmarked (hand-authored) note at the same path is left alone.
     """
-    path = root / retired_glossary_memory_relative_path()
+    if glossary_terms is not None and glossary_terms.terms:
+        return ()
+    path = root / generated_glossary_memory_relative_path()
     if not path.exists():
         return ()
     try:
@@ -223,6 +228,28 @@ def _retired_glossary_note_paths(root: Path) -> tuple[Path, ...]:
     if not is_generated_glossary_memory_content(current):
         return ()
     return (path,)
+
+
+def _glossary_collision_blocker(
+    root: Path, *, glossary_terms: ProjectGlossaryTerms | None
+) -> str | None:
+    """Return a blocker when generated glossary output would overwrite a user note."""
+    if glossary_terms is None or not glossary_terms.terms:
+        return None
+    path = root / generated_glossary_memory_relative_path()
+    if not path.exists():
+        return None
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return f"{path}: failed to inspect existing glossary memory note: {exc}"
+    if is_generated_glossary_memory_content(current):
+        return None
+    return (
+        f"{path}: refusing to overwrite unmarked glossary memory note; migrate "
+        "its content into glossary entries in sase.yml or remove it before "
+        "rerunning `sase memory init`"
+    )
 
 
 def _merge_expected_files(
@@ -244,7 +271,6 @@ def _amd_sync_plan(
     generated_long_notes: dict[str, GeneratedLongMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
-    glossary_terms: ProjectGlossaryTerms | None = None,
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
@@ -258,7 +284,6 @@ def _amd_sync_plan(
         generated_long_notes=generated_long_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
-        glossary_terms=glossary_terms,
     )
 
 
@@ -500,9 +525,22 @@ def memory_root_context(
             blockers=migration.blockers,
         )
 
+    glossary_collision = _glossary_collision_blocker(
+        root, glossary_terms=glossary_terms
+    )
+    if glossary_collision is not None:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=(glossary_collision,),
+        )
+
     retired_note_paths = (
         *_retired_note_paths(root, include_project_memory=include_project_memory),
-        *_retired_glossary_note_paths(root),
+        *_retired_glossary_note_paths(root, glossary_terms=glossary_terms),
     )
     root_resolved = root.resolve(strict=False)
     excluded_note_paths = frozenset(
@@ -541,6 +579,23 @@ def memory_root_context(
                 or "failed to render sase/memory/task_types.md template",
             ),
         )
+    generated_glossary_body: str | None = None
+    if glossary_terms is not None and glossary_terms.terms:
+        generated_glossary_body, glossary_render_error = (
+            render_generated_glossary_memory_body(glossary_terms)
+        )
+        if glossary_render_error is not None or generated_glossary_body is None:
+            return _MemoryRootContext(
+                amd_sync=None,
+                expected_files=(),
+                shim_plan=ProviderShimPlan(writes=(), deletes=()),
+                additional_shim_plans=(),
+                source_memory_root=migration.source_memory_root,
+                blockers=(
+                    glossary_render_error
+                    or "failed to render sase/memory/glossary.md template",
+                ),
+            )
     generated_project_long_contents: dict[str, str] = {}
     if include_project_memory:
         generated_project_long_contents, generated_long_error = (
@@ -560,12 +615,13 @@ def memory_root_context(
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(
-            generated_sase_body, generated_task_types_body
+            generated_sase_body,
+            generated_task_types_body,
+            generated_glossary_body,
         ),
         generated_long_notes=generated_long_notes(generated_project_long_contents),
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
-        glossary_terms=glossary_terms,
     )
     expected_files, expected_error = render_expected_memory_files(
         root,
@@ -574,6 +630,7 @@ def memory_root_context(
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
         generated_task_types_body=generated_task_types_body,
+        generated_glossary_body=generated_glossary_body,
         generated_project_long_contents=generated_project_long_contents,
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,

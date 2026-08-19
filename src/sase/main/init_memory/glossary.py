@@ -1,4 +1,4 @@
-"""Project-local glossary term extraction for ``sase memory init``."""
+"""Project-local glossary term extraction for generated memory notes."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class ProjectGlossaryTerms:
 
 
 def is_generated_glossary_memory_content(content: str) -> bool:
-    """Return whether *content* carries the retired managed glossary marker."""
+    """Return whether *content* carries the managed glossary marker."""
     note = parse_memory_note_text(content, "sase/memory/glossary.md")
     return (
         note.frontmatter.get(GENERATED_GLOSSARY_MARKER_KEY)

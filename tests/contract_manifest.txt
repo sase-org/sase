@@ -38,6 +38,9 @@ tests/test_sase_migrate_statuses.py
 tests/test_sdd_canonical_layout.py
 tests/test_setup_required_plugins_tool.py
 tests/test_suite_gate.py
+tests/test_suite_gate_budget.py
+tests/test_suite_gate_lease.py
+tests/test_suite_gate_reclaim.py
 tests/test_timezone_display_guard.py
 tests/test_validate_changelog_tool.py
 tests/test_validate_dependency_group_tool.py

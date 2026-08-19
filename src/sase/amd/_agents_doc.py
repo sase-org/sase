@@ -171,9 +171,9 @@ def collect_long_memory_entries(
     """Parse long-memory entries from ``lines[start:end]``.
 
     Description collection stops at the next long-memory entry or at any
-    unfenced heading that is not itself an entry, so a trailing
-    ``### Glossary Terms`` section is not absorbed. Headings inside fenced
-    code blocks stay part of the description.
+    unfenced heading that is not itself an entry, so a sibling heading after
+    an entry is not absorbed. Headings inside fenced code blocks stay part of
+    the description.
     """
     entries: list[_AmdLongMemoryEntry] = []
     index = start
