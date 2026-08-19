@@ -368,13 +368,18 @@ def check_config_model_aliases() -> DiagnosticCheck:
                     ]
                     if available:
                         for member in selector.members:
-                            if member.available:
-                                continue
-                            notes.append(
-                                f"{target_key} pool member '{member.value}' is "
-                                "currently unavailable and will be skipped while "
-                                "another member is available"
-                            )
+                            if member.sparing:
+                                notes.append(
+                                    f"{target_key} pool member '{member.value}' is "
+                                    "soft-disabled and will be spared while another "
+                                    "member is available"
+                                )
+                            elif not member.available:
+                                notes.append(
+                                    f"{target_key} pool member '{member.value}' is "
+                                    "currently unavailable and will be skipped while "
+                                    "another member is available"
+                                )
                     else:
                         selected = next(
                             member for member in selector.members if member.selected

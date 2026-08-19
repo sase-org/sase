@@ -57,6 +57,7 @@ from .config import (
     get_llm_provider_config,
     resolve_model_alias_with_effort,
 )
+from .load_balancing import MemberAvailability
 from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
 from .types import ModelTier
 
@@ -255,12 +256,38 @@ def provider_routing_available(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> bool:
-    """Return whether a provider can be used by automatic routing."""
+    """Return whether a provider can be used by automatic routing.
+
+    Returns ``False`` only for an unregistered provider, a provider with a
+    hard disable, or a provider whose CLI is missing. A soft-disabled
+    provider stays routable (deprioritized, not excluded) — see
+    :func:`provider_routing_state` for the tri-state availability that
+    selectors use to prefer other members first.
+    """
     if not provider_name or provider_name not in registered_provider_names():
         return False
-    if provider_disable_for(provider_name, provider_disables) is not None:
+    disable = provider_disable_for(provider_name, provider_disables)
+    if disable is not None and disable.is_hard:
         return False
     return _provider_cli_available(provider_name)
+
+
+def provider_routing_state(
+    provider_name: str | None,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> MemberAvailability:
+    """Return the tri-state routing availability for *provider_name*.
+
+    ``UNAVAILABLE`` when :func:`provider_routing_available` is ``False``
+    (unregistered, hard-disabled, or CLI missing); ``SPARING`` when the
+    provider carries an active soft disable; otherwise ``PREFERRED``.
+    """
+    if not provider_routing_available(provider_name, provider_disables):
+        return MemberAvailability.UNAVAILABLE
+    disable = provider_disable_for(provider_name, provider_disables)
+    if disable is not None and disable.is_soft:
+        return MemberAvailability.SPARING
+    return MemberAvailability.PREFERRED
 
 
 def build_provider_routing_statuses(
@@ -305,7 +332,7 @@ def raise_if_provider_temporarily_disabled(
     if not provider_name or provider_name not in registered_provider_names():
         return
     disable = provider_disable_for(provider_name, provider_disables)
-    if disable is not None:
+    if disable is not None and disable.is_hard:
         raise ProviderTemporarilyDisabledError(provider_name, disable)
 
 
@@ -448,7 +475,13 @@ def get_configured_default_provider_name(
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> str:
-    """Get the configured/autodetected provider without temporary overrides."""
+    """Get the configured/autodetected provider without temporary overrides.
+
+    Autodetect candidates are walked twice: the first pass accepts only
+    ``PREFERRED`` candidates, and only when nothing matches does a second
+    pass accept ``SPARING`` (soft-disabled) candidates too. This keeps a
+    soft-disabled provider deprioritized without ever excluding it outright.
+    """
     config = get_llm_provider_config()
     provider = config.get("provider")
     if isinstance(provider, str) and provider:
@@ -462,12 +495,14 @@ def get_configured_default_provider_name(
     candidates = _llm_metadata_payload().get("autodetect_candidates")
     if not isinstance(candidates, list):
         candidates = []
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("provider"))
-        if provider_routing_available(name, disables):
-            return name
+    names = [str(item.get("provider")) for item in candidates if isinstance(item, dict)]
+    for accepted in (
+        (MemberAvailability.PREFERRED,),
+        (MemberAvailability.PREFERRED, MemberAvailability.SPARING),
+    ):
+        for name in names:
+            if provider_routing_state(name, disables) in accepted:
+                return name
 
     raise RuntimeError(
         "No LLM provider is available. Install a provider plugin "
@@ -484,12 +519,15 @@ def get_default_provider_name(
     An active temporary LLM override (see
     :mod:`sase.llm_provider.temporary_override`) wins over both the
     configured default and autodetect — it represents an explicit, recent
-    user choice.  When no override is active, falls back to the configured
-    default if set; otherwise walks registered plugins in
-    ``llm_autodetect_priority`` order (ascending) and picks the first
-    whose ``llm_autodetect_cli_name`` is on ``PATH``.  A plugin returning
-    ``None`` from ``llm_autodetect_cli_name`` is always eligible, which is
-    intended for non-CLI providers; built-in CLI providers declare a CLI name.
+    user choice.  A hard disable on the override's provider suspends it (see
+    :func:`get_configured_default_provider_name`); a soft disable does not —
+    the override stays the active default.  When no override is active,
+    falls back to the configured default if set; otherwise walks registered
+    plugins in ``llm_autodetect_priority`` order (ascending) and picks the
+    first whose ``llm_autodetect_cli_name`` is on ``PATH``.  A plugin
+    returning ``None`` from ``llm_autodetect_cli_name`` is always eligible,
+    which is intended for non-CLI providers; built-in CLI providers declare a
+    CLI name.
 
     Raises:
         RuntimeError: If no plugin declares an autodetect priority.
@@ -504,10 +542,9 @@ def get_default_provider_name(
         else provider_disables
     )
     override = get_active_temporary_override()
-    if (
-        override is not None
-        and provider_disable_for(override.provider, disables) is None
-    ):
-        return override.provider
+    if override is not None:
+        disable = provider_disable_for(override.provider, disables)
+        if disable is None or not disable.is_hard:
+            return override.provider
 
     return get_configured_default_provider_name(provider_disables=disables)

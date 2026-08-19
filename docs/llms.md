@@ -1741,7 +1741,8 @@ displays it as usage-limit automatic. The UI treats the field as an open vocabul
 unknown non-empty sources are rendered as readable labels instead of being treated as
 manual disables.
 
-Provider disables are an availability layer:
+Every disable carries a `mode`: **hard** (today's fail-closed disable) or **soft** (a
+deprioritizing "spare this provider" disable). Hard disables are an availability layer:
 
 | Request                  | Disabled provider present? | Result                                             |
 | ------------------------ | -------------------------- | -------------------------------------------------- |
@@ -1751,6 +1752,20 @@ Provider disables are an availability layer:
 | direct provider/model    | target provider            | actionable failure; no silent provider change      |
 | every selector member    | all                        | member zero retained for diagnostic; launch fails  |
 | running provider process | disabled after start       | process continues; future resolution changes       |
+
+A **soft** disable never fails a launch; it only deprioritizes the provider:
+
+| Request                  | Soft-disabled provider present? | Result                                                                                                    |
+| ------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| round-robin alias        | one member                      | that member is spared while another member is preferred; it rotates in normally once every member is soft |
+| ordered fallback         | first candidate                 | first candidate still wins; a soft disable never diverts an ordered fallback chain                        |
+| direct provider/model    | target provider                 | launch proceeds on that provider; no failure, no rerouting                                                |
+| temporary alias override | override target                 | override stays applied; it is not paused                                                                  |
+| autodetect               | preferred candidate             | preferred candidates win first; a soft candidate is only picked when no preferred candidate qualifies     |
+
+`source` and `mode` are independent axes: a manual Launch Control disable may be set to
+either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
+**hard** disable — nothing in this phase changes that.
 
 Each top-level routing operation captures active disables once and passes that snapshot
 through alias resolution, autodetection, model-picker rows, completion overlays, and the
@@ -1771,13 +1786,14 @@ The state file is a versioned envelope with one independent record per provider:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "disables": {
     "claude": {
       "provider": "claude",
       "created_at": 1777470000.0,
       "expires_at": 1777473600.0,
-      "source": "ace"
+      "source": "ace",
+      "mode": "hard"
     }
   }
 }
@@ -1797,16 +1813,16 @@ normal routing resume immediately.
 
 Public provider-disable helpers:
 
-| Function                                                             | Purpose                                                               |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `get_active_provider_disables(now=None)`                             | Read every active disable, keyed by provider.                         |
-| `get_active_provider_disable(provider, now=None)`                    | Read one active provider disable, or `None`.                          |
-| `disable_provider(provider, duration_seconds, source, now=None)`     | Disable one provider for a duration or until cleared.                 |
-| `disable_provider_until(provider, expires_at, source, now=None)`     | Disable one provider until an exact Unix timestamp.                   |
-| `try_disable_provider(provider, duration_seconds, source, now=None)` | First-writer relative disable; `inserted` is whether this caller won. |
-| `try_disable_provider_until(provider, expires_at, source, now=None)` | First-writer exact-expiry disable; losers leave the record unchanged. |
-| `enable_provider(provider)`                                          | Clear one provider disable; returns whether it existed.               |
-| `peek_active_provider_disables(now=None)`                            | Read-only, lock-free display snapshot for TUI/completions.            |
+| Function                                                                          | Purpose                                                               |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `get_active_provider_disables(now=None)`                                          | Read every active disable, keyed by provider.                         |
+| `get_active_provider_disable(provider, now=None)`                                 | Read one active provider disable, or `None`.                          |
+| `disable_provider(provider, duration_seconds, source, mode="hard", now=None)`     | Disable one provider for a duration or until cleared.                 |
+| `disable_provider_until(provider, expires_at, source, mode="hard", now=None)`     | Disable one provider until an exact Unix timestamp.                   |
+| `try_disable_provider(provider, duration_seconds, source, mode="hard", now=None)` | First-writer relative disable; `inserted` is whether this caller won. |
+| `try_disable_provider_until(provider, expires_at, source, mode="hard", now=None)` | First-writer exact-expiry disable; losers leave the record unchanged. |
+| `enable_provider(provider)`                                                       | Clear one provider disable; returns whether it existed.               |
+| `peek_active_provider_disables(now=None)`                                         | Read-only, lock-free display snapshot for TUI/completions.            |
 
 ### State File
 

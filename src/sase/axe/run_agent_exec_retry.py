@@ -167,8 +167,10 @@ def _usage_limit_retry_precedence(
     the provider that hit it — sleeping through a retry window helps nobody
     when the provider itself just reported it is out of quota.
     ``fallback_blocked`` reports whether the configured fallback is also
-    unusable (none configured, already used, or it resolves to the same
-    now-disabled provider), in which case the caller must raise immediately.
+    unusable (none configured, already used, resolves to the same
+    now-disabled provider, or carries a *hard* disable of its own — a soft
+    disable never disqualifies the fallback), in which case the caller must
+    raise immediately.
 
     Detection failures fail open (returns ``(None, False)``) so a bug in
     this subsystem can never block an otherwise-healthy retry.
@@ -178,12 +180,17 @@ def _usage_limit_retry_precedence(
         if detection is None:
             return None, False
         fallback_provider = _resolve_fallback_provider(active_retry_cfg.fallback_model)
+        fallback_disable = (
+            get_active_provider_disable(fallback_provider)
+            if fallback_provider is not None
+            else None
+        )
         fallback_ok = (
             bool(active_retry_cfg.fallback_model)
             and not tracker.using_fallback
             and fallback_provider is not None
             and fallback_provider != detection.provider
-            and get_active_provider_disable(fallback_provider) is None
+            and (fallback_disable is None or not fallback_disable.is_hard)
         )
         return detection, not fallback_ok
     except Exception:

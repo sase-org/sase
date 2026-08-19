@@ -13,6 +13,12 @@ from sase.axe.run_agent_exec_retry import (
     _detect_usage_limit_for_error,
     handle_workflow_error,
 )
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    TemporaryProviderDisable,
+)
 from sase.llm_provider.retry_config import ProviderRetryConfig, get_retry_config
 from tests._axe_run_agent_exec_retry_helpers import (
     CLAUDE_WEEKLY_LIMIT,
@@ -170,6 +176,89 @@ class TestHandleWorkflowErrorUsageLimitPrecedence:
         attempts = load_attempt_history(str(tmp_path / "artifacts"))
         assert attempts[-1].status == "raised"
         assert attempts[-1].reason is not None
+
+    def test_fallback_allowed_when_fallback_provider_carries_soft_disable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A soft disable on the fallback provider never disqualifies it."""
+        monkeypatch.setenv("SASE_HOME", str(tmp_path))
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        cfg = ProviderRetryConfig(
+            max_retries=0,
+            error_patterns=["usage limit"],
+            fallback_model="claude/opus",
+        )
+        tracker = RetryTracker(retry_cfg=cfg, execution_provider="codex")
+        error_text = "You've hit your usage limit. Upgrade to Pro (...)"
+        soft_disable = TemporaryProviderDisable(
+            version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+            provider="claude",
+            created_at=100.0,
+            expires_at=None,
+            source="test",
+            mode=PROVIDER_DISABLE_MODE_SOFT,
+        )
+
+        with (
+            patch(
+                "sase.llm_provider.usage_limit_config.load_merged_config",
+                return_value={},
+            ),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.get_active_provider_disable",
+                return_value=soft_disable,
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError(error_text), tracker, ctx, state
+            )
+
+        assert action == "continue"
+        assert tracker.using_fallback is True
+        assert os.environ["SASE_MODEL_OVERRIDE"] == "claude/opus"
+
+    def test_fallback_blocked_when_fallback_provider_carries_hard_disable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A hard disable on the fallback provider still disqualifies it."""
+        monkeypatch.setenv("SASE_HOME", str(tmp_path))
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        cfg = ProviderRetryConfig(
+            max_retries=0,
+            error_patterns=["usage limit"],
+            fallback_model="claude/opus",
+        )
+        tracker = RetryTracker(retry_cfg=cfg, execution_provider="codex")
+        error_text = "You've hit your usage limit. Upgrade to Pro (...)"
+        hard_disable = TemporaryProviderDisable(
+            version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+            provider="claude",
+            created_at=100.0,
+            expires_at=None,
+            source="test",
+            mode=PROVIDER_DISABLE_MODE_HARD,
+        )
+
+        with (
+            patch(
+                "sase.llm_provider.usage_limit_config.load_merged_config",
+                return_value={},
+            ),
+            patch("sase.axe.run_agent_exec_retry.was_killed", return_value=False),
+            patch(
+                "sase.axe.run_agent_exec_retry.get_active_provider_disable",
+                return_value=hard_disable,
+            ),
+        ):
+            action = handle_workflow_error(
+                RuntimeError(error_text), tracker, ctx, state
+            )
+
+        assert action == "raise"
+        assert tracker.using_fallback is False
 
     def test_known_codex_attempt_does_not_scan_quoted_claude_limit_prose(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

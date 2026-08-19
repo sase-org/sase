@@ -333,9 +333,14 @@ def _effective_provider_model(
 
     An active temporary override always wins (this is what the panel and the
     top-bar pill show); otherwise the configured/implicit alias chain is
-    resolved and split into a provider/model pair.
+    resolved and split into a provider/model pair. Only a *hard* disable on
+    the override's provider bypasses it — a soft disable keeps the override
+    applying.
     """
-    if override is not None and override.provider not in provider_disables:
+    override_disable = (
+        provider_disables.get(override.provider) if override is not None else None
+    )
+    if override is not None and (override_disable is None or override_disable.is_soft):
         return override.provider, override.model, override.effort
 
     # Lazy import to avoid an import cycle: registry imports this package's
@@ -421,6 +426,8 @@ def build_alias_views(
             if override is not None
             else None
         )
+        if paused_disable is not None and paused_disable.is_soft:
+            paused_disable = None
         views.append(
             AliasView(
                 name=name,

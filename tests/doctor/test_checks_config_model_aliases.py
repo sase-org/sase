@@ -5,6 +5,11 @@ from __future__ import annotations
 import pytest
 
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_MODE_SOFT,
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    TemporaryProviderDisable,
+)
 
 
 def test_model_aliases_warns_on_worker_models_but_accepts_default_model(
@@ -492,3 +497,43 @@ def test_model_aliases_reports_all_unavailable_fallback_diagnostic_choice(
     assert check.status == "OK"
     assert check.data["problems"] == ()
     assert "first candidate 'claude/claude-fable-5' is retained" in check.details[0]
+
+
+def test_model_aliases_notes_sparing_pool_member_distinct_from_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A soft-disabled pool member gets its own note, not the unavailable one."""
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "builtin": {"medium": "claude/opus@medium | codex/gpt-5.5"}
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.model_alias_resolution._active_provider_disables",
+        lambda: {
+            "codex": TemporaryProviderDisable(
+                version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+                provider="codex",
+                created_at=100.0,
+                expires_at=None,
+                source="test",
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            )
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert check.data["problems"] == ()
+    assert check.data["notes"] == (
+        "model_aliases.builtin.medium pool member 'codex/gpt-5.5' is "
+        "soft-disabled and will be spared while another member is available",
+    )

@@ -9,10 +9,13 @@ from typing import TYPE_CHECKING, Any
 from sase.xprompt.effort import split_model_effort
 
 from .load_balancing import (
+    MemberAvailability,
     ModelAliasSelector,
     ModelAliasSelectorError,
     ModelAliasSelectorMode,
+    fallback_availability_mask,
     parse_model_alias_selector,
+    pool_availability_mask,
     select_model_alias_fallback_member,
     select_model_alias_pool_member,
     split_pool_member_weight_prefix,
@@ -91,7 +94,8 @@ def resolve_default_alias_target(
 
         disables = _capture_provider_disables(provider_disables)
         provider_name = get_configured_default_provider_name(provider_disables=disables)
-        if provider_disable_for(provider_name, disables) is not None:
+        disable = provider_disable_for(provider_name, disables)
+        if disable is not None and disable.is_hard:
             return f"{provider_name}/unknown"
         model = get_provider(
             provider_name,
@@ -128,6 +132,7 @@ class ModelAliasSelectorMember:
     valid: bool = True
     selected: bool = False
     weight: int = 1
+    sparing: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +166,29 @@ def resolved_target_is_available(
 
     provider = provider_for_resolved_target(target)
     return provider_routing_available(provider, provider_disables)
+
+
+def resolved_target_availability(
+    target: str,
+    provider_disables: ProviderDisableSnapshot | None = None,
+    *,
+    available: bool,
+) -> MemberAvailability:
+    """Layer the hard/soft disable mode on top of an already-known bool.
+
+    ``UNAVAILABLE`` when *available* is ``False``; otherwise ``SPARING`` when
+    *target*'s provider carries an active soft disable; otherwise
+    ``PREFERRED``.
+    """
+    if not available:
+        return MemberAvailability.UNAVAILABLE
+    from .registry import provider_disable_for
+
+    provider = provider_for_resolved_target(target)
+    disable = provider_disable_for(provider, provider_disables)
+    if disable is not None and disable.is_soft:
+        return MemberAvailability.SPARING
+    return MemberAvailability.PREFERRED
 
 
 def _target_is_available(
@@ -268,7 +296,7 @@ def _resolve_model_alias_result(
                         getattr(override, "provider", None),
                         disables,
                     )
-                    if suspended_disable is not None:
+                    if suspended_disable is not None and suspended_disable.is_hard:
                         underlying_target = aliases.get(bare)
                         if underlying_target is None:
                             underlying_target = role_targets.get(bare)
@@ -301,11 +329,15 @@ def _resolve_model_alias_result(
                                     "_resolved_target_is_available",
                                     resolved_target_is_available,
                                 )
-                                availability = [
-                                    _target_is_available(
-                                        availability_check,
+                                states = [
+                                    resolved_target_availability(
                                         result.target,
                                         disables,
+                                        available=_target_is_available(
+                                            availability_check,
+                                            result.target,
+                                            disables,
+                                        ),
                                     )
                                     for result in member_results
                                 ]
@@ -313,12 +345,12 @@ def _resolve_model_alias_result(
                                     index = select_model_alias_pool_member(
                                         bare,
                                         selector,
-                                        availability,
+                                        pool_availability_mask(states),
                                         consume=consume,
                                     )
                                 else:
                                     index = select_model_alias_fallback_member(
-                                        availability
+                                        fallback_availability_mask(states)
                                     )
                                 return _with_suspended_override(
                                     member_results[index],
@@ -398,20 +430,29 @@ def _resolve_model_alias_result(
                         "_resolved_target_is_available",
                         resolved_target_is_available,
                     )
-                    availability = [
-                        _target_is_available(
-                            availability_check,
+                    states = [
+                        resolved_target_availability(
                             result.target,
                             disables,
+                            available=_target_is_available(
+                                availability_check,
+                                result.target,
+                                disables,
+                            ),
                         )
                         for result in member_results
                     ]
                     if selector.mode == "round_robin":
                         index = select_model_alias_pool_member(
-                            bare, selector, availability, consume=consume
+                            bare,
+                            selector,
+                            pool_availability_mask(states),
+                            consume=consume,
                         )
                     else:
-                        index = select_model_alias_fallback_member(availability)
+                        index = select_model_alias_fallback_member(
+                            fallback_availability_mask(states)
+                        )
                     return member_results[index]
                 current = target
                 steps += 1
@@ -521,7 +562,9 @@ def model_alias_selector_details(
     if selector is None:
         return None
     disables = _capture_provider_disables(provider_disables)
-    resolved: list[tuple[str, _ResolvedModelAlias, str | None, bool]] = []
+    resolved: list[
+        tuple[str, _ResolvedModelAlias, str | None, bool, MemberAvailability]
+    ] = []
     for value in selector.members:
         result = _resolve_model_alias_result(
             value,
@@ -543,18 +586,23 @@ def model_alias_selector_details(
             result.target,
             disables,
         )
-        resolved.append((value, result, provider, available))
+        state = resolved_target_availability(
+            result.target, disables, available=available
+        )
+        resolved.append((value, result, provider, available, state))
 
-    availability = [item[3] for item in resolved]
+    states = [item[4] for item in resolved]
     if selector.mode == "round_robin":
         selected_index = select_model_alias_pool_member(
-            alias, selector, availability, consume=False
+            alias, selector, pool_availability_mask(states), consume=False
         )
     else:
-        selected_index = select_model_alias_fallback_member(availability)
+        selected_index = select_model_alias_fallback_member(
+            fallback_availability_mask(states)
+        )
 
     members: list[ModelAliasSelectorMember] = []
-    for index, (value, result, provider, available) in enumerate(resolved):
+    for index, (value, result, provider, available, state) in enumerate(resolved):
         members.append(
             ModelAliasSelectorMember(
                 value=value,
@@ -565,6 +613,7 @@ def model_alias_selector_details(
                 valid=result.valid,
                 selected=index == selected_index,
                 weight=selector.weights[index],
+                sparing=state == MemberAvailability.SPARING,
             )
         )
     return _ModelAliasSelectorDetails(mode=selector.mode, members=tuple(members))

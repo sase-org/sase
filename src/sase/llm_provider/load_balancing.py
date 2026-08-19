@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import StrEnum
 import fcntl
 from functools import lru_cache
 import hashlib
@@ -438,3 +439,42 @@ def select_model_alias_fallback_member(availability: Sequence[bool]) -> int:
     if not availability:
         raise ValueError("ordered fallback chain is empty")
     return next((index for index, available in enumerate(availability) if available), 0)
+
+
+class MemberAvailability(StrEnum):
+    """Tri-state member availability driving the ``|`` and ``||`` mask rules."""
+
+    PREFERRED = "preferred"
+    SPARING = "sparing"
+    UNAVAILABLE = "unavailable"
+
+
+def pool_availability_mask(states: Sequence[MemberAvailability]) -> list[bool]:
+    """Spare sparing members while any preferred member can cover.
+
+    A ``|`` load-balanced pool prefers hard-available members: when at least
+    one member is :attr:`MemberAvailability.PREFERRED`, every
+    :attr:`MemberAvailability.SPARING` member maps to ``False`` so the pool
+    only rotates among preferred members. When no member is preferred (every
+    member is sparing or unavailable), sparing members map to ``True`` so an
+    everyone-soft pool still rotates normally.
+    :attr:`MemberAvailability.UNAVAILABLE` always maps to ``False``.
+    """
+    any_preferred = any(state == MemberAvailability.PREFERRED for state in states)
+    return [
+        state == MemberAvailability.PREFERRED
+        if any_preferred
+        else state != MemberAvailability.UNAVAILABLE
+        for state in states
+    ]
+
+
+def fallback_availability_mask(states: Sequence[MemberAvailability]) -> list[bool]:
+    """Treat sparing members as available so a soft disable never diverts ``||``.
+
+    A ``||`` ordered fallback chain never diverts past a soft-disabled
+    candidate: both :attr:`MemberAvailability.PREFERRED` and
+    :attr:`MemberAvailability.SPARING` members map to ``True``.
+    :attr:`MemberAvailability.UNAVAILABLE` always maps to ``False``.
+    """
+    return [state != MemberAvailability.UNAVAILABLE for state in states]
