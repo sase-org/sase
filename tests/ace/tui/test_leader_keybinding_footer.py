@@ -113,7 +113,7 @@ def test_footer_surfaces_update_sase_on_all_tabs() -> None:
     for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "U" in _last_keys(captured)
-        assert "update SASE + CLIs + hood cache" in _last_labels(captured)
+        assert "update panel" in _last_labels(captured)
 
 
 def test_footer_surfaces_last_error_on_all_tabs() -> None:

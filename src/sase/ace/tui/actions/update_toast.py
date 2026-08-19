@@ -209,6 +209,7 @@ class UpdateToastMixin:
                 )
         finally:
             self._automatic_update_check_in_flight = False
+        _maybe_refresh_open_update_panel(self)
 
     def _apply_startup_update_status(
         self,
@@ -229,6 +230,7 @@ class UpdateToastMixin:
             self._refresh_updates_indicator(status)
         if config.startup_toast:
             self._show_startup_update_toast(status, sections)
+        _maybe_refresh_open_update_panel(self)
 
     def _show_startup_update_toast(
         self,
@@ -374,6 +376,13 @@ def _build_startup_toast_sections(
 
 _fetch_incoming_commits = fetch_incoming_commits
 _schedule_rust_prebuild = schedule_rust_prebuild
+
+
+def _maybe_refresh_open_update_panel(host: object) -> None:
+    """Push a fresh projection into the Update panel when it is the active screen."""
+    refresh = getattr(host, "_refresh_open_update_panel", None)
+    if callable(refresh):
+        refresh()
 
 
 __all__ = [

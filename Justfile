@@ -343,12 +343,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-qx.5(LaunchUnitCandidate)" \
         --epic-symbol "sase-qx.5(blocked_launch_units)" \
         --epic-symbol "sase-qx.5(plan_launch_units)" \
-        --epic-symbol "sase-r1.5(UpdateOptionChip)" \
-        --epic-symbol "sase-r1.5(UpdateOptionRow)" \
-        --epic-symbol "sase-r1.5(UpdatePanel)" \
-        --epic-symbol "sase-r1.5(UpdatePanelResult)" \
-        --epic-symbol "sase-r1.5(UpdatePanelState)" \
-        --epic-symbol "sase-r1.5(build_update_panel_state)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

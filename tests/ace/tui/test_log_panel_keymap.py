@@ -21,7 +21,10 @@ from sase.ace.tui.modals.config_center_modal import (
     ConfigCenterModal,
 )
 from sase.ace.tui.modals.logs_pane import LogsPane
+from sase.ace.tui.modals.update_panel import UpdatePanel, UpdatePanelResult
+from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.ace.tui.widgets import KeybindingFooter
+from sase.ace.update_scope import UpdateScope
 from sase.logs import clear_registered_errors, register_error
 from tests.ace.tui._leader_keymap_helpers import (
     _capture_bindings,
@@ -39,14 +42,23 @@ def _clear_registered_errors() -> Iterator[None]:
 class _ActionApp(BaseActionsMixin):
     def __init__(self) -> None:
         self.pushed_modals: list[Any] = []
+        self.pushed_callbacks: list[Any] = []
+        self.preview_requests: list[Any] = []
         self.notifications: list[tuple[str, str | None]] = []
         self._last_admin_center_tab: CenterTab | None = None
         self._keymap_registry = load_keymap_registry({})
         self.revalidation_count = 0
+        self._automatic_update_status = None
+        self._automatic_update_provider_names = None
+        self._agents_sync_last_status = None
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
-        del callback
         self.pushed_modals.append(modal)
+        self.pushed_callbacks.append(callback)
+
+    def _submit_update_preview_proc(self, request: Any) -> bool:
+        self.preview_requests.append(request)
+        return True
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -216,28 +228,34 @@ def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
     assert modal._auto_update is False
 
 
-def test_update_sase_shortcut_opens_updates_with_auto_update() -> None:
+def test_update_sase_shortcut_opens_update_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("time.time", lambda: 1_000.0)
     app = _ActionApp()
 
     app.action_update_sase_shortcut()
 
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
-    assert isinstance(modal, ConfigCenterModal)
-    assert modal._initial_tab == "updates"
-    assert modal._auto_update is True
-    assert modal._comprehensive_provider_names is None
+    assert isinstance(modal, UpdatePanel)
+    assert modal._state == build_update_panel_state(None, None, now=1_000.0)
 
 
-def test_update_shortcut_immutably_captures_provider_projection() -> None:
+def test_update_shortcut_confirm_uses_current_provider_projection() -> None:
     app = _ActionApp()
     app._automatic_update_provider_names = ("claude", "codex")
 
     app.action_update_sase_shortcut()
     app._automatic_update_provider_names = ("gemini",)
+    callback = app.pushed_callbacks[0]
+    assert callback is not None
+    callback(UpdatePanelResult(scope="sase"))
 
-    modal = app.pushed_modals[0]
-    assert modal._comprehensive_provider_names == ("claude", "codex")
+    assert len(app.preview_requests) == 1
+    request = app.preview_requests[0]
+    assert request.provider_names == ("gemini",)
+    assert request.scope is UpdateScope.SASE
 
 
 def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
@@ -250,13 +268,17 @@ def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(
     monkeypatch.setattr(Path, "write_text", fail)
     monkeypatch.setattr(subprocess, "run", fail)
     monkeypatch.setattr(subprocess, "Popen", fail)
+    monkeypatch.setattr("sase.updates.get_cached_update_status", fail)
+    monkeypatch.setattr("sase.updates.cache.get_cached_update_status", fail)
+    monkeypatch.setattr("sase.agents_sync.get_agents_sync_status", fail)
+    monkeypatch.setattr("sase.agents_sync.status.get_agents_sync_status", fail)
     app = _ActionApp()
     app._automatic_update_provider_names = ("claude",)
 
     app.action_update_sase_shortcut()
 
     assert len(app.pushed_modals) == 1
-    assert app.pushed_modals[0]._comprehensive_provider_names == ("claude",)
+    assert isinstance(app.pushed_modals[0], UpdatePanel)
 
 
 def test_open_config_center_action_requests_home() -> None:

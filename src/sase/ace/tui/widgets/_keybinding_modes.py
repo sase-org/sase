@@ -411,7 +411,7 @@ class KeybindingModesMixin:
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("models_panel"), "Launch Control"))
-        bindings.append((k("update_sase"), "update SASE + CLIs + hood cache"))
+        bindings.append((k("update_sase"), "update panel"))
         bindings.append((k("jump_to_last_error"), "last error"))
         self._update_display(bindings, mode_label="LEADER")
 

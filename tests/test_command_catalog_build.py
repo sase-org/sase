@@ -253,7 +253,7 @@ def test_update_sase_leader_command_uses_uppercase_u() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.update_sase")
 
-    assert spec.label == "Update SASE, agent CLIs, and cached agent hoods"
+    assert spec.label == "Update panel (SASE, providers, agents)"
     assert spec.key_display == ",U"
     assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"

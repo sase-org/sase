@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Literal
 
 from sase.ace.comprehensive_update import ComprehensiveUpdateResult
@@ -27,6 +28,8 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
     comprehensive_preview_sections,
     handle_comprehensive_noop,
 )
+from sase.ace.tui.modals.update_panel import UpdatePanel
+from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.ace.tui.update_preview_inputs import collect_update_preview_inputs
 from sase.ace.tui.update_restart import restart_after_update
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
@@ -37,6 +40,40 @@ from .proc_actions import TrackedProcCompletion, TrackedProcResult
 
 class UpdateRunActionsMixin:
     """Plan and run scoped updates without an Admin Center pane mounted."""
+
+    def on_update_panel_recheck_requested(self, event: object) -> None:
+        """Re-run the existing periodic checks and mark the open panel busy."""
+        if not isinstance(event, UpdatePanel.RecheckRequested):
+            return
+        self._refresh_open_update_panel(rechecking=True)
+        schedule_update = getattr(self, "_schedule_automatic_update_check", None)
+        if callable(schedule_update):
+            schedule_update(periodic=True)
+        schedule_agents = getattr(self, "_schedule_agents_sync_status_check", None)
+        if callable(schedule_agents):
+            schedule_agents(recompute=True)
+
+    def _refresh_open_update_panel(self, *, rechecking: bool | None = None) -> None:
+        """Rebuild the active Update panel from cached snapshots; otherwise no-op."""
+        try:
+            screen = self.screen  # type: ignore[attr-defined]
+        except Exception:
+            return
+        if not isinstance(screen, UpdatePanel):
+            return
+        if rechecking is None:
+            rechecking = bool(
+                getattr(self, "_automatic_update_check_in_flight", False)
+                or getattr(self, "_agents_sync_check_in_flight", False)
+            )
+        screen.set_state(
+            build_update_panel_state(
+                getattr(self, "_automatic_update_status", None),
+                getattr(self, "_agents_sync_last_status", None),
+                now=time.time(),
+                rechecking=rechecking,
+            )
+        )
 
     def _submit_update_preview_proc(self, request: ComprehensiveUpdateRequest) -> bool:
         """Submit a read-only planning proc for the selected update scope."""

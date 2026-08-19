@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from sase.ace.update_scope import UpdateScope
 from sase.project_display_names import humanize_cl_name
+
 from ..modals import WorkflowSelectModal
+from ..modals.plugins_browser_comprehensive_update_models import (
+    ComprehensiveUpdateRequest,
+)
+from ..modals.update_panel import UpdatePanel, UpdatePanelResult
+from ..update_panel_state import build_update_panel_state
 from ._admin_center_persistence import AdminCenterPersistenceMixin
 
 if TYPE_CHECKING:
@@ -143,15 +151,32 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         self._open_config_center("updates")
 
     def action_update_sase_shortcut(self) -> None:
-        """Open Updates with a snapshot-gated comprehensive request."""
-        # Keystroke dispatch copies only immutable in-memory state.  Provider
-        # inventory, disk, network, and subprocess work begins in pane workers.
-        provider_names = getattr(self, "_automatic_update_provider_names", None)
-        self._open_config_center(
-            "updates",
-            auto_update=True,
-            comprehensive_provider_names=provider_names,
+        """Open the Update panel from already-fetched evidence."""
+        # Keystroke dispatch is allocation-only: project two in-memory
+        # snapshots and push the panel. Preview I/O starts in the
+        # update-preview proc after the user chooses a row.
+        state = build_update_panel_state(
+            getattr(self, "_automatic_update_status", None),
+            getattr(self, "_agents_sync_last_status", None),
+            now=time.time(),
         )
+
+        def on_result(result: UpdatePanelResult | None) -> None:
+            if not isinstance(result, UpdatePanelResult):
+                return
+            submit = getattr(self, "_submit_update_preview_proc", None)
+            if not callable(submit):
+                return
+            submit(
+                ComprehensiveUpdateRequest(
+                    provider_names=getattr(
+                        self, "_automatic_update_provider_names", None
+                    ),
+                    scope=UpdateScope(result.scope),
+                )
+            )
+
+        self.push_screen(UpdatePanel(state), on_result)  # type: ignore[attr-defined]
 
     def action_show_diff(self) -> None:
         """Show diff for the current Patch."""

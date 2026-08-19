@@ -161,6 +161,7 @@ class AgentsSyncActionsMixin:
         if self._agents_sync_revalidation_pending:
             self._agents_sync_revalidation_pending = False
             self._schedule_agents_sync_status_check(recompute=False)
+        _maybe_refresh_open_update_panel(self)
 
     def _set_agents_sync_indicator_status(
         self,
@@ -267,6 +268,13 @@ class AgentsSyncActionsMixin:
         refresh = getattr(self, "_schedule_agents_async_refresh", None)
         if callable(refresh):
             refresh(source=source)
+
+
+def _maybe_refresh_open_update_panel(host: object) -> None:
+    """Push a fresh projection into the Update panel when it is the active screen."""
+    refresh = getattr(host, "_refresh_open_update_panel", None)
+    if callable(refresh):
+        refresh()
 
 
 def initialize_agents_sync_state(self: Any) -> None:
