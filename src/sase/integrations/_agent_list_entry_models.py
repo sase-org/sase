@@ -142,6 +142,8 @@ class AgentListEntry:
     monitor_label: str | None = None
     monitor_command: str | None = None
     monitor_exit_code: int | None = None
+    monitor_start_status: str | None = None
+    monitor_stop_status: str | None = None
 
     @property
     def is_monitor(self) -> bool:

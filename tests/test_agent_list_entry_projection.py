@@ -197,6 +197,7 @@ def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
     assert entry.status_bucket == "Failed"
     assert entry.is_monitor is True
     assert entry.monitor_state == "timeout"
+    assert entry.monitor_stop_status == "SLEPT"
 
 
 def test_live_epic_parent_is_not_terminal() -> None:

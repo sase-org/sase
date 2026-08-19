@@ -161,6 +161,8 @@ class AgentState:
     monitor_state: str | None = None
     monitor_command: str | None = None
     monitor_label: str | None = None
+    monitor_start_status: str | None = None
+    monitor_stop_status: str | None = None
     monitor_exit_code: int | None = None
     monitor_cwd: str | None = None
     monitor_reason: str | None = None

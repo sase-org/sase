@@ -185,7 +185,8 @@ def test_agent_list_includes_live_monitor_family_child(
             monitor_state="running",
             monitor_label="just check",
             monitor_command="just check-full",
-            monitor_start_status="MONITORING",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
         )
     )
     snapshot = AgentArtifactScanWire(
@@ -204,15 +205,19 @@ def test_agent_list_includes_live_monitor_family_child(
     entry = _build_agent_list_entry(info, record=artifact_record)
     payload = _agent_to_json(entry)
 
-    assert info.status == "MONITORING"
+    assert info.status == "TESTING"
     assert info.status_bucket == "Running"
     # The monitor is the only live shell for its family (the starter that
     # handed off to it is dead), so it now holds the family's slot -- that
     # coverage gap is exactly the bug this occupancy rule fixes.
     assert info.holds_runner_slot is True
     assert info.monitor_id == "m123"
+    assert info.monitor_start_status == "TESTING"
+    assert info.monitor_stop_status == "TESTED"
     assert entry.is_monitor is True
     assert entry.monitor_label == "just check"
+    assert entry.monitor_start_status == "TESTING"
+    assert entry.monitor_stop_status == "TESTED"
     assert payload["is_monitor"] is True
     assert payload["monitor_command"] == "just check-full"
     assert payload["status_bucket"] == "Running"
@@ -230,7 +235,8 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
             monitor_state="timeout",
             monitor_label="just check",
             monitor_command="just check-full",
-            monitor_stop_status="MONITORED",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
             status_bucket="Running",
         ),
         has_done_marker=True,
@@ -238,7 +244,7 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
             outcome="monitored",
             monitor_state="timeout",
             monitor_exit_code=124,
-            status_label="MONITORED",
+            status_label="TESTED",
             status_bucket="Running",
         ),
     )
@@ -253,11 +259,15 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
     (info,) = _done_from_snapshot(snapshot, cap_per_project=10)
     entry = _build_agent_list_entry(info, record=artifact_record)
 
-    assert info.status == "MONITORED"
+    assert info.status == "TESTED"
     assert info.status_bucket == "Failed"
     assert info.monitor_exit_code == 124
+    assert info.monitor_start_status == "TESTING"
+    assert info.monitor_stop_status == "TESTED"
     assert entry.status_bucket == "Failed"
     assert entry.is_monitor is True
+    assert entry.monitor_start_status == "TESTING"
+    assert entry.monitor_stop_status == "TESTED"
 
 
 def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> None:

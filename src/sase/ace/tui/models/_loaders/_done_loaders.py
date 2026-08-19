@@ -354,6 +354,7 @@ def _load_done_agent_for_dir(
             agent_name=data.get("name"),
             hidden=bool(data.get("hidden")),
             approve=bool(data.get("approve")),
+            monitor_stop_status=status if outcome == "monitored" else None,
         )
 
         # Retry-chain lineage from done.json (parent-side: forward pointer
@@ -555,6 +556,7 @@ def _build_done_agent_from_record(
         agent_name=done.name,
         hidden=bool(done.hidden),
         approve=bool(done.approve),
+        monitor_stop_status=status if outcome == "monitored" else None,
     )
 
     if done.retried_as_timestamp:

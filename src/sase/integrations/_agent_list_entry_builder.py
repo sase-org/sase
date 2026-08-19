@@ -241,6 +241,15 @@ def build_agent_list_entry(
             _int(done, "monitor_exit_code"),
             _int(meta, "monitor_exit_code"),
         ),
+        monitor_start_status=_recorded_monitor_status(
+            agent.monitor_start_status,
+            _text(meta, "monitor_start_status"),
+        ),
+        monitor_stop_status=_recorded_monitor_status(
+            agent.monitor_stop_status,
+            _text(done, "status_label"),
+            _text(meta, "monitor_stop_status"),
+        ),
     )
 
 
@@ -552,6 +561,13 @@ def _text(obj: object | None, attr: str) -> str | None:
 
 def _first_text(*values: str | None) -> str | None:
     return next((value for value in values if value), None)
+
+
+def _recorded_monitor_status(*values: str | None) -> str | None:
+    raw = _first_text(*values)
+    if raw is None:
+        return None
+    return clamp_monitor_status_or_default(raw, default="") or None
 
 
 def _first_int(*values: int | None) -> int | None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent_groups import _date_bucket_for
+from sase.ace.tui.models.agent_groups._buckets import date_anchor_time
 
 from ._agent_groups_helpers import _NOW, _agent
 
@@ -93,3 +94,34 @@ def test_date_bucket_terminal_agent_without_start_time_uses_stop_time() -> None:
         stop_time=datetime(2026, 4, 26, 9, 0, 0),
     )
     assert _date_bucket_for(a, _NOW) == "Today"
+
+
+def test_date_bucket_settled_monitor_with_custom_stop_label_uses_stop_time() -> None:
+    start = datetime(2026, 4, 24, 18, 9, 0)
+    stop = datetime(2026, 4, 25, 10, 56, 0)
+    a = _agent(
+        status="TESTED",
+        start_time=start,
+        stop_time=stop,
+        agent_family_role="monitor",
+        role_suffix="--mon",
+    )
+    a.monitor_state = "completed"
+
+    assert date_anchor_time(a) == stop
+    assert _date_bucket_for(a, _NOW) == "Yesterday"
+
+
+def test_date_bucket_running_monitor_uses_start_time() -> None:
+    start = datetime(2026, 4, 25, 15, 0, 0)
+    a = _agent(
+        status="TESTING",
+        start_time=start,
+        stop_time=datetime(2026, 4, 26, 11, 0, 0),
+        agent_family_role="monitor",
+        role_suffix="--mon",
+    )
+    a.monitor_state = "running"
+
+    assert date_anchor_time(a) == start
+    assert _date_bucket_for(a, _NOW) == "Yesterday"

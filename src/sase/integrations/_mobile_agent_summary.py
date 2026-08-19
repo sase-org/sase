@@ -10,6 +10,7 @@ from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     PENDING_PLAN_REVIEW_STATUSES,
 )
+from sase.monitor_status import monitor_status_accent, monitor_status_pair
 from sase.project_display_names import project_display_name_for
 
 from ._mobile_agent_common import (
@@ -176,6 +177,18 @@ def agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
             "label": agent.monitor_label,
             "command": agent.monitor_command,
             "exit_code": optional_uint(agent.monitor_exit_code),
+            "start_status": agent.monitor_start_status,
+            "stop_status": agent.monitor_stop_status,
+            "accent": (
+                monitor_status_accent(
+                    monitor_status_pair(
+                        agent.monitor_start_status,
+                        agent.monitor_stop_status,
+                    )
+                )
+                if agent.monitor_start_status or agent.monitor_stop_status
+                else None
+            ),
         },
         "retry_lineage": lineage,
         "actions": {

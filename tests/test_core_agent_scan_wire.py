@@ -563,6 +563,8 @@ def test_monitor_marker_fields_round_trip() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
+    assert record.agent_meta.monitor_start_status == "MONITORING"
+    assert record.agent_meta.monitor_stop_status == "MONITORED"
     assert record.agent_meta.monitor_id == "m4kq"
     assert record.agent_meta.monitor_command == "just check-full"
     assert record.agent_meta.monitor_state == "running"
@@ -593,6 +595,51 @@ def test_monitor_marker_fields_round_trip() -> None:
     done_payload = payload["records"][0]["done"]
     assert done_payload["monitor_state"] == "completed"
     assert done_payload["status_label"] == "MONITORED"
+    assert meta_payload["monitor_start_status"] == "MONITORING"
+    assert meta_payload["monitor_stop_status"] == "MONITORED"
+
+
+def test_monitor_custom_stop_status_round_trips() -> None:
+    """A custom stop label must survive the agent artifact scan."""
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [
+                _record_payload(
+                    agent_meta={
+                        "name": "acme--mon",
+                        "agent_family": "acme",
+                        "agent_family_role": "monitor",
+                        "monitor_id": "m4kq",
+                        "monitor_start_status": "TESTING",
+                        "monitor_stop_status": "TESTED",
+                        "monitor_state": "completed",
+                    },
+                    done={
+                        "outcome": "monitored",
+                        "monitor_state": "completed",
+                        "status_label": "TESTED",
+                    },
+                )
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.agent_meta.monitor_start_status == "TESTING"
+    assert record.agent_meta.monitor_stop_status == "TESTED"
+    assert record.done is not None
+    assert record.done.status_label == "TESTED"
+
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    meta_payload = payload["records"][0]["agent_meta"]
+    assert meta_payload["monitor_start_status"] == "TESTING"
+    assert meta_payload["monitor_stop_status"] == "TESTED"
+    assert payload["records"][0]["done"]["status_label"] == "TESTED"
 
 
 def test_monitor_marker_fields_default_for_older_records() -> None:

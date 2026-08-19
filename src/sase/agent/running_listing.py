@@ -78,6 +78,8 @@ class RunningAgentInfo:
     monitor_label: str | None = None
     monitor_command: str | None = None
     monitor_exit_code: int | None = None
+    monitor_start_status: str | None = None
+    monitor_stop_status: str | None = None
 
     @property
     def is_monitor(self) -> bool:
@@ -196,6 +198,13 @@ def _runner_slot_holder_dirs(
         if serial_holder is not None:
             holders.add(serial_holder)
     return frozenset(holders)
+
+
+def _recorded_monitor_status(value: str | None) -> str | None:
+    """Clamp a stored monitor label, or return ``None`` when missing/invalid."""
+    if value is None:
+        return None
+    return clamp_monitor_status_or_default(value, default="") or None
 
 
 def _is_monitor_member_meta(meta: object | None) -> bool:
@@ -353,6 +362,8 @@ def _running_info_from_running_record(
         monitor_label=meta.monitor_label,
         monitor_command=meta.monitor_command,
         monitor_exit_code=meta.monitor_exit_code,
+        monitor_start_status=_recorded_monitor_status(meta.monitor_start_status),
+        monitor_stop_status=_recorded_monitor_status(meta.monitor_stop_status),
     )
 
 
@@ -557,6 +568,13 @@ def _done_info_from_record(
         else meta.monitor_exit_code
         if meta is not None
         else None,
+        monitor_start_status=_recorded_monitor_status(
+            meta.monitor_start_status if meta is not None else None
+        ),
+        monitor_stop_status=_recorded_monitor_status(
+            done.status_label
+            or (meta.monitor_stop_status if meta is not None else None)
+        ),
     )
 
 

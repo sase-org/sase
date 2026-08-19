@@ -129,6 +129,8 @@ def test_list_mobile_agents_projects_monitor_metadata(
     monitor.monitor_state = "running"
     monitor.monitor_label = "just check"
     monitor.monitor_command = "just check-full"
+    monitor.monitor_start_status = "TESTING"
+    monitor.monitor_stop_status = "TESTED"
     monkeypatch.setattr(
         mobile_agents,
         "list_running_agents",
@@ -145,6 +147,9 @@ def test_list_mobile_agents_projects_monitor_metadata(
         "label": "just check",
         "command": "just check-full",
         "exit_code": None,
+        "start_status": "TESTING",
+        "stop_status": "TESTED",
+        "accent": "#6FC4FF",
     }
     assert agent["actions"]["can_kill"] is True
 

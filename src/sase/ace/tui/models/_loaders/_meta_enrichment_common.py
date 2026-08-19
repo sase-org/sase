@@ -41,6 +41,7 @@ def apply_monitor_meta(
     monitor_command: object,
     monitor_label: object,
     monitor_start_status: object,
+    monitor_stop_status: object,
     monitor_exit_code: object,
     monitor_cwd: object = None,
     monitor_reason: object = None,
@@ -62,6 +63,14 @@ def apply_monitor_meta(
         monitor_command if isinstance(monitor_command, str) else None
     )
     agent.monitor_label = monitor_label if isinstance(monitor_label, str) else None
+    if isinstance(monitor_start_status, str):
+        start_status = clamp_monitor_status_or_default(monitor_start_status, default="")
+        if start_status:
+            agent.monitor_start_status = start_status
+    if isinstance(monitor_stop_status, str):
+        stop_status = clamp_monitor_status_or_default(monitor_stop_status, default="")
+        if stop_status:
+            agent.monitor_stop_status = stop_status
     if type(monitor_exit_code) is int:
         agent.monitor_exit_code = monitor_exit_code
     agent.monitor_cwd = monitor_cwd if isinstance(monitor_cwd, str) else None
@@ -112,6 +121,9 @@ def apply_monitor_done(
         agent.monitor_exit_code = monitor_exit_code
     if isinstance(status_label, str) and status_label:
         agent.status = status_label
+        agent.monitor_stop_status = (
+            clamp_monitor_status_or_default(status_label, default="") or None
+        )
     if isinstance(monitor_followup_outcome, str) and monitor_followup_outcome:
         agent.monitor_followup_outcome = monitor_followup_outcome
     if isinstance(monitor_followup_error, str) and monitor_followup_error:

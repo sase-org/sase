@@ -11,7 +11,10 @@ import pytest
 from sase.ace.tui.models._loaders._meta_enrichment_filesystem import (
     enrich_agent_from_meta,
 )
-from sase.ace.tui.models._loaders._done_loaders import load_done_agents_from_snapshot
+from sase.ace.tui.models._loaders._done_loaders import (
+    _load_done_agent_for_dir,
+    load_done_agents_from_snapshot,
+)
 from sase.ace.tui.models._loaders._meta_enrichment_wire import (
     enrich_agent_from_meta_wire,
 )
@@ -71,6 +74,8 @@ def test_running_monitor_meta_projects_start_label_and_bucket() -> None:
     assert agent.status_bucket == "Running"
     assert agent.monitor_label == "just check"
     assert agent.monitor_command == "just check-full"
+    assert agent.monitor_start_status == "MONITORING"
+    assert agent.monitor_stop_status is None
 
 
 def test_running_monitor_meta_projects_detail_fields() -> None:
@@ -228,6 +233,7 @@ def test_terminal_monitor_done_projects_stop_label_and_exit_code() -> None:
     assert agent.status_bucket == "Failed"
     assert agent.monitor_state == "failed"
     assert agent.monitor_exit_code == 1
+    assert agent.monitor_stop_status == "CHECKED"
 
 
 def _settled_monitor_record(
@@ -366,6 +372,131 @@ def test_running_monitor_workflow_row_still_projects_as_monitoring() -> None:
 
     assert agent.is_monitor is True
     assert agent.status == "MONITORING"
+
+
+def test_wire_monitor_meta_projects_custom_stop_status() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-row",
+        project_file="/tmp/monitor.sase",
+        status="STARTING",
+        start_time=datetime(2026, 8, 12, 9, 0, 0),
+        raw_suffix="20260812090000",
+    )
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            name="alpha--mon",
+            monitor_id="m123",
+            monitor_state="running",
+            monitor_command="just check-full",
+            monitor_label="just check",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
+            run_started_at="2026-08-12T13:00:00Z",
+            agent_family="alpha",
+            agent_family_role="monitor",
+            role_suffix="--mon",
+        ),
+        waiting=None,
+    )
+
+    assert agent.status == "TESTING"
+    assert agent.monitor_start_status == "TESTING"
+    assert agent.monitor_stop_status == "TESTED"
+
+
+def test_filesystem_monitor_meta_projects_custom_stop_status(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "alpha--mon",
+                "monitor_id": "m123",
+                "monitor_state": "running",
+                "monitor_command": "just check-full",
+                "monitor_label": "just check",
+                "monitor_start_status": "TESTING",
+                "monitor_stop_status": "TESTED",
+                "run_started_at": "2026-08-12T13:00:00Z",
+                "agent_family": "alpha",
+                "agent_family_role": "monitor",
+                "role_suffix": "--mon",
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-row",
+        project_file="/tmp/monitor.sase",
+        status="STARTING",
+        start_time=datetime(2026, 8, 12, 9, 0, 0),
+        raw_suffix="20260812090000",
+    )
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "TESTING"
+    assert agent.monitor_start_status == "TESTING"
+    assert agent.monitor_stop_status == "TESTED"
+
+
+def test_done_only_monitor_row_projects_custom_stop_status(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "20260812090000"
+    artifact_dir.mkdir()
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "cl_name": "monitor-row",
+                "outcome": "monitored",
+                "project_file": "/tmp/monitor.sase",
+                "monitor_state": "completed",
+                "status_label": "TESTED",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.status == "TESTED"
+    assert agent.monitor_stop_status == "TESTED"
+    assert agent.monitor_state == "completed"
+
+
+def test_wire_done_only_monitor_row_projects_custom_stop_status() -> None:
+    snapshot = AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="/tmp/.sase/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[
+            AgentArtifactRecordWire(
+                project_name="sase",
+                project_dir="/tmp/.sase/projects/sase",
+                project_file="/tmp/.sase/projects/sase/sase.sase",
+                workflow_dir_name="ace-run",
+                artifact_dir="/tmp/.sase/projects/sase/artifacts/ace-run/20260812090000",
+                timestamp="20260812090000",
+                done=DoneMarkerWire(
+                    outcome="monitored",
+                    cl_name="monitor-row",
+                    project_file="/tmp/.sase/projects/sase/sase.sase",
+                    monitor_state="completed",
+                    status_label="TESTED",
+                ),
+                has_done_marker=True,
+            )
+        ],
+    )
+
+    (agent,) = load_done_agents_from_snapshot(snapshot, {}, {})
+
+    assert agent.status == "TESTED"
+    assert agent.monitor_stop_status == "TESTED"
+    assert agent.monitor_state == "completed"
 
 
 def test_load_all_agents_settled_monitor_projects_one_resolvable_row() -> None:

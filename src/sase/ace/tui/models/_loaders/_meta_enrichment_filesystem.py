@@ -385,6 +385,7 @@ def enrich_agent_from_meta(
         monitor_command=data.get("monitor_command"),
         monitor_label=data.get("monitor_label"),
         monitor_start_status=data.get("monitor_start_status"),
+        monitor_stop_status=data.get("monitor_stop_status"),
         monitor_exit_code=data.get("monitor_exit_code"),
         monitor_cwd=data.get("monitor_cwd"),
         monitor_reason=data.get("monitor_reason"),
