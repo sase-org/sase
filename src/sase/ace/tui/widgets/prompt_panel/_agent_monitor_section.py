@@ -13,6 +13,11 @@ from sase.monitor_state import (
     MONITOR_GLYPH_COLOR,
     MONITOR_TIMEOUT_GLYPH,
 )
+from sase.monitor_status import (
+    effective_monitor_status,
+    monitor_status_pair,
+    monitor_status_style,
+)
 
 from ...models.agent import Agent
 from ...models.agent_time import compute_row_runtime
@@ -50,6 +55,23 @@ def _state_text(monitor_state: str | None) -> Text:
     return Text(f"{glyph} {monitor_state or 'unknown'}", style=style)
 
 
+def _status_pair_text(agent: Agent) -> Text:
+    """Return ``start → stop`` with the effective half in its accent."""
+    pair = monitor_status_pair(agent.monitor_start_status, agent.monitor_stop_status)
+    style = monitor_status_style(pair, monitor_state=agent.monitor_state)
+    effective = effective_monitor_status(
+        pair, monitor_state=agent.monitor_state, settled=False
+    )
+    text = Text()
+    if pair.start == pair.stop:
+        text.append(pair.start, style=style)
+        return text
+    text.append(pair.start, style=style if effective == pair.start else "dim")
+    text.append(" → ", style="dim")
+    text.append(pair.stop, style=style if effective == pair.stop else "dim")
+    return text
+
+
 def _monitor_output_source_id(agent: Agent) -> str:
     """Return the shared ``render_axe_output`` cache slot for ``agent``."""
     return f"monitor:{agent.monitor_id or agent.identity}"
@@ -84,6 +106,9 @@ def _monitor_field_parts(
         text.append(_field_label("Next action:"), style=COLOR_SUMMARY)
         text.append(f"{agent.monitor_next_action}\n", style=COLOR_REASON)
 
+    text.append(_field_label("Status:"), style=COLOR_SUMMARY)
+    text.append_text(_status_pair_text(agent))
+    text.append("\n")
     text.append(_field_label("State:"), style=COLOR_SUMMARY)
     text.append_text(_state_text(agent.monitor_state))
     if agent.monitor_exit_code is not None:

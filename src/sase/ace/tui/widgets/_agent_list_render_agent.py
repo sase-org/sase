@@ -100,6 +100,7 @@ from ._agent_list_styling import (
     _TREE_GUIDE,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+    monitor_status_presentation,
 )
 
 
@@ -293,16 +294,16 @@ def format_agent_option(
     row_prefix = text.plain
     status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("
     text.append(status_opener, style="dim")
-    if agent.status == "STARTING":
+    presentation = monitor_status_presentation(agent)
+    if presentation is not None:
+        style, glyph = presentation
+        text.append(display_status, style=style)
+        if glyph:
+            text.append(f" {glyph}", style=style)
+    elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
         text.append(display_status, style=f"bold {RUNNING_COLOR}")
-    elif agent.is_monitor and agent.monitor_state == "running":
-        text.append(display_status, style=_MONITOR_GLYPH_STYLE)
-    elif agent.is_monitor and agent.monitor_state in {"completed", "stopped"}:
-        text.append(display_status, style="bold #5FD75F")
-    elif agent.is_monitor and agent.monitor_state in {"failed", "timeout", "lost"}:
-        text.append(display_status, style="bold #FF5F5F")
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":

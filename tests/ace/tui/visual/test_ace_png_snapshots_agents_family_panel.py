@@ -145,6 +145,8 @@ def _family_agents(
                 agent_family_role="monitor",
                 monitor_id="gh6fddk5v3g9",
                 monitor_state="completed",
+                monitor_start_status="MONITORING",
+                monitor_stop_status="MONITORED",
                 monitor_command="just check-full",
                 monitor_cwd="/workspace/sase",
                 monitor_reason="Full-suite verification before landing",

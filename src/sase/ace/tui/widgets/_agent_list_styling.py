@@ -1,10 +1,19 @@
 """Constants, colors, and icons for the agent list widget."""
 
+from __future__ import annotations
+
+from typing import Protocol
+
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
 from sase.monitor_state import (
     MONITOR_GLYPH,
     MONITOR_GLYPH_COLOR,
     MONITOR_SETTLED_GLYPH_COLOR,
+)
+from sase.monitor_status import (
+    monitor_status_glyph,
+    monitor_status_pair,
+    monitor_status_style,
 )
 
 from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
@@ -189,3 +198,39 @@ _TYPE_GLYPHS: dict[str, str] = {
     "cl": "❑",
     "patch": "❑",
 }
+
+
+class _MonitorStatusPresentationRow(Protocol):
+    status: str
+    monitor_start_status: str | None
+    monitor_stop_status: str | None
+    monitor_state: str | None
+
+
+def monitor_status_presentation(
+    row: _MonitorStatusPresentationRow,
+) -> tuple[str, str] | None:
+    """Return ``(style, glyph)`` when *row* is displaying a monitor status.
+
+    A row uses monitor-status styling when its ``status`` equals either
+    half of its recorded pair. That covers the monitor member itself and a
+    family container currently mirroring one. Rows with no recorded pair,
+    or whose status matches neither half, return ``None`` so ordinary
+    status styling applies.
+
+    The returned glyph is the status-outcome marker. Failed monitors
+    return an empty glyph so the existing ``✗ <code>`` / stalled-``⚠``
+    branches remain the only cross — otherwise a dead-on-arrival row
+    would show both ``✗`` and ``⚠``.
+    """
+    start = row.monitor_start_status
+    stop = row.monitor_stop_status
+    if not start and not stop:
+        return None
+    pair = monitor_status_pair(start, stop)
+    if row.status.casefold() not in {pair.start.casefold(), pair.stop.casefold()}:
+        return None
+    glyph = monitor_status_glyph(row.monitor_state)
+    if row.monitor_state == "failed":
+        glyph = ""
+    return monitor_status_style(pair, monitor_state=row.monitor_state), glyph

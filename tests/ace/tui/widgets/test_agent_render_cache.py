@@ -611,6 +611,49 @@ def _monitor_row_render_key(
     )
 
 
+def test_agent_render_key_differs_when_monitor_pair_changes() -> None:
+    started = datetime(2026, 4, 25, 14, 30, 0)
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha-mon",
+        project_file="/tmp/monitor.sase",
+        status="TESTING",
+        start_time=started,
+        raw_suffix="20260425143001",
+        parent_timestamp="20260425143000",
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m1",
+        monitor_state="running",
+        monitor_label="just check",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+    )
+    before = agent_render_key(
+        monitor,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
+    monitor.monitor_start_status = "SLEEPING"
+    monitor.monitor_stop_status = "SLEPT"
+    monitor.status = "SLEEPING"
+    after = agent_render_key(
+        monitor,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
+
+    assert before != after
+
+
 def test_agent_render_key_differs_for_running_and_settled_monitor_rows() -> None:
     running_key = _monitor_row_render_key(monitor_state="running", stop_time=None)
     settled_key = _monitor_row_render_key(

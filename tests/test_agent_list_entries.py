@@ -8,7 +8,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 
 from sase.agent.running_listing import _done_from_snapshot, _running_from_snapshot
-from sase.agents.cli_list import _agent_to_json
+from sase.agents.cli_list import _agent_to_json, _status_badge
 from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanStatsWire,
@@ -221,6 +221,11 @@ def test_agent_list_includes_live_monitor_family_child(
     assert payload["is_monitor"] is True
     assert payload["monitor_command"] == "just check-full"
     assert payload["status_bucket"] == "Running"
+    assert payload["monitor_start_status"] == "TESTING"
+    assert payload["monitor_stop_status"] == "TESTED"
+    badge = _status_badge(entry)
+    assert badge.plain == "TESTING"
+    assert str(badge.style) == "bold #6FC4FF"
 
 
 def test_agent_list_includes_terminal_monitor_family_child() -> None:
@@ -268,6 +273,12 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
     assert entry.is_monitor is True
     assert entry.monitor_start_status == "TESTING"
     assert entry.monitor_stop_status == "TESTED"
+    payload = _agent_to_json(entry)
+    assert payload["monitor_start_status"] == "TESTING"
+    assert payload["monitor_stop_status"] == "TESTED"
+    badge = _status_badge(entry)
+    assert badge.plain == "TESTED ⧖"
+    assert str(badge.style) == "bold #FF5F5F"
 
 
 def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> None:

@@ -231,6 +231,8 @@ def agent_render_key(
         agent.monitor_id,
         agent.monitor_state,
         agent.monitor_label,
+        agent.monitor_start_status,
+        agent.monitor_stop_status,
         agent.monitor_exit_code,
         tuple(wait_agent.waiting_for),
         tuple(wait_agent.waiting_for_beads),

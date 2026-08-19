@@ -137,6 +137,8 @@ def settled_monitor_family_agents() -> list[Agent]:
             monitor_id=f"mon-{suffix}",
             monitor_state=monitor_state,
             monitor_label=f"visual {suffix}",
+            monitor_start_status="MONITORING",
+            monitor_stop_status="MONITORED",
             monitor_exit_code=exit_code,
             llm_provider="codex",
             model="gpt-5",

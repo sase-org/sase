@@ -13,6 +13,7 @@ from rich.text import Text
 
 from sase.agents.status_style import agent_status_text
 from sase.integrations.agent_list_entries import AgentListEntry, agent_list_entries
+from sase.monitor_status import monitor_status_pair
 from sase.project_display_names import (
     project_display_name_for,
     humanize_vcs_refs_in_text,
@@ -96,6 +97,8 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "monitor_label": agent.monitor_label,
         "monitor_command": agent.monitor_command,
         "monitor_exit_code": agent.monitor_exit_code,
+        "monitor_start_status": agent.monitor_start_status,
+        "monitor_stop_status": agent.monitor_stop_status,
     }
 
 
@@ -137,7 +140,7 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
             agent.model or "-",
             _provider_badge(agent.provider),
             agent.duration,
-            _status_badge(agent.status),
+            _status_badge(agent),
             _truncate_prompt(
                 humanize_vcs_refs_in_text(agent.prompt) if agent.prompt else None,
                 _PROMPT_PRETTY_MAX_CHARS,
@@ -147,8 +150,15 @@ def _print_pretty(agents: list[AgentListEntry], *, include_all: bool) -> None:
     console.print(Panel(table, title=title, border_style="cyan"))
 
 
-def _status_badge(status: str) -> Text:
-    return agent_status_text(status)
+def _status_badge(agent: AgentListEntry) -> Text:
+    monitor = None
+    if agent.monitor_start_status or agent.monitor_stop_status:
+        monitor = monitor_status_pair(
+            agent.monitor_start_status, agent.monitor_stop_status
+        )
+    return agent_status_text(
+        agent.status, monitor=monitor, monitor_state=agent.monitor_state
+    )
 
 
 def _provider_badge(provider: str | None) -> Text:

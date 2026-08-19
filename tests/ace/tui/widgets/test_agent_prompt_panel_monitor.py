@@ -48,6 +48,8 @@ def _monitor_agent(
         monitor_id="m123abc456def",
         monitor_state=monitor_state,
         monitor_label="just check",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
         monitor_command="just check-full",
         monitor_cwd="/home/bryan/sase",
         monitor_reason="Verify the refactor before replying",
@@ -203,6 +205,48 @@ def _assert_failed_is_ansi_styled(rendered: object) -> None:
             if span.style is not None and str(span.style) not in {"", "none"}:
                 styled = True
     assert styled
+
+
+def _style_at(text: Text, token: str) -> str | None:
+    start = text.plain.index(token)
+    for span in reversed(text.spans):
+        if span.start <= start < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
+
+
+def _text_containing(rendered: object, token: str) -> Text:
+    for text in _iter_texts(rendered):
+        if token in text.plain:
+            return text
+    raise AssertionError(f"{token!r} not found in rendered monitor section")
+
+
+def test_monitor_section_shows_status_pair_above_state() -> None:
+    rendered = _render(_monitor_agent())
+    text = "\n".join(_console_lines(rendered))
+
+    status_at = text.index("Status:")
+    state_at = text.index("State:")
+    assert status_at < state_at
+    assert "TESTING" in text
+    assert "TESTED" in text
+    assert "→" in text
+
+
+def test_monitor_section_dims_the_inactive_status_half() -> None:
+    running = _text_containing(_render(_monitor_agent()), "TESTING")
+    assert _style_at(running, "TESTING") == "bold #6FC4FF"
+    assert _style_at(running, "TESTED") == "dim"
+
+    done = _text_containing(
+        _render(
+            _monitor_agent(status="TESTED", monitor_state="completed", exit_code=0)
+        ),
+        "TESTING",
+    )
+    assert _style_at(done, "TESTING") == "dim"
+    assert _style_at(done, "TESTED") == "#6FC4FF"
 
 
 def test_monitor_row_renders_monitor_section_fields() -> None:
