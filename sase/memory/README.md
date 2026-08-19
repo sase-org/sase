@@ -64,8 +64,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 14
-- Approx. tokens: 127
+- Lines: 15
+- Approx. tokens: 147
 
 ### `sase/memory/gotchas.md`
 
@@ -134,8 +134,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read before adding, deferring, or removing a SASE feature flag or flag
   bead.
 - Parent: `AGENTS.md`
-- Lines: 40
-- Approx. tokens: 472
+- Lines: 63
+- Approx. tokens: 795
 
 ### `sase/memory/sase_sizes.md`
 
@@ -179,8 +179,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 14
 - Short notes: 6
 - Long notes: 8
-- Total lines: 883
-- Total approx. tokens: 11045
+- Total lines: 907
+- Total approx. tokens: 11388
 
 ## Commands
 

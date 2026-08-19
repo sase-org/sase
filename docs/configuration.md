@@ -2283,12 +2283,12 @@ axe:
           script: sase_chop_bead_task_triage
           timeout: "2m"
           description: |-
-            Raise one human gate for each ready or snoozed task bead, and for each due flag bead
+            Raise one human gate for each ready or snoozed task bead, and for each due flag-typed task bead
 
-            Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
+            Scans enabled projects every five minutes and gives every live task bead exactly one pending
             gate: a TaskTriage gate while a task bead is ready and has at least its effective +1 bar in reports
             (its own task type's triage.min_plus_ones, else the global bead.task_triage.min_plus_ones), a BeadSnooze
-            wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and
+            wake gate while it is snoozed, and a FlagTriage gate once a flag-typed task bead's date and
             release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
             triage without changing its stored status, and a gate already raised for a bead that falls below the
             bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
@@ -3437,11 +3437,11 @@ description and default. Unknown keys are tolerated by the schema so downgraded 
 can still read a config written by a newer SASE, but the resolver warns and ignores
 unknown keys at runtime.
 
-Resolution order is registry default, user config, overlay configs, project-local config
-for `scope: "project"` flags only, explicit in-process test overrides,
-`SASE_FEATURE_FLAGS`, then the root CLI options. Plugin config layers never flip
-first-party flag defaults. A local config entry for a global flag is ignored with a
-warning, because ACE disables project-local config and global flags must resolve
+Resolution order is registry default, user config, overlay configs, explicit in-process
+test overrides, `SASE_FEATURE_FLAGS`, then the root CLI options. Plugin config layers
+never flip first-party flag defaults. A local-config entry for any feature flag is
+ignored with a `scope_violation` warning: a feature flag cannot be set from the `local`
+config layer, because ACE disables project-local config and flags must resolve
 consistently across frontends.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
@@ -3458,9 +3458,10 @@ prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /
 `CLI:--disable-feature`).
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
-hand. The command creates the dedicated `flag` removal bead, prints the registry entry,
-and gives the both-states test checklist. See [Beads](beads.md#flag-bead-lifecycle) for
-the removal lifecycle.
+hand. The command creates a task bead of type `flag`, prints the registry entry, and
+gives the both-states test checklist. Kinds are `beta` (default off) and `sunset`
+(default on); the registry default is derived from the kind. See
+[Beads](beads.md#flag-bead-lifecycle) for the removal lifecycle.
 
 Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`
 
@@ -4364,43 +4365,43 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 
 #### `sase bead create`
 
-| Flag                           | Values                                         | Default    | Description                                                                                                      |
-| ------------------------------ | ---------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                      |
-| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, `flag(<key>,<date>,<release>)`, or `task(<slug>)` |
-| `-f, --field`                  | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                         |
-| `-d, --description`            | string                                         | -          | Issue description                                                                                                |
-| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                    |
-| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                              |
-| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                         |
-| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                           |
-| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                 |
-| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                        |
-| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                              |
+| Flag                           | Values                                         | Default    | Description                                                                                                         |
+| ------------------------------ | ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                         |
+| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new` |
+| `-f, --field`                  | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                            |
+| `-d, --description`            | string                                         | -          | Issue description                                                                                                   |
+| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                       |
+| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                 |
+| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                            |
+| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                              |
+| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                    |
+| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                           |
+| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                 |
 
 #### `sase bead list`
 
-| Flag              | Values                                              | Default     | Description                                                          |
-| ----------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                        |
-| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all |
-| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                        |
-| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads     |
-| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                |
-| `-t, --type`      | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                          |
+| Flag              | Values                                              | Default     | Description                                                            |
+| ----------------- | --------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                          |
+| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all   |
+| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                          |
+| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads       |
+| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                  |
+| `-t, --type`      | `plan`, `phase`, `task`                             | -           | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
 
 #### `sase bead search`
 
-| Flag              | Values                                              | Default     | Description                                                         |
-| ----------------- | --------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
-| `query`           | string                                              | (required)  | Literal non-empty text to search for                                |
-| `-c, --color`     | `auto`, `always`, `never`                           | `auto`      | Color mode for compact output                                       |
-| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                       |
-| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                  |
-| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
-| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads    |
-| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                               |
-| `-t, --type`      | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                         |
+| Flag              | Values                                              | Default     | Description                                                            |
+| ----------------- | --------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| `query`           | string                                              | (required)  | Literal non-empty text to search for                                   |
+| `-c, --color`     | `auto`, `always`, `never`                           | `auto`      | Color mode for compact output                                          |
+| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                          |
+| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                     |
+| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default    |
+| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads       |
+| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                  |
+| `-t, --type`      | `plan`, `phase`, `task`                             | -           | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
 
 #### `sase bead task-type`
 
@@ -4435,19 +4436,19 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 
 #### `sase bead update`
 
-| Flag                | Values                                              | Default    | Description                             |
-| ------------------- | --------------------------------------------------- | ---------- | --------------------------------------- |
-| `ids`               | string                                              | (required) | One or more full or shorthand issue IDs |
-| `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only     |
-| `-t, --title`       | string                                              | -          | Change title                            |
-| `-d, --description` | string                                              | -          | Change description                      |
-| `-n, --notes`       | string                                              | -          | Change notes                            |
-| `-D, --design`      | path                                                | -          | Change design path; all types accepted  |
-| `-a, --assignee`    | string                                              | -          | Change assignee                         |
-| `-m, --model`       | string                                              | -          | Change launch model                     |
-| `-b, --remove-by`   | `YYYY-MM-DD/release`                                | -          | Extend one flag bead's thresholds       |
-| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                  |
-| `-r, --tier`        | `plan`, `epic`                                      | -          | Change plan-bead tier                   |
+| Flag                | Values                                              | Default    | Description                              |
+| ------------------- | --------------------------------------------------- | ---------- | ---------------------------------------- |
+| `ids`               | string                                              | (required) | One or more full or shorthand issue IDs  |
+| `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only      |
+| `-t, --title`       | string                                              | -          | Change title                             |
+| `-d, --description` | string                                              | -          | Change description                       |
+| `-n, --notes`       | string                                              | -          | Change notes                             |
+| `-D, --design`      | path                                                | -          | Change design path; all types accepted   |
+| `-a, --assignee`    | string                                              | -          | Change assignee                          |
+| `-m, --model`       | string                                              | -          | Change launch model                      |
+| `-b, --remove-by`   | `YYYY-MM-DD/release`                                | -          | Extend one `flag` task bead's thresholds |
+| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                   |
+| `-r, --tier`        | `plan`, `epic`                                      | -          | Change plan-bead tier                    |
 
 #### `sase bead close`
 
@@ -4568,15 +4569,15 @@ Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. 
 
 With no subcommand, `sase flag` defaults to `sase flag list`.
 
-| Form             | Flag or argument                                                                      | Description                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `sase flag list` | `-j, --json`                                                                          | List registered flags, resolved values, provenance, beads, and due state.    |
-| `sase flag show` | `<key>`, `-j/--json`                                                                  | Show one flag's full decision, bead thresholds, diagnostics, and call sites. |
-| `sase flag new`  | `<key>`, `-d/--description`, `-k/--kind`, `-r/--remove-by`, `-s/--scope`, `-z/--size` | Create the dedicated flag bead and print the registry entry to paste.        |
+| Form             | Flag or argument                                                                                                                                | Description                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `sase flag list` | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, beads, and due state.    |
+| `sase flag show` | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, bead thresholds, diagnostics, and call sites. |
+| `sase flag new`  | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.             |
 
 `new` requires a SASE-managed checkout because the registry lives in this source tree.
-For `ops` flags, `new` skips bead creation and uses the description as the required
-rationale.
+`--when-enabled`, `--when-disabled`, and `--remove-when` are required and each accepts
+`@<path>`. `-k/--kind` is `beta` (default; off) or `sunset` (on). There is no `--scope`.
 
 ### `sase file-hook`
 

@@ -70,7 +70,8 @@ beta, an early landed path, or a deprecation whose old branch must stay reachabl
 SHOULD NOT flag anything users are meant to choose forever; that is a config field.
 
 Create one only with `sase flag new <key>`, which also files its `flag` removal bead.
-Read `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
+Flags are a `sase`-project concern, and a flag bead is a task bead of type `flag`. Read
+`sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
 removing any flag.
 
 ### 1.3 Code Conventions and Gotchas (gotchas)

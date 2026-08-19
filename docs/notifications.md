@@ -295,20 +295,20 @@ notification class, including a snoozed tale or epic review.
 
 The following events generate notifications:
 
-| Sender                         | Event                                                                                                                                                                                               |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                                                                           |
-| `bead`                         | A task bead needs triage, a snoozed task woke, a due flag bead needs `FlagTriage`, stale uncorroborated tasks need `BeadStaleCleanup`, or a failed phase agent stalled an epic (`EpicResume`, beta) |
-| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                                                                           |
-| `launch`                       | A running agent requested a new agent launch for approval                                                                                                                                           |
-| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                                                                      |
-| `hitl`                         | A workflow HITL step is waiting for user input                                                                                                                                                      |
-| `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                                                                               |
-| `sync`                         | A sync operation completed for a Patch                                                                                                                                                              |
-| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                                                                                   |
-| `file-hooks`                   | A configured per-file hook completed or failed                                                                                                                                                      |
-| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                            |
-| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                                                                            |
+| Sender                         | Event                                                                                                                                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                                                                                  |
+| `bead`                         | A task bead needs triage, a snoozed task woke, a due `flag` task bead needs `FlagTriage`, stale uncorroborated tasks need `BeadStaleCleanup`, or a failed phase agent stalled an epic (`EpicResume`, beta) |
+| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                                                                                  |
+| `launch`                       | A running agent requested a new agent launch for approval                                                                                                                                                  |
+| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                                                                             |
+| `hitl`                         | A workflow HITL step is waiting for user input                                                                                                                                                             |
+| `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                                                                                      |
+| `sync`                         | A sync operation completed for a Patch                                                                                                                                                                     |
+| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                                                                                          |
+| `file-hooks`                   | A configured per-file hook completed or failed                                                                                                                                                             |
+| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                                   |
+| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                                                                                   |
 
 ### Task Triage Notification
 
@@ -403,22 +403,24 @@ whichever is reached first wins.
 
 ### Flag Triage Notification
 
-A due flag bead raises one `FlagTriage` gate through the same `bead_task_triage`
-reconciler that owns task gates. The notification lands in the `Beads` panel with `bead`
-and `flag` tags. Its preview shows the flag key, both removal thresholds, the due
-countdown, the registry definition, notes, and call sites.
+A due task bead of type `flag` raises one `FlagTriage` gate through the same
+`bead_task_triage` reconciler that owns the other two task-bead gate kinds. The
+notification lands in the `Beads` panel with `bead` and `task` tags plus the `flag` type
+chip and tag. Its preview shows the flag key, kind, both-branch prose, `remove_when`,
+both removal thresholds, the due countdown, the registry definition, notes, and call
+sites.
 
 The gate offers four branches:
 
-- **Remove** is the primary path. It requires the winning branch (`enabled` or
-  `disabled`) and launches a worker to delete the losing branch, remove the registry
-  entry, and close the flag bead.
-- **Extend** requires a new date/release threshold and a reason, then rewrites the flag
-  bead's `remove_by` metadata and leaves it live.
-- **Keep** requires a rationale for making the behavior permanent and routes the flag
-  toward `ops` or an ordinary config field.
-- **Close** requires a reason and closes the bead; registry/bead integrity checks catch
-  any surviving orphaned flag.
+- **Remove** is the primary path. It deletes the Off branch and makes the On branch
+  unconditional, requires the winning branch (`enabled` or `disabled`) for the worker
+  brief, and launches a worker to remove the registry entry and close the flag bead.
+- **Extend** requires a new date/release threshold and a reason, then pushes both
+  thresholds out and leaves the bead live.
+- **Keep** requires a rationale for making the behavior permanent. It was never a
+  feature flag; convert it to an ordinary config field and close the bead.
+- **Close** abandons the removal. It requires a reason and closes the bead;
+  registry/bead integrity checks catch any surviving orphaned flag.
 
 ### Stale Task Cleanup Notification
 

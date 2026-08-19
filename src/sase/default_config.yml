@@ -821,12 +821,12 @@ axe:
           script: sase_chop_bead_task_triage
           timeout: "2m"
           description: |-
-            Raise one human gate for each ready or snoozed task bead, and for each due flag bead
+            Raise one human gate for each ready or snoozed task bead, and for each due flag-typed task bead
 
-            Scans enabled projects every five minutes and gives every live task or flag bead exactly one pending
+            Scans enabled projects every five minutes and gives every live task bead exactly one pending
             gate: a TaskTriage gate while a task bead is ready and has at least its effective +1 bar in reports
             (its own task type's triage.min_plus_ones, else the global bead.task_triage.min_plus_ones), a BeadSnooze
-            wake gate while it is snoozed, and a FlagTriage gate once a flag bead's date and release removal
+            wake gate while it is snoozed, and a FlagTriage gate once a flag-typed task bead's date and release removal
             thresholds have both passed. A ready task bead below the +1 bar is withheld from
             triage without changing its stored status, and a gate already raised for a bead that falls below the
             bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent

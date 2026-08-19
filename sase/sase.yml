@@ -74,17 +74,18 @@ memory:
     Feature Flag:
       definition: >-
         A feature flag is a code-owned boolean route for SASE behavior that reaches
-        users before it is ready to become unconditional. Non-ops flags are temporary,
-        are created through `sase flag new`, and must be removed through their dedicated
-        flag bead.
+        users before it is ready to become unconditional. Flags are temporary, are
+        created through `sase flag new`, and must be removed through their dedicated
+        `flag` task bead.
     Flag Bead:
       aliases:
         - flag bead
       definition: >-
-        A flag bead is the dedicated top-level removal bead for one non-ops feature
-        flag. It owns the flag key plus the `remove_by_date` and `remove_by_release`
-        thresholds that drive `FlagTriage`; it is not the epic or task that introduced
-        the behavior.
+        A flag bead is a task bead of type `flag`: the dedicated top-level removal
+        dossier for one SASE feature flag. It owns the flag key, kind, both-branch
+        prose, and the `remove_by_date` and `remove_by_release` thresholds that drive
+        `FlagTriage`. It is not a fourth issue type and not the epic or task that
+        introduced the behavior.
     Patch:
       definition: >-
         A Patch is SASE's local unit of change. Every PR created or managed by SASE is
@@ -197,10 +198,10 @@ memory:
         - task type
       definition: >-
         A task type is the required, plugin-extensible flavor of a task bead — `bug`,
-        `ci`, `feature`, `flake`, `memory`, and plugin slugs such as `github`. It is
-        distinct from the bead's issue type (`plan`, `phase`, `task`, `flag`). New
-        tasks take `-T "task(<slug>)"` plus `-f/--field` values; the type is
-        immutable after create. The catalog is assembled from builtins,
+        `ci`, `feature`, `flake`, `memory`, the project-local `flag` type, and plugin
+        slugs such as `github`. It is distinct from the bead's issue type (`plan`,
+        `phase`, `task`). New tasks take `-T "task(<slug>)"` plus `-f/--field` values;
+        the type is immutable after create. The catalog is assembled from builtins,
         `sase_task_types` plugins, and `bead.task_types` project config, then
         snapshotted to `sase/task_types.json` so generated instructions stay a
         function of committed files and Required Plugin entries rather than whichever

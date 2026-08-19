@@ -238,24 +238,24 @@ Lower-frequency status checks:
 
 | Chop                    | Description                                                           |
 | ----------------------- | --------------------------------------------------------------------- |
-| `bead_task_triage`      | Reconcile the one pending gate each task or flag bead owns            |
+| `bead_task_triage`      | Reconcile the one pending gate each task bead owns                    |
 | `epic_resume`           | Raise one `EpicResume` gate per epic stalled by a failed phase (beta) |
 | `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins          |
 | `pr_submitted_checks`   | Start PR submission status checks                                     |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup                                   |
 
-**A live task or flag bead has at most one pending gate**, and `bead_task_triage` is the
-single owner of that invariant. It scans enabled non-home projects for task beads whose
-stored status is `ready` or `snoozed`, and for flag beads whose status is `open` and
-whose date and release removal thresholds have both passed, and derives the gate kind
-from that status and type: a ready task gets a `TaskTriage` gate, a snoozed one gets a
-`BeadSnooze` gate, and a due flag bead gets a `FlagTriage` gate. All three kinds are
-reconciled in the same pass, under one lock and one lane state, so no second chop can
-race this one into giving a bead two gates. The bead-to-request mapping — including
-which kind each bead currently holds — lives in the checks lumberjack's state directory.
-This scan does not call the dependency-aware `sase bead ready` query, so a stored-ready
-task with an active blocker still receives a gate. A flag bead's due-ness is derived
-through the one shared `flag_removal_due` predicate, never recomputed here.
+**A live task bead has at most one pending gate**, and `bead_task_triage` is the single
+owner of that invariant. It scans enabled non-home projects for task beads and derives
+one of three gate kinds from that one issue type: a ready task gets a `TaskTriage` gate,
+a snoozed one gets a `BeadSnooze` gate, and a task bead of type `flag` whose status is
+`open` and whose date and release removal thresholds have both passed gets a
+`FlagTriage` gate. All three kinds are reconciled in the same pass, under one lock and
+one lane state, so no second chop can race this one into giving a bead two gates. The
+bead-to-request mapping — including which kind each bead currently holds — lives in the
+checks lumberjack's state directory. This scan does not call the dependency-aware
+`sase bead ready` query, so a stored-ready task with an active blocker still receives a
+gate. A flag task bead's due-ness is derived through the one shared `flag_removal_due`
+predicate, never recomputed here.
 
 A ready task bead additionally needs at least its
 [effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports before it
@@ -266,7 +266,7 @@ from triage without any change to its stored status — it stays `ready` and sta
 to `sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
 `TaskTriage` gate already raised for a bead that later falls below the bar is canceled
 (reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
-chop's next tick. Snoozed and flag beads are never subject to this bar.
+chop's next tick. Snoozed beads and `flag` task beads are never subject to this bar.
 
 A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
 bead leaves its gateable status or type through a launch, close, extension, or manual
@@ -289,9 +289,9 @@ was snoozed while its triage gate was pending is asking a different question now
 that check outranks the presentation comparison below. Otherwise the chop compares a
 presentation and gate-contract fingerprint over every stored field the gate renders:
 status, the whole snooze record, title, description, notes, size, creation time, refs,
-+1 evidence, close history, and (for a flag bead) its key, thresholds, and due state,
-plus explicit renderer and option-contract versions. A mismatch cancels the gate as
-`task_triage_presentation_changed` and re-raises it, so an edited description, a
++1 evidence, close history, and (for a `flag` task bead) its key, kind, thresholds, and
+due state, plus explicit renderer and option-contract versions. A mismatch cancels the
+gate as `task_triage_presentation_changed` and re-raises it, so an edited description, a
 re-snooze, an extended threshold, or an obsolete interaction contract never leaves a
 gate advertising stale content, the old wake time, or superseded controls. While a
 `BeadSnooze` gate stays pending and unchanged, the chop also re-snoozes its notification
@@ -313,16 +313,17 @@ target into one expression. See
 and the [standalone task workflow](beads.md#standalone-task-workflow) for the
 human-facing lifecycle.
 
-The `FlagTriage` gate presents the flag's key, both removal thresholds, its countdown,
-and the registry definition's kind and description (or a callout when no definition
-names the key), and offers four options. **Remove** (the primary branch) collects a
-required `winner` choice (`enabled` or `disabled`) and submits the same deduplicated
-`sase bead work <flag-id> --yes-to-all` proc, carrying a brief naming the winning
-branch; **Extend** requires a reason plus a new date and release line, rewrites the
-bead's thresholds, and leaves it `open` so the next tick finds it no longer due and
-cancels the gate as stale; **Keep** requires a reason and launches a worker to promote
-the definition to `kind: "ops"` or convert it to an ordinary config field, then close
-the bead; **Close** requires a reason and closes the bead as `canceled`, leaving
+The `FlagTriage` gate presents the flag's key, kind, both-branch prose, `remove_when`,
+both removal thresholds, its countdown, and the registry definition's description (or a
+callout when no definition names the key), and offers four options. **Remove** (the
+primary branch) deletes the Off branch and makes the On branch unconditional; it
+collects a required `winner` choice (`enabled` or `disabled`) for the worker brief and
+submits the same deduplicated `sase bead work <flag-id> --yes-to-all` proc; **Extend**
+requires a reason plus a new date and release line, pushes both thresholds out, and
+leaves the bead `open` so the next tick finds it no longer due and cancels the gate as
+stale; **Keep** requires a reason and launches a worker to convert the behavior into an
+ordinary config field, then close the bead — it was never a feature flag; **Close**
+requires a reason and abandons the removal by closing the bead as `canceled`, leaving
 `tools/check_feature_flags`' closed-bead-with-surviving-definition check to catch the
 orphan if the flag itself survives.
 
