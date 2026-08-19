@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from tests._suite_gate import WorkerTokenLease
+from tests._suite_gate_lease import WorkerTokenLease
 from tests._test_selection_gear import (
     REFUSED_TOKENS_UNAVAILABLE,
     SCOPED_WORKER_FLOOR,
@@ -89,6 +89,13 @@ def _build_scoped_repo(root: Path) -> None:
     for module in (
         "_contention.py",
         "_suite_gate.py",
+        "_suite_gate_budget.py",
+        "_suite_gate_env.py",
+        "_suite_gate_holders.py",
+        "_suite_gate_lease.py",
+        "_suite_gate_messages.py",
+        "_suite_gate_pool.py",
+        "_suite_gate_progress.py",
         "_test_cost.py",
         "_test_cost_budgets.py",
         "_test_cost_plugin.py",

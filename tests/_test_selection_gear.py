@@ -17,9 +17,9 @@ Two properties are load-bearing, and both are refusals rather than features:
 
 * **It never queues.** The lane's defining promise is that it does not wait
   behind another agent's run, so the request is a single non-blocking attempt
-  (:meth:`tests._suite_gate.WorkerTokenLease.try_acquire`). A grant that is not
-  available *right now* is not taken, and the run escalates exactly as it would
-  have without this module.
+  (:meth:`tests._suite_gate_lease.WorkerTokenLease.try_acquire`). A grant that
+  is not available *right now* is not taken, and the run escalates exactly as
+  it would have without this module.
 * **It never widens itself.** The ceiling is small
   (:data:`DEFAULT_SCOPED_WORKER_CEILING`) and the width is the gate's answer,
   not the caller's request — which is why ``tools/run_pytest`` still rejects
@@ -42,11 +42,9 @@ from typing import Any
 
 import pytest
 
-from tests._suite_gate import (
-    WorkerTokenLease,
-    configured_token_budget,
-    gate_directory,
-)
+from tests._suite_gate_budget import configured_token_budget
+from tests._suite_gate_env import gate_directory
+from tests._suite_gate_lease import WorkerTokenLease
 
 
 #: Caps the tokens the scoped lane will ask for. Deliberately small: the gear

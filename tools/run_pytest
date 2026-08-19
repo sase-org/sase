@@ -28,15 +28,14 @@ from tests._contention import (  # noqa: E402
     read_failures,
     tally_failures,
 )
-from tests._suite_gate import (  # noqa: E402
-    WorkerTokenLease,
+from tests._suite_gate import descendant_exemption  # noqa: E402
+from tests._suite_gate_budget import (  # noqa: E402
     automatic_worker_range,
     configured_token_budget,
-    descendant_exemption,
     fit_request_to_budget,
-    gate_directory,
-    gate_timeout,
 )
+from tests._suite_gate_env import gate_directory, gate_timeout  # noqa: E402
+from tests._suite_gate_lease import WorkerTokenLease  # noqa: E402
 from tests._test_selection import (  # noqa: E402
     Selection,
     SelectionOptions,

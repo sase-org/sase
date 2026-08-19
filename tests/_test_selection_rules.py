@@ -103,6 +103,13 @@ ROOT_CONFTEST_PATHS = frozenset(
         "tests/_conftest_runtime.py",
         "tests/_conftest_shared.py",
         "tests/_suite_gate.py",
+        "tests/_suite_gate_budget.py",
+        "tests/_suite_gate_env.py",
+        "tests/_suite_gate_holders.py",
+        "tests/_suite_gate_lease.py",
+        "tests/_suite_gate_messages.py",
+        "tests/_suite_gate_pool.py",
+        "tests/_suite_gate_progress.py",
         "tests/_tmp_leak_guard.py",
         "tests/_project_display_case.py",
     }

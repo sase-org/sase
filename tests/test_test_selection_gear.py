@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from tests._suite_gate import WorkerTokenLease
+from tests._suite_gate_lease import WorkerTokenLease
 from tests._test_selection import Selection, SelectionOptions, select_tests
 from tests._test_selection_fixtures import (
     _touch,

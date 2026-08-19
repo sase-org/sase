@@ -14,17 +14,19 @@ from typing import cast
 import pytest
 
 from tests._suite_gate import (
-    WorkerTokenLease,
-    _calculate_default_token_budget,
-    _read_mem_available_kib,
-    automatic_worker_range,
     configure_suite_gate,
-    configured_token_budget,
     descendant_exemption,
-    holder_reclaim_reason,
     record_lease_progress,
     unconfigure_suite_gate,
 )
+from tests._suite_gate_budget import (
+    _calculate_default_token_budget,
+    _read_mem_available_kib,
+    automatic_worker_range,
+    configured_token_budget,
+)
+from tests._suite_gate_holders import holder_reclaim_reason
+from tests._suite_gate_lease import WorkerTokenLease
 
 
 pytestmark = pytest.mark.contract
@@ -391,7 +393,7 @@ def test_tokens_are_reacquirable_after_exec_holder_is_sigkilled(
         (
             "import os, sys",
             "from pathlib import Path",
-            "from tests._suite_gate import WorkerTokenLease",
+            "from tests._suite_gate_lease import WorkerTokenLease",
             "lease = WorkerTokenLease(Path(sys.argv[1]), 3, 5, "
             "capacity_is_explicit=True)",
             "lease.acquire(3, 3, exact=True)",
@@ -674,7 +676,7 @@ def test_waiter_reclaims_stale_live_holder(
         (
             "import sys, time",
             "from pathlib import Path",
-            "from tests._suite_gate import WorkerTokenLease",
+            "from tests._suite_gate_lease import WorkerTokenLease",
             "lease = WorkerTokenLease(Path(sys.argv[1]), 2, 5, "
             "capacity_is_explicit=True, watchdog_interval=0.0)",
             "lease.acquire(2, 2, exact=True)",
@@ -712,7 +714,7 @@ def test_watchdog_releases_a_stale_grant(
         (
             "import sys, time",
             "from pathlib import Path",
-            "from tests._suite_gate import WorkerTokenLease",
+            "from tests._suite_gate_lease import WorkerTokenLease",
             "lease = WorkerTokenLease(Path(sys.argv[1]), 1, 5, "
             "capacity_is_explicit=True, stale_timeout=0.05, "
             "watchdog_interval=0.05, max_hold=0.0)",
@@ -748,7 +750,8 @@ def test_fresh_heartbeat_is_not_reclaimed(
         (
             "import os, sys, time",
             "from pathlib import Path",
-            "from tests._suite_gate import WorkerTokenLease, record_lease_progress",
+            "from tests._suite_gate import record_lease_progress",
+            "from tests._suite_gate_lease import WorkerTokenLease",
             "os.environ.pop('PYTEST_XDIST_WORKER', None)",
             "os.environ['SASE_TEST_GATE_DIR'] = sys.argv[1]",
             "lease = WorkerTokenLease(Path(sys.argv[1]), 1, 5, "
@@ -789,7 +792,8 @@ def test_max_hold_reclaims_even_with_fresh_heartbeat(
         (
             "import os, sys, time",
             "from pathlib import Path",
-            "from tests._suite_gate import WorkerTokenLease, record_lease_progress",
+            "from tests._suite_gate import record_lease_progress",
+            "from tests._suite_gate_lease import WorkerTokenLease",
             "os.environ.pop('PYTEST_XDIST_WORKER', None)",
             "os.environ['SASE_TEST_GATE_DIR'] = sys.argv[1]",
             "lease = WorkerTokenLease(Path(sys.argv[1]), 1, 5, "
