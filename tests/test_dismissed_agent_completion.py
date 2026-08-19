@@ -216,9 +216,21 @@ def test_archived_default_monitor_status_uses_monitor_state(
     assert candidate.is_failed is (not expected_resolved)
 
 
-def test_archived_custom_monitor_stop_status_remains_fail_closed(
+@pytest.mark.parametrize(
+    ("monitor_state", "expected_resolved"),
+    [
+        ("completed", True),
+        ("stopped", True),
+        ("failed", False),
+        ("timeout", False),
+        (None, False),
+    ],
+)
+def test_archived_recorded_stop_status_uses_monitor_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    monitor_state: str | None,
+    expected_resolved: bool,
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     artifact_dir = make_agent(
@@ -228,12 +240,95 @@ def test_archived_custom_monitor_stop_status_remains_fail_closed(
         "worker",
     )
     add_archive_identity(artifact_dir)
+    extra: dict[str, str] = {"monitor_stop_status": "TESTED"}
+    if monitor_state is not None:
+        extra["monitor_state"] = monitor_state
+    write_dismissed_completion(
+        tmp_path,
+        artifact_dir,
+        "worker",
+        status="TESTED",
+        extra=extra,
+    )
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert _wait_classification(index, artifact_dir=artifact_dir, name="worker") == (
+        expected_resolved,
+        expected_resolved,
+    )
+    candidate = index.artifacts_by_dir[str(artifact_dir)]
+    assert candidate.archived_completion is not None
+    assert candidate.is_failed is (not expected_resolved)
+
+
+def test_archived_recorded_stop_status_compare_is_case_insensitive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260720162200",
+        "worker",
+    )
+    add_archive_identity(artifact_dir)
+    write_dismissed_completion(
+        tmp_path,
+        artifact_dir,
+        "worker",
+        status="tested",
+        extra={"monitor_stop_status": "TESTED", "monitor_state": "completed"},
+    )
+    rebuild_completion_archive()
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    assert _wait_classification(index, artifact_dir=artifact_dir, name="worker") == (
+        True,
+        True,
+    )
+
+
+@pytest.mark.parametrize(
+    ("extra", "suffix"),
+    [
+        ({"monitor_state": "completed"}, "20260720162300"),
+        (
+            {"monitor_state": "completed", "monitor_stop_status": "TESTED"},
+            "20260720162400",
+        ),
+    ],
+    ids=["unrecorded_custom_label", "mismatched_recorded_pair"],
+)
+def test_archived_custom_monitor_stop_status_remains_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra: dict[str, str],
+    suffix: str,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifact_dir = make_agent(
+        tmp_path,
+        "proj",
+        suffix,
+        "worker",
+    )
+    add_archive_identity(artifact_dir)
     write_dismissed_completion(
         tmp_path,
         artifact_dir,
         "worker",
         status="SLEPT",
-        extra={"monitor_state": "completed"},
+        extra=extra,
     )
     rebuild_completion_archive()
 

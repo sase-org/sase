@@ -14,7 +14,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
+from sase.monitor_status import (
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 
 SUCCESS_OUTCOME = "completed"
 FAILURE_OUTCOME = "failed"
@@ -239,13 +242,17 @@ def _archived_outcome_from_bundle(data: Mapping[str, Any]) -> str | None:
     outcome = _archived_outcome_from_status(status)
     if outcome is not None:
         return outcome
-    if (
-        not isinstance(status, str)
-        or status.strip().upper() != DEFAULT_MONITOR_STOP_STATUS
-    ):
-        # A custom monitor stop status is indistinguishable from an arbitrary
-        # user status in the archive summary, so preserve the fail-closed
-        # behavior rather than guessing.
+    if not isinstance(status, str):
+        return None
+    raw_stop = data.get("monitor_stop_status")
+    recorded_stop = clamp_monitor_status_or_default(
+        raw_stop if isinstance(raw_stop, str) else None,
+        default=DEFAULT_MONITOR_STOP_STATUS,
+    )
+    if status.strip().upper() != recorded_stop.strip().upper():
+        # Custom labels only resolve when they match the bundle's recorded
+        # stop status. An unrecorded or mismatched label is indistinguishable
+        # from an arbitrary user status, so fail closed rather than guessing.
         return None
     return effective_done_outcome(
         {
