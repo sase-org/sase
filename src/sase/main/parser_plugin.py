@@ -55,6 +55,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plugin list -v            # add stars, last-updated, topics\n"
             "  sase plugin list -o            # use cached catalog/latest data only\n"
             "  sase plugin list -r            # refetch the catalog from GitHub\n"
+            "  sase plugin list -A            # also probe latest for uninstalled plugins\n"
             "  sase plugin show github        # detail view of one plugin\n"
             "  sase plugin show github -j     # machine-readable JSON\n"
             "  sase plugin show github -o     # detail view without network checks\n"
@@ -87,10 +88,19 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plugin list --json\n"
             "  sase plugin list --offline\n"
             "  sase plugin list --refresh\n"
-            "  sase plugin list --verbose"
+            "  sase plugin list --verbose\n"
+            "  sase plugin list --all-latest"
         ),
     )
     _add_load_flags(list_parser)
+    list_parser.add_argument(
+        "-A",
+        "--all-latest",
+        action="store_true",
+        help=(
+            "Fetch latest versions for every catalog entry, not just installed plugins"
+        ),
+    )
     list_parser.add_argument(
         "-v",
         "--verbose",

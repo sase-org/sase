@@ -3346,6 +3346,11 @@
           "description": "Opt-in beta: the epic_resume chop raises an EpicResume gate when a failed phase agent stalls an epic.",
           "default": false
         },
+        "plugin_catalog_scoped_latest": {
+          "type": "boolean",
+          "description": "Eager PyPI latest-version enrichment is limited to installed plugins. The Updates > Plugins highlighted row lazily fetches latest for the current uninstalled entry through the detail debouncer. sase plugin show still fetches the requested plugin. sase plugin list stays installed-only unless -A|--all-latest.",
+          "default": false
+        },
         "prettier_enabled": {
           "type": "boolean",
           "description": "Format markdown with prettier when it is installed. SASE_DISABLE_PRETTIER remains a deprecated alias.",

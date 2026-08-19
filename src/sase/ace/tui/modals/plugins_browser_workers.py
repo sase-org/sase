@@ -44,6 +44,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _error: str | None
         _fresh_editable_roots_evidence: tuple[frozenset[str], float] | None
         _incoming_commit_workers: dict[int, Any]
+        _plugin_latest_workers: dict[int, str]
         _incoming_commits_enabled: bool
         _incoming_commits_limit: int
         _install_mode: str | None
@@ -90,6 +91,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
 
         def _on_incoming_commits_worker_state(
             self, event: Worker.StateChanged, key: Any
+        ) -> None: ...
+
+        def _on_plugin_latest_worker_state(
+            self, event: Worker.StateChanged, key: str
         ) -> None: ...
 
         def _on_install_preview(self, result: Any) -> None: ...
@@ -167,6 +172,10 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         incoming_key = self._incoming_commit_workers.get(id(event.worker))
         if incoming_key is not None:
             self._on_incoming_commits_worker_state(event, incoming_key)
+            return
+        latest_key = self._plugin_latest_workers.get(id(event.worker))
+        if latest_key is not None:
+            self._on_plugin_latest_worker_state(event, latest_key)
             return
         if event.worker is self._plan_worker:
             if event.state == WorkerState.SUCCESS:

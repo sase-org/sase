@@ -7,15 +7,17 @@ import importlib.metadata
 import json
 import time
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from sase.dev_update.detect import detect_dev_latest
 from sase.dev_update.models import DevLatest
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.plugins.latest_cache import (
     CachedLatest,
     is_fresh,
+    prune_latest_cache,
     read_cache,
     write_cache,
 )
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
     from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 
 LatestSource = Literal["index", "git", "editable", "unknown"]
+EagerScope = Literal["all", "installed"]
 
 FetchLatestFn = Callable[[str], str | None]
 ReadLatestCacheFn = Callable[[], dict[str, CachedLatest]]
@@ -46,6 +49,7 @@ class _DetectDevLatestFn(Protocol):
 
 
 _MAX_WORKERS = 8
+_FETCH_DEADLINE_SECONDS = 8.0
 
 
 @dataclass(frozen=True)
@@ -132,6 +136,59 @@ def _runtime_version_records() -> Sequence[VersionPackageRecord]:
     return collect_runtime_version_inventory(include_plugins=True).packages
 
 
+def latest_cache_key(entry: PluginCatalogEntry) -> str:
+    """Return the latest-version cache key for *entry*."""
+    return _cache_key(entry)
+
+
+def enrich_entry_latest(
+    entry: PluginCatalogEntry,
+    *,
+    offline: bool = False,
+    refresh: bool = False,
+    fetch_fn: FetchLatestFn = fetch_latest_version,
+    read_cache_fn: ReadLatestCacheFn = read_cache,
+    write_cache_fn: WriteLatestCacheFn = write_cache,
+    clock: ClockFn = time.time,
+    installed_source_fn: InstalledSourceFn | None = None,
+    version_records_fn: VersionRecordsFn | None = _runtime_version_records,
+    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
+    max_workers: int = 1,
+    deadline_seconds: float | None = _FETCH_DEADLINE_SECONDS,
+    monotonic: ClockFn = time.monotonic,
+) -> PluginCatalogEntry:
+    """Return *entry* with latest-version metadata attached.
+
+    Used by the Updates pane's lazy highlighted-row fetch. Always eager for
+    this single entry, independent of :class:`FeatureFlag.plugin_catalog_scoped_latest`.
+    """
+    from sase.plugins.catalog import PluginCatalog
+
+    catalog = PluginCatalog(
+        fetched_at=0.0,
+        entries=(entry,),
+        from_cache=True,
+        stale=False,
+    )
+    enriched = enrich_with_latest(
+        catalog,
+        offline=offline,
+        refresh=refresh,
+        fetch_fn=fetch_fn,
+        read_cache_fn=read_cache_fn,
+        write_cache_fn=write_cache_fn,
+        clock=clock,
+        installed_source_fn=installed_source_fn,
+        version_records_fn=version_records_fn,
+        detect_dev_latest_fn=detect_dev_latest_fn,
+        max_workers=max_workers,
+        scope="all",
+        deadline_seconds=deadline_seconds,
+        monotonic=monotonic,
+    )
+    return enriched.entries[0]
+
+
 def enrich_with_latest(
     catalog: PluginCatalog,
     *,
@@ -145,16 +202,35 @@ def enrich_with_latest(
     version_records_fn: VersionRecordsFn | None = _runtime_version_records,
     detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
     max_workers: int = _MAX_WORKERS,
+    scope: EagerScope | None = None,
+    include_keys: Sequence[str] = (),
+    deadline_seconds: float | None = _FETCH_DEADLINE_SECONDS,
+    monotonic: ClockFn = time.monotonic,
 ) -> PluginCatalog:
-    """Return *catalog* with latest-version metadata attached to every entry."""
+    """Return *catalog* with latest-version metadata attached to entries.
+
+    When *scope* is ``None``, :class:`FeatureFlag.plugin_catalog_scoped_latest`
+    chooses between eager enrichment of every entry (``"all"``, the pre-scale
+    default) and installed entries only (``"installed"``). *include_keys*
+    always join the eager set so ``sase plugin show`` can fetch one uninstalled
+    plugin without a catalog-wide network storm. Refresh force-expires entries
+    in that eager set instead of discarding the whole cache.
+    """
     now = clock()
     installed_source_fn = (
         _installed_source if installed_source_fn is None else installed_source_fn
     )
-    cached = {} if refresh and not offline else _safe_read_cache(read_cache_fn)
+    eager_scope = _resolve_eager_scope(scope)
+    include = {normalize_distribution_name(key) for key in include_keys if key} - {""}
+    cached = _safe_read_cache(read_cache_fn)
     resolved: dict[str, LatestInfo] = {}
     misses: dict[str, str] = {}
     records = _record_lookup(_safe_version_records(version_records_fn))
+    installed_versions = {
+        key: entry.installed.version
+        for entry in catalog.entries
+        if (key := _cache_key(entry))
+    }
 
     for entry in catalog.entries:
         key = _cache_key(entry)
@@ -179,9 +255,11 @@ def enrich_with_latest(
                 current_version=entry.installed.version,
             )
             continue
+        if not _is_eager_entry(entry, key, scope=eager_scope, include=include):
+            continue
 
         cached_entry = cached.get(key)
-        if cached_entry is not None and is_fresh(cached_entry, now):
+        if not refresh and cached_entry is not None and is_fresh(cached_entry, now):
             resolved[key] = LatestInfo(
                 checked=True,
                 version=cached_entry.version,
@@ -205,7 +283,13 @@ def enrich_with_latest(
         misses[key] = _dist_name(entry)
 
     if misses:
-        fetched = _fetch_misses(misses, fetch_fn=fetch_fn, max_workers=max_workers)
+        fetched = _fetch_misses(
+            misses,
+            fetch_fn=fetch_fn,
+            max_workers=max_workers,
+            deadline_seconds=deadline_seconds,
+            monotonic=monotonic,
+        )
         updated_cache = dict(cached)
         for key, version in fetched.items():
             updated_cache[key] = CachedLatest(version=version, fetched_at=now)
@@ -215,9 +299,9 @@ def enrich_with_latest(
                 source="index",
                 error=None if version else "unavailable",
                 install_type=_install_type(records.get(key), "index"),
-                current_version=_installed_version_for_key(catalog, key),
+                current_version=installed_versions.get(key),
             )
-        _safe_write_cache(write_cache_fn, updated_cache)
+        _safe_write_cache(write_cache_fn, prune_latest_cache(updated_cache, now))
 
     entries = tuple(
         dataclasses.replace(
@@ -226,6 +310,26 @@ def enrich_with_latest(
         for entry in catalog.entries
     )
     return dataclasses.replace(catalog, entries=entries)
+
+
+def _resolve_eager_scope(scope: EagerScope | None) -> EagerScope:
+    if scope is not None:
+        return scope
+    if current_flags().enabled(FeatureFlag.plugin_catalog_scoped_latest):
+        return "installed"
+    return "all"
+
+
+def _is_eager_entry(
+    entry: PluginCatalogEntry,
+    key: str,
+    *,
+    scope: EagerScope,
+    include: set[str],
+) -> bool:
+    if scope == "all" or key in include:
+        return True
+    return entry.installed.installed
 
 
 def _safe_read_cache(read_cache_fn: ReadLatestCacheFn) -> dict[str, CachedLatest]:
@@ -356,19 +460,64 @@ def _fetch_misses(
     *,
     fetch_fn: FetchLatestFn,
     max_workers: int,
+    deadline_seconds: float | None = _FETCH_DEADLINE_SECONDS,
+    monotonic: ClockFn = time.monotonic,
 ) -> dict[str, str | None]:
+    if not misses:
+        return {}
+    started = monotonic()
     workers = max(1, min(max_workers, len(misses)))
-    if workers == 1:
-        return {key: _safe_fetch(dist, fetch_fn) for key, dist in misses.items()}
 
-    results: dict[str, str | None] = {}
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    def remaining() -> float | None:
+        if deadline_seconds is None:
+            return None
+        return max(0.0, deadline_seconds - (monotonic() - started))
+
+    if workers == 1:
+        results: dict[str, str | None] = {}
+        for key, dist in misses.items():
+            left = remaining()
+            if left is not None and left <= 0:
+                results[key] = None
+                continue
+            results[key] = _safe_fetch(dist, fetch_fn)
+        return results
+
+    results = {}
+    executor = ThreadPoolExecutor(max_workers=workers)
+    try:
         futures = {
             executor.submit(_safe_fetch, dist, fetch_fn): key
             for key, dist in misses.items()
         }
-        for future in as_completed(futures):
-            results[futures[future]] = future.result()
+        pending = set(futures)
+        while pending:
+            left = remaining()
+            if left is not None and left <= 0:
+                for future in pending:
+                    future.cancel()
+                    results[futures[future]] = None
+                break
+            done, pending = wait(
+                pending,
+                timeout=left,
+                return_when=FIRST_COMPLETED,
+            )
+            if not done and left is not None:
+                for future in pending:
+                    future.cancel()
+                    results[futures[future]] = None
+                break
+            for future in done:
+                key = futures[future]
+                try:
+                    results[key] = future.result()
+                except Exception:  # noqa: BLE001 - one failed lookup must not sink the batch.
+                    results[key] = None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    for key in misses:
+        results.setdefault(key, None)
     return results
 
 
@@ -411,13 +560,6 @@ def _install_type(
     return fallback
 
 
-def _installed_version_for_key(catalog: PluginCatalog, key: str) -> str | None:
-    for entry in catalog.entries:
-        if _cache_key(entry) == key:
-            return entry.installed.version
-    return None
-
-
 def _dedupe(values: Sequence[str]) -> tuple[str, ...]:
     seen: set[str] = set()
     result: list[str] = []
@@ -431,12 +573,15 @@ def _dedupe(values: Sequence[str]) -> tuple[str, ...]:
 
 
 __all__ = [
+    "EagerScope",
     "FetchLatestFn",
     "InstalledSourceFn",
     "LatestInfo",
     "LatestSource",
     "VersionRecordsFn",
+    "enrich_entry_latest",
     "enrich_with_latest",
     "installed_source",
     "is_newer",
+    "latest_cache_key",
 ]

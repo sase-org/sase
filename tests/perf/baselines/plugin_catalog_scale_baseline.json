@@ -11,7 +11,7 @@
   "filter_keystroke": "q",
   "target_p95_ms": 16.0,
   "budgets_enforced": false,
-  "notes": "Wall-clock p50/p95/max are recorded, not enforced. Phase guard flips budgets on. Enrich scan_work is lookups * n (currently n^2). Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap. TUI filter holds match count at 100 (10 at n=10) so the keystroke curve stays comparable; jump-hint rebuilds the unfiltered list and is the TUI path over 16 ms at n>=1000.",
+  "notes": "Wall-clock p50/p95/max are recorded, not enforced. Phase guard flips budgets on. Enrich scan_work is 0 after the quadratic lookup was replaced with a one-shot dict (phase enrich). Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap. TUI filter holds match count at 100 (10 at n=10) so the keystroke curve stays comparable; jump-hint rebuilds the unfiltered list and is the TUI path over 16 ms at n>=1000.",
   "enrich": {
     "10": {
       "n": 3.0,
@@ -19,8 +19,8 @@
       "p95_ms": 0.16165900160558522,
       "max_ms": 0.16165900160558522,
       "fetch_calls": 10.0,
-      "installed_lookups": 10.0,
-      "scan_work": 100.0
+      "installed_lookups": 0.0,
+      "scan_work": 0.0
     },
     "250": {
       "n": 3.0,
@@ -28,8 +28,8 @@
       "p95_ms": 22.480190003989264,
       "max_ms": 22.480190003989264,
       "fetch_calls": 250.0,
-      "installed_lookups": 250.0,
-      "scan_work": 62500.0
+      "installed_lookups": 0.0,
+      "scan_work": 0.0
     },
     "1000": {
       "n": 3.0,
@@ -37,8 +37,8 @@
       "p95_ms": 318.1015369773377,
       "max_ms": 318.1015369773377,
       "fetch_calls": 1000.0,
-      "installed_lookups": 1000.0,
-      "scan_work": 1000000.0
+      "installed_lookups": 0.0,
+      "scan_work": 0.0
     },
     "2000": {
       "n": 3.0,
@@ -46,8 +46,8 @@
       "p95_ms": 1272.0069909992162,
       "max_ms": 1272.0069909992162,
       "fetch_calls": 2000.0,
-      "installed_lookups": 2000.0,
-      "scan_work": 4000000.0
+      "installed_lookups": 0.0,
+      "scan_work": 0.0
     }
   },
   "fetch": {

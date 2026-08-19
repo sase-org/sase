@@ -30,7 +30,7 @@ from sase.plugins.catalog import (
     suggest_plugins,
 )
 from sase.plugins.json_payload import plugin_entry_json
-from sase.plugins.latest import enrich_with_latest
+from sase.plugins.latest import enrich_entry_latest, enrich_with_latest
 from sase.plugins.render import render_catalog_show, render_show_not_found
 
 LoadFn = Callable[..., PluginCatalog]
@@ -68,6 +68,16 @@ def handle_plugin_show_command(
     )
 
     entry = find_plugin(catalog, query)
+    if entry is not None and not entry.latest.checked:
+        updated = enrich_entry_latest(entry, offline=offline, refresh=refresh)
+        catalog = dataclasses.replace(
+            catalog,
+            entries=tuple(
+                updated if item.name == updated.name else item
+                for item in catalog.entries
+            ),
+        )
+        entry = updated
     if entry is None:
         suggestions = suggest_plugins(catalog, query)
         if as_json:

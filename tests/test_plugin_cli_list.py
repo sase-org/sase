@@ -166,9 +166,17 @@ def test_explicit_list_has_no_delegation_notice() -> None:
 
 
 def test_list_accepts_each_flag() -> None:
-    short = create_parser().parse_args(["plugin", "list", "-j", "-o", "-r", "-v"])
+    short = create_parser().parse_args(["plugin", "list", "-j", "-o", "-r", "-v", "-A"])
     long = create_parser().parse_args(
-        ["plugin", "list", "--json", "--offline", "--refresh", "--verbose"]
+        [
+            "plugin",
+            "list",
+            "--json",
+            "--offline",
+            "--refresh",
+            "--verbose",
+            "--all-latest",
+        ]
     )
 
     for ns in (short, long):
@@ -177,6 +185,13 @@ def test_list_accepts_each_flag() -> None:
         assert ns.offline is True
         assert ns.refresh is True
         assert ns.verbose is True
+        assert ns.all_latest is True
+
+
+def test_list_all_latest_defaults_off() -> None:
+    ns = create_parser().parse_args(["plugin", "list"])
+
+    assert ns.all_latest is False
 
 
 # --------------------------------------------------------------------------- #
@@ -555,3 +570,34 @@ def test_offline_flag_is_threaded_to_loader_and_enricher() -> None:
 
     assert seen_load == [(False, True)]
     assert seen_enrich == [(False, True)]
+
+
+def test_all_latest_flag_is_threaded_to_enricher() -> None:
+    seen_scope: list[str | None] = []
+
+    def _enrich(
+        catalog: PluginCatalog,
+        *,
+        offline: bool,
+        refresh: bool,
+        scope: str | None = None,
+    ) -> PluginCatalog:
+        seen_scope.append(scope)
+        return catalog
+
+    args = argparse.Namespace(
+        plugin_subcommand="list",
+        json=True,
+        offline=False,
+        refresh=False,
+        verbose=False,
+        all_latest=True,
+    )
+    handle_plugin_list_command(
+        args,
+        load_fn=lambda *, refresh, offline: _sample_catalog(),
+        enrich_fn=_enrich,
+        now=1000.0,
+    )
+
+    assert seen_scope == ["all"]

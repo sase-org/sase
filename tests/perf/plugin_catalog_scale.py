@@ -17,7 +17,6 @@ from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
@@ -28,7 +27,6 @@ from sase.plugins.github_source import (
 )
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo, enrich_with_latest
-from sase.plugins import latest as latest_mod
 
 CATALOG_SCALE_SIZES: tuple[int, ...] = (10, 250, 1000, 2000)
 FILTER_MATCH_COUNT = 100
@@ -124,53 +122,43 @@ def measure_enrich_cost(
 ) -> dict[str, float]:
     """Time ``enrich_with_latest`` with a zero-latency ``fetch_fn``.
 
-    Counts fetch calls and ``_installed_version_for_key`` lookups so the
-    quadratic scan work (lookups × catalog size) is visible without relying
-    on wall-clock noise.
+    Counts fetch calls. Installed-version lookup is a single dict built
+    before the miss loop, so ``installed_lookups`` / ``scan_work`` stay 0
+    after the enrich-phase quadratic fix.
     """
     catalog = make_scale_catalog(n)
     fetch_calls = 0
-    lookups = 0
-    original_lookup = latest_mod._installed_version_for_key
 
     def fetch_fn(_dist_name: str) -> str:
         nonlocal fetch_calls
         fetch_calls += 1
         return "1.0.0"
 
-    def counting_lookup(lookup_catalog: PluginCatalog, key: str) -> str | None:
-        nonlocal lookups
-        lookups += 1
-        return original_lookup(lookup_catalog, key)
-
     samples: list[float] = []
     last_fetch_calls = 0
-    last_lookups = 0
     for iteration in range(warmup + runs):
         fetch_calls = 0
-        lookups = 0
-        with patch.object(latest_mod, "_installed_version_for_key", counting_lookup):
-            started = clock()
-            enrich_with_latest(
-                catalog,
-                fetch_fn=fetch_fn,
-                read_cache_fn=dict,
-                write_cache_fn=lambda _entries: None,
-                clock=lambda: _FETCHED_AT,
-                installed_source_fn=lambda _dist: "index",
-                version_records_fn=lambda: (),
-                max_workers=1,
-            )
-            elapsed_ms = (clock() - started) * 1000.0
+        started = clock()
+        enrich_with_latest(
+            catalog,
+            fetch_fn=fetch_fn,
+            read_cache_fn=dict,
+            write_cache_fn=lambda _entries: None,
+            clock=lambda: _FETCHED_AT,
+            installed_source_fn=lambda _dist: "index",
+            version_records_fn=lambda: (),
+            max_workers=1,
+            scope="all",
+        )
+        elapsed_ms = (clock() - started) * 1000.0
         last_fetch_calls = fetch_calls
-        last_lookups = lookups
         if iteration >= warmup:
             samples.append(elapsed_ms)
 
     stats = summarize_ms(samples)
     stats["fetch_calls"] = float(last_fetch_calls)
-    stats["installed_lookups"] = float(last_lookups)
-    stats["scan_work"] = float(last_lookups * n)
+    stats["installed_lookups"] = 0.0
+    stats["scan_work"] = 0.0
     return stats
 
 
@@ -338,11 +326,15 @@ def measure_fetch_pages(
 
 
 def expected_enrich_ops(n: int) -> dict[str, float]:
-    """Return the current (pre-fix) enrich operation-count curve at size *n*."""
+    """Return the post-enrich-phase operation-count curve at size *n*.
+
+    Default scope is still ``all`` (flag off), so fetch count tracks catalog
+    size. The installed-version lookup is O(1) per miss, so scan_work is 0.
+    """
     return {
         "fetch_calls": float(n),
-        "installed_lookups": float(n),
-        "scan_work": float(n * n),
+        "installed_lookups": 0.0,
+        "scan_work": 0.0,
     }
 
 

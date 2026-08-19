@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from textual.containers import VerticalScroll
 from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.plugins.catalog import PluginCatalog
+from sase.feature_flags import override_flags
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.latest import LatestInfo
 from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
@@ -181,6 +185,84 @@ async def test_plugins_pane_detail_shows_lazy_incoming_commits(
         assert "abc1234" in text
         assert "Newest plugin change" in text
         assert "+1 more" in text
+
+
+async def test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _disable_incoming_commits(monkeypatch)
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(
+            _entry(
+                "nvim",
+                owner="sase-org",
+                description="Neovim editor integration.",
+                latest=LatestInfo.unknown(),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_catalog(monkeypatch, catalog=catalog)
+    calls: list[str] = []
+
+    def _fake_enrich(
+        entry: PluginCatalogEntry, **_kwargs: object
+    ) -> PluginCatalogEntry:
+        calls.append(entry.name)
+        return replace(
+            entry,
+            latest=LatestInfo(checked=True, version="2.0.0", source="index"),
+        )
+
+    monkeypatch.setattr(pbp, "_enrich_entry_latest", _fake_enrich)
+    with override_flags(plugin_catalog_scoped_latest=True):
+        async with AcePage() as page:
+            pane = await _open_plugins_pane(page)
+            await page.wait_for(lambda _s: bool(calls))
+            entry = pane._entry_by_name("nvim")
+            assert entry is not None
+            assert entry.latest.version == "2.0.0"
+            text = _render(pane._detail_renderable(entry))
+            assert "2.0.0" in text
+
+
+async def test_plugins_pane_skips_lazy_latest_when_flag_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _disable_incoming_commits(monkeypatch)
+    catalog = PluginCatalog(
+        fetched_at=_NOW,
+        entries=(
+            _entry(
+                "nvim",
+                owner="sase-org",
+                description="Neovim editor integration.",
+                latest=LatestInfo.unknown(),
+            ),
+        ),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_catalog(monkeypatch, catalog=catalog)
+    monkeypatch.setattr(
+        pbp,
+        "_enrich_entry_latest",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("flag off must not lazy-fetch latest")
+        ),
+    )
+    with override_flags(plugin_catalog_scoped_latest=False):
+        async with AcePage() as page:
+            pane = await _open_plugins_pane(page)
+            await page.wait_for(lambda _s: pane._detail_name == "nvim")
+            entry = pane._entry_by_name("nvim")
+            assert entry is not None
+            assert entry.latest.checked is False
+            assert pane._plugin_latest_workers == {}
 
 
 async def test_plugins_pane_detail_shows_community_warning(

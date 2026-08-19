@@ -15495,7 +15495,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "34eac7f5ea45c9fb",
+            "description_digest": "109ca50b2e1bd936",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -15545,6 +15545,18 @@
                 "strings": [
                   "-r",
                   "--refresh"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "all_latest",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--all-latest"
                 ],
                 "takes_value": false
               },

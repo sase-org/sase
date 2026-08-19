@@ -19,6 +19,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
 
     coder = definitions[FeatureFlag.coder_inherits_planner_chat]
     refresh = definitions[FeatureFlag.completion_refresh_on_update]
+    scoped = definitions[FeatureFlag.plugin_catalog_scoped_latest]
     prettier = definitions[FeatureFlag.prettier_enabled]
 
     assert coder.kind == "beta"
@@ -28,6 +29,10 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert refresh.kind == "beta"
     assert refresh.default is False
     assert refresh.bead == "sase-qg"
+
+    assert scoped.kind == "beta"
+    assert scoped.default is False
+    assert scoped.bead == "sase-qq"
 
     assert prettier.kind == "sunset"
     assert prettier.default is True

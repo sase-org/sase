@@ -23,6 +23,7 @@ from sase.agent_clis.operations import (
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
+from sase.plugins.latest import enrich_entry_latest
 from sase.plugins.operations import (
     execute_install as execute_install,
     execute_install_many as execute_install_many,
@@ -60,6 +61,7 @@ from .plugins_browser_incoming import (
     PluginsBrowserIncomingCommitsMixin,
     load_incoming_commits_config,
 )
+from .plugins_browser_latest import PluginsBrowserLatestMixin
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_jump import PluginsBrowserJumpMixin
 from .plugins_browser_install import (
@@ -171,6 +173,7 @@ _IncomingCommitsConfig = IncomingCommitsConfig
 _fetch_incoming_commits = fetch_incoming_commits
 _fetch_incoming_commit_groups = fetch_incoming_commit_groups
 _load_incoming_commits_config = load_incoming_commits_config
+_enrich_entry_latest = enrich_entry_latest
 _callable_accepts_keyword = callable_accepts_keyword
 _plan_agent_cli_updates = plan_agent_cli_updates
 _execute_agent_cli_updates = execute_agent_cli_updates
@@ -194,6 +197,7 @@ class PluginsBrowserPane(
     PluginUpdateActionsMixin,
     PluginsBrowserOperationsMixin,
     PluginsBrowserIncomingCommitsMixin,
+    PluginsBrowserLatestMixin,
     PluginsBrowserControlsMixin,
     PluginsBrowserStatusMixin,
     PluginsBrowserRenderingMixin,
@@ -328,6 +332,8 @@ class PluginsBrowserPane(
         ] = OrderedDict()
         self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
+        self._plugin_latest_loading: set[str] = set()
+        self._plugin_latest_workers: dict[int, str] = {}
         self._core_incoming_commits: dict[str, IncomingCommits] = {}
         self._install_mode: str | None = None
         self._dev_root: str | None = None

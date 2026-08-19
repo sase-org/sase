@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ SCHEMA_VERSION = 1
 CACHE_SUBDIR = "plugins"
 CACHE_FILENAME = "latest_cache.json"
 LATEST_TTL_SECONDS = 6 * 60 * 60
+LATEST_CACHE_MAX_AGE_SECONDS = LATEST_TTL_SECONDS * 4
 
 
 @dataclass(frozen=True)
@@ -67,18 +69,43 @@ def read_cache(path: Path | None = None) -> dict[str, CachedLatest]:
     return entries
 
 
+def prune_latest_cache(
+    entries: dict[str, CachedLatest],
+    now: float,
+    *,
+    max_age_seconds: float = LATEST_CACHE_MAX_AGE_SECONDS,
+) -> dict[str, CachedLatest]:
+    """Drop cache rows older than *max_age_seconds* (a multiple of the TTL)."""
+    return {
+        key: cached
+        for key, cached in entries.items()
+        if now - cached.fetched_at < max_age_seconds
+    }
+
+
 def write_cache(
     entries: dict[str, CachedLatest],
     *,
     path: Path | None = None,
+    now: float | None = None,
+    max_age_seconds: float = LATEST_CACHE_MAX_AGE_SECONDS,
 ) -> None:
-    """Atomically write *entries* to the latest-version cache."""
+    """Atomically write *entries* to the latest-version cache.
+
+    Stale rows older than :data:`LATEST_CACHE_MAX_AGE_SECONDS` are evicted on
+    every write so the file cannot grow without bound.
+    """
     cache_path = path or _cache_path()
     if path is None:
         ensure_sase_directory(CACHE_SUBDIR)
     else:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
+    pruned = prune_latest_cache(
+        entries,
+        time.time() if now is None else now,
+        max_age_seconds=max_age_seconds,
+    )
     envelope: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "entries": {
@@ -86,7 +113,7 @@ def write_cache(
                 "version": cached.version,
                 "fetched_at": cached.fetched_at,
             }
-            for name, cached in sorted(entries.items())
+            for name, cached in sorted(pruned.items())
             if normalize_distribution_name(name)
         },
     }
@@ -110,10 +137,12 @@ def is_fresh(
 __all__ = [
     "CACHE_FILENAME",
     "CACHE_SUBDIR",
+    "LATEST_CACHE_MAX_AGE_SECONDS",
     "LATEST_TTL_SECONDS",
     "CachedLatest",
     "SCHEMA_VERSION",
     "is_fresh",
+    "prune_latest_cache",
     "read_cache",
     "write_cache",
 ]

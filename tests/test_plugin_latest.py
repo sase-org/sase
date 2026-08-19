@@ -10,10 +10,20 @@ from typing import Any, Literal
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.dev_update.models import DevLatest
 from sase.plugins.installed import InstalledInfo
-from sase.plugins.latest import enrich_with_latest, installed_source, is_newer
+from sase.feature_flags import override_flags
+from sase.plugins.latest import (
+    LatestInfo,
+    enrich_entry_latest,
+    enrich_with_latest,
+    installed_source,
+    is_newer,
+    latest_cache_key,
+)
 from sase.plugins.latest_cache import (
+    LATEST_CACHE_MAX_AGE_SECONDS,
     CachedLatest,
     is_fresh,
+    prune_latest_cache,
     read_cache,
     write_cache,
 )
@@ -126,6 +136,7 @@ def test_latest_cache_round_trip_and_schema_guard(tmp_path: Path) -> None:
     write_cache(
         {"sase-github": CachedLatest(version="0.5.0", fetched_at=1000.0)},
         path=path,
+        now=1000.0,
     )
 
     cached = read_cache(path)
@@ -341,3 +352,178 @@ def test_enrich_editable_install_uses_dev_latest_detection() -> None:
     assert entry.latest.state == "update_available"
     assert entry.latest.reason == "behind upstream by 2 commit(s)"
     assert entry.update_available is True
+
+
+def test_latest_cache_write_prunes_entries_older_than_max_age(tmp_path: Path) -> None:
+    path = tmp_path / "latest_cache.json"
+    now = 10_000.0
+    write_cache(
+        {
+            "sase-fresh": CachedLatest(version="1.0.0", fetched_at=now - 60.0),
+            "sase-stale": CachedLatest(
+                version="0.1.0",
+                fetched_at=now - LATEST_CACHE_MAX_AGE_SECONDS - 1.0,
+            ),
+        },
+        path=path,
+        now=now,
+    )
+
+    cached = read_cache(path)
+    assert cached == {
+        "sase-fresh": CachedLatest(version="1.0.0", fetched_at=now - 60.0)
+    }
+    pruned = prune_latest_cache(
+        {
+            "sase-fresh": CachedLatest(version="1.0.0", fetched_at=now - 60.0),
+            "sase-stale": CachedLatest(
+                version="0.1.0",
+                fetched_at=now - LATEST_CACHE_MAX_AGE_SECONDS - 1.0,
+            ),
+        },
+        now,
+    )
+    assert set(pruned) == {"sase-fresh"}
+
+
+def test_enrich_installed_scope_skips_uninstalled_fetches() -> None:
+    calls: list[str] = []
+    catalog = _catalog(
+        _entry("github", installed=True, version="0.4.0"),
+        _entry("telegram"),
+    )
+
+    enriched = enrich_with_latest(
+        catalog,
+        fetch_fn=lambda dist: calls.append(dist) or "1.0.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        scope="installed",
+    )
+    by_name = {entry.name: entry for entry in enriched.entries}
+
+    assert calls == ["sase-github"]
+    assert by_name["github"].latest.version == "1.0.0"
+    assert by_name["telegram"].latest == LatestInfo.unknown()
+    assert latest_cache_key(by_name["github"]) == "sase-github"
+
+
+def test_scoped_latest_flag_both_states_change_eager_fetches() -> None:
+    catalog = _catalog(
+        _entry("github", installed=True, version="0.4.0"),
+        _entry("telegram"),
+    )
+
+    def _run(*, enabled: bool) -> list[str]:
+        calls: list[str] = []
+        with override_flags(plugin_catalog_scoped_latest=enabled):
+            enrich_with_latest(
+                catalog,
+                fetch_fn=lambda dist: calls.append(dist) or "1.0.0",
+                read_cache_fn=lambda: {},
+                write_cache_fn=lambda _entries: None,
+                clock=lambda: 1000.0,
+                installed_source_fn=lambda _dist: "index",
+                version_records_fn=lambda: (),
+                max_workers=1,
+            )
+        return calls
+
+    assert _run(enabled=False) == ["sase-github", "sase-telegram"]
+    assert _run(enabled=True) == ["sase-github"]
+
+
+def test_enrich_refresh_keeps_out_of_scope_cache_rows() -> None:
+    writes: list[dict[str, CachedLatest]] = []
+    catalog = _catalog(_entry("github", installed=True, version="0.4.0"))
+
+    enrich_with_latest(
+        catalog,
+        refresh=True,
+        fetch_fn=lambda _dist: "0.6.0",
+        read_cache_fn=lambda: {
+            "sase-github": CachedLatest(version="0.5.0", fetched_at=999.0),
+            "sase-other": CachedLatest(version="9.9.9", fetched_at=999.0),
+        },
+        write_cache_fn=lambda entries: writes.append(entries),
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        scope="installed",
+    )
+
+    assert writes[0]["sase-github"] == CachedLatest(version="0.6.0", fetched_at=1000.0)
+    assert writes[0]["sase-other"] == CachedLatest(version="9.9.9", fetched_at=999.0)
+
+
+def test_enrich_deadline_marks_remaining_misses_unavailable() -> None:
+    ticks = iter([0.0, 0.0, 10.0, 10.0])
+    catalog = _catalog(
+        _entry("github", installed=True, version="0.4.0"),
+        _entry("telegram", installed=True, version="0.1.0"),
+    )
+
+    enriched = enrich_with_latest(
+        catalog,
+        fetch_fn=lambda dist: "1.0.0" if dist == "sase-github" else "2.0.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        deadline_seconds=1.0,
+        monotonic=lambda: next(ticks),
+    )
+    by_name = {entry.name: entry for entry in enriched.entries}
+
+    assert by_name["github"].latest.version == "1.0.0"
+    assert by_name["telegram"].latest.version is None
+    assert by_name["telegram"].latest.error == "unavailable"
+
+
+def test_enrich_include_keys_fetches_uninstalled_when_scoped() -> None:
+    calls: list[str] = []
+    catalog = _catalog(
+        _entry("github", installed=True, version="0.4.0"),
+        _entry("telegram"),
+    )
+
+    enriched = enrich_with_latest(
+        catalog,
+        fetch_fn=lambda dist: calls.append(dist) or "3.0.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        scope="installed",
+        include_keys=("sase-telegram",),
+    )
+    by_name = {entry.name: entry for entry in enriched.entries}
+
+    assert set(calls) == {"sase-github", "sase-telegram"}
+    assert by_name["telegram"].latest.version == "3.0.0"
+
+
+def test_enrich_entry_latest_fetches_one_uninstalled_row() -> None:
+    calls: list[str] = []
+    entry = enrich_entry_latest(
+        _entry("telegram"),
+        fetch_fn=lambda dist: calls.append(dist) or "4.1.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+    )
+
+    assert calls == ["sase-telegram"]
+    assert entry.latest.version == "4.1.0"
+    assert entry.latest.checked is True

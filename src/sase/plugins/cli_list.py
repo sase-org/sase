@@ -24,7 +24,7 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
 )
 from sase.plugins.json_payload import plugin_entry_json
-from sase.plugins.latest import enrich_with_latest
+from sase.plugins.latest import EagerScope, enrich_with_latest
 from sase.plugins.render import render_catalog_list
 
 LoadFn = Callable[..., PluginCatalog]
@@ -59,6 +59,7 @@ def handle_plugin_list_command(
         offline=offline,
         refresh=refresh,
         enrich_fn=enrich_fn,
+        scope="all" if bool(getattr(args, "all_latest", False)) else None,
     )
 
     if as_json:
@@ -99,9 +100,15 @@ def _enrich_catalog(
     offline: bool,
     refresh: bool,
     enrich_fn: EnrichFn,
+    scope: EagerScope | None = None,
 ) -> PluginCatalog:
     try:
-        return enrich_fn(catalog, offline=offline, refresh=refresh)
+        try:
+            if scope is None:
+                return enrich_fn(catalog, offline=offline, refresh=refresh)
+            return enrich_fn(catalog, offline=offline, refresh=refresh, scope=scope)
+        except TypeError:
+            return enrich_fn(catalog, offline=offline, refresh=refresh)
     except Exception as exc:  # noqa: BLE001 - list stays read-only and best-effort.
         warning = f"could not check plugin updates ({exc})"
         return dataclasses.replace(catalog, warnings=(*catalog.warnings, warning))

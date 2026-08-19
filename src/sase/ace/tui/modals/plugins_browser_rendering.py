@@ -74,6 +74,8 @@ class PluginsBrowserRenderingMixin:
             self, entry: PluginCatalogEntry
         ) -> None: ...
 
+        def _ensure_plugin_latest(self, entry: PluginCatalogEntry) -> None: ...
+
         def _plugin_incoming_commits_state(
             self, entry: PluginCatalogEntry
         ) -> tuple[IncomingCommits | None, bool]: ...
@@ -412,6 +414,7 @@ class PluginsBrowserRenderingMixin:
             detail.update(_DETAIL_PLACEHOLDER)
             return
         self._ensure_plugin_incoming_commits(entry)
+        self._ensure_plugin_latest(entry)
         detail.update(self._detail_renderable(entry))
 
     def _detail_renderable(self, entry: PluginCatalogEntry) -> RenderableType:

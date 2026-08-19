@@ -25,6 +25,7 @@ class FeatureFlag(StrEnum):
     commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
     completion_refresh_on_update = "completion_refresh_on_update"
     epic_resume_gate = "epic_resume_gate"
+    plugin_catalog_scoped_latest = "plugin_catalog_scoped_latest"
     prettier_enabled = "prettier_enabled"
 
 
@@ -68,6 +69,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "when a failed phase agent stalls an epic."
         ),
         bead="sase-qh",
+    ),
+    FeatureFlag.plugin_catalog_scoped_latest: FeatureFlagDefinition(
+        key=FeatureFlag.plugin_catalog_scoped_latest,
+        kind="beta",
+        description=(
+            "Eager PyPI latest-version enrichment is limited to installed "
+            "plugins. The Updates > Plugins highlighted row lazily fetches "
+            "latest for the current uninstalled entry through the detail "
+            "debouncer. sase plugin show still fetches the requested plugin. "
+            "sase plugin list stays installed-only unless -A|--all-latest."
+        ),
+        bead="sase-qq",
     ),
     FeatureFlag.prettier_enabled: FeatureFlagDefinition(
         key=FeatureFlag.prettier_enabled,

@@ -52,18 +52,20 @@ def test_scale_catalog_sizes_and_fixed_filter_match_count() -> None:
     assert _fixture_match_count(250) == _fixture_match_count(2000)
 
 
-def test_enrich_cost_curve_is_quadratic_in_catalog_size() -> None:
+def test_enrich_cost_curve_is_not_quadratic_in_catalog_size() -> None:
     small = measure_enrich_cost(8, runs=1, warmup=0)
     large = measure_enrich_cost(16, runs=1, warmup=0)
     assert small["fetch_calls"] == expected_enrich_ops(8)["fetch_calls"]
-    assert small["installed_lookups"] == expected_enrich_ops(8)["installed_lookups"]
-    assert small["scan_work"] == expected_enrich_ops(8)["scan_work"]
+    assert small["installed_lookups"] == 0.0
+    assert small["scan_work"] == 0.0
     assert large["fetch_calls"] == expected_enrich_ops(16)["fetch_calls"]
-    assert large["scan_work"] / small["scan_work"] == 4.0
+    assert large["installed_lookups"] == 0.0
+    assert large["scan_work"] == 0.0
     thousand = expected_enrich_ops(1000)
     two_thousand = expected_enrich_ops(2000)
-    assert thousand["scan_work"] == 1_000_000.0
-    assert two_thousand["scan_work"] / thousand["scan_work"] == 4.0
+    assert thousand["scan_work"] == 0.0
+    assert two_thousand["scan_work"] == 0.0
+    assert two_thousand["fetch_calls"] / thousand["fetch_calls"] == 2.0
 
 
 def test_fetch_page_count_scales_with_catalog_size_not_github_cap() -> None:
@@ -122,8 +124,8 @@ def test_committed_baseline_records_all_sizes_without_enforcing_budgets() -> Non
                 assert stats[stat] >= 0.0
 
 
-def test_enrich_with_latest_still_looks_up_installed_version_per_miss() -> None:
-    """Pin the quadratic seam the enrich phase is supposed to delete."""
+def test_enrich_with_latest_indexes_installed_versions_once() -> None:
+    """Eager all-scope still fetches each miss, without a per-miss catalog scan."""
     catalog = make_scale_catalog(4)
     seen: list[str] = []
 
@@ -139,6 +141,8 @@ def test_enrich_with_latest_still_looks_up_installed_version_per_miss() -> None:
         installed_source_fn=lambda _dist: "index",
         version_records_fn=lambda: (),
         max_workers=1,
+        scope="all",
     )
     assert len(seen) == 4
     assert all(entry.latest.version == "1.0.0" for entry in enriched.entries)
+    assert all(entry.latest.checked for entry in enriched.entries)

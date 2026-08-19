@@ -83,6 +83,7 @@ sase plugin list
 sase plugin list -v          # add stars, last-updated, and the full topic list
 sase plugin list -j          # stable machine-readable JSON
 sase plugin list -o          # use cached catalog/latest-version data only
+sase plugin list -A          # also probe latest for uninstalled plugins
 
 # Detailed view of a single plugin
 sase plugin show github
@@ -119,11 +120,16 @@ sase plugin show github -r
   catalogued package absent from both paths (for example a Neovim-only integration)
   correctly shows as not installed.
 - Latest available versions for index installs come from PyPI's package JSON
-  (`info.version`), which matches what `sase plugin update` would actually install.
-  Editable checkouts derive their latest dev version from the upstream tracking ref
-  after a best-effort fetch, carry a lowercase `dev` source marker, and base update
-  availability on git ancestry rather than PEP 440 string comparison. A local checkout
-  can surface an `↑ dev update available` hint that recommends `sase update` rather than
+  (`info.version`), which matches what `sase plugin update` would actually install. With
+  the `plugin_catalog_scoped_latest` beta flag on, `sase plugin list` probes latest
+  versions for installed plugins only (update markers and counts still match); pass
+  `-A|--all-latest` to restore a full-catalog probe. `sase plugin show` always fetches
+  latest for the requested plugin. The Updates > Plugins highlighted row fetches
+  uninstalled latest lazily through the detail debouncer. Editable checkouts derive
+  their latest dev version from the upstream tracking ref after a best-effort fetch,
+  carry a lowercase `dev` source marker, and base update availability on git ancestry
+  rather than PEP 440 string comparison. A local checkout can surface an
+  `↑ dev update available` hint that recommends `sase update` rather than
   `sase plugin update`. Direct-git installs are labeled as `git` and are not compared
   against PyPI, so an immutable VCS install never gets a false update prompt.
 - Blocked editable checkout states are shown as a dim reason instead of an update arrow:
