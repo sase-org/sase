@@ -8,8 +8,9 @@ The periodic tick only peeks a cheap change token. The real
 :func:`sase.current_project.resolve_current_project` call — plus the enabled
 project key set used for accent assignment — runs on a worker thread.
 
-Clicking opens the ``+`` launch picker. The current project is a pure
-derivation of the VCS xprompt MRU store: launching an agent is how it moves.
+Clicking opens the ``+`` launch picker. The current project is derived
+from the VCS xprompt MRU store: launching an agent, ``sase project
+set-current``, or the Projects tab set-current key all promote that head.
 """
 
 from __future__ import annotations
@@ -126,6 +127,20 @@ class CurrentProjectIndicator(Static):
         """Open the ``+`` launch picker — the surface that moves the MRU."""
 
         await self.app.run_action("start_custom_agent")
+
+    def invalidate(self) -> None:
+        """Force an off-thread resolve, ignoring the peek-token floor.
+
+        ``refresh()`` can miss a just-written MRU because
+        :func:`peek_current_project_change_token` serves a 0.5s cached stat.
+        Clearing the cached token makes the next schedule unconditional. A
+        no-op while a resolve is already in flight.
+        """
+
+        if self._resolve_in_flight:
+            return
+        self._cached_token = None
+        self._schedule_resolution_if_needed()
 
     def _schedule_resolution_if_needed(self) -> None:
         """Launch the off-thread resolve worker when the token says to."""

@@ -272,3 +272,48 @@ def test_worker_success_commits_pending_token(
     assert indicator._cached_token == ("pending-token",)
     assert indicator._resolve_in_flight is False
     assert indicator._cached_failed is False
+
+
+def test_invalidate_forces_resolve_when_refresh_would_skip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
+        monkeypatch, token=("token-a",)
+    )
+    indicator._cached_token = ("token-a",)
+    indicator._cached_snapshot = _CurrentProjectSnapshot(
+        project=_project(), accent="#fff"
+    )
+
+    indicator.refresh()
+    assert scheduled == []
+
+    indicator.invalidate()
+
+    assert len(scheduled) == 1
+    assert resolve_calls == []
+    assert indicator._cached_token is None
+    assert indicator._resolve_in_flight is True
+
+    indicator.refresh()
+    assert len(scheduled) == 1
+
+
+def test_invalidate_is_noop_while_resolve_in_flight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
+        monkeypatch, token=("token-b",)
+    )
+    indicator._cached_token = ("token-a",)
+    indicator._cached_snapshot = _CurrentProjectSnapshot(
+        project=_project(), accent="#fff"
+    )
+    indicator._resolve_in_flight = True
+
+    indicator.invalidate()
+
+    assert scheduled == []
+    assert resolve_calls == []
+    assert indicator._cached_token == ("token-a",)
+    assert indicator._resolve_in_flight is True

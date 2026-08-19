@@ -191,6 +191,7 @@ class ProjectsPane(
             self._current_project_key or self._current_project_name
         )
         self._current_project_resolve_worker: Worker[Any] | None = None
+        self._current_project_set_worker: Worker[Any] | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._project_selection_guard = ProgrammaticSelectionGuard()
         self._load_records()
@@ -256,6 +257,8 @@ class ProjectsPane(
             self._detail_debouncer.cancel()
         if self._current_project_resolve_worker is not None:
             self._current_project_resolve_worker.cancel()
+        if self._current_project_set_worker is not None:
+            self._current_project_set_worker.cancel()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if self._active_subtab != "projects" and action in self._PROJECT_ONLY_ACTIONS:
@@ -450,6 +453,9 @@ class ProjectsPane(
             pass
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._current_project_set_worker:
+            self._apply_set_current_project_outcome(event)
+            return
         if event.worker is self._current_project_resolve_worker:
             self._apply_current_project_display(event)
             self._apply_current_project_seed(event)

@@ -6,14 +6,17 @@ import os
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from textual.app import SuspendNotSupported
+from textual.worker import WorkerState
 
 from sase.ace.patch.locking import acquire_edit_lock, release_edit_lock
 from sase.ace.hints import build_editor_args
+from sase.ace.tui.widgets.current_project_indicator import CurrentProjectIndicator
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
+from sase.current_project import SetCurrentProjectOutcome, set_current_project
 from sase.main.project_handler import ProjectLifecycleBlockedError
 
 from .confirm_action_modal import ConfirmActionModal
@@ -29,6 +32,18 @@ from .project_management_rendering import (
 
 if TYPE_CHECKING:
     from textual.app import App
+    from textual.worker import Worker
+
+    from sase.current_project import CurrentProject
+
+_CURRENT_PROJECT_SET_GROUP = "current-project-set"
+
+_SET_CURRENT_NOTIFY_SEVERITY: dict[str, Literal["information", "warning", "error"]] = {
+    "set": "information",
+    "unchanged": "information",
+    "ineligible": "warning",
+    "unverified": "error",
+}
 
 
 def _normalize_alias_input(aliases: Sequence[str]) -> list[str]:
@@ -44,6 +59,8 @@ class ProjectManagementActionsMixin:
         _projects_root: Path | None
         _records: list[ProjectRecordWire]
         _status_message: str
+        _current_project: CurrentProject | None
+        _current_project_set_worker: Worker[Any] | None
         app: App[Any]
 
         def _selected_record(self) -> ProjectRecordWire | None: ...
@@ -56,7 +73,9 @@ class ProjectManagementActionsMixin:
         def _set_status(self, message: str) -> None: ...
         def _refresh_options(self, *, preferred_project: str | None = None) -> None: ...
         def _load_records(self) -> bool: ...
+        def _start_current_project_resolve(self) -> None: ...
         def notify(self, message: str, **kwargs: Any) -> None: ...
+        def run_worker(self, *args: Any, **kwargs: Any) -> Worker[Any]: ...
         def _set_project_state_locked(
             self, project: str, state: str, *, force: bool = False
         ) -> ProjectRecordWire: ...
@@ -64,6 +83,79 @@ class ProjectManagementActionsMixin:
         def _set_project_aliases_locked(
             self, project: str, aliases: list[str]
         ) -> ProjectRecordWire: ...
+
+    def action_set_current_project(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            return
+
+        display = effective_project_name(record)
+        if record.state != "enabled":
+            message = f"{display} is disabled; enable it first (a)"
+            self._set_status(message)
+            self.notify(message, severity="warning")
+            return
+        if not record.launchable:
+            message = f"{display} has no launchable ProjectSpec"
+            self._set_status(message)
+            self.notify(message, severity="warning")
+            return
+        current = self._current_project
+        if current is not None and current.project_key == record.project_name:
+            self._set_status(f"{display} is already current")
+            return
+
+        project_name = record.project_name
+        projects_dir = self._projects_root
+        self._set_status(f"Making {display} current…")
+
+        def task() -> SetCurrentProjectOutcome:
+            return set_current_project(project_name, projects_dir=projects_dir)
+
+        self._current_project_set_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=False,
+            exit_on_error=False,
+            group=_CURRENT_PROJECT_SET_GROUP,
+        )
+
+    def _apply_set_current_project_outcome(self, event: Worker.StateChanged) -> None:
+        if event.state == WorkerState.CANCELLED:
+            return
+        if event.state == WorkerState.ERROR:
+            error = event.worker.error
+            message = (
+                f"Could not set current project: {error}"
+                if error
+                else "Could not set current project"
+            )
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+        if event.state != WorkerState.SUCCESS:
+            return
+        outcome = event.worker.result
+        if not isinstance(outcome, SetCurrentProjectOutcome):
+            message = "Could not set current project"
+            self._set_status(message)
+            self.notify(message, severity="error")
+            return
+        self._set_status(outcome.message)
+        self.notify(
+            outcome.message,
+            severity=_SET_CURRENT_NOTIFY_SEVERITY[outcome.status],
+        )
+        if outcome.status == "set":
+            self._start_current_project_resolve()
+            self._invalidate_current_project_indicator()
+
+    def _invalidate_current_project_indicator(self) -> None:
+        try:
+            self.app.query_one(CurrentProjectIndicator).invalidate()
+        except Exception:
+            return
 
     def action_enable_project(self) -> None:
         self._set_project_state("enabled")
