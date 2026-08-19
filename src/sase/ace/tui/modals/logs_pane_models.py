@@ -16,6 +16,8 @@ class LogPaneLoadResult:
     active_count: int
     selected_index: int
     detail: Text
+    focus_line: int | None = None
+    focus_found: bool | None = None
 
 
 __all__ = ["LogPaneLoadResult"]

@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sase.logs import (
+    RegisteredError,
+    error_anchor,
     events_log_path,
     launch_failures_log_path,
     runs_log_path,
@@ -15,6 +17,8 @@ from sase.logs import (
     tui_log_path,
     tui_toasts_jsonl_path,
 )
+
+_FOCUSED_ERROR_ID = "err_260617_143000_7f3a9c"
 
 _FIXED_LOG_MTIME = int(datetime(2026, 6, 17, 14, 30, tzinfo=UTC).timestamp())
 
@@ -195,3 +199,24 @@ def _seed_logs_tab_files() -> None:
         )
         + "\n",
     )
+
+
+def _focused_launch_error_target() -> RegisteredError:
+    return RegisteredError(
+        error_id=_FOCUSED_ERROR_ID,
+        source_id="launch_failures",
+        anchor=error_anchor(_FOCUSED_ERROR_ID),
+        summary="Launch failed",
+        registered_at="2026-06-17 14:30:00",
+    )
+
+
+def _seed_focused_error_log() -> RegisteredError:
+    """Seed Logs-tab files with a visible registered-error anchor on the header."""
+    _seed_logs_tab_files()
+    path = launch_failures_log_path()
+    original = path.read_text(encoding="utf-8")
+    header = "[2026-06-17 14:30:00 UTC] fanout launch failure: visual-auth"
+    anchored = f"{header}  [{_FOCUSED_ERROR_ID}]"
+    _write_log(path, original.replace(header, anchored, 1))
+    return _focused_launch_error_target()

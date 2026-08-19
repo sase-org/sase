@@ -39,7 +39,9 @@ def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         lp,
         "_build_log_pane_load_result",
-        lambda _idx, _source_id=None: lp._LogPaneLoadResult([], [], 0, 0, Text("stub")),
+        lambda _idx, _source_id=None, **_kw: lp._LogPaneLoadResult(
+            [], [], 0, 0, Text("stub")
+        ),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.xprompt_browser_pane.get_all_prompts",

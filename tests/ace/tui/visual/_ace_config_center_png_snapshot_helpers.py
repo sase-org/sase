@@ -8,7 +8,10 @@ from tests.ace.tui.visual._ace_config_center_config_helpers import (
     _config_schema,
     _patch_config_view,
 )
-from tests.ace.tui.visual._ace_config_center_logs_helpers import _seed_logs_tab_files
+from tests.ace.tui.visual._ace_config_center_logs_helpers import (
+    _seed_focused_error_log,
+    _seed_logs_tab_files,
+)
 from tests.ace.tui.visual._ace_config_center_modal_helpers import (
     _open_config_modal,
     _open_logs_modal,
@@ -66,6 +69,7 @@ __all__ = [
     "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
     "_patch_xprompt_sources",
+    "_seed_focused_error_log",
     "_seed_logs_tab_files",
     "_seed_tasks_tab_queue",
     "_visual_incoming_commits",

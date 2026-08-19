@@ -243,6 +243,15 @@ migration action. Prefer editing the config to use `repos.linked` directly.
 SASE Admin Center never writes without showing the diff and validation first, and never
 edits a built-in or plugin default (those layers are read-only).
 
+### Logs tab
+
+The Logs tab lists each log source and a colorized tail of the selected file. After a
+launch or chop failure, ACE toasts a leader chord (`,L` by default) that opens this tab
+on that failure's source, highlights the matching header line, and scrolls the detail
+pane to it. The jump target is session-scoped: it is the most recent error toast in this
+ACE process, not a durable pointer, and it degrades to the ordinary tail with an in-pane
+notice if the entry has rotated out of the log.
+
 ### Projects tab
 
 The Projects tab is an inventory and lifecycle surface with three clickable sub-tabs:

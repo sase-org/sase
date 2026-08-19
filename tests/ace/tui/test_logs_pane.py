@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 from rich.cells import cell_len
 from rich.console import Console
@@ -10,9 +13,16 @@ from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import ContentSwitcher, OptionList
 
+from sase.ace.testing import wait_for
+from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import LogsPane
-from sase.logs import RegisteredError, error_anchor
+from sase.logs import (
+    RegisteredError,
+    clear_registered_errors,
+    error_anchor,
+    register_error,
+)
 from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import (
     LAUNCH_LOG_BODY,
@@ -21,6 +31,13 @@ from tests.ace.tui._logs_pane_helpers import (
     wait_for_logs_loaded,
     write_log,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_registered_errors() -> Iterator[None]:
+    clear_registered_errors()
+    yield
+    clear_registered_errors()
 
 
 async def test_logs_tab_source_rows_fit_the_pane_width(log_dir: Path) -> None:
@@ -227,3 +244,79 @@ async def test_logs_tab_g_and_shift_g_scroll_detail_extremes(log_dir: Path) -> N
 
         # The highlighted log source is untouched by g / G.
         assert option_list.highlighted == highlighted_before
+
+
+_FOCUS_ERROR_ID = "err_260617_143000_7f3a9c"
+
+
+def _focus_target(*, source_id: str = "launch_failures") -> RegisteredError:
+    return RegisteredError(
+        error_id=_FOCUS_ERROR_ID,
+        source_id=source_id,
+        anchor=error_anchor(_FOCUS_ERROR_ID),
+        summary="Launch failed",
+        registered_at="2026-06-17 14:30:00",
+    )
+
+
+def _long_focused_launch_log() -> str:
+    return (
+        "".join(f"line {i}\n" for i in range(200))
+        + "=" * 72
+        + "\n"
+        + "[2026-06-17 14:30:00 UTC] single launch failure: alpha  "
+        + f"{error_anchor(_FOCUS_ERROR_ID)}\n"
+    )
+
+
+class _JumpApp(BaseActionsMixin, ModalTestApp):
+    def _on_admin_center_tab_activated(self, tab: object) -> None:
+        return
+
+    def _schedule_updates_indicator_revalidation(self) -> None:
+        return
+
+
+async def test_logs_pane_error_target_scrolls_to_focused_line_and_refresh_unfocuses(
+    log_dir: Path,
+) -> None:
+    write_log(log_dir / "launch_failures.log", _long_focused_launch_log())
+    target = _focus_target()
+
+    async with ModalTestApp().run_test() as pilot:
+        _, pane = await open_logs_pane(pilot, error_target=target)
+        scroll = pane.query_one("#log-detail-scroll", VerticalScroll)
+        await wait_for(pilot, lambda: scroll.scroll_y > 0)
+
+        assert pane._error_target is None
+        assert f"focused on {_FOCUS_ERROR_ID}" in pane._last_detail_text.plain
+        assert any(
+            "#1F1B00" in str(span.style) for span in pane._last_detail_text.spans
+        )
+
+        await pilot.press("r")
+        await wait_for_logs_loaded(pilot, pane)
+        assert f"focused on {_FOCUS_ERROR_ID}" not in pane._last_detail_text.plain
+        assert not any(
+            "#1F1B00" in str(span.style) for span in pane._last_detail_text.spans
+        )
+
+
+async def test_jump_to_last_error_focuses_registered_log_entry(log_dir: Path) -> None:
+    write_log(log_dir / "launch_failures.log", LAUNCH_LOG_BODY)
+    registered = register_error(
+        error_id=_FOCUS_ERROR_ID,
+        source_id="launch_failures",
+        summary="Launch failed",
+    )
+
+    async with _JumpApp().run_test() as pilot:
+        pilot.app.action_jump_to_last_error()
+        await pilot.pause()
+        modal = pilot.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        assert modal._log_error_target is registered
+        pane = modal.query_one("#logs", LogsPane)
+        await wait_for_logs_loaded(pilot, pane)
+        assert f"focused on {_FOCUS_ERROR_ID}" in pane._last_detail_text.plain
+        assert error_anchor(_FOCUS_ERROR_ID) in pane._last_detail_text.plain

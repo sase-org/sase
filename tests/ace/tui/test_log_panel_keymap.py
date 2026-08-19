@@ -13,12 +13,14 @@ from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.commands import build_command_catalog
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.keymaps.types import LeaderModeKeymaps
+from sase.ace.tui.modals.config_center_catalog import _logs_pane_factory
 from sase.ace.tui.modals.config_center_modal import (
     _TAB_LABELS,
     _TAB_ORDER,
     CenterTab,
     ConfigCenterModal,
 )
+from sase.ace.tui.modals.logs_pane import LogsPane
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.logs import clear_registered_errors, register_error
 from tests.ace.tui._leader_keymap_helpers import (
@@ -175,6 +177,9 @@ def test_jump_to_last_error_passes_registered_error_target() -> None:
     assert isinstance(modal, ConfigCenterModal)
     assert modal._initial_tab == "logs"
     assert modal._log_error_target is registered
+    pane = _logs_pane_factory(modal)
+    assert isinstance(pane, LogsPane)
+    assert pane._error_target is registered
 
 
 def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:

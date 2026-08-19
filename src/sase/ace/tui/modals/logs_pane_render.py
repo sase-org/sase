@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,9 @@ GOLD = "#FFD700"
 # Tail size read per source. Bounded so the panel stays responsive even on
 # multi-megabyte logs (the read itself is O(tail) via ``read_tail_seek``).
 _MAX_TAIL_LINES = 500
+# Wider scan used only when jumping to a registered error; still O(tail).
+_MAX_FOCUS_SCAN_LINES = 5000
+_FOCUS_LINE_STYLE = f"bold #1F1B00 on {GOLD}"
 
 # Leading-timestamp shapes for both log formats:
 #   ``[2026-06-17 14:30:00 UTC] ...``  (launch_failures.log header)
@@ -134,6 +138,42 @@ def _line_severity_style(line: str) -> str | None:
     return None
 
 
+def _focus_label(anchor: str) -> str:
+    """Strip the bracketed error-id form used as a log-entry anchor."""
+    if len(anchor) > 2 and anchor.startswith("[") and anchor.endswith("]"):
+        return anchor[1:-1]
+    return anchor
+
+
+def _detail_header(
+    source: LogSource,
+    *,
+    body: str,
+    toast_count: int | None = None,
+    extra_suffix: str | None = None,
+) -> Text:
+    """Build the shared detail-pane header (title, path, mtime, counts)."""
+    text = Text()
+    text.append(source.title, style=f"bold {GOLD}")
+    text.append("\n")
+    text.append(f"{source.description}\n", style="dim")
+    text.append(_display_path(source.path), style=f"bold {CYAN}")
+    mtime = format_mtime(source)
+    if mtime is not None:
+        text.append(f"  ·  {mtime}", style="dim")
+    if body:
+        if toast_count is not None:
+            text.append(f"  ·  {toast_count} toasts", style="dim")
+        else:
+            shown = len(body.splitlines())
+            text.append(f"  ·  {shown} lines", style="dim")
+        if extra_suffix:
+            text.append(f"  ·  {extra_suffix}", style="dim")
+    text.append("\n")
+    text.append("─" * 48 + "\n", style="dim")
+    return text
+
+
 def styled_log_line(line: str) -> Text:
     """Render one raw log *line* as colorized Rich :class:`Text`."""
     stripped = line.strip()
@@ -173,24 +213,7 @@ def render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> Te
             body = body_text.plain
         else:
             body = ""
-    text = Text()
-
-    # Header: source title, path, last modified, and shown line count.
-    text.append(source.title, style=f"bold {GOLD}")
-    text.append("\n")
-    text.append(f"{source.description}\n", style="dim")
-    text.append(_display_path(source.path), style=f"bold {CYAN}")
-    mtime = format_mtime(source)
-    if mtime is not None:
-        text.append(f"  ·  {mtime}", style="dim")
-    if body:
-        if toast_count is not None:
-            text.append(f"  ·  {toast_count} toasts", style="dim")
-        else:
-            shown = len(body.splitlines())
-            text.append(f"  ·  {shown} lines", style="dim")
-    text.append("\n")
-    text.append("─" * 48 + "\n", style="dim")
+    text = _detail_header(source, body=body, toast_count=toast_count)
 
     if not body:
         text.append(_empty_message(source), style="dim italic")
@@ -204,6 +227,72 @@ def render_log_detail(source: LogSource, max_lines: int = _MAX_TAIL_LINES) -> Te
         text.append_text(styled_log_line(line))
         text.append("\n")
     return text
+
+
+@dataclass(frozen=True)
+class FocusedLogDetail:
+    """Rendered log detail plus the 0-based line to scroll into view."""
+
+    text: Text
+    focus_line: int | None
+    found: bool
+
+
+def render_focused_log_detail(
+    source: LogSource,
+    anchor: str,
+    max_lines: int = _MAX_TAIL_LINES,
+    scan_lines: int = _MAX_FOCUS_SCAN_LINES,
+) -> FocusedLogDetail:
+    """Render a window containing *anchor*, highlighting the matching line.
+
+    Scans a bounded tail for the last line that contains *anchor*. A recent
+    hit yields the ordinary tail window; an older hit opens the window at that
+    entry's separator. When the entry is gone, the ordinary tail is returned
+    with an in-pane notice instead of a silent no-op.
+    """
+    lines = source.read_tail(scan_lines).splitlines()
+    hit: int | None = None
+    for index, line in enumerate(lines):
+        if anchor in line:
+            hit = index
+    if hit is None:
+        text = render_log_detail(source, max_lines)
+        if text.plain and not text.plain.endswith("\n"):
+            text.append("\n")
+        text.append(
+            f"The registered error is no longer in the last {scan_lines} lines"
+            " — the log may have rotated.",
+            style="dim italic",
+        )
+        return FocusedLogDetail(text=text, focus_line=None, found=False)
+
+    start = hit
+    if hit > 0:
+        preceding = lines[hit - 1].strip()
+        if preceding and set(preceding) <= {"="}:
+            start = hit - 1
+    start = max(0, min(start, len(lines) - max_lines))
+    window = lines[start : start + max_lines]
+    body = "\n".join(window)
+    text = _detail_header(
+        source,
+        body=body,
+        extra_suffix=f"focused on {_focus_label(anchor)}",
+    )
+    header_lines = len(text.plain.splitlines())
+    focus_offset = hit - start
+    for index, line in enumerate(window):
+        if index == focus_offset:
+            text.append(line, style=_FOCUS_LINE_STYLE)
+        else:
+            text.append_text(styled_log_line(line))
+        text.append("\n")
+    return FocusedLogDetail(
+        text=text,
+        focus_line=header_lines + focus_offset,
+        found=True,
+    )
 
 
 def source_label(source: LogSource, *, now: datetime | None = None) -> Text:
@@ -241,8 +330,10 @@ def source_label(source: LogSource, *, now: datetime | None = None) -> Text:
 __all__ = [
     "CYAN",
     "GOLD",
+    "FocusedLogDetail",
     "format_mtime",
     "format_size_compact",
+    "render_focused_log_detail",
     "render_log_detail",
     "source_label",
     "styled_log_line",

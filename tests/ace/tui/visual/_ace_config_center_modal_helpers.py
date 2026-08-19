@@ -10,6 +10,7 @@ from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
+from sase.logs import RegisteredError
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 
 
@@ -45,8 +46,12 @@ async def _open_projects_modal(
     return modal, pane
 
 
-async def _open_logs_modal(page: AcePage) -> tuple[ConfigCenterModal, LogsPane]:
-    modal = ConfigCenterModal(initial_tab="logs")
+async def _open_logs_modal(
+    page: AcePage,
+    *,
+    log_error_target: RegisteredError | None = None,
+) -> tuple[ConfigCenterModal, LogsPane]:
+    modal = ConfigCenterModal(initial_tab="logs", log_error_target=log_error_target)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#logs")))

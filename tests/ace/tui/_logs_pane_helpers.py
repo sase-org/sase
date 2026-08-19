@@ -15,6 +15,7 @@ from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import LogsPane
+from sase.logs import RegisteredError
 
 LAUNCH_LOG_BODY = (
     "=" * 72 + "\n"
@@ -79,8 +80,12 @@ async def wait_for_logs_loaded(pilot: object, pane: LogsPane) -> None:
     await wait_for(pilot, lambda: not pane._loading)
 
 
-async def open_logs_pane(pilot: object) -> tuple[ConfigCenterModal, LogsPane]:
-    modal = ConfigCenterModal(initial_tab="logs")
+async def open_logs_pane(
+    pilot: object,
+    *,
+    error_target: RegisteredError | None = None,
+) -> tuple[ConfigCenterModal, LogsPane]:
+    modal = ConfigCenterModal(initial_tab="logs", log_error_target=error_target)
     pilot.app.push_screen(modal)  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
     pane = modal.query_one("#logs", LogsPane)

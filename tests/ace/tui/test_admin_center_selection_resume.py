@@ -108,6 +108,7 @@ def _patch_all_surfaces(
     def _load_logs(
         selected_index: int,
         selected_source_id: str | None = None,
+        **_kwargs: object,
     ) -> lp._LogPaneLoadResult:
         selected_index = restore_selection_by_identity(
             sources,

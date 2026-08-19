@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from sase.core.time import parse_local, to_local
-from sase.ace.tui.logs import log_sources
+from sase.ace.tui.logs import LogSource, log_sources
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import logs_pane_render as lp_render
 from sase.ace.tui.modals.logs_pane import (
@@ -19,8 +19,12 @@ from sase.ace.tui.modals.logs_pane import (
     _styled_log_line,
     _render_log_detail,
 )
+from sase.logs import RegisteredError, error_anchor
 from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import LAUNCH_LOG_BODY, write_log
+
+_FOCUS_ERROR_ID = "err_260617_143000_7f3a9c"
+_FOCUS_ANCHOR = error_anchor(_FOCUS_ERROR_ID)
 
 
 def _write_with_mtime(path: Path, text: str, epoch: float) -> None:
@@ -217,3 +221,100 @@ def test_every_source_renders_without_error(log_dir: Path) -> None:
 
     for source in log_sources():
         assert _render_log_detail(source).plain  # non-empty for each
+
+
+def _launch_source() -> LogSource:
+    return next(source for source in log_sources() if source.id == "launch_failures")
+
+
+def test_focused_render_recent_tail_matches_plain_window(log_dir: Path) -> None:
+    write_log(log_dir / "launch_failures.log", LAUNCH_LOG_BODY)
+    source = _launch_source()
+
+    plain = _render_log_detail(source)
+    focused = lp_render.render_focused_log_detail(source, _FOCUS_ANCHOR)
+
+    assert focused.found is True
+    assert focused.focus_line is not None
+    plain_lines = plain.plain.splitlines()
+    focused_lines = focused.text.plain.splitlines()
+    assert focused_lines[4:] == plain_lines[4:]
+    assert _FOCUS_ANCHOR in focused_lines[focused.focus_line]
+    assert f"focused on {_FOCUS_ERROR_ID}" in focused_lines[2]
+    assert any("#1F1B00" in str(span.style) for span in focused.text.spans)
+
+
+def test_focused_render_older_than_tail_opens_at_separator(log_dir: Path) -> None:
+    block = (
+        "=" * 72 + "\n"
+        f"[2026-06-17 14:30:00 UTC] single launch failure: aged  {_FOCUS_ANCHOR}\n"
+        "  error: RuntimeError: aged\n"
+    )
+    fillers = "".join(f"later {i}\n" for i in range(lp_render._MAX_TAIL_LINES + 50))
+    write_log(log_dir / "launch_failures.log", block + fillers)
+    source = _launch_source()
+
+    plain = _render_log_detail(source)
+    focused = lp_render.render_focused_log_detail(source, _FOCUS_ANCHOR)
+
+    assert "single launch failure: aged" not in plain.plain
+    assert focused.found is True
+    assert focused.focus_line is not None
+    lines = focused.text.plain.splitlines()
+    assert lines[4] == "=" * 72
+    assert _FOCUS_ANCHOR in lines[focused.focus_line]
+    last_filler = f"later {lp_render._MAX_TAIL_LINES + 49}"
+    assert last_filler in plain.plain
+    assert last_filler not in focused.text.plain
+
+
+def test_focused_render_absent_anchor_adds_notice(log_dir: Path) -> None:
+    write_log(log_dir / "launch_failures.log", LAUNCH_LOG_BODY)
+    source = _launch_source()
+
+    focused = lp_render.render_focused_log_detail(source, "[err_missing_000000]")
+
+    assert focused.found is False
+    assert focused.focus_line is None
+    assert "no longer in the last" in focused.text.plain
+    assert "may have rotated" in focused.text.plain
+    assert "single launch failure: alpha" in focused.text.plain
+
+
+def test_focused_render_duplicate_anchors_use_last_occurrence(log_dir: Path) -> None:
+    body = (
+        "=" * 72 + "\n"
+        f"[2026-06-17 14:30:00 UTC] single launch failure: first  {_FOCUS_ANCHOR}\n"
+        "  error: first\n"
+        "=" * 72 + "\n"
+        f"[2026-06-17 14:31:00 UTC] single launch failure: second  {_FOCUS_ANCHOR}\n"
+        "  error: second\n"
+    )
+    write_log(log_dir / "launch_failures.log", body)
+    source = _launch_source()
+
+    focused = lp_render.render_focused_log_detail(source, _FOCUS_ANCHOR)
+
+    assert focused.found is True
+    assert focused.focus_line is not None
+    line = focused.text.plain.splitlines()[focused.focus_line]
+    assert "second" in line
+    assert "first" not in line
+
+
+def test_load_result_focuses_matching_error_target(log_dir: Path) -> None:
+    write_log(log_dir / "launch_failures.log", LAUNCH_LOG_BODY)
+    target = RegisteredError(
+        error_id=_FOCUS_ERROR_ID,
+        source_id="launch_failures",
+        anchor=error_anchor(_FOCUS_ERROR_ID),
+        summary="Launch failed",
+        registered_at="2026-06-17 14:30:00",
+    )
+
+    result = lp._build_log_pane_load_result(0, "launch_failures", error_target=target)
+
+    assert result.focus_found is True
+    assert result.focus_line is not None
+    assert f"focused on {_FOCUS_ERROR_ID}" in result.detail.plain
+    assert _FOCUS_ANCHOR in result.detail.plain.splitlines()[result.focus_line]

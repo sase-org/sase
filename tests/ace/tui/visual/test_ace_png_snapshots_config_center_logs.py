@@ -10,6 +10,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_config_view,
     _patch_plugins_catalog,
     _patch_xprompt_sources,
+    _seed_focused_error_log,
     _seed_logs_tab_files,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -81,4 +82,30 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
             page,
             "config_center_logs_tab_toasts_120x40",
             title="ACE SASE Admin Center - Logs tab - TUI Toasts",
+        )
+
+
+async def test_config_center_logs_tab_focused_error_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+    target = _seed_focused_error_log()
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_logs_modal(page, log_error_target=target)
+        assert "focused on err_260617_143000_7f3a9c" in pane._last_detail_text.plain
+        assert "[err_260617_143000_7f3a9c]" in pane._last_detail_text.plain
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_logs_tab_focused_error_120x40",
+            title="ACE SASE Admin Center - Logs tab - focused error",
         )

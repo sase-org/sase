@@ -23,8 +23,10 @@ from .logs_pane_models import LogPaneLoadResult as _LogPaneLoadResult
 from .logs_pane_render import (
     CYAN as _CYAN,
     GOLD as _GOLD,
+    FocusedLogDetail,
     format_mtime as _format_mtime,
     format_size_compact as _format_size_compact,
+    render_focused_log_detail as _render_focused_log_detail,
     render_log_detail as _render_log_detail,
     source_label as _source_label,
     styled_log_line as _styled_log_line,
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
 def _build_log_pane_load_result(
     selected_index: int,
     selected_source_id: str | None = None,
+    error_target: RegisteredError | None = None,
 ) -> _LogPaneLoadResult:
     """Read source metadata and the selected detail body off the UI thread."""
     sources = log_sources()
@@ -56,17 +59,30 @@ def _build_log_pane_load_result(
         (f"log__{source.id}", _source_label(source, now=now)) for source in sources
     ]
     active_count = sum(1 for source in sources if source.exists())
-    detail = (
-        _render_log_detail(sources[selected_index])
-        if sources
-        else Text("No log sources configured.", style="dim italic")
-    )
+    focus_line: int | None = None
+    focus_found: bool | None = None
+    if not sources:
+        detail: Text = Text("No log sources configured.", style="dim italic")
+    else:
+        source = sources[selected_index]
+        if error_target is not None and source.id == error_target.source_id:
+            focused = _render_focused_log_detail(source, error_target.anchor)
+            if isinstance(focused, FocusedLogDetail):
+                detail = focused.text
+                focus_line = focused.focus_line
+                focus_found = focused.found
+            else:
+                detail = _render_log_detail(source)
+        else:
+            detail = _render_log_detail(source)
     return _LogPaneLoadResult(
         sources=sources,
         options=options,
         active_count=active_count,
         selected_index=selected_index,
         detail=detail,
+        focus_line=focus_line,
+        focus_found=focus_found,
     )
 
 
@@ -110,6 +126,7 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._selection_guard = ProgrammaticSelectionGuard()
         self._bookmark = bookmark or SelectionBookmark()
         self._error_target = error_target
+        self._focus_scroll_retries = 0
         self._selected_index = restore_selection_by_identity(
             self._sources,
             prior_identity=self._bookmark.identity,
@@ -175,9 +192,14 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._worker_reset_scroll = reset_scroll
         self._update_static("#logs-pane-title", self._title_text())
         selected_source_id = self._source_id_for_index(selected_index)
+        error_target = self._error_target
 
         def task() -> _LogPaneLoadResult:
-            return _build_log_pane_load_result(selected_index, selected_source_id)
+            return _build_log_pane_load_result(
+                selected_index,
+                selected_source_id,
+                error_target=error_target,
+            )
 
         self._worker = self.run_worker(task, thread=True, exclusive=True)
 
@@ -224,8 +246,11 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._update_static("#log-detail", self._last_detail_text)
         self._update_hints()
         self._rebuild_options(selected_index=result.selected_index)
-        if reset_scroll:
+        if result.focus_line is not None:
+            self.call_after_refresh(self._scroll_detail_to_line, result.focus_line)
+        elif reset_scroll:
             self._scroll_detail_home()
+        self._error_target = None
 
     def _render_source_option_label(self, source_index: int, label: Text) -> Text:
         hint = self.jump_hint_for(source_index)
@@ -381,6 +406,20 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
             self._force_scroll_detail_to(0)
         except Exception:
             pass
+
+    def _scroll_detail_to_line(self, y: float) -> None:
+        """Scroll so 0-based detail line *y* is in view after layout settles."""
+        try:
+            scroll = self.query_one("#log-detail-scroll", VerticalScroll)
+            retries = self._focus_scroll_retries
+            if int(y) > 0 and int(scroll.max_scroll_y) == 0 and retries < 3:
+                self._focus_scroll_retries = retries + 1
+                scroll.call_after_refresh(self._scroll_detail_to_line, y)
+                return
+            self._focus_scroll_retries = 0
+            self._force_scroll_detail_to(y)
+        except Exception:
+            self._focus_scroll_retries = 0
 
     def _force_scroll_detail_to(self, y: float) -> None:
         scroll = self.query_one("#log-detail-scroll", VerticalScroll)
