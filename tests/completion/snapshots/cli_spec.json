@@ -12188,7 +12188,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "6d513788060bea99",
+            "description_digest": "076adb65014057c7",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -19972,6 +19972,158 @@
             "subcommands": []
           }
         ]
+      },
+      {
+        "aliases": [],
+        "default_child": null,
+        "description_digest": "a4bfd27ab1d0f4b1",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "tmux-agent",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "directory",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-c",
+              "--dir"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": [
+              "off",
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "dest": "effort",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-e",
+              "--effort"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "json",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-j",
+              "--json"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "list",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-l",
+              "--list"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "dry_run",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-n",
+              "--dry-run"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "refresh",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-r",
+              "--refresh"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "safe",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-s",
+              "--safe"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "verbose",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-v",
+              "--verbose"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "renumber",
+            "hidden": true,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "--renumber"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "tmux-agent"
+        ],
+        "positionals": [
+          {
+            "choices": null,
+            "dest": "provider",
+            "is_remainder": false,
+            "kind": null,
+            "metavar": "<provider>",
+            "nargs": "?"
+          }
+        ],
+        "subcommands": []
       },
       {
         "aliases": [],

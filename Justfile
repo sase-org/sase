@@ -344,8 +344,11 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-qx.5(blocked_launch_units)" \
         --epic-symbol "sase-qx.5(plan_launch_units)" \
         --epic-symbol "sase-r1.3(collect_update_preview_inputs)" \
+        --epic-symbol "sase-r1.5(UpdateOptionChip)" \
+        --epic-symbol "sase-r1.5(UpdateOptionRow)" \
         --epic-symbol "sase-r1.5(UpdatePanel)" \
         --epic-symbol "sase-r1.5(UpdatePanelResult)" \
+        --epic-symbol "sase-r1.5(UpdatePanelState)" \
         --epic-symbol "sase-r1.5(build_update_panel_state)" \
         {{ args }}
 

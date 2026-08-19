@@ -138,6 +138,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     # Legacy command alias for the proc parser.
     "task": ("sase.main.parser_proc", "register_proc_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
+    "tmux-agent": ("sase.main.parser_tmux_agent", "register_tmux_agent_parser"),
     "update": ("sase.main.parser_update", "register_update_parser"),
     "validate": ("sase.main.parser_validate", "register_validate_parser"),
     "var": ("sase.main.parser_var", "register_var_parser"),

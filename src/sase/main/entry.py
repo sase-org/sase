@@ -469,6 +469,12 @@ def main() -> NoReturn:
 
         handle_telemetry_command(args)
 
+    # --- tmux-agent ---
+    if args.command == "tmux-agent":
+        from .tmux_agent_handler import handle_tmux_agent_command
+
+        handle_tmux_agent_command(args)
+
     # --- update ---
     if args.command == "update":
         from .update_handler import handle_update_command
