@@ -2577,9 +2577,9 @@ Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`,
 The **Projects** sub-tab lists true, non-system projects only, with enabled projects
 first and disabled projects still visible. Here, "true project" means a project backed
 by its own main ProjectSpec, rather than an internal linked-repo backing record; a true
-project can be enabled or disabled. Rows show the display/canonical name, VCS kind
-(`git` or `gh`), lifecycle state, active claims, workspace/repo counts, and warnings.
-Telemetry-only directories and linked-repo backing records cannot appear.
+project can be enabled or disabled. Rows show a `CUR` marker, the display/canonical
+name, VCS kind (`git` or `gh`), lifecycle state, active claims, workspace/repo counts,
+and warnings. Telemetry-only directories and linked-repo backing records cannot appear.
 
 | Key       | Action                                                              |
 | --------- | ------------------------------------------------------------------- |
@@ -2592,12 +2592,29 @@ Telemetry-only directories and linked-repo backing records cannot appear.
 | `m` / `u` | Toggle one mark / clear all marks                                   |
 | `e` / `A` | Edit the ProjectSpec / aliases                                      |
 | `a` / `d` | Enable / disable the highlighted project or marked set              |
+| `c`       | Make the highlighted project current                                |
 | `Ctrl+D`  | Delete the highlighted SASE project directory or marked directories |
 | `F`       | Force the last blocked disable after confirming live-work checks    |
 | `R`       | Reload records or the current inventory                             |
 | `p`       | Open the shared project picker on the Repos or Workspaces sub-tab   |
 | `Esc`     | Clear an inventory project filter; otherwise close the Admin Center |
 | `q`       | Close the SASE Admin Center                                         |
+
+`c` requires the highlighted project to be enabled and launchable; pressing it on a
+project that is already current, disabled, or not launchable reports why in the status
+line instead of starting a write. All Projects-tab keys, including `c`, are configurable
+under [`ace.keymaps.projects`](configuration.md#acekeymaps).
+
+The current project — the same one the top-bar `+<project>` chip names — is marked on
+three surfaces at once, all in that project's accent color: a `+` in the row table's
+`CUR` column plus its name rendered in that accent, a `current:+<name>` segment appended
+to the summary line, and a `+CURRENT` badge on the detail panel's header line. The
+detail panel also carries a dedicated `Current project:` line for the highlighted row,
+whether or not it is current — stating the fact for a current row (and, when it arrived
+via a Patch, which one) or the exact reason and fix for one that is not (enable it
+first, it has no launchable ProjectSpec, or press `c`). This display always resolves
+live and ignores `ace.current_project.indicator`, which only hides the top-bar chip; see
+[Current project](#current-project).
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set
 instead of only the highlighted row. Successful lifecycle changes clear the affected
@@ -3417,10 +3434,16 @@ the `origin:` query property.
 
 ## Current project
 
-ACE has one **current project**: the project you last launched an agent on, derived from
-the head of the VCS xprompt MRU store. `sase project set-current` and the Projects tab
-perform the same MRU promotion without a launch. Click the top-bar `+<project>` chip to
-open the `+` launch picker, which is the surface that actually records that launch.
+ACE has one **current project**: the head of the VCS xprompt MRU store. Launching an
+agent on a project — or on a Patch owned by that project — promotes it to that head.
+`sase project set-current <project>` and the Projects tab's `c` key (see
+[Projects Tab](#projects-tab)) move it the same way, by promoting the project to the MRU
+head, without a launch. Click the top-bar `+<project>` chip to open the `+` launch
+picker, which is the surface that actually records a launch.
+
+Because setting the current project and launching an agent both promote the same MRU
+entry, making a project current also moves it to the head of the prompt bar's `<ctrl+p>`
+VCS-prefix cycle — the same coupling a launch already produces.
 
 The chip sits immediately after the provider-disables pill, so in the normal case — when
 the override and disable pills are empty — it reads flush against the default-model
@@ -3439,8 +3462,8 @@ can filter by project seed from the current project instead of starting at all p
 - the highlight in the `+` launch picker
 
 The seed never overrides an explicit `project:` / `+name` term, a pick you already made
-this session, or a surface that is already open. A mid-session launch moves the chip
-live but does not re-scope those surfaces. Turn seeding off with
+this session, or a surface that is already open. A mid-session launch or set moves the
+chip live but does not re-scope those surfaces. Turn seeding off with
 `ace.current_project.seed_filters: false`.
 
 The Agents-tab search query is **not** seeded by default

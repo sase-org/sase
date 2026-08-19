@@ -831,11 +831,11 @@ The current project is derived from the head of the VCS xprompt MRU store — th
 you last launched an agent on. `sase project set-current` and the Projects tab perform
 the same MRU promotion without a launch.
 
-| Field               | Type | Default | Description                                                                                                 |
-| ------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator.                        |
-| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface. |
-| `seed_agents_query` | bool | `false` | Also seed the Agents-tab search query with the current project's `project:` term.                           |
+| Field               | Type | Default | Description                                                                                                                                                                                                                           |
+| ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
+| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                           |
+| `seed_agents_query` | bool | `false` | Also seed the Agents-tab search query with the current project's `project:` term.                                                                                                                                                     |
 
 `seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
 at-a-glance view, and its search query is also read by unread-jump candidates and
@@ -960,7 +960,7 @@ taking effect.
 
 #### `ace.keymaps`
 
-All TUI keybindings are configurable. The `keymaps` section has five scopes:
+All TUI keybindings are configurable. The `keymaps` section has six scopes:
 
 **`gate`** — Bindings active in the shared branch controls used by plan and custom gate
 modals, plus the input panel those modals open when a selection needs typed input:
@@ -1039,6 +1039,39 @@ commas:
 
 Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
 app-level bindings.
+
+**`projects`** — Bindings active on all three Admin Center
+[Projects-tab](ace.md#projects-tab) sub-tabs (Projects, Repos, Workspaces), so
+`focus_filter`, `jump_to_entry`, `reload`, and the sub-tab cycle keys stay identical
+across the three rather than configuring the list separately from the inventories. A
+value may list more than one key, separated by commas:
+
+| Field                        | Default                | Description                                                        |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------ |
+| `next_option`                | `j,down,ctrl+n`        | Move selection to the next row.                                    |
+| `prev_option`                | `k,up,ctrl+p`          | Move selection to the previous row.                                |
+| `focus_filter`               | `slash`                | Filter the active sub-tab.                                         |
+| `cycle_subtab`               | `right_square_bracket` | Cycle to the next sub-tab (Projects, Repos, Workspaces).           |
+| `cycle_subtab_reverse`       | `left_square_bracket`  | Cycle to the previous sub-tab.                                     |
+| `toggle_project_mark`        | `m`                    | Toggle the mark on the highlighted project.                        |
+| `clear_project_marks`        | `u`                    | Clear all marks.                                                   |
+| `edit_project_spec`          | `e`                    | Edit the highlighted project's ProjectSpec in `$EDITOR`.           |
+| `edit_project_aliases`       | `A`                    | Edit the highlighted project's aliases.                            |
+| `enable_project`             | `a`                    | Enable the highlighted project or marked set.                      |
+| `disable_project`            | `d`                    | Disable the highlighted project or marked set.                     |
+| `delete_project`             | `ctrl+d`               | Delete the highlighted or marked SASE project directories.         |
+| `force_current_state_change` | `F`                    | Force the last blocked disable after confirming live-work checks.  |
+| `default_project_action`     | `enter`                | Run the highlighted project's default lifecycle action.            |
+| `reload`                     | `R`                    | Reload records or the current inventory.                           |
+| `show_project_repos`         | `r`                    | Show repos pre-filtered to the highlighted project.                |
+| `show_project_workspaces`    | `w`                    | Show workspaces pre-filtered to the highlighted project.           |
+| `jump_to_entry`              | `apostrophe`           | Jump to a row via adaptive hints, within the active sub-tab only.  |
+| `pick_project`               | `p`                    | Open the shared project picker on the Repos or Workspaces sub-tab. |
+| `clear_project_filter`       | `escape`               | Clear an inventory project filter.                                 |
+| `set_current_project`        | `c`                    | Make the highlighted project [current](ace.md#current-project).    |
+
+Like gate, statistics, and glossary keys, Projects-tab keys are scoped to the pane and
+may overlap app-level bindings.
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their

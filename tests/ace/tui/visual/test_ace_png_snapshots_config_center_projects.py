@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.current_project import CurrentProject
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
     _config_layers,
@@ -32,13 +33,17 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _patch_admin_center(monkeypatch: pytest.MonkeyPatch) -> None:
+def _patch_admin_center(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    current_project: CurrentProject | None = None,
+) -> None:
     """Stub every Admin Center pane so the whole modal renders deterministically."""
     patch_startup_loaders(monkeypatch)
     _patch_xprompt_sources(monkeypatch)
     _patch_plugins_catalog(monkeypatch)
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
-    _patch_project_records(monkeypatch)
+    _patch_project_records(monkeypatch, current_project=current_project)
 
 
 async def test_config_center_projects_tab_png_snapshot(
@@ -158,4 +163,36 @@ async def test_config_center_projects_detail_png_snapshot(
             page,
             "config_center_projects_detail_120x40",
             title="ACE SASE Admin Center — Projects tab (warning detail)",
+        )
+
+
+async def test_config_center_projects_current_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The current project shows its CUR marker, accent name, and detail badge."""
+    _patch_admin_center(
+        monkeypatch,
+        current_project=CurrentProject(
+            project_key="sase",
+            display_name="sase",
+            origin="project",
+            origin_ref="sase",
+            workflow_type="gh",
+        ),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_projects_modal(page)
+        await page.wait_for(lambda _s: pane._selected_project_name() == "sase")
+        await page.wait_for(lambda _s: pane._current_project_loaded)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_projects_current_120x40",
+            title="ACE SASE Admin Center — Projects tab (current project selected)",
         )

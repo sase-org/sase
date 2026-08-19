@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.ace.tui.modals.project_management_rendering import ProjectInventoryCounts
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
+from sase.current_project import CurrentProject
 from sase.repo_inventory import RepoInventory, RepoInventoryIssue, RepoRecord
 from sase.workspace_provider.inventory import (
     WorkspaceInventory,
@@ -135,12 +138,19 @@ def _visual_workspace_inventory() -> WorkspaceInventory:
 def _patch_project_records(
     monkeypatch: pytest.MonkeyPatch,
     records: list[ProjectRecordWire] | None = None,
+    *,
+    current_project: CurrentProject | None = None,
 ) -> None:
     """Feed the always-mounted Projects pane deterministic lifecycle records.
 
     Overrides the ``conftest`` autouse stub (which returns an empty list to keep
     other Admin Center snapshots deterministic) so the Projects tab renders a
     stable spread of states, claims, aliases, and warnings.
+
+    ``current_project``, when given, is returned by the stubbed
+    ``resolve_current_project`` so a snapshot can exercise the ``CUR`` marker, the
+    accent-colored name, the summary segment, and the ``+CURRENT`` detail badge
+    deterministically instead of reading the developer's real MRU.
     """
     resolved = project_records() if records is None else records
     monkeypatch.setattr(
@@ -177,11 +187,16 @@ def _patch_project_records(
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.resolve_current_project",
-        lambda **_kwargs: None,
+        lambda **_kwargs: current_project,
     )
+    known_workspaces = {
+        record.project_name: Path(record.workspace_dir or "")
+        for record in resolved
+        if record.is_project and record.state == "enabled"
+    }
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.get_known_project_workspaces",
-        lambda **_kwargs: {},
+        lambda **_kwargs: known_workspaces if current_project is not None else {},
     )
 
 
