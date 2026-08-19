@@ -19,8 +19,8 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
     build_comprehensive_update_preview,
     comprehensive_confirm_copy,
-    comprehensive_current_message,
-    comprehensive_dropped_message,
+    _comprehensive_current_message,
+    _comprehensive_dropped_message,
     comprehensive_preview_sections,
     plan_captured_providers,
 )
@@ -401,17 +401,17 @@ def test_comprehensive_confirm_copy(
 
 
 def test_scoped_noop_messages_name_the_scope() -> None:
-    assert comprehensive_current_message(UpdateScope.EVERYTHING) == (
+    assert _comprehensive_current_message(UpdateScope.EVERYTHING) == (
         "Everything in the captured comprehensive update is already current."
     )
-    assert "SASE, core, and plugins" in comprehensive_current_message(UpdateScope.SASE)
-    assert "providers" in comprehensive_current_message(UpdateScope.PROVIDERS)
-    assert "agent hoods" in comprehensive_current_message(UpdateScope.AGENTS)
-    assert comprehensive_dropped_message(UpdateScope.EVERYTHING, "gone") == (
+    assert "SASE, core, and plugins" in _comprehensive_current_message(UpdateScope.SASE)
+    assert "providers" in _comprehensive_current_message(UpdateScope.PROVIDERS)
+    assert "agent hoods" in _comprehensive_current_message(UpdateScope.AGENTS)
+    assert _comprehensive_dropped_message(UpdateScope.EVERYTHING, "gone") == (
         "No captured updates remain: available components are current; "
         "no longer present: gone."
     )
-    assert comprehensive_dropped_message(UpdateScope.PROVIDERS, "gone").startswith(
+    assert _comprehensive_dropped_message(UpdateScope.PROVIDERS, "gone").startswith(
         "No captured provider updates remain"
     )
 

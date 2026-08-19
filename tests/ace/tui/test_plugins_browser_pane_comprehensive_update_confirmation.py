@@ -137,6 +137,10 @@ async def test_comprehensive_confirmation_stays_open_when_submit_collides(
         catalog=_catalog(),
         agent_cli_statuses=_agent_cli_statuses(),
     )
+    _patch_sase_preview(
+        monkeypatch,
+        pbp._DevUpdatePreview(plan=None, subject="sase"),
+    )
 
     async with AcePage() as page:
         admin = ConfigCenterModal(

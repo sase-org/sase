@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shlex
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 
 from sase.ace.tui.agents_sync_format import captured_agent_hood_label
 from sase.ace.tui.update_preview_inputs import UpdatePreviewInputs
@@ -518,15 +518,64 @@ def comprehensive_confirm_copy(scope: UpdateScope) -> tuple[str, str, str]:
     return title, intro, panel_title
 
 
-def comprehensive_current_message(scope: UpdateScope) -> str:
+def _comprehensive_current_message(scope: UpdateScope) -> str:
     """Return the already-current noop toast for *scope*."""
     return _CURRENT_MESSAGES[scope]
 
 
-def comprehensive_dropped_message(scope: UpdateScope, names: str) -> str:
+def _comprehensive_dropped_message(scope: UpdateScope, names: str) -> str:
     """Return the dropped-candidate noop toast for *scope*."""
     lead = _DROPPED_LEADS[scope]
     return f"{lead}: available components are current; no longer present: {names}."
+
+
+def handle_comprehensive_noop(
+    preview: ComprehensiveUpdatePreview,
+    *,
+    notify: Callable[..., None],
+    switch_to_subtab: Callable[..., object] | None = None,
+) -> None:
+    """Toast the scoped no-op outcome; never treat an unselected leg as current."""
+    if preview.manual_provider_entries:
+        if callable(switch_to_subtab):
+            switch_to_subtab("agent-clis")
+            notify(
+                "No safe automatic Agent CLI command is available. Review the "
+                "manual command and vendor documentation in Agent CLIs.",
+                severity="warning",
+            )
+        else:
+            notify(
+                "No safe automatic Agent CLI command is available. Review the "
+                "manual command and vendor documentation in the Admin Center "
+                "Updates tab.",
+                severity="warning",
+            )
+        return
+    selected = preview.selected_legs
+    errors = tuple(
+        item
+        for item, selected_leg in (
+            (preview.sase_blocker, UpdateLeg.SASE),
+            (preview.provider_error, UpdateLeg.PROVIDERS),
+            (preview.agents_error, UpdateLeg.AGENTS),
+        )
+        if item and selected_leg in selected
+    )
+    if errors:
+        notify("; ".join(errors), severity="error")
+        return
+    if preview.provider_dropped:
+        names = ", ".join(item.name for item in preview.provider_dropped)
+        notify(
+            _comprehensive_dropped_message(preview.request.scope, names),
+            severity="information",
+        )
+        return
+    notify(
+        _comprehensive_current_message(preview.request.scope),
+        severity="information",
+    )
 
 
 def _captured_agents_component(

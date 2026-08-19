@@ -23,5 +23,6 @@ from .startup import StartupMixin as StartupMixin
 from .status import StatusActionsMixin as StatusActionsMixin
 from .sync import SyncMixin as SyncMixin
 from .proc_actions import ProcActionsMixin as ProcActionsMixin
+from .update_run import UpdateRunActionsMixin as UpdateRunActionsMixin
 from .update_toast import UpdateToastMixin as UpdateToastMixin
 from .workspace import WorkspaceActionsMixin as WorkspaceActionsMixin

@@ -46,6 +46,7 @@ from .actions import (
     StatusActionsMixin,
     SyncMixin,
     ProcActionsMixin,
+    UpdateRunActionsMixin,
     UpdateToastMixin,
     WorkspaceActionsMixin,
 )
@@ -129,6 +130,7 @@ class AceApp(
     StatusActionsMixin,
     SyncMixin,
     ProcActionsMixin,
+    UpdateRunActionsMixin,
     UpdateToastMixin,
     WorkspaceActionsMixin,
     BaseActionsMixin,

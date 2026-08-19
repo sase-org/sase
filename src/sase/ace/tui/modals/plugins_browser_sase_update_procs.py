@@ -10,6 +10,11 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.update_restart import (
+    restart_after_update,
+    restart_after_update_when_ready,
+    running_background_procs as running_background_procs,
+)
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
@@ -29,8 +34,6 @@ from .plugins_browser_sase_update_summary import (
     managed_update_changed,
     sase_update_success_message,
 )
-
-_RESTART_WAIT_SECONDS = 60.0
 
 
 class SaseUpdateProcMixin:
@@ -270,7 +273,11 @@ class SaseUpdateProcMixin:
 
     def _restart_after_update(self, message: str) -> None:
         """Notify briefly, then reuse the TUI + axe restart machinery."""
-        self._restart_after_update_when_ready(message, deferred=False)
+        restart_after_update(
+            self.app,
+            message,
+            notify=getattr(self, "_notify", None),
+        )
 
     def _restart_after_update_when_ready(
         self,
@@ -280,67 +287,10 @@ class SaseUpdateProcMixin:
         deadline: float | None = None,
     ) -> None:
         """Restart after tracked background procs have finished."""
-        if deadline is None:
-            deadline = time.monotonic() + _RESTART_WAIT_SECONDS
-        running_procs = running_background_procs(self.app)
-        if running_procs and time.monotonic() < deadline:
-            if not deferred:
-                count = len(running_procs)
-                noun = "proc" if count == 1 else "procs"
-                verb = "finishes" if count == 1 else "finish"
-                self._notify(f"{message} - restart queued until {count} {noun} {verb}.")
-            set_timer = getattr(self.app, "set_timer", None)
-            if callable(set_timer):
-                set_timer(
-                    1.0,
-                    lambda: self._restart_after_update_when_ready(
-                        message,
-                        deferred=True,
-                        deadline=deadline,
-                    ),
-                )
-            return
-
-        if running_procs:
-            self._notify(
-                f"{message} - restart wait expired; restarting with "
-                f"{_blocking_proc_summary(running_procs)} still active.",
-                severity="warning",
-            )
-
-        self._notify(f"{message} — restarting ACE to load new code.")
-        restart = getattr(self.app, "_restart_tui", None)
-        if callable(restart):
-            restart(restart_axe=True)
-
-
-def running_background_procs(app: Any) -> list[Any]:
-    """Return observed active procs that must finish before ACE can restart.
-
-    Excludes monitor shells: a detached ``sase monitor start`` supervisor
-    outlives ACE by design, so it must not block a self-update restart.
-    """
-    from sase.ace.tui.proc_observer import is_monitor_shell_row, proc_projection_for
-
-    return [
-        row
-        for row in proc_projection_for(app).active_rows()
-        if not is_monitor_shell_row(row)
-    ]
-
-
-def _blocking_proc_summary(procs: list[Any]) -> str:
-    """Return a compact user-facing description of restart blockers."""
-    count = len(procs)
-    noun = "proc" if count == 1 else "procs"
-    names = [_proc_display_name(proc) for proc in procs[:3]]
-    suffix = "" if count <= 3 else f", and {count - 3} more"
-    return f"{count} {noun}: {', '.join(names)}{suffix}"
-
-
-def _proc_display_name(proc: Any) -> str:
-    for attr in ("label", "display_name", "proc_type", "proc_id"):
-        value = getattr(proc, attr, None)
-        if isinstance(value, str) and value:
-            return value
-    return "unknown proc"
+        restart_after_update_when_ready(
+            self.app,
+            message,
+            deferred=deferred,
+            deadline=deadline,
+            notify=getattr(self, "_notify", None),
+        )

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from sase.ace.update_scope import ALL_LEGS, UpdateLeg
 from sase.agent_clis.models import AgentCliUpdateResult, UpdateResultStatus
 from sase.agents_sync.models import CachedIntegrationResult
 from sase.dev_update.models import DevUpdateResult
@@ -48,6 +49,7 @@ class ComprehensiveUpdateResult:
     agents_outcomes: tuple[CachedIntegrationResult, ...] = ()
     agents_error: str | None = None
     elapsed: float = 0.0
+    selected_legs: frozenset[UpdateLeg] = ALL_LEGS
 
     @property
     def code_changed(self) -> bool:

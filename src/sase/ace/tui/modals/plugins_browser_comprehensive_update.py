@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -26,6 +25,8 @@ from .plugins_browser_comprehensive_update_execution import (
     ComprehensiveUpdateExecutionMixin,
     comprehensive_update_summary,
     order_provider_results,
+    run_scoped_update,
+    scoped_update_proc_names,
 )
 from .plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdatePreview,
@@ -37,10 +38,9 @@ from .plugins_browser_comprehensive_update_preview import (
     agents_preview_section,
     build_comprehensive_update_preview,
     comprehensive_confirm_copy,
-    comprehensive_current_message,
-    comprehensive_dropped_message,
     comprehensive_preview_sections,
     dev_update_commands,
+    handle_comprehensive_noop,
     plan_captured_providers,
     provider_preview_section,
     sase_preview_section,
@@ -188,46 +188,10 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         self.app.push_screen(modal, _on_confirmed)
 
     def _handle_comprehensive_noop(self, preview: ComprehensiveUpdatePreview) -> None:
-        if preview.manual_provider_entries:
-            switch_to_subtab = getattr(self, "_switch_to_subtab", None)
-            if callable(switch_to_subtab):
-                switch_to_subtab("agent-clis")
-                self._notify(
-                    "No safe automatic Agent CLI command is available. Review the "
-                    "manual command and vendor documentation in Agent CLIs.",
-                    severity="warning",
-                )
-            else:
-                self._notify(
-                    "No safe automatic Agent CLI command is available. Review the "
-                    "manual command and vendor documentation in the Admin Center "
-                    "Updates tab.",
-                    severity="warning",
-                )
-            return
-        selected = preview.selected_legs
-        errors = tuple(
-            item
-            for item, selected_leg in (
-                (preview.sase_blocker, UpdateLeg.SASE),
-                (preview.provider_error, UpdateLeg.PROVIDERS),
-                (preview.agents_error, UpdateLeg.AGENTS),
-            )
-            if item and selected_leg in selected
-        )
-        if errors:
-            self._notify("; ".join(errors), severity="error")
-            return
-        if preview.provider_dropped:
-            names = ", ".join(item.name for item in preview.provider_dropped)
-            self._notify(
-                comprehensive_dropped_message(preview.request.scope, names),
-                severity="information",
-            )
-            return
-        self._notify(
-            comprehensive_current_message(preview.request.scope),
-            severity="information",
+        handle_comprehensive_noop(
+            preview,
+            notify=self._notify,
+            switch_to_subtab=getattr(self, "_switch_to_subtab", None),
         )
 
     def _submit_comprehensive_update_task(
@@ -236,18 +200,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         """Submit exactly one task claiming all update mutation scopes."""
 
         def task() -> TrackedProcResult[ComprehensiveUpdateResult]:
-            start = time.monotonic()
-            provider_results, provider_error = self._execute_provider_leg(preview)
-            sase_result = self._execute_comprehensive_sase_leg(preview)
-            agents_outcomes, agents_error = self._execute_agents_leg(preview)
-            result = ComprehensiveUpdateResult(
-                sase=sase_result,
-                provider_results=provider_results,
-                provider_error=provider_error or preview.provider_error,
-                agents_outcomes=agents_outcomes,
-                agents_error=agents_error or preview.agents_error,
-                elapsed=max(0.0, time.monotonic() - start),
-            )
+            result = run_scoped_update(preview, self._uv_tool)
             message = comprehensive_update_summary(result)
             return TrackedProcResult(
                 success=not result.has_failures,
@@ -259,11 +212,12 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return False
+        display_name, cl_name = scoped_update_proc_names(preview.request.scope)
         submitted = submit(
             "comprehensive-update",
             task,
-            display_name="comprehensive update",
-            cl_name="sase + agent CLIs + cached hoods",
+            display_name=display_name,
+            cl_name=cl_name,
             dedup_key="comprehensive-update",
             exclusive_scopes=(
                 "sase-update",

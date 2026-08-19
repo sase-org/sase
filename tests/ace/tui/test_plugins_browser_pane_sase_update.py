@@ -162,25 +162,20 @@ def test_restart_after_update_deadline_expires_with_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     restart_calls: list[bool] = []
+    messages: list[tuple[str, str]] = []
     app = SimpleNamespace(
         _proc_projection=_projection(_task("run-sync", "sync")),
         _restart_tui=lambda *, restart_axe: restart_calls.append(restart_axe),
+        notify=lambda message, *, severity="information": messages.append(
+            (message, severity)
+        ),
     )
 
     class Host(pbsup.SaseUpdateProcMixin):
         def __init__(self) -> None:
             self.app = app
-            self.messages: list[tuple[str, str]] = []
 
-        def _notify(
-            self,
-            message: str,
-            *,
-            severity: str = "information",
-        ) -> None:
-            self.messages.append((message, severity))
-
-    monkeypatch.setattr(pbsup.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
     host = Host()
     host._restart_after_update_when_ready(
         "updated",
@@ -190,8 +185,7 @@ def test_restart_after_update_deadline_expires_with_warning(
 
     assert restart_calls == [True]
     assert any(
-        severity == "warning" and "sync" in message
-        for message, severity in host.messages
+        severity == "warning" and "sync" in message for message, severity in messages
     )
 
 
