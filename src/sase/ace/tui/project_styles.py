@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 import functools
-import hashlib
+
+from sase.palette_hash import hash_palette_index as _hash_index
 
 # 18 colors spaced evenly around the OKLCH hue wheel (20 degrees apart),
 # each chroma-adjusted so every entry lands at approximately the same WCAG
@@ -43,11 +44,6 @@ PROJECT_ACCENTS: tuple[str, ...] = (
     "#A65EB7",
     "#B9589C",
 )
-
-
-def _hash_index(key: str, modulo: int) -> int:
-    digest = hashlib.sha256(key.encode("utf-8")).digest()
-    return int.from_bytes(digest[:8], "big") % modulo
 
 
 @functools.lru_cache(maxsize=256)

@@ -16,6 +16,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.history.chat import save_chat_history
 from sase.monitor_state import MONITOR_PROC_ORIGIN
+from sase.monitor_status import clamp_monitor_status_or_default
 from sase.procs.models import (
     ACTIVE_PROC_STATUSES,
     PROC_LIFECYCLE_PROC_SHELL,
@@ -234,7 +235,11 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         index_updater=update_agent_artifact_index_for_marker_mutation,
     )
 
-    stop_status = str(meta.get("monitor_stop_status") or DEFAULT_STOP_STATUS)
+    raw_stop = meta.get("monitor_stop_status")
+    stop_status = clamp_monitor_status_or_default(
+        raw_stop if isinstance(raw_stop, str) else None,
+        default=DEFAULT_STOP_STATUS,
+    )
     done_marker: dict[str, Any] = {
         "outcome": "monitored",
         "name": meta.get("name"),

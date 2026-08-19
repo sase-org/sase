@@ -28,6 +28,10 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe
+from sase.monitor_status import (
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 from sase.workflows.utils import get_project_file_path
 
 from .followup import launch_followup_agent
@@ -373,7 +377,11 @@ def _finish_monitor(
     timeout_kind: _TimeoutKind | None,
 ) -> None:
     """Write the terminal marker, save chat history, and settle the claim."""
-    stop_status = str(meta.get("monitor_stop_status") or "MONITORED")
+    raw_stop = meta.get("monitor_stop_status")
+    stop_status = clamp_monitor_status_or_default(
+        raw_stop if isinstance(raw_stop, str) else None,
+        default=DEFAULT_MONITOR_STOP_STATUS,
+    )
     retained = capture.retained_text()
 
     meta["monitor_state"] = monitor_state

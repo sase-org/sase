@@ -32,6 +32,11 @@ from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
+from sase.monitor_status import (
+    DEFAULT_MONITOR_START_STATUS,
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 
 from ._agent_list_entry_models import (
     AgentChildrenSummary,
@@ -78,10 +83,9 @@ def _base_record_status(record: AgentArtifactRecordWire) -> str:
         done = record.done
         outcome = done.outcome if done is not None else None
         if outcome == "monitored":
-            return (
-                done.status_label
-                if done is not None and done.status_label
-                else "MONITORED"
+            return clamp_monitor_status_or_default(
+                done.status_label if done is not None else None,
+                default=DEFAULT_MONITOR_STOP_STATUS,
             )
         return "FAILED" if outcome == "failed" else "DONE"
     if record.waiting is not None:
@@ -281,13 +285,16 @@ def _derive_status(
             derived = plan_status
     if _is_monitor(meta, done):
         if done is not None and done.outcome == "monitored":
-            return (
+            return clamp_monitor_status_or_default(
                 done.status_label
-                or (meta.monitor_stop_status if meta is not None else None)
-                or "MONITORED"
+                or (meta.monitor_stop_status if meta is not None else None),
+                default=DEFAULT_MONITOR_STOP_STATUS,
             )
         if meta is not None and (meta.run_started_at or meta.wait_completed_at):
-            return meta.monitor_start_status or "MONITORING"
+            return clamp_monitor_status_or_default(
+                meta.monitor_start_status,
+                default=DEFAULT_MONITOR_START_STATUS,
+            )
         return "STARTING"
     return derived
 

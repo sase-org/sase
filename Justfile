@@ -358,6 +358,11 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-qt.6(memory_note_relative_path_for_stem)" \
         --epic-symbol "sase-qt.6(update_memory_note)" \
         --epic-symbol "sase-qt.6(validate_memory_note_draft)" \
+        --epic-symbol "sase-qv.2(clamp_monitor_status)" \
+        --epic-symbol "sase-qv.2(effective_monitor_status)" \
+        --epic-symbol "sase-qv.2(monitor_status_accent)" \
+        --epic-symbol "sase-qv.2(monitor_status_glyph)" \
+        --epic-symbol "sase-qv.2(monitor_status_style)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

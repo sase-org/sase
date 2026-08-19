@@ -11,6 +11,10 @@ from sase.agent.status_buckets import pending_plan_status_for_tier
 from sase.core.time import to_local
 from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.monitor_state import monitor_state_bucket
+from sase.monitor_status import (
+    DEFAULT_MONITOR_START_STATUS,
+    clamp_monitor_status_or_default,
+)
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,
@@ -84,10 +88,9 @@ def apply_monitor_meta(
         return
     agent.status_bucket = monitor_state_bucket(state)
     if state == "running" and agent.status != "STARTING":
-        agent.status = (
-            monitor_start_status
-            if isinstance(monitor_start_status, str) and monitor_start_status
-            else "MONITORING"
+        agent.status = clamp_monitor_status_or_default(
+            monitor_start_status if isinstance(monitor_start_status, str) else None,
+            default=DEFAULT_MONITOR_START_STATUS,
         )
 
 

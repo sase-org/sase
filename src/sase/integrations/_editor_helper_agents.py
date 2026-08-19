@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 from sase.agent.status_buckets import aggregate_agent_group_status
 from sase.monitor_state import is_monitor_member_role
+from sase.monitor_status import (
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 
 
 @dataclass(frozen=True)
@@ -192,10 +196,10 @@ def _record_status(record: Any) -> str:
     if record.has_done_marker and done is not None:
         if done.outcome == "monitored":
             meta = record.agent_meta
-            return (
+            return clamp_monitor_status_or_default(
                 done.status_label
-                or (meta.monitor_stop_status if meta is not None else None)
-                or "MONITORED"
+                or (meta.monitor_stop_status if meta is not None else None),
+                default=DEFAULT_MONITOR_STOP_STATUS,
             )
         if done.outcome in {"failed", "epic_launch_failed"}:
             return "FAILED"

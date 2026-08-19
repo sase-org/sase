@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from sase.monitor_status import DEFAULT_MONITOR_STOP_STATUS
 from sase.plan_chain import agent_family_role_for_suffix
 
-DEFAULT_MONITOR_STOP_STATUS = "MONITORED"
 MONITOR_FAMILY_ROLE = "monitor"
 MONITOR_GLYPH = "⚙"
 MONITOR_GLYPH_COLOR = "#FFAF5F"

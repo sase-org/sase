@@ -11,13 +11,14 @@ import json
 from dataclasses import dataclass
 from hashlib import sha256
 
-from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
+from sase.monitor_status import (
+    DEFAULT_MONITOR_START_STATUS as DEFAULT_START_STATUS,
+    DEFAULT_MONITOR_STOP_STATUS as DEFAULT_STOP_STATUS,
+)
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT
 from .models import MonitorRecord
 
-DEFAULT_START_STATUS = "MONITORING"
-DEFAULT_STOP_STATUS = DEFAULT_MONITOR_STOP_STATUS
 DEFAULT_TAIL_LINES = 200
 DEFAULT_TIMEOUT_SECONDS = 3600.0
 DEFAULT_REASON = "run command"

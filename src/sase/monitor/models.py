@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from sase.monitor_state import monitor_state_bucket
+from sase.monitor_status import MonitorStatusPair, monitor_status_pair
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT
 
@@ -176,6 +177,10 @@ class MonitorRecord:
             done.monitor_followup_prompt_path if done is not None else None
         ) or meta.monitor_followup_prompt_path
 
+        status_pair: MonitorStatusPair = monitor_status_pair(
+            meta.monitor_start_status, meta.monitor_stop_status
+        )
+
         return cls(
             monitor_id=meta.monitor_id,
             member_agent_name=meta.name or "",
@@ -187,8 +192,8 @@ class MonitorRecord:
             cwd=meta.monitor_cwd or "",
             reason=meta.monitor_reason or "",
             label=meta.monitor_label or meta.monitor_command or "",
-            start_status=meta.monitor_start_status or "MONITORING",
-            stop_status=meta.monitor_stop_status or "MONITORED",
+            start_status=status_pair.start,
+            stop_status=status_pair.stop,
             timeout_seconds=meta.monitor_timeout_seconds or 0.0,
             tail_lines=meta.monitor_tail_lines or 200,
             monitor_state=monitor_state,

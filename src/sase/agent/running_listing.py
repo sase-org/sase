@@ -29,6 +29,11 @@ from sase.core.runner_slots import (
 )
 from sase.core.time import get_timezone
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
+from sase.monitor_status import (
+    DEFAULT_MONITOR_START_STATUS,
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 
 
 @dataclass
@@ -219,7 +224,10 @@ def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     meta = record.agent_meta
     if meta is not None and _is_monitor_member_meta(meta):
         if meta.run_started_at or meta.wait_completed_at:
-            return meta.monitor_start_status or "MONITORING"
+            return clamp_monitor_status_or_default(
+                meta.monitor_start_status,
+                default=DEFAULT_MONITOR_START_STATUS,
+            )
         return "STARTING"
     if meta is not None and (meta.run_started_at or meta.wait_completed_at):
         return "RUNNING"
@@ -466,10 +474,10 @@ def _done_info_from_record(
     if outcome == "epic_approved":
         status = EPIC_APPROVED_STATUS
     elif outcome == "monitored":
-        status = (
+        status = clamp_monitor_status_or_default(
             done.status_label
-            or (meta.monitor_stop_status if meta is not None else None)
-            or "MONITORED"
+            or (meta.monitor_stop_status if meta is not None else None),
+            default=DEFAULT_MONITOR_STOP_STATUS,
         )
     elif outcome in {"failed", "epic_launch_failed"}:
         status = "FAILED"

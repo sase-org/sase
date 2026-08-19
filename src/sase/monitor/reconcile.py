@@ -19,6 +19,10 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.history.chat import save_chat_history
 from sase.logs._bounded import log_file_lock
+from sase.monitor_status import (
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 from sase.procs.models import ProcStoreSnapshot
 from sase.procs.store import read_proc_snapshot
 from sase.workflows.utils import get_project_file_path
@@ -137,7 +141,11 @@ def _reconcile_dead_supervisor_locked(
 
     stopped_at = _utc_now_iso()
     elapsed_seconds = _elapsed_seconds(meta, stopped_at)
-    stop_status = str(meta.get("monitor_stop_status") or "MONITORED")
+    raw_stop = meta.get("monitor_stop_status")
+    stop_status = clamp_monitor_status_or_default(
+        raw_stop if isinstance(raw_stop, str) else None,
+        default=DEFAULT_MONITOR_STOP_STATUS,
+    )
 
     meta["monitor_state"] = monitor_state
     meta["monitor_output_truncated"] = capture.truncated

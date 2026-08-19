@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
-import hashlib
 import re
 from typing import Any
 
 from rich.cells import cell_len
 
 from sase.notification_gates.model_validation import GateError, validate_icon
+from sase.palette_hash import hash_palette_index
 from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON, REF_ICON_CONFIG_KEY
 
 from ._artifact_tab_contract import (
@@ -286,8 +286,7 @@ def _provider_accent_for_kind(kind: str) -> str:
     palette = [color for color in _PROVIDER_ACCENTS if color not in reserved]
     if not palette:
         palette = list(_PROVIDER_ACCENTS)
-    digest = hashlib.sha256(kind.encode("utf-8")).digest()
-    return palette[int.from_bytes(digest[:8], "big") % len(palette)]
+    return palette[hash_palette_index(kind, len(palette))]
 
 
 def _provider_label(kind: str, spec: Mapping[str, Any]) -> str:

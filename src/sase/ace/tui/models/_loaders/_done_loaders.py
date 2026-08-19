@@ -25,6 +25,10 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.ace.revert_agent import agent_is_reverted
+from sase.monitor_status import (
+    DEFAULT_MONITOR_STOP_STATUS,
+    clamp_monitor_status_or_default,
+)
 
 from ._json_cache import load_json_cached
 from ._meta_enrichment import (
@@ -270,11 +274,10 @@ def _load_done_agent_for_dir(
             )
             error_traceback = data.get("traceback")
         elif outcome == "monitored":
-            status = (
-                data.get("status_label")
-                if isinstance(data.get("status_label"), str)
-                and data.get("status_label")
-                else "MONITORED"
+            raw_status = data.get("status_label")
+            status = clamp_monitor_status_or_default(
+                raw_status if isinstance(raw_status, str) else None,
+                default=DEFAULT_MONITOR_STOP_STATUS,
             )
             error_message = (
                 data.get("error") if isinstance(data.get("error"), str) else None
@@ -491,7 +494,9 @@ def _build_done_agent_from_record(
         )
         error_traceback = done.traceback
     elif outcome == "monitored":
-        status = done.status_label or "MONITORED"
+        status = clamp_monitor_status_or_default(
+            done.status_label, default=DEFAULT_MONITOR_STOP_STATUS
+        )
         error_message = done.error
         error_traceback = None
     elif outcome == "stopped" or done.repeat_stopped:
