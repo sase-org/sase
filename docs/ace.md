@@ -5088,20 +5088,25 @@ shows `project 1/1`.
 
 Two navigation axes stay synchronized:
 
-- **Alphabetical.** `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) move the term-list cursor;
-  the definition card follows. `g`/`G` jump to the first and last term. `/` filters
-  terms and aliases with the same predicate as `sase glossary list`; `.` extends the
-  match into definition bodies, matching `--definitions`. `Esc` closes the filter and
-  keeps the selection when it is still visible. An empty result reads
+- **Alphabetical.** `j`/`k` (or the `↑`/`↓` arrows) move the term-list cursor; the
+  definition card follows. `g`/`G` jump to the first and last term. `/` filters terms
+  and aliases with the same predicate as `sase glossary list`; `.` extends the match
+  into definition bodies, matching `--definitions`. `Esc` closes the filter and keeps
+  the selection when it is still visible. An empty result reads
   `no terms matched: <pattern>`.
 - **Relational.** The definition card carries numbered `SEE ALSO` chips (outbound
   references from this definition) and `REFERENCED BY` chips (inbound terms that mention
   this one). Numbering is continuous across both rows so `1`–`9` is never ambiguous.
-  `Tab` / `Shift+Tab` move a chip cursor; `Enter` or `l` follows the focused chip, or ①
-  when none is focused. Following moves the term-list cursor to the target, pushes the
-  previous term onto a trail bounded at 32 entries, and clears an active filter when the
-  target is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
+  `Tab` / `Shift+Tab` move a chip cursor, and `l` follows the focused chip — or chip ①
+  when none is focused. `1`–`9` jump straight to a numbered chip without moving the chip
+  cursor first. Following moves the term-list cursor to the target, pushes the previous
+  term onto a trail bounded at 32 entries, and clears an active filter when the target
+  is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
   `TRAIL  A › B › C` above the footer.
+
+`follow_relation` ships as `enter,l`, but only `l` currently follows a chip: the term
+list holds focus and consumes `Enter` for its own selection action, so `Enter` does
+nothing in this panel. Use `l` or a chip number.
 
 `p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
 glossary configured, plus the project you opened from even when it has none — so `a` can
@@ -5129,9 +5134,12 @@ The panel footer lists only conditional keys: `d` when a term is selected, relat
 when chips exist, `p`/`P` when the ring has more than one project, and back when a trail
 exists. Always-available keys live in `?` and in this guide.
 
-Every key named above is remappable under
+Most keys named above are remappable under
 [`ace.keymaps.glossary`](configuration.md#acekeymaps); see
-[Remapping Glossary Panel Keys](#remapping-glossary-panel-keys).
+[Remapping Glossary Panel Keys](#remapping-glossary-panel-keys). Three sets are fixed
+and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
+shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
+list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 #### Repo names
 

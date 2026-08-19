@@ -198,12 +198,21 @@ one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `�
 
 A type also carries its own triage bar. `triage.min_plus_ones` is the number of
 independent [`+1`](#task-corroboration-1) reports a ready bead of that type needs before
-it earns a `TaskTriage` gate; the spec default is `0`, and among the builtins only
-`flake` raises it (to `3`), because a test that failed once is the case most often
-misread as a real defect. A bead whose type this machine does not have registered — and
-every legacy untyped bead — falls back to the configured
-[`bead.task_triage.min_plus_ones`](configuration.md#bead) instead.
-`sase bead task-type show <slug>` prints the effective bar under `TRIAGE`.
+it earns a `TaskTriage` gate. A bead resolves its bar one of two ways:
+
+- **Typed, and this machine has the type registered** — the type's own
+  `triage.min_plus_ones` wins. The spec default is `0`, and among the builtins only
+  `flake` raises it (to `3`), because a test that failed once is the case most often
+  misread as a real defect. So a `bug`, `ci`, `feature`, or `memory` bead needs no
+  corroboration at all and gates on the next five-minute tick.
+- **Untyped, or typed with a slug this machine does not have registered** — the
+  configured [`bead.task_triage.min_plus_ones`](configuration.md#bead) is the fallback.
+  It ships as `1`.
+
+Those two defaults differ on purpose, so do not read the spec default of `0` as "the
+default bar is zero": a legacy untyped bead needs one `+1` out of the box, while a typed
+`bug` bead needs none. `sase bead task-type show <slug>` prints the effective bar under
+`TRIAGE`.
 
 ### Status Lifecycle
 

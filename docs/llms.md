@@ -265,12 +265,21 @@ The ACE Tools panel reads this same `tool_calls.jsonl` to render the per-agent t
 
 Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
 hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
-releases did, through a `sase_claude_tool_hook` console script that no longer ships.
-Those older runs wrote schema-v3 "hook" rows, and the reader still accepts them:
-`tool_calls.jsonl` rows at schema versions 1, 2, and 3 are all readable, and in a
-historical file that mixed both sources, a hook row wins over a stream row describing
-the same `tool_use_id` so an old timeline does not double-count one call. New runs write
-schema version 2 and never request Claude's `--include-hook-events`.
+releases did, through a `sase_claude_tool_hook` console script that no longer ships, and
+new runs never request Claude's `--include-hook-events`.
+
+The `schema_version` field on each row names _which writer produced it_, not how recent
+it is — the numbers are two lineages, not a sequence, so a higher number is not a newer
+format:
+
+| `schema_version` | Written by                         | Still written? |
+| ---------------- | ---------------------------------- | -------------- |
+| `1`, `2`         | The stream parser (`2` is current) | Yes — `2`      |
+| `3`              | The retired Claude tool-call hook  | No             |
+
+The reader accepts all three, so old artifacts stay viewable. In a historical file that
+mixed both writers, a schema-3 hook row wins over a stream row describing the same
+`tool_use_id`, so an old timeline does not double-count one call.
 
 The writer is intentionally non-blocking and best-effort: a malformed event, an
 exception inside normalization, or a missing `SASE_ARTIFACTS_DIR` produces a diagnostic
