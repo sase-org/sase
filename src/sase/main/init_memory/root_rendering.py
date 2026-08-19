@@ -177,6 +177,28 @@ def _generated_task_types_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "task_types.md"
 
 
+def generated_memory_note_relative_paths(
+    *, include_project_memory: bool
+) -> tuple[Path, ...]:
+    """Return the generated memory-note paths for one memory root.
+
+    Shared notes are always included. Project-only notes (``sase_beads.md``
+    and ``sase_sizes.md``) are added when ``include_project_memory`` is true.
+    Private path helpers feed this set so the two cannot drift.
+    """
+    paths = (
+        _generated_sase_memory_relative_path(),
+        _generated_task_types_memory_relative_path(),
+    )
+    if include_project_memory:
+        return (
+            *paths,
+            _generated_beads_memory_relative_path(),
+            _generated_sizes_memory_relative_path(),
+        )
+    return paths
+
+
 def _generated_task_type_snapshot_path(root: Path) -> Path:
     """Return the committed catalog snapshot path (D6), outside ``sase/memory``."""
     return resolve_project_layout(root).namespace_root.path / "task_types.json"
