@@ -65,7 +65,14 @@ class MemoryPanelHelpModal(ModalScreen[None]):
                 text.append("\n")
             text.append(f" {key} ", style=f"bold reverse {_ACCENT}")
             text.append(f" {description}", style="bold")
-        return Group(text)
+        note = Text()
+        note.append(
+            "\nfollow_link ships as enter,l, but only l currently follows a chip: "
+            "the note list holds focus and consumes Enter for its own selection "
+            "action, so Enter does nothing in this panel. Use l or a chip number.",
+            style="dim",
+        )
+        return Group(text, note)
 
     def _scroll(self) -> VerticalScroll:
         return self.query_one("#memory-panel-help-scroll", VerticalScroll)

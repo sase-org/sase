@@ -31,6 +31,8 @@ from sase.memory.read_log import MemoryReadPathSummary
 from sase.notifications.models import format_relative_time
 from sase.xprompt.highlight_theme import derive_argument_color
 
+from .glossary_preview_render import build_numbered_chip_rows
+
 _COLOR_LABEL = "dim"
 _BADGE_FOREGROUND = "#1a1a1a"
 _FALLBACK_ACCENT = "#87D7FF"
@@ -298,14 +300,34 @@ def build_note_card_meta(
     note: MemoryNote,
     *,
     accent: str,
+    parent: tuple[MemoryNote, ...] | None = None,
+    children: tuple[MemoryNote, ...] | None = None,
+    focused_link_number: int | None = None,
 ) -> RenderableType:
-    """Build the badge row, divider, and property grid below the note body."""
+    """Build the badge row, link chips, divider, and property grid.
+
+    When *parent* or *children* is omitted, both are recomputed from
+    ``memory_note_relations`` so callers that only need the static card
+    (tests, empty-cursor paint) still get the numbered PARENT / CHILDREN
+    rows.
+    """
+    if parent is None or children is None:
+        parent, children = memory_note_relations(snapshot, note)
     sections: list[RenderableType] = []
     badges = _build_note_badge_row(snapshot, note, accent=accent)
     if badges is not None:
         sections.append(badges)
+    chip_rows = build_numbered_chip_rows(
+        (
+            ("PARENT", tuple(item.path.stem for item in parent)),
+            ("CHILDREN", tuple(item.path.stem for item in children)),
+        ),
+        focused_number=focused_link_number,
+        accent=accent,
+    )
+    if chip_rows is not None:
+        sections.append(chip_rows)
     sections.append(Text("-" * 44, style="dim"))
-    _parent, children = memory_note_relations(snapshot, note)
     sections.append(
         _build_note_property_grid(
             note,
@@ -368,11 +390,15 @@ def build_panel_footer(
     has_notes: bool,
     has_source_path: bool,
     ring_size: int,
+    has_links: bool = False,
+    has_trail: bool = False,
+    focused_link_stem: str | None = None,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
-    Link, edit/delete, and publish keys are later phases -- they are left
-    out entirely because Phase 4 does not implement those actions.
+    Edit/delete and publish keys are a later phase -- they are left out
+    entirely until those actions exist. Link and back keys appear when
+    chips or a trail are present.
     """
     parts: list[str] = []
     if ring_size > 1:
@@ -380,6 +406,13 @@ def build_panel_footer(
             f"{key_display_name(keymaps.next_scope)}/"
             f"{key_display_name(keymaps.prev_scope)} scope"
         )
+    if has_links:
+        parts.append(f"{key_display_name(keymaps.next_link)} link")
+        parts.append(f"{key_display_name(keymaps.follow_link)} follow")
+        if focused_link_stem:
+            parts.append(f"→ {focused_link_stem}")
+    if has_trail:
+        parts.append(f"{key_display_name(keymaps.travel_back)} back")
     if has_notes:
         parts.append(f"{key_display_name(keymaps.copy_body)} copy")
     if has_source_path:

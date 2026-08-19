@@ -2,8 +2,8 @@
 
 The movement axes the note rail itself owns: cursor motion plus body
 scrolling, the inline filter box, and ``p``/``P``/``ctrl+p`` scope movement
-with its refresh. Link-chip travel is a later phase and will live in
-:mod:`sase.ace.tui.modals.memory_panel_travel`.
+with its refresh. Parent/child chip travel is the fourth axis and lives
+in :mod:`sase.ace.tui.modals.memory_panel_travel`.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         MemoryScopeRef,
         MemoryScopeSnapshot,
     )
+    from sase.memory.notes import MemoryNote
 else:
     _MixinBase = object
 
@@ -43,6 +44,10 @@ class MemoryPanelNavigationMixin(_MixinBase):
         _scope_index: int
         _scope_selection_memory: dict[str, str]
         _snapshot: MemoryScopeSnapshot | None
+        _trail: list[str]
+        _chip_cursor: int | None
+        _chip_notes: tuple[MemoryNote, ...]
+        _chip_parent_count: int
 
         def _apply_filter(
             self,
@@ -139,6 +144,10 @@ class MemoryPanelNavigationMixin(_MixinBase):
         self._scope_index = (self._scope_index + delta) % len(self._ring)
         self._filter_input().value = ""
         self._filter_input().display = False
+        self._trail = []
+        self._chip_notes = ()
+        self._chip_parent_count = 0
+        self._chip_cursor = None
         self._start_scope_load()
 
     def action_refresh(self) -> None:

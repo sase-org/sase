@@ -11,6 +11,7 @@ from rich.console import Console
 from sase.ace.tui.modals.glossary_preview_render import (
     build_alias_chips,
     build_glossary_title,
+    build_numbered_chip_rows,
     build_property_grid,
     build_relation_chip_rows,
     glossary_definition_markdown,
@@ -159,6 +160,24 @@ def test_relation_chip_rows_return_none_when_both_empty() -> None:
     assert (
         build_relation_chip_rows((), (), focused_number=None, accent="#87D7FF") is None
     )
+
+
+def test_numbered_chip_rows_share_renderer_for_parent_children_labels() -> None:
+    text = _render_text(
+        build_numbered_chip_rows(
+            (
+                ("PARENT", ("hub",)),
+                ("CHILDREN", ("grand",)),
+            ),
+            focused_number=2,
+            accent="#87D7FF",
+        )
+    )
+
+    assert "PARENT" in text
+    assert "CHILDREN" in text
+    assert "1 hub" in text
+    assert "2 grand" in text
 
 
 def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:

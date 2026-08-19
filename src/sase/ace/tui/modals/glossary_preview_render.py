@@ -113,28 +113,48 @@ def build_relation_chip_rows(
     shortcut is never ambiguous. A row with no members is omitted rather
     than rendered empty. Returns ``None`` when both rows are empty.
     """
+    return build_numbered_chip_rows(
+        (
+            ("SEE ALSO", tuple(entry.term for entry in outbound)),
+            ("REFERENCED BY", tuple(entry.term for entry in inbound)),
+        ),
+        focused_number=focused_number,
+        accent=accent,
+    )
+
+
+def build_numbered_chip_rows(
+    groups: tuple[tuple[str, tuple[str, ...]], ...],
+    *,
+    focused_number: int | None,
+    accent: str,
+) -> RenderableType | None:
+    """Build labeled numbered chip rows with continuous numbering.
+
+    Empty groups are omitted rather than rendered empty. Numbering is
+    continuous across the rendered rows so a digit shortcut is never
+    ambiguous. Returns ``None`` when every group is empty. Glossary
+    ``SEE ALSO`` / ``REFERENCED BY`` chips and Memory ``PARENT`` /
+    ``CHILDREN`` chips share this renderer so the two surfaces cannot
+    drift visually.
+    """
     rows: list[tuple[str, Text]] = []
-    if outbound:
+    next_number = 1
+    for label, names in groups:
+        if not names:
+            continue
         rows.append(
             (
-                "SEE ALSO",
+                label,
                 _numbered_chips(
-                    outbound, start=1, focused_number=focused_number, accent=accent
-                ),
-            )
-        )
-    if inbound:
-        rows.append(
-            (
-                "REFERENCED BY",
-                _numbered_chips(
-                    inbound,
-                    start=len(outbound) + 1,
+                    names,
+                    start=next_number,
                     focused_number=focused_number,
                     accent=accent,
                 ),
             )
         )
+        next_number += len(names)
     if not rows:
         return None
     grid = Table.grid(expand=True, padding=(0, 2, 0, 0))
@@ -146,18 +166,18 @@ def build_relation_chip_rows(
 
 
 def _numbered_chips(
-    entries: tuple[GlossaryEntry, ...],
+    names: tuple[str, ...],
     *,
     start: int,
     focused_number: int | None,
     accent: str,
 ) -> Text:
     text = Text()
-    for offset, entry in enumerate(entries):
+    for offset, name in enumerate(names):
         number = start + offset
         _append_chip(
             text,
-            f"{number} {entry.term}",
+            f"{number} {name}",
             accent=accent,
             focused=number == focused_number,
         )
@@ -365,6 +385,7 @@ def _escape_markdown_link_text(value: str) -> str:
 __all__ = [
     "build_alias_chips",
     "build_glossary_title",
+    "build_numbered_chip_rows",
     "build_property_grid",
     "build_relation_chip_rows",
     "build_see_also_chips",

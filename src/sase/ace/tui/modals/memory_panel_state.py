@@ -44,6 +44,8 @@ class MemoryPanelStateMixin(_MixinBase):
         _selection_guard: ProgrammaticSelectionGuard
         _snapshot: MemoryScopeSnapshot | None
 
+        def _refresh_links_for_current_note(self) -> None: ...
+
         def _render_note_card(self) -> None: ...
 
         def _resize_note_rail(self) -> None: ...
@@ -122,6 +124,7 @@ class MemoryPanelStateMixin(_MixinBase):
             self._current_note = identity
         else:
             self._current_note = None
+        self._refresh_links_for_current_note()
         self._render_note_card()
 
     # --- selection helpers ------------------------------------------------
@@ -164,6 +167,7 @@ class MemoryPanelStateMixin(_MixinBase):
         ):
             return
         self._current_note = identity
+        self._refresh_links_for_current_note()
         self._update_footer()
         if self._debouncer is not None:
             self._debouncer.schedule(self._render_note_card)

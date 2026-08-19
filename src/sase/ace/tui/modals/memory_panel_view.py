@@ -7,6 +7,7 @@ widgets; the pure text builders themselves live in that module.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rich.console import RenderableType
@@ -15,6 +16,7 @@ from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.widgets import Markdown, Static
 
+from .glossary_panel_rendering import build_trail_strip
 from .memory_panel_rendering import (
     build_diagnostics_message,
     build_empty_scope_message,
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
         MemoryScopeRef,
         MemoryScopeSnapshot,
     )
+    from sase.memory.notes import MemoryNote
 else:
     _MixinBase = object
 
@@ -48,6 +51,10 @@ class MemoryPanelViewMixin(_MixinBase):
     if TYPE_CHECKING:
         _accent: str
         _all_rows: tuple[MemoryRailNode, ...]
+        _chip_cursor: int | None
+        _chip_notes: tuple[MemoryNote, ...]
+        _chip_parent_count: int
+        _current_note: str | None
         _filter_text: str
         _keymaps: MemoryPanelKeymaps
         _loading: bool
@@ -55,6 +62,7 @@ class MemoryPanelViewMixin(_MixinBase):
         _ring: tuple[MemoryScopeRef, ...]
         _scope_index: int
         _snapshot: MemoryScopeSnapshot | None
+        _trail: list[str]
 
         def _note_list(self) -> OptionList: ...
 
@@ -107,11 +115,19 @@ class MemoryPanelViewMixin(_MixinBase):
 
     def _update_footer(self) -> None:
         node = self._selected_row()
+        focused_link_stem = None
+        if self._chip_cursor is not None and 0 <= self._chip_cursor < len(
+            self._chip_notes
+        ):
+            focused_link_stem = self._chip_notes[self._chip_cursor].path.stem
         footer = build_panel_footer(
             self._keymaps,
             has_notes=bool(self._rows),
             has_source_path=node is not None,
             ring_size=len(self._ring),
+            has_links=bool(self._chip_notes),
+            has_trail=bool(self._trail),
+            focused_link_stem=focused_link_stem,
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)
@@ -120,7 +136,18 @@ class MemoryPanelViewMixin(_MixinBase):
     def _trail_strip(self) -> Static:
         return self.query_one("#memory-panel-trail", Static)
 
+    def _update_trail_strip(self) -> None:
+        trail_widget = self._trail_strip()
+        if not self._trail or self._current_note is None:
+            trail_widget.display = False
+            trail_widget.update("")
+            return
+        trail_widget.display = True
+        labels = tuple(Path(path).stem for path in (*self._trail, self._current_note))
+        trail_widget.update(build_trail_strip(labels, accent=self._accent))
+
     def _render_note_card(self) -> None:
+        self._update_trail_strip()
         title_widget = self.query_one("#memory-panel-card-title", Static)
         description_widget = self.query_one("#memory-panel-card-description", Static)
         body_widget = self.query_one("#memory-panel-card-body", Markdown)
@@ -189,7 +216,21 @@ class MemoryPanelViewMixin(_MixinBase):
         )
         description_widget.update(build_note_description(note))
         body_widget.update(note.body if note.body.strip() else "_No body content._")
-        meta_widget.update(build_note_card_meta(snapshot, note, accent=self._accent))
+        parent = self._chip_notes[: self._chip_parent_count]
+        children = self._chip_notes[self._chip_parent_count :]
+        focused_link_number = (
+            self._chip_cursor + 1 if self._chip_cursor is not None else None
+        )
+        meta_widget.update(
+            build_note_card_meta(
+                snapshot,
+                note,
+                accent=self._accent,
+                parent=parent,
+                children=children,
+                focused_link_number=focused_link_number,
+            )
+        )
 
 
 __all__ = ["MemoryPanelViewMixin"]

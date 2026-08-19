@@ -4,12 +4,13 @@ This module is the modal shell: the widget tree, the worker-backed loads
 that fill it, and the passive source-file/copy actions. The panel's
 behavior is split across sibling mixins -- snapshot and selection state in
 :mod:`sase.ace.tui.modals.memory_panel_state`, widget rendering in
-:mod:`sase.ace.tui.modals.memory_panel_view`, and note/filter/scope movement
-in :mod:`sase.ace.tui.modals.memory_panel_navigation`. Link-chip travel and
-add/edit/delete/publish surfaces are later phases and are not wired here;
-the keymap scope already carries their bindings (see
-``ace.keymaps.memory``), but no ``action_*`` method exists for them yet, so
-those keys are safe, silent no-ops until a later phase implements them.
+:mod:`sase.ace.tui.modals.memory_panel_view`, note/filter/scope movement in
+:mod:`sase.ace.tui.modals.memory_panel_navigation`, and parent/child chip
+travel in :mod:`sase.ace.tui.modals.memory_panel_travel`. Add/edit/delete/
+publish surfaces are a later phase and are not wired here; the keymap
+scope already carries their bindings (see ``ace.keymaps.memory``), but no
+``action_*`` method exists for them yet, so those keys are safe, silent
+no-ops until a later phase implements them.
 """
 
 from __future__ import annotations
@@ -56,6 +57,7 @@ from .memory_panel_state import (
     _NOTE_LIST_ID,
     MemoryPanelStateMixin,
 )
+from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
 
 
@@ -84,6 +86,7 @@ class MemoryPanel(
     MemoryPanelStateMixin,
     MemoryPanelViewMixin,
     MemoryPanelNavigationMixin,
+    MemoryPanelTravelMixin,
     ModalScreen[None],
 ):
     """Browse one scope's memory notes, tree-ordered, with a filter."""
@@ -91,6 +94,14 @@ class MemoryPanel(
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
+        *(
+            (
+                str(number),
+                f"follow_link_number({number})",
+                f"Follow link {number}",
+            )
+            for number in range(1, 10)
+        ),
     ]
 
     def __init__(
@@ -126,6 +137,10 @@ class MemoryPanel(
         self._selection_guard = ProgrammaticSelectionGuard()
         self._debouncer: DetailPanelDebouncer | None = None
         self._scope_selection_memory: dict[str, str] = {}
+        self._chip_notes: tuple[MemoryNote, ...] = ()
+        self._chip_parent_count = 0
+        self._chip_cursor: int | None = None
+        self._trail: list[str] = []
 
     def compose(self) -> ComposeResult:
         self._accent = memory_card_accent(self.app.current_theme)
@@ -300,6 +315,10 @@ class MemoryPanel(
             self._scope_index = index
             self._filter_input().value = ""
             self._filter_input().display = False
+            self._trail = []
+            self._chip_notes = ()
+            self._chip_parent_count = 0
+            self._chip_cursor = None
             self._start_scope_load()
             return
 

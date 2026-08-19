@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from rich.console import Console
+
 from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
 from sase.ace.tui.memory_panel_catalog import MemoryRailNode
+from sase.ace.tui.modals.memory_panel_help_modal import MemoryPanelHelpModal
 from sase.ace.tui.modals.memory_panel_rendering import (
     build_empty_scope_message,
     build_empty_scope_no_root_message,
     _build_note_badge_row,
     _build_note_property_grid,
+    build_note_card_meta,
     build_note_row_text,
     build_panel_footer,
     note_rail_width,
@@ -61,6 +65,51 @@ def test_panel_footer_lists_only_conditional_keys() -> None:
     assert "esc" not in footer
     assert "j/" not in footer
     assert "refresh" not in footer
+
+
+def test_panel_footer_lists_link_and_back_when_present() -> None:
+    keymaps = MemoryPanelKeymaps()
+    footer = build_panel_footer(
+        keymaps,
+        has_notes=True,
+        has_source_path=True,
+        ring_size=2,
+        has_links=True,
+        has_trail=True,
+        focused_link_stem="child",
+    )
+    assert "Tab link" in footer
+    assert "Enter / l follow" in footer
+    assert "→ child" in footer
+    assert "backspace / h back" in footer
+    assert "p/P scope" in footer
+
+
+def test_note_card_meta_renders_parent_and_children_chips() -> None:
+    ref = scope_ref("sase", "sase")
+    hub = memory_note("hub", description="Hub.")
+    child = memory_note("child", parent="sase/memory/hub.md", description="Child.")
+    snapshot = scope_snapshot(ref, (hub, child))
+
+    console = Console(width=120, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(build_note_card_meta(snapshot, child, accent="#87D7FF"))
+    text = capture.get()
+
+    assert "PARENT" in text
+    assert "1 hub" in text
+    assert "CHILDREN" not in text
+
+
+def test_memory_panel_help_documents_enter_does_not_follow() -> None:
+    modal = MemoryPanelHelpModal(keymaps=MemoryPanelKeymaps())
+    console = Console(width=120, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(modal._content())
+    text = capture.get()
+
+    assert "only l currently follows a chip" in text
+    assert "Enter does nothing in this panel" in text
 
 
 def test_note_row_text_marks_tier_and_child_indent() -> None:
