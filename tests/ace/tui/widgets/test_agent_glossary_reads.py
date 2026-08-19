@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_glossary_reads import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
+from sase.glossary.read_report import glossary_read_report_path
 
 
 @pytest.fixture(autouse=True)
@@ -137,12 +138,17 @@ def test_hint_state_maps_each_visible_event_and_aligns_reason() -> None:
         hint_state=state,
     )
 
+    first_path = glossary_read_report_path(first)
+    second_path = glossary_read_report_path(second)
     assert "◈ [4] Agent Hood" in text.plain
     assert "◈ [5] Stitch" in text.plain
     assert state.hint_mappings == {
-        4: first.source_path,
-        5: second.source_path,
+        4: first_path,
+        5: second_path,
     }
+    assert set(state.glossary_reports) == {first_path, second_path}
+    assert state.glossary_reports[first_path].event is first
+    assert state.glossary_reports[second_path].event is second
     assert state.hint_counter == 6
     lines = text.plain.splitlines()
     first_row = next(line for line in lines if "[4] Agent Hood" in line)
@@ -150,7 +156,26 @@ def test_hint_state_maps_each_visible_event_and_aligns_reason() -> None:
     assert first_reason.index("↳") == first_row.index("Agent Hood")
 
 
-def test_event_without_source_path_gets_no_hint() -> None:
+def test_event_without_terms_gets_no_hint() -> None:
+    event = _event(
+        terms=(),
+        timestamp="2026-05-24T14:22:08+00:00",
+        source_path="/tmp/test/sase/sase.yml",
+    )
+    state = _hint_state()
+    text = Text()
+
+    append_agent_glossary_reads_section(
+        text, events=(_display(event),), hint_state=state
+    )
+
+    assert state.hint_mappings == {}
+    assert state.glossary_reports == {}
+    assert state.hint_counter == 1
+    assert "[1]" not in text.plain
+
+
+def test_event_without_source_path_still_gets_hint() -> None:
     event = _event(
         terms=("Agent Hood",),
         timestamp="2026-05-24T14:22:08+00:00",
@@ -163,9 +188,10 @@ def test_event_without_source_path_gets_no_hint() -> None:
         text, events=(_display(event),), hint_state=state
     )
 
-    assert state.hint_mappings == {}
-    assert state.hint_counter == 1
-    assert "[1]" not in text.plain
+    report_path = glossary_read_report_path(event)
+    assert state.hint_mappings == {1: report_path}
+    assert report_path in state.glossary_reports
+    assert "[1]" in text.plain
 
 
 def test_overflow_renders_truncation_footer() -> None:

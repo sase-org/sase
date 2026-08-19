@@ -8,6 +8,7 @@ from collections.abc import Callable
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.core.output_variable_display import var_value_preview
 
 from ...models._agent_clan_sections import (
@@ -31,6 +32,7 @@ from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._agent_clan_commits import aggregate_clan_commit_lane
 from ._agent_display_clan_context import clan_context_entry_hint_target
 from ._agent_display_state import CommitViewSpec, HeaderHintState
+from ._agent_glossary_reads import register_glossary_read_report_hint
 from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
 from ._container_hint_text import container_text_with_file_hints
@@ -289,6 +291,18 @@ def append_context_section(
                 if lane.label == "COMMITS"
                 else None
             )
+            glossary_display = (
+                next(
+                    (
+                        value
+                        for value in entry.values
+                        if isinstance(value, GlossaryReadDisplayEvent)
+                    ),
+                    None,
+                )
+                if lane.label == "GLOSSARY"
+                else None
+            )
             hint_target = (
                 clan_context_entry_hint_target(
                     lane.label,
@@ -296,7 +310,9 @@ def append_context_section(
                     member_workspaces=member_workspaces or {},
                     fallback_workspace=fallback_workspace,
                 )
-                if hint_state is not None and commit_spec is None
+                if hint_state is not None
+                and commit_spec is None
+                and glossary_display is None
                 else None
             )
             if commit_spec is not None and hint_state is not None:
@@ -304,6 +320,12 @@ def append_context_section(
                 text.append(f"[{hint_number}] ", style="bold #FFFF00")
                 hint_state.commit_views[hint_number] = commit_spec
                 hint_state.hint_counter += 1
+            elif glossary_display is not None and hint_state is not None:
+                marker = register_glossary_read_report_hint(
+                    glossary_display, hint_state=hint_state
+                )
+                if marker is not None:
+                    text.append(f"{marker} ", style="bold #FFFF00")
             elif hint_target is not None and hint_state is not None:
                 hint_number = hint_state.hint_counter
                 text.append(f"[{hint_number}] ", style="bold #FFFF00")

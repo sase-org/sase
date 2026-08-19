@@ -3901,10 +3901,12 @@ pinned attempt view resets the cursor.
   and distinct requested terms, adding the agent count for a multi-agent family. Each
   row shows the read's requested terms (truncated the same way `MEMORY` truncates
   paths), with a `+N related` suffix when the closure expanded past the requested terms,
-  and the recorded reason on its own indented line. A numbered file hint targets the
-  term's recorded `source_path` in `sase/sase.yml`. Loading, attribution, and the
-  mtime/size snapshot cache mirror `MEMORY`'s reference implementation; the lane is
-  skipped rather than rendered empty when there are no reads to show.
+  and the recorded reason on its own indented line. A numbered hint pages a generated
+  report of that read's output — the reproduced command line, recorded metadata, and the
+  resolved term closure. `@` opens the report and `%` copies its path; the report names
+  the recorded `sase/sase.yml` source. Loading, attribution, and the mtime/size snapshot
+  cache mirror `MEMORY`'s reference implementation; the lane is skipped rather than
+  rendered empty when there are no reads to show.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
   `Deltas`, and `Files` as compact fields, preserves that internal order, and summarizes
   only the present fields in its header. Commits persisted by the selected agent's

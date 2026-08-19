@@ -256,6 +256,7 @@ class AgentHintRenderMixin:
                 file_hints=hint_mappings,
                 tool_call_reports=tool_call_reports,
                 commit_views=header_hint_state.commit_views,
+                glossary_reports=header_hint_state.glossary_reports,
                 header_enrichment_pending=not detail_header_summary_is_complete(
                     summary
                 ),
@@ -300,6 +301,7 @@ class AgentHintRenderMixin:
                 file_hints=hint_mappings,
                 tool_call_reports=tool_call_reports,
                 commit_views=header_hint_state.commit_views,
+                glossary_reports=header_hint_state.glossary_reports,
                 header_enrichment_pending=not detail_header_summary_is_complete(
                     summary
                 ),
@@ -497,6 +499,7 @@ class AgentHintRenderMixin:
             file_hints=hint_mappings,
             tool_call_reports=tool_call_reports,
             commit_views=header_hint_state.commit_views,
+            glossary_reports=header_hint_state.glossary_reports,
             header_enrichment_pending=not detail_header_summary_is_complete(summary),
         )
 
@@ -551,5 +554,6 @@ class AgentHintRenderMixin:
             file_hints=hint_mappings,
             tool_call_reports=tool_call_reports,
             commit_views=hint_state.commit_views,
+            glossary_reports=hint_state.glossary_reports,
             header_enrichment_pending=enrichment_pending,
         )

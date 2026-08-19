@@ -14,6 +14,8 @@ from ...widgets.prompt_panel._messages import (
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
+    from sase.glossary.read_report import GlossaryReadReportSpec
+
     from ...models import Agent
     from ...tools.report import SlowToolCallReportSpec
     from ...util.debounce import DetailPanelDebouncer
@@ -34,6 +36,7 @@ class AgentDetailRenderMixin:
     _hint_mappings: dict[int, str]
     _hint_commit_views: dict[int, CommitViewSpec]
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
+    _hint_glossary_reports: dict[str, GlossaryReadReportSpec]
 
     if TYPE_CHECKING:
 
@@ -260,6 +263,7 @@ class AgentDetailRenderMixin:
             self._hint_mappings = hint_render.file_hints
             self._hint_commit_views = hint_render.commit_views
             self._hint_tool_call_reports = hint_render.tool_call_reports
+            self._hint_glossary_reports = hint_render.glossary_reports
 
     def on_agent_detail_header_enriched(
         self,

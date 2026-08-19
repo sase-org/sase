@@ -12,8 +12,9 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
-from sase.repo_inventory import RepoKind
+from sase.glossary.read_report import GlossaryReadReportSpec
 from sase.plan_documents import PlanWorkspace
+from sase.repo_inventory import RepoKind
 
 from ...models.agent_associated_plan import (
     AssociatedPlanSummary,
@@ -57,6 +58,7 @@ class HeaderHintState:
     workspace_dir: str | None
     tool_call_reports: dict[str, SlowToolCallReportSpec]
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
+    glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,7 @@ class AgentHintRender:
     file_hints: dict[int, str]
     tool_call_reports: dict[str, SlowToolCallReportSpec]
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
+    glossary_reports: dict[str, GlossaryReadReportSpec] = field(default_factory=dict)
     header_enrichment_pending: bool = False
 
 

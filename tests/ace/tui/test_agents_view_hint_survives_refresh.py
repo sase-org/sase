@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     AgentHintRender,
     CommitViewSpec,
 )
+from sase.glossary.read_report import GlossaryReadReportSpec
 from sase.ace.tui.widgets.prompt_panel._messages import AgentDetailHeaderEnriched
 
 
@@ -61,10 +62,15 @@ class _RecordingAgentDetail:
             dict[str, SlowToolCallReportSpec],
             {"tool-call-1": object()},
         )
+        self.glossary_reports = cast(
+            dict[str, GlossaryReadReportSpec],
+            {"glossary-1": object()},
+        )
         self.hint_render = AgentHintRender(
             file_hints={2: "/tmp/project/file.py"},
             tool_call_reports=self.tool_reports,
             commit_views={3: self.commit_view},
+            glossary_reports=self.glossary_reports,
         )
 
     def update_display(self, *args: Any, **kwargs: Any) -> None:
@@ -128,6 +134,10 @@ class _FakeApp(DetailMixin):
             dict[str, SlowToolCallReportSpec],
             {"old-tool-call": object()},
         )
+        self._hint_glossary_reports = cast(
+            dict[str, GlossaryReadReportSpec],
+            {"old-glossary": object()},
+        )
         self.info_updates = 0
         self.footer_updates: list[Agent | None] = []
         self.hint_input = type("_HintInput", (), {"value": hint_input_value})()
@@ -176,6 +186,7 @@ def test_agent_detail_refresh_preserves_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app._hint_glossary_reports == app.detail.hint_render.glossary_reports
     assert app.footer_updates == [app.agent]
 
 
@@ -201,6 +212,7 @@ def test_agent_detail_immediate_preserves_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app._hint_glossary_reports == app.detail.hint_render.glossary_reports
     assert app.footer_updates == []
 
 
@@ -214,6 +226,7 @@ def test_debounced_agent_detail_refresh_preserves_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app._hint_glossary_reports == app.detail.hint_render.glossary_reports
     assert app.info_updates == 1
     assert app.footer_updates == [app.agent]
 
@@ -239,6 +252,7 @@ def test_header_enrichment_completion_refreshes_active_view_hints() -> None:
     assert app._hint_mappings == app.detail.hint_render.file_hints
     assert app._hint_commit_views == app.detail.hint_render.commit_views
     assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+    assert app._hint_glossary_reports == app.detail.hint_render.glossary_reports
 
 
 def test_unchanged_header_enrichment_skips_current_hint_document() -> None:

@@ -200,7 +200,8 @@ the read was recorded. Reads are attributed the same way as memory reads
 (`SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`), and each
 event records the requested terms, every related term the closure added, the depth
 limit, and the total bytes of definition served. The read also appears in the `GLOSSARY`
-lane of the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel).
+lane of the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel); selecting
+that lane's numbered hint pages a generated report of the read's output.
 
 `sase glossary log` summarizes recorded reads: with no selector, a dashboard shows
 totals plus by-term and by-agent breakdowns and recent events. `-t/--term` and

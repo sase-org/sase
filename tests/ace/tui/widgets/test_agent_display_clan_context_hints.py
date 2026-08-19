@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
@@ -29,6 +30,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
+from sase.glossary.read_report import glossary_read_report_path
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_clan_helpers import rich_clan_snapshot
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
@@ -197,9 +199,14 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
     )
 
 
-def test_fully_expanded_context_uses_typed_exact_path_hints(tmp_path: Path) -> None:
+def test_fully_expanded_context_uses_typed_exact_path_hints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     text = Text()
     state = HeaderHintState(1, {}, None, {})
+    glossary_display = _glossary_read(str(tmp_path / "sase" / "sase.yml"))
+    report_path = glossary_read_report_path(glossary_display.event)
 
     append_context_section(
         text,
@@ -217,13 +224,74 @@ def test_fully_expanded_context_uses_typed_exact_path_hints(tmp_path: Path) -> N
         4: str(tmp_path / "primary" / "src" / "main.py"),
         5: str(tmp_path / "linked" / "src" / "lib.rs"),
         6: str(tmp_path / "memory" / "tui_perf.md"),
-        7: str(tmp_path / "sase" / "sase.yml"),
+        7: report_path,
     }
+    assert str(tmp_path / "sase" / "sase.yml") not in state.hint_mappings.values()
+    assert report_path in state.glossary_reports
     assert text.plain.count("[") == 7
     assert "• [1] plan:epic.md" in text.plain
     assert "• [7] Agent Hood" in text.plain
     assert f"• {_SASE_BEADS_SKILL}" in text.plain
     assert "• sase-core" in text.plain
+
+
+def test_glossary_term_rows_from_one_read_share_a_report_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    display = GlossaryReadDisplayEvent(
+        event=GlossaryReadEvent(
+            schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
+            id="glossary-read-shared",
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp",
+            agent_name="research.one",
+            agent_source="test",
+            artifacts_dir=None,
+            reason="test",
+            terms=("Agent Hood", "Sase Agent"),
+            related_terms=(),
+            depth_limit=None,
+            definition_bytes=10,
+            source_path=str(tmp_path / "sase" / "sase.yml"),
+        )
+    )
+    report_path = glossary_read_report_path(display.event)
+    lanes = (
+        ClanContextLane(
+            "GLOSSARY",
+            (
+                ClanContextEntry(
+                    key="Agent Hood",
+                    label="Agent Hood",
+                    member_labels=(".one",),
+                    values=(display,),
+                ),
+                ClanContextEntry(
+                    key="Sase Agent",
+                    label="Sase Agent",
+                    member_labels=(".one",),
+                    values=(display,),
+                ),
+            ),
+        ),
+    )
+    text = Text()
+    state = HeaderHintState(1, {}, None, {})
+
+    append_context_section(
+        text,
+        lanes,
+        level=FoldLevel.FULLY_EXPANDED,
+        count_known=True,
+        hint_state=state,
+    )
+
+    assert state.hint_mappings == {1: report_path, 2: report_path}
+    assert list(state.glossary_reports) == [report_path]
+    assert "• [1] Agent Hood" in text.plain
+    assert "• [2] Sase Agent" in text.plain
 
 
 def test_expanded_context_digest_does_not_register_hints(tmp_path: Path) -> None:

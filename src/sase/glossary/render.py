@@ -48,7 +48,7 @@ def render_glossary_closure(
         return
 
     if output_format == "markdown":
-        sys.stdout.write(_glossary_closure_markdown(closure, project_name=project_name))
+        sys.stdout.write(glossary_closure_markdown(closure, project_name=project_name))
         return
 
     target = console or Console()
@@ -246,7 +246,7 @@ def _char_offset_from_byte(text: str, byte_offset: int) -> int | None:
 # --- markdown -------------------------------------------------------------
 
 
-def _glossary_closure_markdown(closure: GlossaryClosure, *, project_name: str) -> str:
+def glossary_closure_markdown(closure: GlossaryClosure, *, project_name: str) -> str:
     """Render *closure* as plain Markdown suitable for pasting into a prompt."""
     pieces: list[str] = []
     if project_name:
@@ -311,5 +311,6 @@ def _referrer_json(referrer: GlossaryReferrer | None) -> dict[str, str] | None:
 
 __all__ = [
     "GlossaryShowFormat",
+    "glossary_closure_markdown",
     "render_glossary_closure",
 ]

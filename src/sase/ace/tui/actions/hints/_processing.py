@@ -8,6 +8,11 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.glossary.read_report import (
+    GlossaryReadReportSpec,
+    write_glossary_read_report,
+)
+
 from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
     is_rerun_input,
@@ -21,6 +26,8 @@ from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 from ..clipboard import schedule_copy_delivery
 from ._types import HintMixinBase
+
+type _HintReportSpec = SlowToolCallReportSpec | GlossaryReadReportSpec
 
 
 @dataclass(frozen=True)
@@ -44,12 +51,12 @@ class _MaterializedReports:
 @dataclass(frozen=True)
 class _PreparedViewRequest:
     request: _ViewRequest
-    report_items: tuple[tuple[str, SlowToolCallReportSpec], ...]
+    report_items: tuple[tuple[str, _HintReportSpec], ...]
 
 
-def _write_selected_tool_call_reports(
+def _write_selected_hint_reports(
     files: tuple[str, ...],
-    report_items: tuple[tuple[str, SlowToolCallReportSpec], ...],
+    report_items: tuple[tuple[str, _HintReportSpec], ...],
 ) -> _MaterializedReports:
     """Materialize selected reports without touching Textual application state."""
     reports = dict(report_items)
@@ -60,7 +67,10 @@ def _write_selected_tool_call_reports(
         if spec is None:
             materialized.append(file_path)
             continue
-        report_path = write_tool_call_report(spec)
+        if isinstance(spec, GlossaryReadReportSpec):
+            report_path = write_glossary_read_report(spec)
+        else:
+            report_path = write_tool_call_report(spec)
         if report_path is None:
             failed.append(file_path)
             continue
@@ -261,9 +271,13 @@ class InputProcessingMixin(HintMixinBase):
             ),
             commit_specs=commit_specs,
         )
-        reports: dict[str, SlowToolCallReportSpec] = getattr(
+        tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
         )
+        glossary_reports: dict[str, GlossaryReadReportSpec] = getattr(
+            self, "_hint_glossary_reports", {}
+        )
+        reports: dict[str, _HintReportSpec] = {**tool_reports, **glossary_reports}
         selected_reports = tuple(
             (file_path, reports[file_path])
             for file_path in request.files
@@ -276,7 +290,7 @@ class InputProcessingMixin(HintMixinBase):
         request = prepared.request
         if prepared.report_items:
             outcome = await asyncio.to_thread(
-                _write_selected_tool_call_reports,
+                _write_selected_hint_reports,
                 request.files,
                 prepared.report_items,
             )
@@ -290,7 +304,7 @@ class InputProcessingMixin(HintMixinBase):
 
         for failed_path in outcome.failed_paths:
             self.notify(  # type: ignore[attr-defined]
-                f"Failed to build tool-call report: {failed_path}",
+                f"Failed to build hint report: {failed_path}",
                 severity="error",
             )
 

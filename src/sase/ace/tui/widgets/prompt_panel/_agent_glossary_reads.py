@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
+from sase.glossary.read_report import GlossaryReadReportSpec, glossary_read_report_path
 
 from ._agent_display_state import HeaderHintState
 from ._agent_context_common import (
@@ -35,8 +36,30 @@ __all__ = [
     "format_local_hhmm",
     "format_local_hhmmss",
     "normalize_context_display",
+    "register_glossary_read_report_hint",
     "truncate_display",
 ]
+
+
+def register_glossary_read_report_hint(
+    item: GlossaryReadDisplayEvent,
+    *,
+    hint_state: HeaderHintState | None,
+) -> str | None:
+    """Register a deferred glossary-read report write and return the marker."""
+    event = item.event
+    if hint_state is None or not event.terms:
+        return None
+    hint_number = hint_state.hint_counter
+    hint_state.hint_counter += 1
+    report_path = glossary_read_report_path(event)
+    hint_state.hint_mappings[hint_number] = report_path
+    hint_state.glossary_reports[report_path] = GlossaryReadReportSpec(
+        event=event,
+        agent_label=item.agent_label,
+        report_path=report_path,
+    )
+    return f"[{hint_number}]"
 
 
 def append_agent_glossary_reads_section(
@@ -77,11 +100,9 @@ def append_agent_glossary_reads_section(
     for item in visible:
         event = item.event
         hint_label = None
-        if hint_state is not None and event.source_path is not None:
-            hint_number = hint_state.hint_counter
-            hint_state.hint_mappings[hint_number] = event.source_path
-            hint_state.hint_counter += 1
-            hint_label = Text(f"[{hint_number}] ", style="bold #FFFF00")
+        marker = register_glossary_read_report_hint(item, hint_state=hint_state)
+        if marker is not None:
+            hint_label = Text(f"{marker} ", style="bold #FFFF00")
         reason_indent = append_lane_row(
             text,
             timestamp=event.timestamp,

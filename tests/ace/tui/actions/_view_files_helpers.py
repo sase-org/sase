@@ -11,6 +11,8 @@ from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
+from sase.glossary.read_log import GLOSSARY_READ_LOG_SCHEMA_VERSION, GlossaryReadEvent
+from sase.glossary.read_report import GlossaryReadReportSpec
 
 
 class _SuspendRecorder:
@@ -30,6 +32,7 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
     def __init__(self, hint_mappings: dict[int, str]) -> None:
         self._hint_mappings = hint_mappings
         self._hint_tool_call_reports = {}
+        self._hint_glossary_reports = {}
         self._hint_commit_views = {}
         self._hint_patch_name = "cs"
         self.notify = MagicMock()
@@ -93,5 +96,32 @@ def _report_spec(
         ),
         source_label=None,
         agent_name="agent--code",
+        report_path=report_path,
+    )
+
+
+def _glossary_spec(
+    report_path: str,
+    *,
+    terms: tuple[str, ...] = ("Alpha",),
+) -> GlossaryReadReportSpec:
+    return GlossaryReadReportSpec(
+        event=GlossaryReadEvent(
+            schema_version=GLOSSARY_READ_LOG_SCHEMA_VERSION,
+            id="read-alpha",
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp/sase",
+            agent_name="athena",
+            agent_source="SASE_AGENT_NAME",
+            artifacts_dir=None,
+            reason="needed the hood/agent distinction",
+            terms=terms,
+            related_terms=("Beta",),
+            depth_limit=None,
+            definition_bytes=64,
+            source_path="/tmp/sase/sase/sase.yml",
+        ),
+        agent_label=None,
         report_path=report_path,
     )
