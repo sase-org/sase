@@ -1,8 +1,10 @@
 """The ``bead.task_types`` project-config task-type source.
 
 An entry with ``use: <plugin>@<slug>`` deep-merges its sibling keys onto the
-referenced catalog member and replaces that slug; an entry without ``use:``
-defines a new slug and may not shadow a builtin or reserved slug (D4).
+referenced catalog member and replaces that slug. The prefix names the type's
+original provider (``builtin`` for a builtin) and stays correct across layers,
+even after an earlier layer already overrode the slug. An entry without
+``use:`` defines a new slug and may not shadow a builtin or reserved slug (D4).
 """
 
 from __future__ import annotations
@@ -30,6 +32,8 @@ _PROJECT_PROVENANCE_VERSION = "<unknown>"
 def apply_project_task_type_config(
     records: tuple[TaskTypeRecord, ...],
     diagnostics: list[TaskTypeDiagnostic],
+    *,
+    include_local_layer: bool = True,
 ) -> tuple[TaskTypeRecord, ...]:
     """Apply ``bead.task_types`` overrides and additions to *records*."""
 
@@ -37,8 +41,13 @@ def apply_project_task_type_config(
         record.task_type: record for record in records
     }
     order: list[str] = [record.task_type for record in records]
+    origin_by_slug: dict[str, TaskTypeProvenance] = {
+        record.task_type: record.provenance for record in records
+    }
 
-    for item, source_layer in _effective_raw_task_type_entries():
+    for item, source_layer in _effective_raw_task_type_entries(
+        include_local_layer=include_local_layer
+    ):
         if not isinstance(item, Mapping):
             diagnostics.append(
                 TaskTypeDiagnostic(
@@ -56,6 +65,7 @@ def apply_project_task_type_config(
                 raw_use,
                 source_layer,
                 by_slug=by_slug,
+                origin_by_slug=origin_by_slug,
                 diagnostics=diagnostics,
             )
             continue
@@ -63,6 +73,7 @@ def apply_project_task_type_config(
             item,
             source_layer,
             by_slug=by_slug,
+            origin_by_slug=origin_by_slug,
             order=order,
             diagnostics=diagnostics,
         )
@@ -76,6 +87,7 @@ def _apply_use_override(
     source_layer: str,
     *,
     by_slug: dict[str, TaskTypeRecord],
+    origin_by_slug: dict[str, TaskTypeProvenance],
     diagnostics: list[TaskTypeDiagnostic],
 ) -> None:
     if not isinstance(raw_use, str) or not raw_use.strip():
@@ -116,10 +128,11 @@ def _apply_use_override(
             )
         )
         return
+    origin = origin_by_slug.get(slug, base.provenance)
     if not plugin_qualified_id_matches(
-        plugin, builtin=base.provenance.builtin, package=base.provenance.package
+        plugin, builtin=origin.builtin, package=origin.package
     ):
-        actual = _use_prefix_for(base.provenance)
+        actual = _use_prefix_for(origin)
         diagnostics.append(
             TaskTypeDiagnostic(
                 code="mismatched_use_prefix",
@@ -169,6 +182,7 @@ def _apply_new_project_type(
     source_layer: str,
     *,
     by_slug: dict[str, TaskTypeRecord],
+    origin_by_slug: dict[str, TaskTypeProvenance],
     order: list[str],
     diagnostics: list[TaskTypeDiagnostic],
 ) -> None:
@@ -222,28 +236,34 @@ def _apply_new_project_type(
             )
         )
         return
+    provenance = TaskTypeProvenance(
+        source="project",
+        name=source_layer,
+        package="sase",
+        version=_PROJECT_PROVENANCE_VERSION,
+    )
     by_slug[slug] = TaskTypeRecord(
         task_type=slug,
         spec=MappingProxyType(spec),
         digest=digest,
-        provenance=TaskTypeProvenance(
-            source="project",
-            name=source_layer,
-            package="sase",
-            version=_PROJECT_PROVENANCE_VERSION,
-        ),
+        provenance=provenance,
     )
     order.append(slug)
+    origin_by_slug.setdefault(slug, provenance)
 
 
 def _use_prefix_for(provenance: TaskTypeProvenance) -> str:
     return "builtin" if provenance.builtin else provenance.package
 
 
-def _effective_raw_task_type_entries() -> list[tuple[object, str]]:
+def _effective_raw_task_type_entries(
+    *, include_local_layer: bool = True
+) -> list[tuple[object, str]]:
     """Replay config-list merge semantics for ``bead.task_types`` with provenance."""
     effective: list[tuple[object, str]] = []
     for layer in load_config_layers():
+        if not include_local_layer and layer.name == "local":
+            continue
         if not layer.exists:
             continue
         bead_config = layer.data.get("bead")

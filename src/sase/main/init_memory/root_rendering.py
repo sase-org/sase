@@ -30,9 +30,9 @@ from sase.memory.paths import (
     memory_write_root,
 )
 from sase.task_types import (
-    BuiltinTaskTypes,
     build_committed_task_type_snapshot_entries,
     get_task_type_registry,
+    machine_global_builtin_task_type_specs,
     render_task_type_snapshot_json,
 )
 
@@ -275,8 +275,12 @@ def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
 
 
 def _home_task_type_specs() -> tuple[Mapping[str, Any], ...]:
-    """Return the builtin specs only, so the home note never varies with plugins."""
-    return tuple(BuiltinTaskTypes().task_type_specs())
+    """Return builtin specs after machine-global ``bead.task_types`` config.
+
+    The project layer and plugin types stay out so a home note is identical for
+    every project on the machine.
+    """
+    return machine_global_builtin_task_type_specs()
 
 
 def render_generated_task_types_memory_body(

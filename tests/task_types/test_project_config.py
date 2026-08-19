@@ -125,6 +125,78 @@ def test_new_project_type_cannot_shadow_builtin(monkeypatch: Any) -> None:
     assert [d.code for d in diagnostics] == ["builtin_task_type_shadowed"]
 
 
+def test_use_override_prefix_names_the_original_provider(monkeypatch: Any) -> None:
+    monkeypatch.setattr(
+        "sase.task_types._project_config.load_config_layers",
+        lambda: [
+            _layer(
+                "user",
+                [{"use": "builtin@flake", "agent_creatable": False}],
+                strategy="replace",
+            ),
+            _layer(
+                "local",
+                [{"use": "builtin@flake", "agent_creatable": True}],
+                strategy="concatenate",
+            ),
+        ],
+    )
+    diagnostics: list[TaskTypeDiagnostic] = []
+    records = apply_project_task_type_config((_builtin_record(),), diagnostics)
+    assert diagnostics == []
+    assert len(records) == 1
+    assert records[0].spec["agent_creatable"] is True
+    assert records[0].provenance.source == "project"
+
+
+def test_use_override_still_rejects_a_wrong_provider_prefix_after_an_override(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        "sase.task_types._project_config.load_config_layers",
+        lambda: [
+            _layer(
+                "user",
+                [{"use": "builtin@flake", "agent_creatable": False}],
+                strategy="replace",
+            ),
+            _layer(
+                "local",
+                [{"use": "sase-github@flake", "agent_creatable": True}],
+                strategy="concatenate",
+            ),
+        ],
+    )
+    diagnostics: list[TaskTypeDiagnostic] = []
+    records = apply_project_task_type_config((_builtin_record(),), diagnostics)
+    assert [d.code for d in diagnostics] == ["mismatched_use_prefix"]
+    assert "builtin@flake" in diagnostics[0].message
+    assert records[0].spec["agent_creatable"] is False
+
+
+def test_machine_global_replay_skips_the_local_layer(monkeypatch: Any) -> None:
+    monkeypatch.setattr(
+        "sase.task_types._project_config.load_config_layers",
+        lambda: [
+            _layer(
+                "user",
+                [{"use": "builtin@flake", "agent_creatable": False}],
+            ),
+            _layer(
+                "local",
+                [{"use": "builtin@flake", "agent_creatable": True}],
+            ),
+        ],
+    )
+    diagnostics: list[TaskTypeDiagnostic] = []
+    records = apply_project_task_type_config(
+        (_builtin_record(),), diagnostics, include_local_layer=False
+    )
+    assert diagnostics == []
+    assert len(records) == 1
+    assert records[0].spec["agent_creatable"] is False
+
+
 def test_replace_list_strategy_resets_earlier_layers(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         "sase.task_types._project_config.load_config_layers",
