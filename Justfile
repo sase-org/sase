@@ -339,6 +339,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-qx(provider_routing_state)" \
+        --epic-symbol "sase-r1.3(collect_update_preview_inputs)" \
         --epic-symbol "sase-r1.4(UpdateOptionChip)" \
         --epic-symbol "sase-r1.4(UpdateOptionRow)" \
         --epic-symbol "sase-r1.4(UpdatePanelState)" \

@@ -359,6 +359,10 @@ async def test_updates_pane_auto_update_preview_reuses_load_freshness(
         return pbp._DevUpdatePreview(plan=None, subject="sase")
 
     monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", _preview)
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.make_sase_dev_update_preview",
+        _preview,
+    )
 
     async with AcePage() as page:
         modal = ConfigCenterModal(initial_tab="updates", auto_update=True)

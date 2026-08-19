@@ -286,7 +286,7 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda *_a, **_kw: [],
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update.get_agents_sync_status",
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.get_agents_sync_status",
         lambda **_kwargs: SyncStatusSnapshot(0.0),
     )
     monkeypatch.setattr(

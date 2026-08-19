@@ -17,6 +17,7 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
     _provider_preview_section,
     _sase_preview_section,
 )
+from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.ace.tui.modals.plugins_browser_incoming import (
     _loaded_incoming_commit_seed,
     _sase_update_incoming_commit_sources,
@@ -376,6 +377,29 @@ def test_comprehensive_agents_preview_without_cache_items_is_noop() -> None:
     )
 
 
+def test_unselected_legs_are_not_runnable_or_current() -> None:
+    provider_plan, dropped, error = _plan_captured_providers(
+        ("claude",),
+        _agent_cli_statuses(),
+        offline=False,
+    )
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude",), UpdateScope.PROVIDERS),
+        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+        sase_blocker=None,
+        provider_plan=provider_plan,
+        provider_dropped=dropped,
+        provider_error=error,
+        agents_updates=(_captured("alpha", "Alpha", "foo"),),
+    )
+
+    assert preview.selected_legs == frozenset({UpdateLeg.PROVIDERS})
+    assert preview.sase_runnable is False
+    assert preview.agents_runnable is False
+    assert preview.provider_runnable is True
+    assert preview.runnable is True
+
+
 def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
     provider_plan, dropped, error = _plan_captured_providers(
         ("claude",),
@@ -418,7 +442,7 @@ def test_comprehensive_preview_captures_no_network_agents_items(
         return snapshot
 
     monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update.get_agents_sync_status",
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.get_agents_sync_status",
         get_status,
     )
 
@@ -432,17 +456,18 @@ def test_comprehensive_preview_captures_no_network_agents_items(
             self._uv_tool = None
             self.worker: Any = None
 
-        def _sase_up_to_date(self) -> bool:
-            return True
-
         def run_worker(self, callback: Any, **_kwargs: object) -> object:
             self.worker = callback
             return object()
 
     harness = _PreviewHarness()
-    harness._start_comprehensive_update_preview(ComprehensiveUpdateRequest(()))
+    harness._start_comprehensive_update_preview(
+        ComprehensiveUpdateRequest((), UpdateScope.AGENTS)
+    )
     preview = harness.worker()
 
     assert calls == [{"revalidate_only": True}]
     assert preview.agents_updates == (captured,)
     assert preview.agents_runnable is True
+    assert preview.sase_runnable is False
+    assert preview.provider_runnable is False

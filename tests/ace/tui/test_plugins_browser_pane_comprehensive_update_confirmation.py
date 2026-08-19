@@ -11,6 +11,7 @@ from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmM
 from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
     _ComprehensiveUpdatePreview,
 )
+from sase.updates import UpdateSourceStatus, UpdateStatus
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _agent_cli_statuses,
     _all_current_catalog,
@@ -22,6 +23,24 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 )
 from tests.ace.tui._plugins_browser_pane_update_helpers import _dev_plan
 
+_PREVIEW_MAKE_SASE = (
+    "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview"
+    ".make_sase_dev_update_preview"
+)
+
+
+def _current_cached_status() -> UpdateStatus:
+    return UpdateStatus(
+        checked_at=1.0,
+        components=(),
+        core_source=UpdateSourceStatus.success(1.0),
+        plugin_source=UpdateSourceStatus.success(1.0),
+    )
+
+
+def _patch_sase_preview(monkeypatch: pytest.MonkeyPatch, preview: object) -> None:
+    monkeypatch.setattr(_PREVIEW_MAKE_SASE, lambda _receipt, **_kwargs: preview)
+
 
 async def test_config_center_handoff_confirms_only_captured_live_provider(
     monkeypatch: pytest.MonkeyPatch,
@@ -32,13 +51,9 @@ async def test_config_center_handoff_confirms_only_captured_live_provider(
         catalog=_catalog(),
         agent_cli_statuses=_agent_cli_statuses(),
     )
-    monkeypatch.setattr(
-        pbp,
-        "_make_sase_dev_update_preview",
-        lambda _receipt, **_kwargs: pbp._DevUpdatePreview(
-            plan=None,
-            subject="sase",
-        ),
+    _patch_sase_preview(
+        monkeypatch,
+        pbp._DevUpdatePreview(plan=None, subject="sase"),
     )
 
     async with AcePage() as page:
@@ -52,6 +67,7 @@ async def test_config_center_handoff_confirms_only_captured_live_provider(
 
         confirm = page.app.screen
         assert isinstance(confirm, PluginActionConfirmModal)
+        assert confirm._title == "Update everything"
         assert confirm._incoming_commits_loader is not None
         sections = confirm._variants[0].sections
         assert [section.title for section in sections] == [
@@ -81,11 +97,7 @@ async def test_comprehensive_confirmation_submits_same_captured_preview(
         agent_cli_statuses=_agent_cli_statuses(),
     )
     sase_preview = pbp._DevUpdatePreview(plan=_dev_plan(), subject="sase")
-    monkeypatch.setattr(
-        pbp,
-        "_make_sase_dev_update_preview",
-        lambda _receipt, **_kwargs: sase_preview,
-    )
+    _patch_sase_preview(monkeypatch, sase_preview)
 
     async with AcePage() as page:
         admin = ConfigCenterModal(
@@ -167,6 +179,7 @@ async def test_provider_only_comprehensive_confirmation_explains_no_ranges(
     )
 
     async with AcePage() as page:
+        page.app._automatic_update_status = _current_cached_status()
         admin = ConfigCenterModal(
             initial_tab="updates",
             auto_update=True,
@@ -200,13 +213,9 @@ async def test_comprehensive_confirmation_honors_disabled_commit_previews(
         "_load_incoming_commits_config",
         lambda: pbp._IncomingCommitsConfig(enabled=False),
     )
-    monkeypatch.setattr(
-        pbp,
-        "_make_sase_dev_update_preview",
-        lambda _receipt, **_kwargs: pbp._DevUpdatePreview(
-            plan=None,
-            subject="sase",
-        ),
+    _patch_sase_preview(
+        monkeypatch,
+        pbp._DevUpdatePreview(plan=None, subject="sase"),
     )
 
     async with AcePage() as page:

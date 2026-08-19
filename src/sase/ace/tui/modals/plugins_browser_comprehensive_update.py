@@ -11,13 +11,11 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.update_preview_inputs import UpdatePreviewInputs
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
+from sase.ace.update_scope import UpdateLeg
 from sase.agent_clis.models import AgentCliStatus
-from sase.agents_sync import get_agents_sync_status
-from sase.agents_sync.models import CapturedIncomingHood
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
-from sase.uv_tool.detect import NotUvToolInstall
-from sase.uv_tool.errors import NotAUvToolInstallError
 
 from .plugin_action_confirm_modal import (
     PluginActionConfirmModal,
@@ -37,16 +35,16 @@ from .plugins_browser_comprehensive_update_models import (
 )
 from .plugins_browser_comprehensive_update_preview import (
     agents_preview_section,
+    build_comprehensive_update_preview,
+    comprehensive_confirm_copy,
+    comprehensive_current_message,
+    comprehensive_dropped_message,
+    comprehensive_preview_sections,
     dev_update_commands,
     plan_captured_providers,
     provider_preview_section,
     sase_preview_section,
 )
-from .plugins_browser_dev_update import (
-    DevUpdatePreview,
-    dev_update_blocking_reason,
-)
-from .plugins_browser_sase_update_summary import load_receipt_for_summary
 
 # Preserve the original module's private helper names for tests and downstream
 # imports while keeping their implementations in focused modules.
@@ -77,20 +75,11 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         app: Any
         is_mounted: bool
 
-        def _sase_up_to_date(self) -> bool: ...
-
         def _close_admin_center_after_sase_update(self) -> None: ...
 
         def _execute_dev_update(
             self, plan: DevUpdatePlan, *, run: Any = None
         ) -> DevUpdateResult: ...
-
-        def _make_sase_update_preview(
-            self,
-            receipt: object | None,
-            *,
-            already_refreshed_roots: Collection[str] = (),
-        ) -> DevUpdatePreview: ...
 
         def _comprehensive_update_incoming_commits_loader(
             self, preview: ComprehensiveUpdatePreview
@@ -113,95 +102,29 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         *,
         already_refreshed_roots: Collection[str] = (),
     ) -> None:
-        """Build both preview legs off-thread from captured and loaded state."""
+        """Build the selected preview legs off-thread from explicit inputs."""
         if self._loading or self._comprehensive_update_plan_worker is not None:
             return
 
-        statuses = tuple(self._agent_cli_statuses)
-        agent_cli_error = self._agent_cli_error
-        offline = self._offline
-        install = self._uv_tool
+        cached_status = getattr(self, "_update_status", None)
+        if cached_status is None:
+            cached_status = getattr(
+                getattr(self, "app", None), "_automatic_update_status", None
+            )
+        inputs = UpdatePreviewInputs(
+            uv_tool=self._uv_tool,
+            agent_cli_statuses=tuple(self._agent_cli_statuses),
+            agent_cli_error=self._agent_cli_error,
+            offline=self._offline,
+            cached_status=cached_status,
+        )
         fresh_roots = frozenset(already_refreshed_roots)
-        sase_current = self._sase_up_to_date()
 
         def task() -> ComprehensiveUpdatePreview:
-            agents_updates: tuple[CapturedIncomingHood, ...] = ()
-            agents_error = None
-            try:
-                agents_status = get_agents_sync_status(revalidate_only=True)
-                agents_updates = tuple(
-                    sorted(
-                        (
-                            item
-                            for status in agents_status.projects
-                            for item in status.pending_updates
-                        ),
-                        key=lambda item: (
-                            item.project_key,
-                            item.source_username or "",
-                            item.source_machine,
-                            item.top_hood,
-                            item.cache_id,
-                        ),
-                    )
-                )
-            except Exception as exc:  # noqa: BLE001 - preserve other preview legs.
-                agents_error = error_text(exc)
-            provider_plan, dropped, provider_error = plan_captured_providers(
-                request.provider_names,
-                statuses,
-                offline=offline,
-                source_error=agent_cli_error,
-            )
-            if sase_current:
-                return ComprehensiveUpdatePreview(
-                    request=request,
-                    sase_preview=None,
-                    sase_current=True,
-                    provider_plan=provider_plan,
-                    provider_dropped=dropped,
-                    provider_error=provider_error,
-                    agents_updates=agents_updates,
-                    agents_error=agents_error,
-                )
-            if isinstance(install, NotUvToolInstall):
-                return ComprehensiveUpdatePreview(
-                    request=request,
-                    sase_preview=None,
-                    sase_blocker=str(NotAUvToolInstallError(install)),
-                    provider_plan=provider_plan,
-                    provider_dropped=dropped,
-                    provider_error=provider_error,
-                    agents_updates=agents_updates,
-                    agents_error=agents_error,
-                )
-            try:
-                receipt = load_receipt_for_summary(install)
-                sase_preview = self._make_sase_update_preview(
-                    receipt,
-                    already_refreshed_roots=fresh_roots,
-                )
-                blocker = sase_preview.error
-                if blocker is None and sase_preview.plan is not None:
-                    plan_blocker = dev_update_blocking_reason(sase_preview.plan)
-                    managed_can_proceed = bool(
-                        sase_preview.managed_argv
-                        and not sase_preview.plan.actionable_roots
-                    )
-                    if plan_blocker is not None and not managed_can_proceed:
-                        blocker = plan_blocker
-            except Exception as exc:  # noqa: BLE001 - preserve provider leg.
-                sase_preview = None
-                blocker = error_text(exc)
-            return ComprehensiveUpdatePreview(
-                request=request,
-                sase_preview=sase_preview,
-                sase_blocker=blocker,
-                provider_plan=provider_plan,
-                provider_dropped=dropped,
-                provider_error=provider_error,
-                agents_updates=agents_updates,
-                agents_error=agents_error,
+            return build_comprehensive_update_preview(
+                request,
+                inputs,
+                already_refreshed_roots=fresh_roots,
             )
 
         self._comprehensive_update_plan_worker = self.run_worker(  # type: ignore[attr-defined]
@@ -221,39 +144,36 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             self._handle_comprehensive_noop(preview)
             return
 
-        incoming_loader = self._comprehensive_update_incoming_commits_loader(preview)
+        incoming_loader: Any | None = None
         incoming_empty_message: str | None = None
-        if self._incoming_commits_enabled:
-            incoming_empty_message = (
-                "No repository commit ranges are available for this update. "
-                "Agent CLI installers and agents-repository synchronization do "
-                "not expose trustworthy commit ranges."
-                if not preview.sase_runnable
-                else "No repository commit ranges are available for the captured "
-                "SASE update."
+        if UpdateLeg.SASE in preview.selected_legs:
+            incoming_loader = self._comprehensive_update_incoming_commits_loader(
+                preview
             )
+            if self._incoming_commits_enabled:
+                incoming_empty_message = (
+                    "No repository commit ranges are available for this update. "
+                    "Agent CLI installers and agents-repository synchronization do "
+                    "not expose trustworthy commit ranges."
+                    if not preview.sase_runnable
+                    else "No repository commit ranges are available for the captured "
+                    "SASE update."
+                )
 
+        title, intro, panel_title = comprehensive_confirm_copy(preview.request.scope)
         modal = PluginActionConfirmModal(
-            title="Comprehensive update",
-            intro=(
-                "Confirm the snapshot-gated SASE, provider, and agents-repository "
-                "work below. Agent CLI commands run first and sequentially; "
-                "agent updates use only the captured cache."
-            ),
+            title=title,
+            intro=intro,
             variants=(
                 PluginActionVariant(
                     key="comprehensive-update",
                     label="comprehensive update",
                     argv=(),
                     summary="Runs one tracked comprehensive update.",
-                    sections=(
-                        sase_preview_section(preview),
-                        provider_preview_section(preview),
-                        agents_preview_section(preview),
-                    ),
+                    sections=comprehensive_preview_sections(preview),
                 ),
             ),
-            panel_title="Confirm comprehensive update",
+            panel_title=panel_title,
             icon="↑",
             incoming_commits_loader=incoming_loader,
             incoming_commits_empty_message=incoming_empty_message,
@@ -272,20 +192,28 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             switch_to_subtab = getattr(self, "_switch_to_subtab", None)
             if callable(switch_to_subtab):
                 switch_to_subtab("agent-clis")
-            self._notify(
-                "No safe automatic Agent CLI command is available. Review the "
-                "manual command and vendor documentation in Agent CLIs.",
-                severity="warning",
-            )
+                self._notify(
+                    "No safe automatic Agent CLI command is available. Review the "
+                    "manual command and vendor documentation in Agent CLIs.",
+                    severity="warning",
+                )
+            else:
+                self._notify(
+                    "No safe automatic Agent CLI command is available. Review the "
+                    "manual command and vendor documentation in the Admin Center "
+                    "Updates tab.",
+                    severity="warning",
+                )
             return
+        selected = preview.selected_legs
         errors = tuple(
             item
-            for item in (
-                preview.sase_blocker,
-                preview.provider_error,
-                preview.agents_error,
+            for item, selected_leg in (
+                (preview.sase_blocker, UpdateLeg.SASE),
+                (preview.provider_error, UpdateLeg.PROVIDERS),
+                (preview.agents_error, UpdateLeg.AGENTS),
             )
-            if item
+            if item and selected_leg in selected
         )
         if errors:
             self._notify("; ".join(errors), severity="error")
@@ -293,13 +221,12 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         if preview.provider_dropped:
             names = ", ".join(item.name for item in preview.provider_dropped)
             self._notify(
-                "No captured updates remain: available components are current; "
-                f"no longer present: {names}.",
+                comprehensive_dropped_message(preview.request.scope, names),
                 severity="information",
             )
             return
         self._notify(
-            "Everything in the captured comprehensive update is already current.",
+            comprehensive_current_message(preview.request.scope),
             severity="information",
         )
 

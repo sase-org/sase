@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import (
     AgentCliUpdatePlan,
     AgentCliUpdatesReady,
@@ -17,9 +18,10 @@ from .plugins_browser_dev_update import DevUpdatePreview
 
 @dataclass(frozen=True)
 class ComprehensiveUpdateRequest:
-    """One immutable provider projection captured by ``,U`` dispatch."""
+    """One immutable captured update request, including the selected scope."""
 
     provider_names: tuple[str, ...] | None
+    scope: UpdateScope = UpdateScope.EVERYTHING
 
 
 @dataclass(frozen=True)
@@ -45,13 +47,22 @@ class ComprehensiveUpdatePreview:
     agents_error: str | None = None
 
     @property
+    def selected_legs(self) -> frozenset[UpdateLeg]:
+        """Return the legs this preview's request asked to plan."""
+        return self.request.scope.legs
+
+    @property
     def provider_runnable(self) -> bool:
+        if UpdateLeg.PROVIDERS not in self.selected_legs:
+            return False
         return isinstance(self.provider_plan, AgentCliUpdatesReady) and bool(
             self.provider_plan.runnable_entries
         )
 
     @property
     def sase_runnable(self) -> bool:
+        if UpdateLeg.SASE not in self.selected_legs:
+            return False
         return bool(
             not self.sase_current
             and self.sase_blocker is None
@@ -65,6 +76,8 @@ class ComprehensiveUpdatePreview:
     @property
     def agents_runnable(self) -> bool:
         """Only the immutable cache items captured for confirmation may run."""
+        if UpdateLeg.AGENTS not in self.selected_legs:
+            return False
         return bool(self.agents_updates)
 
     @property

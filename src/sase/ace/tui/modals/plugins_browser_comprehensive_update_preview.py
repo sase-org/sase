@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import shlex
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 
+from sase.ace.tui.agents_sync_format import captured_agent_hood_label
+from sase.ace.tui.update_preview_inputs import UpdatePreviewInputs
+from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
     AgentCliUpdatePlan,
 )
+from sase.agents_sync import get_agents_sync_status
 from sase.agents_sync.models import CapturedIncomingHood
-from sase.ace.tui.agents_sync_format import captured_agent_hood_label
 from sase.dev_update.models import DevUpdatePlan
+from sase.updates import UpdateStatus
 from sase.uv_tool.commands import build_upgrade_all
+from sase.uv_tool.detect import NotUvToolInstall
+from sase.uv_tool.errors import NotAUvToolInstallError
 from sase.version._git import GitUpstreamStatus, git_fetch_upstream_args
 
 from .plugin_action_confirm_modal import (
@@ -22,10 +28,59 @@ from .plugin_action_confirm_modal import (
 )
 from .plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdatePreview,
+    ComprehensiveUpdateRequest,
     DroppedProviderCandidate,
     error_text,
 )
-from .plugins_browser_dev_update import dev_update_preview_summary, short_root
+from .plugins_browser_dev_update import (
+    DevUpdatePreview,
+    dev_update_blocking_reason,
+    dev_update_preview_summary,
+    make_sase_dev_update_preview,
+    short_root,
+)
+from .plugins_browser_sase_update_summary import load_receipt_for_summary
+
+_EVERYTHING_INTRO = (
+    "Confirm the snapshot-gated SASE, provider, and agents-repository "
+    "work below. Agent CLI commands run first and sequentially; "
+    "agent updates use only the captured cache."
+)
+_CONFIRM_COPY: dict[UpdateScope, tuple[str, str]] = {
+    UpdateScope.EVERYTHING: ("Update everything", _EVERYTHING_INTRO),
+    UpdateScope.SASE: (
+        "Update SASE, core & plugins",
+        "Confirm the SASE, core, and plugin work below.",
+    ),
+    UpdateScope.PROVIDERS: (
+        "Update providers",
+        "Confirm the exact provider update commands below; they run sequentially.",
+    ),
+    UpdateScope.AGENTS: (
+        "Import published agents",
+        "Confirm the cached agent hoods to import. Only the captured cache is used.",
+    ),
+}
+_CURRENT_MESSAGES: dict[UpdateScope, str] = {
+    UpdateScope.EVERYTHING: (
+        "Everything in the captured comprehensive update is already current."
+    ),
+    UpdateScope.SASE: (
+        "SASE, core, and plugins in the captured update are already current."
+    ),
+    UpdateScope.PROVIDERS: (
+        "Captured providers in the selected update are already current."
+    ),
+    UpdateScope.AGENTS: (
+        "Captured agent hoods in the selected update are already current."
+    ),
+}
+_DROPPED_LEADS: dict[UpdateScope, str] = {
+    UpdateScope.EVERYTHING: "No captured updates remain",
+    UpdateScope.SASE: "No captured SASE updates remain",
+    UpdateScope.PROVIDERS: "No captured provider updates remain",
+    UpdateScope.AGENTS: "No captured agent updates remain",
+}
 
 
 def plan_captured_providers(
@@ -69,6 +124,124 @@ def plan_captured_providers(
         f"provider inventory unavailable: {source_error}" if source_error else None
     )
     return plan, dropped, provider_error
+
+
+def build_comprehensive_update_preview(
+    request: ComprehensiveUpdateRequest,
+    inputs: UpdatePreviewInputs,
+    *,
+    already_refreshed_roots: Collection[str] = (),
+) -> ComprehensiveUpdatePreview:
+    """Plan only the legs selected by *request* from explicit *inputs*."""
+    selected = request.scope.legs
+    agents_updates, agents_error = _plan_agents_leg(selected)
+    provider_plan, dropped, provider_error = _plan_providers_leg(
+        request, inputs, selected
+    )
+    sase_preview, sase_current, sase_blocker = _plan_sase_leg(
+        inputs,
+        selected,
+        already_refreshed_roots=already_refreshed_roots,
+    )
+    return ComprehensiveUpdatePreview(
+        request=request,
+        sase_preview=sase_preview,
+        sase_current=sase_current,
+        sase_blocker=sase_blocker,
+        provider_plan=provider_plan,
+        provider_dropped=dropped,
+        provider_error=provider_error,
+        agents_updates=agents_updates,
+        agents_error=agents_error,
+    )
+
+
+def _plan_agents_leg(
+    selected: frozenset[UpdateLeg],
+) -> tuple[tuple[CapturedIncomingHood, ...], str | None]:
+    if UpdateLeg.AGENTS not in selected:
+        return (), None
+    try:
+        agents_status = get_agents_sync_status(revalidate_only=True)
+        updates = tuple(
+            sorted(
+                (
+                    item
+                    for status in agents_status.projects
+                    for item in status.pending_updates
+                ),
+                key=lambda item: (
+                    item.project_key,
+                    item.source_username or "",
+                    item.source_machine,
+                    item.top_hood,
+                    item.cache_id,
+                ),
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - preserve independently valid legs.
+        return (), error_text(exc)
+    return updates, None
+
+
+def _plan_providers_leg(
+    request: ComprehensiveUpdateRequest,
+    inputs: UpdatePreviewInputs,
+    selected: frozenset[UpdateLeg],
+) -> tuple[
+    AgentCliUpdatePlan | None,
+    tuple[DroppedProviderCandidate, ...],
+    str | None,
+]:
+    if UpdateLeg.PROVIDERS not in selected:
+        return None, (), None
+    return plan_captured_providers(
+        request.provider_names,
+        inputs.agent_cli_statuses,
+        offline=inputs.offline,
+        source_error=inputs.agent_cli_error,
+    )
+
+
+def _plan_sase_leg(
+    inputs: UpdatePreviewInputs,
+    selected: frozenset[UpdateLeg],
+    *,
+    already_refreshed_roots: Collection[str],
+) -> tuple[DevUpdatePreview | None, bool, str | None]:
+    if UpdateLeg.SASE not in selected:
+        return None, False, None
+    if _sase_is_cached_current(inputs.cached_status):
+        return None, True, None
+    install = inputs.uv_tool
+    if isinstance(install, NotUvToolInstall):
+        return None, False, str(NotAUvToolInstallError(install))
+    try:
+        receipt = load_receipt_for_summary(install)
+        sase_preview = make_sase_dev_update_preview(
+            receipt,
+            already_refreshed_roots=frozenset(already_refreshed_roots),
+        )
+        blocker = sase_preview.error
+        if blocker is None and sase_preview.plan is not None:
+            plan_blocker = dev_update_blocking_reason(sase_preview.plan)
+            managed_can_proceed = bool(
+                sase_preview.managed_argv and not sase_preview.plan.actionable_roots
+            )
+            if plan_blocker is not None and not managed_can_proceed:
+                blocker = plan_blocker
+    except Exception as exc:  # noqa: BLE001 - preserve independently valid legs.
+        return None, False, error_text(exc)
+    return sase_preview, False, blocker
+
+
+def _sase_is_cached_current(status: UpdateStatus | None) -> bool:
+    return bool(
+        status is not None
+        and status.core_source.successful
+        and status.plugin_source.successful
+        and status.component_count == 0
+    )
 
 
 def sase_preview_section(
@@ -319,6 +492,41 @@ def agents_preview_section(
             _count_label(len(ordered), "hood"),
         ),
     )
+
+
+def comprehensive_preview_sections(
+    preview: ComprehensiveUpdatePreview,
+) -> tuple[PluginActionPreviewSection, ...]:
+    """Render confirmation sections for the selected legs only."""
+    sections: list[PluginActionPreviewSection] = []
+    selected = preview.selected_legs
+    if UpdateLeg.SASE in selected:
+        sections.append(sase_preview_section(preview))
+    if UpdateLeg.PROVIDERS in selected:
+        sections.append(provider_preview_section(preview))
+    if UpdateLeg.AGENTS in selected:
+        sections.append(agents_preview_section(preview))
+    return tuple(sections)
+
+
+def comprehensive_confirm_copy(scope: UpdateScope) -> tuple[str, str, str]:
+    """Return ``(title, intro, panel_title)`` for the confirmation modal."""
+    title, intro = _CONFIRM_COPY[scope]
+    panel_title = (
+        "Confirm comprehensive update" if scope is UpdateScope.EVERYTHING else title
+    )
+    return title, intro, panel_title
+
+
+def comprehensive_current_message(scope: UpdateScope) -> str:
+    """Return the already-current noop toast for *scope*."""
+    return _CURRENT_MESSAGES[scope]
+
+
+def comprehensive_dropped_message(scope: UpdateScope, names: str) -> str:
+    """Return the dropped-candidate noop toast for *scope*."""
+    lead = _DROPPED_LEADS[scope]
+    return f"{lead}: available components are current; no longer present: {names}."
 
 
 def _captured_agents_component(
