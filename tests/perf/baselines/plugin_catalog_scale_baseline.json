@@ -9,45 +9,54 @@
   ],
   "filter_match_count": 100,
   "filter_keystroke": "q",
+  "installed_count": 5,
   "target_p95_ms": 16.0,
-  "budgets_enforced": false,
-  "notes": "Wall-clock p50/p95/max are recorded, not enforced. Phase guard flips budgets on. Enrich scan_work is 0 after the quadratic lookup was replaced with a one-shot dict (phase enrich). Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap. TUI filter holds match count at 100 (10 at n=10) so the keystroke curve stays comparable; jump-hint rebuilds the unfiltered list and is the TUI path over 16 ms at n>=1000.",
+  "enforced_tui_scenarios": [
+    "filter_keystroke",
+    "j_press"
+  ],
+  "budgets_enforced": true,
+  "notes": "Phase guard (sase-qn.5) enforces filter-keystroke and j-press p95 < 16 ms at n=2000, enrich scan_work=0 (sub-quadratic), and eager fetch_calls = installed_count (5), not catalog size. Enrich wall-clock rows are historical all-scope captures; operation counts are the enforced scoped curve. Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap and must warn rather than silently drop. TUI filter holds match count at 100 (10 at n=10). Jump-hint rebuilds the unfiltered list and is not under the 16 ms key-to-paint budget.",
   "enrich": {
     "10": {
       "n": 3.0,
       "p50_ms": 0.14575800742022693,
       "p95_ms": 0.16165900160558522,
       "max_ms": 0.16165900160558522,
-      "fetch_calls": 10.0,
+      "fetch_calls": 5.0,
       "installed_lookups": 0.0,
-      "scan_work": 0.0
+      "scan_work": 0.0,
+      "installed_count": 5.0
     },
     "250": {
       "n": 3.0,
       "p50_ms": 22.12172601139173,
       "p95_ms": 22.480190003989264,
       "max_ms": 22.480190003989264,
-      "fetch_calls": 250.0,
+      "fetch_calls": 5.0,
       "installed_lookups": 0.0,
-      "scan_work": 0.0
+      "scan_work": 0.0,
+      "installed_count": 5.0
     },
     "1000": {
       "n": 3.0,
       "p50_ms": 317.24638599553145,
       "p95_ms": 318.1015369773377,
       "max_ms": 318.1015369773377,
-      "fetch_calls": 1000.0,
+      "fetch_calls": 5.0,
       "installed_lookups": 0.0,
-      "scan_work": 0.0
+      "scan_work": 0.0,
+      "installed_count": 5.0
     },
     "2000": {
       "n": 3.0,
       "p50_ms": 1260.1953530102037,
       "p95_ms": 1272.0069909992162,
       "max_ms": 1272.0069909992162,
-      "fetch_calls": 2000.0,
+      "fetch_calls": 5.0,
       "installed_lookups": 0.0,
-      "scan_work": 0.0
+      "scan_work": 0.0,
+      "installed_count": 5.0
     }
   },
   "fetch": {

@@ -22,6 +22,7 @@ class PluginsBrowserLatestMixin:
         _catalog: PluginCatalog | None
         _grouped: list[tuple[str, str, list[PluginCatalogEntry]]]
         _offline: bool
+        _plugin_entry_by_name: dict[str, PluginCatalogEntry]
         _plugin_latest_loading: set[str]
         _plugin_latest_workers: dict[int, str]
 
@@ -111,6 +112,7 @@ class PluginsBrowserLatestMixin:
         if updated is None:
             return
         self._catalog = dataclasses.replace(catalog, entries=tuple(entries))
+        self._plugin_entry_by_name[name] = updated
         self._grouped = [
             (
                 group,

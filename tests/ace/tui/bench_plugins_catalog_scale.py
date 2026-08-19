@@ -16,7 +16,8 @@ then fires its debounced rebuild synchronously (instead of waiting out the
 real timer) so the sample reflects the settled-filter cost the debouncer
 pays once per typing burst, not the (now near-zero) cost of scheduling it.
 
-Wall-clock budgets are recorded, not enforced. Phase ``guard`` flips them on.
+Phase ``guard`` enforces filter-keystroke and j-press p95 under
+:data:`TARGET_P95_MS` at every catalog size, including n=2000.
 """
 
 from __future__ import annotations
@@ -234,8 +235,8 @@ async def test_bench_plugins_catalog_scale(
     assert scenarios["jump_hint"]["n"] == float(_JUMP_SAMPLES)
     assert scenarios["install_mark"]["n"] == float(_MARK_SAMPLES)
     assert scenarios["filter_matches"] == float(scale_filter_match_count(catalog_size))
-    # Recorded, not enforced — keep the 16 ms target visible next to the table.
-    assert TARGET_P95_MS == 16.0
+    assert scenarios["filter_keystroke"]["p95_ms"] < TARGET_P95_MS
+    assert scenarios["j_press"]["p95_ms"] < TARGET_P95_MS
 
     if os.environ.get("SASE_PLUGIN_CATALOG_SCALE_WRITE_BASELINE") == "1":
         merge_baseline_section(

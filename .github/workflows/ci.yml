@@ -372,6 +372,15 @@ jobs:
         with:
           name: agent-disk-load-ops-floor-report
           path: sdd/plans/202608/perf_artifacts/agent_disk_load_ops_regression_check.json
+      - name: Run plugins catalog-scale regression floor
+        if: always()
+        run: just plugin-catalog-scale-check
+      - name: Upload plugins catalog-scale floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-catalog-scale-floor-report
+          path: sdd/plans/202608/perf_artifacts/plugin_catalog_scale_regression_check.json
       - name: Run bead performance smoke
         if: always()
         run: just bead-perf-smoke

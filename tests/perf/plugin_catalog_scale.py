@@ -1,9 +1,10 @@
 """Shared large-catalog fixture and cost-curve helpers for plugin scale benches.
 
-Phase ``bench`` of ``plan:202608/plugin_catalog_scale.md`` (bead ``sase-qn.1``).
+Phase ``bench`` of ``plan:202608/plugin_catalog_scale.md`` (bead ``sase-qn.1``)
+recorded the measuring stick; phase ``guard`` (``sase-qn.5``) enforces it.
 The fixture is parameterized over 10 / 250 / 1000 / 2000 entries and holds the
 filter match count fixed at :data:`FILTER_MATCH_COUNT` (or the full catalog when
-it is smaller) so later phases can compare a clean cost curve.
+it is smaller) so the keystroke curve stays comparable across sizes.
 """
 
 from __future__ import annotations
@@ -26,14 +27,16 @@ from sase.plugins.github_source import (
     fetch_catalog_payload,
 )
 from sase.plugins.installed import InstalledInfo
-from sase.plugins.latest import LatestInfo, enrich_with_latest
+from sase.plugins.latest import EagerScope, LatestInfo, enrich_with_latest
 
 CATALOG_SCALE_SIZES: tuple[int, ...] = (10, 250, 1000, 2000)
 FILTER_MATCH_COUNT = 100
 FILTER_KEYSTROKE = "q"
 FETCH_PAGE_SIZE = 100
 GITHUB_SEARCH_CAP_ENTRIES = 1000
+INSTALLED_SCALE_COUNT = 5
 TARGET_P95_MS = 16.0
+ENFORCED_TUI_SCENARIOS: tuple[str, ...] = ("filter_keystroke", "j_press")
 BASELINE_SCHEMA_VERSION = 1
 BASELINE_PATH = (
     Path(__file__).resolve().parent / "baselines" / "plugin_catalog_scale_baseline.json"
@@ -47,6 +50,11 @@ def scale_filter_match_count(n: int) -> int:
     return min(n, FILTER_MATCH_COUNT)
 
 
+def scale_installed_count(n: int) -> int:
+    """Return how many synthetic rows are marked installed at size *n*."""
+    return min(n, INSTALLED_SCALE_COUNT)
+
+
 def expected_fetch_pages(n: int, *, page_size: int = FETCH_PAGE_SIZE) -> int:
     """Return how many ``per_page=100`` search pages *n* entries require."""
     if n <= 0:
@@ -54,19 +62,31 @@ def expected_fetch_pages(n: int, *, page_size: int = FETCH_PAGE_SIZE) -> int:
     return math.ceil(n / page_size)
 
 
-def make_scale_catalog(n: int) -> PluginCatalog:
+def make_scale_catalog(n: int, *, installed_count: int = 0) -> PluginCatalog:
     """Build a deterministic catalog of *n* entries for the scale benches.
 
     The first :func:`scale_filter_match_count` names start with
     :data:`FILTER_KEYSTROKE` so one filter keystroke matches a fixed row
     count across catalog sizes. Remaining names avoid that character so the
-    match set does not grow with *n*.
+    match set does not grow with *n*. The last *installed_count* rows are
+    marked installed so enrich cost can stay O(installed) without changing
+    the TUI fixture's default (all uninstalled) grouping.
     """
     if n < 0:
         raise ValueError(f"catalog size must be non-negative, got {n}")
+    if installed_count < 0:
+        raise ValueError(f"installed_count must be non-negative, got {installed_count}")
+    if installed_count > n:
+        raise ValueError(f"installed_count {installed_count} exceeds catalog size {n}")
     match_count = scale_filter_match_count(n)
+    installed_from = n - installed_count
     entries = tuple(
-        _scale_entry(index, match=index < match_count) for index in range(n)
+        _scale_entry(
+            index,
+            match=index < match_count,
+            installed=index >= installed_from,
+        )
+        for index in range(n)
     )
     return PluginCatalog(
         fetched_at=_FETCHED_AT,
@@ -76,7 +96,12 @@ def make_scale_catalog(n: int) -> PluginCatalog:
     )
 
 
-def _scale_entry(index: int, *, match: bool) -> PluginCatalogEntry:
+def _scale_entry(
+    index: int,
+    *,
+    match: bool,
+    installed: bool = False,
+) -> PluginCatalogEntry:
     prefix = FILTER_KEYSTROKE if match else "p"
     name = f"{prefix}{index:04d}"
     owner = "sase-org" if index < 3 else "community-lab"
@@ -93,7 +118,11 @@ def _scale_entry(index: int, *, match: bool) -> PluginCatalogEntry:
         archived=False,
         license="MIT",
         updated_at="2026-06-01",
-        installed=InstalledInfo.not_installed(),
+        installed=(
+            InstalledInfo(installed=True, version="0.1.0")
+            if installed
+            else InstalledInfo.not_installed()
+        ),
         latest=LatestInfo.unknown(),
     )
 
@@ -119,14 +148,18 @@ def measure_enrich_cost(
     runs: int = 3,
     warmup: int = 1,
     clock: Callable[[], float] = time.perf_counter,
+    scope: EagerScope = "installed",
+    installed_count: int | None = None,
 ) -> dict[str, float]:
     """Time ``enrich_with_latest`` with a zero-latency ``fetch_fn``.
 
-    Counts fetch calls. Installed-version lookup is a single dict built
-    before the miss loop, so ``installed_lookups`` / ``scan_work`` stay 0
-    after the enrich-phase quadratic fix.
+    Default *scope* is ``installed``: eager network calls track the
+    installed count, not catalog size. Installed-version lookup is a
+    single dict built before the miss loop, so ``installed_lookups`` /
+    ``scan_work`` stay 0 after the enrich-phase quadratic fix.
     """
-    catalog = make_scale_catalog(n)
+    marked = scale_installed_count(n) if installed_count is None else installed_count
+    catalog = make_scale_catalog(n, installed_count=marked)
     fetch_calls = 0
 
     def fetch_fn(_dist_name: str) -> str:
@@ -148,7 +181,7 @@ def measure_enrich_cost(
             installed_source_fn=lambda _dist: "index",
             version_records_fn=lambda: (),
             max_workers=1,
-            scope="all",
+            scope=scope,
         )
         elapsed_ms = (clock() - started) * 1000.0
         last_fetch_calls = fetch_calls
@@ -159,6 +192,7 @@ def measure_enrich_cost(
     stats["fetch_calls"] = float(last_fetch_calls)
     stats["installed_lookups"] = 0.0
     stats["scan_work"] = 0.0
+    stats["installed_count"] = float(marked)
     return stats
 
 
@@ -325,16 +359,65 @@ def measure_fetch_pages(
     return stats
 
 
-def expected_enrich_ops(n: int) -> dict[str, float]:
-    """Return the post-enrich-phase operation-count curve at size *n*.
+def measure_fetch_truncation(
+    *,
+    extra: int = 1,
+    today: date = date(2026, 8, 18),
+) -> dict[str, float]:
+    """Fetch an unsplittable corpus past GitHub's 1000-result search cap.
 
-    Default scope is still ``all`` (flag off), so fetch count tracks catalog
-    size. The installed-version lookup is O(1) per miss, so scan_work is 0.
+    Every item shares the same ``stars`` and ``created_at`` so star and
+    date shards cannot split the query. The fetch must return the cap and
+    surface a truncation warning rather than silently dropping the rest.
     """
+    if extra < 1:
+        raise ValueError(f"extra must be at least 1, got {extra}")
+    n = GITHUB_SEARCH_CAP_ENTRIES + extra
+    created = "2026-06-01T00:00:00Z"
+    items = [
+        {
+            **_search_item(index),
+            "stargazers_count": 0,
+            "created_at": created,
+            "pushed_at": created,
+            "updated_at": created,
+        }
+        for index in range(n)
+    ]
+    payload = fetch_catalog_payload(
+        which_fn=lambda _name: "/usr/bin/gh",
+        run_fn=search_corpus_run_fn(items),
+        today=today,
+    )
+    warnings = payload.warnings
     return {
-        "fetch_calls": float(n),
+        "catalog_size": float(n),
+        "returned_entries": float(len(payload.entries)),
+        "github_search_cap_entries": float(GITHUB_SEARCH_CAP_ENTRIES),
+        "truncated": 1.0 if payload.truncated else 0.0,
+        "warning_count": float(len(warnings)),
+        "has_truncation_warning": (
+            1.0 if any("truncated" in warning for warning in warnings) else 0.0
+        ),
+        "has_cap_warning": (
+            1.0 if any("1000" in warning for warning in warnings) else 0.0
+        ),
+    }
+
+
+def expected_enrich_ops(n: int, *, scope: EagerScope = "installed") -> dict[str, float]:
+    """Return the post-guard operation-count curve at size *n*.
+
+    Scoped eager enrichment fetches once per installed row. The
+    installed-version lookup is O(1) per miss, so scan_work is 0 even
+    when *scope* is ``all``.
+    """
+    fetch_calls = float(n) if scope == "all" else float(scale_installed_count(n))
+    return {
+        "fetch_calls": fetch_calls,
         "installed_lookups": 0.0,
         "scan_work": 0.0,
+        "installed_count": float(scale_installed_count(n)),
     }
 
 
@@ -370,6 +453,8 @@ def _empty_baseline() -> dict[str, Any]:
         "catalog_sizes": list(CATALOG_SCALE_SIZES),
         "filter_match_count": FILTER_MATCH_COUNT,
         "filter_keystroke": FILTER_KEYSTROKE,
+        "installed_count": INSTALLED_SCALE_COUNT,
         "target_p95_ms": TARGET_P95_MS,
-        "budgets_enforced": False,
+        "enforced_tui_scenarios": list(ENFORCED_TUI_SCENARIOS),
+        "budgets_enforced": True,
     }

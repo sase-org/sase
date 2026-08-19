@@ -1102,6 +1102,11 @@ agent-disk-load-ops-check *args: _setup
     @printf "\n---------- Agents disk-load operation-count floor (sase-n7.5) ----------\n"
     {{ venv_bin }}/python tests/perf/check_agent_disk_load_ops_regression.py {{ args }}
 
+# Run the Updates > Plugins catalog-scale regression floor (sase-qn.5).
+plugin-catalog-scale-check *args: _setup
+    @printf "\n---------- Plugins catalog scale regression floor (sase-qn.5) ----------\n"
+    {{ venv_bin }}/python tests/perf/check_plugin_catalog_scale_regression.py {{ args }}
+
 # Run a tiny bead benchmark as a CI smoke. This records the Rust-backed
 # shell/facade/work-plan path without enforcing workstation-sensitive latency
 # thresholds.
@@ -1123,11 +1128,12 @@ bead-perf-smoke *args: _setup
 bench-status-state-machine *args: _setup
     {{ venv_bin }}/python tests/perf/bench_status_state_machine.py {{ args }}
 
-# Plugins catalog scale bench (sase-qn.1). Records p50/p95/max at
-# 10/250/1000/2000 entries and asserts fetch/enrich operation-count
-# curves. Wall-clock budgets are recorded, not enforced.
+# Plugins catalog scale bench (sase-qn.1 / sase-qn.5). Records p50/p95/max
+# at 10/250/1000/2000 entries and enforces filter/j p95 plus the
+# fetch/enrich operation-count curves (O(installed) eager fetches,
+# sub-quadratic scan work, no silent 1000-result truncation).
 bench-plugin-catalog-scale *args: _setup
-    @printf "\n---------- Plugins catalog scale (sase-qn.1) ----------\n"
+    @printf "\n---------- Plugins catalog scale (sase-qn.5) ----------\n"
     {{ venv_bin }}/pytest -s -m slow \
         tests/perf/bench_plugin_catalog_scale.py \
         tests/ace/tui/bench_plugins_catalog_scale.py \

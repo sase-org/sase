@@ -1,8 +1,9 @@
 """Fast structural tests for the plugin-catalog scale fixture and cost curves.
 
 The slow benches record wall-clock p50/p95/max. These tests assert the
-measuring stick itself: catalog sizes, the fixed filter match count, the
-quadratic enrich operation curve, and fetch page counts.
+enforced measuring stick: catalog sizes, the fixed filter match count, the
+sub-quadratic O(installed) enrich curve, fetch page counts past GitHub's
+cap, and truncation warnings.
 """
 
 from __future__ import annotations
@@ -11,9 +12,11 @@ from sase.plugins.latest import enrich_with_latest
 from tests.perf.plugin_catalog_scale import (
     BASELINE_PATH,
     CATALOG_SCALE_SIZES,
+    ENFORCED_TUI_SCENARIOS,
     FILTER_KEYSTROKE,
     FILTER_MATCH_COUNT,
     GITHUB_SEARCH_CAP_ENTRIES,
+    INSTALLED_SCALE_COUNT,
     TARGET_P95_MS,
     expected_enrich_ops,
     expected_fetch_pages,
@@ -21,7 +24,9 @@ from tests.perf.plugin_catalog_scale import (
     make_scale_catalog,
     measure_enrich_cost,
     measure_fetch_pages,
+    measure_fetch_truncation,
     scale_filter_match_count,
+    scale_installed_count,
 )
 
 
@@ -52,6 +57,15 @@ def test_scale_catalog_sizes_and_fixed_filter_match_count() -> None:
     assert _fixture_match_count(250) == _fixture_match_count(2000)
 
 
+def test_scale_catalog_installed_count_is_fixed_across_sizes() -> None:
+    for n in CATALOG_SCALE_SIZES:
+        catalog = make_scale_catalog(n, installed_count=scale_installed_count(n))
+        installed = [entry for entry in catalog.entries if entry.installed.installed]
+        assert len(installed) == scale_installed_count(n)
+    assert scale_installed_count(10) == INSTALLED_SCALE_COUNT
+    assert scale_installed_count(2000) == INSTALLED_SCALE_COUNT
+
+
 def test_enrich_cost_curve_is_not_quadratic_in_catalog_size() -> None:
     small = measure_enrich_cost(8, runs=1, warmup=0)
     large = measure_enrich_cost(16, runs=1, warmup=0)
@@ -65,7 +79,13 @@ def test_enrich_cost_curve_is_not_quadratic_in_catalog_size() -> None:
     two_thousand = expected_enrich_ops(2000)
     assert thousand["scan_work"] == 0.0
     assert two_thousand["scan_work"] == 0.0
-    assert two_thousand["fetch_calls"] / thousand["fetch_calls"] == 2.0
+    assert thousand["fetch_calls"] == float(INSTALLED_SCALE_COUNT)
+    assert two_thousand["fetch_calls"] == thousand["fetch_calls"]
+    all_scope = measure_enrich_cost(16, runs=1, warmup=0, scope="all")
+    assert (
+        all_scope["fetch_calls"] == expected_enrich_ops(16, scope="all")["fetch_calls"]
+    )
+    assert all_scope["scan_work"] == 0.0
 
 
 def test_fetch_page_count_scales_with_catalog_size_not_github_cap() -> None:
@@ -87,14 +107,16 @@ def test_fetch_page_count_scales_with_catalog_size_not_github_cap() -> None:
     assert over_cap["requests"] > over_cap["pages"]
 
 
-def test_committed_baseline_records_all_sizes_without_enforcing_budgets() -> None:
+def test_committed_baseline_enforces_scale_budgets() -> None:
     baseline = load_baseline()
     assert baseline["schema_version"] == 1
     assert baseline["benchmark"] == "plugin_catalog_scale"
     assert baseline["catalog_sizes"] == list(CATALOG_SCALE_SIZES)
     assert baseline["filter_match_count"] == FILTER_MATCH_COUNT
+    assert baseline["installed_count"] == INSTALLED_SCALE_COUNT
     assert baseline["target_p95_ms"] == TARGET_P95_MS
-    assert baseline["budgets_enforced"] is False
+    assert baseline["enforced_tui_scenarios"] == list(ENFORCED_TUI_SCENARIOS)
+    assert baseline["budgets_enforced"] is True
     assert BASELINE_PATH.exists()
 
     for n in CATALOG_SCALE_SIZES:
@@ -106,6 +128,7 @@ def test_committed_baseline_records_all_sizes_without_enforcing_budgets() -> Non
         assert enrich["fetch_calls"] == expected["fetch_calls"]
         assert enrich["installed_lookups"] == expected["installed_lookups"]
         assert enrich["scan_work"] == expected["scan_work"]
+        assert enrich["installed_count"] == float(scale_installed_count(n))
         for stat in ("p50_ms", "p95_ms", "max_ms"):
             assert enrich[stat] >= 0.0
             assert fetch[stat] >= 0.0
@@ -122,6 +145,20 @@ def test_committed_baseline_records_all_sizes_without_enforcing_budgets() -> Non
             stats = tui[scenario]
             for stat in ("n", "p50_ms", "p95_ms", "max_ms"):
                 assert stats[stat] >= 0.0
+        if n >= 2000:
+            for scenario in ENFORCED_TUI_SCENARIOS:
+                assert tui[scenario]["p95_ms"] < TARGET_P95_MS
+
+
+def test_fetch_surfaces_truncation_instead_of_silently_dropping_repos() -> None:
+    stats = measure_fetch_truncation()
+    assert stats["catalog_size"] == float(GITHUB_SEARCH_CAP_ENTRIES + 1)
+    assert stats["returned_entries"] == float(GITHUB_SEARCH_CAP_ENTRIES)
+    assert stats["returned_entries"] < stats["catalog_size"]
+    assert stats["truncated"] == 1.0
+    assert stats["has_truncation_warning"] == 1.0
+    assert stats["has_cap_warning"] == 1.0
+    assert stats["warning_count"] >= 1.0
 
 
 def test_enrich_with_latest_indexes_installed_versions_once() -> None:

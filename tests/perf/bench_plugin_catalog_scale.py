@@ -5,9 +5,9 @@ Run explicitly with::
     pytest -s -m slow tests/perf/bench_plugin_catalog_scale.py
     python -m tests.perf.bench_plugin_catalog_scale --write-baseline
 
-Wall-clock budgets are recorded, not enforced. Operation-count curves
-(fetch calls, installed-version lookups, scan work, page count) are the
-measuring stick later phases compare against.
+Operation-count curves are enforced: enrich is sub-quadratic with eager
+fetches O(installed), and fetch returns every entry past GitHub's
+1000-result cap. Wall-clock enrich/fetch times stay printable.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import pytest
 from tests.perf.plugin_catalog_scale import (
     BASELINE_PATH,
     CATALOG_SCALE_SIZES,
+    INSTALLED_SCALE_COUNT,
     expected_enrich_ops,
     expected_fetch_pages,
     measure_enrich_cost,
@@ -101,9 +102,13 @@ def test_bench_enrich_and_fetch_scale_curves() -> None:
     """Record enrich/fetch cost curves at 10/250/1000/2000 entries."""
     enrich = run_enrich_curve()
     fetch = run_fetch_curve()
-    # Doubling n from 1000 to 2000 must quadruple scan work (n² lookups).
-    assert enrich["2000"]["scan_work"] / enrich["1000"]["scan_work"] == 4.0
+    # Doubling n from 1000 to 2000 must not grow eager fetches (O(installed)).
+    assert enrich["1000"]["scan_work"] == 0.0
+    assert enrich["2000"]["scan_work"] == 0.0
+    assert enrich["1000"]["fetch_calls"] == float(INSTALLED_SCALE_COUNT)
+    assert enrich["2000"]["fetch_calls"] == enrich["1000"]["fetch_calls"]
     assert fetch["2000"]["pages"] / fetch["1000"]["pages"] == 2.0
+    assert fetch["2000"]["returned_entries"] == 2000.0
 
 
 def main(argv: list[str] | None = None) -> int:
