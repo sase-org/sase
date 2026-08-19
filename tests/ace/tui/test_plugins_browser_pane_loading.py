@@ -12,7 +12,6 @@ from sase.ace.tui.actions import update_toast
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
 from sase.ace.tui.widgets import UpdatesAvailableIndicator
 from sase.updates import build_update_status
@@ -301,77 +300,6 @@ async def test_plugins_pane_error_state(
         assert "gh not found" in pane._status_message()
 
 
-async def test_updates_pane_auto_update_fires_once_after_initial_load(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    fresh_roots = frozenset({"/repo/sase", "/repo/sase-github"})
-    _patch_catalog(
-        monkeypatch,
-        catalog=_catalog(),
-        fresh_editable_roots=fresh_roots,
-    )
-    calls: list[tuple[PluginsBrowserPane, frozenset[str]]] = []
-    monkeypatch.setattr(
-        PluginsBrowserPane,
-        "_start_sase_update_preview",
-        lambda self, *, already_refreshed_roots=(): calls.append(
-            (self, frozenset(already_refreshed_roots))
-        ),
-    )
-
-    async with AcePage() as page:
-        modal = ConfigCenterModal(
-            initial_tab="updates",
-            auto_update=True,
-            comprehensive_provider_names=("claude",),
-        )
-        page.app.push_screen(modal)
-        await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: bool(modal.query("#updates")))
-        pane = modal.query_one("#updates", PluginsBrowserPane)
-        await page.wait_for(lambda _s: not pane._loading)
-        await page.wait_for(lambda _s: calls == [(pane, fresh_roots)])
-        await page.pause()
-
-        assert calls == [(pane, fresh_roots)]
-        assert pane._auto_update_on_load is False
-
-
-async def test_updates_pane_auto_update_preview_reuses_load_freshness(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    fresh_roots = frozenset({"/repo/sase", "/repo/sase-github"})
-    _patch_catalog(
-        monkeypatch,
-        catalog=_catalog(),
-        fresh_editable_roots=fresh_roots,
-    )
-    planned_with: list[frozenset[str]] = []
-
-    def _preview(
-        _receipt: object | None,
-        *,
-        already_refreshed_roots: frozenset[str] = frozenset(),
-    ) -> pbp._DevUpdatePreview:
-        planned_with.append(frozenset(already_refreshed_roots))
-        return pbp._DevUpdatePreview(plan=None, subject="sase")
-
-    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", _preview)
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.make_sase_dev_update_preview",
-        _preview,
-    )
-
-    async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
-        page.app.push_screen(modal)
-        await page.expect_modal("PluginActionConfirmModal")
-
-        assert planned_with == [fresh_roots]
-
-
 async def test_updates_pane_manual_update_reuses_load_freshness(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -492,43 +420,6 @@ async def test_updates_pane_offline_reload_does_not_retain_freshness(
         pane.action_toggle_offline()
         await page.wait_for(lambda _s: pane._offline and not pane._loading)
 
-        assert pane._reusable_fresh_editable_roots() == frozenset()
-
-
-async def test_updates_pane_auto_update_clears_on_initial_load_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_catalog())
-    monkeypatch.setattr(
-        pbp,
-        "_load_plugins_catalog",
-        lambda **_kw: (_ for _ in ()).throw(RuntimeError("boom")),
-    )
-    calls: list[PluginsBrowserPane] = []
-    monkeypatch.setattr(
-        PluginsBrowserPane,
-        "action_update_sase",
-        lambda self: calls.append(self),
-    )
-
-    async with AcePage() as page:
-        modal = ConfigCenterModal(
-            initial_tab="updates",
-            auto_update=True,
-            comprehensive_provider_names=("claude",),
-        )
-        page.app.push_screen(modal)
-        await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: bool(modal.query("#updates")))
-        pane = modal.query_one("#updates", PluginsBrowserPane)
-        await page.wait_for(lambda _s: not pane._loading)
-        await page.pause()
-
-        assert calls == []
-        assert pane._auto_update_on_load is False
-        assert pane._comprehensive_update_request is None
-        assert pane._error == "boom"
         assert pane._reusable_fresh_editable_roots() == frozenset()
 
 

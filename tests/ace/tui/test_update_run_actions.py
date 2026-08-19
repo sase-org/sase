@@ -35,7 +35,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import CapturedIncomingHood
+from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
@@ -305,7 +305,14 @@ def test_non_changing_result_toasts_without_restart() -> None:
         sase=ComprehensiveSaseUpdateResult(
             SaseUpdateResultStatus.ALREADY_CURRENT,
             "already current",
-        )
+        ),
+        agents_outcomes=(
+            CachedIntegrationResult(
+                _runnable_preview().agents_updates[0],
+                "applied",
+                hoods_imported=1,
+            ),
+        ),
     )
 
     harness._on_scoped_update_complete(_completion(result))
@@ -314,6 +321,9 @@ def test_non_changing_result_toasts_without_restart() -> None:
     assert harness.messages
     assert harness.messages[0][1] == "information"
     assert "already current" in harness.messages[0][0]
+    assert harness.updates_refreshes == 1
+    assert harness.agents_refreshes == 1
+    assert harness.agent_list_refreshes == ["comprehensive_cached_agents"]
 
 
 def test_preview_proc_body_collects_inputs_then_builds_preview(

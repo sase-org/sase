@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import RenderableType
@@ -10,7 +9,6 @@ from rich.panel import Panel
 from rich.text import Text
 from textual.worker import Worker, WorkerState
 
-from .plugins_browser_comprehensive_update import ComprehensiveUpdateRequest
 from .plugins_browser_loading import PluginsLoadResult
 
 if TYPE_CHECKING:
@@ -34,10 +32,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _agent_cli_history_error: str | None
         _agent_cli_plan_worker: Worker[Any] | None
         _agent_cli_statuses: tuple[Any, ...]
-        _auto_update_on_load: bool
         _catalog: Any
-        _comprehensive_update_plan_worker: Worker[Any] | None
-        _comprehensive_update_request: ComprehensiveUpdateRequest | None
         _core_incoming_commits: dict[str, Any]
         _core_versions: Any
         _dev_root: str | None
@@ -56,7 +51,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _restore_name: str | None
         _sase_update_plan_worker: Worker[Any] | None
         _session_state: Any
-        _starting_comprehensive_request: ComprehensiveUpdateRequest | None
         _uninstall_plan_worker: Worker[Any] | None
         _update_plan_worker: Worker[Any] | None
         _updates_loaded_once: bool
@@ -67,8 +61,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         def _agent_cli_hints(self) -> str: ...
 
         def _agent_cli_summary(self) -> Text: ...
-
-        def _all_up_to_date(self) -> bool: ...
 
         def _core_hints(self) -> str: ...
 
@@ -86,8 +78,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         ) -> None: ...
 
         def _on_agent_cli_update_preview(self, result: Any) -> None: ...
-
-        def _on_comprehensive_update_preview(self, result: Any) -> None: ...
 
         def _on_incoming_commits_worker_state(
             self, event: Worker.StateChanged, key: Any
@@ -110,10 +100,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         def _refresh_plugin_haystacks(self) -> None: ...
 
         def _render_all(self) -> None: ...
-
-        def _start_sase_update_preview(
-            self, *, already_refreshed_roots: Collection[str] = ()
-        ) -> None: ...
 
         def _status_message(self) -> str: ...
 
@@ -218,20 +204,6 @@ class PluginsBrowserWorkersMixin(_MixinBase):
                     severity="error",
                 )
             return
-        if event.worker is self._comprehensive_update_plan_worker:
-            if event.state == WorkerState.SUCCESS:
-                self._comprehensive_update_plan_worker = None
-                self._on_comprehensive_update_preview(event.worker.result)
-            elif event.state == WorkerState.ERROR:
-                self._comprehensive_update_plan_worker = None
-                self._notify(
-                    self._worker_error_text(
-                        event.worker,
-                        kind="comprehensive update",
-                    ),
-                    severity="error",
-                )
-            return
         if event.worker is self._mode_switch_plan_worker:
             if event.state == WorkerState.SUCCESS:
                 self._mode_switch_plan_worker = None
@@ -310,35 +282,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             )
             if update_status is not None and callable(refresh_indicator):
                 refresh_indicator(update_status)
-            if self._auto_update_on_load:
-                self._auto_update_on_load = False
-                request = self._comprehensive_update_request
-                self._comprehensive_update_request = None
-                provider_names = request.provider_names if request is not None else None
-                if self._all_up_to_date() and not provider_names:
-                    self._notify(
-                        "Everything is already up to date.",
-                        severity="information",
-                    )
-                else:
-                    fresh_roots = self._reusable_fresh_editable_roots()
-
-                    def _start_captured_request() -> None:
-                        # Consume before invoking the planning hook so closing,
-                        # cancellation, or a scheduling failure cannot replay it.
-                        self._starting_comprehensive_request = request
-                        try:
-                            self._start_sase_update_preview(
-                                already_refreshed_roots=fresh_roots
-                            )
-                        finally:
-                            self._starting_comprehensive_request = None
-
-                    self.app.call_later(_start_captured_request)
         elif event.state == WorkerState.ERROR:
-            self._auto_update_on_load = False
-            self._comprehensive_update_request = None
-            self._starting_comprehensive_request = None
             self._loading = False
             self._fresh_editable_roots_evidence = None
             self._error = (

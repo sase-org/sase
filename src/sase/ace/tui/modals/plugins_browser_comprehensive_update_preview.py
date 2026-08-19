@@ -83,7 +83,7 @@ _DROPPED_LEADS: dict[UpdateScope, str] = {
 }
 
 
-def plan_captured_providers(
+def _plan_captured_providers(
     captured_names: tuple[str, ...] | None,
     statuses: Sequence[AgentCliStatus],
     *,
@@ -195,7 +195,7 @@ def _plan_providers_leg(
 ]:
     if UpdateLeg.PROVIDERS not in selected:
         return None, (), None
-    return plan_captured_providers(
+    return _plan_captured_providers(
         request.provider_names,
         inputs.agent_cli_statuses,
         offline=inputs.offline,
@@ -244,7 +244,7 @@ def _sase_is_cached_current(status: UpdateStatus | None) -> bool:
     )
 
 
-def sase_preview_section(
+def _sase_preview_section(
     preview: ComprehensiveUpdatePreview,
 ) -> PluginActionPreviewSection:
     """Render the SASE leg of a comprehensive-update confirmation."""
@@ -347,13 +347,13 @@ def sase_preview_section(
         title=title,
         summary=dev_update_preview_summary(plan, subject="sase"),
         components=tuple(components),
-        commands=dev_update_commands(plan, managed_argv=sase.managed_argv),
+        commands=_dev_update_commands(plan, managed_argv=sase.managed_argv),
         skipped=skipped,
         counts=tuple(counts),
     )
 
 
-def provider_preview_section(
+def _provider_preview_section(
     preview: ComprehensiveUpdatePreview,
 ) -> PluginActionPreviewSection:
     """Render the agent-CLI leg of a comprehensive-update confirmation."""
@@ -438,7 +438,7 @@ def provider_preview_section(
     )
 
 
-def agents_preview_section(
+def _agents_preview_section(
     preview: ComprehensiveUpdatePreview,
 ) -> PluginActionPreviewSection:
     """Render the no-network agents-repository snapshot for confirmation."""
@@ -501,11 +501,11 @@ def comprehensive_preview_sections(
     sections: list[PluginActionPreviewSection] = []
     selected = preview.selected_legs
     if UpdateLeg.SASE in selected:
-        sections.append(sase_preview_section(preview))
+        sections.append(_sase_preview_section(preview))
     if UpdateLeg.PROVIDERS in selected:
-        sections.append(provider_preview_section(preview))
+        sections.append(_provider_preview_section(preview))
     if UpdateLeg.AGENTS in selected:
-        sections.append(agents_preview_section(preview))
+        sections.append(_agents_preview_section(preview))
     return tuple(sections)
 
 
@@ -607,7 +607,7 @@ def _count_label(count: int, singular: str, *, plural: str | None = None) -> str
     return f"{count} {noun}"
 
 
-def dev_update_commands(
+def _dev_update_commands(
     plan: DevUpdatePlan,
     *,
     managed_argv: tuple[str, ...],

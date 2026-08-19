@@ -225,7 +225,6 @@ def test_open_updates_panel_action_pushes_admin_center_on_updates() -> None:
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
     assert modal._initial_tab == "updates"
-    assert modal._auto_update is False
 
 
 def test_update_sase_shortcut_opens_update_panel(

@@ -313,4 +313,4 @@ def test_inventory_records_infrastructure_and_classifications() -> None:
     assert durable
     assert any(site.site_id == "memory.write" for site in PRODUCTION_PRODUCERS)
     assert any(site.site_id == "memory.publish" for site in PRODUCTION_PRODUCERS)
-    assert len(PRODUCTION_PRODUCERS) == 42
+    assert len(PRODUCTION_PRODUCERS) == 41

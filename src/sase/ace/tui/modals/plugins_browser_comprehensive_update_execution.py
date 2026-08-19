@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
 
 from sase.ace.comprehensive_update import (
     ComprehensiveSaseUpdateResult,
@@ -38,9 +37,6 @@ from .plugins_browser_sase_update_summary import (
     combined_sase_update_success_message,
     sase_update_success_message,
 )
-
-if TYPE_CHECKING:
-    from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 
 _SCOPED_UPDATE_NAMES: dict[UpdateScope, tuple[str, str]] = {
     UpdateScope.EVERYTHING: (
@@ -106,7 +102,7 @@ def _execute_provider_leg(
         )
         for item in preview.provider_dropped
     )
-    ordered = order_provider_results(
+    ordered = _order_provider_results(
         (*results, *dropped_results),
         preview.request.provider_names,
     )
@@ -261,36 +257,7 @@ def run_scoped_update(
     )
 
 
-class ComprehensiveUpdateExecutionMixin:
-    """Thin wrappers so pane tests can still override per-leg execution."""
-
-    if TYPE_CHECKING:
-        _uv_tool: object | None
-
-        def _execute_dev_update(
-            self, plan: DevUpdatePlan, *, run: Any = None
-        ) -> DevUpdateResult: ...
-
-    def _execute_provider_leg(
-        self,
-        preview: ComprehensiveUpdatePreview,
-    ) -> tuple[tuple[AgentCliUpdateResult, ...], str | None]:
-        return _execute_provider_leg(preview)
-
-    def _execute_comprehensive_sase_leg(
-        self,
-        preview: ComprehensiveUpdatePreview,
-    ) -> ComprehensiveSaseUpdateResult:
-        return _execute_sase_leg(preview, getattr(self, "_uv_tool", None))
-
-    def _execute_agents_leg(
-        self,
-        preview: ComprehensiveUpdatePreview,
-    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
-        return _execute_agents_leg(preview)
-
-
-def order_provider_results(
+def _order_provider_results(
     results: Sequence[AgentCliUpdateResult],
     captured_names: tuple[str, ...] | None,
 ) -> tuple[AgentCliUpdateResult, ...]:
@@ -346,9 +313,7 @@ def comprehensive_update_summary(result: ComprehensiveUpdateResult) -> str:
 
 
 __all__ = [
-    "ComprehensiveUpdateExecutionMixin",
     "comprehensive_update_summary",
-    "order_provider_results",
     "run_scoped_update",
     "scoped_preview_cl_name",
     "scoped_update_proc_names",

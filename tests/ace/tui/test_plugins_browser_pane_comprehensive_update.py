@@ -1,18 +1,17 @@
-"""Snapshot-gated comprehensive Updates-pane flow tests."""
+"""Preview-section and incoming-commit tests for comprehensive updates."""
 
 from __future__ import annotations
 
 from dataclasses import replace
 from typing import Any
 
-import pytest
-
 from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
-    ComprehensiveUpdateActionsMixin,
+from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
+    ComprehensiveUpdatePreview,
     ComprehensiveUpdateRequest,
+)
+from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
     _agents_preview_section,
-    _ComprehensiveUpdatePreview,
     _plan_captured_providers,
     _provider_preview_section,
     _sase_preview_section,
@@ -27,11 +26,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
-from sase.agents_sync.models import (
-    CapturedIncomingHood,
-    ProjectSyncStatus,
-    SyncStatusSnapshot,
-)
+from sase.agents_sync.models import CapturedIncomingHood
 from sase.uv_tool.render import PlannedPackage
 from sase.updates.incoming_commits import (
     CommitSummary,
@@ -236,7 +231,7 @@ def test_comprehensive_preview_has_separate_exact_sections() -> None:
         statuses,
         offline=False,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude", "removed")),
         sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
         provider_plan=provider_plan,
@@ -267,7 +262,7 @@ def test_comprehensive_preview_has_separate_exact_sections() -> None:
 
 
 def test_comprehensive_sase_preview_leads_with_dev_components() -> None:
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=pbp._DevUpdatePreview(plan=_dev_plan(), subject="sase"),
     )
@@ -301,7 +296,7 @@ def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
         (current_claude, codex),
         offline=False,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude", "codex")),
         sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
         provider_plan=plan,
@@ -324,7 +319,7 @@ def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
 
 
 def test_comprehensive_agents_preview_captures_exact_projects_and_hoods() -> None:
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
@@ -364,7 +359,7 @@ def test_comprehensive_agents_preview_captures_exact_projects_and_hoods() -> Non
 
 
 def test_comprehensive_agents_preview_without_cache_items_is_noop() -> None:
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
@@ -383,7 +378,7 @@ def test_unselected_legs_are_not_runnable_or_current() -> None:
         _agent_cli_statuses(),
         offline=False,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",), UpdateScope.PROVIDERS),
         sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
         sase_blocker=None,
@@ -406,7 +401,7 @@ def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
         _agent_cli_statuses(),
         offline=False,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",)),
         sase_preview=None,
         sase_blocker="SASE install is blocked",
@@ -418,56 +413,3 @@ def test_sase_blocker_does_not_suppress_runnable_provider_plan() -> None:
     assert preview.sase_runnable is False
     assert preview.provider_runnable is True
     assert preview.runnable is True
-
-
-def test_comprehensive_preview_captures_no_network_agents_items(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, object]] = []
-    captured = _captured("alpha", "Alpha", "foo")
-    snapshot = SyncStatusSnapshot(
-        100.0,
-        (
-            ProjectSyncStatus(
-                "alpha",
-                "Alpha",
-                "ready",
-                pending_updates=(captured,),
-            ),
-        ),
-    )
-
-    def get_status(**kwargs: object) -> SyncStatusSnapshot:
-        calls.append(dict(kwargs))
-        return snapshot
-
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.get_agents_sync_status",
-        get_status,
-    )
-
-    class _PreviewHarness(ComprehensiveUpdateActionsMixin):
-        def __init__(self) -> None:
-            self._loading = False
-            self._comprehensive_update_plan_worker = None
-            self._agent_cli_statuses = ()
-            self._agent_cli_error = None
-            self._offline = False
-            self._uv_tool = None
-            self.worker: Any = None
-
-        def run_worker(self, callback: Any, **_kwargs: object) -> object:
-            self.worker = callback
-            return object()
-
-    harness = _PreviewHarness()
-    harness._start_comprehensive_update_preview(
-        ComprehensiveUpdateRequest((), UpdateScope.AGENTS)
-    )
-    preview = harness.worker()
-
-    assert calls == [{"revalidate_only": True}]
-    assert preview.agents_updates == (captured,)
-    assert preview.agents_runnable is True
-    assert preview.sase_runnable is False
-    assert preview.provider_runnable is False

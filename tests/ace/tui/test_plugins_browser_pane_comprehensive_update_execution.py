@@ -1,8 +1,7 @@
-"""Execution and completion tests for comprehensive Updates-pane flows."""
+"""Execution tests for extracted comprehensive-update helpers."""
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -12,28 +11,22 @@ from sase.ace.comprehensive_update import (
     ComprehensiveUpdateResult,
     SaseUpdateResultStatus,
 )
-from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
-    ComprehensiveUpdateActionsMixin,
-    ComprehensiveUpdateRequest,
-    _comprehensive_update_summary,
-    _ComprehensiveUpdatePreview,
-)
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
     _execute_agents_leg,
     _execute_provider_leg,
     _execute_sase_leg,
+    comprehensive_update_summary,
     run_scoped_update,
 )
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
+    ComprehensiveUpdatePreview,
+    ComprehensiveUpdateRequest,
     DroppedProviderCandidate,
 )
+from sase.ace.tui.modals.plugins_browser_dev_update import DevUpdatePreview
 from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import AgentCliNothingToUpdate, UpdateResultStatus
 from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
-from tests.ace.tui._proc_submit_signature_helpers import (
-    assert_session_worker_submit_signature,
-)
 
 
 def _captured(
@@ -59,41 +52,9 @@ def _captured(
     )
 
 
-class _Reporter:
-    def phase(self, _label: str) -> None:
-        pass
-
-    def section(self, _title: str) -> None:
-        pass
-
-    def log(self, _text: str, *, stream: str = "stdout") -> None:
-        del stream
-
-
-class _SubmitApp:
-    def __init__(self, *, reject: bool = False) -> None:
-        self.reject = reject
-        self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
-
-    def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
-        assert_session_worker_submit_signature(args, kwargs)
-        self.submitted = (args, kwargs)
-        return None if self.reject else object()
-
-
-class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
-    def __init__(self) -> None:
-        self.app = _SubmitApp()
-        self._uv_tool = None
-
-    def _on_comprehensive_update_complete(self, _completion: Any) -> None:
-        pass
-
-
-def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_failure(
+def test_run_scoped_update_continues_after_provider_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    harness = _ExecutionHarness()
     order: list[str] = []
 
     def providers(_preview: Any) -> tuple[tuple[Any, ...], str | None]:
@@ -134,46 +95,18 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
         "_execute_agents_leg",
         agents,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",)),
-        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+        sase_preview=DevUpdatePreview(plan=None, subject="sase"),
     )
 
-    assert harness._submit_comprehensive_update_task(preview) is True
-    assert harness.app.submitted is not None
-    args, kwargs = harness.app.submitted
-    assert kwargs["exclusive_scopes"] == (
-        "sase-update",
-        "agent-cli-update",
-        "agents-sync",
-    )
-    assert kwargs["dedup_key"] == "comprehensive-update"
-    assert kwargs["display_name"] == "comprehensive update"
-    assert kwargs["cl_name"] == "sase + agent CLIs + cached hoods"
-    assert (
-        kwargs["duplicate_message"]
-        == "A SASE, agent CLI, or agents-repository update is already running."
-    )
+    result = run_scoped_update(preview, uv_tool=None)
 
-    task_result = args[1]()
     assert order == ["providers", "sase", "agents"]
-    assert task_result.success is False
-    assert task_result.payload is not None
-    assert task_result.payload.provider_error == "provider failed"
-    assert task_result.payload.agents_outcomes[0].captured.project_key == "alpha"
-    assert task_result.payload.selected_legs == preview.selected_legs
-
-
-def test_comprehensive_task_reports_submit_collision() -> None:
-    harness = _ExecutionHarness()
-    harness.app = _SubmitApp(reject=True)
-    preview = _ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest(("claude",)),
-        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
-    )
-
-    assert harness._submit_comprehensive_update_task(preview) is False
-    assert harness.app.submitted is not None
+    assert result.provider_error == "provider failed"
+    assert result.agents_outcomes[0].captured.project_key == "alpha"
+    assert result.selected_legs == preview.selected_legs
+    assert result.has_failures is True
 
 
 def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
@@ -199,7 +132,7 @@ def test_comprehensive_summary_and_failures_include_agents_repos() -> None:
     assert result.has_failures is True
     assert result.has_successful_agents_change is True
     assert result.fully_failed is False
-    assert _comprehensive_update_summary(result).endswith(
+    assert comprehensive_update_summary(result).endswith(
         "Cached agents: 1 applied, 1 failed"
     )
 
@@ -226,70 +159,18 @@ def test_agents_leg_integrates_exact_captured_items_without_widening(
         "integrate_cached_agent_updates",
         integrate,
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(()),
         sase_preview=None,
         sase_current=True,
         agents_updates=(zulu, alpha),
     )
-    harness = ComprehensiveUpdateActionsMixin.__new__(ComprehensiveUpdateActionsMixin)
 
-    outcomes, error = harness._execute_agents_leg(preview)
+    outcomes, error = _execute_agents_leg(preview)
 
     assert error is None
     assert calls == [(zulu, alpha)]
     assert outcomes == returned
-
-
-def test_comprehensive_completion_refreshes_both_shared_indicators() -> None:
-    class _App:
-        def __init__(self) -> None:
-            self.updates_refreshes = 0
-            self.agents_refreshes = 0
-            self.agent_list_refreshes: list[str] = []
-
-        def _schedule_updates_indicator_revalidation(self) -> None:
-            self.updates_refreshes += 1
-
-        def _schedule_agents_sync_indicator_revalidation(self) -> None:
-            self.agents_refreshes += 1
-
-        def _schedule_agents_async_refresh(self, *, source: str) -> None:
-            self.agent_list_refreshes.append(source)
-
-    class _Harness(ComprehensiveUpdateActionsMixin):
-        def __init__(self) -> None:
-            self.app = _App()
-            self._agent_cli_results: dict[str, object] = {}
-            self.is_mounted = False
-            self._loading = False
-            self.messages: list[str] = []
-
-        def _notify(self, message: str, **_kwargs: object) -> None:
-            self.messages.append(message)
-
-    result = ComprehensiveUpdateResult(
-        sase=ComprehensiveSaseUpdateResult(
-            SaseUpdateResultStatus.ALREADY_CURRENT,
-            "already current",
-        ),
-        agents_outcomes=(
-            CachedIntegrationResult(
-                _captured(),
-                "applied",
-                hoods_imported=1,
-            ),
-        ),
-    )
-    harness = _Harness()
-
-    harness._on_comprehensive_update_complete(
-        SimpleNamespace(payload=result, error=None, message="done")
-    )
-
-    assert harness.app.updates_refreshes == 1
-    assert harness.app.agents_refreshes == 1
-    assert harness.app.agent_list_refreshes == ["comprehensive_cached_agents"]
 
 
 def test_execute_provider_leg_preserves_dropped_candidates(
@@ -299,7 +180,7 @@ def test_execute_provider_leg_preserves_dropped_candidates(
         "sase.ace.tui.modals.plugins_browser_pane._execute_agent_cli_updates",
         lambda _plan, **_kwargs: (),
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude", "codex")),
         sase_preview=None,
         provider_plan=AgentCliNothingToUpdate(entries=(), all_clis=False),
@@ -316,7 +197,7 @@ def test_execute_provider_leg_preserves_dropped_candidates(
 
 def test_execute_sase_leg_records_current_and_blockers() -> None:
     current = _execute_sase_leg(
-        _ComprehensiveUpdatePreview(
+        ComprehensiveUpdatePreview(
             request=ComprehensiveUpdateRequest(()),
             sase_preview=None,
             sase_current=True,
@@ -324,7 +205,7 @@ def test_execute_sase_leg_records_current_and_blockers() -> None:
         uv_tool=None,
     )
     blocked = _execute_sase_leg(
-        _ComprehensiveUpdatePreview(
+        ComprehensiveUpdatePreview(
             request=ComprehensiveUpdateRequest(()),
             sase_preview=None,
             sase_blocker="not a uv tool install",
@@ -338,7 +219,7 @@ def test_execute_sase_leg_records_current_and_blockers() -> None:
 
 
 def test_execute_agents_leg_skips_unselected_scope() -> None:
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest((), UpdateScope.SASE),
         sase_preview=None,
         agents_updates=(_captured(),),
@@ -368,9 +249,9 @@ def test_run_scoped_update_records_unselected_sase_as_skipped(
         "_execute_provider_leg",
         lambda _preview: ((), None),
     )
-    preview = _ComprehensiveUpdatePreview(
+    preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",), UpdateScope.PROVIDERS),
-        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+        sase_preview=DevUpdatePreview(plan=None, subject="sase"),
     )
 
     result = run_scoped_update(preview, uv_tool=None)
@@ -378,7 +259,7 @@ def test_run_scoped_update_records_unselected_sase_as_skipped(
     assert result.sase.status is SaseUpdateResultStatus.SKIPPED
     assert result.sase.message == "not selected"
     assert result.selected_legs == frozenset({UpdateLeg.PROVIDERS})
-    summary = _comprehensive_update_summary(result)
+    summary = comprehensive_update_summary(result)
     assert summary.startswith("Agent CLIs:")
     assert "SASE" not in summary
     assert "Cached agents" not in summary
@@ -397,4 +278,4 @@ def test_scoped_summary_omits_unselected_legs() -> None:
         selected_legs=frozenset({UpdateLeg.AGENTS}),
     )
 
-    assert _comprehensive_update_summary(result) == "Cached agents: 1 applied"
+    assert comprehensive_update_summary(result) == "Cached agents: 1 applied"

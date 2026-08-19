@@ -7,8 +7,6 @@ from textual.widgets import Static
 
 from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
-from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _all_current_catalog,
     _catalog,
@@ -190,34 +188,3 @@ async def test_updates_pane_all_current_banner_hidden_when_core_latest_unknown(
         assert pane.query_one("#updates-current-banner", Static).display is False
         assert pane.check_action("update_sase", ()) is True
         assert "u update" in pane._hints()
-
-
-async def test_updates_pane_auto_update_all_current_toast_without_confirm(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_other_panes(monkeypatch)
-    _patch_catalog(monkeypatch, catalog=_all_current_catalog(), uv_tool=_uv_tool())
-    messages: list[tuple[str, str]] = []
-
-    def _record_notify(
-        self: PluginsBrowserPane,
-        message: str,
-        *,
-        severity: str = "information",
-    ) -> None:
-        messages.append((message, severity))
-
-    monkeypatch.setattr(PluginsBrowserPane, "_notify", _record_notify)
-
-    async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
-        page.app.push_screen(modal)
-        await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: bool(modal.query("#updates")))
-        pane = modal.query_one("#updates", PluginsBrowserPane)
-        await page.wait_for(lambda _s: not pane._loading)
-        await page.wait_for(lambda _s: messages)
-
-        assert messages == [("Everything is already up to date.", "information")]
-        assert pane._auto_update_on_load is False
-        assert page.state["modal"] == "ConfigCenterModal"

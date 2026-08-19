@@ -28,7 +28,6 @@ from sase.updates.incoming_commits import (
 from sase.uv_tool.versions import CoreVersions
 from sase.version._utils import normalize_distribution_name
 
-from .plugins_browser_comprehensive_update_models import ComprehensiveUpdatePreview
 from .plugins_browser_dev_update import DevUpdatePreview
 
 if TYPE_CHECKING:
@@ -235,15 +234,6 @@ class PluginsBrowserIncomingCommitsMixin:
                 plugin_incoming=self._incoming_commit_cache,
             ),
         )
-
-    def _comprehensive_update_incoming_commits_loader(
-        self,
-        preview: ComprehensiveUpdatePreview,
-    ) -> ConfirmIncomingCommitsLoader | None:
-        """Build commit context only for the runnable captured SASE leg."""
-        if not preview.sase_runnable or preview.sase_preview is None:
-            return None
-        return self._sase_update_incoming_commits_loader(preview.sase_preview)
 
     def _plugin_update_incoming_commits_loader(
         self,

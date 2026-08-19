@@ -45,10 +45,6 @@ from .plugins_browser_agent_clis import (
     AgentCliHistoryConfig,
     load_agent_cli_history_config,
 )
-from .plugins_browser_comprehensive_update import (
-    ComprehensiveUpdateActionsMixin,
-    ComprehensiveUpdateRequest,
-)
 from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
     DevUpdatePreview,
@@ -188,7 +184,6 @@ class PluginsBrowserPane(
     PluginsBrowserJumpMixin,
     PluginsBrowserLayoutMixin,
     PluginsBrowserWorkersMixin,
-    ComprehensiveUpdateActionsMixin,
     AgentCliBrowserMixin,
     ModeSwitchActionsMixin,
     SaseUpdateActionsMixin,
@@ -239,24 +234,12 @@ class PluginsBrowserPane(
         self,
         *,
         auto_load: bool = True,
-        auto_update_on_load: bool = False,
-        comprehensive_provider_names: tuple[str, ...] | None = None,
         session_state: UpdatesSessionState | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._session_state = session_state or UpdatesSessionState()
         self._auto_load = auto_load
-        self._auto_update_on_load = auto_update_on_load
-        self._comprehensive_update_request = (
-            ComprehensiveUpdateRequest(comprehensive_provider_names)
-            if auto_update_on_load
-            else None
-        )
-        # A synchronous bridge used only while invoking the historical
-        # ``_start_sase_update_preview`` hook after the load.  It keeps that
-        # compatibility surface while the one-shot request itself is consumed.
-        self._starting_comprehensive_request: ComprehensiveUpdateRequest | None = None
         self._active_subtab: UpdatesSubTab = self._session_state.active_subtab
         self._catalog: PluginCatalog | None = None
         self._core_versions: CoreVersions = _collect_installed_core_versions()
@@ -309,8 +292,6 @@ class PluginsBrowserPane(
         self._mode_switch_plan_worker: Worker[Any] | None = None
         #: Worker computing the pane-wide agent-CLI update preview.
         self._agent_cli_plan_worker: Worker[Any] | None = None
-        #: Worker composing the snapshot-gated SASE + provider preview.
-        self._comprehensive_update_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None

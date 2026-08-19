@@ -90,14 +90,7 @@ class SaseUpdateActionsMixin(SaseUpdateProcMixin):
     def _start_sase_update_preview(
         self, *, already_refreshed_roots: Collection[str] = ()
     ) -> None:
-        """Build the comprehensive preview, optionally reusing fresh git refs."""
-        comprehensive_request = getattr(self, "_starting_comprehensive_request", None)
-        if comprehensive_request is not None:
-            self._start_comprehensive_update_preview(  # type: ignore[attr-defined]
-                comprehensive_request,
-                already_refreshed_roots=already_refreshed_roots,
-            )
-            return
+        """Build the SASE self-update preview, optionally reusing fresh git refs."""
         if self._loading or self._sase_update_plan_worker is not None:
             return
         if isinstance(self._uv_tool, NotUvToolInstall):

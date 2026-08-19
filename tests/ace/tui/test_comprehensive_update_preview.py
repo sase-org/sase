@@ -4,17 +4,12 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
-from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
-    ComprehensiveUpdateActionsMixin,
-    ComprehensiveUpdateRequest,
-)
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdatePreview,
+    ComprehensiveUpdateRequest,
 )
 from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
     build_comprehensive_update_preview,
@@ -22,7 +17,8 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
     _comprehensive_current_message,
     _comprehensive_dropped_message,
     comprehensive_preview_sections,
-    plan_captured_providers,
+    handle_comprehensive_noop,
+    _plan_captured_providers,
 )
 from sase.ace.tui.modals.plugins_browser_dev_update import DevUpdatePreview
 from sase.ace.tui.update_preview_inputs import (
@@ -111,7 +107,7 @@ def _manual_provider_preview(
         latest_version=claude.installed_version,
         update_available=False,
     )
-    plan, dropped, error = plan_captured_providers(
+    plan, dropped, error = _plan_captured_providers(
         ("claude", "codex"),
         (current_claude, codex),
         offline=False,
@@ -226,7 +222,7 @@ def test_build_preview_sase_scope_omits_other_legs(
         lambda _receipt, **_kwargs: DevUpdatePreview(plan=None, subject="sase"),
     )
     monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.plan_captured_providers",
+        f"{_PREVIEW_MOD}._plan_captured_providers",
         lambda *_args, **_kwargs: pytest.fail("provider leg must not run"),
     )
 
@@ -271,16 +267,17 @@ def test_build_preview_providers_scope_omits_other_legs(
 def test_build_preview_agents_scope_omits_other_legs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    agent_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         f"{_PREVIEW_MOD}.get_agents_sync_status",
-        lambda **_kwargs: _agents_snapshot(),
+        lambda **kwargs: agent_calls.append(dict(kwargs)) or _agents_snapshot(),
     )
     monkeypatch.setattr(
         f"{_PREVIEW_MOD}.make_sase_dev_update_preview",
         lambda *_args, **_kwargs: pytest.fail("sase leg must not run"),
     )
     monkeypatch.setattr(
-        f"{_PREVIEW_MOD}.plan_captured_providers",
+        f"{_PREVIEW_MOD}._plan_captured_providers",
         lambda *_args, **_kwargs: pytest.fail("provider leg must not run"),
     )
 
@@ -289,6 +286,7 @@ def test_build_preview_agents_scope_omits_other_legs(
         _inputs(),
     )
 
+    assert agent_calls == [{"revalidate_only": True}]
     assert preview.agents_runnable is True
     assert preview.sase_preview is None
     assert preview.provider_plan is None
@@ -416,26 +414,8 @@ def test_scoped_noop_messages_name_the_scope() -> None:
     )
 
 
-class _ConfirmHarness(ComprehensiveUpdateActionsMixin):
-    def __init__(self) -> None:
-        self.screens: list[PluginActionConfirmModal] = []
-        self.notes: list[tuple[str, str]] = []
-        self._incoming_commits_enabled = True
-        self.app = SimpleNamespace(
-            push_screen=lambda modal, _cb: self.screens.append(modal)
-        )
-
-    def _comprehensive_update_incoming_commits_loader(
-        self, preview: object
-    ) -> object | None:
-        return object() if getattr(preview, "sase_runnable", False) else None
-
-    def _notify(self, message: str, *, severity: str = "information") -> None:
-        self.notes.append((message, severity))
-
-
 def test_confirm_modal_includes_only_selected_sections() -> None:
-    provider_plan, dropped, error = plan_captured_providers(
+    provider_plan, dropped, error = _plan_captured_providers(
         ("claude",),
         _agent_cli_statuses(),
         offline=False,
@@ -448,44 +428,44 @@ def test_confirm_modal_includes_only_selected_sections() -> None:
         provider_error=error,
         agents_updates=(_captured(),),
     )
-    harness = _ConfirmHarness()
-    harness._on_comprehensive_update_preview(preview)
 
-    assert len(harness.screens) == 1
-    modal = harness.screens[0]
-    assert modal._title == "Update providers"
-    assert [section.title for section in modal._variants[0].sections] == ["Agent CLIs"]
-    assert modal._incoming_commits_loader is None
-    assert modal._incoming_commits_empty_message is None
+    assert _section_titles(preview) == ["Agent CLIs"]
+    title, intro, panel_title = comprehensive_confirm_copy(preview.request.scope)
+    assert title == "Update providers"
+    assert intro
+    assert panel_title == title
 
 
 def test_noop_without_admin_center_points_at_updates_tab() -> None:
-    harness = _ConfirmHarness()
-    harness._on_comprehensive_update_preview(
-        _manual_provider_preview(scope=UpdateScope.PROVIDERS)
+    notes: list[tuple[str, str]] = []
+
+    handle_comprehensive_noop(
+        _manual_provider_preview(scope=UpdateScope.PROVIDERS),
+        notify=lambda message, *, severity="information": notes.append(
+            (message, severity)
+        ),
     )
 
-    assert harness.screens == []
-    assert harness.notes
-    message, severity = harness.notes[0]
+    assert notes
+    message, severity = notes[0]
     assert severity == "warning"
     assert "Admin Center Updates tab" in message
 
 
 def test_noop_with_subtab_keeps_agent_clis_toast() -> None:
-    class _PaneHarness(_ConfirmHarness):
-        def __init__(self) -> None:
-            super().__init__()
-            self.switched: list[str] = []
+    notes: list[tuple[str, str]] = []
+    switched: list[str] = []
 
-        def _switch_to_subtab(self, subtab: str) -> None:
-            self.switched.append(subtab)
+    handle_comprehensive_noop(
+        _manual_provider_preview(),
+        notify=lambda message, *, severity="information": notes.append(
+            (message, severity)
+        ),
+        switch_to_subtab=switched.append,
+    )
 
-    harness = _PaneHarness()
-    harness._on_comprehensive_update_preview(_manual_provider_preview())
-
-    assert harness.switched == ["agent-clis"]
-    assert "Agent CLIs" in harness.notes[0][0]
+    assert switched == ["agent-clis"]
+    assert "Agent CLIs" in notes[0][0]
 
 
 def test_scoped_current_noop_names_sase() -> None:
@@ -494,11 +474,16 @@ def test_scoped_current_noop_names_sase() -> None:
         sase_preview=None,
         sase_current=True,
     )
-    harness = _ConfirmHarness()
-    harness._on_comprehensive_update_preview(preview)
+    notes: list[tuple[str, str]] = []
 
-    assert harness.screens == []
-    assert harness.notes == [
+    handle_comprehensive_noop(
+        preview,
+        notify=lambda message, *, severity="information": notes.append(
+            (message, severity)
+        ),
+    )
+
+    assert notes == [
         (
             "SASE, core, and plugins in the captured update are already current.",
             "information",

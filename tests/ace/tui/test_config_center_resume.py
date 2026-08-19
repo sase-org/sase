@@ -53,14 +53,13 @@ async def test_direct_initial_tab_mounts_only_that_target(
 ) -> None:
     _created, calls = _patch_stub_panes(monkeypatch)
     async with _HostApp().run_test() as pilot:
-        modal = ConfigCenterModal(initial_tab="updates", auto_update=True)
+        modal = ConfigCenterModal(initial_tab="updates")
         assert modal.check_action("resume_last_tab", ()) is False
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "updates")
 
         assert calls == ["updates"]
         assert tuple(modal._panes) == ("updates",)
-        assert modal._auto_update is True
 
 
 async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(

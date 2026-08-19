@@ -536,8 +536,6 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         self,
         initial_tab: Any,
         *,
-        auto_update: bool = False,
-        comprehensive_provider_names: tuple[str, ...] | None = None,
         log_error_target: Any = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
@@ -566,8 +564,6 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 resume_tab=resume_tab,
                 alternate_tab=alternate_tab,
                 opener_binding=opener_binding,
-                auto_update=auto_update,
-                comprehensive_provider_names=comprehensive_provider_names,
                 log_error_target=log_error_target,
                 session_state=session_state,
                 on_tab_activated=self._on_admin_center_tab_activated,

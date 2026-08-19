@@ -84,8 +84,6 @@ def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
 
     return PluginsBrowserPane(
         id="updates",
-        auto_update_on_load=modal._auto_update,
-        comprehensive_provider_names=modal._comprehensive_provider_names,
         session_state=modal._session_state.updates,
     )
 

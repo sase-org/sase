@@ -114,16 +114,12 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         resume_tab: CenterTab | None = None,
         alternate_tab: CenterTab | None = None,
         opener_binding: str = "number_sign",
-        auto_update: bool = False,
-        comprehensive_provider_names: tuple[str, ...] | None = None,
         log_error_target: RegisteredError | None = None,
         session_state: AdminCenterSessionState | None = None,
         on_tab_activated: Callable[[CenterTab], None] | None = None,
     ) -> None:
         super().__init__()
         self._project = project
-        self._auto_update = auto_update
-        self._comprehensive_provider_names = comprehensive_provider_names
         self._log_error_target = log_error_target
         self._session_state = session_state or AdminCenterSessionState()
         self._initial_tab = validated_center_tab(initial_tab)
