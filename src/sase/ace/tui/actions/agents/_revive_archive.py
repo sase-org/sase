@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+from sase.ace.config import get_ace_page_size
+
 from ...models.agent import AgentType
 from ...models._timestamps import parse_timestamp_14_digit
 from ._revive_helpers import merge_dismissed_agents
@@ -32,8 +34,6 @@ def _dismissed_agent_recency_key(
 class AgentReviveArchiveMixin:
     """Mixin providing dismissed-archive loading for custom revive search."""
 
-    _DISMISSED_ARCHIVE_PAGE_SIZE = 250
-
     _dismissed_agents: set[tuple[AgentType, str, str | None]]
     _dismissed_agent_objects: list[Agent]
 
@@ -44,24 +44,35 @@ class AgentReviveArchiveMixin:
         visible, all_dismissed = self._dismissed_agent_rows(
             self._dismissed_agent_objects
         )
+        page_size = get_ace_page_size()
         next_offset = 0
+        host_snapshots: list[list[Agent]] = []
 
         def _load_page_for_modal() -> tuple[list[Agent], list[Agent], bool]:
             nonlocal next_offset
             from ....dismissed_agents import load_dismissed_bundles_page
 
             page_agents, exhausted = load_dismissed_bundles_page(
-                limit=self._DISMISSED_ARCHIVE_PAGE_SIZE,
+                limit=page_size,
                 offset=next_offset,
             )
-            next_offset += self._DISMISSED_ARCHIVE_PAGE_SIZE
+            next_offset += page_size
             merged = merge_dismissed_agents(
                 self._dismissed_agent_objects,
                 page_agents,
             )
             self._dismissed_agent_objects = merged
+            host_snapshots.append(list(merged))
             next_visible, next_all_dismissed = self._dismissed_agent_rows(merged)
             return next_visible, next_all_dismissed, exhausted
+
+        def _rewind_page_for_modal() -> None:
+            nonlocal next_offset
+            if len(host_snapshots) <= 1:
+                return
+            host_snapshots.pop()
+            self._dismissed_agent_objects = list(host_snapshots[-1])
+            next_offset = max(0, next_offset - page_size)
 
         def _on_agents_selected(agents: object) -> None:
             if agents is None:
@@ -78,7 +89,8 @@ class AgentReviveArchiveMixin:
             all_dismissed=all_dismissed,
             loading_archive=True,
             page_loader=_load_page_for_modal,
-            page_size=self._DISMISSED_ARCHIVE_PAGE_SIZE,
+            page_rewind=_rewind_page_for_modal,
+            page_size=page_size,
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 

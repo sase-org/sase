@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from rich.text import Text
 from textual import events
@@ -15,6 +17,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.config import get_ace_page_size
 from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ..models.agent import Agent
@@ -30,6 +33,18 @@ from .revive_agent_rendering import (
 )
 
 _DismissedPageLoader = Callable[[], tuple[list[Agent], list[Agent], bool]]
+_DismissedPageRewind = Callable[[], None]
+
+
+@dataclass(frozen=True, slots=True)
+class _RevivePageSnapshot:
+    """One archive page so unload can restore the previous list and cursor."""
+
+    agents: tuple[Agent, ...]
+    all_dismissed: tuple[Agent, ...]
+    exhausted: bool
+    filter_labels: dict[int, str]
+    response_corpora: dict[int, str]
 
 
 def _response_filter_corpus(content: str) -> str:
@@ -89,7 +104,8 @@ class DismissedAgentSelectModal(
     _option_list_id = "dismissed-agent-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        Binding("ctrl+k", "load_more", "Load More", priority=True),
+        Binding("ctrl+j", "load_more", "Load More", priority=True),
+        Binding("ctrl+k", "unload", "Unload", priority=True),
         Binding("tab", "toggle_mark", "Mark", priority=True),
         Binding("ctrl+a", "toggle_all", "Mark All", priority=True),
     ]
@@ -101,7 +117,8 @@ class DismissedAgentSelectModal(
         all_dismissed: list[Agent] | None = None,
         loading_archive: bool = False,
         page_loader: _DismissedPageLoader | None = None,
-        page_size: int = 250,
+        page_rewind: _DismissedPageRewind | None = None,
+        page_size: int | None = None,
     ) -> None:
         """Initialize the modal."""
         super().__init__()
@@ -114,9 +131,11 @@ class DismissedAgentSelectModal(
         self._marked: set[int] = set()
         self._loading_archive = loading_archive
         self._page_loader = page_loader
-        self._page_size = page_size
+        self._page_rewind = page_rewind
+        self._page_size = page_size if page_size is not None else get_ace_page_size()
         self._page_loading = False
         self._page_exhausted = page_loader is None
+        self._page_snapshots: list[_RevivePageSnapshot] = []
         self._initial_loading = True
 
     def _compute_step_counts(self) -> dict[str, int]:
@@ -179,11 +198,15 @@ class DismissedAgentSelectModal(
         self._update_preview_for_current_highlight()
 
     def on_key(self, event: events.Key) -> None:
-        """Intercept Ctrl+K before the focused filter input consumes it."""
-        if event.key == "ctrl+k":
+        """Intercept paging chords before the focused filter input consumes them."""
+        if event.key == "ctrl+j":
             event.prevent_default()
             event.stop()
             self.action_load_more()
+        elif event.key == "ctrl+k":
+            event.prevent_default()
+            event.stop()
+            self.action_unload()
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -215,6 +238,7 @@ class DismissedAgentSelectModal(
         loading_archive: bool = False,
         page_exhausted: bool | None = None,
         preserve_highlight: bool = False,
+        highlight_fallback: Literal["first", "last"] = "first",
         filter_labels: dict[int, str] | None = None,
         response_corpora: dict[int, str] | None = None,
     ) -> None:
@@ -247,24 +271,32 @@ class DismissedAgentSelectModal(
             self._filtered = list(enumerate(self.agents))
 
         if self.is_mounted:
-            self._apply_agents_to_widgets(preserve_identity)
+            self._apply_agents_to_widgets(preserve_identity, highlight_fallback)
         else:
             # A worker can finish while the modal is still mounting. Defer the
             # widget refresh so the loaded page is not stranded in model state.
-            self.call_after_refresh(self._apply_agents_to_widgets, preserve_identity)
+            self.call_after_refresh(
+                self._apply_agents_to_widgets,
+                preserve_identity,
+                highlight_fallback,
+            )
 
     def _apply_agents_to_widgets(
         self,
         highlight_identity: tuple[object, str, str | None] | None = None,
+        highlight_fallback: Literal["first", "last"] = "first",
     ) -> None:
         """Render current modal model state into the mounted widgets.
 
         Idempotent and driven entirely by current model state, so the deferred
-        initial-page refresh and later Ctrl+K load-more share one apply path.
+        initial-page refresh and later Ctrl+J load-more share one apply path.
         """
         if not self.is_mounted:
             return
-        self._rebuild_options(highlight_identity=highlight_identity)
+        self._rebuild_options(
+            highlight_identity=highlight_identity,
+            highlight_fallback=highlight_fallback,
+        )
         self._update_preview_for_current_highlight()
         self._update_hints()
 
@@ -372,6 +404,7 @@ class DismissedAgentSelectModal(
         self,
         *,
         highlight_identity: tuple[object, str, str | None] | None = None,
+        highlight_fallback: Literal["first", "last"] = "first",
     ) -> None:
         """Rebuild the option list to reflect mark state changes."""
         option_list = self.query_one("#dismissed-agent-list", OptionList)
@@ -399,8 +432,10 @@ class DismissedAgentSelectModal(
         if next_highlighted is None and old_highlighted is not None:
             if 0 <= old_highlighted < len(self._filtered):
                 next_highlighted = old_highlighted
-        if next_highlighted is None:
-            next_highlighted = 0
+        if next_highlighted is None and self._filtered:
+            next_highlighted = (
+                len(self._filtered) - 1 if highlight_fallback == "last" else 0
+            )
         if next_highlighted is not None:
             option_list.highlighted = next_highlighted
 
@@ -424,8 +459,14 @@ class DismissedAgentSelectModal(
         if self._page_loader is not None:
             if self._page_loading:
                 paging = f" | loading +{self._page_size}"
-            elif not self._page_exhausted:
-                paging = f" | ^k: +{self._page_size} more"
+            else:
+                parts: list[str] = []
+                if not self._page_exhausted:
+                    parts.append(f"^j: +{self._page_size} more")
+                if len(self._page_snapshots) > 1:
+                    parts.append(f"^k: -{self._page_size}")
+                if parts:
+                    paging = " | " + " ".join(parts)
         elif self._loading_archive:
             paging = " | archive loading"
         if count:
@@ -484,6 +525,15 @@ class DismissedAgentSelectModal(
             filter_labels=filter_labels,
             response_corpora=response_corpora,
         )
+        self._page_snapshots.append(
+            _RevivePageSnapshot(
+                agents=tuple(agents),
+                all_dismissed=tuple(all_dismissed),
+                exhausted=exhausted,
+                filter_labels=dict(filter_labels),
+                response_corpora=dict(response_corpora),
+            )
+        )
 
     def action_load_more(self) -> None:
         """Load the next dismissed-archive page."""
@@ -495,6 +545,34 @@ class DismissedAgentSelectModal(
             exclusive=True,
             group="dismissed-archive-load",
         )
+
+    def _unload(self) -> None:
+        """Trim the last archive page and restore the previous page cursor."""
+        if (
+            self._page_loader is None
+            or self._page_loading
+            or len(self._page_snapshots) <= 1
+        ):
+            self._update_hints()
+            return
+        self._page_snapshots.pop()
+        snapshot = self._page_snapshots[-1]
+        if self._page_rewind is not None:
+            self._page_rewind()
+        self.set_agents(
+            list(snapshot.agents),
+            all_dismissed=list(snapshot.all_dismissed),
+            loading_archive=False,
+            page_exhausted=snapshot.exhausted,
+            preserve_highlight=True,
+            highlight_fallback="last",
+            filter_labels=dict(snapshot.filter_labels),
+            response_corpora=dict(snapshot.response_corpora),
+        )
+
+    def action_unload(self) -> None:
+        """Unload the last dismissed-archive page."""
+        self._unload()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""

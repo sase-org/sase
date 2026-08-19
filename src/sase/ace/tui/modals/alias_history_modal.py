@@ -1,10 +1,11 @@
 """The Launch Control alias-history panel (``H``).
 
 Shows bounded prior runs for one alias or every member of a collapsed
-bucket. Every load and re-query (initial open, ``Ctrl+K`` load-more, ``r``
-revalidate, ``.`` hidden-toggle) runs through one worker-backed seam so no
-query, filesystem read, or parsing ever runs on the UI thread. The modal
-never mutates the Launch Control panel that opened it.
+bucket. Every load and re-query (initial open, ``Ctrl+J`` load-more,
+``Ctrl+K`` unload, ``r`` revalidate, ``.`` hidden-toggle) runs through one
+worker-backed seam so no query, filesystem read, or parsing ever runs on
+the UI thread. The modal never mutates the Launch Control panel that
+opened it.
 """
 
 from __future__ import annotations
@@ -14,12 +15,14 @@ from pathlib import Path
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
+from sase.ace.config import get_ace_page_size
 from sase.artifact_refs import reference_for_agent_name
 from sase.llm_provider.alias_history import (
     AliasHistoryRun,
@@ -45,8 +48,8 @@ from .alias_history_usage_rendering import alias_history_usage_text
 from .alias_history_state import (
     AliasHistoryEntryRequest,
     AliasHistoryLoadRequest,
+    adjusted_alias_history_limit,
     alias_history_run_key,
-    doubled_alias_history_limit,
     initial_alias_history_load_request,
 )
 from .base import OptionListNavigationMixin
@@ -80,7 +83,8 @@ class AliasHistoryModal(
         ("apostrophe", "jump_to_entry", "Jump"),
         ("enter", "open_prompt", "Prompt"),
         ("y", "copy_reference", "Copy"),
-        ("ctrl+k", "load_more", "Load more"),
+        Binding("ctrl+j", "load_more", "Load more", priority=True),
+        Binding("ctrl+k", "unload", "Unload", priority=True),
         ("r", "refresh", "Refresh"),
         (".", "toggle_hidden", "Hidden"),
     ]
@@ -89,7 +93,10 @@ class AliasHistoryModal(
         super().__init__()
         self._entry = entry
         self._include_hidden = False
-        self._limit = get_model_alias_history_limit()
+        self._initial_limit = get_model_alias_history_limit()
+        self._page_size = get_ace_page_size()
+        self._limit = self._initial_limit
+        self._highlight_fallback: str = "first"
         self._view: AliasHistoryView | None = None
         self._usage: AliasHistoryUsageSummary | None = None
         self._error: str | None = None
@@ -182,11 +189,13 @@ class AliasHistoryModal(
         except Exception:
             pass
 
-    def _replace_display(self, *, keep: str | None = None) -> None:
+    def _replace_display(
+        self, *, keep: str | None = None, highlight_fallback: str = "first"
+    ) -> None:
         option_list = self.query_one("#alias-history-list", OptionList)
         option_list.clear_options()
         option_list.add_options(self._build_options())
-        self._restore_highlight(option_list, keep)
+        self._restore_highlight(option_list, keep, fallback=highlight_fallback)
         self._update_context()
 
     # -- highlight helpers --------------------------------------------------
@@ -205,6 +214,13 @@ class AliasHistoryModal(
                 return index
         return None
 
+    @classmethod
+    def _last_enabled_option_index(cls, option_list: OptionList) -> int | None:
+        for index in range(option_list.option_count - 1, -1, -1):
+            if not cls._option_is_disabled(option_list, index):
+                return index
+        return None
+
     def _set_highlighted_index(
         self, option_list: OptionList, index: int | None
     ) -> None:
@@ -215,7 +231,11 @@ class AliasHistoryModal(
             self._updating_highlight = False
 
     def _restore_highlight(
-        self, option_list: OptionList, preferred: str | None
+        self,
+        option_list: OptionList,
+        preferred: str | None,
+        *,
+        fallback: str = "first",
     ) -> None:
         if preferred is not None:
             try:
@@ -225,9 +245,12 @@ class AliasHistoryModal(
                     return
             except Exception:
                 pass
-        self._set_highlighted_index(
-            option_list, self._first_enabled_option_index(option_list)
+        fallback_index = (
+            self._last_enabled_option_index(option_list)
+            if fallback == "last"
+            else self._first_enabled_option_index(option_list)
         )
+        self._set_highlighted_index(option_list, fallback_index)
 
     def _highlighted_option_id(self) -> str | None:
         option_list = self.query_one("#alias-history-list", OptionList)
@@ -294,7 +317,13 @@ class AliasHistoryModal(
 
     # -- load lifecycle -------------------------------------------------
 
-    def _start_load(self, request: AliasHistoryLoadRequest) -> None:
+    def _start_load(
+        self,
+        request: AliasHistoryLoadRequest,
+        *,
+        highlight_fallback: str = "first",
+    ) -> None:
+        self._highlight_fallback = highlight_fallback
         if self._load_worker is not None and not self._load_worker.is_finished:
             self._load_worker.cancel()
 
@@ -334,8 +363,10 @@ class AliasHistoryModal(
         ):
             return
         keep = self._pending_keep
+        fallback = self._highlight_fallback
         self._load_worker = None
         self._pending_keep = None
+        self._highlight_fallback = "first"
         if event.state == WorkerState.CANCELLED:
             return
         if event.state == WorkerState.ERROR:
@@ -346,7 +377,7 @@ class AliasHistoryModal(
             self.notify(
                 f"Could not load alias history: {self._error}", severity="warning"
             )
-            self._replace_display(keep=keep)
+            self._replace_display(keep=keep, highlight_fallback=fallback)
             return
         view, summary, error = event.worker.result or (None, None, None)
         if error is not None or view is None:
@@ -355,19 +386,24 @@ class AliasHistoryModal(
             self.notify(
                 f"Could not load alias history: {self._error}", severity="warning"
             )
-            self._replace_display(keep=keep)
+            self._replace_display(keep=keep, highlight_fallback=fallback)
             return
         self._error = None
         self._view = view
         self._usage = summary
         self._limit = view.limit_per_alias
         self._include_hidden = view.include_hidden
-        self._replace_display(keep=keep)
+        self._replace_display(keep=keep, highlight_fallback=fallback)
 
     # -- re-query actions -------------------------------------------------
 
     def action_load_more(self) -> None:
-        self._limit = doubled_alias_history_limit(self._limit)
+        self._limit = adjusted_alias_history_limit(
+            self._limit,
+            initial_limit=self._initial_limit,
+            page_size=self._page_size,
+            direction="load_more",
+        )
         self._start_load(
             AliasHistoryLoadRequest(
                 aliases=self._entry.aliases,
@@ -375,6 +411,25 @@ class AliasHistoryModal(
                 include_hidden=self._include_hidden,
                 freshness="cached",
             )
+        )
+
+    def action_unload(self) -> None:
+        if self._limit <= self._initial_limit:
+            return
+        self._limit = adjusted_alias_history_limit(
+            self._limit,
+            initial_limit=self._initial_limit,
+            page_size=self._page_size,
+            direction="unload",
+        )
+        self._start_load(
+            AliasHistoryLoadRequest(
+                aliases=self._entry.aliases,
+                limit_per_alias=self._limit,
+                include_hidden=self._include_hidden,
+                freshness="cached",
+            ),
+            highlight_fallback="last",
         )
 
     def action_refresh(self) -> None:

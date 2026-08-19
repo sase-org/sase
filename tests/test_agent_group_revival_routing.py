@@ -109,19 +109,23 @@ def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
 
     with patch(
         "sase.ace.dismissed_agents.load_dismissed_bundles_page",
-        side_effect=[([older], False), ([oldest], True)],
+        side_effect=[([older], False), ([oldest], True), ([oldest], True)],
     ) as load_page:
         app._open_custom_revival_search()
         modal = capture.pushed[0][0]
         assert isinstance(modal, DismissedAgentSelectModal)
         assert modal._page_loader is not None
+        assert modal._page_rewind is not None
 
         first_visible, _, first_exhausted = modal._page_loader()
         second_visible, _, second_exhausted = modal._page_loader()
+        modal._page_rewind()
+        third_visible, _, third_exhausted = modal._page_loader()
 
     assert load_page.call_args_list == [
-        call(limit=250, offset=0),
-        call(limit=250, offset=250),
+        call(limit=100, offset=0),
+        call(limit=100, offset=100),
+        call(limit=100, offset=100),
     ]
     assert [agent.identity for agent in first_visible] == [
         recent.identity,
@@ -132,8 +136,14 @@ def test_custom_search_pages_global_archive_and_revives_without_scope() -> None:
         older.identity,
         oldest.identity,
     ]
+    assert [agent.identity for agent in third_visible] == [
+        recent.identity,
+        older.identity,
+        oldest.identity,
+    ]
     assert not first_exhausted
     assert second_exhausted
+    assert third_exhausted
 
     selection_callback = capture.pushed[0][1]
     selection_callback([recent])

@@ -325,7 +325,8 @@ def alias_history_footer_markup(*, include_hidden: bool, has_more: bool) -> str:
     return (
         "[green]enter[/green]=Prompt  "
         "[green]y[/green]=Copy  "
-        "[green]ctrl+k[/green]=Load more  "
+        "[green]ctrl+j[/green]=Load more  "
+        "[green]ctrl+k[/green]=Unload  "
         "[green]r[/green]=Refresh  "
         f"[green].[/green]=Hidden ({hidden_state})\n"
         "[dim]j/k[/dim]=Navigate  [dim]'[/dim]=Jump  "

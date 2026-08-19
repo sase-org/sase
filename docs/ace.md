@@ -3071,19 +3071,20 @@ no runs in the window render as `unused`; a model that ran but is not in the cur
 pool is tagged `off-pool`; runs with no recorded model collapse to one `unrecorded` row.
 When every counted run for a model shares one effort the row shows `@ <effort>`; mixed
 efforts show a dim `@ mixed`. At most four rows render; a `+N more` overflow row carries
-the leftover count and percent so the shown shares still total 100%. `Ctrl+K`, `r`, and
-`.` recompute the strip with the new window; `j`/`k` never do.
+the leftover count and percent so the shown shares still total 100%. `Ctrl+J`, `Ctrl+K`,
+`r`, and `.` recompute the strip with the new window; `j`/`k` never do.
 
-| Key                                 | Action                                                                             |
-| ----------------------------------- | ---------------------------------------------------------------------------------- |
-| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                           |
-| `'`                                 | **Jump** — adaptive hints over selectable runs only                                |
-| `Enter`                             | Open the highlighted run's full prompt in the preview panel                        |
-| `y`                                 | Copy the highlighted run's durable `@agent:...` reference                          |
-| `Ctrl+K`                            | **Load more** — double the per-alias limit and reload, keeping the highlighted run |
-| `r`                                 | **Refresh** — revalidate this load, bypassing the cache once                       |
-| `.`                                 | Toggle hidden runs in or out of the results                                        |
-| `Esc` / `q`                         | Close and return to Launch Control, unchanged                                      |
+| Key                                 | Action                                                                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                                                         |
+| `'`                                 | **Jump** — adaptive hints over selectable runs only                                                              |
+| `Enter`                             | Open the highlighted run's full prompt in the preview panel                                                      |
+| `y`                                 | Copy the highlighted run's durable `@agent:...` reference                                                        |
+| `Ctrl+J`                            | **Load more** — add `ace.page_size` (default 100) to the per-alias limit and reload, keeping the highlighted run |
+| `Ctrl+K`                            | **Unload** — subtract `ace.page_size`, never dropping below the initial `model_alias_history_limit` window       |
+| `r`                                 | **Refresh** — revalidate this load, bypassing the cache once                                                     |
+| `.`                                 | Toggle hidden runs in or out of the results                                                                      |
+| `Esc` / `q`                         | Close and return to Launch Control, unchanged                                                                    |
 
 A run without a durable agent name warns instead of copying a guessed reference, and a
 missing or unreadable `raw_xprompt.md` warns instead of closing the panel.
@@ -3868,7 +3869,9 @@ saved-group revival modal first, showing newest saved groups with a right-hand p
 of included agents, projects, PRs, statuses, provider/model labels, and revival count.
 Select a group and press Enter to revive it, choose **Load more saved groups...** to
 page older groups, or choose **Custom revival search...** to open the older
-dismissed-agent search where you choose all, home, project, or PR scope manually.
+dismissed-agent search where you choose all, home, project, or PR scope manually. In
+that dismissed-agent search, `Ctrl+J` loads `ace.page_size` more archive rows
+(default 100) and `Ctrl+K` unloads the last page, never dropping below the first page.
 
 Use `m` to mark related Agents-tab rows and then `s` to save and dismiss them as a
 group. The save modal accepts an optional human name. Leaving it blank keeps the
@@ -5776,10 +5779,10 @@ always apply to whole selected lines regardless of the cursor column.
 Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is
 available when the current prompt is a single logical line; that line pre-fills the
 modal filter. Press `,.` (leader + `.`) to open the same modal from the main ACE UI. The
-modal loads prompts previously launched from ACE or `sase run` in 250-row recency pages.
-Normal launch writes skip trivial one-token prompts (e.g. `y`, `ok`) so they do not
-clutter the list, while failed-launch recovery can still preserve a short submitted
-prompt.
+modal loads prompts previously launched from ACE or `sase run` in recency pages of
+`ace.page_size` rows (default 100). Normal launch writes skip trivial one-token prompts
+(e.g. `y`, `ok`) so they do not clutter the list, while failed-launch recovery can still
+preserve a short submitted prompt.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -5792,21 +5795,23 @@ the most recent entry and `Ctrl+N` starts at the oldest one.
 
 ### Keybindings
 
-| Key              | Action                                        |
-| ---------------- | --------------------------------------------- |
-| `Enter`          | Submit the highlighted prompt directly        |
-| `Ctrl+G`         | Open the highlighted prompt in `$EDITOR`      |
-| `Tab` / `Ctrl+I` | Load prompt into the input widget for editing |
-| `Ctrl+K`         | Load older prompts (+250)                     |
-| `Ctrl+X`         | Toggle visibility of cancelled prompts        |
-| `Ctrl+Y`         | Copy prompt to clipboard                      |
-| `Esc`            | Close modal                                   |
+| Key              | Action                                                    |
+| ---------------- | --------------------------------------------------------- |
+| `Enter`          | Submit the highlighted prompt directly                    |
+| `Ctrl+G`         | Open the highlighted prompt in `$EDITOR`                  |
+| `Tab` / `Ctrl+I` | Load prompt into the input widget for editing             |
+| `Ctrl+J`         | Load older prompts (`+ace.page_size`, default +100)       |
+| `Ctrl+K`         | Unload the last page, never dropping below the first page |
+| `Ctrl+X`         | Toggle visibility of cancelled prompts                    |
+| `Ctrl+Y`         | Copy prompt to clipboard                                  |
+| `Esc`            | Close modal                                               |
 
 ### Filtering
 
 Type in the search box to filter the prompts that have already been loaded by text.
-Press `Ctrl+K` to load older pages, and press `Ctrl+X` to toggle cancelled prompts on or
-off — when enabled, cancelled prompts appear in the results with an `x` marker.
+Press `Ctrl+J` to load older pages, `Ctrl+K` to unload the last page, and `Ctrl+X` to
+toggle cancelled prompts on or off — when enabled, cancelled prompts appear in the
+results with an `x` marker.
 
 Prompt-history rows are compact single-line entries: cancelled marker, last-used
 timestamp (`MM-DD HH:MM` when parseable), and a first-line prompt preview. The preview

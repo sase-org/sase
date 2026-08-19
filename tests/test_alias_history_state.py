@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sase.ace.tui.modals.alias_history_state import (
     AliasHistoryEntryRequest,
+    adjusted_alias_history_limit,
     alias_history_run_key,
-    doubled_alias_history_limit,
     initial_alias_history_load_request,
 )
 from sase.llm_provider.alias_history import _AliasHistoryProvenance, AliasHistoryRun
@@ -70,10 +70,31 @@ def test_run_key_distinguishes_same_run_different_group_alias() -> None:
     assert alias_history_run_key("large", run) != alias_history_run_key("medium", run)
 
 
-def test_doubled_limit_doubles() -> None:
-    assert doubled_alias_history_limit(10) == 20
+def test_adjusted_limit_adds_page_size_on_load_more() -> None:
+    assert (
+        adjusted_alias_history_limit(
+            10, initial_limit=10, page_size=100, direction="load_more"
+        )
+        == 110
+    )
 
 
-def test_doubled_limit_always_advances_from_small_values() -> None:
-    assert doubled_alias_history_limit(1) == 2
-    assert doubled_alias_history_limit(0) == 1
+def test_adjusted_limit_unloads_down_to_initial_window() -> None:
+    assert (
+        adjusted_alias_history_limit(
+            110, initial_limit=10, page_size=100, direction="unload"
+        )
+        == 10
+    )
+    assert (
+        adjusted_alias_history_limit(
+            50, initial_limit=10, page_size=100, direction="unload"
+        )
+        == 10
+    )
+    assert (
+        adjusted_alias_history_limit(
+            10, initial_limit=10, page_size=100, direction="unload"
+        )
+        == 10
+    )

@@ -274,3 +274,11 @@ def test_footer_reflects_more_available() -> None:
     without_more = alias_history_footer_markup(include_hidden=False, has_more=False)
     assert "more available" in with_more
     assert "more available" not in without_more
+
+
+def test_footer_lists_load_more_and_unload_chords() -> None:
+    markup = alias_history_footer_markup(include_hidden=False, has_more=False)
+    assert "ctrl+j" in markup
+    assert "Load more" in markup
+    assert "ctrl+k" in markup
+    assert "Unload" in markup

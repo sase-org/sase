@@ -10,6 +10,7 @@ every initial load or re-query action.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from sase.llm_provider.alias_history import AliasHistoryFreshness, AliasHistoryRun
 from sase.llm_provider.alias_history_usage import AliasHistoryPoolMember
@@ -65,15 +66,30 @@ def alias_history_run_key(alias: str, run: AliasHistoryRun) -> str:
     return f"{alias}:{run.artifact_dir}"
 
 
-def doubled_alias_history_limit(current_limit: int) -> int:
-    """Return the next ``Ctrl+K`` limit — at least one more than *current_limit*."""
-    return max(current_limit + 1, current_limit * 2)
+def adjusted_alias_history_limit(
+    current_limit: int,
+    *,
+    initial_limit: int,
+    page_size: int,
+    direction: Literal["load_more", "unload"],
+) -> int:
+    """Return the next per-alias limit after a Ctrl+J / Ctrl+K step.
+
+    Load-more adds ``page_size``. Unload subtracts ``page_size`` but never
+    drops below the initial ``model_alias_history_limit`` window.
+    """
+    step = page_size if page_size >= 1 else 1
+    if direction == "load_more":
+        return current_limit + step
+    if direction == "unload":
+        return max(initial_limit, current_limit - step)
+    raise ValueError(f"unknown alias-history limit direction: {direction!r}")
 
 
 __all__ = [
     "AliasHistoryEntryRequest",
     "AliasHistoryLoadRequest",
+    "adjusted_alias_history_limit",
     "alias_history_run_key",
-    "doubled_alias_history_limit",
     "initial_alias_history_load_request",
 ]

@@ -97,9 +97,11 @@ def test_modal_exposes_legacy_filter_placeholder_and_bindings() -> None:
     }
 
     assert "load_more" in binding_actions
+    assert "unload" in binding_actions
     assert "toggle_mark" in binding_actions
     assert "toggle_all" in binding_actions
     assert "^k" not in modal._hints_text()
+    assert "^j" not in modal._hints_text()
 
 
 def test_filter_matches_agent_label_and_response_content(tmp_path: Path) -> None:
@@ -226,22 +228,31 @@ def test_set_agents_preserves_marks_by_identity_after_reorder() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
+async def test_ctrl_j_loads_more_without_clearing_filter_or_marks() -> None:
     first = make_agent(cl_name="alpha", raw_suffix="20260512120000")
     second = make_agent(cl_name="beta", raw_suffix="20260512120100")
     pages = [
         ([first], [first], False),
         ([first, second], [first, second], True),
     ]
+    index = 0
 
     def page_loader() -> tuple[list[object], list[object], bool]:
-        return pages.pop(0)  # type: ignore[return-value]
+        nonlocal index
+        result = pages[index]
+        index += 1
+        return result  # type: ignore[return-value]
+
+    def page_rewind() -> None:
+        nonlocal index
+        index = max(0, index - 1)
 
     modal = DismissedAgentSelectModal(
         [],
         loading_archive=True,
         page_loader=page_loader,  # type: ignore[arg-type]
-        page_size=250,
+        page_rewind=page_rewind,
+        page_size=100,
     )
     app = _ModalHost(modal)
 
@@ -255,7 +266,7 @@ async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
         modal._marked = {0}
         option_list.highlighted = 0
 
-        await pilot.press("ctrl+k")
+        await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: modal.agents == [first, second])
 
         assert option_list.highlighted == 0
@@ -263,8 +274,62 @@ async def test_ctrl_k_loads_more_without_clearing_filter_or_marks() -> None:
     assert filter_input.value == "a"
     assert modal.agents == [first, second]
     assert modal._marked == {0}
-    assert pages == []
-    assert "^k" not in modal._hints_text()
+    assert index == 2
+    assert "^j" not in modal._hints_text()
+    assert "^k: -100" in modal._hints_text()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_k_unloads_last_page_and_next_load_refetches() -> None:
+    first = make_agent(cl_name="alpha", raw_suffix="20260512120000")
+    second = make_agent(cl_name="beta", raw_suffix="20260512120100")
+    pages = [
+        ([first], [first], False),
+        ([first, second], [first, second], True),
+    ]
+    index = 0
+
+    def page_loader() -> tuple[list[object], list[object], bool]:
+        nonlocal index
+        result = pages[index]
+        index += 1
+        return result  # type: ignore[return-value]
+
+    def page_rewind() -> None:
+        nonlocal index
+        index = max(0, index - 1)
+
+    modal = DismissedAgentSelectModal(
+        [],
+        loading_archive=True,
+        page_loader=page_loader,  # type: ignore[arg-type]
+        page_rewind=page_rewind,
+        page_size=100,
+    )
+    app = _ModalHost(modal)
+
+    async with app.run_test(size=(100, 30)) as pilot:
+        await wait_for(pilot, lambda: modal.agents == [first])
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+        assert modal.agents == [first]
+        assert index == 1
+
+        await pilot.press("ctrl+j")
+        await wait_for(pilot, lambda: modal.agents == [first, second])
+        assert index == 2
+
+        option_list = modal.query_one("#dismissed-agent-list", OptionList)
+        option_list.highlighted = 1
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: modal.agents == [first])
+        assert index == 1
+        assert modal._page_exhausted is False
+        assert option_list.highlighted == 0
+
+        await pilot.press("ctrl+j")
+        await wait_for(pilot, lambda: modal.agents == [first, second])
+        assert index == 2
 
 
 @pytest.mark.asyncio
@@ -279,7 +344,7 @@ async def test_initial_page_renders_loaded_rows_without_typing() -> None:
         [],
         loading_archive=True,
         page_loader=page_loader,  # type: ignore[arg-type]
-        page_size=250,
+        page_size=100,
     )
     app = _ModalHost(modal)
 

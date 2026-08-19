@@ -179,7 +179,8 @@ async def test_modal_preserves_selection_across_refresh(monkeypatch) -> None:
         assert modal._highlighted_option_id() == "large:/tmp/b"
 
 
-async def test_modal_ctrl_k_doubles_limit_and_reloads_cached(monkeypatch) -> None:
+async def test_modal_ctrl_j_adds_page_size_and_reloads_cached(monkeypatch) -> None:
+    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 100)
     call = _stub_load(
         monkeypatch, make_view([make_group("large", [make_run()])], limit_per_alias=10)
     )
@@ -191,13 +192,46 @@ async def test_modal_ctrl_k_doubles_limit_and_reloads_cached(monkeypatch) -> Non
         await wait_for(pilot, lambda: modal._view is not None)
         assert modal._limit == 10
 
-        await pilot.press("ctrl+k")
+        await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: call.call_count == 2)
         await pilot.pause()
 
         _, kwargs = call.call_args
-        assert kwargs["limit_per_alias"] == 20
+        assert kwargs["limit_per_alias"] == 110
         assert kwargs["freshness"] == "cached"
+
+
+async def test_modal_ctrl_k_unloads_to_initial_limit(monkeypatch) -> None:
+    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 100)
+
+    def load(aliases, *, limit_per_alias=None, **kwargs):
+        del aliases, kwargs
+        limit = 10 if limit_per_alias is None else limit_per_alias
+        return make_view([make_group("large", [make_run()])], limit_per_alias=limit)
+
+    call = MagicMock(side_effect=load)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+        assert modal._limit == 10
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+        assert call.call_count == 1
+
+        await pilot.press("ctrl+j")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await wait_for(pilot, lambda: modal._limit == 110)
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: call.call_count == 3)
+        await wait_for(pilot, lambda: modal._limit == 10)
+        assert call.call_args.kwargs["limit_per_alias"] == 10
+        assert call.call_args.kwargs["freshness"] == "cached"
 
 
 async def test_modal_r_revalidates_then_next_load_is_cached(monkeypatch) -> None:
@@ -214,7 +248,7 @@ async def test_modal_r_revalidates_then_next_load_is_cached(monkeypatch) -> None
         await pilot.pause()
         assert call.call_args.kwargs["freshness"] == "revalidate"
 
-        await pilot.press("ctrl+k")
+        await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: call.call_count == 3)
         await pilot.pause()
         assert call.call_args.kwargs["freshness"] == "cached"
@@ -407,6 +441,8 @@ async def test_modal_usage_strip_shows_counts_after_load(monkeypatch) -> None:
 
 
 async def test_modal_load_more_refresh_and_hidden_repaint_usage(monkeypatch) -> None:
+    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 10)
+
     def load(aliases, *, limit_per_alias=None, include_hidden=False, **kwargs):
         del aliases, kwargs
         if include_hidden:
@@ -440,7 +476,7 @@ async def test_modal_load_more_refresh_and_hidden_repaint_usage(monkeypatch) -> 
         assert modal._usage.counted_runs == 10
         first = modal._usage
 
-        await pilot.press("ctrl+k")
+        await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: call.call_count == 2)
         await wait_for(
             pilot, lambda: modal._usage is not None and modal._usage is not first

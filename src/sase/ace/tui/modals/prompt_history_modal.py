@@ -1,7 +1,9 @@
 """Prompt history selection modal with filtering for the ace TUI."""
 
 import asyncio
+from dataclasses import dataclass
 
+from sase.ace.config import get_ace_page_size
 from sase.history.prompt import (
     PromptHistoryPage,
     PromptHistoryPageCursor,
@@ -44,8 +46,15 @@ from ._prompt_history_rows import (
 )
 from .base import FilterInput, OptionListNavigationMixin
 
-_PROMPT_HISTORY_PAGE_SIZE = 250
 _PromptDisplayItem = PromptDisplayItem
+
+
+@dataclass(frozen=True, slots=True)
+class _PromptHistoryLoadedPage:
+    """One fetched page so unload can drop it and refetch from the same cursor."""
+
+    item_count: int
+    resume_cursor: PromptHistoryPageCursor | None
 
 
 def _display_text_for_item(item: _PromptDisplayItem) -> str:
@@ -74,7 +83,8 @@ class PromptHistoryModal(
     _option_list_id = "prompt-history-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
-        Binding("ctrl+k", "load_more", "Load More", priority=True),
+        Binding("ctrl+j", "load_more", "Load More", priority=True),
+        Binding("ctrl+k", "unload", "Unload", priority=True),
         ("ctrl+g", "edit_first", "Edit in editor"),
         ("ctrl+x", "toggle_cancelled", "Toggle cancelled"),
         ("ctrl+y", "copy_and_cancel", "Copy & cancel"),
@@ -101,18 +111,28 @@ class PromptHistoryModal(
         self._history_exhausted = False
         self._history_loaded_once = False
         self._history_loading = False
+        self._page_size = get_ace_page_size()
+        self._loaded_pages: list[_PromptHistoryLoadedPage] = []
         self._filtered_items = []
+
+    def _resolved_page_size(self) -> int:
+        """Return the configured page size, falling back if init was skipped."""
+        page_size = getattr(self, "_page_size", None)
+        if type(page_size) is int and page_size >= 1:
+            return page_size
+        return get_ace_page_size()
 
     def _load_page(self) -> PromptHistoryPage:
         """Load the next page of prompt history records."""
         return load_prompt_record_page(
-            page_size=_PROMPT_HISTORY_PAGE_SIZE,
+            page_size=self._resolved_page_size(),
             cursor=self._next_cursor,
             include_cancelled=True,
         )
 
     def _append_page(self, page: PromptHistoryPage) -> None:
         """Append a loaded page to modal state."""
+        resume_cursor = self._next_cursor
         for record in page.records:
             entry = record.to_entry()
             self._all_items.append(
@@ -122,6 +142,14 @@ class PromptHistoryModal(
                     display_text=humanize_vcs_refs_in_text(entry.text),
                 )
             )
+        if not hasattr(self, "_loaded_pages"):
+            self._loaded_pages = []
+        self._loaded_pages.append(
+            _PromptHistoryLoadedPage(
+                item_count=len(page.records),
+                resume_cursor=resume_cursor,
+            )
+        )
         self._next_cursor = page.next_cursor
         self._history_exhausted = page.exhausted
         self._history_loaded_once = True
@@ -156,9 +184,17 @@ class PromptHistoryModal(
                         yield Static("", id="prompt-history-preview", markup=False)
                         yield Static("", id="prompt-history-metadata")
             yield Static(
-                "j/k ↑/↓ ^n/^p: navigate • ^k: older +250 • Enter: submit • ^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel",
+                self._hints_text(),
                 id="prompt-history-hints",
             )
+
+    def _hints_text(self) -> str:
+        """Return the footer hint line using the configured page size."""
+        page_size = self._resolved_page_size()
+        return (
+            f"j/k ^n/^p • ^j/+{page_size} ^k/-{page_size} • Enter: submit • "
+            "^g: edit • ^i: load • ^x: cancelled • ^y: copy • Esc/q: cancel"
+        )
 
     def _create_styled_label(self, item: _PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
@@ -257,7 +293,7 @@ class PromptHistoryModal(
             return "History · loading..."
         if history_exhausted:
             return f"History · {visible:,} / {loaded:,} total"
-        suffix = " · ^k +250 older"
+        suffix = f" · ^j +{self._resolved_page_size()} older"
         if history_loading:
             suffix = " · loading older..."
         return f"History · {visible:,} / {loaded:,} loaded{suffix}"
@@ -302,19 +338,23 @@ class PromptHistoryModal(
         """Intercept keys that focused widgets consume before bindings.
 
         - Tab/Ctrl+I: Textual's focus cycling intercepts Tab before bindings.
-        - Ctrl+K: intercepted while the filter input is focused so the key
-          loads older prompts here instead of bubbling to the app-level
-          jump-forward binding.
+        - Ctrl+J / Ctrl+K: intercepted while the filter input is focused so
+          the keys page history here instead of bubbling to the app-level
+          metadata-section bindings.
         - Ctrl+X: Input widget's built-in "cut" binding consumes it.
         """
         if event.key == "tab":
             event.prevent_default()
             event.stop()
             self.action_load_to_input()
-        elif event.key == "ctrl+k":
+        elif event.key == "ctrl+j":
             event.prevent_default()
             event.stop()
             self.action_load_more()
+        elif event.key == "ctrl+k":
+            event.prevent_default()
+            event.stop()
+            self.action_unload()
         elif event.key == "ctrl+x":
             event.prevent_default()
             event.stop()
@@ -376,6 +416,38 @@ class PromptHistoryModal(
             exclusive=True,
             group="prompt-history-load",
         )
+
+    def action_unload(self) -> None:
+        """Drop the last loaded prompt-history page and rewind its cursor."""
+        pages = getattr(self, "_loaded_pages", None)
+        if not pages or len(pages) <= 1 or getattr(self, "_history_loading", False):
+            self._update_history_count_label()
+            return
+        last = pages.pop()
+        if last.item_count:
+            del self._all_items[-last.item_count :]
+        self._next_cursor = last.resume_cursor
+        self._history_exhausted = False
+        try:
+            filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+            filter_text = filter_input.value
+        except Exception:
+            filter_text = ""
+        self._filtered_items = self._get_filtered_items(filter_text)
+        self._update_history_count_label()
+        try:
+            self._refresh_options(preserve_highlight=True)
+        except Exception:
+            return
+        if self._filtered_items:
+            option_list = self.query_one("#prompt-history-list", OptionList)
+            highlighted = option_list.highlighted
+            idx = highlighted if highlighted is not None else 0
+            idx = min(max(idx, 0), len(self._filtered_items) - 1)
+            option_list.highlighted = idx
+            self._update_preview(self._filtered_items[idx])
+        else:
+            self._clear_preview()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input change - update the option list."""
