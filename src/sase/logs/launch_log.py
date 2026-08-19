@@ -32,6 +32,7 @@ from typing import Any
 
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
+from sase.logs.error_registry import error_anchor, new_error_id
 
 log = logging.getLogger(__name__)
 
@@ -98,15 +99,17 @@ def log_launch_failure(
     project: str | None = None,
     workspace_num: int | None = None,
     prompt_preview: str | None = None,
+    error_id: str | None = None,
     **context: Any,
-) -> None:
+) -> str:
     """Durably record a launch failure to both canonical launch-failure logs.
 
     Appends a structured record to ``launch_failures.jsonl`` AND a formatted,
     human-readable block to ``launch_failures.log``. Never raises: any I/O
     error is swallowed (and surfaced through the module logger, which the TUI
     routes to ``tui.log``) so logging a failure can never mask or escalate the
-    original launch error.
+    original launch error. Returns the ``error_id`` used (minted when the
+    caller passed none), even if the write failed.
 
     Args:
         kind: One of :data:`LAUNCH_FAILURE_KINDS` (``"single"``, ``"fanout"``,
@@ -117,10 +120,13 @@ def log_launch_failure(
         project: Originating project name, if known.
         workspace_num: Workspace number, if allocated.
         prompt_preview: Submitted prompt text (truncated when stored).
+        error_id: Stable id stamped on the JSONL record and human header. Minted
+            when omitted.
         **context: Extra structured context (``fanout_kind``, ``slot_count``,
             ``workflow_name``, ``chop``, ``vcs_ref``, ...). ``None`` values are
             dropped.
     """
+    used_id = new_error_id() if error_id is None else error_id
     try:
         _write_launch_failure(
             kind=kind,
@@ -129,10 +135,12 @@ def log_launch_failure(
             project=project,
             workspace_num=workspace_num,
             prompt_preview=prompt_preview,
+            error_id=used_id,
             context=context,
         )
     except Exception:  # pragma: no cover - logging must never break a launch
         log.warning("Failed to write launch-failure log", exc_info=True)
+    return used_id
 
 
 def _write_launch_failure(
@@ -143,6 +151,7 @@ def _write_launch_failure(
     project: str | None,
     workspace_num: int | None,
     prompt_preview: str | None,
+    error_id: str,
     context: dict[str, Any],
 ) -> None:
     now = datetime.now(get_timezone())
@@ -163,6 +172,7 @@ def _write_launch_failure(
         project=project,
         workspace_num=workspace_num,
         prompt_preview=prompt_preview,
+        error_id=error_id,
         extra=extra,
     )
     _append_human_block(
@@ -175,6 +185,7 @@ def _write_launch_failure(
         project=project,
         workspace_num=workspace_num,
         prompt_preview=prompt_preview,
+        error_id=error_id,
         extra=extra,
     )
 
@@ -190,10 +201,12 @@ def _append_jsonl_record(
     project: str | None,
     workspace_num: int | None,
     prompt_preview: str | None,
+    error_id: str,
     extra: dict[str, Any],
 ) -> None:
     record: dict[str, Any] = {
         "timestamp": now.strftime("%y%m%d_%H%M%S"),
+        "error_id": error_id,
         "kind": kind,
         "display_name": display_name,
         "exc_type": exc_type,
@@ -221,12 +234,14 @@ def _append_human_block(
     project: str | None,
     workspace_num: int | None,
     prompt_preview: str | None,
+    error_id: str,
     extra: dict[str, Any],
 ) -> None:
     header_ts = now.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
     lines = [
         "=" * 72,
-        f"[{header_ts}] {kind} launch failure: {display_name}",
+        f"[{header_ts}] {kind} launch failure: {display_name}  "
+        f"{error_anchor(error_id)}",
         f"  error: {exc_type}: {exc_message}",
     ]
     if project is not None:

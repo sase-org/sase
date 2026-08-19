@@ -10,12 +10,26 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterator
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
-from sase.logs import launch_failures_jsonl_path, launch_failures_log_path
+import pytest
+
+from sase.logs import (
+    clear_registered_errors,
+    launch_failures_jsonl_path,
+    launch_failures_log_path,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_registered_errors() -> Iterator[None]:
+    clear_registered_errors()
+    yield
+    clear_registered_errors()
 
 
 def _records() -> list[dict[str, Any]]:
@@ -77,8 +91,7 @@ def test_chop_failure_persists_record() -> None:
     assert record["chop"] == "my-chop"
     assert record["lumberjack"] == "lumber"
     assert app.notifications[-1] == (
-        "Failed to launch chop 'my-chop': chop boom "
-        "- see Logs in SASE Admin Center (#)",
+        "Failed to launch chop 'my-chop': chop boom - press ,L for the log entry",
         "error",
     )
 
@@ -117,7 +130,7 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
     )
 
     assert app.notifications == [
-        ("Launch failed - see Logs in SASE Admin Center (#)", "error")
+        ("Launch failed - press ,L for the log entry", "error")
     ]
     record = _assert_persisted("single")
     assert record["display_name"] == "launch cl"
@@ -170,7 +183,7 @@ def test_chop_missing_script_outcome_persists_record() -> None:
         asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
 
     assert app.notifications[-1] == (
-        "Chop 'my-chop': script not found - see Logs in SASE Admin Center (#)",
+        "Chop 'my-chop': script not found - press ,L for the log entry",
         "error",
     )
     record = _assert_persisted("chop")

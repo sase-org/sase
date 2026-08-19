@@ -12,6 +12,7 @@ from textual.widgets import ContentSwitcher, OptionList
 
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import LogsPane
+from sase.logs import RegisteredError, error_anchor
 from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import (
     LAUNCH_LOG_BODY,
@@ -81,6 +82,30 @@ async def test_logs_tab_opens_with_launch_failures_selected(log_dir: Path) -> No
         assert option_list.highlighted == 0  # launch_failures is the default
 
         assert "launch_failures.log" in pane._last_detail_text.plain
+
+
+async def test_logs_tab_selects_registered_error_source(log_dir: Path) -> None:
+    write_log(log_dir / "launch_failures.log", LAUNCH_LOG_BODY)
+    write_log(log_dir / "tui.log", "2026-06-17 10:00:00,1 WARNING sase: heads up\n")
+    error_id = "err_260617_143000_7f3a9c"
+    target = RegisteredError(
+        error_id=error_id,
+        source_id="tui",
+        anchor=error_anchor(error_id),
+        summary="Launch failed",
+        registered_at="2026-06-17 14:30:00",
+    )
+
+    async with ModalTestApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="logs", log_error_target=target)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        pane = modal.query_one("#logs", LogsPane)
+        await wait_for_logs_loaded(pilot, pane)
+
+        option_list = pane.query_one("#log-source-list", OptionList)
+        assert option_list.highlighted == 1
+        assert "tui.log" in pane._last_detail_text.plain
 
 
 async def test_logs_tab_navigation_updates_detail(log_dir: Path) -> None:

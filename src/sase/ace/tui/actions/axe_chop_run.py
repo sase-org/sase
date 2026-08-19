@@ -29,7 +29,7 @@ from sase.axe.state import chop_run_log_path
 
 from ..util.pump_tasks import spawn_pump_free_task
 from ..widgets.bgcmd_list import ChopItem
-from .failure_messages import with_log_panel_hint
+from .failure_messages import notify_registered_error
 
 if TYPE_CHECKING:
     from .axe_display import ChopSnapshot
@@ -174,8 +174,9 @@ class AxeChopRunMixin:
         try:
             outcome = await asyncio.to_thread(_run)
         except Exception as e:
-            from sase.logs import log_launch_failure
+            from sase.logs import log_launch_failure, new_error_id
 
+            error_id = new_error_id()
             await asyncio.to_thread(
                 log_launch_failure,
                 kind="chop",
@@ -183,27 +184,43 @@ class AxeChopRunMixin:
                 exc=e,
                 chop=chop_name,
                 lumberjack=lumberjack_name,
+                error_id=error_id,
             )
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Failed to launch chop '{chop_name}': {e}"),
-                severity="error",
+            notify_registered_error(
+                self,
+                f"Failed to launch chop '{chop_name}': {e}",
+                error_id=error_id,
             )
             # Even on failure the runner may have written a partial run
             # entry; refresh so the dashboard reflects current on-disk state.
             self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
             return
 
+        outcome_error_id: str | None = None
         if _is_failure_chop_outcome(outcome):
-            await asyncio.to_thread(_log_chop_failure_outcome, outcome)
-        self._notify_chop_outcome(outcome)
+            outcome_error_id = await asyncio.to_thread(
+                _log_chop_failure_outcome, outcome
+            )
+        self._notify_chop_outcome(outcome, error_id=outcome_error_id)
         # Always pull fresh state so the new (or updated) run entry shows
         # up in the dashboard and the sidebar status marker repaints.
         self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
 
-    def _notify_chop_outcome(self, outcome: ChopRunOutcome) -> None:
+    def _notify_chop_outcome(
+        self, outcome: ChopRunOutcome, *, error_id: str | None = None
+    ) -> None:
         """Translate a backend outcome into a user-facing notification."""
         chop = outcome.chop_name
         lj = outcome.lumberjack_name
+
+        def _fail(prefix: str, *, severity: str = "error") -> None:
+            if error_id is not None:
+                notify_registered_error(
+                    self, prefix, error_id=error_id, severity=severity
+                )
+            else:
+                self.notify(prefix, severity=severity)  # type: ignore[attr-defined]
+
         if outcome.status == "already_running":
             self.notify(  # type: ignore[attr-defined]
                 f"Chop '{chop}' is already running under '{lj}'",
@@ -229,30 +246,15 @@ class AxeChopRunMixin:
             exit_str = (
                 f" (exit {outcome.exit_code})" if outcome.exit_code is not None else ""
             )
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Chop '{chop}' failed{exit_str}"),
-                severity="error",
-            )
+            _fail(f"Chop '{chop}' failed{exit_str}")
         elif outcome.status == "timeout":
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Chop '{chop}' timed out"),
-                severity="error",
-            )
+            _fail(f"Chop '{chop}' timed out")
         elif outcome.status == "missing_script":
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Chop '{chop}': script not found"),
-                severity="error",
-            )
+            _fail(f"Chop '{chop}': script not found")
         elif outcome.status == "check_error":
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Chop '{chop}' check is degraded"),
-                severity="warning",
-            )
+            _fail(f"Chop '{chop}' check is degraded", severity="warning")
         elif outcome.status == "action_failed":
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Chop '{chop}' action failed"),
-                severity="error",
-            )
+            _fail(f"Chop '{chop}' action failed")
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Chop '{chop}': unexpected outcome '{outcome.status}'",
@@ -270,14 +272,14 @@ def _is_failure_chop_outcome(outcome: ChopRunOutcome) -> bool:
     }
 
 
-def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> None:
+def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> str:
     """Durably record non-exception chop failure outcomes for the Logs tab."""
     from sase.logs import log_launch_failure
 
     exc = outcome.error
     if exc is None:
         exc = RuntimeError(f"Chop '{outcome.chop_name}' failed: {outcome.status}")
-    log_launch_failure(
+    return log_launch_failure(
         kind="chop",
         display_name=outcome.chop_name,
         exc=exc,

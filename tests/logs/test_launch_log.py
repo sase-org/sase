@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
+from sase.logs.error_registry import error_anchor
 from sase.logs.launch_log import (
     launch_failures_jsonl_path,
     launch_failures_log_path,
     log_launch_failure,
 )
+
+_ERROR_ID_RE = r"^err_\d{6}_\d{6}_[0-9a-f]{6}$"
 
 
 def _boom(message: str = "workspace claim failed") -> RuntimeError:
@@ -133,5 +137,39 @@ class TestLogLaunchFailure:
             raise OSError("disk full")
 
         monkeypatch.setattr("sase.logs.launch_log.launch_failures_jsonl_path", _explode)
-        # Should not raise.
-        log_launch_failure(kind="single", display_name="cl", exc=_boom())
+        # Should not raise, and still return a minted id.
+        used_id = log_launch_failure(kind="single", display_name="cl", exc=_boom())
+        assert re.fullmatch(_ERROR_ID_RE, used_id)
+
+    def test_returns_minted_error_id_and_stamps_both_logs(self) -> None:
+        used_id = log_launch_failure(
+            kind="single",
+            display_name="alpha",
+            exc=_boom(),
+        )
+
+        assert re.fullmatch(_ERROR_ID_RE, used_id)
+        record = json.loads(
+            launch_failures_jsonl_path().read_text().strip().splitlines()[-1]
+        )
+        assert record["error_id"] == used_id
+        header = launch_failures_log_path().read_text().splitlines()[1]
+        assert header.endswith(f"  {error_anchor(used_id)}")
+        assert "single launch failure: alpha" in header
+
+    def test_explicit_error_id_is_used_verbatim(self) -> None:
+        error_id = "err_260617_143000_7f3a9c"
+        used_id = log_launch_failure(
+            kind="single",
+            display_name="alpha",
+            exc=_boom(),
+            error_id=error_id,
+        )
+
+        assert used_id == error_id
+        record = json.loads(
+            launch_failures_jsonl_path().read_text().strip().splitlines()[-1]
+        )
+        assert record["error_id"] == error_id
+        text = launch_failures_log_path().read_text()
+        assert error_anchor(error_id) in text

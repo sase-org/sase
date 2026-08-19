@@ -46,7 +46,11 @@ def _config_pane_factory(modal: ConfigCenterModal) -> Widget:
 def _logs_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .logs_pane import LogsPane
 
-    return LogsPane(bookmark=_modal._session_state.logs, id="logs")
+    return LogsPane(
+        bookmark=_modal._session_state.logs,
+        error_target=_modal._log_error_target,
+        id="logs",
+    )
 
 
 def _projects_pane_factory(_modal: ConfigCenterModal) -> Widget:

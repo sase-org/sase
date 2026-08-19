@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -19,16 +20,24 @@ from sase.ace.tui.modals.config_center_modal import (
     ConfigCenterModal,
 )
 from sase.ace.tui.widgets import KeybindingFooter
-
+from sase.logs import clear_registered_errors, register_error
 from tests.ace.tui._leader_keymap_helpers import (
     _capture_bindings,
     _last_labels,
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_registered_errors() -> Iterator[None]:
+    clear_registered_errors()
+    yield
+    clear_registered_errors()
+
+
 class _ActionApp(BaseActionsMixin):
     def __init__(self) -> None:
         self.pushed_modals: list[Any] = []
+        self.notifications: list[tuple[str, str | None]] = []
         self._last_admin_center_tab: CenterTab | None = None
         self._keymap_registry = load_keymap_registry({})
         self.revalidation_count = 0
@@ -36,6 +45,9 @@ class _ActionApp(BaseActionsMixin):
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         del callback
         self.pushed_modals.append(modal)
+
+    def notify(self, msg: str, *, severity: str | None = None) -> None:
+        self.notifications.append((msg, severity))
 
     def _schedule_updates_indicator_revalidation(self) -> None:
         self.revalidation_count += 1
@@ -140,10 +152,29 @@ def test_jump_to_last_error_action_pushes_admin_center_on_logs() -> None:
 
     app.action_jump_to_last_error()
 
+    assert app.notifications == [("No error registered in this ACE session", None)]
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
     assert modal._initial_tab == "logs"
+    assert modal._log_error_target is None
+
+
+def test_jump_to_last_error_passes_registered_error_target() -> None:
+    app = _ActionApp()
+    registered = register_error(
+        error_id="err_260617_143000_7f3a9c",
+        source_id="launch_failures",
+        summary="Launch failed",
+    )
+
+    app.action_jump_to_last_error()
+
+    assert app.notifications == []
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._initial_tab == "logs"
+    assert modal._log_error_target is registered
 
 
 def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:

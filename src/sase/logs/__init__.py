@@ -5,6 +5,14 @@ here are the single source of truth for those paths so every frontend (TUI,
 CLI, web) reads the same files.
 """
 
+from sase.logs.error_registry import (
+    RegisteredError,
+    clear_registered_errors,
+    error_anchor,
+    last_registered_error,
+    new_error_id,
+    register_error,
+)
 from sase.logs.launch_log import (
     launch_failures_jsonl_path,
     launch_failures_log_path,
@@ -43,10 +51,16 @@ from sase.logs.toast_log import (
 )
 
 __all__ = [
+    "RegisteredError",
+    "clear_registered_errors",
+    "error_anchor",
     "events_log_path",
+    "last_registered_error",
     "launch_failures_jsonl_path",
     "launch_failures_log_path",
     "log_launch_failure",
+    "new_error_id",
+    "register_error",
     "log_project_creation",
     "project_creation_jsonl_path",
     "project_creation_log_path",

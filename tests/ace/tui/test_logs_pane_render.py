@@ -199,7 +199,10 @@ def test_styled_log_line_severity(line: str, expected: str) -> None:
 
 
 def test_styled_log_line_colors_timestamp_prefix_cyan() -> None:
-    line = "[2026-06-17 14:30:00 UTC] single launch failure: alpha"
+    line = (
+        "[2026-06-17 14:30:00 UTC] single launch failure: alpha  "
+        "[err_260617_143000_7f3a9c]"
+    )
 
     text = _styled_log_line(line)
 

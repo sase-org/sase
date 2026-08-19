@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
-from ..failure_messages import with_log_panel_hint
+from sase.logs import new_error_id
+
+from ..failure_messages import notify_registered_error
 from ..proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
@@ -99,17 +101,17 @@ class LaunchProcMixin:
         outcome = _launch_outcome_from_completion(completion)
         if outcome is None:
             if not completion.success:
-                _schedule_payloadless_launch_failure_log(self, completion)
+                error_id = new_error_id()
+                _schedule_payloadless_launch_failure_log(
+                    self, completion, error_id=error_id
+                )
                 if submitted_prompt is not None:
                     # The worker died before recording the prompt; preserve it
                     # in the stash and refresh the badge off the event loop.
                     self._schedule_failed_launch_prompt_recovery(  # type: ignore[attr-defined]
                         submitted_prompt
                     )
-                self.notify(  # type: ignore[attr-defined]
-                    with_log_panel_hint("Launch failed"),
-                    severity="error",
-                )
+                notify_registered_error(self, "Launch failed", error_id=error_id)
             elif completion.message:
                 self.notify(completion.message)  # type: ignore[attr-defined]
             return
@@ -168,6 +170,8 @@ def _refresh_notification_count_if_available(app: object) -> None:
 def _schedule_payloadless_launch_failure_log(
     app: Any,
     completion: TrackedProcCompletion[_LaunchProcOutcome],
+    *,
+    error_id: str,
 ) -> None:
     """Write payloadless launch proc failures off the Textual event loop."""
     import asyncio
@@ -175,11 +179,13 @@ def _schedule_payloadless_launch_failure_log(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        _log_payloadless_launch_failure(completion)
+        _log_payloadless_launch_failure(completion, error_id=error_id)
         return
 
     task = loop.create_task(
-        asyncio.to_thread(_log_payloadless_launch_failure, completion)
+        asyncio.to_thread(
+            _log_payloadless_launch_failure, completion, error_id=error_id
+        )
     )
     tasks = getattr(app, "_launch_failure_log_tasks", None)
     if tasks is None:
@@ -191,6 +197,8 @@ def _schedule_payloadless_launch_failure_log(
 
 def _log_payloadless_launch_failure(
     completion: TrackedProcCompletion[_LaunchProcOutcome],
+    *,
+    error_id: str,
 ) -> None:
     """Persist a launch proc failure when the worker produced no outcome."""
     from sase.logs import log_launch_failure
@@ -207,6 +215,7 @@ def _log_payloadless_launch_failure(
         proc_type=proc.proc_type,
         project_file=proc.project_file,
         output=completion.output or None,
+        error_id=error_id,
     )
 
 

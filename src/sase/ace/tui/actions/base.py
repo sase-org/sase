@@ -121,7 +121,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
     def action_jump_to_last_error(self) -> None:
         """Open the Logs tab on this session's most recent registered error."""
-        self._open_config_center("logs")
+        from sase.logs import last_registered_error
+
+        error = last_registered_error()
+        if error is None:
+            self.notify(  # type: ignore[attr-defined]
+                "No error registered in this ACE session"
+            )
+        self._open_config_center("logs", log_error_target=error)
 
     def action_open_tasks_panel(self) -> None:
         """Open the SASE Admin Center on the Tasks tab."""
@@ -506,6 +513,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         *,
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
+        log_error_target: Any = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals.config_center_modal import (
@@ -535,6 +543,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 opener_binding=opener_binding,
                 auto_update=auto_update,
                 comprehensive_provider_names=comprehensive_provider_names,
+                log_error_target=log_error_target,
                 session_state=session_state,
                 on_tab_activated=self._on_admin_center_tab_activated,
             ),

@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from textual import on
 from textual.app import ComposeResult
@@ -67,6 +67,9 @@ from .config_center_home import (
     tab_description_text,
 )
 
+if TYPE_CHECKING:
+    from sase.logs import RegisteredError
+
 # Compatibility aliases for callers that imported these implementation details
 # before the Admin Center was split into focused modules.
 _AdminCenterLanding = AdminCenterLanding
@@ -113,6 +116,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         opener_binding: str = "number_sign",
         auto_update: bool = False,
         comprehensive_provider_names: tuple[str, ...] | None = None,
+        log_error_target: RegisteredError | None = None,
         session_state: AdminCenterSessionState | None = None,
         on_tab_activated: Callable[[CenterTab], None] | None = None,
     ) -> None:
@@ -120,6 +124,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         self._project = project
         self._auto_update = auto_update
         self._comprehensive_provider_names = comprehensive_provider_names
+        self._log_error_target = log_error_target
         self._session_state = session_state or AdminCenterSessionState()
         self._initial_tab = validated_center_tab(initial_tab)
         self._resume_tab = validated_center_tab(resume_tab)

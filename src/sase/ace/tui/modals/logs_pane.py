@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual import events
@@ -31,6 +31,9 @@ from .logs_pane_render import (
 )
 from .logs_pane_source_list import LogSourceList as _LogSourceList
 from .pane_entry_jump import PaneEntryJumpMixin, apply_jump_hint_prefix
+
+if TYPE_CHECKING:
+    from sase.logs import RegisteredError
 
 
 def _build_log_pane_load_result(
@@ -94,6 +97,7 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         *,
         auto_load: bool = True,
         bookmark: SelectionBookmark | None = None,
+        error_target: RegisteredError | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
@@ -105,12 +109,18 @@ class LogsPane(PaneEntryJumpMixin, CopyModeForwardingMixin, Vertical):
         self._worker_reset_scroll = False
         self._selection_guard = ProgrammaticSelectionGuard()
         self._bookmark = bookmark or SelectionBookmark()
+        self._error_target = error_target
         self._selected_index = restore_selection_by_identity(
             self._sources,
             prior_identity=self._bookmark.identity,
             prior_visual_row=self._bookmark.row,
             identity_fn=lambda source: source.id,
         )
+        if error_target is not None:
+            for idx, source in enumerate(self._sources):
+                if source.id == error_target.source_id:
+                    self._selected_index = idx
+                    break
         self._last_detail_text: Text = Text("Loading logs...", style="dim")
 
     def compose(self) -> ComposeResult:

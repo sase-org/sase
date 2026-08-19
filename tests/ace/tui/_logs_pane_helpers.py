@@ -18,7 +18,8 @@ from sase.ace.tui.modals.logs_pane import LogsPane
 
 LAUNCH_LOG_BODY = (
     "=" * 72 + "\n"
-    "[2026-06-17 14:30:00 UTC] single launch failure: alpha\n"
+    "[2026-06-17 14:30:00 UTC] single launch failure: alpha  "
+    "[err_260617_143000_7f3a9c]\n"
     "  error: RuntimeError: boom\n"
     "  project: demo\n"
     "\n"

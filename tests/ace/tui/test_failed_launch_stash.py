@@ -14,6 +14,7 @@ preserves it in the per-user prompt stash so it stays recoverable through
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,8 +26,16 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import PromptBarStash
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.proc_queue import ProcInfo
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.logs import clear_registered_errors
 
 from ._agent_launch_helpers import _FakeApp
+
+
+@pytest.fixture(autouse=True)
+def _clear_registered_errors() -> Iterator[None]:
+    clear_registered_errors()
+    yield
+    clear_registered_errors()
 
 
 def _skip_without_prompt_stash_bindings() -> None:
