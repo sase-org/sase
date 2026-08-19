@@ -1625,16 +1625,18 @@ on the default provider. Use `model_aliases.builtin` to override one of the five
 built-in size aliases and `model_aliases.custom` for user-defined aliases with
 descriptions. `A | B` round-robins across real launches, skips providers whose CLI is
 unavailable, and stores its machine-global cursor in `~/.sase/llm_lb.json`; display and
-preview surfaces only peek. `A || B` always selects the first installed, non-disabled
-provider CLI and never reads or advances that cursor. Ordered fallback is based on CLI
-installation plus temporary provider-disable state, not later model/runtime success, and
-preserves its first candidate for normal diagnostics when none are available. Members
-may carry a trailing effort. The operators cannot be mixed, selectors cannot be nested,
-and selectors are not accepted in `%model` directives or launch-scoped/temporary
-overrides. In ACE Launch Control, the pool row reports the available/total count,
-selector member lists mark the current selection with `→`, and active temporary
-overrides label selection suspended unless their provider is temporarily disabled; then
-the override is paused and the underlying alias resolves.
+preview surfaces only peek. `A || B` always selects the first installed provider CLI
+that is not **hard**-disabled (a **soft**-disabled first candidate still wins) and never
+reads or advances that cursor. Ordered fallback is based on CLI installation plus
+temporary provider-disable state, not later model/runtime success, and preserves its
+first candidate for normal diagnostics when none are available. Members may carry a
+trailing effort. The operators cannot be mixed, selectors cannot be nested, and
+selectors are not accepted in `%model` directives or launch-scoped/temporary overrides.
+In ACE Launch Control, the pool row reports the available/total count, selector member
+lists mark the current selection with `→`, and active temporary overrides label
+selection suspended unless their provider is **hard**-disabled; then the override is
+paused and the underlying alias resolves. A **soft** disable does not pause the
+override.
 
 On top of any configured aliases, SASE ships a fixed set of **built-in size aliases**
 that resolve even when unset: `@xsmall`, `@small`, `@medium`, `@large`, and `@xlarge`.

@@ -261,7 +261,7 @@ def provider_routing_available(
     Returns ``False`` only for an unregistered provider, a provider with a
     hard disable, or a provider whose CLI is missing. A soft-disabled
     provider stays routable (deprioritized, not excluded) — see
-    :func:`provider_routing_state` for the tri-state availability that
+    :func:`_provider_routing_state` for the tri-state availability that
     selectors use to prefer other members first.
     """
     if not provider_name or provider_name not in registered_provider_names():
@@ -272,7 +272,7 @@ def provider_routing_available(
     return _provider_cli_available(provider_name)
 
 
-def provider_routing_state(
+def _provider_routing_state(
     provider_name: str | None,
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> MemberAvailability:
@@ -501,7 +501,7 @@ def get_configured_default_provider_name(
         (MemberAvailability.PREFERRED, MemberAvailability.SPARING),
     ):
         for name in names:
-            if provider_routing_state(name, disables) in accepted:
+            if _provider_routing_state(name, disables) in accepted:
                 return name
 
     raise RuntimeError(

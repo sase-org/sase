@@ -486,7 +486,8 @@ def _catalog_json(catalog: TmuxAgentCatalog) -> dict[str, Any]:
             "installed": sum(entry.installed for entry in catalog.entries),
             "not_installed": sum(not entry.installed for entry in catalog.entries),
             "routing_disabled": sum(
-                entry.routing_disabled is not None for entry in catalog.entries
+                entry.routing_disabled is not None and entry.routing_disabled.is_hard
+                for entry in catalog.entries
             ),
             "total": len(catalog.entries),
         },
@@ -598,8 +599,11 @@ def _name_style(entry: TmuxAgentEntry) -> str:
 def _status_cell(entry: TmuxAgentEntry) -> Text:
     if not entry.installed:
         return Text("not installed", style="yellow")
-    if entry.routing_disabled is not None:
+    disable = entry.routing_disabled
+    if disable is not None and disable.is_hard:
         return Text("routing disabled", style="yellow")
+    if disable is not None and disable.is_soft:
+        return Text("soft", style="yellow")
     return Text("ready", style="green")
 
 

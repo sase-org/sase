@@ -10,6 +10,7 @@ from sase.agent_clis.models import AgentCliStatus, InstallMethod
 from sase.config.tmux_agent import TmuxAgentConfig, TmuxAgentProviderConfig
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_HARD,
+    PROVIDER_DISABLE_MODE_SOFT,
     TemporaryProviderDisable,
 )
 from sase.tmux_agent import catalog as catalog_module
@@ -187,6 +188,32 @@ def test_routing_disabled_annotates_but_does_not_exclude(
 
     assert len(result.entries) == 1
     assert result.entries[0].routing_disabled == disable
+
+
+def test_soft_disable_annotates_but_does_not_exclude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    disable = TemporaryProviderDisable(
+        version=2,
+        provider="claude",
+        created_at=0.0,
+        expires_at=None,
+        source="test",
+        mode=PROVIDER_DISABLE_MODE_SOFT,
+    )
+    monkeypatch.setattr(
+        catalog_module,
+        "get_active_provider_disables",
+        lambda now=None: {"claude": disable},
+    )
+    statuses = (_status("claude", installed=True),)
+
+    result = build_tmux_agent_catalog(directory="/tmp", statuses=statuses)
+
+    assert len(result.entries) == 1
+    assert result.entries[0].routing_disabled == disable
+    assert result.entries[0].routing_disabled is not None
+    assert result.entries[0].routing_disabled.is_soft
 
 
 def test_effort_and_bypass_flow_through_to_entries() -> None:

@@ -41,6 +41,7 @@ _COLOR_VENDOR = "dim #565f89"
 _COLOR_READY = "bold #87D787"
 _COLOR_NOT_INSTALLED = "dim #A8A8A8"
 _COLOR_ROUTING_DISABLED = "bold #FFAF5F"
+_COLOR_SOFT_DISABLED = "bold #FFD75F"
 _COLOR_DESCRIPTION = "#B0B0B0"
 
 _MAX_NAME_LEN = 24
@@ -91,10 +92,15 @@ def _entry_row_text(entry: TmuxAgentEntry, *, now: float) -> Text:
     text.append("  ")
     if not entry.installed:
         text.append("not installed", style=_COLOR_NOT_INSTALLED)
-    elif entry.routing_disabled is not None:
+    elif entry.routing_disabled is not None and entry.routing_disabled.is_hard:
         text.append(
             f"routing disabled · {remaining_label(entry.routing_disabled, now=now)}",
             style=_COLOR_ROUTING_DISABLED,
+        )
+    elif entry.routing_disabled is not None and entry.routing_disabled.is_soft:
+        text.append(
+            f"soft · {remaining_label(entry.routing_disabled, now=now)}",
+            style=_COLOR_SOFT_DISABLED,
         )
     else:
         text.append("ready", style=_COLOR_READY)

@@ -16,6 +16,7 @@ from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.tmux_agent_modal import TmuxAgentModal, _entry_row_text
 from sase.config.tmux_agent import TmuxAgentConfig
 from sase.llm_provider import TemporaryProviderDisable
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_MODE_SOFT
 from sase.tmux_agent import (
     TmuxAgentCatalog,
     TmuxAgentEntry,
@@ -134,6 +135,23 @@ def test_row_text_marks_ready_not_installed_and_routing_disabled() -> None:
     disabled_text = _entry_row_text(disabled, now=1000.0).plain
     assert "routing disabled" in disabled_text
     assert "5m left" in disabled_text
+
+
+def test_row_text_marks_soft_disable_without_routing_disabled_label() -> None:
+    disable = TemporaryProviderDisable(
+        version=2,
+        provider="grok",
+        created_at=700.0,
+        expires_at=1300.0,
+        source="manual",
+        mode=PROVIDER_DISABLE_MODE_SOFT,
+    )
+    soft = _entry("grok", key="g", routing_disabled=disable)
+
+    soft_text = _entry_row_text(soft, now=1000.0).plain
+    assert "soft" in soft_text
+    assert "5m left" in soft_text
+    assert "routing disabled" not in soft_text
 
 
 def test_description_strip_shows_exact_command() -> None:

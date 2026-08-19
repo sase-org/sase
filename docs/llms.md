@@ -1145,12 +1145,13 @@ next position in that pool's weighted cycle (identical to a member index when ev
 weight is 1). Any alias that merely delegates to a pool-owning alias (directly or
 through further aliasing) shares that pool-owning alias's cursor rather than keeping one
 of their own. `A || B` is an ordered fallback chain: the first registered provider whose
-CLI is installed and not temporarily disabled always wins, and resolution never reads or
-changes the round-robin cursor, including during a real launch. Fallback is based on the
-cached CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a captured
-active-disable snapshot, not a later model or runtime failure; SASE does not relaunch
-with the next candidate after such a failure. If every provider is unavailable, both
-modes preserve a candidate for the ordinary provider lookup to report: fallback
+CLI is installed and not **hard**-disabled always wins — a **soft**-disabled first
+candidate still wins, so a soft disable never diverts the chain — and resolution never
+reads or changes the round-robin cursor, including during a real launch. Fallback is
+based on the cached CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a
+captured active-disable snapshot, not a later model or runtime failure; SASE does not
+relaunch with the next candidate after such a failure. If every provider is unavailable,
+both modes preserve a candidate for the ordinary provider lookup to report: fallback
 preserves its first member, while the pool preserves its current rotation choice.
 
 Both selectors accept two or more members using the same single-target grammar,
@@ -1170,10 +1171,10 @@ accepting and corrupting it. An override on the alias that owns a selector bypas
 expression for the override's lifetime. The ACE Launch Control shows every member's
 availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a
 `→` on the current selection. A temporary alias override labels the member list
-suspended only while its provider is available. If its provider is temporarily disabled,
+suspended only while its provider is available. If its provider is **hard**-disabled,
 the stored override is paused, the live selector target is shown instead, and the
 override resumes automatically after the provider disable is cleared or expires while
-the override itself is still active.
+the override itself is still active. A **soft** disable does not pause the override.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has a matching `model_alias` value for the alias being audited
@@ -1197,12 +1198,13 @@ The same alias vocabulary appears in the `%model:` / `%m:` completion menu in AC
 editors through the xprompt LSP: alias rows sit beneath the concrete model names with
 their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
 after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
-rows for temporarily disabled providers are omitted, while aliases remain and show their
-current fallback target. Provider rows such as `claude/` sit at the bottom of the broad
-menu; accepting one opens that provider's scoped model list and inserts qualified values
-such as `claude/opus`. See [xprompt directive syntax](xprompt.md#syntax) for the row
-anatomy. The completion menu is read-only; the ACE Launch Control (`,m`) remains the
-authoritative place to edit alias targets and to set or clear temporary overrides.
+rows for **hard**-disabled providers are omitted, while aliases remain and show their
+current fallback target. **Soft**-disabled providers stay in the menu, annotated `soft`.
+Provider rows such as `claude/` sit at the bottom of the broad menu; accepting one opens
+that provider's scoped model list and inserts qualified values such as `claude/opus`.
+See [xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion
+menu is read-only; the ACE Launch Control (`,m`) remains the authoritative place to edit
+alias targets and to set or clear temporary overrides.
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
 no automatic grouping. The ACE Launch Control instead shows the three scalar
@@ -1675,11 +1677,11 @@ temporary overrides do not change:
   `%model(...)` alias keyword is a separate, higher-precedence launch-scoped override.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
 
-Temporary provider disables can pause, but do not delete, these overrides. If an active
-alias override resolves to a disabled provider, SASE ignores that override for live
-routing and falls through to the alias's configured or implicit target. If the disable
-is cleared or expires before the alias override expires, the stored override resumes
-automatically.
+Temporary **hard** provider disables can pause, but do not delete, these overrides. If
+an active alias override resolves to a hard-disabled provider, SASE ignores that
+override for live routing and falls through to the alias's configured or implicit
+target. If the disable is cleared or expires before the alias override expires, the
+stored override resumes automatically. A **soft** disable does not pause the override.
 
 An override may carry a canonical reasoning-effort suffix, such as
 `codex/gpt-5.6-sol@medium` or `@large@medium`. The write resolves and snapshots the
@@ -1771,18 +1773,21 @@ disable from ACE Launch Control → Provider Routing (`p` from `,m`); see
 
 Each top-level routing operation captures active disables once and passes that snapshot
 through alias resolution, autodetection, model-picker rows, completion overlays, and the
-final provider dispatch gate. Round-robin pools skip disabled members without rewriting
-membership or fingerprints; re-enabling a provider lets it participate in later
-rotations naturally. Ordered fallbacks choose the first installed, non-disabled member
-and return to a higher-priority provider on the next resolution after it is re-enabled.
-When every selector member is disabled or otherwise unavailable, SASE preserves the
-diagnostic candidate rather than silently rerouting to a default provider.
+final provider dispatch gate. Round-robin pools skip **hard**-disabled members without
+rewriting membership or fingerprints, and spare **soft**-disabled members while another
+member is preferred; re-enabling a provider lets it participate in later rotations
+naturally. Ordered fallbacks choose the first installed member that is not hard-disabled
+(a soft first candidate still wins) and return to a higher-priority provider on the next
+resolution after a hard disable is cleared. When every selector member is hard-disabled
+or otherwise unavailable, SASE preserves the diagnostic candidate rather than silently
+rerouting to a default provider.
 
 Direct intent remains direct. `%model:claude/opus`, a known bare model owned by Claude,
 an explicit `provider_name="claude"`, or `SASE_LLM_EXEC_PROVIDER=claude` fails before
-provider construction while Claude is disabled; the error names the provider and expiry
-or says `until cleared`. This proves the request was not silently changed to another
-provider.
+provider construction while Claude is **hard**-disabled; the error names the provider
+and expiry or says `until cleared`. This proves the request was not silently changed to
+another provider. The same explicit request proceeds while Claude is only
+**soft**-disabled.
 
 The state file is a versioned envelope with one independent record per provider:
 

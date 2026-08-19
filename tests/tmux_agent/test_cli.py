@@ -114,6 +114,53 @@ def test_list_renders_accent_names_status_and_summary() -> None:
     assert "/work" in text
 
 
+def test_list_marks_hard_disable_as_routing_disabled_and_soft_as_soft() -> None:
+    from sase.llm_provider.provider_disable import (
+        PROVIDER_DISABLE_MODE_HARD,
+        PROVIDER_DISABLE_MODE_SOFT,
+        TemporaryProviderDisable,
+    )
+
+    console = _console()
+    catalog = _catalog(
+        make_entry(
+            "claude",
+            display_name="Claude Code",
+            key="c",
+            routing_disabled=TemporaryProviderDisable(
+                version=2,
+                provider="claude",
+                created_at=0.0,
+                expires_at=None,
+                source="test",
+                mode=PROVIDER_DISABLE_MODE_HARD,
+            ),
+        ),
+        make_entry(
+            "codex",
+            display_name="Codex",
+            key="x",
+            routing_disabled=TemporaryProviderDisable(
+                version=2,
+                provider="codex",
+                created_at=0.0,
+                expires_at=None,
+                source="test",
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+        ),
+        directory="/work",
+    )
+
+    code = _run(_args(list=True), catalog=catalog, console=console)
+
+    assert code == 0
+    text = _output(console)
+    assert "routing disabled" in text
+    assert "soft" in text
+    assert "ready" not in text
+
+
 def test_list_verbose_adds_path_command_and_hint() -> None:
     console = _console()
     catalog = _catalog(
@@ -150,6 +197,50 @@ def test_json_catalog_envelope_keys_and_schema_version(
     assert payload["entries"][0]["command"].startswith("claude")
     assert "argv" in payload["entries"][0]
     assert "bypass" in payload["entries"][0]
+
+
+def test_json_catalog_counts_only_hard_disables_as_routing_disabled(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.llm_provider.provider_disable import (
+        PROVIDER_DISABLE_MODE_HARD,
+        PROVIDER_DISABLE_MODE_SOFT,
+        TemporaryProviderDisable,
+    )
+
+    catalog = _catalog(
+        make_entry(
+            "claude",
+            routing_disabled=TemporaryProviderDisable(
+                version=2,
+                provider="claude",
+                created_at=0.0,
+                expires_at=None,
+                source="test",
+                mode=PROVIDER_DISABLE_MODE_HARD,
+            ),
+        ),
+        make_entry(
+            "codex",
+            routing_disabled=TemporaryProviderDisable(
+                version=2,
+                provider="codex",
+                created_at=0.0,
+                expires_at=None,
+                source="test",
+                mode=PROVIDER_DISABLE_MODE_SOFT,
+            ),
+        ),
+    )
+
+    code = _run(_args(json=True), catalog=catalog)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["counts"]["routing_disabled"] == 1
+    by_provider = {entry["provider"]: entry for entry in payload["entries"]}
+    assert by_provider["claude"]["routing_disabled"]["mode"] == "hard"
+    assert by_provider["codex"]["routing_disabled"]["mode"] == "soft"
 
 
 def test_dry_run_prints_window_directory_env_and_command() -> None:

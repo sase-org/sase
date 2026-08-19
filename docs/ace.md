@@ -2751,7 +2751,7 @@ references use the same `configured → @<target> @ <effort>` form. A model-spec
 effort carried by an override appears beside the effective provider/model badge. When
 one or more providers are temporarily disabled, the title adds a compact
 `disabled providers:` line with each active provider and its remaining time, or
-`until cleared` for a no-expiry disable.
+`until cleared` for a no-expiry disable. Soft disables render as `CLAUDE soft <time>`.
 
 The alias area is split into **Built-in size aliases** and **Your aliases**. Each header
 reports the aliases represented by its rows (including members of collapsed custom
@@ -3043,17 +3043,18 @@ or description, or the displayed target. For persistent edits, the current alias
 alias that would introduce a direct or transitive cycle remain visible but unavailable
 with a concise reason. `Custom...` accepts a concrete model string, `provider/model`
 path, or bare `@alias` reference in both flows and applies the same safety check to
-free-form `@alias` values. Concrete model rows for temporarily disabled providers are
-omitted; alias rows remain visible and show their current live fallback target.
-Free-form explicit input is validated before submission and reports the same
-disabled-provider diagnostic as a launch. In `Edit`, `Custom...` additionally accepts a
-typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
-value, so changing one member of an existing selector no longer means retyping the whole
-expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
-that builds a selector from the picker without typing `|` by hand (see
-[Persistent edits](#persistent-edits) below). In `Override`, a typed pool or fallback is
-refused outright with a message pointing at `e` — selectors are config-only and
-overrides take a single target, so `Override`'s `Custom...` never shows the
+free-form `@alias` values. Concrete model rows for **hard**-disabled providers are
+omitted; **soft**-disabled providers stay in the picker (header labelled `soft`, rows
+dimmed one step) and remain selectable. Alias rows remain visible and show their current
+live fallback target. Free-form explicit input is validated before submission and
+reports the same disabled-provider diagnostic as a launch. In `Edit`, `Custom...`
+additionally accepts a typed `|` pool or `||` fallback expression and opens prefilled
+with the alias's current value, so changing one member of an existing selector no longer
+means retyping the whole expression; `Edit` also offers a guided `Pool / fallback...`
+row next to `Custom...` that builds a selector from the picker without typing `|` by
+hand (see [Persistent edits](#persistent-edits) below). In `Override`, a typed pool or
+fallback is refused outright with a message pointing at `e` — selectors are config-only
+and overrides take a single target, so `Override`'s `Custom...` never shows the
 `Pool / fallback...` row.
 
 `Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`,
@@ -3105,15 +3106,16 @@ routes through such a pool.
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit
 `provider_name` argument always win, already-running agents keep their current
-provider/model. A temporary provider disable is different: an explicit request for a
-disabled provider fails with a provider-and-expiry diagnostic rather than silently
-switching providers. Override state is persisted to `~/.sase/llm_override.json` — shared
-across all sase processes on the machine — and is best-effort self-cleaning: expired or
-malformed entries are pruned on next read. `Until cleared` is a no-expiry mode —
-convenient, but still a _temporary_ state, not a permanent config edit. The temporary
-override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the
-full provider/model path, while the tier override only applies when no concrete override
-is active.
+provider/model. A temporary **hard** provider disable is different: an explicit request
+for a hard-disabled provider fails with a provider-and-expiry diagnostic rather than
+silently switching providers. A **soft** disable never fails that explicit request.
+Override state is persisted to `~/.sase/llm_override.json` — shared across all sase
+processes on the machine — and is best-effort self-cleaning: expired or malformed
+entries are pruned on next read. `Until cleared` is a no-expiry mode — convenient, but
+still a _temporary_ state, not a permanent config edit. The temporary override is
+independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the full
+provider/model path, while the tier override only applies when no concrete override is
+active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land
 agents) route directly through the

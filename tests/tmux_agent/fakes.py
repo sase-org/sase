@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 import subprocess
 
+from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.tmux_agent.models import TmuxAgentCatalog, TmuxAgentEntry
 from sase.tmux_agent.tmux import TmuxRunner
 
@@ -90,6 +91,7 @@ def make_entry(
     argv: tuple[str, ...] = (),
     env: tuple[tuple[str, str], ...] = (),
     install_hint: str = "",
+    routing_disabled: TemporaryProviderDisable | None = None,
 ) -> TmuxAgentEntry:
     return TmuxAgentEntry(
         provider=provider,
@@ -101,7 +103,7 @@ def make_entry(
         executable=f"/usr/bin/{provider}" if installed else None,
         installed=installed,
         install_hint=install_hint or f"install {provider} first",
-        routing_disabled=None,
+        routing_disabled=routing_disabled,
         argv=argv or (provider,),
         env=env,
         effort=None,
