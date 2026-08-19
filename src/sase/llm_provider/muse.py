@@ -228,6 +228,7 @@ class MuseProvider(LLMProvider):
         return {
             "manager": "script",
             "display_name": "Muse Code",
+            "vendor": "Meta",
             "docs_url": (
                 "https://developer.meta.com/ai/resources/blog/build-with-muse-code/"
             ),
@@ -256,6 +257,17 @@ class MuseProvider(LLMProvider):
             # Without MUSE_UPGRADE_MODE=1 the installer appends `export PATH=`
             # lines to the user's shell rc files.
             "install_env": {"MUSE_UPGRADE_MODE": "1"},
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        # Mirror the headless invoke env: a multi-hour session must not have
+        # its binary swapped mid-flight by the Muse launcher's auto-update.
+        return {
+            "menu_key": "m",
+            "bypass_args": ["--yolo"],
+            "model_args": ["--model", "{model}"],
+            "env": {_MUSE_NO_AUTO_UPDATE_ENV: "1"},
         }
 
     @hookimpl

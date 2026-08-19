@@ -107,7 +107,9 @@ class LLMHookSpec:
         ``manager`` names the external package manager needed to install this
         provider CLI, such as ``npm``. ``package`` and ``scope`` are optional
         descriptive fields used in diagnostic output. Providers may also
-        declare ``display_name``, ``docs_url``, ``self_update_argv``,
+        declare ``display_name``, ``docs_url``, ``vendor`` (a secondary label
+        such as ``"Anthropic"``, ``"OpenAI"``, ``"Google"``, ``"Alibaba"``,
+        ``"SST"``, ``"xAI"``, or ``"Meta"``), ``self_update_argv``,
         ``version_argv`` (default ``["--version"]``), ``version_regex``,
         ``latest_version_package``, and ``brew_package``.
 
@@ -123,6 +125,27 @@ class LLMHookSpec:
         SASE can report whether it landed on ``PATH``. Values must not contain
         secrets. Consumers must treat every field as optional so third-party
         providers remain compatible.
+        """
+        ...
+
+    @hookspec(firstresult=True)
+    def llm_interactive_cli(self) -> dict[str, object] | None:
+        """How this provider's CLI is launched interactively, in a terminal.
+
+        All keys are optional so third-party providers stay compatible:
+
+        ``argv``        base argv; defaults to ``[llm_autodetect_cli_name()]``.
+        ``args``        always-on interactive args.
+        ``bypass_args`` args that skip this CLI's approval prompts.
+        ``model_args``  argv fragment selecting a model; the literal ``{model}``
+                        token is replaced with the configured model exactly once.
+        ``env``         environment the CLI needs in interactive mode.
+        ``menu_key``    preferred single-character shortcut.
+        ``supported``   ``False`` marks a provider with no interactive CLI, which
+                        excludes it from the tmux Agent launcher.
+
+        Omitting the hook entirely means "launchable as the bare CLI name with no
+        extra flags", so a new provider is usable the moment it declares a CLI.
         """
         ...
 

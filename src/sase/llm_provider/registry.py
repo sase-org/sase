@@ -28,7 +28,9 @@ from ._registry_catalog import (
     model_advisory_color,
     model_advisory_map as _model_advisory_map,
     model_advisory_marker,
+    provider_interactive_cli_map as _interactive_cli_map_from_payload,
     provider_names as _payload_provider_names,
+    provider_vendor_map as _vendor_map_from_payload,
     string_map as _string_map,
 )
 from ._registry_metadata import (
@@ -159,6 +161,25 @@ def model_advisory_for(model: str | None) -> dict[str, str] | None:
 def provider_cli_status_color_map() -> dict[str, str]:
     """Return provider colors from plugin metadata, plus vendor-family defaults."""
     return _string_map(_llm_metadata_payload(), "provider_cli_status_colors")
+
+
+def provider_interactive_cli_map() -> dict[str, dict[str, Any]]:
+    """Return ``{provider_name → interactive CLI descriptor}`` from metadata.
+
+    Each descriptor is the normalized ``llm_interactive_cli`` payload. Providers
+    that omit the hook still appear, with ``argv`` defaulting to the
+    autodetected CLI name and ``supported`` defaulting to ``True``.
+    """
+    return _interactive_cli_map_from_payload(_llm_metadata_payload())
+
+
+def provider_vendor_map() -> dict[str, str]:
+    """Return ``{provider_name → vendor}`` from install metadata.
+
+    Providers that omit ``vendor`` appear with an empty string so callers can
+    render the secondary menu label without a second payload walk.
+    """
+    return _vendor_map_from_payload(_llm_metadata_payload())
 
 
 def model_picker_hidden_provider_names() -> frozenset[str]:

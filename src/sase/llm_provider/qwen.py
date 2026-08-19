@@ -152,8 +152,17 @@ class QwenProvider(LLMProvider):
             "package": "@qwen-code/qwen-code",
             "scope": "global",
             "display_name": "Qwen Code",
+            "vendor": "Alibaba",
             "docs_url": "https://qwenlm.github.io/qwen-code-docs/en/",
             "latest_version_package": "@qwen-code/qwen-code",
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        return {
+            "menu_key": "q",
+            "bypass_args": ["--yolo"],
+            "model_args": ["--model", "{model}"],
         }
 
     @hookimpl

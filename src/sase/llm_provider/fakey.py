@@ -148,6 +148,10 @@ class FakeyProvider(LLMProvider):
         }
 
     @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        return {"supported": False}
+
+    @hookimpl
     def llm_hidden_from_model_pickers(self) -> bool:
         return True
 

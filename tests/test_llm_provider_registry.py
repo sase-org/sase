@@ -42,6 +42,8 @@ def test_metadata_payload_is_memoized(monkeypatch: pytest.MonkeyPatch) -> None:
     registry.provider_short_name_map()
     registry.model_short_alias_map()
     registry.provider_cli_status_color_map()
+    registry.provider_interactive_cli_map()
+    registry.provider_vendor_map()
     registry._provider_names()
     try:
         registry.get_default_provider_name()

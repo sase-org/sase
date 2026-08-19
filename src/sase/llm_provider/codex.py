@@ -279,10 +279,19 @@ class CodexProvider(LLMProvider):
             "package": "@openai/codex",
             "scope": "global",
             "display_name": "Codex CLI",
+            "vendor": "OpenAI",
             "docs_url": "https://developers.openai.com/codex/cli/",
             "self_update_argv": ["update"],
             "latest_version_package": "@openai/codex",
             "brew_package": "codex",
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        return {
+            "menu_key": "x",
+            "bypass_args": ["--dangerously-bypass-approvals-and-sandbox"],
+            "model_args": ["--model", "{model}"],
         }
 
     @hookimpl

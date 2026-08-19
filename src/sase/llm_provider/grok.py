@@ -140,9 +140,18 @@ class GrokProvider(LLMProvider):
             "package": "@xai-official/grok",
             "scope": "global",
             "display_name": "Grok Build",
+            "vendor": "xAI",
             "docs_url": "https://docs.x.ai/build/overview",
             "self_update_argv": ["update"],
             "latest_version_package": "@xai-official/grok",
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        return {
+            "menu_key": "g",
+            "bypass_args": ["--always-approve"],
+            "model_args": ["--model", "{model}"],
         }
 
     @hookimpl

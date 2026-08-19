@@ -353,8 +353,17 @@ class AgyProvider(LLMProvider):
             "manager": "native",
             "scope": "user",
             "display_name": "Antigravity CLI",
+            "vendor": "Antigravity",
             "docs_url": "https://antigravity.google/docs/cli-install",
             "self_update_argv": ["update"],
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        return {
+            "menu_key": "a",
+            "bypass_args": ["--dangerously-skip-permissions"],
+            "model_args": ["--model", "{model}"],
         }
 
     @hookimpl

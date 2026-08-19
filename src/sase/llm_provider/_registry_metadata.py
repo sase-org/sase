@@ -59,6 +59,11 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     usage_limit_config = _call_optional(plugin, "llm_default_usage_limit_config")
     auth_evidence = _auth_evidence_metadata(_call_optional(plugin, "llm_auth_evidence"))
     install_metadata = _install_metadata(_call_optional(plugin, "llm_install_metadata"))
+    autodetect_cli_name = _call_optional(plugin, "llm_autodetect_cli_name")
+    interactive_cli = _interactive_cli(
+        _call_optional(plugin, "llm_interactive_cli"),
+        default_argv=_default_interactive_argv(autodetect_cli_name),
+    )
 
     model_resolutions: dict[str, str] = {}
     resolve_model = getattr(plugin, "llm_resolve_model_name", None)
@@ -85,9 +90,10 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         ),
         "cli_status_color": _call_optional(plugin, "llm_cli_status_color"),
         "autodetect_priority": _call_optional(plugin, "llm_autodetect_priority"),
-        "autodetect_cli_name": _call_optional(plugin, "llm_autodetect_cli_name"),
+        "autodetect_cli_name": autodetect_cli_name,
         "auth_evidence": auth_evidence,
         "install": install_metadata,
+        "interactive_cli": interactive_cli,
         "default_retry_config": _dataclass_to_dict(retry_config),
         "default_usage_limit_config": _dataclass_to_dict(usage_limit_config),
         "model_resolutions": model_resolutions,
@@ -145,6 +151,7 @@ def _install_metadata(value: Any) -> dict[str, Any]:
     for key in (
         "display_name",
         "docs_url",
+        "vendor",
         "version_regex",
         "latest_version_package",
         "latest_version_url",
@@ -200,6 +207,46 @@ def _model_advisories(value: Any) -> dict[str, dict[str, str]]:
             "detail": _optional_str(raw_advisory.get("detail")) or "",
         }
     return advisories
+
+
+def _interactive_cli(value: Any, *, default_argv: tuple[str, ...]) -> dict[str, Any]:
+    """Normalize the ``llm_interactive_cli`` hook result.
+
+    Unknown keys are dropped. Malformed values degrade to the field default
+    rather than raising, matching :func:`_call_optional` so a third-party
+    plugin cannot break registry metadata collection.
+    """
+    raw = value if isinstance(value, dict) else {}
+    argv = _str_tuple(raw.get("argv"))
+    return {
+        "argv": argv or default_argv,
+        "args": _str_tuple(raw.get("args")),
+        "bypass_args": _str_tuple(raw.get("bypass_args")),
+        "model_args": _str_tuple(raw.get("model_args")),
+        "env": normalize_str_dict(raw.get("env")),
+        "menu_key": _menu_key(raw.get("menu_key")),
+        "supported": raw.get("supported") is not False,
+    }
+
+
+def _default_interactive_argv(cli_name: Any) -> tuple[str, ...]:
+    name = _optional_str(cli_name)
+    return (name,) if name is not None else ()
+
+
+def _str_tuple(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    if any(not isinstance(item, str) for item in value):
+        return ()
+    return tuple(item.strip() for item in value if item.strip())
+
+
+def _menu_key(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    stripped = value.strip()
+    return stripped[:1]
 
 
 def _env_metadata(value: Any) -> dict[str, str]:

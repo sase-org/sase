@@ -109,6 +109,42 @@ def hidden_provider_names(payload: Mapping[str, Any]) -> frozenset[str]:
     )
 
 
+def provider_interactive_cli_map(
+    payload: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Return each provider's normalized interactive-CLI descriptor."""
+    providers = payload.get("providers")
+    if not isinstance(providers, dict):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for name, metadata in providers.items():
+        if not isinstance(metadata, dict):
+            continue
+        descriptor = metadata.get("interactive_cli")
+        if isinstance(descriptor, dict):
+            result[str(name)] = descriptor
+    return result
+
+
+def provider_vendor_map(payload: Mapping[str, Any]) -> dict[str, str]:
+    """Return each provider's vendor label from install metadata."""
+    providers = payload.get("providers")
+    if not isinstance(providers, dict):
+        return {}
+    result: dict[str, str] = {}
+    for name, metadata in providers.items():
+        if not isinstance(metadata, dict):
+            continue
+        vendor = ""
+        install = metadata.get("install")
+        if isinstance(install, dict):
+            raw = install.get("vendor")
+            if isinstance(raw, str) and raw.strip():
+                vendor = raw.strip()
+        result[str(name)] = vendor
+    return result
+
+
 def provider_names(payload: Mapping[str, Any]) -> list[str]:
     """Return registered provider names from a metadata payload."""
     names = payload.get("provider_names")

@@ -160,10 +160,21 @@ class OpenCodeProvider(LLMProvider):
             "package": "opencode-ai",
             "scope": "global",
             "display_name": "OpenCode",
+            "vendor": "SST",
             "docs_url": "https://opencode.ai/docs/",
             "self_update_argv": ["upgrade"],
             "latest_version_package": "opencode-ai",
             "brew_package": "opencode",
+        }
+
+    @hookimpl
+    def llm_interactive_cli(self) -> dict[str, object]:
+        # The interactive CLI is launched bare; no approval-bypass flag is
+        # documented for this surface. Extra flags belong in tmux_agent config.
+        return {
+            "menu_key": "o",
+            "bypass_args": [],
+            "model_args": ["--model", "{model}"],
         }
 
     @hookimpl
