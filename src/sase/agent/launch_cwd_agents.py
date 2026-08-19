@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.agent.launch_cwd_common import (
@@ -14,6 +16,11 @@ from sase.agent.launch_cwd_common import (
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
 
+if TYPE_CHECKING:
+    from sase.agent.launch_guard import LaunchUnitInput
+
+log = logging.getLogger(__name__)
+
 
 def launch_agents_from_cwd_impl(
     query: str,
@@ -23,6 +30,7 @@ def launch_agents_from_cwd_impl(
     *,
     recursive_launch_agents_from_cwd: Callable[..., list[AgentLaunchResult]]
     | None = None,
+    launch_units: Sequence[LaunchUnitInput] | None = None,
 ) -> list[AgentLaunchResult]:
     """Resolve project context from CWD and launch one or more background agents.
 
@@ -35,12 +43,16 @@ def launch_agents_from_cwd_impl(
     Args:
         query: The prompt/xprompt string to run as an agent.
         timestamp: Optional preallocated launch timestamp for fan-out callers.
+        launch_units: Optional ACE-resolved expanded units. When supplied,
+            these replace ``parse_multi_prompt`` + xprompt-swarm expansion.
 
     Returns:
         AgentLaunchResult records for every spawned slot.
 
     Raises:
         RuntimeError: If workspace allocation or claiming fails.
+        DisabledProviderLaunchError: If a unit can only run on a hard-disabled
+            provider. Unexpected guard failures are logged and swallowed.
     """
 
     def record_failed_launch_prompt(text: str) -> None:
@@ -114,14 +126,28 @@ def launch_agents_from_cwd_impl(
     expanded_segment_extra_env: list[dict[str, str] | None] | None = None
     expanded_segment_template_groups: list[str | None] = []
     expanded_segment_swarm_xprompts: list[tuple[str, ...]] = []
-    if segment_extra_env is not None:
+    if launch_units is not None:
+        if segment_extra_env is not None and len(segment_extra_env) != len(
+            launch_units
+        ):
+            raise ValueError("segment_extra_env must have one entry per launch unit")
+        expanded_segments = [unit.prompt for unit in launch_units]
+        expanded_segment_template_groups = [
+            unit.template_group for unit in launch_units
+        ]
+        expanded_segment_swarm_xprompts = [
+            tuple(unit.swarm_xprompts) for unit in launch_units
+        ]
+        if segment_extra_env is not None:
+            expanded_segment_extra_env = list(segment_extra_env)
+    elif segment_extra_env is not None:
         if len(segment_extra_env) != len(multi.segments):
             raise ValueError(
                 "segment_extra_env must have one entry per multi-prompt segment"
             )
         from itertools import count
 
-        expanded_segments: list[str] = []
+        expanded_segments = []
         expanded_segment_extra_env = []
         # Share one invocation counter across the per-segment calls so two
         # invocations of the same xprompt swarm get distinct template
@@ -165,6 +191,14 @@ def launch_agents_from_cwd_impl(
         expanded_segment_swarm_xprompts = [
             record.swarm_xprompts for record in expanded_records
         ]
+
+    _guard_hard_disabled_launch_units(
+        submitted_query,
+        expanded_segments=expanded_segments,
+        template_groups=expanded_segment_template_groups,
+        swarm_xprompts=expanded_segment_swarm_xprompts,
+        record_failed_launch_prompt=record_failed_launch_prompt,
+    )
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
 
@@ -545,3 +579,43 @@ def launch_agents_from_cwd_impl(
         record_failed_launch_prompt(query)
         raise
     return execution.results
+
+
+def _guard_hard_disabled_launch_units(
+    submitted_query: str,
+    *,
+    expanded_segments: Sequence[str],
+    template_groups: Sequence[str | None],
+    swarm_xprompts: Sequence[tuple[str, ...]],
+    record_failed_launch_prompt: Callable[[str], None],
+) -> None:
+    """Refuse a confirmed hard-disable block; fail open on guard surprises."""
+    from sase.agent.launch_guard import (
+        DisabledProviderLaunchError,
+        LaunchUnitInput,
+        guard_launch_units,
+    )
+
+    unit_inputs = tuple(
+        LaunchUnitInput(
+            prompt=segment,
+            template_group=group,
+            swarm_xprompts=tuple(swarm),
+        )
+        for segment, group, swarm in zip(
+            expanded_segments,
+            template_groups,
+            swarm_xprompts,
+            strict=True,
+        )
+    )
+    try:
+        guard_launch_units(submitted_query, units=unit_inputs)
+    except DisabledProviderLaunchError:
+        record_failed_launch_prompt(submitted_query)
+        raise
+    except Exception:
+        log.warning(
+            "provider-disable launch guard failed open; continuing with launch",
+            exc_info=True,
+        )

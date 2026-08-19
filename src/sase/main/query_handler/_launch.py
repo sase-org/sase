@@ -82,6 +82,7 @@ def launch_query(query: str) -> None:
         sys.exit(0)
 
     segment_extra_env = None
+    force_reuse_applied = False
     if allow_force_reuse:
         from sase.agent.force_reuse_launch import (
             apply_force_reuse_launch,
@@ -109,9 +110,32 @@ def launch_query(query: str) -> None:
                 sys.exit(1)
             query = force_reuse_plan.rewritten_prompt
             segment_extra_env = force_reuse_plan.segment_envs
+            force_reuse_applied = True
+
+    launch_units = None
+    if not force_reuse_applied and payload.get("launch_units") is not None:
+        from sase.agent.launch_guard import (
+            LaunchUnitsPayloadError,
+            parse_launch_units_payload,
+        )
+        from sase.ops.commands.run import emit_run_launch_result
+
+        try:
+            launch_units = parse_launch_units_payload(payload.get("launch_units"))
+        except LaunchUnitsPayloadError as exc:
+            message = str(exc)
+            print(f"Error: {message}", file=sys.stderr)
+            emit_run_launch_result(success=False, message=message)
+            sys.exit(1)
 
     try:
-        if segment_extra_env is not None:
+        if launch_units is not None:
+            results = launch_agents_from_cwd(
+                query,
+                segment_extra_env=segment_extra_env,
+                launch_units=launch_units,
+            )
+        elif segment_extra_env is not None:
             results = launch_agents_from_cwd(query, segment_extra_env=segment_extra_env)
         else:
             results = launch_agents_from_cwd(query)
