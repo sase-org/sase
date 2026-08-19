@@ -1070,11 +1070,13 @@ def _validate_provider_disable_first_writer(module: ModuleType) -> bool:
     now = 1_800_000_000.0
     with tempfile.TemporaryDirectory(prefix="sase-core-rs-provider-disable-probe-") as tmp:
         try:
-            first = try_relative(tmp, "claude", "usage_limit", 900.0, now)
-            sibling = try_until(tmp, "codex", now + 1_200.0, "test", now)
-            lost = try_until(tmp, "claude", now + 3_600.0, "ace", now)
+            first = try_relative(tmp, "claude", "usage_limit", duration_seconds=900.0, now=now)
+            sibling = try_until(tmp, "codex", now + 1_200.0, "test", now=now)
+            lost = try_until(tmp, "claude", now + 3_600.0, "ace", now=now)
             snapshot = get_snapshot(tmp, now)
-            expired = try_relative(tmp, "claude", "usage_limit", 60.0, now + 900.0)
+            expired = try_relative(
+                tmp, "claude", "usage_limit", duration_seconds=60.0, now=now + 900.0
+            )
         except Exception as exc:
             _error(f"provider-disable first-writer probe failed: {exc}")
             return False
@@ -1109,7 +1111,7 @@ def _validate_provider_disable_first_writer(module: ModuleType) -> bool:
         label="losing until write",
     ):
         return False
-    if not isinstance(snapshot, dict) or snapshot.get("version") != 1:
+    if not isinstance(snapshot, dict) or snapshot.get("version") != 2:
         _error(f"provider-disable snapshot probe returned stale payload: {snapshot!r}")
         return False
     disables = snapshot.get("disables")
@@ -1141,11 +1143,12 @@ def _expect_provider_disable_outcome(
     created_at: float,
     expires_at: float,
     label: str,
+    mode: str = "hard",
 ) -> bool:
     if not isinstance(payload, dict):
         _error(f"provider-disable {label} probe returned a non-dict payload")
         return False
-    if payload.get("version") != 1:
+    if payload.get("version") != 2:
         _error(
             f"provider-disable {label} probe returned stale outcome version: "
             f"{payload.get('version')!r}"
@@ -1162,11 +1165,12 @@ def _expect_provider_disable_outcome(
         _error(f"provider-disable {label} probe payload has no record dict")
         return False
     expected = {
-        "version": 1,
+        "version": 2,
         "provider": provider,
         "created_at": created_at,
         "expires_at": expires_at,
         "source": source,
+        "mode": mode,
     }
     mismatches = [
         f"{name}={record.get(name)!r} (expected {value!r})"

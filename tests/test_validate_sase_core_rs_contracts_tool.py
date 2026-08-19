@@ -155,15 +155,17 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
             _home: str,
             provider: str,
             source: str,
-            duration: float,
-            current: float,
+            mode: str = "hard",
+            duration_seconds: float = 0.0,
+            now: float = 0.0,
         ) -> dict[str, object]:
             return _store_if_absent(
                 state,
                 provider,
                 source,
-                current,
-                current + duration,
+                mode,
+                now,
+                now + duration_seconds,
             )
 
         def try_until(
@@ -171,13 +173,14 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
             provider: str,
             expires_at: float,
             source: str,
-            current: float,
+            mode: str = "hard",
+            now: float = 0.0,
         ) -> dict[str, object]:
-            return _store_if_absent(state, provider, source, current, expires_at)
+            return _store_if_absent(state, provider, source, mode, now, expires_at)
 
         def get_snapshot(_home: str, _current: float) -> dict[str, object]:
             return {
-                "version": 1,
+                "version": 2,
                 "disables": [state[name] for name in sorted(state)],
             }
 
@@ -191,6 +194,7 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
         state: dict[str, dict[str, object]],
         provider: str,
         source: str,
+        mode: str,
         current: float,
         expires_at: float,
     ) -> dict[str, object]:
@@ -203,16 +207,17 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
             and isinstance(existing_expires, (int, float))
             and current < float(existing_expires)
         ):
-            return {"version": 1, "inserted": False, "record": existing}
+            return {"version": 2, "inserted": False, "record": existing}
         record = {
-            "version": 1,
+            "version": 2,
             "provider": provider,
             "created_at": current,
             "expires_at": expires_at,
             "source": source,
+            "mode": mode,
         }
         state[provider] = record
-        return {"version": 1, "inserted": True, "record": record}
+        return {"version": 2, "inserted": True, "record": record}
 
     assert validator._validate_provider_disable_first_writer(first_writer_module())
 
@@ -220,18 +225,20 @@ def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
         _home: str,
         provider: str,
         source: str,
-        duration: float,
-        current: float,
+        mode: str = "hard",
+        duration_seconds: float = 0.0,
+        now: float = 0.0,
     ) -> dict[str, object]:
         return {
-            "version": 1,
+            "version": 2,
             "inserted": True,
             "record": {
-                "version": 1,
+                "version": 2,
                 "provider": provider,
-                "created_at": current,
-                "expires_at": current + duration,
+                "created_at": now,
+                "expires_at": now + duration_seconds,
                 "source": source,
+                "mode": mode,
             },
         }
 
