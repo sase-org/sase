@@ -1036,14 +1036,16 @@ selection cancels with a warning rather than opening a prompt for the wrong targ
 
 ### Clan and Family Detail Panels
 
-Selecting a clan container shows a `CLAN` summary; selecting a real multi-member family
-root shows that family's normal agent metadata plus a `FAMILY MEMBERS` roster. Both
-rosters use the numbered member jumps described above. Clan direct members in the Agents
-list sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done
-— with launch recency breaking ties. The clan metadata roster instead keeps
-chronological launch order so its numbers do not change as statuses change; a nested
-family remains one direct entry with its chain indented beneath it. Family rosters
-retain sequential chain order.
+Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member family
+root opens with underlined `FAMILY` (cyan, matching the name) like `CLAN` / `TRIBE`,
+then the family's normal agent metadata plus a `FAMILY MEMBERS` roster. A selected agent
+shell — standalone or family member — opens with underlined `AGENT SHELL` (gold,
+matching the name). Both rosters use the numbered member jumps described above. Clan
+direct members in the Agents list sort by status priority — Failed, Stopped,
+Running/Starting, Queued, Waiting, Done — with launch recency breaking ties. The clan
+metadata roster instead keeps chronological launch order so its numbers do not change as
+statuses change; a nested family remains one direct entry with its chain indented
+beneath it. Family rosters retain sequential chain order.
 
 Selecting a family **member** row (not the container) also shows a `FAMILY MEMBERS`
 roster: the same enclosing family's members, in the same chain order, minus the selected
@@ -3968,6 +3970,14 @@ pinned attempt view resets the cursor.
   indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered section
   headings, and pressing the row's number jumps to that member in the Agents list. At
   most 100 members receive numbers.
+- **FAMILY**: Shown when a real multi-member family root is selected. The cyan heading
+  and cyan `Name:` value match the family row's identity block. The line is header
+  chrome, not a `Ctrl+J` title; the first navigable section remains `FAMILY MEMBERS` (or
+  the next rendered title if that roster is absent).
+- **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
+  The gold heading and gold `Name:` value match the list-row name annotation. The line
+  is header chrome, not a `Ctrl+J` title. Monitor members and workflow step children
+  (`bash` / `python` / `parallel`) do not get this heading.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

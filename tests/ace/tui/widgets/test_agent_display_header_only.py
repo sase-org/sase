@@ -76,7 +76,7 @@ def test_update_header_only_renders_agent_details() -> None:
 
     assert panel.captured, "update_header_only should call self.update"
     plain = _plain_of(panel.captured[-1])
-    assert plain.startswith("Name: unassigned\n")
+    assert plain.startswith("AGENT SHELL\nName: unassigned\n")
     assert "my_change" in plain
     assert "cl/123" in plain
 
@@ -183,7 +183,7 @@ def test_update_header_only_includes_error_traceback() -> None:
     has_syntax = any(isinstance(r, Syntax) for r in rendered.renderables)
     assert has_syntax, "error_traceback should render as a Syntax block"
     plain = _plain_of(rendered)
-    assert plain.startswith("Name: unassigned\n")
+    assert plain.startswith("AGENT SHELL\nName: unassigned\n")
     assert "ValueError: boom" in plain
 
 
@@ -275,7 +275,7 @@ def test_update_display_header_renders_debounced_full_enrichment(
         panel.update_display(agent)
 
         plain = _plain_of(panel.captured[-1])
-        assert plain.startswith("Name: unassigned\n")
+        assert plain.startswith("AGENT SHELL\nName: unassigned\n")
         assert "Deltas:" not in plain
         assert "Commits:" not in plain
         assert "AGENT CHAT" in plain

@@ -19,9 +19,12 @@ from ._agent_display_tribe_common import (
     TRIBE_IDENTITY_COLOR,
 )
 from ._fold_language import append_fold_header_line
-from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
+from ._helpers import (
+    PROMPT_PANEL_LINE_CELL_LIMIT,
+    append_kind_header,
+    wrap_text_by_cells,
+)
 
-_TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _DESCRIPTION_STYLE = "italic #C6C6C6"
 
 
@@ -30,7 +33,7 @@ def append_tribe_header(
     snapshot: AgentTribeSummarySnapshot,
     fold_level: FoldLevel,
 ) -> None:
-    text.append("TRIBE\n", style=_TRIBE_HEADING_STYLE)
+    append_kind_header(text, "TRIBE", TRIBE_IDENTITY_COLOR)
     text.append("Name: ", style=FIELD_LABEL_STYLE)
     text.append(
         f"{snapshot.label}\n",

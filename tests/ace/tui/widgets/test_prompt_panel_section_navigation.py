@@ -472,6 +472,37 @@ def test_family_conversation_headings_remain_navigation_targets(
         if identity in {"agent-xprompt", "agent-prompt", "agent-reply"}
     ]
     assert conversation_ids == ["agent-xprompt", "agent-prompt", "agent-reply"]
+    assert "family" not in identities
+    assert "agent-shell" not in identities
+    assert identities[0] == "members"
+
+
+def test_family_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
+    family, _child = make_family(tmp_path)
+    header, _ = build_header_text(
+        family,
+        cheap=True,
+        lane_fold_level=FoldLevel.EXPANDED,
+    )
+
+    identities = _rendered_section_ids(header, width=80)
+
+    assert family.is_family_container_row is True
+    assert header.plain.startswith("FAMILY\n")
+    assert "family" not in identities
+    assert identities[0] == "members"
+
+
+def test_agent_shell_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
+    _root, child = make_family(tmp_path)
+    header, _ = build_header_text(child, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
+
+    identities = _rendered_section_ids(header, width=80)
+
+    assert header.plain.startswith("AGENT SHELL\n")
+    assert "agent-shell" not in identities
+    assert "family" not in identities
+    assert identities[0] == "members"
 
 
 class _MetadataNavigationApp(BasicNavigationMixin, App[None]):

@@ -50,10 +50,10 @@ from ._container_hint_text import (
 )
 from ._file_path_hints import has_file_path, resolve_agent_workspace_dir
 from ._fold_language import append_fold_header_line, append_scanning_tail
+from ._helpers import append_kind_header
 from ._hint_caps import HintContentBudget
 from ._member_roster import MemberJumpMap, append_member_roster
 
-_CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
 _FIELD_LABEL_STYLE = "bold #87D7FF"
 _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
@@ -162,7 +162,7 @@ def build_clan_detail_text(
     )
 
     text = Text()
-    text.append("CLAN\n", style=_CLAN_HEADING_STYLE)
+    append_kind_header(text, "CLAN", _CLAN_IDENTITY_COLOR)
     text.append("Name: ", style=_FIELD_LABEL_STYLE)
     text.append(
         f"{agent.agent_clan or agent.display_name}\n",

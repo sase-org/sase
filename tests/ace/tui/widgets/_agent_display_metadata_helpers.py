@@ -25,6 +25,30 @@ def assert_span_covers(text: Text, needle: str, style: str) -> None:
     )
 
 
+def assert_kind_header(
+    text: Text,
+    label: str,
+    color: str,
+    *,
+    before: str | None = None,
+) -> None:
+    """Assert a kind chrome line at the top of a metadata document."""
+    assert text.plain.startswith(f"{label}\n")
+    assert_span_covers(text, label, f"bold {color} underline")
+    if before is None:
+        return
+    start = text.plain.index(label)
+    limit = text.plain.index(before)
+    covering = [
+        span
+        for span in text.spans
+        if span.start <= start < span.end
+        and str(span.style) == f"bold {color} underline"
+    ]
+    assert covering
+    assert covering[0].end <= limit
+
+
 def assert_logical_section_is_compact(
     renderable: Any,
     heading: str,

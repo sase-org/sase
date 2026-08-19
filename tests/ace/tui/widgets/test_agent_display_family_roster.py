@@ -20,6 +20,7 @@ from tests.ace.tui.widgets._agent_display_family_helpers import (
     write_phase_content,
 )
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
+from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_kind_header
 
 
 @pytest.mark.parametrize("in_clan", [False, True])
@@ -41,7 +42,10 @@ def test_family_roster_numbers_real_chain_rows_in_order(
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
     assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
-    assert "Fold: 1/2\n" in header.plain
+    assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY MEMBERS")
+    assert header.plain.startswith("FAMILY\nName:")
+    assert header.plain.index("Name:") < header.plain.index("Fold: 1/2\n")
+    assert header.plain.index("Fold: 1/2\n") < header.plain.index("FAMILY MEMBERS")
     assert "▾ ❖ FAMILY MEMBERS · 2\n" in header.plain
     assert header.plain.index("FAMILY MEMBERS") < header.plain.index("OUTPUT VARIABLES")
     assert [target.member_identity for target in published[0].targets] == [

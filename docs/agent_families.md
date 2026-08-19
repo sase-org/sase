@@ -326,7 +326,8 @@ tribe parents in one multi-parent fork.
 
 ### Family detail folding
 
-Selecting a real multi-member family root in ACE adds a numbered `FAMILY MEMBERS` roster
+Selecting a real multi-member family root in ACE opens the metadata panel with
+underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY MEMBERS` roster
 in stable chain order. The original member and each follow-up are direct jump targets;
 synthetic planner projections and legacy parallel-family scaffolding are not. The same
 `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and
@@ -381,8 +382,9 @@ with a warning instead of landing somewhere stale.
 Unlike the container's two-level family scale, a member panel folds its roster and every
 other section on the selected member's own three-level agent scale (`z1`–`z3`, `zz`,
 `za`, `zA`), so no `Fold: N/M` header line appears. A member row is an agent shell node
-rather than a sase agent, so its panel has no `NEIGHBORS` section — only
-`FAMILY MEMBERS`.
+rather than a sase agent, so its panel names that with underlined `AGENT SHELL` (gold,
+matching the name), has no `NEIGHBORS` section, and shows only `FAMILY MEMBERS` for the
+enclosing family. The container panel names itself `FAMILY`.
 
 #### Per-member model lanes
 

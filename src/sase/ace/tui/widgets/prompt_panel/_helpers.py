@@ -138,6 +138,16 @@ def append_section_heading(
     text.end = ""
 
 
+def append_kind_header(text: Text, label: str, color: str) -> None:
+    """Append a kind identity line that is header chrome, not a section title.
+
+    The underline is one span, including any spaces in ``label``. Do not route
+    kind labels through :func:`append_section_heading`; that would steal the
+    first ``Ctrl+J`` jump from the first real section.
+    """
+    text.append(f"{label}\n", style=f"bold {color} underline")
+
+
 def _mark_section_heading(
     text: Any,
     section_id: str,

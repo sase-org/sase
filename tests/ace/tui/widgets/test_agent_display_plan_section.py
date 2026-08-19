@@ -72,7 +72,7 @@ def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     assert plain.count("Size:") == 1
     assert "Tier:" not in plain
     assert "SASE PLAN" not in plain
-    assert plain.splitlines()[1].startswith("Patch:")
+    assert plain.splitlines()[2].startswith("Patch:")
     assert_span_covers(header, "▸ PLAN", "bold #AF87FF")
     assert_span_covers(header, "Title: ", COLOR_SUMMARY)
     assert_span_covers(header, "Required plan titles", COLOR_PLAN_PRIMARY)

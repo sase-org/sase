@@ -23,12 +23,14 @@ from ...models.fold_scale import (
     lane_fold_scale,
 )
 from ...models.fold_state import FoldLevel
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._agent_bead_section import (
     BEAD_SECTION_ID,
     ResponsiveBeadSection,
     bead_detail_level,
 )
 from ._agent_display_family import (
+    FAMILY_IDENTITY_COLOR,
     append_family_fold_heading,
     append_family_member_roster,
     effective_family_fold_level,
@@ -62,6 +64,7 @@ from ._agent_wait_section import (
 from ._fold_language import append_fold_header_line
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
+    append_kind_header,
     append_major_section_divider,
     append_section_heading,
 )
@@ -165,6 +168,10 @@ def build_header_text(
     queue_selection = runner_queue_selection(agent, runner_capacity)
 
     responsive_ranges: dict[str, tuple[int, int]] = {}
+    if agent.is_family_container_row:
+        append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
+    elif agent.is_agent_entry:
+        append_kind_header(header_text, "AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
     metadata = append_agent_metadata_fields(
         header_text,
         agent,

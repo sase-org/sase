@@ -171,7 +171,7 @@ def test_plan_chain_family_is_unaffected() -> None:
     header, _ = build_header_text(plan_root, cheap=True)
     assert row_text.plain.endswith(" foo")
     assert "foo--plan" not in row_text.plain
-    assert header.plain.startswith("Name: foo\n")
+    assert header.plain.startswith("FAMILY\nName: foo\n")
 
 
 def test_legacy_plan_zero_root_presents_family_name() -> None:
@@ -203,7 +203,7 @@ def test_generic_root_presents_family_container_name() -> None:
     header, _ = build_header_text(root, cheap=True)
     assert row_text.plain.endswith(" foo")
     assert "foo--0" not in row_text.plain
-    assert header.plain.startswith("Name: foo\n")
+    assert header.plain.startswith("AGENT SHELL\nName: foo\n")
 
 
 def test_expanded_generic_family_keeps_concrete_member_names() -> None:

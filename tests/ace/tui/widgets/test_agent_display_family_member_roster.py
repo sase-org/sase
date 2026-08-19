@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
 from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_kind_header
 
 
 def test_member_panel_lists_only_sibling_and_publishes_jump_map(
@@ -29,6 +30,9 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
         member_jump_map_publisher=published.append,
     )
 
+    assert_kind_header(header, "AGENT SHELL", "#FFD700")
+    assert header.plain.startswith("AGENT SHELL\nName:")
+    assert "FAMILY\n" not in header.plain.split("FAMILY MEMBERS", 1)[0]
     assert "▾ ❖ FAMILY MEMBERS · 1 · alpha" in header.plain
     entries = family_roster_entries(root, exclude=child)
     assert [entry.label for entry in entries] == ["--plan"]

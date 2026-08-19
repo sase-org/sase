@@ -57,7 +57,7 @@ class TestAgentNameMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert header.plain.count("Name: ") == 1
-        assert_metadata_prefix(header, "Name: unassigned")
+        assert_metadata_prefix(header, "AGENT SHELL", "Name: unassigned")
         assert_span_covers(header, "unassigned", "dim")
         assert header.plain.index("Name: unassigned\n") < header.plain.index("Patch:")
         assert "Bead:" not in header.plain
@@ -68,7 +68,7 @@ class TestAgentNameMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert header.plain.count("Name: ") == 1
-        assert_metadata_prefix(header, "Name: reviewer")
+        assert_metadata_prefix(header, "AGENT SHELL", "Name: reviewer")
         assert_span_covers(header, "reviewer", "#FFD700")
         assert header.plain.index("Name: reviewer\n") < header.plain.index("Patch:")
 
@@ -81,7 +81,7 @@ class TestAgentNameMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert_metadata_prefix(header, "Name: reviewer")
+        assert_metadata_prefix(header, "AGENT SHELL", "Name: reviewer")
         assert "Retry chain: ↻ attempt #2 (rate_limit)\n" in header.plain
         assert header.plain.index("Name: reviewer\n") < header.plain.index(
             "Retry chain:"
