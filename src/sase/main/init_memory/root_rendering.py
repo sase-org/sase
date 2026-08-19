@@ -190,9 +190,13 @@ def generated_memory_note_relative_paths(
 ) -> tuple[Path, ...]:
     """Return the generated memory-note paths for one memory root.
 
-    Shared notes are always included. Project-only notes (``sase_beads.md``
-    and ``sase_sizes.md``) are added when ``include_project_memory`` is true.
-    Private path helpers feed this set so the two cannot drift.
+    Shared notes are always included. Project-only notes (``glossary.md``,
+    ``sase_beads.md``, and ``sase_sizes.md``) are added when
+    *include_project_memory* is true; ``glossary.md`` is reserved for the
+    generated note whether or not this project declares glossary entries,
+    because ``sase memory init`` either regenerates that path or blocks on an
+    unmarked note already sitting there. The path helpers feed this set so the
+    two cannot drift.
     """
     paths = (
         _generated_sase_memory_relative_path(),
@@ -201,6 +205,7 @@ def generated_memory_note_relative_paths(
     if include_project_memory:
         return (
             *paths,
+            generated_glossary_memory_relative_path(),
             _generated_beads_memory_relative_path(),
             _generated_sizes_memory_relative_path(),
         )

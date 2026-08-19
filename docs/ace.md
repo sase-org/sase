@@ -5269,10 +5269,10 @@ selected note; deleting a note that still has children is refused with an explan
 which children must be reparented first, and deleting a `short` note warns that
 always-loaded agent context is being removed. Every delete leaves a timestamped backup
 and the success toast names it. A generated note (`sase/memory/sase.md`,
-`sase/memory/task_types.md`, and the project-only `sase_beads.md` / `sase_sizes.md`)
-renders its `GENERATED` badge and refuses edit or delete with an explanation. A
-concurrent external edit is caught as a conflict: the write is refused, the panel
-toasts, and the scope reloads instead of silently overwriting the change.
+`sase/memory/task_types.md`, and the project-only `glossary.md` / `sase_beads.md` /
+`sase_sizes.md`) renders its `GENERATED` badge and refuses edit or delete with an
+explanation. A concurrent external edit is caught as a conflict: the write is refused,
+the panel toasts, and the scope reloads instead of silently overwriting the change.
 
 Every successful write marks its scope `UNPUBLISHED`, because the write is not visible
 to agents until `sase memory init` regenerates `AGENTS.md`, the provider shims, and the
