@@ -72,8 +72,20 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # in the import graph, so a change that touches only it contributes no seeds and the
 # contract set is the only thing that would catch a regression. The whole 44-entry set
 # measured 27.8 s under the command above, still inside the 30 s serial budget.
-_MANIFEST_ENTRY_BUDGET = 44
-_MEASURED_SERIAL_COST = "27.8 serial seconds across 44 entries"
+#
+# Re-curated to 49 on 2026-08-18 when `test_config_schema.py` was split by schema
+# domain: ACE settings, scoped keymaps, runtime limits, extension points, and bead
+# settings. The five added paths redistribute the same 91 schema tests rather than
+# expanding contract membership, and each one stays in the set for the reason the
+# original file was admitted -- it validates `src/sase/config/schema.json` and
+# `src/sase/default_config.yml`, data files no import edge reaches. The whole
+# 49-entry set measured 29.8 s under the command above (median of three runs on a
+# host that measured the same set at 29.0 s before the split, so the split itself
+# costs well under a second of extra per-module collection). That is inside the
+# 30 s serial budget the plan sets, but it is the least headroom this set has ever
+# had: the next candidate should displace an entry rather than raise this cap.
+_MANIFEST_ENTRY_BUDGET = 49
+_MEASURED_SERIAL_COST = "29.8 serial seconds across 49 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

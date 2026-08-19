@@ -5,6 +5,11 @@ tests/test_check_sase_core_rs_bindings_tool.py
 tests/test_ci_bootstrap_sidecars_tool.py
 tests/test_commit_type_tag_contract.py
 tests/test_config_schema.py
+tests/test_config_schema_ace.py
+tests/test_config_schema_beads.py
+tests/test_config_schema_extensions.py
+tests/test_config_schema_keymaps.py
+tests/test_config_schema_runtime_limits.py
 tests/test_demo_media_postprocessor.py
 tests/test_gemini_active_surface_guard.py
 tests/test_github_actions_ci.py
