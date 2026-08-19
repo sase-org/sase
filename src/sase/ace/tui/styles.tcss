@@ -1245,6 +1245,37 @@ AgentCleanupModal #agent-cleanup-hints {
     margin-top: 1;
 }
 
+UpdatePanel {
+    align: center middle;
+}
+
+UpdatePanel > #update-panel-container {
+    width: 78;
+    max-width: 92%;
+    height: auto;
+    max-height: 88%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+UpdatePanel #update-panel-list {
+    height: auto;
+    max-height: 24;
+    border: solid $secondary;
+}
+
+UpdatePanel #update-panel-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+UpdatePanel > #update-panel-container.-stale {
+    border-subtitle-color: #FFAF5F;
+}
+
 AgentCleanupTribeModal > #agent-cleanup-tribe-container {
     width: 74;
     max-width: 92%;

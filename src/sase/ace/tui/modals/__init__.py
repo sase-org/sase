@@ -294,6 +294,8 @@ _LAZY_EXPORTS = {
         ".unified_xprompt_save_modal",
         "UnifiedXPromptSaveResult",
     ),
+    "UpdatePanel": (".update_panel", "UpdatePanel"),
+    "UpdatePanelResult": (".update_panel", "UpdatePanelResult"),
     "UpdatePinnedStashModal": (
         ".update_pinned_stash_modal",
         "UpdatePinnedStashModal",
@@ -520,6 +522,8 @@ __all__ = [
     "AliasEditPreviewModal",
     "ModelsPanel",
     "ModelsPanelResult",
+    "UpdatePanel",
+    "UpdatePanelResult",
     "UpdatePinnedStashModal",
     "WaitModal",
     "WaitAgentCandidate",

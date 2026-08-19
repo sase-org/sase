@@ -229,6 +229,8 @@ from .unified_xprompt_save_modal import (
 from .unified_xprompt_save_modal import (
     UnifiedXPromptSaveResult as UnifiedXPromptSaveResult,
 )
+from .update_panel import UpdatePanel as UpdatePanel
+from .update_panel import UpdatePanelResult as UpdatePanelResult
 from .update_pinned_stash_modal import UpdatePinnedStashModal as UpdatePinnedStashModal
 from .user_question_modal import UserQuestionModal as UserQuestionModal
 from .user_question_modal import UserQuestionResult as UserQuestionResult
