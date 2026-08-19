@@ -24,6 +24,7 @@ from sase.plugins.cache import (
     write_cache,
 )
 from sase.plugins.github_source import (
+    CatalogFetchResult,
     GH_SEARCH_QUERY,
     GhNotFoundError,
     PluginCatalogError,
@@ -46,7 +47,7 @@ PluginKind = Literal["builtin", "community"]
 #: A suggestion must clear this fuzzy-match ratio to be offered on a miss.
 _SUGGESTION_THRESHOLD = 0.3
 
-FetchFn = Callable[[], list[dict[str, Any]]]
+FetchFn = Callable[[], list[dict[str, Any]] | CatalogFetchResult]
 ReadCacheFn = Callable[[], CachedCatalog | None]
 WriteCacheFn = Callable[..., None]
 InstalledIndexFn = Callable[[], dict[str, InstalledInfo]]
@@ -207,7 +208,7 @@ def _fetch_or_fall_back(
     warnings: list[str],
 ) -> tuple[list[dict[str, Any]], float, bool]:
     try:
-        payload = fetch_fn()
+        fetched = _as_fetch_result(fetch_fn())
     except GhNotFoundError:
         # A missing gh is always a hard error: never silently serve stale data
         # without the user knowing the CLI they need is absent.
@@ -220,8 +221,17 @@ def _fetch_or_fall_back(
         )
         return list(cached.entries), cached.fetched_at, True
 
-    write_cache_fn(payload, fetched_at=now, query=GH_SEARCH_QUERY)
-    return payload, now, False
+    warnings.extend(fetched.warnings)
+    write_cache_fn(fetched.entries, fetched_at=now, query=GH_SEARCH_QUERY)
+    return fetched.entries, now, False
+
+
+def _as_fetch_result(
+    value: list[dict[str, Any]] | CatalogFetchResult,
+) -> CatalogFetchResult:
+    if isinstance(value, CatalogFetchResult):
+        return value
+    return CatalogFetchResult(entries=value)
 
 
 def _build_entries(

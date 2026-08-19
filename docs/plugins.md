@@ -140,10 +140,13 @@ sase plugin show github -r
 The catalog and latest-version probes are cached separately, so repeat runs are instant
 and bounded:
 
-- The data comes from
-  `gh api --paginate -X GET "search/repositories?q=topic:sase--plugin&per_page=100"`,
-  which returns topics, owner, description, stars, license, and timestamps inline — no
-  per-repo follow-up lookups.
+- The data comes from explicit `gh api` pages of
+  `search/repositories?q=topic:sase--plugin&per_page=100`, which returns topics, owner,
+  description, stars, license, and timestamps inline — no per-repo follow-up lookups.
+  Each page has its own timeout. When GitHub's 1000-result search cap would truncate the
+  catalog, the fetch shards the topic query on stable `stars:` (then `created:`) ranges
+  and unions the results. Truncation or `incomplete_results` surface as catalog warnings
+  rather than silent drops.
 - The cache lives at `~/.sase/plugins/catalog_cache.json` and is written atomically. The
   first run fetches and writes it; later runs read it and only touch the network when
   `-r|--refresh` is passed. A cache older than the soft staleness threshold is still

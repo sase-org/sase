@@ -41,6 +41,15 @@ def test_write_then_read_round_trip() -> None:
     assert _cache_path().exists()
 
 
+def test_write_cache_is_compact_json() -> None:
+    write_cache(_entries(), fetched_at=1000.0, query=GH_SEARCH_QUERY)
+
+    raw = _cache_path().read_text(encoding="utf-8")
+    assert "\n" not in raw
+    assert "  " not in raw
+    assert json.loads(raw)["query"] == GH_SEARCH_QUERY
+
+
 def test_write_is_atomic_no_temp_files_left_behind() -> None:
     write_cache(_entries(), fetched_at=1000.0, query=GH_SEARCH_QUERY)
     leftovers = list(_cache_path().parent.glob("*.tmp"))

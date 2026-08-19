@@ -79,6 +79,10 @@ def test_fetch_page_count_scales_with_catalog_size_not_github_cap() -> None:
     small = measure_fetch_pages(10, runs=1, warmup=0)
     assert small["pages"] == 1.0
     assert small["returned_entries"] == 10.0
+    over_cap = measure_fetch_pages(2000, runs=1, warmup=0)
+    assert over_cap["pages"] == 20.0
+    assert over_cap["returned_entries"] == 2000.0
+    assert over_cap["requests"] > over_cap["pages"]
 
 
 def test_committed_baseline_records_all_sizes_without_enforcing_budgets() -> None:

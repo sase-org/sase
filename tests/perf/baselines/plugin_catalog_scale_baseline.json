@@ -11,7 +11,7 @@
   "filter_keystroke": "q",
   "target_p95_ms": 16.0,
   "budgets_enforced": false,
-  "notes": "Wall-clock p50/p95/max are recorded, not enforced. Phase guard flips budgets on. Enrich scan_work is lookups * n (currently n^2). Fetch pages are ceil(n / 100); GitHub search still silently caps live results at 1000. TUI filter holds match count at 100 (10 at n=10) so the keystroke curve stays comparable; jump-hint rebuilds the unfiltered list and is the TUI path over 16 ms at n>=1000.",
+  "notes": "Wall-clock p50/p95/max are recorded, not enforced. Phase guard flips budgets on. Enrich scan_work is lookups * n (currently n^2). Fetch pages are ceil(n / 100); live fetch shards past GitHub's 1000-result search cap. TUI filter holds match count at 100 (10 at n=10) so the keystroke curve stays comparable; jump-hint rebuilds the unfiltered list and is the TUI path over 16 ms at n>=1000.",
   "enrich": {
     "10": {
       "n": 3.0,

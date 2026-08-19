@@ -14,12 +14,18 @@ import statistics
 import subprocess
 import time
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
-from sase.plugins.github_source import fetch_catalog_payload
+from sase.plugins.github_source import (
+    GH_SEARCH_PER_PAGE,
+    GH_SEARCH_RESULT_CAP,
+    fetch_catalog_payload,
+)
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo, enrich_with_latest
 from sase.plugins import latest as latest_mod
@@ -168,27 +174,9 @@ def measure_enrich_cost(
     return stats
 
 
-def paginated_search_stdout(n: int, *, page_size: int = FETCH_PAGE_SIZE) -> str:
-    """Return concatenated ``gh api --paginate`` search envelopes for *n* repos."""
-    pages: list[str] = []
-    for start in range(0, n, page_size):
-        items = [
-            _search_item(index) for index in range(start, min(start + page_size, n))
-        ]
-        pages.append(
-            json.dumps(
-                {
-                    "total_count": n,
-                    "incomplete_results": n > GITHUB_SEARCH_CAP_ENTRIES,
-                    "items": items,
-                }
-            )
-        )
-    return "\n".join(pages)
-
-
 def _search_item(index: int) -> dict[str, Any]:
     name = f"sase-plugin{index:04d}"
+    created = date.fromordinal(date(2018, 1, 1).toordinal() + index)
     return {
         "name": name,
         "full_name": f"community-lab/{name}",
@@ -200,15 +188,110 @@ def _search_item(index: int) -> dict[str, Any]:
         "stargazers_count": index,
         "archived": False,
         "license": {"spdx_id": "MIT"},
+        "created_at": f"{created.isoformat()}T00:00:00Z",
         "pushed_at": "2026-06-01T00:00:00Z",
         "updated_at": "2026-06-01T00:00:00Z",
     }
 
 
-def _run_returning(stdout: str) -> Callable[..., subprocess.CompletedProcess[str]]:
-    def _run(_args: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+def _parse_search_endpoint(endpoint: str) -> tuple[str, int]:
+    parsed = urlparse(
+        endpoint if "://" in endpoint else f"https://api.github.com/{endpoint}"
+    )
+    params = parse_qs(parsed.query)
+    query = params.get("q", [""])[0]
+    try:
+        page = int(params.get("page", ["1"])[0])
+    except ValueError:
+        page = 1
+    return query, page
+
+
+def _item_matches_query(item: dict[str, Any], query: str) -> bool:
+    if "topic:sase--plugin" in query and "sase--plugin" not in (
+        item.get("topics") or []
+    ):
+        return False
+    stars = item.get("stargazers_count", 0)
+    if isinstance(stars, bool) or not isinstance(stars, int):
+        stars = 0
+    if not _stars_match(stars, query):
+        return False
+    created = _item_created(item)
+    return _created_match(created, query)
+
+
+def _stars_match(stars: int, query: str) -> bool:
+    if "stars:" not in query:
+        return True
+    token = next(part for part in query.split() if part.startswith("stars:"))
+    spec = token[len("stars:") :]
+    if ".." in spec:
+        lo_s, hi_s = spec.split("..", 1)
+        return int(lo_s) <= stars <= int(hi_s)
+    if spec.startswith(">="):
+        return stars >= int(spec[2:])
+    if spec.startswith("<="):
+        return stars <= int(spec[2:])
+    if spec.startswith(">"):
+        return stars > int(spec[1:])
+    if spec.startswith("<"):
+        return stars < int(spec[1:])
+    return stars == int(spec)
+
+
+def _item_created(item: dict[str, Any]) -> date:
+    raw = item.get("created_at")
+    if isinstance(raw, str) and len(raw) >= 10:
+        return date.fromisoformat(raw[:10])
+    return date(2026, 6, 1)
+
+
+def _created_match(created: date, query: str) -> bool:
+    if "created:" not in query:
+        return True
+    token = next(part for part in query.split() if part.startswith("created:"))
+    spec = token[len("created:") :]
+    if ".." in spec:
+        lo_s, hi_s = spec.split("..", 1)
+        return date.fromisoformat(lo_s) <= created <= date.fromisoformat(hi_s)
+    if spec.startswith(">="):
+        return created >= date.fromisoformat(spec[2:])
+    if spec.startswith("<="):
+        return created <= date.fromisoformat(spec[2:])
+    if spec.startswith(">"):
+        return created > date.fromisoformat(spec[1:])
+    if spec.startswith("<"):
+        return created < date.fromisoformat(spec[1:])
+    return created == date.fromisoformat(spec)
+
+
+def search_corpus_run_fn(
+    items: list[dict[str, Any]],
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """Stub ``gh api`` as GitHub search: per-page, 1000-result cap, qualifiers."""
+
+    def _run(args: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+        query, page = _parse_search_endpoint(args[-1])
+        matched = [item for item in items if _item_matches_query(item, query)]
+        if page > GH_SEARCH_RESULT_CAP // GH_SEARCH_PER_PAGE:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=1,
+                stdout="",
+                stderr="Only the first 1000 search results are available",
+            )
+        start = (page - 1) * GH_SEARCH_PER_PAGE
+        page_items = matched[:GH_SEARCH_RESULT_CAP][start : start + GH_SEARCH_PER_PAGE]
+        body = json.dumps(
+            {
+                "total_count": len(matched),
+                "incomplete_results": False,
+                "items": page_items,
+            }
+        )
         return subprocess.CompletedProcess(
-            args=["gh"], returncode=0, stdout=stdout, stderr=""
+            args=args, returncode=0, stdout=body, stderr=""
         )
 
     return _run
@@ -222,24 +305,35 @@ def measure_fetch_pages(
     clock: Callable[[], float] = time.perf_counter,
 ) -> dict[str, float]:
     """Parse *n* synthetic search items and record page count plus parse cost."""
-    stdout = paginated_search_stdout(n)
-    run_fn = _run_returning(stdout)
+    items = [_search_item(index) for index in range(n)]
+    run_fn = search_corpus_run_fn(items)
     samples: list[float] = []
     returned = 0
+    requests = 0
+
+    def counting_run(
+        args: list[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal requests
+        requests += 1
+        return run_fn(args, **kwargs)
+
     for iteration in range(warmup + runs):
+        requests = 0
         started = clock()
         payload = fetch_catalog_payload(
             which_fn=lambda _name: "/usr/bin/gh",
-            run_fn=run_fn,
+            run_fn=counting_run,
         )
         elapsed_ms = (clock() - started) * 1000.0
-        returned = len(payload)
+        returned = len(payload.entries)
         if iteration >= warmup:
             samples.append(elapsed_ms)
     stats = summarize_ms(samples)
     stats["pages"] = float(expected_fetch_pages(n))
     stats["returned_entries"] = float(returned)
     stats["github_search_cap_entries"] = float(GITHUB_SEARCH_CAP_ENTRIES)
+    stats["requests"] = float(requests)
     return stats
 
 

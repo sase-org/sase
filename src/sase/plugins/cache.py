@@ -94,7 +94,7 @@ def write_cache(
         "query": query,
         "entries": entries,
     }
-    serialized = json.dumps(envelope, indent=2, sort_keys=True)
+    serialized = json.dumps(envelope, sort_keys=True, separators=(",", ":"))
 
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp_path.write_text(serialized, encoding="utf-8")

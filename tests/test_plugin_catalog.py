@@ -16,7 +16,12 @@ from sase.plugins.catalog import (
     load_plugin_catalog,
     suggest_plugins,
 )
-from sase.plugins.github_source import GH_SEARCH_QUERY, _GhCommandError, GhNotFoundError
+from sase.plugins.github_source import (
+    GH_SEARCH_QUERY,
+    CatalogFetchResult,
+    _GhCommandError,
+    GhNotFoundError,
+)
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
 from sase.plugins.inventory import ENTRY_POINT_GROUPS
@@ -298,6 +303,21 @@ def test_updates_available_counts_installed_editable_dev_updates() -> None:
 
     assert catalog.entries[0].update_available is True
     assert catalog.updates_available == 1
+
+
+def test_fetch_result_warnings_are_copied_onto_the_catalog() -> None:
+    fetched = CatalogFetchResult(
+        entries=[_payload("github", "sase-org")],
+        total_count=1001,
+        incomplete_results=True,
+        truncated=True,
+        warnings=("plugin catalog is truncated: GitHub's 1000-result search cap",),
+    )
+
+    catalog = _load([], refresh=True, fetch_fn=lambda: fetched)
+
+    assert [entry.name for entry in catalog.entries] == ["github"]
+    assert catalog.warnings == fetched.warnings
 
 
 def test_gh_command_error_falls_back_to_stale_cache_with_warning() -> None:
