@@ -135,6 +135,17 @@ def test_open_log_panel_action_pushes_admin_center_on_logs() -> None:
     assert modal._initial_tab == "logs"
 
 
+def test_jump_to_last_error_action_pushes_admin_center_on_logs() -> None:
+    app = _ActionApp()
+
+    app.action_jump_to_last_error()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._initial_tab == "logs"
+
+
 def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     app = _ActionApp()
 

@@ -308,6 +308,13 @@ def test_leader_mode_includes_prompt_history_edit_first() -> None:
     assert reg.leader_mode.keys["prompt_history_edit_first"] == "ctrl+g"
 
 
+def test_leader_mode_includes_jump_to_last_error() -> None:
+    """LeaderModeKeymaps default binds the last-error jump to ``,L``."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["jump_to_last_error"] == "L"
+    assert LeaderModeKeymaps().keys["jump_to_last_error"] == "L"
+
+
 def test_leader_mode_omits_legacy_kill_all() -> None:
     """The Agents cleanup panel replaces the old leader kill-all command."""
     reg = load_keymap_registry({})

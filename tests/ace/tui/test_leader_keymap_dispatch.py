@@ -485,6 +485,18 @@ def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
     assert app.refresh_count == 1
 
 
+def test_leader_uppercase_l_jumps_to_last_error() -> None:
+    app = _FakeApp(current_tab="axe")
+
+    handled = app._handle_leader_key("L")
+
+    assert handled is True
+    assert app._leader_mode_active is False
+    assert app.jump_to_last_error_count == 1
+    assert app._last_leader_key == "L"
+    assert app.refresh_count == 1
+
+
 def test_leader_at_schedules_panel_only_action_and_repeat() -> None:
     app = _FakeApp(current_tab="axe")
 

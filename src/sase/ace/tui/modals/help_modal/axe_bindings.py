@@ -100,6 +100,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",
                     "Update SASE + CLIs + hood cache",
                 ),
+                (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_last_error'))}",
+                    "Jump to last error log",
+                ),
             ],
         ),
         (

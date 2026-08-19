@@ -61,6 +61,7 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self.quick_selected_agent_count = 0
         self.marked_agent_run_count = 0
         self.update_sase_shortcut_count = 0
+        self.jump_to_last_error_count = 0
         self.open_prompt_stash_count = 0
         self.edit_query_count = 0
         self.show_help_count = 0
@@ -142,6 +143,9 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
 
     def action_update_sase_shortcut(self) -> None:
         self.update_sase_shortcut_count += 1
+
+    def action_jump_to_last_error(self) -> None:
+        self.jump_to_last_error_count += 1
 
     def action_edit_query(self) -> None:
         self.edit_query_count += 1

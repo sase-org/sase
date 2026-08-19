@@ -119,6 +119,10 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         """Open the SASE Admin Center on the Logs tab."""
         self._open_config_center("logs")
 
+    def action_jump_to_last_error(self) -> None:
+        """Open the Logs tab on this session's most recent registered error."""
+        self._open_config_center("logs")
+
     def action_open_tasks_panel(self) -> None:
         """Open the SASE Admin Center on the Tasks tab."""
         self._open_config_center("procs")

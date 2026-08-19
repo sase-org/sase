@@ -822,6 +822,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                |
 | `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
 | `,U`       | Update SASE/agent CLIs and import cached agent hoods                                   |
+| `,L`       | Open the Admin Center Logs tab                                                         |
 | `,M`       | Kill running mentors                                                                   |
 | `,R`       | Show runners info                                                                      |
 | `,<space>` | Run agent from current PR (skips project selection)                                    |
@@ -2020,6 +2021,7 @@ modal.
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control))            |
 | `,U`       | Update SASE/agent CLIs and import cached agent hoods                                              |
+| `,L`       | Open the Admin Center Logs tab                                                                    |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
 | `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
@@ -2366,6 +2368,7 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                |
 | `,m`      | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
 | `,U`      | Update SASE/agent CLIs and import cached agent hoods                                   |
+| `,L`      | Open the Admin Center Logs tab                                                         |
 | `,R`      | Show runners info                                                                      |
 | `,.`      | Open prompt history modal                                                              |
 | `,Ctrl+G` | Open prompt history and edit the newest entry immediately                              |

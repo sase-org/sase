@@ -77,6 +77,7 @@ _LEADER_LABELS: dict[str, str] = {
     "update_sase": "Update SASE, agent CLIs, and cached agent hoods",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",
+    "jump_to_last_error": "Jump to the last error in Logs",
 }
 
 _BANG_LABELS: dict[str, str] = {
