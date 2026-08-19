@@ -3,146 +3,27 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
-import subprocess
 
 import pytest
 
 from sase.main import init_skills_handler
-from sase.main import _init_skills_source_integrity as source_integrity
 from sase.main.init_skills_handler import (
     _get_target_path,
-    _get_target_paths,
     get_skill_target_providers,
     handle_init_skills_command,
 )
 from sase.xprompt.loader import get_sase_package_skills_dir
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
-from sase.xprompt.models import XPrompt
-from tests.main.init_skills_handler_helpers import make_args
-
-
-def _collapse_whitespace(text: str) -> str:
-    """Return ``text`` with every whitespace run flattened to one space.
-
-    Skill prose is wrapped at the repo Markdown width, so phrase assertions
-    must not depend on where the line breaks happen to land.
-    """
-    return " ".join(text.split())
+from tests.main.init_skills_handler_helpers import collapse_whitespace, make_args
 
 
 @pytest.fixture(autouse=True)
 def _disable_prettier_for_skill_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """These source-discovery tests assert content, not Prettier integration."""
+    """These generation tests assert content, not Prettier integration."""
 
     monkeypatch.setattr(init_skills_handler, "_prettier_available", lambda: False)
-
-
-def test_skill_source_integrity_allows_clean_merged_source(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
-    skills_dir.mkdir(parents=True)
-    calls: list[tuple[str, ...]] = []
-
-    def fake_run_git(root: Path, *args: str) -> str:
-        calls.append(args)
-        if args == ("rev-parse", "--show-toplevel"):
-            return str(repo_root)
-        if args[:2] == ("status", "--porcelain=v1"):
-            return ""
-        if args[:2] == ("merge-base", "--is-ancestor"):
-            return ""
-        raise AssertionError(args)
-
-    monkeypatch.setattr(
-        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
-    )
-    monkeypatch.setattr(
-        source_integrity, "get_default_branch", lambda _root: "origin/main"
-    )
-    monkeypatch.setattr(source_integrity, "run_git", fake_run_git)
-
-    assert source_integrity.skill_source_integrity_error() is None
-    assert (
-        "status",
-        "--porcelain=v1",
-        "--",
-        "src/sase/xprompts/skills",
-    ) in calls
-    assert (
-        "merge-base",
-        "--is-ancestor",
-        "HEAD",
-        "origin/main",
-    ) in calls
-
-
-def test_skill_source_integrity_reports_dirty_skill_paths(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
-    skills_dir.mkdir(parents=True)
-
-    def fake_run_git(root: Path, *args: str) -> str:
-        if args == ("rev-parse", "--show-toplevel"):
-            return str(repo_root)
-        if args[:2] == ("status", "--porcelain=v1"):
-            return " M src/sase/xprompts/skills/foo.md"
-        raise AssertionError(args)
-
-    monkeypatch.setattr(
-        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
-    )
-    monkeypatch.setattr(source_integrity, "run_git", fake_run_git)
-
-    error = source_integrity.skill_source_integrity_error()
-
-    assert error is not None
-    assert "uncommitted changes" in error
-    assert "src/sase/xprompts/skills/foo.md" in error
-    assert "Land the skill source change" in error
-    assert "--allow-dirty" in error
-
-
-def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo_root = tmp_path / "repo"
-    skills_dir = repo_root / "src" / "sase" / "xprompts" / "skills"
-    skills_dir.mkdir(parents=True)
-
-    def fake_run_git(root: Path, *args: str) -> str:
-        if args == ("rev-parse", "--show-toplevel"):
-            return str(repo_root)
-        if args[:2] == ("status", "--porcelain=v1"):
-            return ""
-        if args[:2] == ("merge-base", "--is-ancestor"):
-            raise subprocess.CalledProcessError(1, ["git", *args])
-        if args[:2] == ("log", "--format=%h %s"):
-            return "abc1234 feat: unlanded skill source"
-        raise AssertionError(args)
-
-    monkeypatch.setattr(
-        source_integrity, "get_sase_package_skills_dir", lambda: skills_dir
-    )
-    monkeypatch.setattr(
-        source_integrity, "get_default_branch", lambda _root: "origin/master"
-    )
-    monkeypatch.setattr(source_integrity, "run_git", fake_run_git)
-
-    error = source_integrity.skill_source_integrity_error()
-
-    assert error is not None
-    assert "HEAD is not an ancestor of origin/master" in error
-    assert "abc1234 feat: unlanded skill source" in error
 
 
 @pytest.mark.parametrize(
@@ -421,9 +302,9 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     assert body.strip(), "skill body must not be empty"
     # Compare on collapsed whitespace: prose phrases straddle line breaks that
     # move whenever the Markdown prose width changes.
-    flat_body = _collapse_whitespace(body)
+    flat_body = collapse_whitespace(body)
     for phrase in expected_phrases:
-        assert _collapse_whitespace(phrase) in flat_body
+        assert collapse_whitespace(phrase) in flat_body
 
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
@@ -438,266 +319,6 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
     for provider in providers:
         target = _get_target_path(provider, skill_name, use_chezmoi=False)
         assert target.exists(), f"{skill_name} not generated for provider {provider}"
-        rendered = _collapse_whitespace(target.read_text(encoding="utf-8"))
+        rendered = collapse_whitespace(target.read_text(encoding="utf-8"))
         for phrase in expected_phrases:
-            assert _collapse_whitespace(phrase) in rendered
-
-
-def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
-    """Generated gate guidance must use the query-driven v2 interface."""
-    skills_dir = get_sase_package_skills_dir()
-
-    for skill_name in ("sase_gate", "sase_notify", "sase_run"):
-        body = (skills_dir / f"{skill_name}.md").read_text(encoding="utf-8")
-        for stale_phrase in (
-            "sase notify create --gate",
-            "sase notify wait",
-            "choice_id",
-            "selected_extra_ids",
-        ):
-            assert stale_phrase not in body
-
-
-def test_sase_plan_skill_does_not_expose_internal_model_aliases() -> None:
-    """Planning guidance describes behavior without exposing routing internals."""
-    src = get_sase_package_skills_dir() / "sase_plan.md"
-    body = src.read_text(encoding="utf-8")
-
-    for internal_name in (
-        "worker",
-        "cheap",
-        "cheaper",
-        "cheapest",
-        "smart",
-        "smartest",
-        "xsmall_worker",
-        "small_worker",
-        "medium_worker",
-        "large_worker",
-        "xlarge_worker",
-    ):
-        assert internal_name not in body
-
-
-def test_sase_repo_skill_description_covers_web_fetches() -> None:
-    """The always-visible skill trigger closes the repository web-fetch loophole."""
-    src = get_sase_package_skills_dir() / "sase_repo.md"
-    front_matter, _body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
-
-    assert front_matter is not None
-    description = str(front_matter.get("description", ""))
-    assert "web-fetching a repo's files or history" in description
-    assert "raw.githubusercontent.com" in description
-    assert "GitHub API" in description
-
-
-@pytest.mark.parametrize("skill_name", ["sase_git_commit", "sase_hg_commit"])
-def test_commit_skill_sources_do_not_reference_legacy_bead_flag(
-    skill_name: str,
-) -> None:
-    """Commit skills should rely on SASE_BEAD_ID rather than a commit flag."""
-    src = get_sase_package_skills_dir() / f"{skill_name}.md"
-    body = src.read_text(encoding="utf-8")
-    assert "--bead-id" not in body
-    assert "sase bead list --status=in_progress" not in body
-
-
-def test_sase_new_task_duplicate_detection_stays_query_scoped() -> None:
-    """Duplicate detection permits only search, a bounded sweep, and epic lists."""
-    src = get_sase_package_skills_dir() / "sase_new_task.md"
-    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
-    flat = _collapse_whitespace(body)
-
-    assert front_matter is not None
-    assert (
-        "sase bead search 'symbol|filename|command|error-fragment' --regex --type task"
-        in flat
-    )
-    assert re.search(r"sase bead list --type task(?! --since)", flat) is None
-    assert re.search(r"sase bead list --type task[^`]*--format full", flat) is None
-    assert "sase bead list --type plan --tier epic" in flat
-    assert "sase flag new <key>" in flat
-
-
-def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:
-    """Retired umbrella tasks should not keep receiving corroborating ``+1`` reports."""
-    src = get_sase_package_skills_dir() / "sase_new_task.md"
-    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
-    flat = _collapse_whitespace(body)
-
-    assert front_matter is not None
-    assert "retired umbrella" in flat
-    assert "closed task whose close reason declares it retired and forbids `+1`" in flat
-    assert "Do not `+1` or reopen them" in flat
-    assert "Route the report to step 7 instead" in flat
-    assert "node-specific task bead named for the failing node ID" in flat
-    assert 'sase bead note <new-task-id> "RELATED: <retired-task-id>' in flat
-
-
-def test_git_commit_skill_invokes_observable_wrapper() -> None:
-    """The git commit skill should call the wrapper, not raw ``sase commit``."""
-    src = get_sase_package_skills_dir() / "sase_git_commit.md"
-    body = src.read_text(encoding="utf-8")
-    flat = _collapse_whitespace(body)
-    assert "Commit changes via the `sase_git_commit` wrapper" in flat
-    assert "records skill invocation evidence" in flat
-    assert "sase_git_commit -M .sase/commit_message.md" in body
-    assert "Repo-relative path (file or directory) to leave out of this commit" in body
-    assert "fails loudly rather than quietly committing a mistyped path" in body
-    assert "deleted only after a successful commit" in body
-    assert "Do not preemptively stash, fast-forward, pull, or hand-sync" in body
-    assert "`2`: A rebase is paused for a real conflict" in body
-    assert "sase_git_commit --resume" in body
-    assert "git-ignored" in body
-    assert "delegates to `sase stitch create`" in body
-    assert "sase commit -M" not in body
-    assert "-M commit_message.md" not in body
-    assert "sase commit --resume" not in body
-    assert "sase commit" not in body
-    assert "sase stitch create -M" not in body
-
-
-def test_agy_skill_generation_writes_antigravity_target(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A provider-scoped skill is written to that provider's deployment profile."""
-    xprompt = XPrompt(
-        name="skill/agy_only",
-        content="Antigravity profile body.\n",
-        description="Antigravity profile test skill.",
-        skill=["agy"],
-        skill_name="agy_only",
-    )
-    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
-    monkeypatch.setattr(
-        init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/agy_only": xprompt},
-    )
-    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
-
-    with pytest.raises(SystemExit) as exc:
-        handle_init_skills_command(make_args())
-
-    assert exc.value.code == 0
-    for target in _get_target_paths("agy", "agy_only", use_chezmoi=False):
-        assert target.exists(), f"missing generated skill target: {target}"
-        assert "Antigravity profile body." in target.read_text(encoding="utf-8")
-
-
-def test_grok_skill_generation_writes_native_target_and_renders_context(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``sase skill init -p grok`` writes a Grok-native rendered skill file."""
-    xprompt = XPrompt(
-        name="skill/grok_only",
-        content=(
-            "Provider {{ provider_name }} uses {{ provider_tool_name }} "
-            "and {{ provider_native_ask_tool }}.\n"
-        ),
-        description="Grok profile test skill.",
-        skill=["grok"],
-        skill_name="grok_only",
-    )
-    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
-    monkeypatch.setattr(
-        init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/grok_only": xprompt},
-    )
-    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
-
-    with pytest.raises(SystemExit) as exc:
-        handle_init_skills_command(make_args(provider="grok"))
-
-    assert exc.value.code == 0
-    target = _get_target_path("grok", "grok_only", use_chezmoi=False)
-    assert target.exists()
-    rendered = target.read_text(encoding="utf-8")
-    assert "Provider Grok uses Grok Build and ask_user_question." in rendered
-    assert not _get_target_path("claude", "grok_only", use_chezmoi=False).exists()
-
-
-def test_config_defined_skill_is_rejected_with_a_migration_diagnostic(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A config entry can never be a skill: it has no file to generate from."""
-    from sase.xprompt.loader_parsing import parse_xprompt_entries
-
-    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
-    monkeypatch.setattr(
-        init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": parse_xprompt_entries(
-            {
-                "sase_gmail": {
-                    "content": "Use gog for Gmail.\n",
-                    "description": "Read-only personal Gmail access through gog.",
-                    "skill": True,
-                }
-            },
-            "config_overlay:sase_athena.yml",
-        ),
-    )
-    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
-
-    with pytest.raises(SystemExit) as exc:
-        handle_init_skills_command(make_args(dry_run=True, provider="codex"))
-
-    assert exc.value.code == 1
-    captured = capsys.readouterr()
-    assert str(_get_target_path("codex", "sase_gmail", use_chezmoi=False)) not in (
-        captured.out
-    )
-    assert "declares `skill:` outside a canonical skill source" in captured.err
-    assert "sase/skills/" in captured.err
-
-
-def test_skill_provider_list_respects_requested_provider(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """``skill: [codex]`` only renders for codex, including with --provider."""
-    xprompt = XPrompt(
-        name="skill/codex_only",
-        content="Only for Codex.\n",
-        description="Codex-only skill.",
-        skill=["codex"],
-        skill_name="codex_only",
-    )
-    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
-    monkeypatch.setattr(
-        init_skills_handler,
-        "get_all_xprompts",
-        lambda project="": {"skill/codex_only": xprompt},
-    )
-    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
-
-    with pytest.raises(SystemExit) as exc:
-        handle_init_skills_command(make_args(dry_run=True))
-
-    assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert str(_get_target_path("codex", "codex_only", use_chezmoi=False)) in out
-    assert "claude/skills/codex_only" not in out
-
-    with pytest.raises(SystemExit) as exc:
-        handle_init_skills_command(make_args(dry_run=True, provider="claude"))
-
-    assert exc.value.code == 0
-    out = capsys.readouterr().out
-    assert str(_get_target_path("codex", "codex_only", use_chezmoi=False)) not in out
-    assert "Dry run: 1 source entries, no files written" in out
+            assert collapse_whitespace(phrase) in rendered

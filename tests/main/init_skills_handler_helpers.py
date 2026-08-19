@@ -19,6 +19,15 @@ _NEW_SHA = "2" * 40
 _OTHER_SHA = "3" * 40
 
 
+def collapse_whitespace(text: str) -> str:
+    """Return ``text`` with every whitespace run flattened to one space.
+
+    Skill prose is wrapped at the repo Markdown width, so phrase assertions
+    must not depend on where the line breaks happen to land.
+    """
+    return " ".join(text.split())
+
+
 def make_args(**overrides: Any) -> argparse.Namespace:
     """Build an argparse.Namespace with init skills defaults."""
     defaults: dict[str, Any] = {
