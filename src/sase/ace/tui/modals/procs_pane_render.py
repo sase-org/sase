@@ -8,6 +8,7 @@ row it is handed.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 
 from rich.text import Text
@@ -44,6 +45,15 @@ _TAIL_CAP_NOTICE = f"… showing the last {DETAIL_LOG_LINES} lines …"
 
 # Rendered body cache: task id -> (log version, static text, rendered body).
 BodyCache = dict[str, tuple[int, str | None, Text]]
+
+
+@dataclass(frozen=True, slots=True)
+class MonitorStatusChip:
+    """Effective status label, style, and outcome glyph for one monitor row."""
+
+    label: str
+    style: str
+    glyph: str
 
 
 def is_active(task: ObservedProc) -> bool:
@@ -144,8 +154,37 @@ def _resolved_agent_name(
     return agent_names.get(task.proc_id)
 
 
+def _resolved_status_chip(
+    task: ObservedProc, status_chips: Mapping[str, MonitorStatusChip] | None
+) -> MonitorStatusChip | None:
+    """Return the monitor row's status chip from the rebuild's index.
+
+    Gated on ``is_monitor_shell_row`` like ``_resolved_agent_name``, so a
+    non-monitor row never shows a chip even if the caller's index were ever
+    built or keyed incorrectly.
+    """
+    if not status_chips or not is_monitor_shell_row(task):
+        return None
+    return status_chips.get(task.proc_id)
+
+
+def _chip_text(chip: MonitorStatusChip) -> str:
+    return f"{chip.label} {chip.glyph}".rstrip() if chip.glyph else chip.label
+
+
+def _append_dim_joined(text: Text, parts: list[tuple[str, str]]) -> None:
+    """Append ``parts`` (value, style) joined by a dim ``·`` separator."""
+    for index, (value, style) in enumerate(parts):
+        if index:
+            text.append(" · ", style="dim")
+        text.append(value, style=style)
+
+
 def task_row_label(
-    task: ObservedProc, *, agent_names: Mapping[str, str] | None = None
+    task: ObservedProc,
+    *,
+    agent_names: Mapping[str, str] | None = None,
+    status_chips: Mapping[str, MonitorStatusChip] | None = None,
 ) -> Text:
     """Build the styled option-list entry for one task."""
     icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
@@ -162,14 +201,17 @@ def task_row_label(
         text.append_text(chip)
     secondary = task.phase or ("Working..." if is_active(task) else task.message)
     agent_name = _resolved_agent_name(task, agent_names)
-    if agent_name or secondary:
+    status_chip = _resolved_status_chip(task, status_chips)
+    parts: list[tuple[str, str]] = []
+    if agent_name:
+        parts.append((agent_name, MONITOR_GLYPH_COLOR))
+    if status_chip:
+        parts.append((_chip_text(status_chip), status_chip.style))
+    if secondary:
+        parts.append((secondary, "dim"))
+    if parts:
         text.append("\n   ")
-        if agent_name:
-            text.append(agent_name, style=MONITOR_GLYPH_COLOR)
-            if secondary:
-                text.append(" · ", style="dim")
-        if secondary:
-            text.append(secondary, style="dim")
+        _append_dim_joined(text, parts)
     return text
 
 
@@ -178,6 +220,7 @@ def output_header(
     *,
     spinner_index: int,
     agent_names: Mapping[str, str] | None = None,
+    status_chips: Mapping[str, MonitorStatusChip] | None = None,
 ) -> Text:
     """Build the output-pane header for one task."""
     out = Text()
@@ -196,9 +239,15 @@ def output_header(
         out.append("\n$ ", style="dim")
         out.append(command_display(task.command), style="dim")
     agent_name = _resolved_agent_name(task, agent_names)
-    if agent_name:
+    status_chip = _resolved_status_chip(task, status_chips)
+    if agent_name or status_chip:
         out.append("\nagent  ", style="dim")
-        out.append(agent_name, style=MONITOR_GLYPH_COLOR)
+        if agent_name:
+            out.append(agent_name, style=MONITOR_GLYPH_COLOR)
+        if status_chip:
+            if agent_name:
+                out.append("  ")
+            out.append(_chip_text(status_chip), style=status_chip.style)
     phase = task.phase
     if is_active(task):
         phase = phase or "Working..."
@@ -311,6 +360,7 @@ def _render_log_line(line: ProcLogLine) -> Text:
 
 __all__ = [
     "BodyCache",
+    "MonitorStatusChip",
     "cached_body_version",
     "is_active",
     "output_body",

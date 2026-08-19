@@ -11,6 +11,12 @@ from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
+from sase.monitor_status import (
+    effective_monitor_status,
+    monitor_status_glyph,
+    monitor_status_pair,
+    monitor_status_style,
+)
 
 from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
 from ..proc_observer import (
@@ -21,7 +27,7 @@ from ..proc_observer import (
 )
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
-from .procs_pane_render import is_active, task_row_label
+from .procs_pane_render import MonitorStatusChip, is_active, task_row_label
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -65,6 +71,45 @@ def _resolve_monitor_agent_names(
         if shell_name:
             names[task.proc_id] = present_agent_name(shell_name, snapshot)
     return names
+
+
+def _resolve_monitor_statuses(
+    tasks: Sequence[ObservedProc], agents: Iterable[Any]
+) -> dict[str, MonitorStatusChip]:
+    """Return ``proc_id -> MonitorStatusChip`` for the pane's monitor rows.
+
+    Resolution mirrors :func:`_resolve_monitor_agent_names`: match the loaded
+    ``Agent`` whose ``monitor_id`` equals the row's ``proc_id``. A row with no
+    matching agent, or a matched agent with neither status label recorded,
+    gets no entry, so the row degrades to exactly today's rendering.
+    """
+    monitor_ids = {task.proc_id for task in tasks if is_monitor_shell_row(task)}
+    if not monitor_ids:
+        return {}
+    by_monitor_id: dict[str, Any] = {}
+    for agent in agents:
+        monitor_id = getattr(agent, "monitor_id", None)
+        if monitor_id in monitor_ids and monitor_id not in by_monitor_id:
+            by_monitor_id[monitor_id] = agent
+    tasks_by_id = {task.proc_id: task for task in tasks}
+    chips: dict[str, MonitorStatusChip] = {}
+    for proc_id, agent in by_monitor_id.items():
+        start = getattr(agent, "monitor_start_status", None)
+        stop = getattr(agent, "monitor_stop_status", None)
+        if not start and not stop:
+            continue
+        pair = monitor_status_pair(start, stop)
+        monitor_state = getattr(agent, "monitor_state", None)
+        row = tasks_by_id.get(proc_id)
+        settled = row is None or not is_active(row)
+        chips[proc_id] = MonitorStatusChip(
+            label=effective_monitor_status(
+                pair, monitor_state=monitor_state, settled=settled
+            ),
+            style=monitor_status_style(pair, monitor_state=monitor_state),
+            glyph=monitor_status_glyph(monitor_state),
+        )
+    return chips
 
 
 class TaskList(OptionList):
@@ -135,6 +180,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         _all_sessions: bool
         _last_statuses: dict[str, tuple[str, str | None, str]]
         _monitor_agent_names: dict[str, str]
+        _monitor_status_chips: dict[str, MonitorStatusChip]
         _option_list_id: str
         _session_state: object
         _store_loaded_once: bool
@@ -185,7 +231,11 @@ class ProcsPaneSelectionMixin(_MixinBase):
         ]
 
     def _render_task_label(self, index: int, task: ObservedProc) -> Text:
-        label = task_row_label(task, agent_names=self._monitor_agent_names)
+        label = task_row_label(
+            task,
+            agent_names=self._monitor_agent_names,
+            status_chips=self._monitor_status_chips,
+        )
         hint = self.jump_hint_for(index)
         if hint is None:
             return label
@@ -342,6 +392,9 @@ class ProcsPaneSelectionMixin(_MixinBase):
         self._user_scrolled = False
         self._last_statuses = self._status_snapshot()
         self._monitor_agent_names = _resolve_monitor_agent_names(
+            self._tasks, getattr(self.app, "_agents", ())
+        )
+        self._monitor_status_chips = _resolve_monitor_statuses(
             self._tasks, getattr(self.app, "_agents", ())
         )
         self._update_title()

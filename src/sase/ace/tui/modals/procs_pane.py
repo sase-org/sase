@@ -23,7 +23,7 @@ from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
 from .procs_pane_actions import ProcsPaneActionsMixin
 from .procs_pane_agent_jump import ProcsPaneAgentJumpMixin
-from .procs_pane_render import BodyCache
+from .procs_pane_render import BodyCache, MonitorStatusChip
 from .procs_pane_selection import ProcsPaneSelectionMixin, TaskList
 from .procs_pane_store import ProcsPaneStoreMixin
 from .procs_store_rows import kill_store_task
@@ -72,6 +72,7 @@ class ProcsPane(
         self._session_state = session_state or ProcsSessionState()
         self._tasks: list[ObservedProc] = []
         self._monitor_agent_names: dict[str, str] = {}
+        self._monitor_status_chips: dict[str, MonitorStatusChip] = {}
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
         self._selection_guard = ProgrammaticSelectionGuard()

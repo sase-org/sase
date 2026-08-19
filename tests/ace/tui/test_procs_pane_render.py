@@ -10,6 +10,7 @@ import pytest
 from sase.ace.tui.modals import procs_pane_render
 from sase.ace.tui.modals.procs_pane_render import (
     BodyCache,
+    MonitorStatusChip,
     output_body,
     output_header,
     task_row_label,
@@ -92,6 +93,52 @@ def test_task_row_label_omits_name_when_row_is_absent_from_the_index() -> None:
     assert "acme" not in label.plain
 
 
+def test_task_row_label_shows_the_status_chip_between_name_and_secondary() -> None:
+    monitor = _row(
+        origin=MONITOR_PROC_ORIGIN, display_name="just check-full", phase=None
+    )
+    chip = MonitorStatusChip(label="TESTING", style="bold #6FC4FF", glyph="")
+    label = task_row_label(
+        monitor,
+        agent_names={"p1": "acme--mon"},
+        status_chips={"p1": chip},
+    )
+
+    assert "\n   acme--mon · TESTING · Working..." in label.plain
+    assert any(
+        span.style == "bold #6FC4FF" and label.plain[span.start : span.end] == "TESTING"
+        for span in label.spans
+    )
+
+
+def test_task_row_label_appends_the_outcome_glyph_to_the_status_chip() -> None:
+    monitor = _row(
+        origin=MONITOR_PROC_ORIGIN,
+        display_name="just check-full",
+        status="success",
+        message="",
+    )
+    chip = MonitorStatusChip(label="TESTED", style="#6FC4FF", glyph="✓")
+    label = task_row_label(monitor, status_chips={"p1": chip})
+
+    assert label.plain.endswith("\n   TESTED ✓")
+
+
+def test_task_row_label_omits_the_chip_for_a_non_monitor_row() -> None:
+    plain = _row(display_name="sync sase-42")
+    chip = MonitorStatusChip(label="TESTING", style="bold #6FC4FF", glyph="")
+    label = task_row_label(plain, status_chips={"p1": chip})
+
+    assert "TESTING" not in label.plain
+
+
+def test_task_row_label_omits_the_chip_when_row_is_absent_from_the_index() -> None:
+    monitor = _row(origin=MONITOR_PROC_ORIGIN, display_name="just check-full")
+    label = task_row_label(monitor, status_chips={})
+
+    assert "TESTING" not in label.plain
+
+
 def test_output_header_gains_an_agent_line_under_the_command_line() -> None:
     monitor = _row(
         origin=MONITOR_PROC_ORIGIN,
@@ -103,6 +150,35 @@ def test_output_header_gains_an_agent_line_under_the_command_line() -> None:
     lines = header.plain.splitlines()
     command_idx = next(i for i, line in enumerate(lines) if line.startswith("$ "))
     assert lines[command_idx + 1] == "agent  acme--mon"
+
+
+def test_output_header_adds_the_status_chip_after_the_agent_name() -> None:
+    monitor = _row(
+        origin=MONITOR_PROC_ORIGIN,
+        display_name="just check-full",
+        command=["just", "check-full"],
+    )
+    chip = MonitorStatusChip(label="TESTING", style="bold #6FC4FF", glyph="")
+    header = output_header(
+        monitor,
+        spinner_index=0,
+        agent_names={"p1": "acme--mon"},
+        status_chips={"p1": chip},
+    )
+
+    lines = header.plain.splitlines()
+    command_idx = next(i for i, line in enumerate(lines) if line.startswith("$ "))
+    assert lines[command_idx + 1] == "agent  acme--mon  TESTING"
+
+
+def test_output_header_shows_the_chip_alone_without_an_agent_name() -> None:
+    monitor = _row(origin=MONITOR_PROC_ORIGIN, display_name="just check-full")
+    chip = MonitorStatusChip(label="TESTING", style="bold #6FC4FF", glyph="")
+    header = output_header(monitor, spinner_index=0, status_chips={"p1": chip})
+
+    lines = header.plain.splitlines()
+    agent_idx = next(i for i, line in enumerate(lines) if line.startswith("agent"))
+    assert lines[agent_idx] == "agent  TESTING"
 
 
 def test_output_header_omits_agent_line_for_a_plain_row() -> None:

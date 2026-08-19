@@ -6,9 +6,13 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from sase.ace.tui.modals.procs_pane_selection import _resolve_monitor_agent_names
+from sase.ace.tui.modals.procs_pane_selection import (
+    _resolve_monitor_agent_names,
+    _resolve_monitor_statuses,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.monitor_state import MONITOR_PROC_ORIGIN
+from sase.monitor_status import monitor_status_accent, monitor_status_pair
 
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
@@ -19,7 +23,14 @@ from tests.ace.tui._procs_pane_helpers import (
 )
 
 
-def _agent(*, monitor_id: str, presented_agent_name: str | None) -> Agent:
+def _agent(
+    *,
+    monitor_id: str,
+    presented_agent_name: str | None,
+    monitor_start_status: str | None = None,
+    monitor_stop_status: str | None = None,
+    monitor_state: str | None = None,
+) -> Agent:
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="demo",
@@ -27,6 +38,9 @@ def _agent(*, monitor_id: str, presented_agent_name: str | None) -> Agent:
         status="RUNNING",
         start_time=None,
         monitor_id=monitor_id,
+        monitor_start_status=monitor_start_status,
+        monitor_stop_status=monitor_stop_status,
+        monitor_state=monitor_state,
     )
     agent.presented_agent_name = presented_agent_name
     return agent
@@ -93,6 +107,110 @@ def test_resolve_monitor_agent_names_ignores_non_monitor_rows_with_a_shell_name(
     names = _resolve_monitor_agent_names([plain], [])
 
     assert names == {}
+
+
+def test_resolve_monitor_statuses_renders_the_start_label_while_running() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+    )
+    agents = [
+        _agent(
+            monitor_id="mon-1",
+            presented_agent_name="acme--mon",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
+            monitor_state="running",
+        )
+    ]
+
+    chips = _resolve_monitor_statuses([monitor], agents)
+
+    pair = monitor_status_pair("TESTING", "TESTED")
+    chip = chips["mon-1"]
+    assert chip.label == "TESTING"
+    assert chip.style == f"bold {monitor_status_accent(pair)}"
+    assert chip.glyph == ""
+
+
+def test_resolve_monitor_statuses_renders_the_stop_label_once_settled() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="success",
+        age_seconds=5,
+        origin=MONITOR_PROC_ORIGIN,
+    )
+    agents = [
+        _agent(
+            monitor_id="mon-1",
+            presented_agent_name="acme--mon",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
+            monitor_state="completed",
+        )
+    ]
+
+    chips = _resolve_monitor_statuses([monitor], agents)
+
+    pair = monitor_status_pair("TESTING", "TESTED")
+    chip = chips["mon-1"]
+    assert chip.label == "TESTED"
+    assert chip.style == monitor_status_accent(pair)
+    assert chip.glyph == "✓"
+
+
+def test_resolve_monitor_statuses_omits_rows_with_no_matching_agent() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+    )
+
+    chips = _resolve_monitor_statuses([monitor], [])
+
+    assert chips == {}
+
+
+def test_resolve_monitor_statuses_omits_a_matched_agent_with_no_status_pair() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+    )
+    agents = [_agent(monitor_id="mon-1", presented_agent_name="acme--mon")]
+
+    chips = _resolve_monitor_statuses([monitor], agents)
+
+    assert chips == {}
+
+
+def test_resolve_monitor_statuses_ignores_non_monitor_rows() -> None:
+    plain = task(
+        "proc-1",
+        label="sase proc run",
+        status="running",
+        age_seconds=1,
+    )
+    agents = [
+        _agent(
+            monitor_id="proc-1",
+            presented_agent_name="acme--mon",
+            monitor_start_status="TESTING",
+            monitor_stop_status="TESTED",
+        )
+    ]
+
+    chips = _resolve_monitor_statuses([plain], agents)
+
+    assert chips == {}
 
 
 async def test_tasks_loading_echo_preserves_requested_store_bookmark(

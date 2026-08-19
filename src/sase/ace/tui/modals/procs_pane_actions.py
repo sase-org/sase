@@ -16,6 +16,7 @@ from ..actions.clipboard import schedule_copy_delivery
 from ..proc_observer import ObservedProc
 from .procs_pane_render import (
     BodyCache,
+    MonitorStatusChip,
     is_active,
     output_body,
     output_footer,
@@ -34,6 +35,7 @@ class ProcsPaneActionsMixin(_MixinBase):
     if TYPE_CHECKING:
         _body_cache: BodyCache
         _monitor_agent_names: dict[str, str]
+        _monitor_status_chips: dict[str, MonitorStatusChip]
         _spinner_index: int
         _tasks: list[ObservedProc]
         _user_scrolled: bool
@@ -82,6 +84,7 @@ class ProcsPaneActionsMixin(_MixinBase):
                 task,
                 spinner_index=self._spinner_index,
                 agent_names=self._monitor_agent_names,
+                status_chips=self._monitor_status_chips,
             )
         )
         body = output_body(task, self._body_cache)
