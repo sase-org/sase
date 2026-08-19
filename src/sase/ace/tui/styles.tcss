@@ -2808,6 +2808,7 @@ PromptSubmitChoiceModal,
 JumpActionModal,
 QuitOptionsModal,
 SnoozeDurationModal,
+DisabledProviderLaunchModal,
 _DurationPickerModal {
     align: center middle;
 }
@@ -2837,6 +2838,12 @@ _DurationPickerModal {
     width: 62;
 }
 
+#disabled-provider-launch-container {
+    width: 76;
+    max-width: 95%;
+    border: double #FF875F;
+}
+
 #jump-action-container {
     width: 64;
 }
@@ -2846,6 +2853,10 @@ _DurationPickerModal {
 }
 
 #prompt-submit-choice-title {
+    width: 100%;
+}
+
+#disabled-provider-launch-title {
     width: 100%;
 }
 

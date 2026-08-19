@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._launch_provider_guard import LaunchProviderGuardMixin
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -33,7 +34,7 @@ def _launch_toast_label(prompt: str, fallback: str) -> str:
     return fallback
 
 
-class AgentLaunchStartMixin:
+class AgentLaunchStartMixin(LaunchProviderGuardMixin):
     """Mixin providing prompt-submit launch setup."""
 
     _prompt_context: PromptContext | None
@@ -130,10 +131,12 @@ class AgentLaunchStartMixin:
     def _launch_resolved_prompt(self, prompt: str, *, keep_bar: bool = False) -> None:
         """Launch *prompt* (inputs already resolved) via durable ``sase run``.
 
-        Unmounts the prompt bar immediately, then submits argv-only
-        ``sase run`` to the durable supervisor so the Textual event loop
-        stays responsive to keystrokes (notably ``j``/``k``) during the
-        out-of-process launch.
+        Runs the hard-disable provider guard first while the prompt bar is
+        still mounted. Only a launch that is actually submitted unmounts the
+        bar. The empty-disable path is synchronous and then submits argv-only
+        ``sase run`` to the durable supervisor so the Textual event loop stays
+        responsive to keystrokes (notably ``j``/``k``) during the out-of-process
+        launch.
 
         ``keep_bar`` is set for a Phase 4 single-pane submit from a multi-pane
         stack: the bar stays mounted so the remaining panes can be submitted
@@ -149,6 +152,20 @@ class AgentLaunchStartMixin:
             keep_bar: Leave the prompt bar mounted and the base context intact
                 (single-pane submit with panes remaining) instead of unmounting.
         """
+        if self._prompt_context is None:
+            self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
+            return
+
+        self._preflight_provider_disables(prompt, keep_bar)
+
+    def _submit_resolved_launch(
+        self,
+        prompt: str,
+        *,
+        keep_bar: bool = False,
+        extra_payload: dict[str, object] | None = None,
+    ) -> None:
+        """Unmount (unless *keep_bar*) and submit the durable ``sase run``."""
         if self._prompt_context is None:
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
@@ -191,17 +208,21 @@ class AgentLaunchStartMixin:
             f"Launching agent for {_launch_toast_label(prompt, ctx.display_name)}..."
         )
 
+        payload: dict[str, object] = {
+            "display_name": ctx.display_name,
+            "project_name": ctx.project_name,
+            "workflow_name": ctx.workflow_name,
+        }
+        if extra_payload:
+            payload.update(extra_payload)
+
         self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
             prompt=prompt,
             dedup_key=f"launch:{ctx.workflow_name}",
-            extra_payload={
-                "display_name": ctx.display_name,
-                "project_name": ctx.project_name,
-                "workflow_name": ctx.workflow_name,
-            },
+            extra_payload=payload,
             submitted_prompt=prompt,
         )
 

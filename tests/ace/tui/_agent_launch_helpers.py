@@ -22,6 +22,7 @@ class _FakeApp(AgentLaunchMixin):
         self.pushed_screens: list[tuple[Any, Any]] = []
         self.unmount_calls: list[str] = []
         self.launch_tasks: list[dict[str, Any]] = []
+        self.workers: list[dict[str, Any]] = []
         self._prompt_context: PromptContext | None = _fake_context()
         self._bulk_patches = None
 
@@ -40,6 +41,15 @@ class _FakeApp(AgentLaunchMixin):
 
     def push_screen(self, screen: Any, callback: Any = None) -> None:
         self.pushed_screens.append((screen, callback))
+
+    def run_worker(self, work: Any, **kwargs: Any) -> Any:
+        self.workers.append({"work": work, **kwargs})
+        if callable(work):
+            work()
+        return None
+
+    def call_from_thread(self, callback: Any, *args: Any, **kwargs: Any) -> None:
+        callback(*args, **kwargs)
 
     def _unmount_prompt_bar(self) -> None:
         self.unmount_calls.append("cancel")

@@ -2947,6 +2947,31 @@ soft-disabled provider renders like `CLAUDE soft 42m`. Several render the most s
 when every active disable is soft. Hover lists every active provider, its mode,
 provenance, and expiry, and clicking the pill opens Launch Control.
 
+### Disabled-provider launch panel
+
+When ACE is about to launch an agent that can only run on a **hard**-disabled provider,
+it opens a one-keypress panel instead of submitting a launch that would fail at invoke
+time. Soft disables never open this panel. The prompt bar stays mounted until something
+is actually submitted, so aborting leaves the draft exactly where it was.
+
+The panel is one blocked agent at a time. A four-agent swarm with two blocked units
+shows the panel twice in sequence. Enabling a provider while resolving one agent can
+unblock a later one, so ACE re-checks after every write.
+
+| Key       | When it appears                                        | Action                                                                                                            |
+| --------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `e`       | Always                                                 | Enable every provider blocking this agent, then re-check and continue the launch.                                 |
+| `s`       | Always                                                 | Soft-enable those providers (same remaining window) so this agent can run while pools still spare them.           |
+| `1`…`9`   | Only when two or more providers block this agent       | Enable that one provider and re-check. The panel stays up if another blocker remains.                             |
+| `m`       | Only when every slot of this agent agrees on one model | Open the model picker and rewrite this agent's `%model`. A fan-out unit shows a dim edit-the-prompt line instead. |
+| `a`       | Always                                                 | Abort this agent. The other agents in the launch still start.                                                     |
+| `A`       | Only when the launch has more than one agent           | Abort the whole launch. The label states the real agent total.                                                    |
+| `esc`/`q` | Always                                                 | Same as `a`.                                                                                                      |
+
+A single-agent launch that only enables or soft-enables submits the original prompt.
+Picking a different model on a one-agent launch rewrites that prompt. Dropping or
+re-modelling a unit in a multi-agent launch submits only the agents that remain.
+
 ### Alias History
 
 Press `H` on an alias row, an alias-backed launch setting (`default model`,

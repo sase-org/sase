@@ -339,10 +339,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-qx(provider_routing_state)" \
-        --epic-symbol "sase-qx.5(LaunchUnit)" \
-        --epic-symbol "sase-qx.5(LaunchUnitCandidate)" \
-        --epic-symbol "sase-qx.5(blocked_launch_units)" \
-        --epic-symbol "sase-qx.5(plan_launch_units)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

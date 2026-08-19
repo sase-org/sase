@@ -415,7 +415,7 @@ def _format_block_message(unit: LaunchUnit) -> str:
         if unit.total > 1
         else "Cannot launch: "
     )
-    return f"{prefix}{provider_clause} {_block_reason(unit)} {_REMEDY}"
+    return f"{prefix}{provider_clause} {launch_unit_block_reason(unit)} {_REMEDY}"
 
 
 def _format_provider_clause(
@@ -442,7 +442,7 @@ def _format_provider_clause(
     return f"{clause}."
 
 
-def _block_reason(unit: LaunchUnit) -> str:
+def launch_unit_block_reason(unit: LaunchUnit) -> str:
     from sase.llm_provider.model_alias_resolution import model_alias_selector_details
     from sase.xprompt.directives import extract_prompt_directives
 
@@ -490,6 +490,7 @@ __all__ = [
     "LaunchUnitsPayloadError",
     "blocked_launch_units",
     "guard_launch_units",
+    "launch_unit_block_reason",
     "parse_launch_units_payload",
     "plan_launch_units",
 ]

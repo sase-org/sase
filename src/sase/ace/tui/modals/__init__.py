@@ -143,6 +143,14 @@ _LAZY_EXPORTS = {
     "CustomGateModalData": (".custom_gate_modal", "CustomGateModalData"),
     "CustomGateModalResult": (".custom_gate_modal", "CustomGateModalResult"),
     "CustomModelInputModal": (".custom_model_input_modal", "CustomModelInputModal"),
+    "DisabledProviderLaunchDecision": (
+        ".disabled_provider_launch_modal",
+        "DisabledProviderLaunchDecision",
+    ),
+    "DisabledProviderLaunchModal": (
+        ".disabled_provider_launch_modal",
+        "DisabledProviderLaunchModal",
+    ),
     "DismissedAgentSelectModal": (".revive_agent_modal", "DismissedAgentSelectModal"),
     "GateActionControls": (".gate_action_controls", "GateActionControls"),
     "GateActionOutputModal": (".gate_action_output_modal", "GateActionOutputModal"),
@@ -450,6 +458,8 @@ __all__ = [
     "CopyAsRow",
     "CommitViewModal",
     "CustomModelInputModal",
+    "DisabledProviderLaunchDecision",
+    "DisabledProviderLaunchModal",
     "ConfirmDeleteModal",
     "ConfirmDialog",
     "ConfirmDismissAllModal",
