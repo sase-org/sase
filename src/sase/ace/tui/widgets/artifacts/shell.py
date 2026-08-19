@@ -89,16 +89,16 @@ def build_shell_scope(
     accent: str,
     scope_label: str,
     change_hint: str | None = None,
-    filter_tokens: tuple[str, ...] = (),
 ) -> Text:
     """Build the shared identity/scope header line.
 
     Every pane's header opens with the same contract-driven identity chip
-    (*label* on *accent*), followed by project scope and any active filter
-    chips. *label*/*accent* must come from the pane's resolved
-    ``ArtifactsPaneContract`` — never a pane-id lookup into
-    ``ARTIFACTS_ACCENTS``. Bespoke per-pane information does not belong
-    here; it belongs in the state/count lane or the pane's own rows.
+    (*label* on *accent*), followed by project scope. *label*/*accent* must
+    come from the pane's resolved ``ArtifactsPaneContract`` — never a
+    pane-id lookup into ``ARTIFACTS_ACCENTS``. Bespoke per-pane information
+    does not belong here; it belongs in the state/count lane or the pane's
+    own rows. The active query lives solely in that pane's persistent
+    ``FilterBar`` — it is not echoed here.
     """
 
     text = Text()
@@ -108,9 +108,6 @@ def build_shell_scope(
     if change_hint:
         text.append(_SEPARATOR, style="dim")
         text.append(change_hint, style="dim")
-    for token in filter_tokens:
-        text.append(_SEPARATOR, style="dim")
-        text.append(token, style="dim #87D7FF")
     return text
 
 

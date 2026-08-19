@@ -10,7 +10,7 @@ from textual.widgets import Static
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plan_search.filter_query import PlanFilterQueryError, PlanFilterValues
-from sase.plan_search.filter_query import to_query_string, to_query_tokens
+from sase.plan_search.filter_query import to_query_string
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
 from ..._artifact_tab_model import PaneGroupingModeDecl
@@ -302,14 +302,12 @@ class PlansOptionsMixin(_MixinBase):
                     matched_counts[record.kind] += 1
                 self._display_matched_counts = matched_counts
         if pending_query:
-            if self._filter_session_open and self._filter_query_error is None:
-                exact, coverage_label = self._filter_coverage(values)
-                self.query_one(PlanFilterBar).set_status(
-                    None,
-                    exact=False,
-                    error=None,
-                    coverage_label=coverage_label if not exact else None,
-                )
+            exact, coverage_label = self._filter_coverage(values)
+            self._sync_query_bar(
+                None,
+                exact=False,
+                coverage_label=coverage_label if not exact else None,
+            )
             return
         mode = self._active_grouping_mode()
         registry = self._group_fold_registry() if mode is not None else None
@@ -373,14 +371,13 @@ class PlansOptionsMixin(_MixinBase):
             self._pending_entry_target = None
         self._update_status()
         self._update_static("#plans-info", self._scope_text())
-        if self._filter_session_open and self._filter_query_error is None:
-            exact, coverage_label = self._filter_coverage(values)
-            self.query_one(PlanFilterBar).set_status(
-                match_count,
-                exact=exact and match_count is not None,
-                error=None,
-                coverage_label=coverage_label,
-            )
+        exact, coverage_label = self._filter_coverage(values)
+        self._sync_query_bar(
+            match_count,
+            exact=exact and match_count is not None,
+            coverage_label=coverage_label,
+            blank=not self._filter_session_open and values.is_empty,
+        )
         if update_detail:
             if self._detail_debouncer is None or (
                 not self._filter_session_open and values.is_empty
@@ -389,6 +386,38 @@ class PlansOptionsMixin(_MixinBase):
             else:
                 self._detail_debouncer.schedule(self._update_detail)
         self._sync_artifacts_footer()
+
+    def _sync_query_bar(
+        self,
+        match_count: int | None,
+        *,
+        exact: bool,
+        coverage_label: str | None = None,
+        blank: bool = False,
+    ) -> None:
+        """Keep the persistent Plans bar's text and status lane truthful.
+
+        Called from every ``_refresh_options()`` exit path, including the
+        pending-query early return, since a permanent bar must stay correct
+        even while the user is not editing it. *coverage_label* carries the
+        deep-archive coverage state so it stays visible whether or not a
+        session is open. *blank* clears the status lane for an idle, empty
+        query, where the placeholder already says there is no filter.
+        """
+        bar = self.query_one(PlanFilterBar)
+        if not self._filter_session_open:
+            bar.set_query(to_query_string(self.filters))
+        if self._filter_query_error is not None:
+            return
+        if blank:
+            bar.clear_status()
+        else:
+            bar.set_status(
+                match_count,
+                exact=exact,
+                error=None,
+                coverage_label=coverage_label,
+            )
 
     def _accent(self) -> str:
         contract = self.contract
@@ -399,7 +428,6 @@ class PlansOptionsMixin(_MixinBase):
             self._registry,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
-            filter_tokens=to_query_tokens(self.filters),
             provider_label=self.provider_label,
             accent=self._accent(),
         )

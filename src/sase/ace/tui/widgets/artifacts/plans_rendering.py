@@ -33,7 +33,6 @@ def build_plans_scope(
     *,
     project_scope: str | None,
     project_display_name: str | None,
-    filter_tokens: tuple[str, ...] = (),
     provider_label: str = "Plan",
     accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
@@ -42,7 +41,6 @@ def build_plans_scope(
         accent=accent,
         scope_label=project_display_name or project_scope or "All projects",
         change_hint=f"{key_display_name(registry.app.pick_artifacts_project)} change",
-        filter_tokens=filter_tokens,
     )
 
 

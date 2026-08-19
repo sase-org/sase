@@ -115,12 +115,10 @@ def test_build_shell_scope_uses_contract_identity_and_accent() -> None:
         accent=contract.accent,
         scope_label="All projects",
         change_hint="p change",
-        filter_tokens=("status:open",),
     )
     assert "Bead" in text.plain
     assert "All projects" in text.plain
     assert "p change" in text.plain
-    assert "status:open" in text.plain
     styles = {span.style for span in text.spans}
     assert any("#D787FF" in str(style) for style in styles)
 

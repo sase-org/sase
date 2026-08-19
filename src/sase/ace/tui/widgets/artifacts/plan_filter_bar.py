@@ -35,6 +35,8 @@ class PlanFilterBar(FilterBar):
     STATUS_ID = "plan-filter-status"
     COMPLETION_ID = "plan-filter-completion"
     CANDIDATE_ID_PREFIX = "plan-filter-candidate"
+    DISPLAY_ID = "plan-filter-display"
+    PERSISTENT = True
     KEY_COMPLETIONS = (
         ("kind", "proposal, active, archive, plans, research"),
         ("status", "proposed or plan frontmatter status"),

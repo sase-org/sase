@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.plan_search.filter_query import (
     PlanFilterQueryError,
     PlanFilterValues,
@@ -87,6 +88,10 @@ class PlansFilterSessionMixin(_MixinBase):
         self._deep_archive_in_flight = None
         self._deep_archive_pending = None
         self._deep_archive_cache = {}
+
+    def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
+        event.stop()
+        self.show_filters()
 
     def show_filters(self) -> None:
         """Open and focus the inline plans filter bar."""

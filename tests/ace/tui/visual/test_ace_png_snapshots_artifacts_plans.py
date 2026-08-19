@@ -90,13 +90,13 @@ async def _commit_plan_filter_query(
 ) -> None:
     values = parse_plan_filter_query(query)
     await page.press("slash")
-    await page.wait_for(lambda _state: bar.display)
+    await page.wait_for(lambda _state: bar._editing)  # noqa: SLF001
     bar.query_one("#plan-filter-input", SingleLineVimTextArea).load_text(query)
     await page.wait_for(lambda _state: pane._live_filter_values == values)
     await page.press("enter")
     await page.wait_for(
         lambda _state: (
-            not bar.display
+            not bar._editing  # noqa: SLF001
             and pane.filters == values
             and pane.query_one("#plans-list", OptionList).has_focus
         )
@@ -171,7 +171,9 @@ async def test_plans_filter_bar_prefilled_png_snapshot(
         await _commit_plan_filter_query(page, pane, bar, query)
         await page.press("slash")
         editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
-        await page.wait_for(lambda _state: bar.display and editor.text == query)
+        await page.wait_for(
+            lambda _state: bar._editing and editor.text == query  # noqa: SLF001
+        )
         await wait_for_svg_contains(page, "1 match")
         await wait_for_visual_idle(page)
 
@@ -222,11 +224,12 @@ async def test_plans_filter_completion_png_snapshot(
         )
 
 
-async def test_plans_narrowed_filter_chips_png_snapshot(
+async def test_plans_narrowed_filter_bar_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """The committed query now lives only in the idle bar, not header chips."""
     patch_startup_loaders(monkeypatch)
     snapshot = _visual_snapshot(tmp_path)
     monkeypatch.setattr(
@@ -242,6 +245,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
         pane, bar = await _open_plans(page, snapshot)
         await _commit_plan_filter_query(page, pane, bar, "Active")
         options = pane.query_one("#plans-list", OptionList)
+        display = bar.query_one("#plan-filter-display", Static)
 
         def option_ids() -> set[str]:
             return {
@@ -260,7 +264,7 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
             lambda _state: (
                 "0/1 proposals" in status.content.plain
                 and "1/1 active" in status.content.plain
-                and "Active" in pane.query_one("#plans-info", Static).content.plain
+                and display.render().plain == "Active"
             )
         )
         await wait_for_svg_contains(page, "Active rollout")
@@ -268,8 +272,8 @@ async def test_plans_narrowed_filter_chips_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_plans_narrowed_filter_chips_120x40",
-            title="ACE Artifacts Plans narrowed filter chips",
+            "artifacts_plans_narrowed_filter_bar_120x40",
+            title="ACE Artifacts Plans narrowed filter bar",
         )
 
 
@@ -292,7 +296,7 @@ async def test_plans_filter_parse_error_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         _pane, bar = await _open_plans(page, snapshot)
         await page.press("slash")
-        await page.wait_for(lambda _state: bar.display)
+        await page.wait_for(lambda _state: bar._editing)  # noqa: SLF001
         bar.query_one("#plan-filter-input", SingleLineVimTextArea).load_text("status:")
         await page.wait_for(
             lambda _state: bar.query_one("#plan-filter-status").has_class("error")

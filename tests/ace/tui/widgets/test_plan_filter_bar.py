@@ -284,5 +284,8 @@ async def test_status_and_close_use_plan_ids() -> None:
 
         bar.open("")
         bar.close()
-        assert bar.display is False
+        assert bar.display is True
         assert app.query_one("#plan-filter-completion", OptionList).display is False
+        editor = app.query_one("#plan-filter-input", SingleLineVimTextArea)
+        assert editor.display is False
+        assert editor.can_focus is False
