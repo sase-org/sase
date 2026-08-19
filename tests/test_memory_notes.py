@@ -15,6 +15,7 @@ from sase.memory.notes import (
     render_children_section,
     render_long_memory_sections,
 )
+from sase.memory.text_filter import filter_memory_notes
 
 
 def _write(path: Path, content: str) -> None:
@@ -295,3 +296,22 @@ def test_render_long_memory_sections_omits_empty_description_body() -> None:
     assert render_long_memory_sections((empty, missing)) == (
         "### `sase/memory/empty.md`\n\n### `sase/memory/missing.md`"
     )
+
+
+def test_filter_memory_notes_matches_stem_and_description_not_body_by_default() -> None:
+    stem_hit = _note("sase/memory/alpha.md", description="Hub note.")
+    description_hit = _note("sase/memory/beta.md", description="Mentions Alpha here.")
+    body_only = parse_memory_note_text(
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Other.\n---\n# Alpha in body\n",
+        "sase/memory/gamma.md",
+    )
+
+    notes = (stem_hit, description_hit, body_only)
+    matched = filter_memory_notes(notes, pattern="alpha", include_bodies=False)
+    assert tuple(note.path.stem for note in matched) == ("alpha", "beta")
+
+    with_bodies = filter_memory_notes(notes, pattern="alpha", include_bodies=True)
+    assert tuple(note.path.stem for note in with_bodies) == ("alpha", "beta", "gamma")
+
+    assert filter_memory_notes(notes, pattern=None, include_bodies=False) == notes
+    assert filter_memory_notes(notes, pattern="", include_bodies=True) == notes

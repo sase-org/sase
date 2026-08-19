@@ -338,6 +338,13 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-qt.4(MemoryNoteDigest)" \
+        --epic-symbol "sase-qt.4(MemoryPanelInitialLoad)" \
+        --epic-symbol "sase-qt.4(MemoryRailNode)" \
+        --epic-symbol "sase-qt.4(filter_memory_notes)" \
+        --epic-symbol "sase-qt.4(invalidate_memory_scope)" \
+        --epic-symbol "sase-qt.4(load_memory_panel_initial_state)" \
+        --epic-symbol "sase-qt.5(memory_note_relations)" \
         --epic-symbol "sase-qt.6(MemoryConflictError)" \
         --epic-symbol "sase-qt.6(MemoryDraftValidation)" \
         --epic-symbol "sase-qt.6(MemoryGeneratedNoteError)" \
