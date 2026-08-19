@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # The sase-core release that first published the powerful-variable bindings.
 POWERFUL_VARIABLE_CORE_FLOOR = (0, 27, 9)
-_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<0\.28\.0$")
+_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
 
 
 def _declared_core_floor() -> tuple[int, ...]:

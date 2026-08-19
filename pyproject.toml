@@ -43,7 +43,7 @@ dependencies = [
     "pyyaml",
     "rich",
     "ruamel.yaml>=0.18,<1.0",
-    "sase-core-rs>=0.27.18,<0.28.0",
+    "sase-core-rs>=0.29.0,<0.30.0",
     "schedule",
     "textual[syntax]>=0.45.0",
     "wcmatch",
