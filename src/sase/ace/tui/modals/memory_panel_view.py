@@ -66,6 +66,10 @@ class MemoryPanelViewMixin(_MixinBase):
 
         def _note_list(self) -> OptionList: ...
 
+        def _scope_is_unpublished(self) -> bool: ...
+
+        def _selected_is_writable(self) -> bool: ...
+
         def _selected_row(self) -> MemoryRailNode | None: ...
 
     def _loading_header_text(self) -> Text:
@@ -85,9 +89,7 @@ class MemoryPanelViewMixin(_MixinBase):
                 scope_index=self._scope_index,
                 scope_count=len(self._ring),
                 accent=self._accent,
-                # Phase 6 flips this once panel writes exist; Phase 4 never has
-                # an unpublished scope.
-                unpublished=False,
+                unpublished=self._scope_is_unpublished(),
             )
         self.query_one("#memory-panel-header", Static).update(header)
 
@@ -128,6 +130,8 @@ class MemoryPanelViewMixin(_MixinBase):
             has_links=bool(self._chip_notes),
             has_trail=bool(self._trail),
             focused_link_stem=focused_link_stem,
+            can_mutate=self._selected_is_writable(),
+            unpublished=self._scope_is_unpublished(),
         )
         footer_widget = self.query_one("#memory-panel-footer", Static)
         footer_widget.update(footer)

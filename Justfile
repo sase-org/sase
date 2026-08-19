@@ -338,17 +338,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-qt.6(MemoryConflictError)" \
-        --epic-symbol "sase-qt.6(MemoryDraftValidation)" \
-        --epic-symbol "sase-qt.6(MemoryGeneratedNoteError)" \
-        --epic-symbol "sase-qt.6(MemoryMutationError)" \
-        --epic-symbol "sase-qt.6(MemoryMutationOutcome)" \
-        --epic-symbol "sase-qt.6(MemoryNoteDraft)" \
-        --epic-symbol "sase-qt.6(MemoryValidationError)" \
-        --epic-symbol "sase-qt.6(create_memory_note)" \
-        --epic-symbol "sase-qt.6(delete_memory_note)" \
-        --epic-symbol "sase-qt.6(update_memory_note)" \
-        --epic-symbol "sase-qt.6(validate_memory_note_draft)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

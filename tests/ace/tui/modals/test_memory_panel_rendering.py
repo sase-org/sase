@@ -15,6 +15,7 @@ from sase.ace.tui.modals.memory_panel_rendering import (
     build_note_card_meta,
     build_note_row_text,
     build_panel_footer,
+    build_panel_header,
     note_rail_width,
 )
 from tests.ace.tui.modals.memory_panel_test_helpers import (
@@ -57,9 +58,12 @@ def test_panel_footer_lists_only_conditional_keys() -> None:
     )
     assert "p/P scope" in footer
     assert "y copy" in footer
-    assert "o edit" in footer
+    assert "o source" in footer
     assert "Z view" in footer
     assert "a add" not in footer
+    assert "e edit" not in footer
+    assert "d delete" not in footer
+    assert "I publish" not in footer
     assert "filter" not in footer
     assert "help" not in footer
     assert "esc" not in footer
@@ -83,6 +87,22 @@ def test_panel_footer_lists_link_and_back_when_present() -> None:
     assert "→ child" in footer
     assert "backspace / h back" in footer
     assert "p/P scope" in footer
+
+
+def test_panel_footer_lists_edit_delete_and_publish() -> None:
+    keymaps = MemoryPanelKeymaps()
+    footer = build_panel_footer(
+        keymaps,
+        has_notes=True,
+        has_source_path=True,
+        ring_size=1,
+        can_mutate=True,
+        unpublished=True,
+    )
+    assert "e edit" in footer
+    assert "d delete" in footer
+    assert "I publish" in footer
+    assert "o source" in footer
 
 
 def test_note_card_meta_renders_parent_and_children_chips() -> None:
@@ -110,6 +130,21 @@ def test_memory_panel_help_documents_enter_does_not_follow() -> None:
 
     assert "only l currently follows a chip" in text
     assert "Enter does nothing in this panel" in text
+
+
+def test_panel_header_shows_unpublished_badge() -> None:
+    header = build_panel_header(
+        scope_display_name="sase",
+        note_count=2,
+        scope_index=0,
+        scope_count=1,
+        accent="#87D7FF",
+        unpublished=True,
+    )
+    console = Console(width=200, no_color=True, legacy_windows=False)
+    with console.capture() as capture:
+        console.print(header)
+    assert "UNPUBLISHED" in capture.get()
 
 
 def test_note_row_text_marks_tier_and_child_indent() -> None:

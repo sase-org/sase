@@ -8,7 +8,7 @@ selected?" for every other mixin.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
@@ -42,7 +42,10 @@ class MemoryPanelStateMixin(_MixinBase):
         _filter_text: str
         _rows: tuple[MemoryRailNode, ...]
         _selection_guard: ProgrammaticSelectionGuard
+        _ring: tuple[Any, ...]
+        _scope_index: int
         _snapshot: MemoryScopeSnapshot | None
+        _unpublished_scopes: set[str]
 
         def _refresh_links_for_current_note(self) -> None: ...
 
@@ -148,6 +151,38 @@ class MemoryPanelStateMixin(_MixinBase):
         if not 0 <= row < len(self._rows):
             return None
         return self._rows[row]
+
+    def _selected_is_writable(self) -> bool:
+        node = self._selected_row()
+        snapshot = self._snapshot
+        return (
+            node is not None
+            and snapshot is not None
+            and node.note.relative_path not in snapshot.generated_paths
+        )
+
+    def _scope_is_unpublished(self) -> bool:
+        if not getattr(self, "_ring", ()):
+            return False
+        scopes: set[str] = getattr(self, "_unpublished_scopes", set())
+        return self._ring[self._scope_index].key in scopes
+
+    def _mark_scope_unpublished(self, scope_key: str | None = None) -> None:
+        key = scope_key
+        if key is None:
+            if not getattr(self, "_ring", ()):
+                return
+            key = self._ring[self._scope_index].key
+        self._unpublished_scopes.add(key)
+        if getattr(self, "is_mounted", False):
+            self._update_header()
+            self._update_footer()
+
+    def _clear_scope_unpublished(self, scope_key: str) -> None:
+        self._unpublished_scopes.discard(scope_key)
+        if getattr(self, "is_mounted", False):
+            self._update_header()
+            self._update_footer()
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted

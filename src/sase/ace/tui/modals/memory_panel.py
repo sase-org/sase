@@ -5,12 +5,9 @@ that fill it, and the passive source-file/copy actions. The panel's
 behavior is split across sibling mixins -- snapshot and selection state in
 :mod:`sase.ace.tui.modals.memory_panel_state`, widget rendering in
 :mod:`sase.ace.tui.modals.memory_panel_view`, note/filter/scope movement in
-:mod:`sase.ace.tui.modals.memory_panel_navigation`, and parent/child chip
-travel in :mod:`sase.ace.tui.modals.memory_panel_travel`. Add/edit/delete/
-publish surfaces are a later phase and are not wired here; the keymap
-scope already carries their bindings (see ``ace.keymaps.memory``), but no
-``action_*`` method exists for them yet, so those keys are safe, silent
-no-ops until a later phase implements them.
+:mod:`sase.ace.tui.modals.memory_panel_navigation`, parent/child chip
+travel in :mod:`sase.ace.tui.modals.memory_panel_travel`, and
+add/edit/delete/publish in :mod:`sase.ace.tui.modals.memory_panel_actions`.
 """
 
 from __future__ import annotations
@@ -41,6 +38,7 @@ from sase.memory.notes import MemoryNote
 
 from .base import CopyModeForwardingMixin, FilterInput
 from ._source_file_actions import SourceFileActionsMixin
+from .memory_panel_actions import MemoryPanelActionsMixin
 from .memory_panel_help_modal import MemoryPanelHelpModal
 from .memory_panel_load import (
     MemoryPanelInitialLoad,
@@ -83,6 +81,7 @@ class _MemoryFilterInput(FilterInput):
 class MemoryPanel(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
+    MemoryPanelActionsMixin,
     MemoryPanelStateMixin,
     MemoryPanelViewMixin,
     MemoryPanelNavigationMixin,
@@ -141,6 +140,10 @@ class MemoryPanel(
         self._chip_parent_count = 0
         self._chip_cursor: int | None = None
         self._trail: list[str] = []
+        self._write_busy = False
+        self._unpublished_scopes: set[str] = set()
+        self._pending_delete_path: str | None = None
+        self._pending_delete_neighbor: str | None = None
 
     def compose(self) -> ComposeResult:
         self._accent = memory_card_accent(self.app.current_theme)
@@ -328,6 +331,7 @@ class MemoryPanel(
         changed = event.worker.result
         if not changed or self._loading or not self._ring:
             return
+        self._mark_scope_unpublished()
         self._start_scope_load()
 
     # --- passive actions ------------------------------------------------

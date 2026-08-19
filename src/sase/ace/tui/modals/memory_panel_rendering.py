@@ -80,9 +80,8 @@ def build_panel_header(
 ) -> RenderableType:
     """Build the ``MEMORY · scope · N notes · scope i/N`` header line.
 
-    *unpublished* renders a right-aligned ``⚠ UNPUBLISHED`` badge. Phase 4
-    never sets it -- there are no writes yet -- but the hook exists so a
-    later phase does not have to restructure the header.
+    *unpublished* renders a right-aligned ``⚠ UNPUBLISHED`` badge after a
+    panel write that has not yet been published with ``sase memory init``.
     """
     left = Text()
     left.append("MEMORY", style=f"bold {accent}")
@@ -393,12 +392,14 @@ def build_panel_footer(
     has_links: bool = False,
     has_trail: bool = False,
     focused_link_stem: str | None = None,
+    can_mutate: bool = False,
+    unpublished: bool = False,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps.
 
-    Edit/delete and publish keys are a later phase -- they are left out
-    entirely until those actions exist. Link and back keys appear when
-    chips or a trail are present.
+    Link and back keys appear when chips or a trail are present.
+    Edit/delete appear when a writable note is selected; publish appears
+    when this scope is unpublished.
     """
     parts: list[str] = []
     if ring_size > 1:
@@ -413,10 +414,15 @@ def build_panel_footer(
             parts.append(f"→ {focused_link_stem}")
     if has_trail:
         parts.append(f"{key_display_name(keymaps.travel_back)} back")
+    if can_mutate:
+        parts.append(f"{key_display_name(keymaps.edit_note)} edit")
+        parts.append(f"{key_display_name(keymaps.delete_note)} delete")
+    if unpublished:
+        parts.append(f"{key_display_name(keymaps.publish)} publish")
     if has_notes:
         parts.append(f"{key_display_name(keymaps.copy_body)} copy")
     if has_source_path:
-        parts.append(f"{key_display_name(keymaps.open_source)} edit")
+        parts.append(f"{key_display_name(keymaps.open_source)} source")
         parts.append(f"{key_display_name(keymaps.open_viewer)} view")
     return "  ·  ".join(parts)
 

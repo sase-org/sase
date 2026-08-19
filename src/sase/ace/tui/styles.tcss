@@ -5481,6 +5481,117 @@ MemoryScopePicker #memory-panel-scope-picker-hints {
     margin-top: 1;
 }
 
+/* ===== Memory Note Form Modal ===== */
+
+MemoryNoteFormModal {
+    align: center middle;
+}
+
+MemoryNoteFormModal #memory-note-form-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryNoteFormModal #memory-note-form-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryNoteFormModal .memory-note-form-label {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+MemoryNoteFormModal #memory-note-form-stem {
+    height: 3;
+    border: tall $secondary;
+}
+
+MemoryNoteFormModal .memory-note-form-path {
+    height: auto;
+    color: $text-muted;
+}
+
+MemoryNoteFormModal #memory-note-form-type,
+MemoryNoteFormModal #memory-note-form-parent {
+    height: auto;
+    margin-bottom: 0;
+}
+
+MemoryNoteFormModal #memory-note-form-description {
+    height: 8;
+    min-height: 5;
+    border: tall $secondary;
+}
+
+MemoryNoteFormModal .memory-note-form-error {
+    height: auto;
+    color: #ff5f5f;
+}
+
+MemoryNoteFormModal #memory-note-form-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+}
+
+/* ===== Memory Publish Modal ===== */
+
+MemoryPublishModal {
+    align: center middle;
+}
+
+MemoryPublishModal #memory-publish-container {
+    width: 78;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MemoryPublishModal #memory-publish-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+MemoryPublishModal .memory-publish-label {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+MemoryPublishModal #memory-publish-subject {
+    height: 3;
+    border: tall $secondary;
+}
+
+MemoryPublishModal .memory-publish-error {
+    height: auto;
+    color: #ff5f5f;
+}
+
+MemoryPublishModal #memory-publish-buttons {
+    height: auto;
+    margin-top: 1;
+    align: center middle;
+}
+
+MemoryPublishModal #memory-publish-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+}
+
 /* ===== Repo Preview Modal Styling ===== */
 
 RepoPreviewModal {
