@@ -812,24 +812,24 @@ timestamps for each hook.
 
 Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
 
-| Key        | Action                                                                                 |
-| ---------- | -------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                         |
-| `,!`       | Run command using current PR context                                                   |
-| `,A`       | Open the Agent Run Log modal for the current PR                                        |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                         |
-| `,C`       | Review mentors (opens Mentor Review modal)                                             |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                |
-| `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
-| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                   |
-| `,L`       | Jump to the log entry for the most recent error toast                                  |
-| `,M`       | Kill running mentors                                                                   |
-| `,R`       | Show runners info                                                                      |
-| `,<space>` | Run agent from current PR (skips project selection)                                    |
-| `,.`       | Open prompt history modal                                                              |
-| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                              |
-| `,>`       | Open prompt history modal with cancelled prompts visible                               |
-| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                       |
+| Key        | Action                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                              |
+| `,!`       | Run command using current PR context                                                        |
+| `,A`       | Open the Agent Run Log modal for the current PR                                             |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                              |
+| `,C`       | Review mentors (opens Mentor Review modal)                                                  |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                     |
+| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
+| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                        |
+| `,L`       | Jump to the log entry for the most recent error toast                                       |
+| `,M`       | Kill running mentors                                                                        |
+| `,R`       | Show runners info                                                                           |
+| `,<space>` | Run agent from current PR (skips project selection)                                         |
+| `,.`       | Open prompt history modal                                                                   |
+| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                   |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                    |
+| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                            |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers
 use lifecycle-aware discovery: project entries, including `home` when it appears in
@@ -2022,7 +2022,7 @@ modal.
 | `,y`       | Refresh the Agents tab from full artifact history                                                 |
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
-| `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control))            |
+| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
 | `,U`       | Update SASE/agent CLIs and import cached agent hoods                                              |
 | `,L`       | Jump to the log entry for the most recent error toast                                             |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
@@ -2365,18 +2365,18 @@ property.
 
 Help is not a leader command: press the app-level `?` on any tab to open the Help modal.
 
-| Key       | Action                                                                                 |
-| --------- | -------------------------------------------------------------------------------------- |
-| `,,`      | Repeat the last leader command                                                         |
-| `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                |
-| `,m`      | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
-| `,U`      | Update SASE/agent CLIs and import cached agent hoods                                   |
-| `,L`      | Jump to the log entry for the most recent error toast                                  |
-| `,R`      | Show runners info                                                                      |
-| `,.`      | Open prompt history modal                                                              |
-| `,Ctrl+G` | Open prompt history and edit the newest entry immediately                              |
-| `,>`      | Open prompt history modal with cancelled prompts visible                               |
-| `,@`      | Open the prompt stash picker without auto-restoring a lone entry                       |
+| Key       | Action                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------- |
+| `,,`      | Repeat the last leader command                                                              |
+| `,h`      | Run agent from home prompt context; bare prompts default to `#git:home`                     |
+| `,m`      | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control)) |
+| `,U`      | Update SASE/agent CLIs and import cached agent hoods                                        |
+| `,L`      | Jump to the log entry for the most recent error toast                                       |
+| `,R`      | Show runners info                                                                           |
+| `,.`      | Open prompt history modal                                                                   |
+| `,Ctrl+G` | Open prompt history and edit the newest entry immediately                                   |
+| `,>`      | Open prompt history modal with cancelled prompts visible                                    |
+| `,@`      | Open the prompt stash picker without auto-restoring a lone entry                            |
 
 ### Bang Mode (`!` prefix)
 
@@ -2724,10 +2724,11 @@ xprompt definitions, while the Statistics sub-tab measures how launch prompts us
 ## Launch Control {#launch-control}
 
 Press `,m` from any tab to open **Launch Control** — one keyboard-driven surface for
-launch configuration, model aliases, and temporary provider routing. The top level has
-three visible sections: **Launch settings**, **Built-in size aliases**, and **Your
-aliases**. Consecutive visible sections are separated by exactly one non-selectable
-blank row; there is no leading, trailing, or doubled spacer.
+launch configuration, model aliases, temporary provider routing, and launching an
+interactive agent CLI in a new tmux window. The top level has three visible sections:
+**Launch settings**, **Built-in size aliases**, and **Your aliases**. Consecutive
+visible sections are separated by exactly one non-selectable blank row; there is no
+leading, trailing, or doubled spacer.
 
 Data rows use the grid `ownership gutter | name | value/model | state`. The former row
 kind column is gone: labels such as `launch`, `setting`, `role`, `user`, and `bucket` do
@@ -2815,6 +2816,7 @@ Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint
 | `e`                   | **Edit** — change the persistent configured value                                                                   |
 | `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                                                  |
 | `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                               |
+| `t`                   | **tmux Agent** — launch an interactive agent CLI in a new tmux window                                               |
 | `H`                   | **History** — view recorded prior runs for the highlighted alias, alias-backed launch setting, or bucket            |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                            |
 | `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                               |
@@ -2971,6 +2973,54 @@ unblock a later one, so ACE re-checks after every write.
 A single-agent launch that only enables or soft-enables submits the original prompt.
 Picking a different model on a one-agent launch rewrites that prompt. Dropping or
 re-modelling a unit in a multi-agent launch submits only the agents that remain.
+
+### tmux Agent {#tmux-agent}
+
+Press `t` from Launch Control to open **tmux Agent**. The panel lists every registered
+provider that declares an interactive CLI, in shortcut-key order, and launches the
+chosen one in a new tmux window in the current pane's directory. The same catalog and
+launch engine back `sase tmux-agent` on the command line; only the presentation differs.
+These windows are unmanaged agent CLIs, not SASE agents — they do not appear in
+`sase agent list`.
+
+If ACE is not running inside tmux, `t` warns
+`ACE is not running inside tmux; start ACE in a tmux window to launch agent CLIs.` and
+does not open the panel.
+
+Each row is `<key>  ● <display name>  <vendor>  <state>`: the key in the selector
+accent, the bullet and display name in the provider's accent color, the vendor dim, and
+the state one of:
+
+| State                            | Meaning                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| `ready`                          | The CLI is installed and launchable.                                           |
+| `not installed`                  | The row is dim and unselectable; the description strip shows the install hint. |
+| `routing disabled · <time> left` | Hard-disabled for SASE automatic routing, but still launchable from here.      |
+| `soft · <time> left`             | Soft-disabled for SASE routing; still launchable from here.                    |
+
+A disabled-for-routing provider stays selectable because a human choosing an agent CLI
+is not automatic routing. The annotation is visible, not a wall.
+
+The two-line description strip shows the exact command that will run, then the preview
+window name (`ai`, `ai2`, `ai3`, …) plus effort and bypass state. A skipped
+config-default effort is named rather than swallowed. Bypass is on by default (matching
+the shell script this feature replaces) and is always visible in the strip; it is never
+applied invisibly.
+
+| Key                                 | Action                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Enter` / the row's assigned key    | Launch the highlighted (or keyed) agent CLI                                                |
+| `s`                                 | Launch once without the provider's approval-bypass args                                    |
+| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate; not-installed rows are skipped                                                   |
+| `Esc`                               | Close and return to Launch Control                                                         |
+| `q`                                 | Close, but only when no provider claimed `q` (Qwen keeps `q`; the title and footer say so) |
+
+A successful launch notifies `Opened tmux window: <name> · <display name>` and dismisses
+back to Launch Control. A failure notifies with an error and leaves the panel open.
+
+See [`sase tmux-agent`](cli.md) and the [`tmux_agent`](configuration.md#tmux_agent)
+config block for the CLI surface, the drop-in tmux binding, and the documented parity
+recipe against the script this feature replaces.
 
 ### Alias History
 
@@ -3210,6 +3260,8 @@ live validation line reports an error.
   `claude/haiku@minimal | codex/gpt-4o-mini`, and confirm — medium phases and tasks
   round-robin across this independent pool without consuming the `@xsmall` or `@small`
   cursor.
+- Press `t` — open tmux Agent, then `c` or Enter on Claude Code to launch it in a new
+  `ai` window; `s` launches once without approval-bypass flags.
 - Press `p`, highlight `claude`, `d`, choose `1h` — new alias-backed launches route
   around Claude for the next hour, direct `%model:claude/opus` launches fail explicitly,
   and already-running Claude processes continue.

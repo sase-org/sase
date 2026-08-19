@@ -16,6 +16,10 @@ so if this page and `sase doctor` ever disagree, trust the doctor output and ope
 issue. Vendor docs may list additional installer and account options; the snippets below
 intentionally match SASE's doctor hints.
 
+Installed provider CLIs are also launchable interactively with
+[`sase tmux-agent`](ace.md#tmux-agent) (or `t` in Launch Control). Those windows are
+unmanaged agent CLIs, not SASE agents — they do not appear in `sase agent list`.
+
 ## Claude Code
 
 Anthropic's Claude Code CLI (`claude`). This is SASE's highest-priority autodetect

@@ -537,9 +537,9 @@ LLM provider plugins use pluggy's hook system. The hook specification is defined
 call; metadata hooks (`llm_provider_name`, `llm_known_model_names`,
 `llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_cli_status_color`,
 `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_default_retry_config`,
-`llm_install_metadata`, `llm_model_advisories`) are invoked per-plugin by the registry
-so each provider contributes its own metadata. All hook method names are prefixed with
-`llm_`.
+`llm_install_metadata`, `llm_interactive_cli`, `llm_model_advisories`) are invoked
+per-plugin by the registry so each provider contributes its own metadata. All hook
+method names are prefixed with `llm_`.
 
 Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
 and xAI's Grok Build providers as built-in entry points. Additional providers belong in
@@ -553,23 +553,43 @@ updated, and drives [`sase agent-cli`](agent_providers.md#inventory-and-updates)
 key is optional and every one defaults to today's behavior, so an existing plugin needs
 no changes.
 
-| Key                         | Purpose                                                                                                           |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `manager`                   | `npm`, `homebrew`, `bundled`, or `script` (installed by a remote install script).                                 |
-| `package` / `brew_package`  | Package identity for the npm and Homebrew managers.                                                               |
-| `display_name` / `docs_url` | Human-facing name and canonical vendor docs link.                                                                 |
-| `version_argv`              | Argv used to probe the installed version (default `["--version"]`).                                               |
-| `version_regex`             | Regex with a `version` group, when the CLI's version output is not plain semver.                                  |
-| `latest_version_package`    | npm package whose `latest` dist-tag is the newest known version.                                                  |
-| `latest_version_url`        | HTTPS JSON endpoint serving the newest version, for channel-versioned CLIs distributed outside npm.               |
-| `latest_version_json_field` | Field to read from that endpoint's JSON body (default `version`).                                                 |
-| `version_compare`           | `pep440` (default) or `exact`. Use `exact` when release ids are not valid PEP 440 versions.                       |
-| `self_update_argv`          | The CLI's own update command; declaring one classifies the CLI as self-managed.                                   |
-| `self_update_env`           | Environment overlay applied to that update command, for CLIs whose update is env-driven rather than a subcommand. |
-| `install_script_url`        | HTTPS install script `sase agent-cli install` fetches, digests, and runs without a shell.                         |
-| `install_env`               | Environment overlay applied to that install script.                                                               |
-| `install_dir`               | Where the installer writes the binary, so SASE can name the target and find it afterwards.                        |
-| `install_dir_env`           | Environment variable that overrides `install_dir`.                                                                |
+| Key                         | Purpose                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `manager`                   | `npm`, `homebrew`, `bundled`, or `script` (installed by a remote install script).                                     |
+| `package` / `brew_package`  | Package identity for the npm and Homebrew managers.                                                                   |
+| `display_name` / `docs_url` | Human-facing name and canonical vendor docs link.                                                                     |
+| `vendor`                    | Secondary label shown by tmux Agent (`"Anthropic"`, `"OpenAI"`, `"Google"`, `"Alibaba"`, `"SST"`, `"xAI"`, `"Meta"`). |
+| `version_argv`              | Argv used to probe the installed version (default `["--version"]`).                                                   |
+| `version_regex`             | Regex with a `version` group, when the CLI's version output is not plain semver.                                      |
+| `latest_version_package`    | npm package whose `latest` dist-tag is the newest known version.                                                      |
+| `latest_version_url`        | HTTPS JSON endpoint serving the newest version, for channel-versioned CLIs distributed outside npm.                   |
+| `latest_version_json_field` | Field to read from that endpoint's JSON body (default `version`).                                                     |
+| `version_compare`           | `pep440` (default) or `exact`. Use `exact` when release ids are not valid PEP 440 versions.                           |
+| `self_update_argv`          | The CLI's own update command; declaring one classifies the CLI as self-managed.                                       |
+| `self_update_env`           | Environment overlay applied to that update command, for CLIs whose update is env-driven rather than a subcommand.     |
+| `install_script_url`        | HTTPS install script `sase agent-cli install` fetches, digests, and runs without a shell.                             |
+| `install_env`               | Environment overlay applied to that install script.                                                                   |
+| `install_dir`               | Where the installer writes the binary, so SASE can name the target and find it afterwards.                            |
+| `install_dir_env`           | Environment variable that overrides `install_dir`.                                                                    |
+
+`llm_interactive_cli()` describes how the provider's CLI is launched in a terminal by
+[tmux Agent](ace.md#tmux-agent). All keys are optional so third-party providers stay
+compatible. Omitting the hook entirely means "launchable as the bare CLI name with no
+extra flags", so a new provider is usable the moment it declares a CLI.
+
+| Key           | Purpose                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `argv`        | Base argv; defaults to `[llm_autodetect_cli_name()]`.                                                            |
+| `args`        | Always-on interactive args.                                                                                      |
+| `bypass_args` | Args that skip this CLI's approval prompts. Used when `tmux_agent.bypass_permissions` is on.                     |
+| `model_args`  | Argv fragment selecting a model; the literal `{model}` token is replaced with the configured model exactly once. |
+| `env`         | Environment the CLI needs in interactive mode.                                                                   |
+| `menu_key`    | Preferred single-character shortcut.                                                                             |
+| `supported`   | `False` marks a provider with no interactive CLI, which excludes it from the tmux Agent launcher.                |
+
+Malformed values degrade to the default rather than raising. A provider that should not
+appear in the launcher (the built-in `fakey` testing provider) returns
+`{"supported": False}`.
 
 `llm_model_advisories()` returns a per-model map of terms a user should see when they
 choose a model — a discounted tier that trains on its inputs, a preview model with no

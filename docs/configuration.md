@@ -45,6 +45,7 @@ sections, environment variables, and CLI flags.
   - [timezone](#timezone)
   - [chat_install](#chat_install)
   - [telegram](#telegram)
+  - [tmux_agent](#tmux_agent)
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
   - [bead](#bead)
@@ -3226,6 +3227,90 @@ command heads produce a warning with the affected names.
 
 Source: `src/sase/default_config.yml`, `src/sase/doctor/checks_integrations.py`
 
+### tmux_agent {#tmux_agent}
+
+Configuration for [tmux Agent](ace.md#tmux-agent): Launch Control's `t` binding and
+`sase tmux-agent`. Both surfaces share this block. A bad value is dropped with a warning
+rather than making the tmux key binding fail.
+
+```yaml
+tmux_agent:
+  # Base tmux window name. The first window is this name; later ones get a
+  # numeric suffix (ai, ai2, ai3, ...).
+  window_name: "ai"
+  # Pass each agent CLI's approval-bypass flags (see the provider's
+  # llm_interactive_cli descriptor). Per-provider overrides win.
+  bypass_permissions: true
+  # Reasoning effort applied to launches. "" follows llm_provider.default_effort;
+  # "off" passes no effort flags at all.
+  effort: ""
+  # Run `clear` in the new window before starting the CLI.
+  clear_screen: true
+  # Optional shell command run after an agent CLI window closes, alongside
+  # SASE's own window renumbering. Empty means nothing extra runs.
+  after_close_command: ""
+  # Per-provider overrides, keyed by registered provider name.
+  providers:
+    claude:
+      enabled: true # false hides the provider from both surfaces
+      key: "" # override the single-key menu shortcut
+      model: "" # pin a model, e.g. "gemini-3.7-flash-high"
+      effort: "" # per-provider effort; "" inherits, "off" disables
+      args: [] # extra CLI args appended verbatim
+      env: {} # environment variables for the new tmux window
+      bypass_permissions: true # omit to inherit the global default
+```
+
+| Field                                            | Type    | Default | Description                                                                                             |
+| ------------------------------------------------ | ------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `tmux_agent.window_name`                         | string  | `"ai"`  | Base tmux window name. First window is this name; later ones get a numeric suffix (`ai2`, `ai3`).       |
+| `tmux_agent.bypass_permissions`                  | bool    | `true`  | Pass each agent CLI's approval-bypass flags. The resolved command always shows whether bypass is on.    |
+| `tmux_agent.effort`                              | string  | `""`    | Effort applied to launches. `""` follows `llm_provider.default_effort`; `"off"` passes no effort flags. |
+| `tmux_agent.clear_screen`                        | bool    | `true`  | Run `clear` in the new window before starting the CLI.                                                  |
+| `tmux_agent.after_close_command`                 | string  | `""`    | Extra shell command run after an agent CLI window closes, alongside SASE's own window renumbering.      |
+| `tmux_agent.providers.<name>.enabled`            | bool    | `true`  | `false` hides the provider from both the tmux menu and the ACE panel.                                   |
+| `tmux_agent.providers.<name>.key`                | string  | `""`    | Override the single-key menu shortcut. Must be exactly one printable non-whitespace character.          |
+| `tmux_agent.providers.<name>.model`              | string  | `""`    | Pin a model (substituted into the provider's `model_args`).                                             |
+| `tmux_agent.providers.<name>.effort`             | string  | `""`    | Per-provider effort; `""` inherits the global `tmux_agent.effort`; `"off"` disables effort flags.       |
+| `tmux_agent.providers.<name>.args`               | list    | `[]`    | Extra CLI args appended verbatim after the resolved launch argv.                                        |
+| `tmux_agent.providers.<name>.env`                | mapping | `{}`    | Environment variables for the new tmux window; user values win over the provider descriptor.            |
+| `tmux_agent.providers.<name>.bypass_permissions` | bool    | inherit | Omit to inherit `tmux_agent.bypass_permissions`. `false` launches without bypass args.                  |
+
+`effort` accepts `""`, `"off"`, `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`,
+`"xhigh"`, and `"max"`. A config-default effort is best-effort: a provider that cannot
+honor the level launches without the flag rather than failing. An explicit
+`sase tmux-agent -e <level>` that the provider cannot honor is a usage error.
+
+Three per-provider entries are load-bearing if you want the resolved argv to match the
+shell script this feature replaces:
+
+```yaml
+tmux_agent:
+  effort: "max"
+  providers:
+    claude: { env: { EDITOR: nvim } }
+    codex: { effort: "xhigh" }
+    grok: { effort: "xhigh" }
+    opencode: { effort: "off" }
+    agy: { model: "gemini-3.7-flash-high" }
+    qwen: { model: "qwen3.6-plus" }
+    muse: { model: "muse-spark-1.2" }
+```
+
+- `codex` and `grok` cap out at `xhigh`. A config-default effort is best-effort, so
+  `effort_cli_args` logs and skips `max` rather than downgrading it — without the
+  per-provider `xhigh` they would launch with no effort flag at all, unlike the script.
+- `opencode` accepts every level as `--variant <level>`, so a global `max` would add a
+  flag the script never passes; `effort: "off"` keeps it bare.
+- `agy` and `qwen` need no effort entry: both declare an empty supported-effort map, so
+  the global `max` is skipped for them automatically and their argv already matches.
+  Their `model` pins reproduce the script's hardcoded models.
+
+`EDITOR=nvim` is a personal preference, not a provider requirement, which is why it
+lives on `tmux_agent.providers.claude.env` rather than in the Claude plugin.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/tmux_agent.py`
+
 ### mobile_gateway
 
 Configuration for `sase mobile gateway start`, which launches the workstation-hosted
@@ -3863,6 +3948,28 @@ subcommand. They do not steal `-f`/`-F` from commands such as `sase bead list -f
 | `-T, --tmux`             | flag                                                   | -                                | Launch ACE in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                                   |
 | `-x, --no-axe`           | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
 | `-v, --vcs-provider`     | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
+
+### `sase tmux-agent`
+
+Launch an interactive agent CLI in a new tmux window. There are no subcommands — in
+particular no `list` child — so a bare `sase tmux-agent` paints the tmux menu instead of
+delegating. See [tmux Agent](ace.md#tmux-agent).
+
+| Flag            | Values                                                            | Default                        | Description                                                               |
+| --------------- | ----------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `[provider]`    | registered provider name                                          | paint the menu                 | Launch this provider directly. Omit to paint the tmux Agent menu.         |
+| `-c, --dir`     | path                                                              | current pane path, else `$PWD` | Launch directory.                                                         |
+| `-e, --effort`  | `off`, `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` | inherit from config            | Explicit effort for this launch; unsupported levels are a usage error.    |
+| `-j, --json`    | flag                                                              | -                              | Versioned JSON envelope of the catalog or the dry-run plan.               |
+| `-l, --list`    | flag                                                              | -                              | Print the catalog as a table; works outside tmux. Not a subcommand.       |
+| `-n, --dry-run` | flag                                                              | -                              | Print the window name, directory, env, and exact command; change nothing. |
+| `-r, --refresh` | flag                                                              | -                              | Rebuild the catalog cache before doing anything else.                     |
+| `-s, --safe`    | flag                                                              | -                              | Launch without the provider's approval-bypass args.                       |
+| `-v, --verbose` | flag                                                              | -                              | With `--list`, add resolved paths, full commands, and install hints.      |
+
+`--renumber` is an internal hook invoked when an agent CLI window exits and is omitted
+from help. Outside tmux with no `--list`/`--dry-run`/`--json`, the command exits 2,
+explains that a tmux session is required, and still prints the catalog.
 
 ### `sase axe`
 
