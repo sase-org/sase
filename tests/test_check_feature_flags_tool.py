@@ -6,7 +6,7 @@ import importlib.util
 import json
 import stat
 import sys
-from datetime import date
+from datetime import UTC, date, datetime
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -15,6 +15,7 @@ from typing import Any, cast
 import pytest
 
 from sase.feature_flags import FeatureFlag, FeatureFlagDefinition
+from sase.feature_flags.orphan import ORPHAN_BEAD_GRACE
 from sase.feature_flags.schema import feature_flags_schema_block
 
 from tests.feature_flags._helpers import definitions, demo_flag
@@ -95,6 +96,8 @@ def _bead(
     source: str = "flag",
     task_type: str = "flag",
     kind: str | None = None,
+    created_at: str | None = None,
+    created_by: str | None = None,
 ) -> Any:
     return tool.MarkerBead(
         source=source,
@@ -106,6 +109,8 @@ def _bead(
         remove_by_release=remove_by_release,
         task_type=task_type,
         kind=kind,
+        created_at=created_at,
+        created_by=created_by,
     )
 
 
@@ -404,6 +409,88 @@ def test_rule_8_rejects_live_orphan_flag_bead() -> None:
     assert "ghost_flag" in findings[0].message
 
 
+def test_rule_8_warns_when_bead_is_newer_than_checkout() -> None:
+    tool = _load_tool()
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+
+    findings = tool.check_bead_status(
+        (),
+        [
+            _bead(
+                tool,
+                bead_id="sase-qq",
+                key="plugin_catalog_scoped_latest",
+                created_at="2026-08-19T01:21:12Z",
+                created_by="sase-qn.2",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=UTC),
+    )
+
+    assert _rules(findings) == [8]
+    assert findings[0].severity == "warning"
+    assert "sase-qq" in findings[0].message
+    assert "older than the bead" in findings[0].message
+    assert "sase-qn.2" in findings[0].message
+
+
+def test_rule_8_warns_when_bead_is_within_landing_grace() -> None:
+    tool = _load_tool()
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+    created = now - (ORPHAN_BEAD_GRACE / 2)
+
+    findings = tool.check_bead_status(
+        (),
+        [
+            _bead(
+                tool,
+                bead_id="sase-qq",
+                key="plugin_catalog_scoped_latest",
+                created_at=created.isoformat().replace("+00:00", "Z"),
+                created_by="sase-qn.2",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=now,
+    )
+
+    assert _rules(findings) == [8]
+    assert findings[0].severity == "warning"
+    assert "may still be landing" in findings[0].message
+
+
+def test_rule_8_errors_when_bead_predates_checkout_and_grace() -> None:
+    tool = _load_tool()
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+    created = now - (ORPHAN_BEAD_GRACE * 2)
+
+    findings = tool.check_bead_status(
+        (),
+        [
+            _bead(
+                tool,
+                bead_id="sase-orphan",
+                key="ghost_flag",
+                created_at=created.isoformat().replace("+00:00", "Z"),
+                created_by="sase-old",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=now,
+    )
+
+    assert _rules(findings) == [8]
+    assert findings[0].severity == "error"
+    assert "add the registry definition" in findings[0].message
+
+
 def test_rule_8_accepts_closed_orphan_and_defined_live_bead() -> None:
     tool = _load_tool()
     markers = tool.markers_from_flag_definitions(definitions(demo_flag("demo_flag")))
@@ -586,6 +673,26 @@ def test_marker_bead_from_issue_dict_reads_task_type_fields() -> None:
     assert bead.issue_type == "task"
 
 
+def test_marker_bead_from_issue_dict_reads_created_at_and_created_by() -> None:
+    tool = _load_tool()
+
+    bead = tool.marker_bead_from_issue_dict(
+        {
+            "id": "sase-qq",
+            "status": "open",
+            "issue_type": "task",
+            "task_type": "flag",
+            "created_at": "2026-08-19T01:21:12Z",
+            "created_by": "sase-qn.2",
+            "task_type_fields": {"key": "plugin_catalog_scoped_latest"},
+        },
+        source="flag",
+    )
+
+    assert bead.created_at == "2026-08-19T01:21:12Z"
+    assert bead.created_by == "sase-qn.2"
+
+
 def test_overdue_warning_does_not_fail_main(tmp_path: Path) -> None:
     tool = _load_tool()
     defs = definitions(demo_flag("demo_flag"))
@@ -612,6 +719,37 @@ def test_overdue_warning_does_not_fail_main(tmp_path: Path) -> None:
     rendered = tool.format_finding(findings[0], tmp_path)
     assert rendered.startswith("warning: ")
     assert "rule 9:" in rendered
+
+
+def test_in_flight_orphan_warning_does_not_fail_main(tmp_path: Path) -> None:
+    tool = _load_tool()
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+    findings = tool.run_checks(
+        repo_root=tmp_path,
+        definitions={},
+        schema_document=_schema_document({}),
+        python_files=[],
+        config_files=[],
+        beads=[
+            _bead(
+                tool,
+                bead_id="sase-qq",
+                key="plugin_catalog_scoped_latest",
+                created_at="2026-08-19T01:21:12Z",
+                created_by="sase-qn.2",
+            )
+        ],
+        today=date(2026, 8, 19),
+        release="0.10.0",
+        now=now,
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=UTC),
+        static_only=False,
+    )
+
+    assert [finding.severity for finding in findings] == ["warning"]
+    rendered = tool.format_finding(findings[0], tmp_path)
+    assert rendered.startswith("warning: ")
+    assert "rule 8:" in rendered
 
 
 def test_empty_registry_full_check_with_no_flag_beads_passes(tmp_path: Path) -> None:

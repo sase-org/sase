@@ -74,6 +74,8 @@ def flag_bead(
     task_type: str = "flag",
     kind: str | None = None,
     title: str = "Retire demo_flag",
+    created_at: str = "",
+    created_by: str = "",
 ) -> FlagBeadSnapshot:
     return FlagBeadSnapshot(
         id=bead_id,
@@ -84,4 +86,6 @@ def flag_bead(
         task_type=task_type,
         kind=kind,
         title=title,
+        created_at=created_at,
+        created_by=created_by,
     )

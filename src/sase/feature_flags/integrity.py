@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Literal
 
 from sase.bead.flag_due import flag_removal_due
@@ -19,6 +19,7 @@ from sase.feature_flags.models import (
     FeatureFlagEnvError,
     FeatureFlagSnapshot,
 )
+from sase.feature_flags.orphan import classify_orphan_bead
 
 
 IntegritySeverity = Literal["error", "warning"]
@@ -38,8 +39,17 @@ class IntegrityFinding:
 def registry_integrity_findings(
     definitions: Mapping[str, FeatureFlagDefinition],
     beads: Sequence[FlagBeadSnapshot],
+    *,
+    checkout_committed_at: datetime | None = None,
+    now: datetime | None = None,
 ) -> tuple[IntegrityFinding, ...]:
-    """Both-direction registry/bead integrity (lint rules 1, 6, 7, and 8)."""
+    """Both-direction registry/bead integrity (lint rules 1, 6, 7, and 8).
+
+    Rule 8 (orphan bead) is an error for a live flag bead whose definition
+    was deleted or never written, and a warning when the bead is still in
+    the ``sase flag new`` landing window — see
+    :func:`sase.feature_flags.orphan.classify_orphan_bead`.
+    """
     findings: list[IntegrityFinding] = []
     defined_keys = set(definitions)
     named_ids = {
@@ -145,6 +155,7 @@ def registry_integrity_findings(
                 )
             )
 
+    resolved_now = datetime.now(UTC) if now is None else now
     for bead in beads:
         if bead.status not in LIVE_FLAG_STATUS_VALUES:
             continue
@@ -152,13 +163,20 @@ def registry_integrity_findings(
             continue
         if bead.key in defined_keys:
             continue
+        verdict = classify_orphan_bead(
+            created_at=bead.created_at or None,
+            created_by=bead.created_by or None,
+            checkout_committed_at=checkout_committed_at,
+            now=resolved_now,
+        )
+        message = f"live flag bead {bead.id!r} has no definition (key {bead.key!r})"
+        if verdict.detail:
+            message = f"{message}; {verdict.detail}"
         findings.append(
             IntegrityFinding(
                 code="orphan_bead",
-                severity="error",
-                message=(
-                    f"live flag bead {bead.id!r} has no definition (key {bead.key!r})"
-                ),
+                severity=verdict.severity,
+                message=message,
                 key=bead.key,
                 bead_id=bead.id,
             )

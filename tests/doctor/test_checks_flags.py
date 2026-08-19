@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from sase.doctor.checks_flags import (
@@ -73,6 +73,51 @@ def test_flags_registry_errors_when_closed_bead_survives(tmp_path: Path) -> None
 
     assert check.status == "ERROR"
     assert any("closed" in detail for detail in check.details)
+
+
+def test_flags_registry_warns_on_in_flight_orphan(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+    check = _check_flags_registry(
+        _context(tmp_path),
+        definitions={},
+        beads=(
+            flag_bead(
+                "ghost_flag",
+                bead_id="sase-qq",
+                created_at="2026-08-19T01:21:12Z",
+                created_by="sase-qn.2",
+            ),
+        ),
+        is_managed=True,
+        now=now,
+        checkout_committed_at=datetime(2026, 8, 18, tzinfo=UTC),
+    )
+
+    assert check.status == "WARN"
+    assert any("older than the bead" in detail for detail in check.details)
+    assert any("rebase" in step.lower() for step in check.next_steps)
+
+
+def test_flags_registry_errors_on_stale_orphan(tmp_path: Path) -> None:
+    now = datetime(2026, 8, 19, 12, 0, tzinfo=UTC)
+    check = _check_flags_registry(
+        _context(tmp_path),
+        definitions={},
+        beads=(
+            flag_bead(
+                "ghost_flag",
+                bead_id="sase-orphan",
+                created_at="2026-01-01T00:00:00Z",
+                created_by="sase-old",
+            ),
+        ),
+        is_managed=True,
+        now=now,
+        checkout_committed_at=now,
+    )
+
+    assert check.status == "ERROR"
+    assert any("sase-orphan" in detail for detail in check.details)
 
 
 def test_flags_registry_skips_when_not_sase_managed(tmp_path: Path) -> None:

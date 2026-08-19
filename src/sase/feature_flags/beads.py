@@ -47,6 +47,8 @@ class FlagBeadSnapshot:
     task_type: str = FLAG_TASK_TYPE
     kind: str | None = None
     title: str = ""
+    created_at: str = ""
+    created_by: str = ""
 
 
 def _is_loaded_flag_bead(issue: Issue) -> bool:
@@ -67,6 +69,8 @@ def _flag_bead_snapshot_from_issue(issue: Issue) -> FlagBeadSnapshot:
         task_type=task_type,
         kind=None if fields is None or not fields.kind else fields.kind,
         title=issue.title,
+        created_at=issue.created_at,
+        created_by=issue.created_by,
     )
 
 

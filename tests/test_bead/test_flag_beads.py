@@ -167,6 +167,7 @@ def test_load_flag_bead_snapshots_includes_flag_task_beads(
     assert snapshots[0].kind == "beta"
     assert snapshots[0].key == "demo_key"
     assert snapshots[0].remove_by_date == "2026-12-01"
+    assert snapshots[0].created_at
 
 
 def test_update_remove_by_writes_task_type_field_thresholds(

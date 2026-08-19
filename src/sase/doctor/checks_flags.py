@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import sase
@@ -19,6 +19,7 @@ from sase.feature_flags.integrity import (
 )
 from sase.feature_flags.managed import project_is_sase_managed
 from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagSnapshot
+from sase.feature_flags.orphan import checkout_base_committed_at
 from sase.feature_flags.registry import feature_flag_definitions
 from sase.feature_flags.snapshot import current_flags
 
@@ -60,6 +61,8 @@ def _check_flags_registry(
     definitions: Mapping[str, FeatureFlagDefinition] | None = None,
     beads: tuple[FlagBeadSnapshot, ...] | None | Any = _UNSET,
     is_managed: bool | None = None,
+    now: datetime | None = None,
+    checkout_committed_at: datetime | None | Any = _UNSET,
 ) -> DiagnosticCheck:
     """Both-direction registry/bead integrity."""
     resolved_managed = (
@@ -95,7 +98,17 @@ def _check_flags_registry(
             ),
         )
 
-    findings = registry_integrity_findings(resolved_definitions, resolved_beads)
+    resolved_checkout = (
+        checkout_base_committed_at(context.cwd)
+        if checkout_committed_at is _UNSET
+        else checkout_committed_at
+    )
+    findings = registry_integrity_findings(
+        resolved_definitions,
+        resolved_beads,
+        checkout_committed_at=resolved_checkout,
+        now=now,
+    )
     return _findings_check(
         "flags.registry",
         "Feature-flag registry integrity",
@@ -258,6 +271,12 @@ def _next_steps(check_id: str, status: CheckStatus) -> tuple[str, ...]:
         return (
             "Inspect `sase flag list` and clear inherited SASE_FEATURE_FLAGS, "
             "deprecated env aliases, or invalid feature_flags config values.",
+        )
+    if check_id == "flags.registry" and status == "WARN":
+        return (
+            "If this is another tree's in-flight `sase flag new`, rebase "
+            "after that definition lands. Otherwise add the registry entry "
+            "or close the bead.",
         )
     if check_id == "flags.registry":
         return (

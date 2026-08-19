@@ -15,7 +15,10 @@ Bead-status rules (``just lint``, via ``BD_COMMAND``):
 6. the named bead exists, is a ``flag`` task bead (or a legacy flag
    issue-type bead), and its key (and kind, when present) match
 7. a closed flag bead whose definition survives is an error
-8. a live flag bead with no definition is an error
+8. a live flag bead with no definition is an error, unless the bead is
+   newer than this checkout (or still inside the landing grace), in
+   which case it is a warning for another tree's in-flight ``sase flag
+   new``
 9. an overdue flag is a warning, never an error
 
 A future ``_lint-backcompat`` recipe should register another
@@ -33,7 +36,7 @@ import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal, NamedTuple, Protocol
 
@@ -46,6 +49,10 @@ from sase._yaml_safe import yaml_safe_load
 from sase.bead.flag_due import flag_removal_due
 from sase.core import time as core_time
 from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
+from sase.feature_flags.orphan import (
+    checkout_base_committed_at,
+    classify_orphan_bead,
+)
 from sase.feature_flags.registry import feature_flag_definitions
 from sase.feature_flags.schema import feature_flags_schema_block
 
@@ -121,6 +128,8 @@ class MarkerBead:
     remove_by_release: str | None = None
     task_type: str = ""
     kind: str | None = None
+    created_at: str | None = None
+    created_by: str | None = None
 
 
 class MarkerSource(Protocol):
@@ -141,9 +150,7 @@ class MarkerSource(Protocol):
     def load_definitions(self, repo_root: Path) -> Sequence[MarkerDefinition]:
         """Return the in-tree marker definitions for this source."""
 
-    def load_beads(
-        self, repo_root: Path, bd_command: str
-    ) -> Sequence[MarkerBead]:
+    def load_beads(self, repo_root: Path, bd_command: str) -> Sequence[MarkerBead]:
         """Return live and closed beads that belong to this source."""
 
 
@@ -170,9 +177,7 @@ def iter_src_python_files(repo_root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(src):
         current = Path(dirpath)
-        dirnames[:] = [
-            name for name in dirnames if not _is_skipped_dir(current / name)
-        ]
+        dirnames[:] = [name for name in dirnames if not _is_skipped_dir(current / name)]
         for filename in filenames:
             if filename.endswith(".py"):
                 files.append(current / filename)
@@ -187,9 +192,7 @@ def iter_repo_config_files(repo_root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(src):
         current = Path(dirpath)
-        dirnames[:] = [
-            name for name in dirnames if not _is_skipped_dir(current / name)
-        ]
+        dirnames[:] = [name for name in dirnames if not _is_skipped_dir(current / name)]
         for filename in filenames:
             if filename == "default_config.yml":
                 files.append(current / filename)
@@ -320,9 +323,7 @@ def check_references(
     for key in sorted(definitions):
         if any(_file_references_key(tree, key) for _, tree in usable):
             continue
-        findings.append(
-            Finding(3, f"feature flag {key!r} has no non-test reference")
-        )
+        findings.append(Finding(3, f"feature flag {key!r} has no non-test reference"))
     return findings
 
 
@@ -360,11 +361,7 @@ def _import_time_resolution_calls(tree: ast.AST) -> list[ast.Call]:
             header: list[ast.AST] = [
                 *node.decorator_list,
                 *node.args.defaults,
-                *[
-                    default
-                    for default in node.args.kw_defaults
-                    if default is not None
-                ],
+                *[default for default in node.args.kw_defaults if default is not None],
             ]
             if node.returns is not None:
                 header.append(node.returns)
@@ -462,8 +459,7 @@ def check_repo_config(
             findings.append(
                 Finding(
                     5,
-                    "repo-managed feature_flags must be a mapping of keys "
-                    "to booleans",
+                    "repo-managed feature_flags must be a mapping of keys to booleans",
                     path=path,
                 )
             )
@@ -495,6 +491,8 @@ def check_bead_status(
     today: date,
     release: str,
     expected_bead_type: str = "flag",
+    now: datetime | None = None,
+    checkout_committed_at: datetime | None = None,
 ) -> list[Finding]:
     """Rules 6-9: definition/bead integrity and overdue warnings."""
     beads_by_id = {bead.id: bead for bead in beads if bead.id}
@@ -510,8 +508,7 @@ def check_bead_status(
             findings.append(
                 Finding(
                     6,
-                    f"{_marker_label(marker)} names missing bead "
-                    f"{marker.bead!r}",
+                    f"{_marker_label(marker)} names missing bead {marker.bead!r}",
                 )
             )
             continue
@@ -533,11 +530,7 @@ def check_bead_status(
                     f"{bead.issue_type!r}, expected {expected_bead_type!r}",
                 )
             )
-        if (
-            marker.source == "flag"
-            and bead.kind
-            and bead.kind != marker.kind
-        ):
+        if marker.source == "flag" and bead.kind and bead.kind != marker.kind:
             findings.append(
                 Finding(
                     6,
@@ -586,6 +579,7 @@ def check_bead_status(
                     )
                 )
 
+    resolved_now = datetime.now(UTC) if now is None else now
     for bead in beads:
         if bead.status not in LIVE_STATUSES:
             continue
@@ -593,11 +587,22 @@ def check_bead_status(
             continue
         if bead.key in defined_keys:
             continue
+        verdict = classify_orphan_bead(
+            created_at=bead.created_at,
+            created_by=bead.created_by,
+            checkout_committed_at=checkout_committed_at,
+            now=resolved_now,
+        )
+        message = (
+            f"live {bead.source} bead {bead.id!r} has no definition (key {bead.key!r})"
+        )
+        if verdict.detail:
+            message = f"{message}; {verdict.detail}"
         findings.append(
             Finding(
                 8,
-                f"live {bead.source} bead {bead.id!r} has no definition "
-                f"(key {bead.key!r})",
+                message,
+                severity=verdict.severity,
             )
         )
     return findings
@@ -614,9 +619,7 @@ def _json_from_stdout(stdout: str) -> Any:
         raise
 
 
-def marker_bead_from_issue_dict(
-    data: Mapping[str, Any], *, source: str
-) -> MarkerBead:
+def marker_bead_from_issue_dict(data: Mapping[str, Any], *, source: str) -> MarkerBead:
     """Project a bead JSON issue object into a :class:`MarkerBead`."""
     task_type = str(data.get("task_type") or "")
     raw_fields = data.get("task_type_fields")
@@ -641,6 +644,8 @@ def marker_bead_from_issue_dict(
             remove_by_date = str(raw_flag["remove_by_date"])
         if raw_flag.get("remove_by_release"):
             remove_by_release = str(raw_flag["remove_by_release"])
+    created_at = str(data.get("created_at") or "") or None
+    created_by = str(data.get("created_by") or "") or None
     return MarkerBead(
         source=source,
         id=str(data.get("id") or ""),
@@ -651,6 +656,8 @@ def marker_bead_from_issue_dict(
         remove_by_release=remove_by_release,
         task_type=task_type,
         kind=kind,
+        created_at=created_at,
+        created_by=created_by,
     )
 
 
@@ -747,9 +754,7 @@ def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
     ]
 
 
-def show_bead(
-    repo_root: Path, bd_command: str, bead_id: str
-) -> MarkerBead | None:
+def show_bead(repo_root: Path, bd_command: str, bead_id: str) -> MarkerBead | None:
     """Return one bead via ``BD_COMMAND show``, or ``None`` if missing."""
     resolved = resolve_bd_command(bd_command, repo_root)
     result = _run_bd_command(
@@ -807,9 +812,7 @@ class FlagMarkerSource:
         del repo_root
         return markers_from_flag_definitions(feature_flag_definitions())
 
-    def load_beads(
-        self, repo_root: Path, bd_command: str
-    ) -> Sequence[MarkerBead]:
+    def load_beads(self, repo_root: Path, bd_command: str) -> Sequence[MarkerBead]:
         if self.beads is not None:
             return self.beads
         listed = load_flag_beads(repo_root, bd_command)
@@ -847,6 +850,8 @@ def run_checks(
     beads: Sequence[MarkerBead] | None = None,
     today: date | None = None,
     release: str | None = None,
+    now: datetime | None = None,
+    checkout_committed_at: datetime | None = None,
     bd_command: str | None = None,
     static_only: bool = False,
 ) -> list[Finding]:
@@ -888,6 +893,12 @@ def run_checks(
         return findings
 
     resolved_today = core_time.local_now().date() if today is None else today
+    resolved_now = datetime.now(UTC) if now is None else now
+    resolved_checkout = (
+        checkout_committed_at
+        if checkout_committed_at is not None
+        else checkout_base_committed_at(repo_root)
+    )
     resolved_release = sase.__version__ if release is None else release
     resolved_bd = (
         os.environ.get("BD_COMMAND") or DEFAULT_BD_COMMAND
@@ -921,6 +932,8 @@ def run_checks(
                 today=resolved_today,
                 release=resolved_release,
                 expected_bead_type=source.bead_type,
+                now=resolved_now,
+                checkout_committed_at=resolved_checkout,
             )
         )
     return findings
@@ -950,8 +963,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--repo-root",
         type=Path,
         default=REPO_ROOT,
-        help="repository root to scan (default: the checkout containing this "
-        "tool)",
+        help="repository root to scan (default: the checkout containing this tool)",
     )
     parser.add_argument(
         "--static",
