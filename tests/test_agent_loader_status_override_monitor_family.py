@@ -10,12 +10,27 @@ instead of appearing terminal while the monitor runs.
 
 from datetime import datetime, timedelta
 
-from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.agent.status_buckets import agent_status_bucket
+from sase.monitor_status import monitor_status_pair, monitor_status_style
 
 _STARTED = datetime(2026, 8, 10, 9, 0, 0)
+
+
+def _pair_style(agent: Agent) -> str:
+    return monitor_status_style(
+        monitor_status_pair(agent.monitor_start_status, agent.monitor_stop_status),
+        monitor_state=agent.monitor_state,
+    )
+
+
+def _assert_mirrored_monitor_pair(root: Agent, monitor: Agent) -> None:
+    assert root.monitor_start_status == monitor.monitor_start_status
+    assert root.monitor_stop_status == monitor.monitor_stop_status
+    assert root.monitor_state == monitor.monitor_state
+    assert _pair_style(root) == _pair_style(monitor)
 
 
 def _plan_root(
@@ -38,6 +53,49 @@ def _plan_root(
         agent_family_role="root",
         plan_chain_root=True,
         plan_action="tale",
+    )
+
+
+def _plain_family_root(
+    *,
+    family: str = "fam",
+    project_file: str = "/tmp/family.sase",
+    raw_suffix: str = "20260810090000",
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=family,
+        project_file=project_file,
+        status="DONE",
+        status_bucket="Done",
+        start_time=_STARTED,
+        raw_suffix=raw_suffix,
+        agent_name=family,
+        agent_family=family,
+        agent_family_role="root",
+    )
+
+
+def _completed_plain_child(
+    root: Agent,
+    *,
+    raw_suffix: str = "20260810091000",
+    offset_minutes: int = 10,
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=f"{root.agent_family}-0",
+        project_file=root.project_file,
+        status="DONE",
+        status_bucket="Done",
+        start_time=_STARTED + timedelta(minutes=offset_minutes),
+        stop_time=_STARTED + timedelta(minutes=offset_minutes + 3),
+        raw_suffix=raw_suffix,
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--0",
+        agent_name=f"{root.agent_family}--0",
+        agent_family=root.agent_family,
+        agent_family_role="member",
     )
 
 
@@ -72,6 +130,8 @@ def _nested_monitor(
     status: str = "MONITORING",
     status_bucket: str = "Running",
     monitor_state: str = "running",
+    monitor_start_status: str | None = None,
+    monitor_stop_status: str | None = None,
     stop_time: datetime | None = None,
 ) -> Agent:
     """A monitor whose durable starter link points at the coder, not the root."""
@@ -92,6 +152,8 @@ def _nested_monitor(
         agent_family_role="monitor",
         monitor_id="m123",
         monitor_state=monitor_state,
+        monitor_start_status=monitor_start_status,
+        monitor_stop_status=monitor_stop_status,
         monitor_label="just check",
         monitor_command="just check-full",
     )
@@ -114,13 +176,19 @@ def test_nested_running_monitor_root_mirrors_monitoring_and_running_bucket() -> 
     """The collapsed root shows MONITORING/Running, not TALE DONE."""
     root = _plan_root()
     coder = _completed_code_child(root)
-    monitor = _nested_monitor(coder, root)
+    monitor = _nested_monitor(
+        coder,
+        root,
+        monitor_start_status="MONITORING",
+        monitor_stop_status="MONITORED",
+    )
 
     _apply_status_overrides([root, coder, monitor])
 
     assert root.status == "MONITORING"
     assert root.status_bucket == "Running"
     assert agent_status_bucket(root) == "Running"
+    _assert_mirrored_monitor_pair(root, monitor)
 
 
 def test_nested_monitor_remains_in_visible_family_row_order() -> None:
@@ -150,6 +218,8 @@ def test_nested_terminal_successful_monitor_root_mirrors_stop_label() -> None:
         status="MONITORED",
         status_bucket="Done",
         monitor_state="completed",
+        monitor_start_status="MONITORING",
+        monitor_stop_status="MONITORED",
         stop_time=_STARTED + timedelta(minutes=25),
     )
 
@@ -158,6 +228,7 @@ def test_nested_terminal_successful_monitor_root_mirrors_stop_label() -> None:
     assert monitor.parent_timestamp == coder.raw_suffix
     assert root.status == "MONITORED"
     assert root.status_bucket == "Done"
+    _assert_mirrored_monitor_pair(root, monitor)
 
 
 def test_nested_terminal_failed_monitor_root_mirrors_failed_bucket() -> None:
@@ -189,6 +260,8 @@ def test_root_advances_past_terminal_monitor_to_later_active_followup() -> None:
         status="MONITORED",
         status_bucket="Done",
         monitor_state="completed",
+        monitor_start_status="MONITORING",
+        monitor_stop_status="MONITORED",
         stop_time=_STARTED + timedelta(minutes=25),
     )
     resumed = Agent(
@@ -210,3 +283,121 @@ def test_root_advances_past_terminal_monitor_to_later_active_followup() -> None:
     assert root.status == resumed.status
     assert root.status_bucket == resumed.status_bucket
     assert root.status not in {"MONITORED", "MONITORING"}
+    assert root.monitor_start_status is None
+    assert root.monitor_stop_status is None
+    assert root.monitor_state is None
+
+
+def test_plain_family_running_monitor_root_mirrors_start_label() -> None:
+    """A plain family whose newest shell is a live monitor shows the start label."""
+    root = _plain_family_root()
+    starter = _completed_plain_child(root)
+    monitor = _nested_monitor(
+        starter,
+        root,
+        status="TESTING",
+        status_bucket="Running",
+        monitor_state="running",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+    )
+
+    _apply_status_overrides([root, starter, monitor])
+
+    assert root.status == "TESTING"
+    assert root.status_bucket == "Running"
+    assert agent_status_bucket(root) == "Running"
+    _assert_mirrored_monitor_pair(root, monitor)
+
+
+def test_plain_family_settled_monitor_root_mirrors_stop_label() -> None:
+    """A plain family whose newest shell is a settled monitor shows the stop label."""
+    root = _plain_family_root()
+    starter = _completed_plain_child(root)
+    monitor = _nested_monitor(
+        starter,
+        root,
+        status="TESTED",
+        status_bucket="Done",
+        monitor_state="completed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        stop_time=_STARTED + timedelta(minutes=25),
+    )
+
+    _apply_status_overrides([root, starter, monitor])
+
+    assert root.status == "TESTED"
+    assert root.status_bucket == "Done"
+    assert agent_status_bucket(root) == "Done"
+    _assert_mirrored_monitor_pair(root, monitor)
+
+
+def test_plain_family_does_not_mirror_non_monitor_newest_child() -> None:
+    """A later settled non-monitor shell still leaves a plain root on its own status."""
+    root = _plain_family_root()
+    starter = _completed_plain_child(root)
+    monitor = _nested_monitor(
+        starter,
+        root,
+        status="TESTED",
+        status_bucket="Done",
+        monitor_state="completed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        stop_time=_STARTED + timedelta(minutes=25),
+    )
+    later = _completed_plain_child(
+        root,
+        raw_suffix="20260810093000",
+        offset_minutes=30,
+    )
+
+    _apply_status_overrides([root, starter, monitor, later])
+
+    assert root.status == "DONE"
+    assert root.status_bucket == "Done"
+    assert root.monitor_start_status is None
+    assert root.monitor_stop_status is None
+    assert root.monitor_state is None
+
+
+def test_later_active_followup_clears_previously_mirrored_pair() -> None:
+    """Re-applying after a later live child must not leave a stale monitor pair."""
+    root = _plain_family_root()
+    starter = _completed_plain_child(root)
+    monitor = _nested_monitor(
+        starter,
+        root,
+        status="TESTED",
+        status_bucket="Done",
+        monitor_state="completed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        stop_time=_STARTED + timedelta(minutes=25),
+    )
+
+    _apply_status_overrides([root, starter, monitor])
+    assert root.status == "TESTED"
+    _assert_mirrored_monitor_pair(root, monitor)
+
+    resumed = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=f"{root.agent_family}-1",
+        project_file=root.project_file,
+        status="RUNNING",
+        start_time=_STARTED + timedelta(minutes=30),
+        raw_suffix="20260810093000",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--1",
+        agent_name=f"{root.agent_family}--1",
+        agent_family=root.agent_family,
+        agent_family_role="member",
+    )
+    _apply_status_overrides([root, starter, monitor, resumed])
+
+    assert root.status == resumed.status
+    assert root.status_bucket == resumed.status_bucket
+    assert root.monitor_start_status is None
+    assert root.monitor_stop_status is None
+    assert root.monitor_state is None

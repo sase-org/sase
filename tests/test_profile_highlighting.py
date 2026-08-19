@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.query.profile_highlighting import (
-    classify_flat_query_tokens,
+    _classify_flat_query_tokens,
     highlight_query,
 )
 from sase.ace.query_profile import (
@@ -38,14 +38,14 @@ _SIGIL_MACRO_PROFILE = compile_query_profile(
 
 
 def test_known_key() -> None:
-    assert classify_flat_query_tokens("status:closed", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("status:closed", _BEADS_PROFILE) == [
         ("status:", "property_key"),
         ("closed", "property_value"),
     ]
 
 
 def test_unknown_key() -> None:
-    assert classify_flat_query_tokens("bogus:x", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("bogus:x", _BEADS_PROFILE) == [
         ("bogus:", "unknown_key"),
         ("x", "property_value"),
     ]
@@ -54,14 +54,14 @@ def test_unknown_key() -> None:
 def test_search_only_field_renders_as_unknown_key() -> None:
     # "id" is searchable but not filterable in the Beads profile, so
     # `id:value` is invalid per the real parser too.
-    assert classify_flat_query_tokens("id:5", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("id:5", _BEADS_PROFILE) == [
         ("id:", "unknown_key"),
         ("5", "property_value"),
     ]
 
 
 def test_negated_key() -> None:
-    assert classify_flat_query_tokens("-status:closed", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("-status:closed", _BEADS_PROFILE) == [
         ("-", "negation"),
         ("status:", "property_key"),
         ("closed", "property_value"),
@@ -69,14 +69,14 @@ def test_negated_key() -> None:
 
 
 def test_quoted_value() -> None:
-    assert classify_flat_query_tokens('assignee:"Bryan Bugyi"', _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens('assignee:"Bryan Bugyi"', _BEADS_PROFILE) == [
         ("assignee:", "property_key"),
         ('"Bryan Bugyi"', "quoted"),
     ]
 
 
 def test_comma_repeated_value() -> None:
-    assert classify_flat_query_tokens("type:bug,feature", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("type:bug,feature", _BEADS_PROFILE) == [
         ("type:", "property_key"),
         ("bug,feature", "property_value"),
     ]
@@ -97,11 +97,11 @@ def test_comma_repeated_value() -> None:
     ],
 )
 def test_predicate(text: str, style: str) -> None:
-    assert classify_flat_query_tokens(text, _BEADS_PROFILE) == [(text, style)]
+    assert _classify_flat_query_tokens(text, _BEADS_PROFILE) == [(text, style)]
 
 
 def test_any_special() -> None:
-    assert classify_flat_query_tokens("*", _BEADS_PROFILE) == [("*", "any_special")]
+    assert _classify_flat_query_tokens("*", _BEADS_PROFILE) == [("*", "any_special")]
 
 
 def test_predicate_absent_from_profile_renders_as_term() -> None:
@@ -114,43 +114,43 @@ def test_predicate_absent_from_profile_renders_as_term() -> None:
             any_special=False,
         )
     )
-    assert classify_flat_query_tokens("!!!", no_predicate_profile) == [("!!!", "term")]
+    assert _classify_flat_query_tokens("!!!", no_predicate_profile) == [("!!!", "term")]
 
 
 def test_bare_term() -> None:
-    assert classify_flat_query_tokens("hello", _BEADS_PROFILE) == [("hello", "term")]
+    assert _classify_flat_query_tokens("hello", _BEADS_PROFILE) == [("hello", "term")]
 
 
 def test_quoted_free_text() -> None:
-    assert classify_flat_query_tokens('"hello world"', _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens('"hello world"', _BEADS_PROFILE) == [
         ('"hello world"', "quoted")
     ]
 
 
 def test_empty_string() -> None:
-    assert classify_flat_query_tokens("", _BEADS_PROFILE) == []
+    assert _classify_flat_query_tokens("", _BEADS_PROFILE) == []
 
 
 def test_half_typed_key_only_token() -> None:
-    assert classify_flat_query_tokens("status:", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("status:", _BEADS_PROFILE) == [
         ("status:", "property_key")
     ]
 
 
 def test_sigil() -> None:
-    assert classify_flat_query_tokens("+myproj", _SIGIL_MACRO_PROFILE) == [
+    assert _classify_flat_query_tokens("+myproj", _SIGIL_MACRO_PROFILE) == [
         ("+myproj", "shorthand")
     ]
 
 
 def test_macro() -> None:
-    assert classify_flat_query_tokens("%d", _SIGIL_MACRO_PROFILE) == [
+    assert _classify_flat_query_tokens("%d", _SIGIL_MACRO_PROFILE) == [
         ("%d", "shorthand")
     ]
 
 
 def test_whitespace_preserved_between_tokens() -> None:
-    assert classify_flat_query_tokens("status:open  hello", _BEADS_PROFILE) == [
+    assert _classify_flat_query_tokens("status:open  hello", _BEADS_PROFILE) == [
         ("status:", "property_key"),
         ("open", "property_value"),
         ("  ", "whitespace"),
@@ -174,7 +174,7 @@ def test_whitespace_preserved_between_tokens() -> None:
     ],
 )
 def test_classify_never_raises(text: str) -> None:
-    classify_flat_query_tokens(text, _BEADS_PROFILE)  # must not raise
+    _classify_flat_query_tokens(text, _BEADS_PROFILE)  # must not raise
     highlight_query(text, _BEADS_PROFILE)  # must not raise
     highlight_query(text, _PATCHES_PROFILE)  # must not raise (boolean dialect)
 

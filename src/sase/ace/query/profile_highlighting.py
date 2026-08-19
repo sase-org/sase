@@ -19,7 +19,7 @@ from sase.filter_tokens import FilterQueryError, FilterToken, tokenize, unquoted
 
 from .highlighting import QUERY_TOKEN_STYLES, tokenize_query_for_display
 
-__all__ = ["classify_flat_query_tokens", "highlight_query"]
+__all__ = ["highlight_query"]
 
 
 def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
@@ -32,7 +32,7 @@ def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
         tokens = (
             tokenize_query_for_display(text)
             if profile.boolean
-            else classify_flat_query_tokens(text, profile)
+            else _classify_flat_query_tokens(text, profile)
         )
     except Exception:  # noqa: BLE001 - rendering must never raise
         return Text(text)
@@ -49,7 +49,7 @@ def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
     return rendered
 
 
-def classify_flat_query_tokens(
+def _classify_flat_query_tokens(
     text: str,
     profile: CompiledQueryProfile,
 ) -> list[tuple[str, str]]:

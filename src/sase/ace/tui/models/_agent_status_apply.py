@@ -57,6 +57,17 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
     parent.status = child.status
     parent.status_bucket = child.status_bucket
     copy_missing_display_metadata(parent, child)
+    if child.is_monitor:
+        parent.monitor_start_status = child.monitor_start_status
+        parent.monitor_stop_status = child.monitor_stop_status
+        parent.monitor_state = child.monitor_state
+    else:
+        # A later non-monitor child must not keep a previously mirrored pair
+        # on the container; agents-tab styling keys off status matching a
+        # half of that pair.
+        parent.monitor_start_status = None
+        parent.monitor_stop_status = None
+        parent.monitor_state = None
 
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
@@ -379,7 +390,8 @@ def apply_status_overrides(
 
     # Agent-family roots summarize live child activity first. Plan-workflow
     # roots keep the historical newest-child fallback when no child is active
-    # or queued; plain-agent roots keep their own terminal status in that case.
+    # or queued. Plain-agent roots keep their own terminal status in that case
+    # unless the newest shell is a monitor, which they then mirror.
     for parent in parent_by_suffix.values():
         if not parent.raw_suffix:
             continue
@@ -455,9 +467,9 @@ def apply_status_overrides(
                 copy_missing_display_metadata(parent, next_waiting)
             continue
 
-        if is_plan_root:
-            newest_pool = [*children, *descendant_monitors]
-            newest = max(newest_pool, key=child_launch_time)
+        newest_pool = [*children, *descendant_monitors]
+        newest = max(newest_pool, key=child_launch_time)
+        if is_plan_root or newest.is_monitor:
             _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

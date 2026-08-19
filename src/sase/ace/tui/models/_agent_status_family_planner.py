@@ -122,6 +122,13 @@ def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
         parent.workspace_dir = child.workspace_dir
     if parent.status_bucket is None and child.status_bucket is not None:
         parent.status_bucket = child.status_bucket
+    if child.is_monitor:
+        if parent.monitor_start_status is None:
+            parent.monitor_start_status = child.monitor_start_status
+        if parent.monitor_stop_status is None:
+            parent.monitor_stop_status = child.monitor_stop_status
+        if parent.monitor_state is None:
+            parent.monitor_state = child.monitor_state
     copy_missing_plan_metadata(parent, child)
 
 
