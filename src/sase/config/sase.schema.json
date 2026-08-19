@@ -2212,6 +2212,92 @@
         }
       }
     },
+    "tmux_agent": {
+      "type": "object",
+      "description": "Configuration for launching interactive agent CLIs in a new tmux window",
+      "additionalProperties": false,
+      "properties": {
+        "window_name": {
+          "type": "string",
+          "description": "Base tmux window name. The first window is this name; later ones get a numeric suffix (ai, ai2, ai3, ...).",
+          "default": "ai",
+          "minLength": 1
+        },
+        "bypass_permissions": {
+          "type": "boolean",
+          "description": "Pass each agent CLI's approval-bypass flags. Per-provider overrides win.",
+          "default": true
+        },
+        "effort": {
+          "type": "string",
+          "description": "Reasoning effort applied to launches. Empty follows llm_provider.default_effort; \"off\" passes no effort flags at all.",
+          "enum": ["", "off", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
+          "default": ""
+        },
+        "clear_screen": {
+          "type": "boolean",
+          "description": "Run `clear` in the new window before starting the CLI.",
+          "default": true
+        },
+        "after_close_command": {
+          "type": "string",
+          "description": "Optional shell command run after an agent CLI window closes, alongside SASE's own window renumbering. Empty means nothing extra runs.",
+          "default": ""
+        },
+        "providers": {
+          "type": "object",
+          "description": "Per-provider overrides, keyed by registered provider name.",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "description": "Overrides for one registered agent-CLI provider.",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "When false, hide this provider from both tmux Agent surfaces.",
+                "default": true
+              },
+              "key": {
+                "type": "string",
+                "description": "Override the single-key menu shortcut. Empty uses automatic assignment."
+              },
+              "model": {
+                "type": "string",
+                "description": "Pin a model for this provider, e.g. \"gemini-3.7-flash-high\". Empty leaves the CLI's default.",
+                "default": ""
+              },
+              "effort": {
+                "type": "string",
+                "description": "Per-provider reasoning effort. Empty inherits the section default; \"off\" disables effort flags.",
+                "enum": ["", "off", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
+                "default": ""
+              },
+              "args": {
+                "type": "array",
+                "description": "Extra CLI args appended verbatim to the resolved launch command.",
+                "default": [],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables set in the new tmux window.",
+                "default": {},
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "bypass_permissions": {
+                "type": "boolean",
+                "description": "Override the section-level approval-bypass default for this provider. Omit to inherit."
+              }
+            }
+          }
+        }
+      }
+    },
     "mobile_gateway": {
       "type": "object",
       "description": "Configuration for the workstation-hosted mobile gateway",

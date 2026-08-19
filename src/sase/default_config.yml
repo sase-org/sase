@@ -110,6 +110,32 @@ chat_install:
 telegram:
   commands: {}
 
+tmux_agent:
+  # Base tmux window name. The first window is this name; later ones get a
+  # numeric suffix (ai, ai2, ai3, ...).
+  window_name: "ai"
+  # Pass each agent CLI's approval-bypass flags (see the provider's
+  # llm_interactive_cli descriptor). Per-provider overrides win.
+  bypass_permissions: true
+  # Reasoning effort applied to launches. "" follows llm_provider.default_effort;
+  # "off" passes no effort flags at all.
+  effort: ""
+  # Run `clear` in the new window before starting the CLI.
+  clear_screen: true
+  # Optional shell command run after an agent CLI window closes, alongside
+  # SASE's own window renumbering. Empty means nothing extra runs.
+  after_close_command: ""
+  # Per-provider overrides, keyed by registered provider name.
+  providers:
+    claude:
+      enabled: true # false hides the provider from both surfaces
+      key: "" # override the single-key menu shortcut
+      model: "" # pin a model, e.g. "gemini-3.7-flash-high"
+      effort: "" # per-provider effort; "" inherits, "off" disables
+      args: [] # extra CLI args appended verbatim
+      env: {} # environment variables for the new tmux window
+      bypass_permissions: true # omit to inherit the global default
+
 mobile_gateway:
   bind_address: "127.0.0.1"
   port: 7629

@@ -74,6 +74,11 @@ from sase.config.file_hooks import (
     hook_matches_event,
     match_events,
 )
+from sase.config.tmux_agent import (
+    TmuxAgentConfig,
+    TmuxAgentProviderConfig,
+    get_tmux_agent_config,
+)
 from sase.config.artifact_ref_files import (
     ArtifactFileRoot,
     get_artifact_file_roots,
@@ -165,6 +170,8 @@ __all__ = [
     "RunnerLimitOverrideStateError",
     "RawOverlayIdentity",
     "TemporaryRunnerLimitOverride",
+    "TmuxAgentConfig",
+    "TmuxAgentProviderConfig",
     "apply_chezmoi",
     "apply_config_edit",
     "build_config_inventory",
@@ -197,6 +204,7 @@ __all__ = [
     "get_runner_slot_deference_max_seconds",
     "get_runner_slot_deference_seconds_per_step",
     "get_task_history_limit",
+    "get_tmux_agent_config",
     "get_use_chezmoi",
     "inventory_with_new_overlay",
     "hook_matches_event",
