@@ -155,6 +155,8 @@ ace:
   repro_output_dir: ""
   # Press d on the AXE tab to toggle this state for the current session.
   axe_description_expanded: true
+  # Ctrl+J / Ctrl+K step and the default Artifacts limit: value.
+  page_size: 100
   snippets: {}
   # Config file that receives new ace.snippets entries. Empty string uses the
   # user's sase.yml (chezmoi source when chezmoi is enabled).

@@ -338,6 +338,12 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-r6.2(get_ace_page_size)" \
+        --epic-symbol "sase-r6.3(LimitTokenError)" \
+        --epic-symbol "sase-r6.3(ensure_limit)" \
+        --epic-symbol "sase-r6.3(extract_limit)" \
+        --epic-symbol "sase-r6.3(replace_limit)" \
+        --epic-symbol "sase-r6.4(adjust_limit)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

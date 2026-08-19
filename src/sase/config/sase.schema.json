@@ -946,6 +946,12 @@
           "description": "Whether AXE descriptions start expanded; the configured toggle key changes this only for the current ACE session.",
           "default": true
         },
+        "page_size": {
+          "type": "integer",
+          "description": "Ctrl+J / Ctrl+K step and the default Artifacts limit: value.",
+          "minimum": 1,
+          "default": 100
+        },
         "artifacts": {
           "type": "object",
           "description": "Settings for ACE Artifacts panes",

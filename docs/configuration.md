@@ -756,6 +756,7 @@ ace:
 | `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
 | `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
+| `page_size`                | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1.                                                                         |
 | `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for the ACE prompt input.                                                                                            |
@@ -955,6 +956,14 @@ effective priority differs from its default renders a compact `▴` (raised) or 
 Maximum number of per-tab counts the top-bar notification indicator renders before the
 remaining tabs collapse into a single dim `+N` chip. Must be at least 1; defaults to
 `4`. Suppressed tabs are still described in the indicator's hover tooltip.
+
+#### `ace.page_size`
+
+Integer step used by Ctrl+J (load more) and Ctrl+K (unload) on ACE lists, and the
+default Artifacts `limit:` value when a pane has no explicit cap. Must be at least 1;
+defaults to `100`. Invalid or missing values fall back to 100. Changing this changes the
+chord step and any default query that had no explicit `limit:`; it does not rewrite a
+user-authored `limit:40`.
 
 #### `ace.updates`
 

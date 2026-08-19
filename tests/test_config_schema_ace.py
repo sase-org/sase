@@ -181,3 +181,29 @@ def test_config_schema_validates_ace_artifacts_relations_expanded() -> None:
     validator.validate({"ace": {"artifacts": {"relations_expanded": False}}})
     with pytest.raises(ValidationError):
         validator.validate({"ace": {"artifacts": {"relations_expanded": "yes"}}})
+
+
+def test_config_schema_accepts_ace_page_size() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate({"ace": {"page_size": 1}})
+    validator.validate({"ace": {"page_size": 100}})
+    validator.validate({"ace": {"page_size": 250}})
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 3.5, "100"])
+def test_config_schema_rejects_invalid_ace_page_size(value: object) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"ace": {"page_size": value}})
+
+
+def test_bundled_default_ace_page_size_is_100() -> None:
+    public_schema = schema()
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    page_size_schema = public_schema["properties"]["ace"]["properties"]["page_size"]
+
+    assert default_config["ace"]["page_size"] == 100
+    assert page_size_schema["type"] == "integer"
+    assert page_size_schema["minimum"] == 1
+    assert page_size_schema["default"] == 100
