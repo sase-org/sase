@@ -166,8 +166,12 @@ class AgentKillFlowMixin:
             agents_with_children_snapshot,
         )
         dismissed_ids = dismissed_identities_from_plan(cleanup_plan)
-        if not dismissed_ids:
-            dismissed_ids = self._collect_dismissal_identities(dismiss_candidates)  # type: ignore[attr-defined]
+        # Union with the confirmed modal set so a planner miss cannot leave a
+        # row on screen. Rows contributed only by the union get index-only
+        # dismissal; the plan remains the source of truth for richer side
+        # effects (bundle saves, artifact deletes, workspace releases,
+        # notification dismissals).
+        dismissed_ids |= self._collect_dismissal_identities(dismiss_candidates)  # type: ignore[attr-defined]
         recent_group = build_recent_dismissed_agent_group(
             agents_for_recent_group(dismissed_ids, agents_with_children_snapshot)
         )

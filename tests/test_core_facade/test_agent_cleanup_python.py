@@ -41,6 +41,8 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_marked_set,
     _scenario_pidless_dismiss_fallback,
     _scenario_parallel_family_root,
+    _scenario_clan_sequential_family_dismiss,
+    _scenario_explicit_clan_sequential_family_dismiss,
     _scenario_tribe_scope,
     _scenario_workflow_parent_with_children,
 )
@@ -115,6 +117,16 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [item.identity.cl_name for item in plan.kill_items] == [
             "sase-6g",
             "sase-6g.1",
+        ]
+    elif scenario in {
+        _scenario_clan_sequential_family_dismiss,
+        _scenario_explicit_clan_sequential_family_dismiss,
+    }:
+        assert plan.kill_items == ()
+        assert [item.identity.cl_name for item in plan.dismiss_items] == [
+            "sase-ps.plan",
+            "sase-ps.plan--1",
+            "sase-ps.plan--mon",
         ]
 
 
@@ -226,14 +238,7 @@ def test_python_cleanup_planner_direct_child_side_effects_exclude_siblings() -> 
     ] == ["child"]
 
 
-def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> None:
-    child = _agent(
-        cl_name="child",
-        raw_suffix="child-ts",
-        pid=1002,
-        parent_timestamp="parent-ts",
-        tribe="ops",
-    )
+def _broad_scope_kill_requests() -> tuple[Any, ...]:
     focused_request = _request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
@@ -244,15 +249,51 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         tribe="ops",
     )
-
-    for request in (
+    return (
         _request(
             scope=CLEANUP_SCOPE_ALL_PANELS,
             mode=CLEANUP_MODE_KILL_AND_DISMISS,
         ),
         focused_request,
         tribe_request,
-    ):
+    )
+
+
+def test_python_cleanup_planner_broad_scopes_act_on_family_member_rows() -> None:
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        pid=1002,
+        parent_timestamp="parent-ts",
+        tribe="ops",
+    )
+
+    for request in _broad_scope_kill_requests():
+        plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([child]), request)
+
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("child", KILL_KIND_RUNNING)
+        ]
+        assert plan.dismiss_items == ()
+        assert plan.cascaded_workflow_children == ()
+        assert SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY not in [
+            item.reason for item in plan.skipped_items
+        ]
+
+
+def test_python_cleanup_planner_broad_scopes_keep_workflow_step_children_cascade_only() -> (
+    None
+):
+    child = _agent(
+        cl_name="child",
+        raw_suffix="child-ts",
+        pid=1002,
+        parent_timestamp="parent-ts",
+        parent_workflow="build",
+        tribe="ops",
+    )
+
+    for request in _broad_scope_kill_requests():
         plan = _plan_agent_cleanup_python(agents_to_cleanup_targets([child]), request)
 
         assert plan.kill_items == ()
@@ -260,6 +301,36 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
         assert [item.reason for item in plan.skipped_items] == [
             SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY
         ]
+
+
+def _assert_clan_sequential_family_dismissed(plan: Any) -> None:
+    assert [item.identity.cl_name for item in plan.dismiss_items] == [
+        "sase-ps.plan",
+        "sase-ps.plan--1",
+        "sase-ps.plan--mon",
+    ]
+    assert [item.cl_name for item in plan.side_effects.dismissed_index_additions] == [
+        "sase-ps.plan",
+        "sase-ps.plan--1",
+        "sase-ps.plan--mon",
+    ]
+    assert SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY not in [
+        item.reason for item in plan.skipped_items
+    ]
+
+
+def test_python_cleanup_planner_clan_scope_dismisses_sequential_family_and_monitor() -> (
+    None
+):
+    agents, request = _scenario_clan_sequential_family_dismiss()
+    plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
+    _assert_clan_sequential_family_dismissed(plan)
+
+
+def test_python_cleanup_planner_explicit_identities_dismiss_sequential_family() -> None:
+    agents, request = _scenario_explicit_clan_sequential_family_dismiss()
+    plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
+    _assert_clan_sequential_family_dismissed(plan)
 
 
 def test_python_cleanup_planner_clan_scope_without_generation_selects_all() -> None:

@@ -166,10 +166,12 @@ def _scenario_collapsed_group() -> tuple[list[Agent], AgentCleanupRequestWire]:
 
 def _scenario_tribe_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
     alpha = _agent(
+        agent_type=AgentType.WORKFLOW,
         cl_name="alpha",
         status="RUNNING",
         pid=101,
         raw_suffix="alpha-ts",
+        workflow="deploy",
         tribe="alpha",
     )
     child = _agent(
@@ -179,7 +181,7 @@ def _scenario_tribe_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
         pid=102,
         raw_suffix="child",
         workflow="deploy",
-        parent_workflow=alpha.workflow,
+        parent_workflow="deploy",
         parent_timestamp=alpha.raw_suffix,
         tribe=None,
     )
@@ -460,6 +462,67 @@ def _scenario_parallel_family_root() -> tuple[list[Agent], AgentCleanupRequestWi
     )
 
 
+def _clan_sequential_family_agents() -> list[Agent]:
+    plan_root = _agent(
+        cl_name="sase-ps.plan",
+        raw_suffix="20260818102050",
+        status="DONE",
+        pid=None,
+        agent_clan="sase-ps",
+        agent_clan_generation="20260818102050",
+        agent_family_parallel=False,
+        stop_time=_STOP,
+    )
+    family_root = _agent(
+        cl_name="sase-ps.plan--1",
+        raw_suffix="20260818114621",
+        status="DONE",
+        pid=None,
+        parent_timestamp="20260818102050",
+        agent_clan="sase-ps",
+        agent_clan_generation="20260818102050",
+        agent_family_parallel=False,
+        stop_time=_STOP,
+    )
+    monitor = _agent(
+        cl_name="sase-ps.plan--mon",
+        raw_suffix="20260818114457",
+        status="DONE",
+        pid=None,
+        parent_timestamp="20260818114621",
+        agent_clan="sase-ps",
+        agent_clan_generation="20260818102050",
+        agent_family_parallel=False,
+        stop_time=_STOP,
+    )
+    return [plan_root, family_root, monitor]
+
+
+def _scenario_clan_sequential_family_dismiss() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
+    agents = _clan_sequential_family_agents()
+    return agents, _request(
+        scope=CLEANUP_SCOPE_CLAN,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        clan_name="sase-ps",
+        clan_generation="20260818102050",
+        include_pidless_as_dismissable=True,
+    )
+
+
+def _scenario_explicit_clan_sequential_family_dismiss() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
+    agents = _clan_sequential_family_agents()
+    return agents, _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=tuple(_id(agent) for agent in agents),
+        include_pidless_as_dismissable=True,
+    )
+
+
 _SCENARIOS = [
     pytest.param(_scenario_focused_panel_dismiss, id="focused-panel-dismiss-done"),
     pytest.param(
@@ -484,4 +547,12 @@ _SCENARIOS = [
     pytest.param(_scenario_explicit_child_done, id="explicit-child-done"),
     pytest.param(_scenario_custom_child_running, id="custom-child-running"),
     pytest.param(_scenario_parallel_family_root, id="parallel-family-root"),
+    pytest.param(
+        _scenario_clan_sequential_family_dismiss,
+        id="clan-sequential-family-dismiss",
+    ),
+    pytest.param(
+        _scenario_explicit_clan_sequential_family_dismiss,
+        id="explicit-clan-sequential-family-dismiss",
+    ),
 ]

@@ -25,6 +25,8 @@ from tests._rust_extension_module_helpers import (
 
 from tests.test_core_facade._agent_cleanup_helpers import (
     _SCENARIOS,
+    _scenario_clan_sequential_family_dismiss,
+    _scenario_explicit_clan_sequential_family_dismiss,
     _scenario_marked_set,
 )
 
@@ -111,3 +113,40 @@ def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
         targets,
         request,
     )
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    (
+        _scenario_clan_sequential_family_dismiss,
+        _scenario_explicit_clan_sequential_family_dismiss,
+    ),
+)
+def test_rust_and_python_planners_agree_on_clan_sequential_family(
+    scenario: Any,
+) -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not all(
+        hasattr(rust_module, name)
+        for name in ("plan_agent_cleanup", "agent_cleanup_wire_schema_version")
+    ):
+        pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
+
+    agents, request = scenario()
+    targets = agents_to_cleanup_targets(agents)
+
+    rust_plan = plan_agent_cleanup(targets, request)
+    python_plan = _plan_agent_cleanup_python(targets, request)
+    assert rust_plan == python_plan
+    assert [item.identity.cl_name for item in rust_plan.dismiss_items] == [
+        "sase-ps.plan",
+        "sase-ps.plan--1",
+        "sase-ps.plan--mon",
+    ]
+    assert [
+        item.cl_name for item in rust_plan.side_effects.dismissed_index_additions
+    ] == [
+        "sase-ps.plan",
+        "sase-ps.plan--1",
+        "sase-ps.plan--mon",
+    ]

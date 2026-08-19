@@ -38,6 +38,7 @@ def plan_bulk_kill_cleanup_side_effects(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         identities=identities,
+        include_pidless_as_dismissable=True,
     )
     return plan_agent_cleanup(
         agents_to_cleanup_targets(

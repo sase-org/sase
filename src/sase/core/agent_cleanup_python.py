@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from sase.core.agent_cleanup_side_effects import build_cleanup_side_effects
-from sase.core.agent_cleanup_targets import is_workflow_child
+from sase.core.agent_cleanup_targets import is_workflow_child, is_workflow_step_child
 from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_DISMISS_COMPLETED,
@@ -147,7 +147,7 @@ def _is_direct_child_target(
     parent_tribes: dict[str, str | None],
 ) -> bool:
     return (
-        is_workflow_child(target)
+        is_workflow_step_child(target)
         and _scope_allows_direct_child_targets(request.scope)
         and target.identity in selected_ids
         and not _parent_selected_for_child(
@@ -306,7 +306,7 @@ def plan_agent_cleanup_python(
             selected_ids,
             parent_tribes,
         )
-        if is_workflow_child(target) and not direct_child_target:
+        if is_workflow_step_child(target) and not direct_child_target:
             _add_skip(skipped_items, target, SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY)
             continue
 

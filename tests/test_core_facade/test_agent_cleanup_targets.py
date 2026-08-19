@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.core.agent_cleanup_facade import agent_to_cleanup_target
+from sase.core.agent_cleanup_targets import is_workflow_child, is_workflow_step_child
 from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_KILL_AND_DISMISS,
@@ -47,6 +48,24 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.display_name == "convert"
     assert target.start_time == "2026-04-30T09:00:00"
     assert target.stop_time == "2026-04-30T09:05:00"
+
+
+def test_workflow_step_child_excludes_family_members_and_monitors() -> None:
+    family_member = agent_to_cleanup_target(
+        _agent(cl_name="family", parent_timestamp="root-ts")
+    )
+    workflow_step = agent_to_cleanup_target(
+        _agent(
+            cl_name="step",
+            parent_timestamp="root-ts",
+            parent_workflow="build",
+        )
+    )
+
+    assert is_workflow_child(family_member)
+    assert not is_workflow_step_child(family_member)
+    assert is_workflow_child(workflow_step)
+    assert is_workflow_step_child(workflow_step)
 
 
 def test_cleanup_wire_serializes_only_canonical_tribe_fields() -> None:
