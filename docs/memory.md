@@ -150,6 +150,8 @@ short notes. Agents fetch a definition on demand with the `sase glossary` comman
 ```bash
 sase glossary list
 sase glossary list hood -f names
+sase glossary all
+sase glossary all -f markdown
 sase glossary show Stitch Patch "Agent Hood"
 sase glossary show "Agent Hood"
 sase glossary show Stitch -d 0 -f markdown
@@ -179,6 +181,14 @@ an optional case-insensitive substring match against each term and its display a
 `table` (the default, with term, aliases, reference count, and a summary), `names` (one
 canonical term per line, pipe-friendly), or `json` (full records including aliases,
 definition, reference terms, and source location).
+
+`sase glossary all` prints every configured term in full, alphabetically, in
+letter-sectioned blocks. Each entry shows aliases, the full definition with cross-term
+mentions highlighted, and a `referenced by` line for inbound backlinks. `-f/--format`
+selects `rich` (the default), `markdown`, or `json`. The JSON payload is a catalog of
+terms with `reference_terms` (outbound, the same field as `list -f json`) and
+`referenced_by` (inbound). This is not an audited read; agents must use
+`sase glossary read`.
 
 `sase glossary show TERM [TERM ...]` resolves one or more terms — by canonical term,
 alias, or an unambiguous prefix — and prints each definition plus the recursive closure

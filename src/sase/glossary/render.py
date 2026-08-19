@@ -1,12 +1,15 @@
-"""Shared rendering for ``sase glossary show``/``read`` output.
+"""Shared rendering for ``sase glossary show``/``read``/``all`` output.
 
 ``show`` and ``read`` resolve a :class:`~sase.glossary.resolution.GlossaryClosure`
 through identical code and must print identical output for identical
 arguments, so both route through :func:`render_glossary_closure`.
+``all`` prints the same closure over every catalog entry via
+:func:`render_glossary_catalog`.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from io import StringIO
 import json
 import sys
@@ -14,6 +17,7 @@ from typing import Literal, cast
 
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
+from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
@@ -31,6 +35,10 @@ _INDENT_STEP = 2
 _MAX_INDENT_DEPTH = 3
 _ACCENT = SECTION_COLOR
 _MARKDOWN_MAX_HEADING_LEVEL = 6
+_AUDIT_HINT = (
+    'Not an audited read — agents must use: sase glossary read <term> -r "<why>"'
+)
+_EMPTY_CATALOG = "no glossary terms configured for {project}"
 
 
 def render_glossary_closure(
@@ -128,9 +136,7 @@ def _glossary_closure_renderable(
     return Group(*blocks)
 
 
-def _build_header(
-    project_name: str, *, total: int, requested: int, related: int
-) -> RenderableType:
+def _header_grid(project_name: str, right: str) -> RenderableType:
     grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
     grid.add_column(ratio=1, overflow="fold")
     grid.add_column(justify="right", no_wrap=True)
@@ -141,10 +147,16 @@ def _build_header(
         left.append("  ")
         left.append(project_name, style="bold")
 
+    grid.add_row(left, Text(right, style="dim"))
+    return grid
+
+
+def _build_header(
+    project_name: str, *, total: int, requested: int, related: int
+) -> RenderableType:
     term_word = "term" if total == 1 else "terms"
     counts = f"{total} {term_word} · {requested} requested · {related} related"
-    grid.add_row(left, Text(counts, style="dim"))
-    return grid
+    return _header_grid(project_name, counts)
 
 
 def _build_node_blocks(
@@ -309,8 +321,149 @@ def _referrer_json(referrer: GlossaryReferrer | None) -> dict[str, str] | None:
     return {"term": referrer.term, "matched_text": referrer.matched_text}
 
 
+# --- catalog --------------------------------------------------------------
+
+
+def render_glossary_catalog(
+    closure: GlossaryClosure,
+    *,
+    project_name: str,
+    output_format: GlossaryShowFormat,
+    console: Console | None = None,
+) -> None:
+    """Print the full-catalog view of *closure* to stdout."""
+    if output_format == "json":
+        payload = _glossary_catalog_json_payload(closure, project_name=project_name)
+        json.dump(payload, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+        return
+
+    if output_format == "markdown":
+        sys.stdout.write(_glossary_catalog_markdown(closure, project_name=project_name))
+        return
+
+    target = console or Console()
+    _print_rich_without_trailing_whitespace(
+        target,
+        _glossary_catalog_renderable(closure, project_name=project_name),
+    )
+
+
+def _glossary_catalog_renderable(
+    closure: GlossaryClosure, *, project_name: str
+) -> Group:
+    """Build the dictionary-style Rich rendering for a full catalog."""
+    if not closure.nodes:
+        return Group(Text(_EMPTY_CATALOG.format(project=project_name)))
+
+    n = len(closure.nodes)
+    printed_indices = {node.entry.index for node in closure.nodes}
+    term_word = "term" if n == 1 else "terms"
+    blocks: list[RenderableType] = [
+        _header_grid(project_name, f"{n} {term_word}"),
+        Text(""),
+    ]
+    previous_key: str | None = None
+    for node in closure.nodes:
+        key = _catalog_group_key(node.entry.term)
+        if key != previous_key:
+            blocks.append(
+                Rule(Text(key, style=f"bold {_ACCENT}"), align="left", style="dim")
+            )
+            blocks.append(Text(""))
+            previous_key = key
+        blocks.extend(
+            _build_catalog_entry_blocks(node, printed_indices=printed_indices)
+        )
+        blocks.append(Text(""))
+    blocks.append(Text(_AUDIT_HINT, style="dim"))
+    return Group(*blocks)
+
+
+def _catalog_group_key(term: str) -> str:
+    first = term[:1].upper()
+    return first if first.isalpha() else "#"
+
+
+def _build_catalog_entry_blocks(
+    node: GlossaryClosureNode, *, printed_indices: set[int]
+) -> list[RenderableType]:
+    title = Text()
+    title.append("● ", style=_ACCENT)
+    title.append(node.entry.term, style="bold")
+
+    lines: list[RenderableType] = [title]
+    if node.entry.display_aliases:
+        lines.append(Text("aka " + " · ".join(node.entry.display_aliases), style="dim"))
+    lines.append(_highlighted_definition(node, printed_indices=printed_indices))
+    if node.also_referenced_by:
+        lines.append(
+            Text(
+                "referenced by " + ", ".join(node.also_referenced_by),
+                style="dim",
+            )
+        )
+    return lines
+
+
+def _glossary_catalog_markdown(closure: GlossaryClosure, *, project_name: str) -> str:
+    """Render the full catalog as plain Markdown."""
+    pieces: list[str] = []
+    if project_name:
+        pieces.append(f"GLOSSARY: {project_name}\n")
+    for node in closure.nodes:
+        pieces.append(f"# {node.entry.term}\n")
+        if node.entry.display_aliases:
+            pieces.append("aka " + ", ".join(node.entry.display_aliases) + "\n")
+        pieces.append(node.entry.definition.strip() + "\n")
+        if node.also_referenced_by:
+            pieces.append("referenced by " + ", ".join(node.also_referenced_by) + "\n")
+    return "\n".join(pieces) + "\n"
+
+
+def _glossary_catalog_json_payload(
+    closure: GlossaryClosure, *, project_name: str
+) -> dict[str, object]:
+    terms_by_index = {node.entry.index: node.entry.term for node in closure.nodes}
+    return {
+        "project": project_name,
+        "count": len(closure.nodes),
+        "terms": [_catalog_term_json(node, terms_by_index) for node in closure.nodes],
+    }
+
+
+def _catalog_term_json(
+    node: GlossaryClosureNode, terms_by_index: Mapping[int, str]
+) -> dict[str, object]:
+    return {
+        "term": node.entry.term,
+        "aliases": list(node.entry.display_aliases),
+        "definition": node.entry.definition,
+        "reference_terms": list(_outbound_reference_terms(node, terms_by_index)),
+        "referenced_by": list(node.also_referenced_by),
+        "source": node.entry.source,
+    }
+
+
+def _outbound_reference_terms(
+    node: GlossaryClosureNode, terms_by_index: Mapping[int, str]
+) -> tuple[str, ...]:
+    seen: set[int] = set()
+    terms: list[str] = []
+    for span in node.spans:
+        if span.entry_index == node.entry.index or span.entry_index in seen:
+            continue
+        term = terms_by_index.get(span.entry_index)
+        if term is None:
+            continue
+        seen.add(span.entry_index)
+        terms.append(term)
+    return tuple(terms)
+
+
 __all__ = [
     "GlossaryShowFormat",
     "glossary_closure_markdown",
+    "render_glossary_catalog",
     "render_glossary_closure",
 ]

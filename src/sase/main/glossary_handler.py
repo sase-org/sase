@@ -16,6 +16,12 @@ def handle_glossary_command(args: argparse.Namespace) -> None:
         handle_glossary_add_command(args)
         sys.exit(0)
 
+    if sub == "all":
+        from sase.glossary.cli_all import handle_glossary_all_command
+
+        handle_glossary_all_command(args)
+        sys.exit(0)
+
     if sub == "del":
         from sase.glossary.cli_del import handle_glossary_del_command
 
@@ -46,5 +52,5 @@ def handle_glossary_command(args: argparse.Namespace) -> None:
         handle_glossary_show_command(args)
         sys.exit(0)
 
-    print("Usage: sase glossary {add,del,list,log,read,show}", file=sys.stderr)
+    print("Usage: sase glossary {add,all,del,list,log,read,show}", file=sys.stderr)
     sys.exit(1)

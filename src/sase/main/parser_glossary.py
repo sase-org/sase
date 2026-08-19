@@ -24,6 +24,7 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase glossary list\n"
             "  sase glossary list agent -f names\n"
+            "  sase glossary all\n"
             '  sase glossary show Stitch Patch "Agent Hood"\n'
             '  sase glossary show "Agent Hood"\n'
             "  sase glossary show Stitch -d 0 -f markdown\n"
@@ -84,6 +85,30 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
     _add_write_format_option(add_parser)
     _add_no_init_option(add_parser)
     _add_project_option(add_parser)
+
+    all_parser = glossary_subparsers.add_parser(
+        "all",
+        help="Print every glossary term in full",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print every glossary term configured for a project, "
+            "alphabetically, with aliases, the full definition, "
+            "underlined cross-references, and inbound backlinks. "
+            "`sase glossary list` is a table of truncated summaries; "
+            "`sase glossary show` prints named terms plus their "
+            "reference closure. This command is not an audited read; "
+            'agents must use `sase glossary read TERM -r "<why>"`.'
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase glossary all\n"
+            "  sase glossary all -f markdown\n"
+            "  sase glossary all -f json\n"
+            "  sase glossary all -p sase"
+        ),
+    )
+    _add_closure_format_option(all_parser)
+    _add_project_option(all_parser)
 
     del_parser = glossary_subparsers.add_parser(
         "del",
@@ -252,6 +277,16 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
     _add_closure_arguments(show_parser)
 
 
+def _add_closure_format_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "markdown", "rich"),
+        default="rich",
+        help="Output format (default: rich)",
+    )
+
+
 def _add_write_format_option(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-f",
@@ -303,13 +338,7 @@ def _add_closure_arguments(
             "requested terms"
         ),
     )
-    parser.add_argument(
-        "-f",
-        "--format",
-        choices=("json", "markdown", "rich"),
-        default="rich",
-        help="Output format (default: rich)",
-    )
+    _add_closure_format_option(parser)
     _add_project_option(parser)
     if require_reason:
         parser.add_argument(
