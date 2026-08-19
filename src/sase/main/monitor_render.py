@@ -16,9 +16,17 @@ from sase.core.time import get_timezone
 from sase.monitor.models import MonitorRecord
 from sase.monitor.naming import short_monitor_id
 from sase.monitor_state import MONITOR_TIMEOUT_GLYPH
+from sase.monitor_status import (
+    MonitorStatusPair,
+    effective_monitor_status,
+    monitor_status_accent,
+    monitor_status_glyph,
+    monitor_status_pair,
+    monitor_status_style,
+)
 
 # Bumped only when the JSON payloads below change incompatibly.
-MONITOR_JSON_SCHEMA_VERSION = 1
+MONITOR_JSON_SCHEMA_VERSION = 2
 
 STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "running": ("●", "bold green"),
@@ -29,6 +37,7 @@ STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "lost": ("?", "bold red"),
 }
 _UNKNOWN_DISPLAY = ("?", "dim")
+_RUNNING_LABEL_GLYPH = "●"
 _BORDER_STYLE = "#5FAFFF"
 _TERMINAL_ROW_STYLE = "dim"
 _EMPTY_HINT = (
@@ -44,9 +53,57 @@ def _status_display(monitor_state: str) -> tuple[str, str]:
 
 
 def status_text(monitor_state: str) -> Text:
-    """Return the colored ``<glyph> <state>`` label for a monitor state."""
+    """Return the colored ``<glyph> <state>`` label for a raw monitor state."""
     glyph, style = _status_display(monitor_state)
     return Text(f"{glyph} {monitor_state}", style=style)
+
+
+def _record_status_pair(record: MonitorRecord) -> MonitorStatusPair:
+    return monitor_status_pair(record.start_status, record.stop_status)
+
+
+def _effective_label(record: MonitorRecord) -> str:
+    return effective_monitor_status(
+        _record_status_pair(record),
+        monitor_state=record.monitor_state,
+        settled=record.settled,
+    )
+
+
+def _label_glyph(monitor_state: str) -> str:
+    glyph = monitor_status_glyph(monitor_state)
+    if glyph:
+        return glyph
+    if monitor_state == "running":
+        return _RUNNING_LABEL_GLYPH
+    return "?"
+
+
+def _status_label_text(record: MonitorRecord) -> Text:
+    """Return the colored ``<glyph> <effective label>`` cell for *record*."""
+    pair = _record_status_pair(record)
+    style = monitor_status_style(pair, monitor_state=record.monitor_state)
+    return Text(
+        f"{_label_glyph(record.monitor_state)} {_effective_label(record)}",
+        style=style,
+    )
+
+
+def _status_pair_text(record: MonitorRecord) -> Text:
+    """Return ``start → stop`` with the effective half in its accent."""
+    pair = _record_status_pair(record)
+    style = monitor_status_style(pair, monitor_state=record.monitor_state)
+    effective = effective_monitor_status(
+        pair, monitor_state=record.monitor_state, settled=record.settled
+    )
+    text = Text()
+    if pair.start == pair.stop:
+        text.append(pair.start, style=style)
+        return text
+    text.append(pair.start, style=style if effective == pair.start else "dim")
+    text.append(" → ", style="dim")
+    text.append(pair.stop, style=style if effective == pair.stop else "dim")
+    return text
 
 
 #: Marks a monitor whose ``--next`` follow-up did not launch (or launched
@@ -58,7 +115,7 @@ _FOLLOWUP_ERROR_STYLE = "bold yellow"
 
 def _state_cell(record: MonitorRecord) -> Text:
     """Return the STATE cell, flagged when the follow-up needs a human."""
-    text = status_text(record.monitor_state)
+    text = _status_label_text(record)
     if record.followup_needs_attention:
         text.append(f" {_FOLLOWUP_ERROR_GLYPH}", style=_FOLLOWUP_ERROR_STYLE)
     return text
@@ -125,6 +182,8 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "label": record.label,
         "start_status": record.start_status,
         "stop_status": record.stop_status,
+        "status_label": _effective_label(record),
+        "status_accent": monitor_status_accent(_record_status_pair(record)),
         "timeout_seconds": record.timeout_seconds,
         "idle_timeout_seconds": record.idle_timeout_seconds,
         "tail_lines": record.tail_lines,
@@ -249,7 +308,7 @@ def monitor_list_markdown(records: Sequence[MonitorRecord]) -> str:
     rows = [header, divider]
     for record in records:
         exit_code = "—" if record.exit_code is None else str(record.exit_code)
-        state: str = record.monitor_state
+        state = _effective_label(record)
         if record.followup_needs_attention:
             state = f"{state} {_FOLLOWUP_ERROR_GLYPH}"
         rows.append(
@@ -273,6 +332,7 @@ def monitor_detail(record: MonitorRecord) -> Panel:
     table.add_column("value", overflow="fold", ratio=1)
 
     rows: list[tuple[str, RenderableType]] = [
+        ("Status label", _status_pair_text(record)),
         ("Status", status_text(record.monitor_state)),
         (
             "Id",

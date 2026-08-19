@@ -177,7 +177,7 @@ def test_list_json_envelope_is_stable(
     assert dispatch(["monitor", "list", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["count"] == 1
     assert payload["scope"] == {
         "all": False,
@@ -194,6 +194,8 @@ def test_list_json_envelope_is_stable(
     assert monitor["command"] == "just check-full"
     assert monitor["reason"] == "verify the fix"
     assert monitor["monitor_state"] == "running"
+    assert monitor["status_label"] == "MONITORING"
+    assert monitor["status_accent"] == "#F8AD08"
     assert monitor["status_bucket"] == "Running"
     assert monitor["is_terminal"] is False
 
@@ -304,4 +306,4 @@ def test_list_markdown_format_renders_a_pipe_table(
 
     out = capsys.readouterr().out
     assert out.startswith("| State | Id |")
-    assert "| running |" in out
+    assert "| MONITORING |" in out

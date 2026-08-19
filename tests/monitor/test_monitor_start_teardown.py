@@ -55,6 +55,8 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -111,6 +113,8 @@ def test_start_monitor_claim_failure_does_not_run_the_command(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 

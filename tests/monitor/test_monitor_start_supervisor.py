@@ -142,6 +142,8 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -189,6 +191,8 @@ def test_start_monitor_captures_supervisor_diagnostics(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )
@@ -229,6 +233,8 @@ def test_start_monitor_persists_a_supervisor_identity(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -266,6 +272,8 @@ def test_start_monitor_reparents_the_supervisor_before_return(
             timeout_seconds=120.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )
@@ -309,6 +317,8 @@ def test_ppid_walk_teardown_of_starter_descendants_leaves_monitor_running(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )
@@ -353,6 +363,8 @@ def test_sighup_to_supervisor_does_not_stop_the_monitor(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )

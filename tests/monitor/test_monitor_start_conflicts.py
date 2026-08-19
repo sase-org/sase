@@ -75,6 +75,8 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
         timeout_seconds=2700.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -125,6 +127,8 @@ def test_start_monitor_rejects_same_command_with_changed_request(
         timeout_seconds=2700.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         next_action="Fix failures.",
     )
@@ -176,6 +180,8 @@ def test_start_monitor_rejects_identical_replay_of_lost_monitor(
         timeout_seconds=2700.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -226,6 +232,8 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
         idle_timeout_seconds=600.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -272,6 +280,8 @@ def test_implicit_start_conflicts_on_durable_family_not_member_name(
         timeout_seconds=2700.0,
         cwd=str(caller_ws),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
     )
 
     with pytest.raises(MonitorAlreadyRunningError, match="lane '02i'"):
@@ -328,6 +338,8 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )

@@ -90,6 +90,8 @@ def _promote_and_start_monitor(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         next_action="Report that it finished.",
     )

@@ -416,6 +416,8 @@ def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             next_action="Report that it finished.",
         )

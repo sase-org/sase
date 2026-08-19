@@ -41,7 +41,21 @@ def test_start_reaches_the_handler_through_the_real_entry_point(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["sase", "monitor", "start", "-c", "true", "-r", "verify", "-t", "30s"],
+        [
+            "sase",
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
+        ],
     )
 
     with pytest.raises(SystemExit) as exit_info:
@@ -66,7 +80,23 @@ def test_start_requires_agent_when_none_is_given_or_inferable(
 ) -> None:
     """No ``-a/--agent`` and no ``SASE_AGENT_NAME`` is a usage error."""
     assert (
-        dispatch(["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s"]) == 2
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+            ]
+        )
+        == 2
     )
     assert "SASE_AGENT_NAME is unset" in capsys.readouterr().err
 
@@ -75,7 +105,22 @@ def test_start_rejects_an_empty_reason(capsys: pytest.CaptureFixture[str]) -> No
     """An empty ``-r/--reason`` is rejected before touching the engine."""
     assert (
         dispatch(
-            ["monitor", "start", "-c", "true", "-r", "  ", "-t", "30s", "-a", "acme"]
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "  ",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+            ]
         )
         == 2
     )
@@ -97,6 +142,10 @@ def test_start_rejects_an_invalid_timeout(capsys: pytest.CaptureFixture[str]) ->
                 "banana",
                 "-a",
                 "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
             ]
         )
         == 2
@@ -123,6 +172,10 @@ def test_start_rejects_an_invalid_idle_timeout(
                 "banana",
                 "-a",
                 "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
             ]
         )
         == 2
@@ -130,11 +183,40 @@ def test_start_rejects_an_invalid_idle_timeout(
     assert "invalid -i/--idle-timeout value" in capsys.readouterr().err
 
 
-def test_start_rejects_an_oversized_status_label(
+def test_start_requires_start_status(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A status label over 48 characters is rejected."""
-    long_label = "x" * 49
+    """An omitted ``-s/--start-status`` is a usage error that names the pair."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-S",
+                "TESTED",
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "-s/--start-status is required" in err
+    assert "TESTING" in err
+    assert "TESTED" in err
+    assert "Max 20 characters" in err
+
+
+def test_start_requires_stop_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An omitted ``-S/--stop-status`` is a usage error that names the pair."""
     assert (
         dispatch(
             [
@@ -149,12 +231,152 @@ def test_start_rejects_an_oversized_status_label(
                 "-a",
                 "acme",
                 "-s",
-                long_label,
+                "TESTING",
             ]
         )
         == 2
     )
-    assert "-s/--start-status must be at most 48 characters" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "-S/--stop-status is required" in err
+    assert "TESTING" in err
+    assert "TESTED" in err
+    assert "Max 20 characters" in err
+
+
+def test_start_requires_both_status_flags(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Omitting both status flags reports the start-status teaching text first."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "-s/--start-status is required" in err
+    assert "pair it with -S/--stop-status" in err
+
+
+def test_start_rejects_empty_and_multiline_status_labels(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Empty and multi-line status labels are usage errors, not silent defaults."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "   ",
+                "-S",
+                "TESTED",
+            ]
+        )
+        == 2
+    )
+    assert "-s/--start-status" in capsys.readouterr().err
+
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TEST\nED",
+            ]
+        )
+        == 2
+    )
+    assert "-S/--stop-status" in capsys.readouterr().err
+
+
+def test_start_truncates_an_overlength_status_label(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Over-length labels are accepted, clamped to 20 chars, and warned on stderr."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    _pin_project(monkeypatch)
+    overflow = "VERIFYING THE WHOLE SUITE NOW"
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "-a",
+            "acme",
+            "-C",
+            str(tmp_path),
+            "-s",
+            overflow,
+            "-S",
+            "TESTED",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "-s/--start-status truncated to 20 chars" in captured.err
+    assert "VERIFYING THE WHOLE…" in captured.err
+    payload = json.loads(captured.out)
+    assert payload["monitor"]["start_status"] == "VERIFYING THE WHOLE…"
+    assert len(payload["monitor"]["start_status"]) == 20
+    meta = json.loads(
+        Path(payload["monitor"]["artifacts_dir"], "agent_meta.json").read_text()
+    )
+    assert meta["monitor_start_status"] == "VERIFYING THE WHOLE…"
 
 
 def test_start_already_running_monitor_with_a_different_command_is_an_error(
@@ -188,6 +410,10 @@ def test_start_already_running_monitor_with_a_different_command_is_an_error(
             "acme",
             "-C",
             str(tmp_path),
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -234,6 +460,10 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
             "acme",
             "-C",
             str(tmp_path),
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -283,6 +513,10 @@ def test_start_lane_flag_is_a_deprecated_alias_for_agent(
             "acme",
             "-C",
             str(tmp_path),
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -345,6 +579,10 @@ def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
             "acme",
             "-C",
             str(tmp_path),
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -401,6 +639,10 @@ def test_start_json_envelope_reports_handed_off_before_the_kill(
             "-C",
             str(tmp_path),
             "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -449,17 +691,25 @@ def test_start_json_envelope_is_stable(
             "-C",
             str(tmp_path),
             "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["handed_off"] is False
     assert payload["monitor"]["lane"] == "acme"
     assert payload["monitor"]["command"] == "true"
     assert payload["monitor"]["timeout_seconds"] == 30.0
     assert payload["monitor"]["idle_timeout_seconds"] == 5.0
+    assert payload["monitor"]["start_status"] == "TESTING"
+    assert payload["monitor"]["stop_status"] == "TESTED"
+    assert payload["monitor"]["status_label"] == "TESTING"
+    assert payload["monitor"]["status_accent"] == "#6FC4FF"
 
 
 def test_start_implicit_numeric_phase_uses_caller_workspace_without_agent_flag(
@@ -513,6 +763,10 @@ def test_start_implicit_numeric_phase_uses_caller_workspace_without_agent_flag(
             "-t",
             "30s",
             "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -586,6 +840,10 @@ def test_start_implicit_family_member_uses_caller_workspace_without_agent_flag(
             "-t",
             "30s",
             "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 
@@ -653,6 +911,10 @@ def test_start_implicit_family_container_derives_cwd_from_the_live_member(
             "-t",
             "30s",
             "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
         ]
     )
 

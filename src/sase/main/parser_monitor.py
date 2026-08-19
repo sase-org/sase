@@ -193,12 +193,13 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "examples:\n"
-            "  sase monitor start -- just check-full\n"
-            "  sase monitor start -r 'verify the fix' -t 20m -- just "
-            "check-full\n"
-            "  sase monitor start -n 'confirm the deploy succeeded' -- "
-            "./deploy.sh\n"
-            "  sase monitor start --json -- just check-full"
+            "  sase monitor start -s TESTING -S TESTED -- just check-full\n"
+            "  sase monitor start -s TESTING -S TESTED -r 'verify the fix' "
+            "-t 20m -- just check-full\n"
+            "  sase monitor start -s DEPLOYING -S DEPLOYED -n 'confirm the "
+            "deploy succeeded' -- ./deploy.sh\n"
+            "  sase monitor start -s TESTING -S TESTED --json -- just "
+            "check-full"
         ),
     )
     start_parser.add_argument(
@@ -288,14 +289,20 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         "--start-status",
         default=None,
         metavar="TEXT",
-        help="Status while running (default: MONITORING)",
+        help=(
+            "Required label shown while the command runs (present tense, "
+            "e.g. TESTING). Pair with -S/--stop-status. Max 20 characters"
+        ),
     )
     start_parser.add_argument(
         "-S",
         "--stop-status",
         default=None,
         metavar="TEXT",
-        help="Status when finished (default: MONITORED)",
+        help=(
+            "Required label shown when the command finishes (past tense, "
+            "e.g. TESTED). Pair with -s/--start-status. Max 20 characters"
+        ),
     )
     start_parser.add_argument(
         "-T",

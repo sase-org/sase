@@ -46,6 +46,62 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
 
 
+def test_start_monitor_request_requires_status_fields() -> None:
+    """Programmatic starters cannot omit the status pair."""
+    with pytest.raises(TypeError, match="start_status"):
+        StartMonitorRequest(
+            command="true",
+            reason="verify",
+            timeout_seconds=30.0,
+            cwd="/tmp",
+            project_name="proj",
+        )
+
+
+def test_start_monitor_request_clamps_overlength_before_agent_meta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An over-length programmatic label is clamped before it is written."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    overflow = "VERIFYING THE WHOLE SUITE NOW"
+
+    request = StartMonitorRequest(
+        command="true",
+        reason="verify",
+        timeout_seconds=30.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        start_status=overflow,
+        stop_status="TESTED",
+        lane="acme",
+    )
+
+    assert request.start_status == "VERIFYING THE WHOLE…"
+    assert len(request.start_status) == 20
+
+    record = start_monitor(request)
+    try:
+        meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["monitor_start_status"] == "VERIFYING THE WHOLE…"
+        assert meta["monitor_stop_status"] == "TESTED"
+    finally:
+        wait_for_done(record.artifacts_dir)
+
+
 def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -72,6 +128,8 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
         idle_timeout_seconds=10.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -126,6 +184,8 @@ def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
             timeout_seconds=30.0,
             cwd=workspace_dir,
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
         )
     )
@@ -181,6 +241,8 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
             timeout_seconds=120.0,
             cwd=workspace_dir,
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             next_action="Inspect the result.",
         )
@@ -323,6 +385,8 @@ def test_start_monitor_refuses_a_numbered_cwd_claimed_by_another_live_agent(
         timeout_seconds=30.0,
         cwd=workspace_dir,
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         inherit_lane_workspace_claim=False,
     )
@@ -362,6 +426,8 @@ def test_start_monitor_epic_launch_from_non_numbered_cwd_uses_workspace_zero(
             timeout_seconds=30.0,
             cwd=str(outside),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )

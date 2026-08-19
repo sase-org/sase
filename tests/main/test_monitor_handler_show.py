@@ -41,6 +41,9 @@ def test_show_renders_detail_panel_and_output_tail(
     assert "just check-full" in out
     assert "verify the fix" in out
     assert "acme" in out
+    assert "Status label" in out
+    assert "MONITORING" in out
+    assert "MONITORED" in out
     assert "running the suite..." in out
 
 
@@ -123,7 +126,7 @@ def test_show_json_envelope_is_stable(
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["monitor"]["monitor_id"] == "aaabbbcccddd"
     assert payload["monitor"]["exit_code"] == 3
     assert payload["monitor"]["status_bucket"] == "Failed"

@@ -98,6 +98,8 @@ def _start(
             idle_timeout_seconds=idle_timeout_seconds,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             next_action=next_action,
             inherit_lane_workspace_claim=inherit_lane_workspace_claim,
@@ -268,6 +270,8 @@ def test_claim_is_released_when_there_is_no_followup(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
         )
     )

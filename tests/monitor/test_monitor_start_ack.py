@@ -129,6 +129,8 @@ def test_startup_sigterm_settles_stopped_without_running_command(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         inherit_lane_workspace_claim=False,
     )
@@ -198,6 +200,8 @@ def test_supervisor_ack_marker_carries_real_pid_pgid_and_identity(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="acme",
             inherit_lane_workspace_claim=False,
         )
@@ -268,6 +272,8 @@ def test_start_monitor_raises_and_restores_the_claim_when_the_supervisor_never_a
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
     )
 
@@ -350,6 +356,8 @@ def test_start_monitor_releases_a_fresh_numbered_claim_when_the_supervisor_never
         timeout_seconds=30.0,
         cwd=workspace_dir,
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         inherit_lane_workspace_claim=False,
     )
@@ -418,6 +426,8 @@ def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(
         timeout_seconds=30.0,
         cwd=str(tmp_path),
         project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
         lane="acme",
         inherit_lane_workspace_claim=False,
     )

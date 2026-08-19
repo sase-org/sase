@@ -85,6 +85,8 @@ def test_implicit_start_pins_numeric_phase_caller_not_sibling_or_land(
             timeout_seconds=30.0,
             cwd=str(caller_ws),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
         )
     )
 
@@ -157,6 +159,8 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
             timeout_seconds=30.0,
             cwd=str(caller_ws),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
         )
     )
 
@@ -241,6 +245,8 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
             timeout_seconds=30.0,
             cwd=str(caller_ws),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
         )
     )
 
@@ -301,6 +307,8 @@ def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
             timeout_seconds=30.0,
             cwd=str(tmp_path),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             inherit_lane_workspace_claim=False,
         )
     )
@@ -352,6 +360,8 @@ def test_explicit_family_target_still_selects_newest_lane_member(
             timeout_seconds=30.0,
             cwd=str(newer_ws),
             project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
             lane="02i",
             inherit_lane_workspace_claim=False,
         )

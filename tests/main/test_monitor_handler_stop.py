@@ -221,7 +221,7 @@ def test_stop_json_envelope_is_stable(
     assert dispatch(["monitor", "stop", "aaabbbcccddd", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["changed"] is False
     assert payload["monitor"]["monitor_id"] == "aaabbbcccddd"
 

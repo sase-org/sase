@@ -14,6 +14,7 @@ from hashlib import sha256
 from sase.monitor_status import (
     DEFAULT_MONITOR_START_STATUS as DEFAULT_START_STATUS,
     DEFAULT_MONITOR_STOP_STATUS as DEFAULT_STOP_STATUS,
+    clamp_monitor_status,
 )
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT
@@ -41,16 +42,22 @@ class StartMonitorRequest:
     timeout_seconds: float
     cwd: str
     project_name: str
+    start_status: str
+    stop_status: str
     lane: str | None = None
     label: str | None = None
     next_action: str | None = None
-    start_status: str = DEFAULT_START_STATUS
-    stop_status: str = DEFAULT_STOP_STATUS
     tail_lines: int = DEFAULT_TAIL_LINES
     idle_timeout_seconds: float = 0.0
     next_output: str = DEFAULT_NEXT_OUTPUT
     inherit_lane_workspace_claim: bool = True
     transfer_claim_from_pid: int | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "start_status", clamp_monitor_status(self.start_status)
+        )
+        object.__setattr__(self, "stop_status", clamp_monitor_status(self.stop_status))
 
 
 def default_label(command: str) -> str:

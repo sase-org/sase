@@ -37,11 +37,10 @@ from sase.monitor import (
 from sase.monitor.start import (
     DEFAULT_NEXT_OUTPUT,
     DEFAULT_REASON,
-    DEFAULT_START_STATUS,
-    DEFAULT_STOP_STATUS,
     DEFAULT_TAIL_LINES,
     DEFAULT_TIMEOUT_SECONDS,
 )
+from sase.monitor_status import MONITOR_STATUS_MAX_CHARS, clamp_monitor_status
 
 from .monitor_render import (
     empty_monitor_panel,
@@ -56,9 +55,18 @@ from .monitor_render import (
 
 # Large enough to mean "every retained line" for a size-bounded monitor log.
 _ALL_OUTPUT_LINES = 1_000_000
-_STATUS_LABEL_MAX_CHARS = 48
 _KILLED_EXIT_CODE = 130
 _FOLLOW_POLL_SECONDS = 0.5
+_MISSING_START_STATUS = (
+    "sase monitor start: -s/--start-status is required -- give the label shown while the "
+    "command runs (present tense, e.g. TESTING), and pair it with -S/--stop-status (e.g. "
+    "TESTED). Max 20 characters."
+)
+_MISSING_STOP_STATUS = (
+    "sase monitor start: -S/--stop-status is required -- give the label shown when the "
+    "command finishes (past tense, e.g. TESTED), and pair it with -s/--start-status (e.g. "
+    "TESTING). Max 20 characters."
+)
 
 _TIMEOUT_RE = re.compile(r"^(\d+(?:\.\d+)?)([smh]?)$")
 _TIMEOUT_UNIT_SECONDS = {"s": 1.0, "m": 60.0, "h": 3600.0}
@@ -193,6 +201,15 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
         return 2
 
+    raw_start_status = getattr(args, "start_status", None)
+    raw_stop_status = getattr(args, "stop_status", None)
+    if raw_start_status is None:
+        print(_MISSING_START_STATUS, file=sys.stderr)
+        return 2
+    if raw_stop_status is None:
+        print(_MISSING_STOP_STATUS, file=sys.stderr)
+        return 2
+
     try:
         raw_timeout = (
             getattr(args, "timeout", None) or f"{int(DEFAULT_TIMEOUT_SECONDS)}s"
@@ -206,14 +223,8 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
                 raw_idle_timeout,
                 flag="-i/--idle-timeout",
             )
-        start_status = _validate_status_label(
-            getattr(args, "start_status", None) or DEFAULT_START_STATUS,
-            flag="-s/--start-status",
-        )
-        stop_status = _validate_status_label(
-            getattr(args, "stop_status", None) or DEFAULT_STOP_STATUS,
-            flag="-S/--stop-status",
-        )
+        start_status = _clamp_status_label(raw_start_status, flag="-s/--start-status")
+        stop_status = _clamp_status_label(raw_stop_status, flag="-S/--stop-status")
     except ValueError as exc:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 2
@@ -524,15 +535,18 @@ def _start_command(args: argparse.Namespace) -> str:
     return (getattr(args, "monitor_command", None) or "").strip()
 
 
-def _validate_status_label(value: str, *, flag: str) -> str:
-    if "\n" in value or "\r" in value:
-        raise ValueError(f"{flag} must not contain newlines")
-    label = value.strip()
-    if not label:
-        raise ValueError(f"{flag} must not be empty")
-    if len(label) > _STATUS_LABEL_MAX_CHARS:
-        raise ValueError(f"{flag} must be at most {_STATUS_LABEL_MAX_CHARS} characters")
-    return label
+def _clamp_status_label(value: str, *, flag: str) -> str:
+    try:
+        clamped = clamp_monitor_status(value)
+    except ValueError as exc:
+        raise ValueError(f"{flag}: {exc}") from exc
+    if clamped != value.strip():
+        print(
+            f"sase monitor start: {flag} truncated to {MONITOR_STATUS_MAX_CHARS} "
+            f"chars: {clamped!r}",
+            file=sys.stderr,
+        )
+    return clamped
 
 
 __all__ = [
