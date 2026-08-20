@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from asyncio import Lock
 
     from sase.ace.tui.modals import StashRestoreResult
+    from sase.ace.tui.prompt_stash_entries import RestoredStashPane
     from sase.core.prompt_stash_wire import (
         PromptStashEntryWire,
         PromptStashSnapshotWire,
@@ -241,7 +242,7 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
 
         restored_count = 0
         if restore_entries:
-            restored_count = len(self._entries_to_restore_items(restore_entries))
+            restored_count = len(self._entries_to_restore_panes(restore_entries))
             self._load_restored_entries(restore_entries)
 
         deleted = sum(1 for entry_id in result.delete_ids if entry_id in removed_ids)
@@ -254,24 +255,38 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
 
         Appends to a mounted prompt bar as new panes; otherwise mounts the home
         prompt bar pre-populated with the restored drafts (a single empty pane
-        when no real text, multiple panes joined by ``---``).
+        when no real text, multiple panes joined by ``---``). The final restored
+        row's saved pane/cursor wins when present; otherwise the last pane is
+        focused at end of text.
         """
+        panes = self._entries_to_restore_panes(entries)
         bar = self._mounted_prompt_bar()
         if bar is not None and bar._mode == "prompt":
-            bar.restore_stashed_entries(self._entries_to_restore_items(entries))
+            bar.restore_stashed_entries(panes)
             return
+        selected_pane, cursor = self._restore_home_bar_focus(panes)
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
             initial_text=self._stash_entries_to_prompt_text(entries),
             as_xprompt_markdown=True,
+            initial_selected_pane=selected_pane,
+            initial_cursor=cursor,
         )
 
     @staticmethod
-    def _entries_to_restore_items(
+    def _entries_to_restore_panes(
         entries: list[PromptStashEntryWire],
-    ) -> list[tuple[str, str]]:
-        from ...prompt_stash_entries import entries_to_restore_items
+    ) -> list[RestoredStashPane]:
+        from ...prompt_stash_entries import entries_to_restore_panes
 
-        return entries_to_restore_items(entries)
+        return entries_to_restore_panes(entries)
+
+    @staticmethod
+    def _restore_home_bar_focus(
+        panes: list[RestoredStashPane],
+    ) -> tuple[int | None, tuple[int, int] | None]:
+        from ...prompt_stash_entries import restore_home_bar_focus
+
+        return restore_home_bar_focus(panes)
 
     @staticmethod
     def _stash_entries_to_prompt_text(
@@ -288,11 +303,9 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
             "",
         )
         body = "\n---\n".join(
-            text
-            for text, _frontmatter in (
-                PromptBarStashRestoreMixin._entries_to_restore_items(entries)
-            )
-            if text.strip()
+            pane.text
+            for pane in PromptBarStashRestoreMixin._entries_to_restore_panes(entries)
+            if pane.text.strip()
         )
         if frontmatter and body:
             return f"{frontmatter}\n{body}"

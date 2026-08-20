@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.prompt_stash_wire import (
+    PromptStashCursorWire,
     PromptStashEntryWire,
     PromptStashPopOutcomeWire,
     PromptStashSnapshotWire,
@@ -90,6 +91,7 @@ def rewrite_prompt_stash(
 
 
 __all__ = [
+    "PromptStashCursorWire",
     "PromptStashEntryWire",
     "PromptStashLockTimeoutError",
     "PromptStashPopOutcomeWire",

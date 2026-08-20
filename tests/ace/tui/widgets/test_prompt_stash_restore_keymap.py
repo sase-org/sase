@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.prompt_stash_entries import RestoredStashPane
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
@@ -208,6 +209,121 @@ async def test_restore_adopted_xprompts_sync_to_frontmatter_panel() -> None:
         assert not panel.has_class("hidden")
         assert panel.model.xprompts["_stash_helper"].content == "Use restored helper"
         assert bar.all_prompt_texts() == ["alpha"]
+
+
+async def test_restore_multiline_cursor_into_empty_bar() -> None:
+    app = _RestoreApp("")
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries(
+            [
+                RestoredStashPane(
+                    text="hello\nworld",
+                    cursor=(1, 2),
+                    is_focus_target=True,
+                )
+            ]
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["hello\nworld"]
+        assert bar._stack.selected_index == 0
+        text_area = bar.active_text_area()
+        assert text_area.cursor_location == (1, 2)
+        assert text_area._vim_mode == "insert"
+
+
+async def test_restore_appends_into_non_empty_bar_and_focuses_target() -> None:
+    app = _RestoreApp("keep me")
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries(
+            [
+                RestoredStashPane(
+                    text="restored",
+                    cursor=(0, 3),
+                    is_focus_target=True,
+                )
+            ]
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["keep me", "restored"]
+        assert bar._stack.selected_index == 1
+        assert bar.active_text_area().cursor_location == (0, 3)
+
+
+async def test_restore_bundle_focuses_middle_pane() -> None:
+    app = _RestoreApp("")
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries(
+            [
+                RestoredStashPane(text="alpha"),
+                RestoredStashPane(
+                    text="beta\nline",
+                    cursor=(1, 2),
+                    is_focus_target=True,
+                ),
+                RestoredStashPane(text="gamma"),
+            ]
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["alpha", "beta\nline", "gamma"]
+        assert bar._stack.selected_index == 1
+        assert bar.active_text() == "beta\nline"
+        assert bar.active_text_area().cursor_location == (1, 2)
+        assert bar.active_text_area()._vim_mode == "insert"
+
+
+async def test_restore_clamps_out_of_range_cursor() -> None:
+    app = _RestoreApp("")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries(
+            [
+                RestoredStashPane(
+                    text="hi",
+                    cursor=(99, 99),
+                    is_focus_target=True,
+                )
+            ]
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.active_text_area().cursor_location == (0, 2)
+
+
+async def test_restore_legacy_row_focuses_final_pane_at_end() -> None:
+    app = _RestoreApp("keep")
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        bar.restore_stashed_entries(
+            [RestoredStashPane(text="alpha"), RestoredStashPane(text="beta")]
+        )
+        await pilot.pause()
+        await pilot.pause()
+
+        assert bar.all_prompt_texts() == ["keep", "alpha", "beta"]
+        assert bar._stack.selected_index == 2
+        text_area = bar.active_text_area()
+        assert text_area.cursor_location == (0, 4)
+        assert text_area._vim_mode == "insert"
 
 
 async def test_restore_is_noop_in_feedback_mode() -> None:

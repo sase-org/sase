@@ -5,13 +5,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets._prompt_input_bar_stack_models import StashedPromptPane
+from sase.ace.tui.prompt_stash_entries import RestoredStashPane
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
+    PromptFocusRestore,
+    StashedPromptPane,
+    stash_cursor_for_stripped_text,
+)
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
-    from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
-    from sase.ace.tui.widgets.prompt_stack import PromptStackState
+    from sase.ace.tui.widgets.prompt_stack import PromptStackItem, PromptStackState
 else:
     _MixinBase = object
 
@@ -65,14 +69,15 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return []
         self._sync_state_from_widgets()
+        selected = self._stack.selected_item
         panes = [
-            StashedPromptPane(
-                text=stripped,
-                frontmatter=self._stack.frontmatter,
-                pane_index=index,
+            self._stashed_pane_for_item(
+                item,
+                index,
+                active=item.item_id == selected.item_id,
             )
             for index, item in enumerate(self._stack.agent_items)
-            if (stripped := item.text.strip())
+            if item.text.strip()
         ]
         if panes or not include_frontmatter_only or not self._stack.frontmatter.strip():
             return panes
@@ -81,8 +86,29 @@ class PromptInputBarStashActionsMixin(_MixinBase):
                 text="",
                 frontmatter=self._stack.frontmatter,
                 pane_index=self._stack.selected_index,
+                cursor=(0, 0),
+                active=True,
             )
         ]
+
+    def _stashed_pane_for_item(
+        self,
+        item: PromptStackItem,
+        pane_index: int,
+        *,
+        active: bool,
+    ) -> StashedPromptPane:
+        """Build one stash pane from a synced stack item."""
+        cursor = (
+            stash_cursor_for_stripped_text(item.text, item.cursor) if active else None
+        )
+        return StashedPromptPane(
+            text=item.text.strip(),
+            frontmatter=self._stack.frontmatter,
+            pane_index=pane_index,
+            cursor=cursor,
+            active=active,
+        )
 
     def stash_active_pane(self) -> None:
         """Stash the active pane's draft for later (the ``<Ctrl+S>`` keymap).
@@ -107,10 +133,10 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             # pull a previously stashed prompt back instead of being a no-op.
             self.request_open_prompt_stash()
             return
-        pane = StashedPromptPane(
-            text=text,
-            frontmatter=self._stack.frontmatter,
-            pane_index=self._stack.selected_index,
+        pane = self._stashed_pane_for_item(
+            self._stack.selected_item,
+            self._stack.selected_index,
+            active=True,
         )
         self._clear_active_completion_state()
         removed = self._stack.remove_selected()
@@ -270,18 +296,23 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         """
         self.post_message(self.RestoreRequested(self._mode))
 
-    def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
+    def restore_stashed_entries(
+        self,
+        entries: list[RestoredStashPane] | list[tuple[str, str]],
+    ) -> None:
         """Append restored stash drafts as new panes.
 
-        Prompt mode only.  Each ``(text, frontmatter)`` becomes a new bottom
-        pane, preserving any panes the user is already drafting.  The bar's
-        shared frontmatter is adopted from the first restored entry that carries
-        one when the bar has none yet.  A lone empty drafting pane is dropped so
-        restored drafts don't sit beneath a blank pane.  The last restored pane
-        is focused in insert mode so the user can keep editing.
+        Prompt mode only.  Each restored pane becomes a new bottom pane,
+        preserving any panes the user is already drafting.  The bar's shared
+        frontmatter is adopted from the first restored entry that carries one
+        when the bar has none yet.  A lone empty drafting pane is dropped so
+        restored drafts don't sit beneath a blank pane.  When a pane is marked
+        as the saved focus target, that pane is focused at its stored cursor;
+        otherwise the last restored pane is focused at end of text.
         """
         if self._mode != "prompt" or not entries:
             return
+        panes = [_coerce_restored_stash_pane(entry) for entry in entries]
         self._sync_state_from_widgets()
         self._clear_active_completion_state()
         empty_agent_id = (
@@ -291,11 +322,12 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             else None
         )
         adopted_frontmatter = False
-        for text, frontmatter in entries:
-            if frontmatter and not self._stack.frontmatter:
-                self._stack.frontmatter = frontmatter
+        appended_ids: list[str] = []
+        for pane in panes:
+            if pane.frontmatter and not self._stack.frontmatter:
+                self._stack.frontmatter = pane.frontmatter
                 adopted_frontmatter = True
-            self._stack.append_bottom(text)
+            appended_ids.append(self._stack.append_bottom(pane.text).item_id)
         if empty_agent_id is not None:
             for index, item in enumerate(self._stack.items):
                 if item.item_id != empty_agent_id:
@@ -312,6 +344,25 @@ class PromptInputBarStashActionsMixin(_MixinBase):
                         ),
                     )
                 break
-        self._rebuild_stack(enter_mode="insert")
+        restore_focus: PromptFocusRestore | None = None
+        for pane, item_id in zip(panes, appended_ids, strict=True):
+            if not pane.is_focus_target:
+                continue
+            restore_focus = PromptFocusRestore(
+                item_id=item_id,
+                cursor=pane.cursor if pane.cursor is not None else (0, 0),
+                vim_mode="insert",
+            )
+            break
+        self._rebuild_stack(enter_mode="insert", restore_focus=restore_focus)
         if adopted_frontmatter:
             self.refresh_frontmatter_panel_from_stack()
+
+
+def _coerce_restored_stash_pane(entry: object) -> RestoredStashPane:
+    if isinstance(entry, RestoredStashPane):
+        return entry
+    if isinstance(entry, tuple) and len(entry) == 2:
+        text, frontmatter = entry
+        return RestoredStashPane(text=str(text), frontmatter=str(frontmatter))
+    raise TypeError(f"unsupported restored stash pane: {type(entry)!r}")

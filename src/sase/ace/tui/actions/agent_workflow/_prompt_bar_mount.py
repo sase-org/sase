@@ -356,6 +356,8 @@ class PromptBarMountMixin:
         frontmatter_inputs: list[InputArg] | None = None,
         binding: XPromptBinding | None = None,
         read_only_target: XPromptReadonlyTarget | None = None,
+        initial_selected_pane: int | None = None,
+        initial_cursor: tuple[int, int] | None = None,
     ) -> None:
         """Show prompt input bar for home directory mode.
 
@@ -374,6 +376,10 @@ class PromptBarMountMixin:
                 prompt frontmatter before mount, so the frontmatter panel
                 auto-shows on mount.  Used by the Admin Center XPrompts tab
                 ``Ctrl+I`` load (parity with the Select XPrompt ``Ctrl+I`` path).
+            initial_selected_pane: Optional zero-based pane to focus after
+                parsing *initial_text*. Used by prompt-stash restore.
+            initial_cursor: Optional zero-based ``(row, column)`` applied to
+                the focused pane on mount. Used by prompt-stash restore.
         """
         from ...widgets import PromptInputBar
 
@@ -390,10 +396,18 @@ class PromptBarMountMixin:
         # Show prompt input bar
         if as_xprompt_markdown:
             bar = PromptInputBar(
-                initial_xprompt_markdown=initial_text, id="prompt-input-bar"
+                initial_xprompt_markdown=initial_text,
+                initial_selected_pane=initial_selected_pane,
+                initial_cursor=initial_cursor,
+                id="prompt-input-bar",
             )
         else:
-            bar = PromptInputBar(initial_value=initial_text, id="prompt-input-bar")
+            bar = PromptInputBar(
+                initial_value=initial_text,
+                initial_selected_pane=initial_selected_pane,
+                initial_cursor=initial_cursor,
+                id="prompt-input-bar",
+            )
         if binding is not None:
             bar.target_xprompt(binding, source_markdown=initial_text)
         elif read_only_target is not None:

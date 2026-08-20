@@ -147,11 +147,14 @@ class PromptInputBar(
         *,
         initial_panes: list[str] | None = None,
         initial_xprompt_markdown: str | None = None,
+        initial_selected_pane: int | None = None,
+        initial_cursor: tuple[int, int] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._initial_value = initial_value
         self._mode = mode
+        self._initial_cursor = initial_cursor
         self._completion_visible = False
         self._completion_line_count = 0
         self._completion_panel_kind: str | None = None
@@ -198,6 +201,8 @@ class PromptInputBar(
             self._stack = PromptStackState.from_text(initial_xprompt_markdown)
         else:
             self._stack = self._state_from_text(initial_value)
+        if initial_selected_pane is not None:
+            self._stack.focus(initial_selected_pane)
         self._frontmatter_return_index = self._stack.selected_index
         self._todo_counts_by_item_id: dict[str, int] = {}
         self._sync_todo_counts_from_stack()
@@ -626,7 +631,13 @@ class PromptInputBar(
         self.watch(self.app, "theme", self._app_theme_changed, init=False)
         self._sync_todo_counts_from_mounted_panes()
         text_area.focus()
-        self._cursor_to_end(text_area)
+        if self._initial_cursor is not None:
+            text_area.cursor_location = self._clamp_cursor_location(
+                text_area,
+                self._initial_cursor,
+            )
+        else:
+            self._cursor_to_end(text_area)
 
         # Border title and subtitle
         self._refresh_title()

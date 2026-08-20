@@ -87,7 +87,13 @@ def _seed(path: Path, rows: list[_SeedRow]) -> None:
 def _panes() -> list[StashedPromptPane]:
     return [
         StashedPromptPane(text="updated first", frontmatter="model: c", pane_index=0),
-        StashedPromptPane(text="updated second", frontmatter="model: c", pane_index=1),
+        StashedPromptPane(
+            text="updated second",
+            frontmatter="model: c",
+            pane_index=1,
+            cursor=(0, 4),
+            active=True,
+        ),
     ]
 
 
@@ -162,6 +168,12 @@ async def test_single_pinned_updates_in_place_without_dismissing_bar(
     assert updated.source == "seed"
     assert updated.pane_index == 0
     assert updated.pinned is True
+    assert updated.cursor is not None
+    assert (updated.cursor.pane_index, updated.cursor.row, updated.cursor.column) == (
+        1,
+        0,
+        4,
+    )
     assert entries["keep"].text == "keep"
     assert harness.notifications == [('Updated pinned prompt 📌 "updated first"', None)]
     assert harness.applied_counts == [2]

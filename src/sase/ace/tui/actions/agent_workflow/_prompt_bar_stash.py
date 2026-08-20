@@ -25,6 +25,7 @@ if TYPE_CHECKING:
         StashedPromptPane,
     )
     from sase.core.prompt_stash_wire import (
+        PromptStashCursorWire,
         PromptStashEntryWire,
         PromptStashSnapshotWire,
     )
@@ -175,6 +176,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             project=project,
             source=source,
             pane_index=min(pane.pane_index for pane in panes),
+            cursor=self._captured_stash_cursor(panes),
         )
 
     @staticmethod
@@ -195,6 +197,24 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
     def _captured_stash_frontmatter(panes: list[StashedPromptPane]) -> str:
         """Return the shared frontmatter captured with a prompt bundle."""
         return next((pane.frontmatter for pane in panes if pane.frontmatter), "")
+
+    @staticmethod
+    def _captured_stash_cursor(
+        panes: list[StashedPromptPane],
+    ) -> PromptStashCursorWire | None:
+        """Return bundle-local cursor metadata for the captured active pane."""
+        from sase.core.prompt_stash_wire import PromptStashCursorWire
+
+        for bundle_index, pane in enumerate(panes):
+            if not pane.active:
+                continue
+            row, column = pane.cursor if pane.cursor is not None else (0, 0)
+            return PromptStashCursorWire(
+                pane_index=bundle_index,
+                row=row,
+                column=column,
+            )
+        return None
 
     # -- update pinned ------------------------------------------------------
 
@@ -218,7 +238,6 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
         from ...modals import UpdatePinnedStashModal
 
         text = self._captured_stash_text(panes)
-        frontmatter = self._captured_stash_frontmatter(panes)
         if not text.strip():
             self.notify("Nothing to save", severity="warning")  # type: ignore[attr-defined]
             return
@@ -246,9 +265,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             return
 
         if len(pinned) == 1:
-            self._spawn_prompt_stash_task(
-                self._write_pinned_update(pinned[0], text, frontmatter)
-            )
+            self._spawn_prompt_stash_task(self._write_pinned_update(pinned[0], panes))
             return
 
         by_id = {entry.id: entry for entry in pinned}
@@ -259,9 +276,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
             entry = by_id.get(entry_id)
             if entry is None:
                 return
-            self._spawn_prompt_stash_task(
-                self._write_pinned_update(entry, text, frontmatter)
-            )
+            self._spawn_prompt_stash_task(self._write_pinned_update(entry, panes))
 
         self.push_screen(  # type: ignore[attr-defined]
             UpdatePinnedStashModal(
@@ -274,8 +289,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
     async def _write_pinned_update(
         self,
         base_entry: PromptStashEntryWire,
-        text: str,
-        frontmatter: str,
+        panes: list[StashedPromptPane],
     ) -> None:
         """Rewrite one pinned stash row with freshly captured prompt text."""
         import asyncio
@@ -284,7 +298,13 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
         from sase.core.paths import prompt_stash_path
         from sase.core.prompt_stash_facade import rewrite_prompt_stash
 
-        updated = replace(base_entry, text=text, frontmatter=frontmatter)
+        text = self._captured_stash_text(panes)
+        updated = replace(
+            base_entry,
+            text=text,
+            frontmatter=self._captured_stash_frontmatter(panes),
+            cursor=self._captured_stash_cursor(panes),
+        )
         lock = self._prompt_stash_write_lock()
         async with lock:
             try:

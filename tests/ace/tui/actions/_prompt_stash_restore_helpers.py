@@ -10,6 +10,7 @@ import pytest
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import (
     PromptBarStashMixin,
 )
+from sase.ace.tui.prompt_stash_entries import RestoredStashPane
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 
@@ -36,9 +37,9 @@ class _FakeBar:
 
     def __init__(self, mode: str = "prompt") -> None:
         self._mode = mode
-        self.restored: list[tuple[str, str]] | None = None
+        self.restored: list[RestoredStashPane] | None = None
 
-    def restore_stashed_entries(self, entries: list[tuple[str, str]]) -> None:
+    def restore_stashed_entries(self, entries: list[RestoredStashPane]) -> None:
         self.restored = entries
 
 
@@ -52,6 +53,8 @@ class _RestoreHarness(PromptBarStashMixin):
         self.pushed: list[tuple[object, object]] = []
         self.home_mounts: list[str] = []
         self.home_mount_xprompt_markdown: list[bool] = []
+        self.home_mount_selected_panes: list[int | None] = []
+        self.home_mount_cursors: list[tuple[int, int] | None] = []
         self.applied_counts: list[int] = []
         self.applied_pinned_counts: list[int] = []
 
@@ -71,13 +74,25 @@ class _RestoreHarness(PromptBarStashMixin):
         history_sort_key: str = "home",
         *,
         as_xprompt_markdown: bool = False,
+        initial_selected_pane: int | None = None,
+        initial_cursor: tuple[int, int] | None = None,
+        **kwargs: object,
     ) -> None:
+        del kwargs
         self.home_mounts.append(initial_text)
         self.home_mount_xprompt_markdown.append(as_xprompt_markdown)
+        self.home_mount_selected_panes.append(initial_selected_pane)
+        self.home_mount_cursors.append(initial_cursor)
 
     def _apply_prompt_stash_counts(self, count: int, pinned_count: int) -> None:
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)
+
+
+def _restore_pairs(bar: _FakeBar) -> list[tuple[str, str]]:
+    """Return ``(text, frontmatter)`` pairs from a fake bar restore."""
+    assert bar.restored is not None
+    return [(pane.text, pane.frontmatter) for pane in bar.restored]
 
 
 def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:

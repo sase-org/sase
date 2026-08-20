@@ -11,6 +11,20 @@ PROMPT_STASH_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
+class PromptStashCursorWire:
+    """Zero-based editor position for the pane active when a stash was captured.
+
+    ``pane_index`` is bundle-local: it names the active pane among the row's
+    persisted, non-empty segments, not the original prompt-stack index and not
+    :attr:`PromptStashEntryWire.pane_index`.
+    """
+
+    pane_index: int
+    row: int
+    column: int
+
+
+@dataclass(frozen=True)
 class PromptStashEntryWire:
     """One stashed prompt draft row."""
 
@@ -22,6 +36,7 @@ class PromptStashEntryWire:
     source: str = ""
     pane_index: int = 0
     pinned: bool = False
+    cursor: PromptStashCursorWire | None = None
 
 
 @dataclass(frozen=True)
@@ -58,10 +73,23 @@ def prompt_stash_wire_to_json_dict(record: Any) -> Any:
     if isinstance(record, (list, tuple)):
         return [prompt_stash_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
-        return {k: prompt_stash_wire_to_json_dict(v) for k, v in record.items()}
+        payload = {k: prompt_stash_wire_to_json_dict(v) for k, v in record.items()}
+        if payload.get("cursor") is None:
+            payload.pop("cursor", None)
+        return payload
     if hasattr(record, "__dataclass_fields__"):
-        return asdict(record)
+        return prompt_stash_wire_to_json_dict(asdict(record))
     return record
+
+
+def _prompt_stash_cursor_from_dict(data: Any) -> PromptStashCursorWire | None:
+    if not isinstance(data, dict):
+        return None
+    return PromptStashCursorWire(
+        pane_index=int(data.get("pane_index", 0)),
+        row=int(data.get("row", 0)),
+        column=int(data.get("column", 0)),
+    )
 
 
 def _prompt_stash_entry_from_dict(data: dict[str, Any]) -> PromptStashEntryWire:
@@ -74,6 +102,7 @@ def _prompt_stash_entry_from_dict(data: dict[str, Any]) -> PromptStashEntryWire:
         source=str(data.get("source", "")),
         pane_index=int(data.get("pane_index", 0)),
         pinned=bool(data.get("pinned", False)),
+        cursor=_prompt_stash_cursor_from_dict(data.get("cursor")),
     )
 
 
@@ -117,10 +146,12 @@ def prompt_stash_pop_outcome_from_dict(
 
 __all__ = [
     "PROMPT_STASH_WIRE_SCHEMA_VERSION",
+    "PromptStashCursorWire",
     "PromptStashEntryWire",
     "PromptStashPopOutcomeWire",
     "PromptStashSnapshotWire",
     "_PromptStashStoreStatsWire",
+    "_prompt_stash_cursor_from_dict",
     "_prompt_stash_entry_from_dict",
     "prompt_stash_pop_outcome_from_dict",
     "prompt_stash_snapshot_from_dict",

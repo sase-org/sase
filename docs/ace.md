@@ -4908,9 +4908,12 @@ without also recording the draft as cancelled history. If the active pane is emp
 `Ctrl+S` opens the stashed-prompt picker instead. `gs` captures all non-empty panes in
 their current order as one bundled stash row and dismisses the bar. `gS` opens an update
 flow for an existing pinned stash and overwrites the chosen row with the current
-non-empty panes. `gx`, `Ctrl+G x`, and `Ctrl+G Ctrl+X` open one save screen containing
-the name, storage location, resolved path, and a live preview when the name collides.
-Inside that screen, `Ctrl+X` switches between xprompt and snippet mode, so
+non-empty panes. Manual and restart stashes remember the active pane and its cursor, and
+restore focuses that pane in INSERT mode at the same logical line and column. Legacy
+rows and failed-launch recovery rows have no saved position, so they still restore to
+the last pane at end of text. `gx`, `Ctrl+G x`, and `Ctrl+G Ctrl+X` open one save screen
+containing the name, storage location, resolved path, and a live preview when the name
+collides. Inside that screen, `Ctrl+X` switches between xprompt and snippet mode, so
 `Ctrl+G Ctrl+X Ctrl+X` goes directly from a prompt draft to snippet mode. `Ctrl+T`
 remains manual completion in the prompt input and does not toggle this save screen. A
 successful save binds the prompt stack to that source. `gw` then performs atomic

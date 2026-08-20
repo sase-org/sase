@@ -14,6 +14,9 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
+    stash_cursor_for_stripped_text,
+)
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
@@ -99,6 +102,23 @@ def _assert_frontmatter_contains_local_xprompt(frontmatter: str) -> None:
     assert f"  {_LOCAL_XPROMPT_NAME}: {_LOCAL_XPROMPT_CONTENT}\n" in frontmatter
     model = PromptFrontmatter.parse(frontmatter)
     assert model.xprompts[_LOCAL_XPROMPT_NAME].content == _LOCAL_XPROMPT_CONTENT
+
+
+# --- stripped-body cursor normalization ------------------------------------
+
+
+def test_stash_cursor_keeps_multiline_offset_after_strip() -> None:
+    text = "  hello\nworld  "
+    assert stash_cursor_for_stripped_text(text, (0, 3)) == (0, 1)
+    assert stash_cursor_for_stripped_text(text, (1, 0)) == (1, 0)
+
+
+def test_stash_cursor_clamps_leading_and_trailing_whitespace() -> None:
+    text = "  hello\nworld  "
+    assert stash_cursor_for_stripped_text(text, (0, 0)) == (0, 0)
+    assert stash_cursor_for_stripped_text(text, (0, 1)) == (0, 0)
+    assert stash_cursor_for_stripped_text(text, (1, 7)) == (1, 5)
+    assert stash_cursor_for_stripped_text("   ", (0, 2)) == (0, 0)
 
 
 # --- stash current (Ctrl+S) ------------------------------------------------
@@ -502,6 +522,95 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
         assert app.update_requests == []
         assert app.save_xprompt_requests == []
         assert bar.all_prompt_texts() == ["plan note"]
+
+
+async def test_ctrl_s_captures_multiline_cursor_on_active_pane() -> None:
+    app = _CaptureApp("hello\nworld")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area().cursor_location = (1, 2)
+
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        pane = app.stashed[0].panes[0]
+        assert pane.active is True
+        assert pane.cursor == (1, 2)
+        assert pane.text == "hello\nworld"
+
+
+async def test_gs_marks_non_final_active_pane() -> None:
+    app = _CaptureApp("first\n---\nsecond line\n---\nthird")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("g", "k")
+        await pilot.pause()
+        bar.active_text_area().cursor_location = (0, 3)
+
+        await pilot.press("g", "s")
+        await pilot.pause()
+
+        panes = app.stashed[0].panes
+        assert [pane.text for pane in panes] == ["first", "second line", "third"]
+        assert [pane.active for pane in panes] == [False, True, False]
+        assert panes[1].cursor == (0, 3)
+        assert panes[0].cursor is None
+        assert panes[2].cursor is None
+
+
+async def test_capture_normalizes_cursor_against_stripped_body() -> None:
+    app = _CaptureApp("  hello\nworld  ")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar.active_text_area().cursor_location = (0, 3)
+
+        panes = bar.capture_stashable_panes()
+
+        assert panes[0].text == "hello\nworld"
+        assert panes[0].active is True
+        assert panes[0].cursor == (0, 1)
+
+
+async def test_capture_frontmatter_only_targets_empty_pane_at_origin() -> None:
+    app = _CaptureApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bar._stack.frontmatter = "---\ndescription: draft\n---"
+
+        panes = bar.capture_stashable_panes()
+
+        assert len(panes) == 1
+        assert panes[0].text == ""
+        assert panes[0].active is True
+        assert panes[0].cursor == (0, 0)
+
+
+async def test_capture_omits_cursor_when_active_pane_is_empty() -> None:
+    app = _CaptureApp("alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await pilot.press("escape")
+        await pilot.press("g", "-")
+        await pilot.pause()
+        assert bar._stack.selected_index == 1
+        assert not bar._stack.selected_item.text.strip()
+
+        panes = bar.capture_stashable_panes()
+
+        assert [pane.text for pane in panes] == ["alpha"]
+        assert panes[0].active is False
+        assert panes[0].cursor is None
 
 
 async def test_single_pane_comma_still_reverses_char_search() -> None:

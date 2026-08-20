@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import types
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ import pytest
 from sase.core import prompt_stash_facade as facade
 from sase.core.prompt_stash_wire import (
     PROMPT_STASH_WIRE_SCHEMA_VERSION,
+    PromptStashCursorWire,
     PromptStashEntryWire,
     _prompt_stash_entry_from_dict,
     prompt_stash_wire_to_json_dict,
@@ -31,6 +33,7 @@ def _entry(
     source: str = "current",
     pane_index: int = 0,
     pinned: bool = False,
+    cursor: PromptStashCursorWire | None = None,
 ) -> PromptStashEntryWire:
     return PromptStashEntryWire(
         id=id,
@@ -41,6 +44,7 @@ def _entry(
         source=source,
         pane_index=pane_index,
         pinned=pinned,
+        cursor=cursor,
     )
 
 
@@ -102,6 +106,7 @@ def test_read_snapshot_rehydrates_typed_records(
     assert entry.source == "all"
     assert entry.pane_index == 2
     assert entry.pinned is True
+    assert entry.cursor is None
 
 
 def test_missing_prompt_stash_binding_raises(
@@ -163,6 +168,7 @@ def test_append_serializes_entry_dict(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls[0][1]["id"] == "e1"
     assert calls[0][1]["project"] == "proj-a"
     assert calls[0][1]["pinned"] is False
+    assert "cursor" not in calls[0][1]
     assert snapshot.entries[0].id == "e1"
 
 
@@ -289,6 +295,17 @@ def test_wire_helpers_round_trip_entry() -> None:
     assert _prompt_stash_entry_from_dict(payload) == entry
 
 
+def test_wire_helpers_round_trip_cursor_entry() -> None:
+    entry = _entry(
+        "e1",
+        text="alpha\n---\nbeta",
+        cursor=PromptStashCursorWire(pane_index=1, row=2, column=3),
+    )
+    payload = prompt_stash_wire_to_json_dict(entry)
+    assert payload["cursor"] == {"pane_index": 1, "row": 2, "column": 3}
+    assert _prompt_stash_entry_from_dict(payload) == entry
+
+
 def test_entry_from_dict_applies_defaults() -> None:
     entry = _prompt_stash_entry_from_dict(
         {"id": "e1", "created_at": "2026-06-16T01:02:03+00:00"}
@@ -299,6 +316,18 @@ def test_entry_from_dict_applies_defaults() -> None:
     assert entry.source == ""
     assert entry.pane_index == 0
     assert entry.pinned is False
+    assert entry.cursor is None
+
+
+def test_entry_from_dict_rehydrates_cursor() -> None:
+    entry = _prompt_stash_entry_from_dict(
+        {
+            "id": "e1",
+            "created_at": "2026-06-16T01:02:03+00:00",
+            "cursor": {"pane_index": 1, "row": 4, "column": 7},
+        }
+    )
+    assert entry.cursor == PromptStashCursorWire(pane_index=1, row=4, column=7)
 
 
 def test_real_extension_round_trips_store_operations(tmp_path: Path) -> None:
@@ -340,6 +369,84 @@ def test_real_extension_sets_and_clears_pinned(tmp_path: Path) -> None:
         ("a", False),
         ("b", False),
     ]
+
+
+def test_real_extension_round_trips_cursor_metadata(tmp_path: Path) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    cursor = PromptStashCursorWire(pane_index=1, row=2, column=3)
+
+    append = facade.append_prompt_stash(
+        path, _entry("a", text="alpha\n---\nbeta", cursor=cursor)
+    )
+    assert append.entries[0].cursor == cursor
+    raw = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
+    assert raw["cursor"] == {"pane_index": 1, "row": 2, "column": 3}
+
+    snapshot = facade.read_prompt_stash_snapshot(path)
+    assert snapshot.entries[0].cursor == cursor
+
+    pinned = facade.set_prompt_stash_pinned(path, ["a"], True)
+    assert pinned.entries[0].cursor == cursor
+    assert pinned.entries[0].pinned is True
+
+    updated_cursor = PromptStashCursorWire(pane_index=0, row=4, column=5)
+    rewritten = facade.rewrite_prompt_stash(
+        path,
+        [
+            PromptStashEntryWire(
+                id="a",
+                created_at=snapshot.entries[0].created_at,
+                text="alpha\n---\nbeta",
+                cursor=updated_cursor,
+                pinned=True,
+            )
+        ],
+    )
+    assert rewritten.entries[0].cursor == updated_cursor
+
+    pop = facade.pop_prompt_stash(path, ["a"])
+    assert pop.removed[0].cursor == updated_cursor
+
+
+def test_real_extension_legacy_row_defaults_cursor_to_none(tmp_path: Path) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    path.write_text(
+        '{"id": "legacy", "created_at": "2026-06-16T01:02:03+00:00", "text": "hi"}\n',
+        encoding="utf-8",
+    )
+
+    snapshot = facade.read_prompt_stash_snapshot(path)
+
+    assert snapshot.entries[0].id == "legacy"
+    assert snapshot.entries[0].cursor is None
+
+
+def test_fake_binding_payload_rehydrates_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_read(_path: str) -> dict[str, Any]:
+        return {
+            "schema_version": PROMPT_STASH_WIRE_SCHEMA_VERSION,
+            "entries": [
+                {
+                    "id": "e1",
+                    "created_at": "2026-06-16T01:02:03+00:00",
+                    "text": "hello",
+                    "cursor": {"pane_index": 2, "row": 1, "column": 4},
+                }
+            ],
+            "stats": {"loaded_rows": 1},
+        }
+
+    _fake_module(monkeypatch, read_prompt_stash_snapshot=fake_read)
+
+    snapshot = facade.read_prompt_stash_snapshot("/tmp/prompt_stash.jsonl")
+
+    assert snapshot.entries[0].cursor == PromptStashCursorWire(
+        pane_index=2, row=1, column=4
+    )
 
 
 def test_real_extension_rewrite_updates_one_entry_in_place(tmp_path: Path) -> None:

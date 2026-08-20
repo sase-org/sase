@@ -18,6 +18,7 @@ from ._prompt_stash_restore_helpers import (
     _FakeBar,
     _RestoreHarness,
     _point_store_at,
+    _restore_pairs,
     _seed,
     _skip_without_pinned_binding,
     _skip_without_prompt_stash_bindings,
@@ -149,7 +150,7 @@ async def test_action_restore_prompt_stash_single_unpinned_restores_and_pops(
     await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
-    assert bar.restored == [("alpha", "model: c")]
+    assert _restore_pairs(bar) == [("alpha", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert read_prompt_stash_snapshot(path).entries == []
@@ -173,7 +174,7 @@ async def test_action_restore_prompt_stash_single_pinned_restores_and_keeps(
     await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
-    assert bar.restored == [("alpha", "model: c")]
+    assert _restore_pairs(bar) == [("alpha", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     remaining = read_prompt_stash_snapshot(path).entries
@@ -223,7 +224,7 @@ async def test_action_restore_prompt_stash_single_bundle_restores_panes_and_pops
     await _wait_prompt_stash_tasks(harness)
 
     assert harness.pushed == []
-    assert bar.restored == [("alpha", "model: c"), ("beta", "model: c")]
+    assert _restore_pairs(bar) == [("alpha", "model: c"), ("beta", "model: c")]
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
     assert read_prompt_stash_snapshot(path).entries == []

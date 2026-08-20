@@ -180,6 +180,128 @@ def test_stash_all_persists_one_bundle_row_with_metadata(
     assert harness.applied_pinned_counts == [0]
     assert harness.unmount_after_submit_calls == 1
     assert harness._prompt_context is None
+    assert entry.cursor is None
+
+
+def test_stash_all_persists_bundle_local_cursor_for_active_pane(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness(project="proj-a")
+
+    panes = [
+        StashedPromptPane(text="first", pane_index=0),
+        StashedPromptPane(
+            text="second\nline",
+            pane_index=1,
+            cursor=(1, 3),
+            active=True,
+        ),
+        StashedPromptPane(text="third", pane_index=2),
+    ]
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(panes, source="all", dismiss_bar=True)
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    entry = read_prompt_stash_snapshot(path).entries[0]
+    assert entry.text == "first\n---\nsecond\nline\n---\nthird"
+    assert entry.cursor is not None
+    assert entry.cursor.pane_index == 1
+    assert entry.cursor.row == 1
+    assert entry.cursor.column == 3
+
+
+def test_current_pane_stash_targets_sole_segment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness()
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [
+                StashedPromptPane(
+                    text="hello\nworld",
+                    pane_index=2,
+                    cursor=(1, 2),
+                    active=True,
+                )
+            ],
+            source="current",
+            dismiss_bar=True,
+        )
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    entry = read_prompt_stash_snapshot(path).entries[0]
+    assert entry.cursor is not None
+    assert entry.cursor.pane_index == 0
+    assert entry.cursor.row == 1
+    assert entry.cursor.column == 2
+
+
+def test_empty_active_pane_omits_cursor_metadata(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness()
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [StashedPromptPane(text="kept", pane_index=0, active=False)],
+            source="all",
+            dismiss_bar=True,
+        )
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert read_prompt_stash_snapshot(path).entries[0].cursor is None
+
+
+def test_frontmatter_only_stash_targets_empty_pane_at_origin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    harness = _StashHarness()
+
+    harness.on_prompt_input_bar_stashed(
+        PromptInputBar.Stashed(
+            [
+                StashedPromptPane(
+                    text="",
+                    frontmatter="---\nmodel: c\n---",
+                    pane_index=0,
+                    cursor=(0, 0),
+                    active=True,
+                )
+            ],
+            source="all",
+            dismiss_bar=True,
+        )
+    )
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    entry = read_prompt_stash_snapshot(path).entries[0]
+    assert entry.text == ""
+    assert entry.cursor is not None
+    assert (entry.cursor.pane_index, entry.cursor.row, entry.cursor.column) == (
+        0,
+        0,
+        0,
+    )
 
 
 def test_stash_all_persists_bundle_with_canonical_xprompt_frontmatter(
