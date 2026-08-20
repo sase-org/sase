@@ -87,7 +87,7 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert written.ok and written.committed
     assert written.changed_files == (
         "202608/example.md",
-        ".sase/referenced-by/plan/202608/example.md.json",
+        "links/202608/example.md.json",
     )
     assert committed[0]["cause"] == "referenced_by"
     assert committed[0]["already_locked"] is True
@@ -96,9 +96,7 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert "## Referenced By" in content
     assert "| [alice.athena.worker][1] | Project | plan:202608/example.md |" in content
     index = json.loads(
-        (root / ".sase/referenced-by/plan/202608/example.md.json").read_text(
-            encoding="utf-8"
-        )
+        (root / "links/202608/example.md.json").read_text(encoding="utf-8")
     )
     assert index["rows"][0]["agent"] == "alice.athena.worker"
     assert index["rows"][0]["uses"] == 2

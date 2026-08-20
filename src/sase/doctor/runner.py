@@ -66,6 +66,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     )
     from sase.doctor.checks_beads import bead_check_specs
     from sase.doctor.checks_completion import completion_check_specs
+    from sase.doctor.checks_referenced_by import referenced_by_check_specs
     from sase.doctor.checks_flags import flag_check_specs
     from sase.doctor.checks_changespec_refs import (  # legacy module path
         patch_ref_check_specs,
@@ -101,6 +102,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *agent_publication_check_specs(context),
             *agent_publication_digest_check_specs(context),
             *bead_check_specs(context),
+            *referenced_by_check_specs(context),
             *completion_check_specs(context),
             *flag_check_specs(context),
             *telemetry_check_specs(context),

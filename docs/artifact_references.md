@@ -235,8 +235,11 @@ The write-back workflow runs in this order:
 2. It queues one durable request per cited provider document, then synchronously tries
    to drain the project's queue before the publishing command returns.
 3. The drain groups requests by sidecar role, pulls each artifact repository with
-   rebase, updates only the managed Markdown block and its `.sase/referenced-by/` index,
-   and prepares any changed document and index files.
+   rebase, updates only the managed Markdown block and its tracked `links/` index
+   (`links/<artifact-relpath>.json`, original extension preserved), and prepares any
+   changed document and index files. The sidecar _is_ the provider, so the index path
+   does not repeat a `referenced-by/<provider>/` prefix, and the JSON is committed with
+   the projection rather than written under `.sase/`.
 4. When the refresh changes files, SASE creates a local
    `Update Referenced By projections` commit and starts a detached push. A successful
    refresh, including an idempotent no-op, acknowledges the request without waiting for
