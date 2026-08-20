@@ -66,27 +66,33 @@ def alias_history_run_key(alias: str, run: AliasHistoryRun) -> str:
     return f"{alias}:{run.artifact_dir}"
 
 
+# Fixed Ctrl+J / Ctrl+K increment for the alias-history window. Independent of
+# ``ace.page_size`` (global ACE list paging) and of
+# ``llm_provider.model_alias_history_limit`` (the initial window).
+ALIAS_HISTORY_LIMIT_STEP = 10
+
+
 def adjusted_alias_history_limit(
     current_limit: int,
     *,
     initial_limit: int,
-    page_size: int,
     direction: Literal["load_more", "unload"],
 ) -> int:
     """Return the next per-alias limit after a Ctrl+J / Ctrl+K step.
 
-    Load-more adds ``page_size``. Unload subtracts ``page_size`` but never
-    drops below the initial ``model_alias_history_limit`` window.
+    Load-more adds :data:`ALIAS_HISTORY_LIMIT_STEP` (10 runs). Unload subtracts
+    the same step but never drops below the independently configured initial
+    ``model_alias_history_limit`` window.
     """
-    step = page_size if page_size >= 1 else 1
     if direction == "load_more":
-        return current_limit + step
+        return current_limit + ALIAS_HISTORY_LIMIT_STEP
     if direction == "unload":
-        return max(initial_limit, current_limit - step)
+        return max(initial_limit, current_limit - ALIAS_HISTORY_LIMIT_STEP)
     raise ValueError(f"unknown alias-history limit direction: {direction!r}")
 
 
 __all__ = [
+    "ALIAS_HISTORY_LIMIT_STEP",
     "AliasHistoryEntryRequest",
     "AliasHistoryLoadRequest",
     "adjusted_alias_history_limit",

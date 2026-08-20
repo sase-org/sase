@@ -22,7 +22,6 @@ from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
-from sase.ace.config import get_ace_page_size
 from sase.artifact_refs import reference_for_agent_name
 from sase.llm_provider.alias_history import (
     AliasHistoryRun,
@@ -94,7 +93,6 @@ class AliasHistoryModal(
         self._entry = entry
         self._include_hidden = False
         self._initial_limit = get_model_alias_history_limit()
-        self._page_size = get_ace_page_size()
         self._limit = self._initial_limit
         self._highlight_fallback: str = "first"
         self._view: AliasHistoryView | None = None
@@ -401,7 +399,6 @@ class AliasHistoryModal(
         self._limit = adjusted_alias_history_limit(
             self._limit,
             initial_limit=self._initial_limit,
-            page_size=self._page_size,
             direction="load_more",
         )
         self._start_load(
@@ -419,7 +416,6 @@ class AliasHistoryModal(
         self._limit = adjusted_alias_history_limit(
             self._limit,
             initial_limit=self._initial_limit,
-            page_size=self._page_size,
             direction="unload",
         )
         self._start_load(

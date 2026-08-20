@@ -179,10 +179,10 @@ async def test_modal_preserves_selection_across_refresh(monkeypatch) -> None:
         assert modal._highlighted_option_id() == "large:/tmp/b"
 
 
-async def test_modal_ctrl_j_adds_page_size_and_reloads_cached(monkeypatch) -> None:
-    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 100)
+async def test_modal_ctrl_j_adds_ten_runs_and_reloads_cached(monkeypatch) -> None:
+    runs = [make_run(artifact_dir="/tmp/a"), make_run(artifact_dir="/tmp/b")]
     call = _stub_load(
-        monkeypatch, make_view([make_group("large", [make_run()])], limit_per_alias=10)
+        monkeypatch, make_view([make_group("large", runs)], limit_per_alias=10)
     )
     entry = make_entry(("large",))
 
@@ -192,18 +192,20 @@ async def test_modal_ctrl_j_adds_page_size_and_reloads_cached(monkeypatch) -> No
         await wait_for(pilot, lambda: modal._view is not None)
         assert modal._limit == 10
 
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("large:/tmp/b")
+
         await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: call.call_count == 2)
         await pilot.pause()
 
         _, kwargs = call.call_args
-        assert kwargs["limit_per_alias"] == 110
+        assert kwargs["limit_per_alias"] == 20
         assert kwargs["freshness"] == "cached"
+        assert modal._highlighted_option_id() == "large:/tmp/b"
 
 
 async def test_modal_ctrl_k_unloads_to_initial_limit(monkeypatch) -> None:
-    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 100)
-
     def load(aliases, *, limit_per_alias=None, **kwargs):
         del aliases, kwargs
         limit = 10 if limit_per_alias is None else limit_per_alias
@@ -225,12 +227,83 @@ async def test_modal_ctrl_k_unloads_to_initial_limit(monkeypatch) -> None:
 
         await pilot.press("ctrl+j")
         await wait_for(pilot, lambda: call.call_count == 2)
-        await wait_for(pilot, lambda: modal._limit == 110)
+        await wait_for(pilot, lambda: modal._limit == 20)
 
         await pilot.press("ctrl+k")
         await wait_for(pilot, lambda: call.call_count == 3)
         await wait_for(pilot, lambda: modal._limit == 10)
         assert call.call_args.kwargs["limit_per_alias"] == 10
+        assert call.call_args.kwargs["freshness"] == "cached"
+
+
+async def test_modal_ctrl_k_falls_back_to_last_row_when_selection_unloaded(
+    monkeypatch,
+) -> None:
+    def load(aliases, *, limit_per_alias=None, **kwargs):
+        del aliases, kwargs
+        limit = 10 if limit_per_alias is None else limit_per_alias
+        runs = [make_run(artifact_dir=f"/tmp/{index}") for index in range(limit)]
+        return make_view(
+            [make_group("large", runs, limit=limit)], limit_per_alias=limit
+        )
+
+    call = MagicMock(side_effect=load)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("ctrl+j")
+        await wait_for(pilot, lambda: modal._limit == 20)
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("large:/tmp/19")
+        assert modal._highlighted_option_id() == "large:/tmp/19"
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: modal._limit == 10)
+        await pilot.pause()
+        assert modal._highlighted_option_id() == "large:/tmp/9"
+
+
+async def test_modal_limit_step_is_independent_of_initial_window(monkeypatch) -> None:
+    monkeypatch.setattr(
+        alias_history_modal, "get_model_alias_history_limit", lambda: 25
+    )
+
+    def load(aliases, *, limit_per_alias=None, **kwargs):
+        del aliases, kwargs
+        limit = 25 if limit_per_alias is None else limit_per_alias
+        return make_view([make_group("large", [make_run()])], limit_per_alias=limit)
+
+    call = MagicMock(side_effect=load)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+        assert modal._limit == 25
+        assert modal._initial_limit == 25
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+        assert call.call_count == 1
+        assert modal._limit == 25
+
+        await pilot.press("ctrl+j")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await wait_for(pilot, lambda: modal._limit == 35)
+        assert call.call_args.kwargs["limit_per_alias"] == 35
+        assert call.call_args.kwargs["freshness"] == "cached"
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: call.call_count == 3)
+        await wait_for(pilot, lambda: modal._limit == 25)
+        assert call.call_args.kwargs["limit_per_alias"] == 25
         assert call.call_args.kwargs["freshness"] == "cached"
 
 
@@ -441,8 +514,6 @@ async def test_modal_usage_strip_shows_counts_after_load(monkeypatch) -> None:
 
 
 async def test_modal_load_more_refresh_and_hidden_repaint_usage(monkeypatch) -> None:
-    monkeypatch.setattr(alias_history_modal, "get_ace_page_size", lambda: 10)
-
     def load(aliases, *, limit_per_alias=None, include_hidden=False, **kwargs):
         del aliases, kwargs
         if include_hidden:

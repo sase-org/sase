@@ -3095,17 +3095,17 @@ efforts show a dim `@ mixed`. At most four rows render; a `+N more` overflow row
 the leftover count and percent so the shown shares still total 100%. `Ctrl+J`, `Ctrl+K`,
 `r`, and `.` recompute the strip with the new window; `j`/`k` never do.
 
-| Key                                 | Action                                                                                                           |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                                                         |
-| `'`                                 | **Jump** — adaptive hints over selectable runs only                                                              |
-| `Enter`                             | Open the highlighted run's full prompt in the preview panel                                                      |
-| `y`                                 | Copy the highlighted run's durable `@agent:...` reference                                                        |
-| `Ctrl+J`                            | **Load more** — add `ace.page_size` (default 100) to the per-alias limit and reload, keeping the highlighted run |
-| `Ctrl+K`                            | **Unload** — subtract `ace.page_size`, never dropping below the initial `model_alias_history_limit` window       |
-| `r`                                 | **Refresh** — revalidate this load, bypassing the cache once                                                     |
-| `.`                                 | Toggle hidden runs in or out of the results                                                                      |
-| `Esc` / `q`                         | Close and return to Launch Control, unchanged                                                                    |
+| Key                                 | Action                                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                                           |
+| `'`                                 | **Jump** — adaptive hints over selectable runs only                                                |
+| `Enter`                             | Open the highlighted run's full prompt in the preview panel                                        |
+| `y`                                 | Copy the highlighted run's durable `@agent:...` reference                                          |
+| `Ctrl+J`                            | **Load more** — add 10 runs to the per-alias limit and reload, keeping the highlighted run         |
+| `Ctrl+K`                            | **Unload** — subtract 10 runs, never dropping below the initial `model_alias_history_limit` window |
+| `r`                                 | **Refresh** — revalidate this load, bypassing the cache once                                       |
+| `.`                                 | Toggle hidden runs in or out of the results                                                        |
+| `Esc` / `q`                         | Close and return to Launch Control, unchanged                                                      |
 
 A run without a durable agent name warns instead of copying a guessed reference, and a
 missing or unreadable `raw_xprompt.md` warns instead of closing the panel.

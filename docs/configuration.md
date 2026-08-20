@@ -757,7 +757,7 @@ ace:
 | `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
 | `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
-| `page_size`                | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1.                                                                         |
+| `page_size`                | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
 | `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for the ACE prompt input.                                                                                            |
@@ -965,7 +965,9 @@ Integer step used by Ctrl+J (load more) and Ctrl+K (unload) on ACE lists, and th
 default Artifacts `limit:` value when a pane has no explicit cap. Must be at least 1;
 defaults to `100`. Invalid or missing values fall back to 100. Changing this changes the
 chord step and any default query that had no explicit `limit:`; it does not rewrite a
-user-authored `limit:40`.
+user-authored `limit:40`. Launch Control's model-alias history panel is the exception:
+Ctrl+J / Ctrl+K there always step by 10 runs, independently of this setting and of
+`llm_provider.model_alias_history_limit`.
 
 #### `ace.updates`
 
@@ -1677,7 +1679,9 @@ malformed field falls back to its shipped default (`@large` / `@large` / `@xlarg
 
 `model_alias_history_limit` bounds the number of prior runs requested for each alias in
 Launch Control's agent-history panel. It defaults to `10`, must be at least `1`, and
-falls back to `10` at runtime when a malformed value bypasses schema validation.
+falls back to `10` at runtime when a malformed value bypasses schema validation. From
+that initial window, the panel's Ctrl+J / Ctrl+K keys add or subtract a fixed 10-run
+step and never drop below this configured limit; they do not use `ace.page_size`.
 
 Accepted tale follow-ups without an approval-time model validate the actual handoff plan
 and choose the matching size alias directly. Legacy tale plans without size metadata use

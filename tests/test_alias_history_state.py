@@ -70,31 +70,21 @@ def test_run_key_distinguishes_same_run_different_group_alias() -> None:
     assert alias_history_run_key("large", run) != alias_history_run_key("medium", run)
 
 
-def test_adjusted_limit_adds_page_size_on_load_more() -> None:
+def test_adjusted_limit_adds_ten_runs_on_load_more() -> None:
     assert (
-        adjusted_alias_history_limit(
-            10, initial_limit=10, page_size=100, direction="load_more"
-        )
-        == 110
+        adjusted_alias_history_limit(10, initial_limit=10, direction="load_more") == 20
     )
 
 
 def test_adjusted_limit_unloads_down_to_initial_window() -> None:
+    assert adjusted_alias_history_limit(20, initial_limit=10, direction="unload") == 10
+    assert adjusted_alias_history_limit(15, initial_limit=10, direction="unload") == 10
+    assert adjusted_alias_history_limit(10, initial_limit=10, direction="unload") == 10
+
+
+def test_adjusted_limit_step_is_independent_of_initial_window() -> None:
     assert (
-        adjusted_alias_history_limit(
-            110, initial_limit=10, page_size=100, direction="unload"
-        )
-        == 10
+        adjusted_alias_history_limit(25, initial_limit=25, direction="load_more") == 35
     )
-    assert (
-        adjusted_alias_history_limit(
-            50, initial_limit=10, page_size=100, direction="unload"
-        )
-        == 10
-    )
-    assert (
-        adjusted_alias_history_limit(
-            10, initial_limit=10, page_size=100, direction="unload"
-        )
-        == 10
-    )
+    assert adjusted_alias_history_limit(35, initial_limit=25, direction="unload") == 25
+    assert adjusted_alias_history_limit(30, initial_limit=25, direction="unload") == 25
