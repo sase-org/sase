@@ -2062,7 +2062,7 @@ requires-dist = [
     { name = "rich", marker = "extra == 'visual'", specifier = "==14.3.3" },
     { name = "ruamel-yaml", specifier = ">=0.18,<1.0" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "sase-core-rs", specifier = ">=0.29.4,<0.30.0" },
+    { name = "sase-core-rs", specifier = ">=0.29.5,<0.30.0" },
     { name = "schedule" },
     { name = "symvision", marker = "extra == 'dev'", specifier = ">=0.1.0,<0.2.0" },
     { name = "textual", marker = "extra == 'visual'", specifier = "==8.0.1" },
@@ -2092,14 +2092,14 @@ provides-extras = ["dev", "visual", "terminal-smoke", "docs", "docs-pdf"]
 
 [[package]]
 name = "sase-core-rs"
-version = "0.29.4"
+version = "0.29.5"
 source = { registry = "https://pypi.org/simple/" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/21/55ebf785bb88b9851e2303fece391da97510231e05919fe31e3023cac3ba/sase_core_rs-0.29.4.tar.gz", hash = "sha256:89173a71e2667cd12cd622df8b7da7f2bbbd6f5e20c5f1823254e43b3581ccc4", size = 1049190, upload-time = "2026-08-20T12:39:30.453Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/35/8463f3e4430ac77224041286865f38c1c4accfdaf5463235082e0b756ef3/sase_core_rs-0.29.5.tar.gz", hash = "sha256:5782ef9942fe6ab32b47b165c891b2a7e810d19627ba7dfe389055f55c030356", size = 1051735, upload-time = "2026-08-20T14:24:06.363Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/ee/7ea91ce9f4e6ce028b2099c18efa7b6186e8ef9cb0e4e9efebb552d50316/sase_core_rs-0.29.4-cp312-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:3cb39fd257f6869fb508281d5147c39a68683ddde9eca6549be284b3f34569af", size = 12124497, upload-time = "2026-08-20T12:39:23.396Z" },
-    { url = "https://files.pythonhosted.org/packages/03/1c/3058d5a2277a94448640bfb0379dc2fec66e44fddb3ee35b3d3611209e72/sase_core_rs-0.29.4-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:ade8ec6c138628b82189fd28acc547ed849b2cee897f9f0ec807a180df6cb107", size = 5843567, upload-time = "2026-08-20T12:39:25.667Z" },
-    { url = "https://files.pythonhosted.org/packages/e3/13/cb3e5b89add0f89df2d91a9993797dcef1ea5c4475bf93234de8067749eb/sase_core_rs-0.29.4-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:5726d9048505d0e11139303084a9a502e2f23821e0af6a45f28cb2d9879c1ecb", size = 6573856, upload-time = "2026-08-20T12:39:27.262Z" },
-    { url = "https://files.pythonhosted.org/packages/42/a0/b66ccbf2bfa10422c077bd675d668c01e2500a136a75e9c8de221e37f1e1/sase_core_rs-0.29.4-cp312-abi3-win_amd64.whl", hash = "sha256:012f2ab386bcf4b43dc8bed77292c6c11b81691dacf07e6a0c65d211fa33c035", size = 6936577, upload-time = "2026-08-20T12:39:29.008Z" },
+    { url = "https://files.pythonhosted.org/packages/92/2a/c7d2528467beb62355c63d3aa10ec225ca9b5a948112ab23c29135372c80/sase_core_rs-0.29.5-cp312-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:50319b336c3853d894f63b1b616c8cc2604b15bf5aea4821189c758b03c4b7cd", size = 12148416, upload-time = "2026-08-20T14:23:56.75Z" },
+    { url = "https://files.pythonhosted.org/packages/47/ad/95c549d3f64947cff7e34fd56c2b5b545bca6536690c719c28268a0de155/sase_core_rs-0.29.5-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:7f020c1f58847de0b17faef0bfdcb63dffa57ec37d5057d61adde4c9492ccfd7", size = 5851146, upload-time = "2026-08-20T14:23:59.332Z" },
+    { url = "https://files.pythonhosted.org/packages/38/97/5afef94c44ace55f3f6c08ce43ac76dcf6ade98361d8be6b6f078b4ba67c/sase_core_rs-0.29.5-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:264511cf27018ca5ab51b16beea17b0b1c1be01de533553f526f30f1f52e4603", size = 6586889, upload-time = "2026-08-20T14:24:01.554Z" },
+    { url = "https://files.pythonhosted.org/packages/81/c6/9d46a40ebfb3146b6035c364eef3cd58afaa9d696d840a83c240a9f6032b/sase_core_rs-0.29.5-cp312-abi3-win_amd64.whl", hash = "sha256:54368bb716ce2a1c3e3389649c61b8d7e3267810d664ff70bc332d186c4c7262", size = 6950992, upload-time = "2026-08-20T14:24:03.621Z" },
 ]
 
 [[package]]

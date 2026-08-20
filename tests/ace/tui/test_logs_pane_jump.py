@@ -12,7 +12,6 @@ from textual.widgets import ContentSwitcher, OptionList
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.logs_pane import LogsPane
-from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import (
     LAUNCH_LOG_BODY,
     ModalTestApp,

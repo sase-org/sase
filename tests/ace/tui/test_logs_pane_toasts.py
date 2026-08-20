@@ -11,7 +11,6 @@ from sase.ace.testing import AcePage
 from sase.logs import toast_log
 from sase.ace.tui.logs import log_sources
 from sase.ace.tui.modals.logs_pane import _CYAN, _GOLD, _render_log_detail
-from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 
 
 def _toast_json(

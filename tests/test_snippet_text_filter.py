@@ -35,9 +35,10 @@ def test_filter_matches_trigger_alias_and_source_without_bodies() -> None:
         )
     ] == ["wrap"]
     assert filter_snippet_entries(entries, pattern="inside", include_bodies=False) == ()
-    assert filter_snippet_entries(
-        entries, pattern="inside", include_definitions=False
-    ) == ()
+    assert (
+        filter_snippet_entries(entries, pattern="inside", include_definitions=False)
+        == ()
+    )
 
 
 def test_body_matching_covers_raw_and_composed() -> None:

@@ -18,6 +18,7 @@ from sase.ace.tui.proc_observer import (
 from sase.ace.tui.util import shutdown
 from sase.core.time import local_now
 from sase.project_display_names import ProjectRefDisplaySnapshot
+from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 
 
 @dataclass

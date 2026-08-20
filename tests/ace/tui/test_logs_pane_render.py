@@ -20,7 +20,6 @@ from sase.ace.tui.modals.logs_pane import (
     _render_log_detail,
 )
 from sase.logs import RegisteredError, error_anchor
-from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import LAUNCH_LOG_BODY, write_log
 
 _FOCUS_ERROR_ID = "err_260617_143000_7f3a9c"

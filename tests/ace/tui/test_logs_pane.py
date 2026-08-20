@@ -23,7 +23,6 @@ from sase.logs import (
     error_anchor,
     register_error,
 )
-from tests.ace.tui._logs_pane_helpers import log_dir as log_dir
 from tests.ace.tui._logs_pane_helpers import (
     LAUNCH_LOG_BODY,
     ModalTestApp,

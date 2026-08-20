@@ -48,6 +48,32 @@ def test_bead_link_event_round_trip_and_related_idempotency(
     assert "link_added" in events
 
 
+def test_bead_link_remove_event_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path, monkeypatch)
+    left = project.create("Left", IssueType.PLAN)
+    right = project.create("Right", IssueType.PLAN)
+    with override_flags(artifact_links=True):
+        project.add_link(
+            left.id,
+            f"bead:{right.id}",
+            "related",
+            "shares the ACE-TUI flake root cause",
+        )
+        removed = project.remove_link(left.id, f"bead:{right.id}", relation="related")
+        reloaded = project.show(left.id)
+
+    assert removed.links == []
+    assert reloaded.links == []
+    events = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (project.beads_dir / "events").rglob("*.jsonl")
+    )
+    assert "link_added" in events
+    assert "link_removed" in events
+
+
 def test_reserved_relation_points_at_bead_dep(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -67,3 +93,5 @@ def test_flag_off_refuses_bead_link_mutation(
     right = project.create("Right", IssueType.PLAN)
     with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
         project.add_link(left.id, f"bead:{right.id}", "related", "why")
+    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
+        project.remove_link(left.id, f"bead:{right.id}", relation="related")
