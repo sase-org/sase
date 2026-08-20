@@ -324,10 +324,11 @@ user-authored `limit:40` or `limit:all` is left alone, and deleting the token le
 that pane uncapped. `Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K` lowers it,
 never dropping below one page; unload of an unlimited query (`limit:all` or a deleted
 token) introduces `limit:<ace.page_size>`. When the cap clips the result, the filter row
-says `capped` and Stitches uses a lower-bound total such as `[1/40+]`. `limit:all` (and
-Stitches `limit:0`) remains an accepted synonym for the unlimited state, but canonical
-query text omits it. Provider or aggregate truncation metadata can still mark a count as
-capped without inventing an active query limit.
+says `capped` and Stitches uses a lower-bound total such as `[1/40+]`. `limit:all` is
+the unlimited synonym on every pane; `limit:0` is also accepted by the shared parser
+(Stitches used that spelling first). Canonical query text omits both. Provider or
+aggregate truncation metadata can still mark a count as capped without inventing an
+active query limit.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, `until:`, and `limit:`
 plus free text matched across plan-document metadata and content. `kind:` accepts
@@ -341,12 +342,14 @@ Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `du
 `until:` terms, plus host-owned `limit:`. `task_type:` accepts catalog slugs plus
 `untyped` for legacy beads. Status values include the five stored states plus the
 derived `blocked`, `launched`, and `triage` states. `due:` accepts `live`, `soon`, or
-`due` for flag beads. `has:` accepts `+1`, `reopened`, `plan`, `bug`, `deps`, `notes`,
-and `triage`. `bug:` matches issue state, reference, relation, or project, with
-completion for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`;
-`label:` matches cached provider labels. Free text also searches cached external issue
-title, body, URL, and labels alongside the bead id, title, description, notes, design,
-references, and ownership metadata.
+`due` and matches [flag beads](beads.md#flag-bead-lifecycle) — the dedicated
+feature-flag removal tasks — by how close they are to their removal thresholds. Other
+bead types have no due state, so a positive `due:` term hides them. `has:` accepts `+1`,
+`reopened`, `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:` matches issue state,
+reference, relation, or project, with completion for `none`, `open`, `closed`, `stale`,
+`drift`, `mirrored`, and `referenced`; `label:` matches cached provider labels. Free
+text also searches cached external issue title, body, URL, and labels alongside the bead
+id, title, description, notes, design, references, and ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
 subject text; Beads and Plans can exclude their filter facets and free text. Exclusion

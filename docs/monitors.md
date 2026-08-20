@@ -16,15 +16,25 @@ scheduled wake-up tool.
 ## The agent-family picture
 
 Starting a monitor promotes the calling sase-agent to an agent family, exactly as
-`%id(suffix, family=parent)` would, and adds the monitor as a proc shell member:
+`%id(suffix, family=parent)` would, and adds the monitor as a proc shell member. The
+follow-up agent is **not** launched yet — only after the command settles as `completed`,
+`failed`, or `timeout` (not `stopped` or `lost`), and only when `--next` was set:
 
 ```
-sase-agent "acme"    before                     after `sase monitor start`
+sase-agent "acme"    before                     right after `sase monitor start`
 ────────────────────────────────────────────────────────────────────────────────
 acme                 (one-shell agent, RUNNING) acme            (agent family)
                                                 ├─ acme--0      DONE       ← starter shell, killed
-                                                ├─ acme--mon    TESTING    ← monitor proc shell
-                                                └─ acme--1      RUNNING    ← follow-up shell
+                                                └─ acme--mon    TESTING    ← monitor proc shell
+```
+
+After the command finishes with `--next` set:
+
+```
+acme
+├─ acme--0      DONE
+├─ acme--mon    TESTED     ← monitor finished
+└─ acme--1      RUNNING    ← follow-up shell
 ```
 
 | Term          | Meaning                                                                          |

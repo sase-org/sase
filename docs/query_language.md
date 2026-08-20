@@ -13,12 +13,14 @@ row-matching field. ACE extracts the token before dialect parse and Rust evaluat
 matches rows against the remainder, then slices the visible list. Completions offer
 `40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>` (default 100)
 into each pane's default query when no `limit:` is present. An explicit token is left
-alone; deleting it leaves that pane uncapped. `limit:all` and Stitches `limit:0` mean
-unlimited. On the Artifacts tab, `Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K`
-lowers it, never dropping below one page; unloading an unlimited query introduces
-`limit:<ace.page_size>`. The token cannot be negated and may appear only once. Do not
-add `limit` as a filterable profile field on Beads, Plans, Files, Patches, or provider
-dialects; Stitches already treats it as a cap and strips it before row eval.
+alone; deleting it leaves that pane uncapped. `limit:all` is the unlimited synonym on
+every pane. The shared parser also treats `limit:0` as unlimited (Stitches used that
+spelling first); completions offer `all`, not `0`. On the Artifacts tab, `Ctrl+J` raises
+the cap by `ace.page_size` and `Ctrl+K` lowers it, never dropping below one page;
+unloading an unlimited query introduces `limit:<ace.page_size>`. The token cannot be
+negated and may appear only once. Do not add `limit` as a filterable profile field on
+Beads, Plans, Files, Patches, or provider dialects; Stitches already treats it as a cap
+and strips it before row eval.
 
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
@@ -28,8 +30,7 @@ This page documents Patch queries. The Agents tab in ACE has a separate agent qu
 language with agent-specific property keys.
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
-persistent filter row. Stitches, Beads, Plans, Files, and document-provider panes use
-the same idle chrome. Press `/` (or the local `f`) to edit it. Typing previews each
+persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
 valid query against the already-loaded Patch snapshot, `Enter` commits it and closes the
 editor, and `Escape` abandons the edit and restores the committed query, its result, and
 your selection. A parse error is reported inline and leaves the visible list on the last
@@ -37,6 +38,13 @@ valid query. `Tab` accepts completions for property keys and values, shorthand s
 predicates, and macros — and, while the row is empty, saved-query slots. A leading `#`
 saves or deletes a slot without changing the active query; see
 [ACE: Editing Queries](ace.md#editing-queries).
+
+Stitches, Beads, Plans, Files, and document-provider panes use the same idle chrome —
+the committed query stays visible without opening an editor — but each pane has its own
+query dialect and previews against **that pane's** loaded snapshot, not the Patch
+snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can type
+are documented per pane in
+[ACE Artifacts](ace.md#filtering-patches-stitches-beads-and-plans).
 
 ## String Matching
 

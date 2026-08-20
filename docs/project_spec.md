@@ -189,9 +189,10 @@ lifecycle-only.
 ### Current Project
 
 The **current project** is not a ProjectSpec field and not a lifecycle state. It is the
-enabled project SASE treats as working context: the first entry in the shared VCS
-xprompt MRU store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project. A
-Patch entry in that store yields its owning project.
+enabled project SASE treats as working context — in practice, the one you most recently
+launched an agent on. Mechanically it is the first entry in the shared VCS xprompt MRU
+store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project. A Patch entry in
+that store yields its owning project.
 
 Launching an agent on a project — or on a Patch owned by that project — promotes it to
 that head. So do `sase project set-current <project>` and the ACE Projects tab `c` key,

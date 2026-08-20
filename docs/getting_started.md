@@ -126,8 +126,9 @@ ACE has three top-level tabs:
 
 The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
 — the project you most recently launched an agent on (or promoted with
-`sase project set-current`). First-open Artifacts filters seed from it. Press `?` for
-help and `q` to quit.
+`sase project set-current`). After the `#git:home` run above, that chip is `+home`.
+First-open Artifacts filters seed from it; they do not lock you into that project. Press
+`?` for help and `q` to quit.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
 visible in [ACE](ace.md), with [AXE](axe.md) handling lifecycle work in the background.
@@ -148,10 +149,12 @@ explicitly bring changes back. When the agent commits its work, SASE's commit wo
 records a Patch that you can review in ACE's Artifacts tab, under Patches, before
 landing or submitting anything.
 
-Wait until the run is done before continuing: watch it on ACE's Agents tab, or run
-`sase agent list -a` until the row shows a completed status. Default `sase agent list`
-hides finished runs, so it will not report DONE by itself. The second instruction
-registers a durable snapshot while leaving the tracked `notes.md` in the workspace.
+Wait until that run finishes before continuing. Default `sase agent list` shows
+**running** agents only, so the row disappears from the default list when the run ends.
+Watch it on ACE's Agents tab, or poll `sase agent list -a` until that row's status is
+`DONE` or `FAILED`. `-a` still includes running agents; you are waiting for the status
+to change, not for the row to appear. The second instruction registers a durable
+snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, use `#git:<name>` to target a managed project or
 `#git:<bare-repo-path>` to register an existing bare repository. Provider plugins add
@@ -220,13 +223,13 @@ the reference on the clipboard.
 
 At launch, document, file, bead, and agent references become local `@absolute-path`
 tokens. A stitch becomes `stitch <full-sha> in <repo> (checkout: <path>)`; a Patch
-becomes `the <name> Patch in project <project>` plus a `sase patch show` inspection
-hint. That hint currently names a command that is not registered — inspect a Patch from
-ACE's Patches view, with `sase patch search`, or with `sase patch current` when you are
-already in that Patch's workspace. A historical `@bug:` reference becomes its issue
-number and provider URL. A malformed or missing known reference stops the launch with a
-diagnostic instead of silently giving the agent bad context. Inline-code and fenced-code
-examples stay literal.
+becomes `the <name> Patch in project <project>` plus an inspection hint. That hint
+currently names `sase patch show`, which is not a `sase` command — do not run it.
+Inspect a Patch from ACE's Patches view, with `sase patch search`, or with
+`sase patch current` when you are already in that Patch's workspace. A historical
+`@bug:` reference becomes its issue number and provider URL. A malformed or missing
+known reference stops the launch with a diagnostic instead of silently giving the agent
+bad context. Inline-code and fenced-code examples stay literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The
@@ -310,8 +313,9 @@ The names you'll keep bumping into, in one place:
 - **[ACE](ace.md)** — the TUI control surface for Patches, agents, notifications, and
   automation.
 - **[Current project](ace.md#current-project)** — the project SASE treats as working
-  context (the VCS xprompt MRU head). `sase project current` prints it;
-  `sase project set-current` and ACE's Projects tab `c` promote one without a launch.
+  context: in practice, the one you most recently launched an agent on (or promoted with
+  `sase project set-current` / ACE Projects tab `c`). `sase project current` prints it.
+  The working directory never sets it, and there may be none.
 - **[AXE](axe.md)** — the background automation daemon. Runs hooks, mentor launches,
   comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the
@@ -356,6 +360,7 @@ The names you'll keep bumping into, in one place:
 
 - [SASE: Structured Agentic Software Engineering](blog/posts/structured-agentic-software-engineering.md)
   — the launch post and conceptual front door.
-- [CLI reference](cli.md) — every `sase` subcommand on one page.
+- [CLI reference](cli.md) — a discovery index of `sase` commands (compact `sase --help`
+  lists only the common ones; `sase --full-help` prints every command).
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project
   direction.

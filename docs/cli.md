@@ -5,7 +5,10 @@ routing: use it to find the surface that owns a workflow, then follow the links 
 detailed command, flag, or subsystem reference.
 
 Compact `sase --help` lists only the common commands. Use `sase --full-help` (or `-H`)
-to print every command, then this page to route from a command to its owner guide.
+to print every command, then this page to route from a command to its owner guide. This
+page is a discovery index, not a dump of every flag. Compact help's one-line `agent`
+blurb says "active and recent"; default `sase agent list` (and bare `sase agent`) is
+running-only — add `-a` for recent DONE/FAILED.
 
 For exhaustive flag tables, see the
 [configuration reference](configuration.md#cli-flags).
@@ -64,6 +67,10 @@ canonical value as each commit's `"origin"` field.
 start from prompt text, xprompt or workflow references, the editor, or the
 prompt-history picker, and multi-prompt input expands into sequential background
 launches. ACE uses the same launch machinery when users start agents from the TUI.
+
+The short option `-n` is not one flag across commands: `sase agent kill -n NAME` is
+`--name` (required; a bare name is a usage error), `sase agent restart -n` is
+`--dry-run` (the agent name is positional), and `sase monitor start -n` is `--next`.
 
 `sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`,
 whether its threshold comes from the global cap or an authored `%wait(runners=N)`. Its

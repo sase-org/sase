@@ -59,10 +59,12 @@ just test-py 312    # Specific version
 ## Submitting Issues
 
 External bug reports and questions belong in
-[GitHub Issues](https://github.com/sase-org/sase/issues).
+[GitHub Issues](https://github.com/sase-org/sase/issues). You do not need a SASE
+checkout to file those.
 
-Inside a SASE-managed checkout, discovered follow-up work is a typed
-[task bead](https://sase.sh/beads/), not the standalone `bd` CLI:
+If you are already working in this repository through SASE, discovered follow-up is a
+typed [task bead](https://sase.sh/beads/), not something you file with the standalone
+`bd` CLI:
 
 ```bash
 sase bead onboard

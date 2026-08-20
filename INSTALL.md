@@ -103,11 +103,11 @@ See the [sase-nvim README](https://github.com/sase-org/sase-nvim).
 
 ### Recommended: the SASE Admin Center Updates tab
 
-The **Updates** tab (press `#` in `sase ace`, then `6`) is also the recommended way to
-keep SASE current. For a faster snapshot-only update of SASE, providers, and agents
-without opening Admin Center, press `,U` in ACE to open the
-[Update panel](https://sase.sh/ace/#updates-tab). Plugin install and uninstall still
-live on this Updates tab (`i` / `x`), not on `,U`.
+The **Updates** tab is also the recommended way to keep SASE current. In `sase ace`,
+press `#` to open Admin Center **home**, then `6` to enter Updates. For a faster
+snapshot-only update of SASE, providers, and agents without opening Admin Center, press
+`,U` in ACE to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin install
+and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
 
 - The tab leads with a **SASE Core** panel showing the installed and latest versions of
   the `sase` and `sase-core-rs` packages, with an `↑` marker when a newer version is

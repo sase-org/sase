@@ -2420,11 +2420,11 @@ inside code fences are not executed or rewritten. Canonical artifact references 
 expanded before ordinary file references: document and artifact-file references become
 `@path` tokens, as do published bead and agent pages. A stitch becomes
 `stitch <full-sha> in <repo> (checkout: <path>)`; a Patch becomes a project-qualified
-label with a `sase patch show` hint. That hint currently names a command that is not
-registered; inspect a Patch from ACE's Patches view, with `sase patch search`, or with
-`sase patch current` in that Patch's workspace. Unknown `@kind:` references remain
-unchanged as prose. The retired `#ref/<kind>` renderer syntax is not accepted.
-Inline-code references also remain literal.
+label with an inspection hint. That hint currently names `sase patch show`, which is not
+a `sase` command — do not run it. Inspect a Patch from ACE's Patches view, with
+`sase patch search`, or with `sase patch current` in that Patch's workspace. Unknown
+`@kind:` references remain unchanged as prose. The retired `#ref/<kind>` renderer syntax
+is not accepted. Inline-code references also remain literal.
 
 During the same pass, SASE stages prompt references for later archive publication. File
 references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`
