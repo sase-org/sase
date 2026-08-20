@@ -215,6 +215,7 @@ from .snippet_save_confirm_modal import (
 from .snippet_save_confirm_modal import (
     SnippetSaveConfirmState as SnippetSaveConfirmState,
 )
+from .snippets_panel import SnippetsPanel as SnippetsPanel
 from .stashed_prompts_modal import StashRestoreResult as StashRestoreResult
 from .stashed_prompts_modal import StashedPromptsModal as StashedPromptsModal
 from .statistics_help_modal import StatisticsHelpModal as StatisticsHelpModal

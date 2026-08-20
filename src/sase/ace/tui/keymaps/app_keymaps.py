@@ -344,3 +344,32 @@ class MemoryPanelKeymaps:
     copy_source_path: str = "Y"
     refresh: str = "r"
     help: str = "question_mark"
+
+
+@dataclass
+class SnippetPanelKeymaps:
+    """Focused-pane actions for the Snippets panel."""
+
+    next_snippet: str = "j"
+    prev_snippet: str = "k"
+    first_snippet: str = "g"
+    last_snippet: str = "G"
+    scroll_template_down: str = "ctrl+d"
+    scroll_template_up: str = "ctrl+u"
+    filter_snippets: str = "slash"
+    toggle_body_filter: str = "full_stop"
+    next_relation: str = "tab"
+    prev_relation: str = "shift+tab"
+    follow_relation: str = "enter,l"
+    travel_back: str = "backspace,h"
+    next_project: str = "p"
+    prev_project: str = "P"
+    add_snippet: str = "a"
+    edit_snippet: str = "e"
+    delete_snippet: str = "d"
+    open_source: str = "o"
+    open_viewer: str = "Z"
+    copy_template: str = "y"
+    copy_source_path: str = "Y"
+    refresh: str = "r"
+    help: str = "question_mark"

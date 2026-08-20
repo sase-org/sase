@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
+    SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
@@ -21,6 +22,7 @@ from sase.ace.tui.keymaps.metadata import (
     _MEMORY_BINDING_META,
     _PROJECTS_BINDING_META,
     _PROJECTS_INVENTORY_BINDING_META,
+    _SNIPPET_BINDING_META,
     _STATISTICS_BINDING_META,
 )
 
@@ -150,6 +152,31 @@ def memory_help_bindings(
     return [
         (key_display_name(getattr(keymaps, action)), description)
         for action, description in _MEMORY_BINDING_META
+    ]
+
+
+def build_snippet_bindings(keymaps: SnippetPanelKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Snippets panel."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+        )
+        for action, description in _SNIPPET_BINDING_META
+    ]
+
+
+def snippet_help_bindings(
+    keymaps: SnippetPanelKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Snippets panel keys and descriptions for help surfaces."""
+
+    return [
+        (key_display_name(getattr(keymaps, action)), description)
+        for action, description in _SNIPPET_BINDING_META
     ]
 
 

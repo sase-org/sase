@@ -18,6 +18,7 @@ from sase.ace.tui.keymaps import (
     LeaderModeKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
+    SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
@@ -25,6 +26,7 @@ from sase.ace.tui.keymaps import (
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
     load_builtin_projects_defaults,
+    load_builtin_snippets_defaults,
     load_builtin_statistics_defaults,
     load_keymap_registry,
 )
@@ -524,6 +526,39 @@ def test_default_config_covers_all_memory_keymaps() -> None:
         "open_source": "o",
         "open_viewer": "Z",
         "copy_body": "y",
+        "copy_source_path": "Y",
+        "refresh": "r",
+        "help": "question_mark",
+    }
+    assert field_names == set(defaults)
+
+
+def test_default_config_covers_all_snippets_keymaps() -> None:
+    """The bundled config is the source of truth for Snippets-panel keys."""
+    defaults = load_builtin_snippets_defaults()
+    field_names = {field.name for field in fields(SnippetPanelKeymaps)}
+
+    assert defaults == {
+        "next_snippet": "j",
+        "prev_snippet": "k",
+        "first_snippet": "g",
+        "last_snippet": "G",
+        "scroll_template_down": "ctrl+d",
+        "scroll_template_up": "ctrl+u",
+        "filter_snippets": "slash",
+        "toggle_body_filter": "full_stop",
+        "next_relation": "tab",
+        "prev_relation": "shift+tab",
+        "follow_relation": "enter,l",
+        "travel_back": "backspace,h",
+        "next_project": "p",
+        "prev_project": "P",
+        "add_snippet": "a",
+        "edit_snippet": "e",
+        "delete_snippet": "d",
+        "open_source": "o",
+        "open_viewer": "Z",
+        "copy_template": "y",
         "copy_source_path": "Y",
         "refresh": "r",
         "help": "question_mark",

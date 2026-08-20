@@ -5401,6 +5401,134 @@ GlossaryPanelHelpModal #glossary-panel-help-footer {
     padding-top: 1;
 }
 
+/* ===== Snippets Panel Styling ===== */
+
+SnippetsPanel {
+    align: center middle;
+}
+
+SnippetsPanel #snippets-panel-container {
+    width: 90%;
+    max-width: 150;
+    height: 90%;
+    max-height: 44;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SnippetsPanel #snippets-panel-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SnippetsPanel #snippets-panel-body {
+    height: 1fr;
+}
+
+SnippetsPanel #snippets-panel-triggers {
+    width: 32;      /* default; fitted at runtime by trigger_rail_width() */
+    min-width: 32;  /* keep in sync with _TRIGGER_RAIL_MIN_WIDTH */
+    max-width: 52;  /* keep in sync with _TRIGGER_RAIL_MAX_WIDTH */
+    height: 100%;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+SnippetsPanel #snippets-panel-detail {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    margin-left: 1;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+SnippetsPanel #snippets-panel-card-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SnippetsPanel #snippets-panel-card-raw {
+    width: 100%;
+    height: auto;
+}
+
+SnippetsPanel #snippets-panel-card-composed {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
+SnippetsPanel #snippets-panel-card-meta {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
+SnippetsPanel #snippets-panel-filter {
+    height: 3;
+    margin-top: 1;
+    border: tall $accent;
+}
+
+SnippetsPanel #snippets-panel-trail {
+    height: auto;
+    margin-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+SnippetsPanel #snippets-panel-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ===== Snippets Panel Help Modal Styling ===== */
+
+SnippetsPanelHelpModal {
+    align: center middle;
+}
+
+SnippetsPanelHelpModal #snippets-panel-help-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 80%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SnippetsPanelHelpModal #snippets-panel-help-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+SnippetsPanelHelpModal #snippets-panel-help-scroll {
+    height: auto;
+    max-height: 100%;
+    scrollbar-gutter: stable;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+SnippetsPanelHelpModal #snippets-panel-help-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 /* ===== Memory Panel Styling ===== */
 
 MemoryPanel {

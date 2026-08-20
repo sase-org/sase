@@ -374,6 +374,32 @@ ace:
       copy_source_path: "Y"
       refresh: "r"
       help: "question_mark"
+    # Focused Snippets-panel bindings. These keys are inactive everywhere
+    # else, even when they overlap app-level actions.
+    snippets:
+      next_snippet: "j"
+      prev_snippet: "k"
+      first_snippet: "g"
+      last_snippet: "G"
+      scroll_template_down: "ctrl+d"
+      scroll_template_up: "ctrl+u"
+      filter_snippets: "slash"
+      toggle_body_filter: "full_stop"
+      next_relation: "tab"
+      prev_relation: "shift+tab"
+      follow_relation: "enter,l"
+      travel_back: "backspace,h"
+      next_project: "p"
+      prev_project: "P"
+      add_snippet: "a"
+      edit_snippet: "e"
+      delete_snippet: "d"
+      open_source: "o"
+      open_viewer: "Z"
+      copy_template: "y"
+      copy_source_path: "Y"
+      refresh: "r"
+      help: "question_mark"
     # Focused Admin Center Projects-tab bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.
     projects:

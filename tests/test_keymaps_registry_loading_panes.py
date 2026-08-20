@@ -141,6 +141,33 @@ def test_memory_panel_keys_can_be_overridden_independently() -> None:
     assert reg.memory.publish == "I"
 
 
+def test_snippets_panel_keys_can_be_overridden_independently() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "snippets": {
+                    "next_snippet": "down",
+                    "prev_snippet": "up",
+                    "filter_snippets": "f12",
+                    "next_project": "f11",
+                    "prev_project": "f10",
+                    "help": "f9",
+                }
+            }
+        }
+    )
+
+    assert reg.snippets.next_snippet == "down"
+    assert reg.snippets.prev_snippet == "up"
+    assert reg.snippets.filter_snippets == "f12"
+    assert reg.snippets.next_project == "f11"
+    assert reg.snippets.prev_project == "f10"
+    assert reg.snippets.help == "f9"
+    assert reg.snippets.add_snippet == "a"
+    assert reg.snippets.edit_snippet == "e"
+    assert reg.snippets.delete_snippet == "d"
+
+
 def test_duplicate_glossary_help_override_reverts_to_default(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -169,3 +196,25 @@ def test_unknown_memory_action_is_ignored(
 
     assert reg.memory.next_note == "j"
     assert "Unknown memory keymap action" in caplog.text
+
+
+def test_duplicate_snippets_help_override_reverts_to_default(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"snippets": {"help": "r"}}})
+
+    assert reg.snippets.help == "question_mark"
+    assert "Duplicate snippets key" in caplog.text
+
+
+def test_unknown_snippets_action_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {"keymaps": {"snippets": {"not_a_real_action": "x"}}}
+        )
+
+    assert reg.snippets.next_snippet == "j"
+    assert "Unknown snippets keymap action" in caplog.text

@@ -133,3 +133,37 @@ def test_config_schema_rejects_invalid_scoped_memory_keymaps(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate({"ace": {"keymaps": {"memory": memory}}})
+
+
+def test_config_schema_accepts_scoped_snippets_keymaps() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "snippets": {
+                        "next_snippet": "down",
+                        "prev_snippet": "up",
+                        "filter_snippets": "f12",
+                        "next_project": "f11",
+                        "prev_project": "f10",
+                        "edit_snippet": "f7",
+                        "help": "f9",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "snippets",
+    [
+        {"next_snippet": 12},
+        {"unknown_action": "x"},
+    ],
+)
+def test_config_schema_rejects_invalid_scoped_snippets_keymaps(
+    snippets: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"ace": {"keymaps": {"snippets": snippets}}})

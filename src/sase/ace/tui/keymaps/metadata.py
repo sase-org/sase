@@ -296,6 +296,32 @@ _MEMORY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("help", "Help"),
 )
 
+# Scoped bindings owned by the Snippets panel. These are deliberately
+# excluded from ``AppKeymaps`` so common keys such as ``j``/``k``/``p``
+# never become globally active.
+_SNIPPET_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("next_snippet", "Next Snippet"),
+    ("prev_snippet", "Previous Snippet"),
+    ("first_snippet", "First Snippet"),
+    ("last_snippet", "Last Snippet"),
+    ("scroll_template_down", "Scroll Template Down"),
+    ("scroll_template_up", "Scroll Template Up"),
+    ("filter_snippets", "Filter"),
+    ("toggle_body_filter", "Toggle Body Match"),
+    ("next_relation", "Next Relation Chip"),
+    ("prev_relation", "Previous Relation Chip"),
+    ("follow_relation", "Follow Relation"),
+    ("travel_back", "Travel Back"),
+    ("next_project", "Next Project"),
+    ("prev_project", "Previous Project"),
+    ("open_source", "Open in Editor"),
+    ("open_viewer", "Open in Viewer"),
+    ("copy_template", "Copy Template"),
+    ("copy_source_path", "Copy Source Path"),
+    ("refresh", "Refresh"),
+    ("help", "Help"),
+)
+
 # Maps mode name -> the app-level action that activates it.
 _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "fold_mode": "start_fold_mode",

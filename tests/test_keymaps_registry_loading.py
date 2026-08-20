@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps import (
     LeaderModeKeymaps,
     MemoryPanelKeymaps,
     ModeKeymaps,
+    SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
     load_keymap_registry,
 )
@@ -42,6 +43,12 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.gate, GateModalKeymaps)
     assert isinstance(reg.glossary, GlossaryPanelKeymaps)
     assert isinstance(reg.memory, MemoryPanelKeymaps)
+    assert isinstance(reg.snippets, SnippetPanelKeymaps)
+    assert reg.snippets.next_snippet == "j"
+    assert reg.snippets.filter_snippets == "slash"
+    assert reg.snippets.next_project == "p"
+    assert reg.snippets.copy_template == "y"
+    assert reg.snippets.help == "question_mark"
     assert reg.gate.toggle_option == "space"
     assert reg.gate.submit_branch == "ctrl+s"
     assert reg.gate.open_inputs == "i"

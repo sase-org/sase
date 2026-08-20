@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
     load_builtin_projects_defaults,
+    load_builtin_snippets_defaults,
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
@@ -17,6 +18,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
+    SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
@@ -179,6 +181,17 @@ def load_memory_keymaps(keymaps_cfg: dict[str, Any]) -> MemoryPanelKeymaps:
         scope="memory",
         dataclass_type=MemoryPanelKeymaps,
         defaults=load_builtin_memory_defaults(),
+    )
+
+
+def load_snippets_keymaps(keymaps_cfg: dict[str, Any]) -> SnippetPanelKeymaps:
+    """Load and validate the focused Snippets-panel binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="snippets",
+        dataclass_type=SnippetPanelKeymaps,
+        defaults=load_builtin_snippets_defaults(),
     )
 
 

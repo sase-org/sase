@@ -12,6 +12,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
+    SnippetPanelKeymaps,
     StatisticsPaneKeymaps,
 )
 from sase.ace.tui.keymaps.key_validation import (
@@ -57,6 +58,7 @@ __all__ = [
     "MemoryPanelKeymaps",
     "ModeKeymaps",
     "ProjectsPaneKeymaps",
+    "SnippetPanelKeymaps",
     "StatisticsPaneKeymaps",
     "_BINDING_META",
     "_BUILTIN_MODE_CLASSES",
@@ -100,6 +102,7 @@ class KeymapRegistry:
     gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
     glossary: GlossaryPanelKeymaps = field(default_factory=GlossaryPanelKeymaps)
     memory: MemoryPanelKeymaps = field(default_factory=MemoryPanelKeymaps)
+    snippets: SnippetPanelKeymaps = field(default_factory=SnippetPanelKeymaps)
     projects: ProjectsPaneKeymaps = field(default_factory=ProjectsPaneKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
 

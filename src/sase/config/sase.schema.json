@@ -1734,6 +1734,105 @@
                 }
               }
             },
+            "snippets": {
+              "type": "object",
+              "description": "Bindings active only while the Snippets panel is focused",
+              "additionalProperties": false,
+              "properties": {
+                "next_snippet": {
+                  "type": "string",
+                  "description": "Select the next snippet"
+                },
+                "prev_snippet": {
+                  "type": "string",
+                  "description": "Select the previous snippet"
+                },
+                "first_snippet": {
+                  "type": "string",
+                  "description": "Jump to the first snippet"
+                },
+                "last_snippet": {
+                  "type": "string",
+                  "description": "Jump to the last snippet"
+                },
+                "scroll_template_down": {
+                  "type": "string",
+                  "description": "Scroll the template card down by half a page"
+                },
+                "scroll_template_up": {
+                  "type": "string",
+                  "description": "Scroll the template card up by half a page"
+                },
+                "filter_snippets": {
+                  "type": "string",
+                  "description": "Open the snippet filter input"
+                },
+                "toggle_body_filter": {
+                  "type": "string",
+                  "description": "Toggle matching raw and composed bodies in the filter"
+                },
+                "next_relation": {
+                  "type": "string",
+                  "description": "Select the next relation chip"
+                },
+                "prev_relation": {
+                  "type": "string",
+                  "description": "Select the previous relation chip"
+                },
+                "follow_relation": {
+                  "type": "string",
+                  "description": "Follow the selected relation chip"
+                },
+                "travel_back": {
+                  "type": "string",
+                  "description": "Travel back along the relation trail"
+                },
+                "next_project": {
+                  "type": "string",
+                  "description": "Cycle to the next project's snippets"
+                },
+                "prev_project": {
+                  "type": "string",
+                  "description": "Cycle to the previous project's snippets"
+                },
+                "add_snippet": {
+                  "type": "string",
+                  "description": "Add a new snippet"
+                },
+                "edit_snippet": {
+                  "type": "string",
+                  "description": "Edit the selected snippet"
+                },
+                "delete_snippet": {
+                  "type": "string",
+                  "description": "Delete the selected snippet"
+                },
+                "open_source": {
+                  "type": "string",
+                  "description": "Open the snippet's source file in the editor"
+                },
+                "open_viewer": {
+                  "type": "string",
+                  "description": "Open the snippet's source file in the viewer"
+                },
+                "copy_template": {
+                  "type": "string",
+                  "description": "Copy the selected snippet's raw template"
+                },
+                "copy_source_path": {
+                  "type": "string",
+                  "description": "Copy the snippet's source file path"
+                },
+                "refresh": {
+                  "type": "string",
+                  "description": "Refresh the current project's snippets"
+                },
+                "help": {
+                  "type": "string",
+                  "description": "Open contextual Snippets panel help"
+                }
+              }
+            },
             "projects": {
               "type": "object",
               "description": "Bindings active only while the Admin Center Projects tab is focused, shared by its Projects/Repos/Workspaces sub-tabs",

@@ -336,6 +336,36 @@ def test_invalid_memory_key_reverts_to_default() -> None:
     assert reg.memory.refresh == "r"
 
 
+def test_snippets_key_can_overlap_global_app_key() -> None:
+    """Scoped Snippets panel keys do not participate in global app conflicts."""
+    reg = load_keymap_registry({"keymaps": {"snippets": {"refresh": "q"}}})
+
+    assert reg.snippets.refresh == "q"
+    assert reg.app.quit == "q"
+
+
+def test_duplicate_snippets_keys_revert_overrides() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "snippets": {
+                    "next_snippet": "f12",
+                    "prev_snippet": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.snippets.next_snippet == "j"
+    assert reg.snippets.prev_snippet == "k"
+
+
+def test_invalid_snippets_key_reverts_to_default() -> None:
+    reg = load_keymap_registry({"keymaps": {"snippets": {"refresh": "not_a_real_key"}}})
+
+    assert reg.snippets.refresh == "r"
+
+
 def test_projects_key_can_overlap_global_app_key() -> None:
     """Scoped Projects pane keys do not participate in global app conflicts."""
     reg = load_keymap_registry({"keymaps": {"projects": {"toggle_project_mark": "q"}}})

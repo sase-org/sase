@@ -74,6 +74,12 @@ def load_builtin_memory_defaults() -> dict[str, str]:
     return dict(_builtin_scope_defaults("memory"))
 
 
+def load_builtin_snippets_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Snippets-panel defaults."""
+
+    return dict(_builtin_scope_defaults("snippets"))
+
+
 def load_builtin_projects_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Projects-pane defaults."""
 
