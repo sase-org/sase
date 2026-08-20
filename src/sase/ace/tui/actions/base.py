@@ -173,6 +173,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                         self, "_automatic_update_provider_names", None
                     ),
                     scope=UpdateScope(result.scope),
+                    auto_approve=result.auto_approve,
                 )
             )
 

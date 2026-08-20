@@ -128,6 +128,9 @@ class UpdateRunActionsMixin:
         if not preview.runnable:
             self._handle_comprehensive_noop(preview)
             return
+        if preview.request.auto_approve:
+            self._submit_scoped_update_task(preview)
+            return
 
         title, intro, panel_title = comprehensive_confirm_copy(preview.request.scope)
         modal = PluginActionConfirmModal(

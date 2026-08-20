@@ -34,6 +34,7 @@ class _ShortcutHarness(UpdateRunActionsMixin, BaseActionsMixin):
         self.pushed_modals: list[Any] = []
         self.pushed_callbacks: list[Any] = []
         self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+        self.preview_requests: list[Any] = []
         self._automatic_update_status = None
         self._automatic_update_provider_names: tuple[str, ...] | None = ("claude",)
         self._agents_sync_last_status = None
@@ -41,6 +42,10 @@ class _ShortcutHarness(UpdateRunActionsMixin, BaseActionsMixin):
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed_modals.append(modal)
         self.pushed_callbacks.append(callback)
+
+    def _submit_update_preview_proc(self, request: Any) -> bool:
+        self.preview_requests.append(request)
+        return super()._submit_update_preview_proc(request)
 
     def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
         assert_session_worker_submit_signature(args, kwargs)
@@ -114,6 +119,29 @@ def test_chosen_scope_submits_update_preview_proc(
     assert kwargs["cl_name"] == scoped_preview_cl_name(UpdateScope.PROVIDERS)
     assert kwargs["dedup_key"] == "update-preview"
     assert kwargs["exclusive_scopes"] == ()
+    assert len(harness.preview_requests) == 1
+    request = harness.preview_requests[0]
+    assert request.provider_names == ("claude",)
+    assert request.scope is UpdateScope.PROVIDERS
+    assert request.auto_approve is False
+
+
+def test_auto_approve_result_copies_explicit_flag_into_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("time.time", lambda: _NOW)
+    harness = _ShortcutHarness()
+    harness.action_update_sase_shortcut()
+    callback = harness.pushed_callbacks[0]
+    assert callback is not None
+
+    callback(UpdatePanelResult(scope="sase", auto_approve=True))
+
+    assert len(harness.preview_requests) == 1
+    request = harness.preview_requests[0]
+    assert request.provider_names == ("claude",)
+    assert request.scope is UpdateScope.SASE
+    assert request.auto_approve is True
 
 
 def test_canceling_the_panel_does_not_submit_a_preview_proc(

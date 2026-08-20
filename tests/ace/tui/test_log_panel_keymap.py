@@ -255,6 +255,24 @@ def test_update_shortcut_confirm_uses_current_provider_projection() -> None:
     request = app.preview_requests[0]
     assert request.provider_names == ("gemini",)
     assert request.scope is UpdateScope.SASE
+    assert request.auto_approve is False
+
+
+def test_update_shortcut_auto_approve_uses_current_provider_projection() -> None:
+    app = _ActionApp()
+    app._automatic_update_provider_names = ("claude", "codex")
+
+    app.action_update_sase_shortcut()
+    app._automatic_update_provider_names = ("gemini",)
+    callback = app.pushed_callbacks[0]
+    assert callback is not None
+    callback(UpdatePanelResult(scope="providers", auto_approve=True))
+
+    assert len(app.preview_requests) == 1
+    request = app.preview_requests[0]
+    assert request.provider_names == ("gemini",)
+    assert request.scope is UpdateScope.PROVIDERS
+    assert request.auto_approve is True
 
 
 def test_update_shortcut_dispatch_performs_no_disk_or_subprocess_work(

@@ -167,6 +167,7 @@ async def test_update_panel_pending_png_snapshot(
             page,
             lambda: (
                 option_list.option_count == 4
+                and "e/E" in _option_plain(option_list, 0)
                 and "core rebuild" in _option_plain(option_list, 1)
                 and "needs manual steps" in _option_plain(option_list, 2)
                 and "⇅ 2 available" in _option_plain(option_list, 3)
@@ -200,6 +201,7 @@ async def test_update_panel_unchecked_png_snapshot(
             page,
             lambda: (
                 option_list.option_count == 4
+                and "e/E" in _option_plain(option_list, 0)
                 and all(
                     "· not checked yet" in _option_plain(option_list, index)
                     for index in range(4)

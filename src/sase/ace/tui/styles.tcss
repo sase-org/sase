@@ -1266,10 +1266,12 @@ UpdatePanel #update-panel-list {
 }
 
 UpdatePanel #update-panel-hints {
-    height: 1;
+    height: auto;
+    min-height: 2;
     color: $text-muted;
     text-align: center;
     margin-top: 1;
+    text-wrap: nowrap;
 }
 
 UpdatePanel > #update-panel-container.-stale {

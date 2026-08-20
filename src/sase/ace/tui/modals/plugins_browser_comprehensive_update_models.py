@@ -18,10 +18,16 @@ from .plugins_browser_dev_update import DevUpdatePreview
 
 @dataclass(frozen=True)
 class ComprehensiveUpdateRequest:
-    """One immutable captured update request, including the selected scope."""
+    """One immutable captured update request, including the selected scope.
+
+    ``auto_approve`` is copied from the Update panel's explicit result; it
+    stays false unless a caller opts in. It is not inferred from key casing
+    or global UI state later.
+    """
 
     provider_names: tuple[str, ...] | None
     scope: UpdateScope = UpdateScope.EVERYTHING
+    auto_approve: bool = False
 
 
 @dataclass(frozen=True)

@@ -73,6 +73,8 @@ def _completion(
 
 def _runnable_preview(
     scope: UpdateScope = UpdateScope.EVERYTHING,
+    *,
+    auto_approve: bool = False,
 ) -> ComprehensiveUpdatePreview:
     statuses = _agent_cli_statuses()
     claude = next(status for status in statuses if status.name == "claude")
@@ -103,7 +105,9 @@ def _runnable_preview(
         cache_created_at=1.0,
     )
     return ComprehensiveUpdatePreview(
-        request=ComprehensiveUpdateRequest(("claude",), scope),
+        request=ComprehensiveUpdateRequest(
+            ("claude",), scope, auto_approve=auto_approve
+        ),
         sase_preview=DevUpdatePreview(plan=None, subject="sase"),
         provider_plan=plan,
         agents_updates=(captured,),
@@ -154,6 +158,7 @@ def test_preview_proc_runnable_result_pushes_confirm_modal() -> None:
 
     harness._on_update_preview_complete(_completion(preview))
 
+    assert harness.submitted is None
     assert len(harness.screens) == 1
     modal = harness.screens[0]
     assert isinstance(modal, PluginActionConfirmModal)
@@ -233,6 +238,77 @@ def test_confirmed_modal_submits_scoped_mutation_proc(
         "agents-sync",
     )
     assert scoped_update_proc_names(scope) == (display_name, cl_name)
+
+
+@pytest.mark.parametrize(
+    ("scope", "display_name", "cl_name"),
+    [
+        (
+            UpdateScope.EVERYTHING,
+            "comprehensive update",
+            "sase + agent CLIs + cached hoods",
+        ),
+        (UpdateScope.SASE, "update SASE, core & plugins", "sase"),
+        (UpdateScope.PROVIDERS, "update providers", "agent CLIs"),
+        (UpdateScope.AGENTS, "import published agents", "cached hoods"),
+    ],
+)
+def test_auto_approved_runnable_preview_submits_without_confirm(
+    scope: UpdateScope,
+    display_name: str,
+    cl_name: str,
+) -> None:
+    harness = _Harness()
+    preview = _runnable_preview(scope, auto_approve=True)
+
+    harness._on_update_preview_complete(_completion(preview))
+
+    assert harness.screens == []
+    assert harness.callbacks == []
+    assert harness.submitted is not None
+    args, kwargs = harness.submitted
+    assert args[0] == "comprehensive-update"
+    assert kwargs["display_name"] == display_name
+    assert kwargs["cl_name"] == cl_name
+    assert kwargs["dedup_key"] == "comprehensive-update"
+    assert kwargs["exclusive_scopes"] == (
+        "sase-update",
+        "agent-cli-update",
+        "agents-sync",
+    )
+    assert scoped_update_proc_names(scope) == (display_name, cl_name)
+
+
+def test_auto_approved_non_runnable_preview_does_not_mutate() -> None:
+    harness = _Harness()
+    preview = ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest((), UpdateScope.SASE, auto_approve=True),
+        sase_preview=None,
+        sase_current=True,
+    )
+
+    harness._on_update_preview_complete(_completion(preview))
+
+    assert harness.screens == []
+    assert harness.submitted is None
+    assert harness.messages == [
+        (
+            "SASE, core, and plugins in the captured update are already current.",
+            "information",
+        )
+    ]
+
+
+def test_auto_approved_preview_error_does_not_mutate() -> None:
+    harness = _Harness()
+
+    harness._on_update_preview_complete(
+        _completion(None, success=False, message="boom", error="boom")
+    )
+
+    assert harness.screens == []
+    assert harness.submitted is None
+    assert harness.messages == [("update preview failed: boom", "error")]
 
 
 def test_duplicate_scoped_submission_is_rejected() -> None:

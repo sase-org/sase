@@ -23,7 +23,7 @@ from sase.ace.tui.widgets.update_accents import CORE_UPDATE_ACCENT, UPDATE_GLYPH
 
 from .base import OptionListNavigationMixin
 
-_HINTS = "e s p a select · j/k move · ⏎ run · r re-check · q close"
+_AUTO_APPROVE_GLYPH = "⚡"
 _RECHECKING_LABEL = "re-checking…"
 _ROW_WIDTH = 68
 
@@ -33,10 +33,13 @@ class UpdatePanelResult:
     """Chosen Update panel row.
 
     ``scope`` is the panel-state row id (``everything``, ``sase``,
-    ``providers``, or ``agents``).
+    ``providers``, or ``agents``). ``auto_approve`` is explicit typed
+    intent from the capital-letter shortcuts; lowercase keys, Enter,
+    and mouse selection leave it false.
     """
 
     scope: UpdateOptionScope
+    auto_approve: bool = False
 
 
 class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | None]):
@@ -49,9 +52,13 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
         ("e", "choose_everything", "Everything"),
+        ("E", "apply_everything", "Apply everything"),
         ("s", "choose_sase", "SASE"),
+        ("S", "apply_sase", "Apply SASE"),
         ("p", "choose_providers", "Providers"),
+        ("P", "apply_providers", "Apply providers"),
         ("a", "choose_agents", "Agents"),
+        ("A", "apply_agents", "Apply agents"),
         ("enter", "choose_highlighted", "Run"),
         ("r", "recheck", "Re-check"),
     ]
@@ -64,7 +71,7 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     def compose(self) -> ComposeResult:
         with Container(id="update-panel-container"):
             yield OptionList(*self._options(), id="update-panel-list")
-            yield Static(_HINTS, id="update-panel-hints")
+            yield Static(_hint_text(), id="update-panel-hints")
 
     def on_mount(self) -> None:
         self._paint_chrome()
@@ -86,14 +93,26 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     def action_choose_everything(self) -> None:
         self._choose_scope("everything")
 
+    def action_apply_everything(self) -> None:
+        self._choose_scope("everything", auto_approve=True)
+
     def action_choose_sase(self) -> None:
         self._choose_scope("sase")
+
+    def action_apply_sase(self) -> None:
+        self._choose_scope("sase", auto_approve=True)
 
     def action_choose_providers(self) -> None:
         self._choose_scope("providers")
 
+    def action_apply_providers(self) -> None:
+        self._choose_scope("providers", auto_approve=True)
+
     def action_choose_agents(self) -> None:
         self._choose_scope("agents")
+
+    def action_apply_agents(self) -> None:
+        self._choose_scope("agents", auto_approve=True)
 
     def action_choose_highlighted(self) -> None:
         option_list = self.query_one("#update-panel-list", OptionList)
@@ -120,13 +139,15 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
                 self._choose_scope(row.scope)
                 return
 
-    def _choose_scope(self, scope: UpdateOptionScope) -> None:
+    def _choose_scope(
+        self, scope: UpdateOptionScope, *, auto_approve: bool = False
+    ) -> None:
         if self._chose:
             return
         if not any(row.scope == scope for row in self._state.rows):
             return
         self._chose = True
-        self.dismiss(UpdatePanelResult(scope=scope))
+        self.dismiss(UpdatePanelResult(scope=scope, auto_approve=auto_approve))
 
     def _paint_chrome(self, container: Container | None = None) -> None:
         if container is None:
@@ -150,7 +171,10 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
     def _row_prompt(self, row: UpdateOptionRow) -> Text:
         accent = self._rich_accent(row.accent)
         prompt = Text()
-        prompt.append(f"{row.key}  ", style=f"bold {accent}".strip())
+        prompt.append(row.key, style=f"bold {accent}".strip())
+        prompt.append("/", style="dim")
+        prompt.append(row.key.upper(), style=f"bold {CORE_UPDATE_ACCENT}")
+        prompt.append("  ")
         prompt.append(row.title, style="bold")
         chip = Text(row.chip.text, style=_chip_style(row.chip, accent))
         gap = max(1, _ROW_WIDTH - prompt.cell_len - chip.cell_len)
@@ -189,6 +213,21 @@ def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
     if chip.kind == "failed":
         return "red"
     return "dim"
+
+
+def _hint_text() -> Text:
+    """Two-line legend: preview vs apply-now, then secondary navigation."""
+    hints = Text()
+    hints.append("e s p a", style="bold")
+    hints.append("  preview", style="dim")
+    hints.append("  ·  ")
+    hints.append("E S P A", style=f"bold {CORE_UPDATE_ACCENT}")
+    hints.append("  ")
+    hints.append(_AUTO_APPROVE_GLYPH, style=f"bold {CORE_UPDATE_ACCENT}")
+    hints.append(" apply now · no prompt", style=CORE_UPDATE_ACCENT)
+    hints.append("\n")
+    hints.append("j/k move · ⏎ run · r re-check · q close", style="dim")
+    return hints
 
 
 __all__ = ["UpdatePanel", "UpdatePanelResult"]

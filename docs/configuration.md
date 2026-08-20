@@ -355,35 +355,40 @@ tooltip spells out both counts plus any manual-only CLI updates. Clicking the ba
 opens this tab without mutating anything.
 
 The global `,U` action opens the **Update panel** from already-fetched update and
-agents-sync snapshots (no Admin Center, no live inventory load). Choosing Everything,
-SASE, providers, or agents plans only that scope; the providers and agents legs still
-capture provider names and pending incoming hood cache items from the latest completed
-automatic snapshots and never add a newly discovered provider or a subsequently fetched
-hood to that invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
-unknown-provenance installs remain visible with manual guidance. The pane-wide `u`
-remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for the
-current agent-CLI inventory, and pane-wide `a` performs an explicit full-network sync of
-all enabled agents repositories.
+agents-sync snapshots (no Admin Center, no live inventory load). Lowercase `e` / `s` /
+`p` / `a` (or `⏎` / mouse on the highlighted row) choose Everything, SASE, providers, or
+agents and still require the final `y`/`n` confirmation. Capital `E` / `S` / `P` / `A`
+plan the same scopes and skip only that confirmation after a runnable preview succeeds;
+failed or already-current previews still do not mutate. The providers and agents legs
+still capture provider names and pending incoming hood cache items from the latest
+completed automatic snapshots and never add a newly discovered provider or a
+subsequently fetched hood to that invocation. Safe commands run sequentially; Homebrew,
+non-writable npm, and unknown-provenance installs remain visible with manual guidance.
+The pane-wide `u` remains SASE/core/plugins-only, pane-wide `A` remains the deliberate
+action for the current agent-CLI inventory, and pane-wide `a` performs an explicit
+full-network sync of all enabled agents repositories.
 
-Every mutation **previews first**, and long confirmation panes scroll with `Ctrl+D` /
-`Ctrl+U`. Plugin and core actions show the exact `uv` command or editable-checkout plan.
-When commit previews are enabled and a comparable range is available, confirmations for
-core and installed-plugin **updates** load incoming commits by repository in the
-background; install, uninstall, and mode-switch confirmations do not claim a commit
-range. An Everything confirmation from `,U` groups SASE, Agent CLI, and **Cached agent
-hoods** work into labeled sections with update/current/skipped glyphs, counts, and
-commands (home paths display as `~/`). The cached-hood section is runnable only when
-captured incoming hoods from other owners exist, and it lists their exact projects and
-hood counts. The tracked proc runs Agent CLI commands first, the SASE/core/plugin leg
-second, and cached agents integration last, reporting independent partial failures. `A`
-previews every exact agent-CLI command and every skip with its reason and docs URL; on
-the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely
-updatable installed CLI. Agent-CLI commands execute sequentially as one tracked proc and
-refresh the browser without restarting ACE; new agent launches naturally use the updated
-binaries. Installable plugins use `I` / `Space` marks, while updatable agent CLIs use
-`Space`; `Esc` clears marks in the active sub-tab before closing. All slow work runs off
-the event loop. Core/plugin code changes retain the existing automatic ACE/axe restart
-behavior after the other legs finish. The context-sensitive keymaps are:
+Admin Center mutations **preview first**, and long confirmation panes scroll with
+`Ctrl+D` / `Ctrl+U`. The Update panel's capital shortcuts are the documented exception:
+they skip only the final `y`/`n` after that same preview succeeds. Plugin and core
+actions show the exact `uv` command or editable-checkout plan. When commit previews are
+enabled and a comparable range is available, confirmations for core and installed-plugin
+**updates** load incoming commits by repository in the background; install, uninstall,
+and mode-switch confirmations do not claim a commit range. An Everything confirmation
+from `,U` groups SASE, Agent CLI, and **Cached agent hoods** work into labeled sections
+with update/current/skipped glyphs, counts, and commands (home paths display as `~/`).
+The cached-hood section is runnable only when captured incoming hoods from other owners
+exist, and it lists their exact projects and hood counts. The tracked proc runs Agent
+CLI commands first, the SASE/core/plugin leg second, and cached agents integration last,
+reporting independent partial failures. `A` previews every exact agent-CLI command and
+every skip with its reason and docs URL; on the Agent CLIs sub-tab it uses the marked
+subset, otherwise it targets every safely updatable installed CLI. Agent-CLI commands
+execute sequentially as one tracked proc and refresh the browser without restarting ACE;
+new agent launches naturally use the updated binaries. Installable plugins use `I` /
+`Space` marks, while updatable agent CLIs use `Space`; `Esc` clears marks in the active
+sub-tab before closing. All slow work runs off the event loop. Core/plugin code changes
+retain the existing automatic ACE/axe restart behavior after the other legs finish. The
+context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |

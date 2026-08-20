@@ -6145,26 +6145,28 @@ full discovery waits for the longer configured recompute cadence, and provider r
 lookups retain their own cache. The top bar renders purple/amber SASE and cyan `CLI`
 segments with separate counts.
 
-Every mutation opens a confirmation preview first, and `Ctrl+D` / `Ctrl+U` scroll long
-preview panes. When commit previews are enabled and a comparable range is available,
-core and installed-plugin **update** confirmations load incoming commits by repository
-in the background; install confirmations do not. The global `,U` chord opens the
-**Update panel** from already-fetched update and agents-sync snapshots — no Admin
-Center, no live inventory load. `e` / `s` / `p` / `a` (or `⏎` on the highlighted row)
-choose Everything, SASE, providers, or agents; `r` re-checks in place; `q` / `Esc`
-cancel. Choosing a row plans that scope as a background preview proc and then shows the
-same `y`/`n` confirmation ACE uses elsewhere, containing only the selected legs. An
-Everything confirmation groups SASE, Agent CLI, and agents-repository work into labeled
-sections with update/current/skipped glyphs, counts, and commands. Its **Agents repos**
-section uses a captured no-network status snapshot from the enabled-project inventory.
-Every represented project remains runnable even when its cached status is current;
-lifecycle-disabled projects are absent rather than shown as skipped. The tracked proc
-runs Agent CLI commands first, the SASE/core/plugin leg second, and one
-all-enabled-project agent sync last. A failure in the final leg is reported alongside
-the independent earlier results. After a changed core/plugin update restarts ACE, the
-one-shot result toast can show applied commits grouped by repository as well as
-file/line statistics. Configure the toast with `ace.updates.post_update_toast_commits`,
-`post_update_toast_max_commits`, and `post_update_toast_diffstat`.
+Every mutation still plans before it runs, and `Ctrl+D` / `Ctrl+U` scroll long preview
+panes. When commit previews are enabled and a comparable range is available, core and
+installed-plugin **update** confirmations load incoming commits by repository in the
+background; install confirmations do not. The global `,U` chord opens the **Update
+panel** from already-fetched update and agents-sync snapshots — no Admin Center, no live
+inventory load. `e` / `s` / `p` / `a` (or `⏎` on the highlighted row) choose Everything,
+SASE, providers, or agents and then show the same `y`/`n` confirmation ACE uses
+elsewhere, containing only the selected legs. `E` / `S` / `P` / `A` plan those same
+scopes and skip only that final confirmation after a runnable preview succeeds; failed
+or already-current previews still do not mutate. `r` re-checks in place; `q` / `Esc`
+cancel. An Everything confirmation groups SASE, Agent CLI, and agents-repository work
+into labeled sections with update/current/skipped glyphs, counts, and commands. Its
+**Agents repos** section uses a captured no-network status snapshot from the
+enabled-project inventory. Every represented project remains runnable even when its
+cached status is current; lifecycle-disabled projects are absent rather than shown as
+skipped. The tracked proc runs Agent CLI commands first, the SASE/core/plugin leg
+second, and one all-enabled-project agent sync last. A failure in the final leg is
+reported alongside the independent earlier results. After a changed core/plugin update
+restarts ACE, the one-shot result toast can show applied commits grouped by repository
+as well as file/line statistics. Configure the toast with
+`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
+`post_update_toast_diffstat`.
 
 The providers leg still captures the agent-CLI candidates from the latest completed
 automatic result, revalidates exactly those names, and never broadens the captured set

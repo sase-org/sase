@@ -198,7 +198,22 @@ async def test_letter_keys_dismiss_with_matching_scope() -> None:
             dismissed = await _push(pilot, UpdatePanel(_state()))
             await pilot.press(key)
             await pilot.pause()
-        assert dismissed == [UpdatePanelResult(scope=scope)]
+        assert dismissed == [UpdatePanelResult(scope=scope, auto_approve=False)]
+
+
+async def test_capital_keys_dismiss_with_auto_approve() -> None:
+    expected: dict[str, UpdateOptionScope] = {
+        "E": "everything",
+        "S": "sase",
+        "P": "providers",
+        "A": "agents",
+    }
+    for key, scope in expected.items():
+        async with _TestApp().run_test(size=(100, 40)) as pilot:
+            dismissed = await _push(pilot, UpdatePanel(_state()))
+            await pilot.press(key)
+            await pilot.pause()
+        assert dismissed == [UpdatePanelResult(scope=scope, auto_approve=True)]
 
 
 async def test_enter_on_default_highlight_yields_everything() -> None:
@@ -206,7 +221,7 @@ async def test_enter_on_default_highlight_yields_everything() -> None:
         dismissed = await _push(pilot, UpdatePanel(_state()))
         await pilot.press("enter")
         await pilot.pause()
-    assert dismissed == [UpdatePanelResult(scope="everything")]
+    assert dismissed == [UpdatePanelResult(scope="everything", auto_approve=False)]
 
 
 async def test_jk_move_and_enter_follows_highlight() -> None:
@@ -230,7 +245,7 @@ async def test_jk_move_and_enter_follows_highlight() -> None:
 
         await pilot.press("enter")
         await pilot.pause()
-    assert dismissed == [UpdatePanelResult(scope="sase")]
+    assert dismissed == [UpdatePanelResult(scope="sase", auto_approve=False)]
 
 
 async def test_escape_and_q_dismiss_none() -> None:
@@ -279,7 +294,7 @@ async def test_set_state_preserves_highlight() -> None:
 
         await pilot.press("enter")
         await pilot.pause()
-    assert dismissed == [UpdatePanelResult(scope="sase")]
+    assert dismissed == [UpdatePanelResult(scope="sase", auto_approve=False)]
 
 
 async def test_everything_row_keeps_key_and_chip_visible() -> None:
@@ -289,7 +304,7 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
         option_list = modal.query_one("#update-panel-list", OptionList)
         prompt = option_list.get_option_at_index(0).prompt
         plain = _prompt_plain(option_list.get_option_at_index(0))
-        assert plain.lstrip().startswith("e")
+        assert plain.lstrip().startswith("e/E")
         assert "Everything" in plain
         assert "↑ 6 available" in plain
         assert modal._rich_accent("$primary") == ""
@@ -297,6 +312,10 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
             key_style = str(prompt.spans[0].style) if prompt.spans else ""
             assert "bold" in key_style
             assert "#" not in key_style
+            capital_styles = " ".join(
+                str(span.style) for span in prompt.spans if span.style is not None
+            )
+            assert CORE_UPDATE_ACCENT in capital_styles
         modal.action_cancel()
         await pilot.pause()
     assert dismissed == [None]
@@ -315,14 +334,25 @@ async def test_never_checked_state_renders_four_selectable_rows() -> None:
         )
         everything = _prompt_plain(option_list.get_option_at_index(0))
         assert "Everything" in everything
+        assert "e/E" in everything
         assert "· not checked yet" in everything
-        hints = modal.query_one("#update-panel-hints", Static)
-        assert str(hints.content) == (
-            "e s p a select · j/k move · ⏎ run · r re-check · q close"
+        paired = [
+            _prompt_plain(option_list.get_option_at_index(index)) for index in range(4)
+        ]
+        assert all(
+            label in prompt
+            for prompt, label in zip(paired, ("e/E", "s/S", "p/P", "a/A"), strict=True)
         )
+        hints = modal.query_one("#update-panel-hints", Static)
+        hint_plain = _plain(hints.content)
+        assert "preview" in hint_plain
+        assert "apply now" in hint_plain
+        assert "no prompt" in hint_plain
+        assert "j/k move" in hint_plain
+        assert "r re-check" in hint_plain
         await pilot.press("a")
         await pilot.pause()
-    assert dismissed == [UpdatePanelResult(scope="agents")]
+    assert dismissed == [UpdatePanelResult(scope="agents", auto_approve=False)]
 
 
 async def test_border_chrome_uses_freshness_rechecking_and_stale_accent() -> None:
@@ -354,4 +384,21 @@ def test_option_selected_event_chooses_that_row(monkeypatch: Any) -> None:
     modal.on_option_list_option_selected(
         OptionList.OptionSelected(OptionList(), option, 2)
     )
-    assert dismissed == [UpdatePanelResult(scope="providers")]
+    assert dismissed == [UpdatePanelResult(scope="providers", auto_approve=False)]
+
+
+def test_choose_scope_dismisses_only_once(monkeypatch: Any) -> None:
+    modal = UpdatePanel(_state())
+    dismissed: list[object] = []
+    monkeypatch.setattr(modal, "dismiss", dismissed.append)
+    modal._choose_scope("everything", auto_approve=False)
+    modal._choose_scope("sase", auto_approve=True)
+    assert dismissed == [UpdatePanelResult(scope="everything", auto_approve=False)]
+
+
+def test_choose_scope_ignores_missing_row(monkeypatch: Any) -> None:
+    modal = UpdatePanel(_state(rows=(_row("sase"),)))
+    dismissed: list[object] = []
+    monkeypatch.setattr(modal, "dismiss", dismissed.append)
+    modal._choose_scope("everything", auto_approve=True)
+    assert dismissed == []
