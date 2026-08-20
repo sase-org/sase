@@ -372,6 +372,14 @@ def render_issue_detail(
             )
         )
 
+    if issue.links:
+        lines.extend(["", palette.section("LINKS")])
+        for link in issue.links:
+            lines.append(
+                f"  {palette.label(link.relation)}  "
+                f"{palette.path(link.target_ref)}  {link.description}"
+            )
+
     if issue.refs:
         from sase.artifact_ref_lists import (
             ArtifactRefListEntry,

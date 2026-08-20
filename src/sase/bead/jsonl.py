@@ -22,6 +22,7 @@ from sase.bead.close_history_codec import (
 )
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 from sase.bead.model import (
+    BeadLink,
     BeadTier,
     Dependency,
     Issue,
@@ -58,6 +59,28 @@ def _optional_aliased_str(
     if value is None or value == "":
         value = data.get(legacy_key, "")
     return _optional_str(value)
+
+
+def _links_from_data(value: object) -> list[BeadLink]:
+    if not isinstance(value, list):
+        return []
+    links: list[BeadLink] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        target_ref = str(item.get("target_ref") or "")
+        relation = str(item.get("relation") or "")
+        if not target_ref or not relation:
+            continue
+        links.append(
+            BeadLink(
+                target_ref=target_ref,
+                relation=relation,
+                description=str(item.get("description") or ""),
+                origin=str(item.get("origin") or "manual"),
+            )
+        )
+    return links
 
 
 def _plus_one_evidence_list(value: object) -> list[TaskPlusOneEvidence]:
@@ -108,6 +131,21 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "notes": issue.notes,
         "design": issue.design,
         **({"refs": issue.refs} if issue.refs else {}),
+        **(
+            {
+                "links": [
+                    {
+                        "target_ref": link.target_ref,
+                        "relation": link.relation,
+                        "description": link.description,
+                        "origin": link.origin,
+                    }
+                    for link in issue.links
+                ]
+            }
+            if issue.links
+            else {}
+        ),
         **(
             {
                 "plus_one_evidence": [
@@ -186,6 +224,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         notes=_optional_str(data.get("notes", "")),
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
+        links=_links_from_data(data.get("links")),
         plus_one_evidence=_plus_one_evidence_list(data.get("plus_one_evidence")),
         close_history=close_history_from_dicts(data.get("close_history")),
         snooze=snooze_from_dict(data.get("snooze")),

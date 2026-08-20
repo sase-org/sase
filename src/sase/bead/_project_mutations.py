@@ -438,6 +438,54 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return updated
 
+    def add_link(
+        self,
+        issue_id: str,
+        target_ref: str,
+        relation: str,
+        description: str,
+        *,
+        origin: str = "manual",
+    ) -> Issue:
+        """Record one typed outbound link on a bead."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue_id = self.resolve_id(issue_id)
+        issue, outcome = rust_beads.add_link(
+            self.beads_dir,
+            issue_id,
+            target_ref,
+            relation,
+            description,
+            origin=origin,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
+    def remove_link(
+        self,
+        issue_id: str,
+        target_ref: str,
+        *,
+        relation: str | None = None,
+    ) -> Issue:
+        """Remove one typed outbound link, or every edge to *target_ref*."""
+        from sase.core import bead_mutation_facade as rust_beads
+
+        issue_id = self.resolve_id(issue_id)
+        issue, outcome = rust_beads.remove_link(
+            self.beads_dir,
+            issue_id,
+            target_ref,
+            relation=relation,
+            now=self._current_time(),
+        )
+        self._record_mutation_outcome(outcome)
+        self._refresh_db_from_jsonl()
+        return issue
+
     def add_dependency(self, issue_id: str, depends_on_id: str) -> Dependency:
         """Add a dependency: issue_id depends on depends_on_id."""
         from sase.core import bead_mutation_facade as rust_beads

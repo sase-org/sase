@@ -132,25 +132,37 @@ def test_bead_endpoint_is_not_written_to_sidecar_json(
     assert rows[0]["source_ref"] == "plan:202608/a.md"
 
 
-def test_bead_bead_row_lives_only_in_the_aggregate(
+def test_bead_bead_row_lives_in_the_event_stream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(
-            _row(
-                source="bead:sase-js",
-                relation="related",
-                target="bead:sase-ct",
-                description="shares the ACE-TUI flake root cause",
-            )
-        )
-        store.rebuild_aggregate()
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
 
-    assert list((tmp_path / "plans").rglob("*.json")) == []
-    aggregate = store.load_aggregate()
-    assert len(aggregate["rows"]) == 1
-    assert aggregate["rows"][0]["relation"] == "related"
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        left = project.create("Left", IssueType.PLAN)
+        right = project.create("Right", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": tmp_path / "plans"},
+            beads_dir=project.beads_dir,
+        )
+        (tmp_path / "plans").mkdir(exist_ok=True)
+        with override_flags(artifact_links=True):
+            store.upsert_row(
+                _row(
+                    source=f"bead:{left.id}",
+                    relation="related",
+                    target=f"bead:{right.id}",
+                    description="shares the ACE-TUI flake root cause",
+                )
+            )
+
+        assert list((tmp_path / "plans").rglob("*.json")) == []
+        rows = store.load_artifact_rows(f"bead:{left.id}")
+        assert len(rows) == 1
+        assert rows[0]["relation"] == "related"
+        assert project.show(left.id).links[0].target_ref == f"bead:{right.id}"
 
 
 def test_undirected_related_is_idempotent(

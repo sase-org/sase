@@ -349,6 +349,49 @@ def remove_many(
     return issues_from_list(payload.get("issues", [])), payload
 
 
+def add_link(
+    beads_dir: Path | str,
+    issue_id: str,
+    target_ref: str,
+    relation: str,
+    description: str,
+    *,
+    origin: str = "manual",
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _require_artifact_links_flag()
+    _guard_bead_store_write(beads_dir, "add_link")
+    binding = require_rust_binding("bead_add_link")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        issue_id,
+        target_ref,
+        relation,
+        description,
+        origin,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
+def remove_link(
+    beads_dir: Path | str,
+    issue_id: str,
+    target_ref: str,
+    *,
+    relation: str | None = None,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _require_artifact_links_flag()
+    _guard_bead_store_write(beads_dir, "remove_link")
+    binding = require_rust_binding("bead_remove_link")
+    payload = _call_issue_operation(
+        binding, str(beads_dir), issue_id, target_ref, relation, now
+    )
+    return _issue_payload(payload), payload
+
+
 def add_dependency(
     beads_dir: Path | str,
     issue_id: str,
@@ -429,6 +472,20 @@ def export_jsonl(beads_dir: Path | str) -> dict[str, Any]:
     return dict(binding(str(beads_dir)))
 
 
+def _require_artifact_links_flag() -> None:
+    from sase.sdd.artifact_link_store import (
+        ArtifactLinksDisabledError,
+        artifact_links_enabled,
+    )
+
+    if not artifact_links_enabled():
+        raise ArtifactLinksDisabledError(
+            "feature flag `artifact_links` is disabled; enable it to write typed "
+            "artifact links. Existing v1 Referenced By projections in links/ keep "
+            "updating."
+        )
+
+
 def _guard_bead_store_write(beads_dir: Path | str, operation: str) -> None:
     assert_bead_store_write_sandboxed(beads_dir, operation=operation)
 
@@ -496,6 +553,7 @@ def _normalize_patch_field_aliases(
 
 __all__ = [
     "add_dependency",
+    "add_link",
     "append_note",
     "cancel_snooze",
     "claim_for_agent_launch",
@@ -510,6 +568,7 @@ __all__ = [
     "release_agent_claim",
     "remove",
     "remove_dependencies",
+    "remove_link",
     "remove_many",
     "snooze",
     "unmark_ready_to_work",

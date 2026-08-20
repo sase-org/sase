@@ -7,6 +7,7 @@ from typing import Any
 from sase.bead.close_history_codec import close_history_from_dicts
 from sase.bead.snooze_codec import snooze_from_dict
 from sase.bead.model import (
+    BeadLink,
     BeadSearchMatch,
     BeadTier,
     Dependency,
@@ -105,6 +106,7 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             for reference in data.get("refs") or []
             if reference is not None
         ],
+        links=_links_from_data(data.get("links")),
         plus_one_evidence=[
             TaskPlusOneEvidence(
                 timestamp=str(evidence.get("timestamp", "")),
@@ -155,6 +157,29 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
             for dep in data.get("dependencies", [])
         ],
     )
+
+
+def _links_from_data(value: object) -> list[BeadLink]:
+    if not isinstance(value, list):
+        return []
+    links: list[BeadLink] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        target_ref = str(item.get("target_ref") or "")
+        relation = str(item.get("relation") or "")
+        description = str(item.get("description") or "")
+        if not target_ref or not relation:
+            continue
+        links.append(
+            BeadLink(
+                target_ref=target_ref,
+                relation=relation,
+                description=description,
+                origin=str(item.get("origin") or "manual"),
+            )
+        )
+    return links
 
 
 def _task_type_fields_from_data(value: object) -> dict[str, str]:

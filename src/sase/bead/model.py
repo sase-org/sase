@@ -62,6 +62,16 @@ class Dependency:
 
 
 @dataclass(frozen=True)
+class BeadLink:
+    """One outbound typed link stored on a bead."""
+
+    target_ref: str
+    relation: str
+    description: str
+    origin: str = "manual"
+
+
+@dataclass(frozen=True)
 class TaskPlusOneEvidence:
     timestamp: str
     reporter: str
@@ -194,6 +204,7 @@ class Issue:
     notes: str = ""
     design: str = ""
     refs: list[str] = field(default_factory=list)
+    links: list[BeadLink] = field(default_factory=list)
     plus_one_evidence: list[TaskPlusOneEvidence] = field(default_factory=list)
     close_history: list[CloseRecord] = field(default_factory=list)
     snooze: SnoozeRecord | None = None

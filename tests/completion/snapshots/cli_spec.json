@@ -3079,6 +3079,88 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "9a7981a4f27eb4cd",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "link",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "artifact",
+              "link"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "c2f533a23caf853c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "migrate-notes",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "apply",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--apply"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "migrate-notes"
+                ],
+                "positionals": [],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "db647dbe7dfa2fe8",
             "hidden": false,
             "mutex_groups": [],

@@ -1,9 +1,10 @@
 """Per-artifact v2 link truth, rebuildable aggregate, and ``artifact_links`` gate.
 
 Beads, agents, and stitches are not written into sidecar ``links/`` JSON.
-Until the beads phase owns event-stream truth, bead-bead rows live only in
-the project aggregate as a cache. v1 Referenced By files remain readable and
-are migrated in memory (and rewritten to v2 on the first flag-on write).
+Bead truth is the event stream; this adapter asks the bead store for those
+rows and rebuilds the aggregate from sidecar JSON plus bead events. v1
+Referenced By files remain readable and are migrated in memory (and rewritten
+to v2 on the first flag-on write).
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ ARTIFACT_LINK_AGGREGATE_FILENAME = "artifact-links.json"
 NON_SIDECAR_KINDS = frozenset({"agent", "bead", "stitch"})
 _PLANS_ROLE = "plans"
 _PLAN_KIND = "plan"
+_BEAD_KIND = "bead"
 
 
 class ArtifactLinksDisabledError(RuntimeError):
@@ -194,6 +196,7 @@ class ArtifactLinkStore:
 
     project_key: str
     sidecar_roots: Mapping[str, Path]
+    beads_dir: Path | None = None
 
     @classmethod
     def from_sdd_store(cls, store: SddStore, project_key: str) -> ArtifactLinkStore:
@@ -208,7 +211,11 @@ class ArtifactLinkStore:
                 )
             except Exception:  # noqa: BLE001 - skip unresolved sidecars
                 continue
-        return cls(project_key=project_key, sidecar_roots=roots)
+        beads_dir = store.beads_dir
+        if beads_dir is not None:
+            resolved = beads_dir.expanduser().resolve(strict=False)
+            beads_dir = resolved if resolved.is_dir() else None
+        return cls(project_key=project_key, sidecar_roots=roots, beads_dir=beads_dir)
 
     def sidecar_root_for(self, artifact_ref: str) -> Path | None:
         """Return the sidecar root that should store *artifact_ref*, if any."""
@@ -237,7 +244,10 @@ class ArtifactLinkStore:
             written = self._upsert_sidecar(ref, validated)
             if written is not None:
                 outcome = written
-        if self._is_aggregate_only(validated):
+        bead_written = self._upsert_bead(validated)
+        if bead_written is not None:
+            outcome = bead_written
+        elif self._is_aggregate_only(validated):
             outcome = self._upsert_aggregate_row(validated)
         rebuilt = self.rebuild_aggregate()
         return outcome or {
@@ -275,6 +285,9 @@ class ArtifactLinkStore:
                 )
             )
         dropped.extend(
+            self._remove_bead_rows(source=source, target=target, relation=relation)
+        )
+        dropped.extend(
             self._remove_aggregate_rows(source=source, target=target, relation=relation)
         )
         self.rebuild_aggregate()
@@ -291,6 +304,8 @@ class ArtifactLinkStore:
                 artifact_ref=canonical,
             )
             return tuple(dict(row) for row in index.get("rows", []))
+        if self.beads_dir is not None and _kind_of_ref(canonical) == _BEAD_KIND:
+            return self._load_bead_rows(canonical)
         return tuple(
             dict(row)
             for row in self.load_aggregate().get("rows", [])
@@ -319,8 +334,11 @@ class ArtifactLinkStore:
         """Return the aggregate that a rebuild would write, without writing it."""
 
         collected = list(self._iter_sidecar_rows())
+        collected.extend(self._iter_bead_rows())
         for row in self.load_aggregate().get("rows", []):
-            if self._is_aggregate_only(row):
+            if self._is_aggregate_only(row) and not (
+                self.beads_dir is not None and _row_has_bead_endpoint(row)
+            ):
                 collected.append(row)
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -328,7 +346,7 @@ class ArtifactLinkStore:
         }
 
     def rebuild_aggregate(self) -> dict[str, Any]:
-        """Rebuild ``artifact-links.json`` from sidecar JSON plus bead-bead cache."""
+        """Rebuild ``artifact-links.json`` from sidecar JSON plus bead events."""
 
         document = self.preview_aggregate()
         self._write_aggregate(document)
@@ -445,6 +463,98 @@ class ArtifactLinkStore:
             atomic_write_json(path, document)
         return outcome
 
+    def _upsert_bead(self, incoming: Mapping[str, Any]) -> dict[str, Any] | None:
+        if self.beads_dir is None:
+            return None
+        from sase.sdd.artifact_link_beads import (
+            add_bead_endpoint_link,
+            bead_id_from_ref,
+        )
+
+        issue_id = bead_id_from_ref(str(incoming["source_ref"]))
+        if issue_id is None:
+            return None
+        created_at = str(incoming.get("created_at") or "").strip() or None
+        payload = add_bead_endpoint_link(
+            self.beads_dir,
+            issue_id=issue_id,
+            target_ref=str(incoming["target_ref"]),
+            relation=str(incoming["relation"]),
+            description=str(incoming["description"]),
+            origin=str(incoming.get("origin") or "manual"),
+            now=created_at,
+        )
+        return {
+            "kind": "added" if payload.get("changed") else "unchanged",
+            "row": dict(incoming),
+            "rows": [dict(row) for row in payload.get("rows", [])],
+        }
+
+    def _remove_bead_rows(
+        self,
+        *,
+        source: str,
+        target: str,
+        relation: str | None,
+    ) -> list[dict[str, Any]]:
+        if self.beads_dir is None:
+            return []
+        from sase.sdd.artifact_link_beads import (
+            bead_id_from_ref,
+            remove_bead_endpoint_link,
+        )
+
+        before = [
+            row
+            for row in self._iter_bead_rows()
+            if _pair_matches(row, source=source, target=target, relation=relation)
+        ]
+        if not before:
+            return []
+        seen_ids: set[str] = set()
+        for ref, other in ((source, target), (target, source)):
+            issue_id = bead_id_from_ref(ref)
+            if issue_id is None or issue_id in seen_ids:
+                continue
+            seen_ids.add(issue_id)
+            remove_bead_endpoint_link(
+                self.beads_dir,
+                issue_id=issue_id,
+                target_ref=other,
+                relation=relation,
+            )
+        return before
+
+    def _load_bead_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:
+        from sase.sdd.artifact_link_beads import bead_id_from_ref, rows_touching_bead
+
+        issue_id = bead_id_from_ref(artifact_ref)
+        if issue_id is None:
+            return ()
+        extra = [
+            row for row in self._iter_sidecar_rows() if _row_touches(row, artifact_ref)
+        ]
+        return rows_touching_bead(
+            self._list_bead_issues(),
+            issue_id,
+            extra_rows=extra,
+        )
+
+    def _iter_bead_rows(self) -> Iterable[dict[str, Any]]:
+        if self.beads_dir is None:
+            return
+        from sase.sdd.artifact_link_beads import rows_from_bead_issues
+
+        yield from rows_from_bead_issues(self._list_bead_issues())
+
+    def _list_bead_issues(self) -> tuple[Any, ...]:
+        if self.beads_dir is None:
+            return ()
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
+
+        with open_bead_project_for_beads_dir(self.beads_dir) as project:
+            return tuple(project.list_issues())
+
     def _write_aggregate(self, document: Mapping[str, Any]) -> None:
         path = artifact_link_aggregate_path(self.project_key)
         with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
@@ -493,6 +603,13 @@ def _pair_matches(
     if relation is None:
         return True
     return str(row.get("relation") or "") == relation
+
+
+def _row_has_bead_endpoint(row: Mapping[str, Any]) -> bool:
+    source = str(row.get("source_ref") or "")
+    target = str(row.get("target_ref") or "")
+    prefix = f"{_BEAD_KIND}:"
+    return source.startswith(prefix) or target.startswith(prefix)
 
 
 def _row_touches(row: Mapping[str, Any], artifact_ref: str) -> bool:

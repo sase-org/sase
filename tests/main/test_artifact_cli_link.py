@@ -197,7 +197,19 @@ def test_add_rejects_reserved_and_machine_relations(
 
 def test_migrate_notes_apply_requires_flag_and_dry_run_succeeds(
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    class _View:
+        def __enter__(self) -> _View:
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def list_issues(self) -> tuple[object, ...]:
+            return ()
+
+    monkeypatch.setattr("sase.bead.cli_common.get_read_view", lambda: _View())
     with override_flags(artifact_links=False):
         assert (
             handle_link_migrate_notes(argparse.Namespace(apply=True, json=False)) == 1
@@ -209,6 +221,7 @@ def test_migrate_notes_apply_requires_flag_and_dry_run_succeeds(
     payload = json.loads(capsys.readouterr().out)
     assert payload["mode"] == "dry_run"
     assert payload["converted"] == []
+    assert payload["worklist"] == []
 
 
 def test_parser_link_add_uses_positionals() -> None:

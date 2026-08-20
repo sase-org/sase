@@ -74,6 +74,15 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "notes": issue.notes,
         "design": issue.design,
         **({"refs": list(issue.refs)} if issue.refs else {}),
+        "links": [
+            {
+                "target_ref": link.target_ref,
+                "relation": link.relation,
+                "description": link.description,
+                "origin": link.origin,
+            }
+            for link in issue.links
+        ],
         "plus_one_count": issue.plus_one_count,
         "plus_one_evidence": [
             {
