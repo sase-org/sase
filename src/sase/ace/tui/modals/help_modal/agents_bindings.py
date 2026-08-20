@@ -5,6 +5,7 @@ from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
     PROMPT_INPUT_SECTION,
+    admin_center_opener_help_label,
     Sections,
     custom_mode_sections,
     glossary_panel_section,
@@ -486,7 +487,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),
-                    "Admin Center: 1-7 jump, # back",
+                    admin_center_opener_help_label(),
                 ),
                 (d(a.show_help), "Show this help"),
                 (

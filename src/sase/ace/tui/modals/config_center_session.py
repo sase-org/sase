@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from .config_hub_session import ConfigHubSessionState
+
 ProjectsSubTab = Literal["projects", "repos", "workspaces"]
 UpdatesSubTab = Literal["core", "plugins", "agent-clis"]
 
@@ -92,10 +94,12 @@ class AdminCenterSessionState:
     projects: ProjectsSessionState = field(default_factory=ProjectsSessionState)
     updates: UpdatesSessionState = field(default_factory=UpdatesSessionState)
     xprompts: SelectionBookmark = field(default_factory=SelectionBookmark)
+    config_hub: ConfigHubSessionState = field(default_factory=ConfigHubSessionState)
 
 
 __all__ = [
     "AdminCenterSessionState",
+    "ConfigHubSessionState",
     "ProcsSessionState",
     "ProjectsSessionState",
     "ProjectsSubTab",

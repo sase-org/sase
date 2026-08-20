@@ -24,13 +24,18 @@ else:
 class ConfigFilterInput(Input):
     """Filter/jump input with pane-local escape handling.
 
-    Brackets remain ordinary filter text; ``escape`` returns focus to the tree
-    without leaving a stale filter. The Admin Center's priority ``Tab`` /
-    ``Shift+Tab`` bindings handle main-tab navigation while this input is
-    focused.
+    Brackets remain ordinary filter text unless this pane is nested in the
+    Config hub, in which case they cycle Config sub-tabs. ``escape`` returns
+    focus to the tree without leaving a stale filter. The Admin Center's
+    priority ``Tab`` / ``Shift+Tab`` bindings handle main-tab navigation
+    while this input is focused.
     """
 
     def on_key(self, event: events.Key) -> None:
+        from .config_hub_keys import handle_config_hub_bracket_key
+
+        if handle_config_hub_bracket_key(self, event):
+            return
         if event.key == "escape":
             pane = self._pane()
             if pane is not None:

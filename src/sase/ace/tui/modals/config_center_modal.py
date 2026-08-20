@@ -2,14 +2,16 @@
 
 The first unqualified ``#`` action opens a lightweight landing page. Repeating
 the configured opener resumes the last section used in this or a previous ACE
-process. The seven alphabetical working tabs are otherwise created only when
-the user explicitly enters one with ``1``-``7``, ``Tab`` / ``Shift+Tab``, or
-the clickable tab strip. Mounted panes are cached for the lifetime of the
-modal, so returning to a tab preserves its selection and other pane-local
-state.
+process. Working tabs are otherwise created only when the user explicitly
+enters one with numbered keys, ``Tab`` / ``Shift+Tab``, or the clickable tab
+strip. Mounted panes are cached for the lifetime of the modal, so returning
+to a tab preserves its selection and other pane-local state.
 
-Direct-entry actions may still pass ``initial_tab`` to open exactly one pane.
-Pane-local sub-tabs continue to use ``]`` / ``[`` where provided.
+With ``admin_center_config_hub`` disabled there are seven working tabs,
+including a top-level XPrompts section. With the flag enabled there are six,
+and Config hosts the nested catalog. Direct-entry actions may still pass
+``initial_tab`` to open exactly one pane. Pane-local sub-tabs continue to
+use ``]`` / ``[`` where provided.
 """
 
 from __future__ import annotations
@@ -42,9 +44,16 @@ from .config_center_catalog import (
     CenterTab as CenterTab,
     CenterTabSpec,
     PaneFactory as PaneFactory,
+    active_panel_tabs,
+    active_tab_by_id,
+    active_tab_by_number,
+    active_tab_order,
+    active_tab_specs,
     center_tab_accent as center_tab_accent,
+    config_hub_enabled,
     validated_center_tab as validated_center_tab,
 )
+from .config_hub_session import ConfigHubEntry
 from .config_center_footer import AdminCenterFooter
 from .config_center_history import (
     AdminCenterTabHistory,
@@ -117,15 +126,29 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         log_error_target: RegisteredError | None = None,
         session_state: AdminCenterSessionState | None = None,
         on_tab_activated: Callable[[CenterTab], None] | None = None,
+        config_entry: ConfigHubEntry | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._log_error_target = log_error_target
         self._session_state = session_state or AdminCenterSessionState()
-        self._initial_tab = validated_center_tab(initial_tab)
-        self._resume_tab = validated_center_tab(resume_tab)
+        self._hub_enabled = config_hub_enabled()
+        self._tab_specs = active_tab_specs(hub_enabled=self._hub_enabled)
+        self._tab_by_id = active_tab_by_id(hub_enabled=self._hub_enabled)
+        self._tab_by_number = active_tab_by_number(hub_enabled=self._hub_enabled)
+        self._tab_order = active_tab_order(hub_enabled=self._hub_enabled)
+        self._panel_tabs = active_panel_tabs(hub_enabled=self._hub_enabled)
+        self._config_entry = config_entry
+        requested_tab = "config" if config_entry is not None else initial_tab
+        self._initial_tab = validated_center_tab(
+            requested_tab, hub_enabled=self._hub_enabled
+        )
+        self._resume_tab = validated_center_tab(
+            resume_tab, hub_enabled=self._hub_enabled
+        )
         self._history: AdminCenterTabHistory = validated_admin_center_tab_history(
-            self._resume_tab, validated_center_tab(alternate_tab)
+            self._resume_tab,
+            validated_center_tab(alternate_tab, hub_enabled=self._hub_enabled),
         )
         self._on_tab_activated = on_tab_activated
         self._opener_binding = (
@@ -172,7 +195,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                 id="config-center-title-underline",
             )
             yield PanelTabStrip(
-                _PANEL_TABS,
+                self._panel_tabs,
                 None,
                 show_numbers=True,
                 compact_below=95,
@@ -188,6 +211,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     self._resume_tab,
                     self._opener_binding,
                     self._schedule_switch,
+                    tab_specs=self._tab_specs,
                     id=_HOME_ID,
                 )
             footer = AdminCenterFooter(self._schedule_switch, id="config-center-footer")
@@ -232,7 +256,18 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                 and not self._initial_navigation_pending
                 and self._history.alternate is not None
             )
+        if action in ("next_center_tab", "prev_center_tab"):
+            if self._child_owns_tab_keys():
+                return False
         return super().check_action(action, parameters)
+
+    def _child_owns_tab_keys(self) -> bool:
+        """Let Glossary/Memory/Snippets keep Tab for relationship travel."""
+        if not self._hub_enabled or self._active_tab != "config":
+            return False
+        pane = self._active_pane()
+        owns = getattr(pane, "child_owns_tab_keys", None)
+        return bool(callable(owns) and owns())
 
     def _active_pane(self) -> Widget | None:
         """Return the stable, currently visible working pane."""
@@ -242,7 +277,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
 
     def _create_pane(self, tab: CenterTab) -> Widget:
         """Construct one requested pane through the immutable tab catalog."""
-        return _TAB_BY_ID[tab].factory(self)
+        return self._tab_by_id[tab].factory(self)
 
     def _focus_active_pane(self) -> None:
         pane = self._active_pane()
@@ -300,7 +335,9 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         strip.set_active_tab(tab)
         description = self.query_one("#config-center-tab-description", Static)
         description.update(
-            home_orientation_text() if tab is None else tab_description_text(tab)
+            home_orientation_text()
+            if tab is None
+            else tab_description_text(tab, specs=self._tab_by_id)
         )
         footer = self.query_one("#config-center-footer", AdminCenterFooter)
         footer.display = tab is not None
@@ -319,7 +356,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             try:
                 pane = await self._ensure_pane(tab)
             except Exception as exc:
-                spec = _TAB_BY_ID[tab]
+                spec = self._tab_by_id[tab]
                 self.notify(
                     f"Could not open {spec.label}: {exc}",
                     severity="error",
@@ -346,7 +383,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     pass
                 self._set_pane_active(previous_pane, True)
                 self.notify(
-                    f"Could not open {_TAB_BY_ID[tab].label}: {exc}",
+                    f"Could not open {self._tab_by_id[tab].label}: {exc}",
                     severity="error",
                 )
                 return False
@@ -385,26 +422,26 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             self._schedule_switch(alternate)
 
     def action_prev_center_tab(self) -> None:
-        """Enter XPrompts from home or select the previous working tab."""
+        """Enter the last working tab from home or select the previous tab."""
         if self._active_tab is None:
-            tab = _TAB_ORDER[-1]
+            tab = self._tab_order[-1]
         else:
-            index = _TAB_ORDER.index(self._active_tab)
-            tab = _TAB_ORDER[(index - 1) % len(_TAB_ORDER)]
+            index = self._tab_order.index(self._active_tab)
+            tab = self._tab_order[(index - 1) % len(self._tab_order)]
         self._schedule_switch(tab)
 
     def action_next_center_tab(self) -> None:
         """Enter Config from home or select the next working tab."""
         if self._active_tab is None:
-            tab = _TAB_ORDER[0]
+            tab = self._tab_order[0]
         else:
-            index = _TAB_ORDER.index(self._active_tab)
-            tab = _TAB_ORDER[(index + 1) % len(_TAB_ORDER)]
+            index = self._tab_order.index(self._active_tab)
+            tab = self._tab_order[(index + 1) % len(self._tab_order)]
         self._schedule_switch(tab)
 
     def action_focus_center_tab(self, number: int) -> None:
         """Switch to a numbered tab; out-of-range digits remain swallowed."""
-        spec = _TAB_BY_NUMBER.get(number)
+        spec = self._tab_by_number.get(number)
         if spec is not None:
             self._schedule_switch(spec.id)
 
@@ -412,5 +449,5 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
     def _on_tab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
         """Handle mouse selection of a working tab."""
         event.stop()
-        if event.tab_id in _TAB_ORDER:
+        if event.tab_id in self._tab_order:
             self._schedule_switch(cast(CenterTab, event.tab_id))

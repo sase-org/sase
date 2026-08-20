@@ -22,8 +22,15 @@ from .config_center_catalog import (
 _HOME_ID = "admin-center-home"
 _HOME_LEAD = "Choose a section"
 _HOME_ORIENTATION = "Configure, observe, and maintain SASE from one place."
-_HOME_HINT_NAV = "1-7 or click a section · Tab/Shift+Tab cycle · q/Esc close"
-_HOME_HINT_NAV_COMPACT = "1-7/click · Tab cycle · q/Esc close"
+
+
+def _home_hint_nav(tab_count: int, *, compact: bool) -> str:
+    """Return the landing navigation hint for ``tab_count`` working sections."""
+    if compact:
+        return f"1-{tab_count}/click · Tab cycle · q/Esc close"
+    return f"1-{tab_count} or click a section · Tab/Shift+Tab cycle · q/Esc close"
+
+
 _HOME_LABEL_WIDTH = max(len(spec.label) for spec in _TAB_SPECS)
 _HOME_DESCRIPTION_WIDTH = max(len(spec.description) for spec in _TAB_SPECS)
 _HOME_ROOMY_ROW_WIDTH = 3 + 2 + _HOME_LABEL_WIDTH + 1 + _HOME_DESCRIPTION_WIDTH
@@ -77,9 +84,13 @@ def gradient_text(content: str, *, bold: bool) -> Text:
     return text
 
 
-def tab_description_text(tab: CenterTab) -> Text:
+def tab_description_text(
+    tab: CenterTab,
+    *,
+    specs: dict[CenterTab, CenterTabSpec] | None = None,
+) -> Text:
     """Render the active-tab caption in its accent color."""
-    spec = _TAB_BY_ID[tab]
+    spec = (specs or _TAB_BY_ID)[tab]
     return Text(f"› {spec.description}", style=spec.accent)
 
 
@@ -112,11 +123,14 @@ def home_hint_text(
     opener_binding: str,
     *,
     compact: bool,
+    tab_count: int = 7,
+    specs: dict[CenterTab, CenterTabSpec] | None = None,
 ) -> Text:
     """Render the landing's one-row, catalog-derived resume affordance."""
-    spec = _TAB_BY_ID.get(resume_tab) if resume_tab is not None else None
+    catalog = specs or _TAB_BY_ID
+    spec = catalog.get(resume_tab) if resume_tab is not None else None
     accent = spec.accent if spec is not None else _TITLE_GRADIENT[0]
-    navigation = _HOME_HINT_NAV_COMPACT if compact or spec is None else _HOME_HINT_NAV
+    navigation = _home_hint_nav(tab_count, compact=compact or spec is None)
 
     text = Text()
     text.append(f" {key_display_name(opener_binding)} ", style=f"bold reverse {accent}")
@@ -206,12 +220,16 @@ class AdminCenterLanding(VerticalScroll):
         resume_tab: CenterTab | None,
         opener_binding: str,
         on_select: Callable[[CenterTab], None],
+        *,
+        tab_specs: tuple[CenterTabSpec, ...] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._resume_tab = resume_tab
         self._opener_binding = opener_binding
         self._on_select = on_select
+        self._tab_specs = tab_specs if tab_specs is not None else _TAB_SPECS
+        self._tab_by_id = {spec.id: spec for spec in self._tab_specs}
         self._compact: bool | None = None
 
     def compose(self) -> ComposeResult:
@@ -222,13 +240,15 @@ class AdminCenterLanding(VerticalScroll):
                 markup=False,
             )
             with Vertical(id="admin-center-home-card"):
-                for spec in _TAB_SPECS:
+                for spec in self._tab_specs:
                     yield AdminCenterLandingRow(spec, self._on_select)
             yield Static(
                 home_hint_text(
                     self._resume_tab,
                     self._opener_binding,
                     compact=False,
+                    tab_count=len(self._tab_specs),
+                    specs=self._tab_by_id,
                 ),
                 id="admin-center-home-hint",
                 markup=False,
@@ -251,5 +271,7 @@ class AdminCenterLanding(VerticalScroll):
                 self._resume_tab,
                 self._opener_binding,
                 compact=compact,
+                tab_count=len(self._tab_specs),
+                specs=self._tab_by_id,
             )
         )

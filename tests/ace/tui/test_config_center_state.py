@@ -69,6 +69,22 @@ def test_legacy_tasks_current_migrates_to_procs_on_load(
     assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
 
 
+def test_hub_enabled_maps_persisted_xprompts_resume_to_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.feature_flags import override_flags
+
+    home = _use_sase_home(monkeypatch, tmp_path)
+    home.mkdir(parents=True)
+    (home / "ace_admin_center_last_tab.txt").write_bytes(b"xprompts\n")
+
+    with override_flags(admin_center_config_hub=True):
+        assert load_admin_center_tab_history() == AdminCenterTabHistory(
+            current="config"
+        )
+
+
 def test_legacy_tasks_alternate_migrates_to_procs_on_load(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

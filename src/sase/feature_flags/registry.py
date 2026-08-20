@@ -21,6 +21,7 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    admin_center_config_hub = "admin_center_config_hub"
     artifact_links = "artifact_links"
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
     commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
@@ -32,6 +33,16 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.admin_center_config_hub: FeatureFlagDefinition(
+        key=FeatureFlag.admin_center_config_hub,
+        kind="beta",
+        description=(
+            "Opt-in beta: Config becomes a nested catalog of XPrompts, "
+            "Snippets, Glossary, Memory, and Misc, and prompt shortcuts "
+            "open those children inside the Admin Center."
+        ),
+        bead="sase-rk",
+    ),
     FeatureFlag.artifact_links: FeatureFlagDefinition(
         key=FeatureFlag.artifact_links,
         kind="beta",

@@ -3629,6 +3629,11 @@
         "type": "boolean"
       },
       "properties": {
+        "admin_center_config_hub": {
+          "type": "boolean",
+          "description": "Opt-in beta: Config becomes a nested catalog of XPrompts, Snippets, Glossary, Memory, and Misc, and prompt shortcuts open those children inside the Admin Center.",
+          "default": false
+        },
         "artifact_links": {
           "type": "boolean",
           "description": "Agents add typed artifact links, sase artifact read records a read edge, prompt refs write cites, and Markdown artifacts render Links and Referenced By tables from the unified graph.",

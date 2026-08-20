@@ -538,6 +538,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         initial_tab: Any,
         *,
         log_error_target: Any = None,
+        config_entry: Any = None,
+        on_dismissed: Any = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals.config_center_modal import (
@@ -559,6 +561,11 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             session_state = AdminCenterSessionState()
             self._admin_center_session_state = session_state
 
+        def _callback(result: object | None = None) -> None:
+            self._on_config_center_dismissed(result)
+            if on_dismissed is not None:
+                on_dismissed(result)
+
         self.push_screen(  # type: ignore[attr-defined]
             ConfigCenterModal(
                 initial_tab=initial_tab,
@@ -568,8 +575,9 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 log_error_target=log_error_target,
                 session_state=session_state,
                 on_tab_activated=self._on_admin_center_tab_activated,
+                config_entry=config_entry,
             ),
-            self._on_config_center_dismissed,
+            _callback,
         )
 
     def _on_config_center_dismissed(self, result: object | None = None) -> None:

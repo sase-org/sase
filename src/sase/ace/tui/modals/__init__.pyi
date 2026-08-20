@@ -67,6 +67,9 @@ from .command_input_modal import CommandInputModal as CommandInputModal
 from .command_palette_modal import CommandPaletteModal as CommandPaletteModal
 from .commit_view_modal import CommitViewModal as CommitViewModal
 from .config_center_modal import ConfigCenterModal as ConfigCenterModal
+from .config_hub_session import ConfigHubEntry as ConfigHubEntry
+from .config_hub_pane import ConfigHubPane as ConfigHubPane
+from .config_hub_session import ConfigHubSessionState as ConfigHubSessionState
 from .config_transaction import (
     ConfigTransactionApplyResult as ConfigTransactionApplyResult,
 )

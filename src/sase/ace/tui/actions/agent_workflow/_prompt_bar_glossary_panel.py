@@ -40,6 +40,25 @@ class PromptBarGlossaryPanelMixin:
         def _on_dismissed(_result: object) -> None:
             self._restore_glossary_prompt_focus(restore)
 
+        from sase.feature_flags import FeatureFlag, current_flags
+
+        from ...modals.config_hub_session import ConfigHubEntry
+
+        opener = getattr(self, "_open_config_center", None)
+        if current_flags().enabled(FeatureFlag.admin_center_config_hub) and callable(
+            opener
+        ):
+            opener(
+                "config",
+                config_entry=ConfigHubEntry(
+                    subtab="glossary",
+                    launch_workspace=launch_workspace,
+                    term=event.term,
+                ),
+                on_dismissed=_on_dismissed,
+            )
+            return
+
         self.push_screen(  # type: ignore[attr-defined]
             GlossaryPanel(
                 launch_workspace=launch_workspace,

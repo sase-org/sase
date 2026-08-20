@@ -46,11 +46,12 @@ class BrowserFilterInput(Input):
         become text.
 
         While the filter is empty, digit keys are likewise reserved for the
-        Admin Center's numbered tab keymaps: ``1``-``7`` jump to a tab and the
-        out-of-range ``8``-``9``/``0`` are swallowed no-ops via the same modal
-        action. Once the filter holds text, digits fall through to normal
+        Admin Center's numbered tab keymaps: in-range digits jump to a tab and
+        out-of-range digits are swallowed no-ops via the same modal action.
+        Once the filter holds text, digits fall through to normal
         :class:`Input` editing so values such as ``bug2`` or ``2026`` can be
-        typed.
+        typed. When this pane is nested in the Config hub, ``[`` / ``]``
+        cycle Config sub-tabs instead of becoming filter text.
 
         The apostrophe key follows the same empty-filter reservation: with no
         filter text, it arms the pane's adaptive jump hints instead of being
@@ -68,6 +69,11 @@ class BrowserFilterInput(Input):
             if pane.handle_jump_key(key):
                 event.stop()
                 event.prevent_default()
+            return
+
+        from .config_hub_keys import handle_config_hub_bracket_key
+
+        if handle_config_hub_bracket_key(self, event):
             return
 
         if event.key == "apostrophe" and not self.value and pane is not None:

@@ -103,6 +103,11 @@ class _SnippetsFilterInput(FilterInput):
 
     BINDINGS = [*FilterInput.BINDINGS, ("escape", "close_filter", "Close filter")]
 
+    def on_key(self, event: events.Key) -> None:
+        from .config_hub_keys import handle_config_hub_bracket_key
+
+        handle_config_hub_bracket_key(self, event)
+
     def action_close_filter(self) -> None:
         panel = self._panel()
         if panel is not None:

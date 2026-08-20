@@ -5297,16 +5297,21 @@ GlossaryPanel #glossary-panel-container {
     padding: 1 2;
 }
 
-GlossaryPanel #glossary-panel-header {
+GlossaryPane #glossary-panel-container {
+    width: 100%;
+    height: 100%;
+}
+
+GlossaryPane #glossary-panel-header {
     height: auto;
     margin-bottom: 1;
 }
 
-GlossaryPanel #glossary-panel-body {
+GlossaryPane #glossary-panel-body {
     height: 1fr;
 }
 
-GlossaryPanel #glossary-panel-terms {
+GlossaryPane #glossary-panel-terms {
     width: 32;      /* default; fitted at runtime by term_rail_width() */
     min-width: 32;  /* keep in sync with _TERM_RAIL_MIN_WIDTH */
     max-width: 52;  /* keep in sync with _TERM_RAIL_MAX_WIDTH */
@@ -5315,7 +5320,7 @@ GlossaryPanel #glossary-panel-terms {
     scrollbar-gutter: stable;
 }
 
-GlossaryPanel #glossary-panel-detail {
+GlossaryPane #glossary-panel-detail {
     width: 1fr;
     height: 100%;
     border: solid $secondary;
@@ -5324,36 +5329,36 @@ GlossaryPanel #glossary-panel-detail {
     scrollbar-gutter: stable;
 }
 
-GlossaryPanel #glossary-panel-card-title {
+GlossaryPane #glossary-panel-card-title {
     height: auto;
     margin-bottom: 1;
 }
 
-GlossaryPanel #glossary-panel-card-definition {
+GlossaryPane #glossary-panel-card-definition {
     width: 100%;
     height: auto;
 }
 
-GlossaryPanel #glossary-panel-card-meta {
+GlossaryPane #glossary-panel-card-meta {
     width: 100%;
     height: auto;
     margin-top: 1;
 }
 
-GlossaryPanel #glossary-panel-filter {
+GlossaryPane #glossary-panel-filter {
     height: 3;
     margin-top: 1;
     border: tall $accent;
 }
 
-GlossaryPanel #glossary-panel-trail {
+GlossaryPane #glossary-panel-trail {
     height: auto;
     margin-top: 1;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
-GlossaryPanel #glossary-panel-footer {
+GlossaryPane #glossary-panel-footer {
     text-align: center;
     color: $text-muted;
     height: auto;
@@ -5623,7 +5628,11 @@ MemoryPanel {
 MemoryPane {
     width: 100%;
     height: 100%;
-    align: center middle;
+}
+
+MemoryPane #memory-panel-container {
+    width: 100%;
+    height: 100%;
 }
 
 MemoryPanel #memory-panel-container {
@@ -5636,16 +5645,16 @@ MemoryPanel #memory-panel-container {
     padding: 1 2;
 }
 
-MemoryPanel #memory-panel-header {
+MemoryPane #memory-panel-header {
     height: auto;
     margin-bottom: 1;
 }
 
-MemoryPanel #memory-panel-body {
+MemoryPane #memory-panel-body {
     height: 1fr;
 }
 
-MemoryPanel #memory-panel-notes {
+MemoryPane #memory-panel-notes {
     width: 32;      /* default; fitted at runtime by note_rail_width() */
     min-width: 32;  /* keep in sync with _NOTE_RAIL_MIN_WIDTH */
     max-width: 52;  /* keep in sync with _NOTE_RAIL_MAX_WIDTH */
@@ -5654,7 +5663,7 @@ MemoryPanel #memory-panel-notes {
     scrollbar-gutter: stable;
 }
 
-MemoryPanel #memory-panel-detail {
+MemoryPane #memory-panel-detail {
     width: 1fr;
     height: 100%;
     border: solid $secondary;
@@ -5663,42 +5672,42 @@ MemoryPanel #memory-panel-detail {
     scrollbar-gutter: stable;
 }
 
-MemoryPanel #memory-panel-card-title {
+MemoryPane #memory-panel-card-title {
     height: auto;
     margin-bottom: 1;
 }
 
-MemoryPanel #memory-panel-card-description {
+MemoryPane #memory-panel-card-description {
     width: 100%;
     height: auto;
     margin-bottom: 1;
 }
 
-MemoryPanel #memory-panel-card-body {
+MemoryPane #memory-panel-card-body {
     width: 100%;
     height: auto;
 }
 
-MemoryPanel #memory-panel-card-meta {
+MemoryPane #memory-panel-card-meta {
     width: 100%;
     height: auto;
     margin-top: 1;
 }
 
-MemoryPanel #memory-panel-filter {
+MemoryPane #memory-panel-filter {
     height: 3;
     margin-top: 1;
     border: tall $accent;
 }
 
-MemoryPanel #memory-panel-trail {
+MemoryPane #memory-panel-trail {
     height: auto;
     margin-top: 1;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
-MemoryPanel #memory-panel-footer {
+MemoryPane #memory-panel-footer {
     text-align: center;
     color: $text-muted;
     height: auto;
@@ -7062,6 +7071,62 @@ ConfigCenterModal #config-center-footer {
     text-align: center;
     text-wrap: nowrap;
     text-overflow: clip;
+}
+
+/* Nested Config catalog: quieter strip inside the Config tab. */
+ConfigHubPane {
+    width: 100%;
+    height: 100%;
+    layout: vertical;
+}
+
+ConfigHubPane #config-hub-tabs {
+    width: 100%;
+    height: 1;
+    margin-bottom: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigHubPane #config-hub-switcher,
+ConfigHubPane #config-hub-empty {
+    width: 100%;
+    height: 1fr;
+}
+
+ConfigHubPane GlossaryPane,
+ConfigHubPane MemoryPane,
+ConfigHubPane SnippetsPane,
+ConfigHubPane XPromptBrowserPane,
+ConfigHubPane ConfigPane {
+    width: 100%;
+    height: 100%;
+}
+
+ConfigHubPane SnippetsPane.-embedded {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border: none;
+    padding: 0;
+}
+
+ConfigHubPane XPromptBrowserPane.-embedded #browser-title,
+ConfigHubPane ConfigPane.-embedded #config-pane-title {
+    display: none;
+}
+
+ConfigHubPane #glossary-panel-container,
+ConfigHubPane #memory-panel-container,
+ConfigHubPane #snippets-panel-container {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border: none;
+    padding: 0;
 }
 
 ConfigCenterModal #admin-center-home {

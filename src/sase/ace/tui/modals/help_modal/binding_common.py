@@ -14,6 +14,15 @@ CONTENT_WIDTH = 50  # Inner content width (BOX_WIDTH - borders)
 Sections = list[tuple[str, list[tuple[str, str]]]]
 _Sections = Sections
 
+
+def admin_center_opener_help_label() -> str:
+    """Return the opener help summary for the active Admin Center catalog."""
+    from ..config_center_catalog import config_hub_enabled
+
+    digits = "1-6" if config_hub_enabled() else "1-7"
+    return f"Admin Center: {digits} jump, # back"
+
+
 PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
     "Prompt Input",
     [

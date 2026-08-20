@@ -236,6 +236,7 @@ def test_importing_lightweight_modal_does_not_import_concrete_panes() -> None:
         "procs_pane",
         "plugins_browser_pane",
         "xprompt_browser_pane",
+        "config_hub_pane",
     ]
     script = "\n".join(
         (

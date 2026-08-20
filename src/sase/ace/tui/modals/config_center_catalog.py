@@ -98,6 +98,17 @@ def _xprompts_pane_factory(modal: ConfigCenterModal) -> Widget:
     )
 
 
+def _config_hub_pane_factory(modal: ConfigCenterModal) -> Widget:
+    from .config_hub_pane import ConfigHubPane
+
+    return ConfigHubPane(
+        project=modal._project,
+        session_state=modal._session_state,
+        entry=getattr(modal, "_config_entry", None),
+        id="config",
+    )
+
+
 _TAB_SPECS: tuple[CenterTabSpec, ...] = (
     CenterTabSpec(
         "config",
@@ -177,6 +188,75 @@ _PANEL_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(spec.id, spec.label, spec.accent) for spec in _TAB_SPECS
 )
 
+_HUB_TAB_SPECS: tuple[CenterTabSpec, ...] = (
+    CenterTabSpec(
+        "config",
+        1,
+        "Config",
+        "#00D7AF",
+        "Browse XPrompts, snippets, glossary, memory, and layered settings.",
+        "ConfigHubPane",
+        _config_hub_pane_factory,
+    ),
+    *(_TAB_SPECS[1:6]),
+)
+_HUB_TAB_BY_ID: dict[CenterTab, CenterTabSpec] = {
+    spec.id: spec for spec in _HUB_TAB_SPECS
+}
+_HUB_TAB_BY_NUMBER: dict[int, CenterTabSpec] = {
+    spec.number: spec for spec in _HUB_TAB_SPECS
+}
+_HUB_TAB_ORDER: tuple[CenterTab, ...] = tuple(spec.id for spec in _HUB_TAB_SPECS)
+_HUB_PANEL_TABS: tuple[PanelTab, ...] = tuple(
+    PanelTab(spec.id, spec.label, spec.accent) for spec in _HUB_TAB_SPECS
+)
+
+
+def config_hub_enabled() -> bool:
+    """Return whether the nested Config catalog owns the Admin Center Config tab."""
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.admin_center_config_hub)
+
+
+def active_tab_specs(*, hub_enabled: bool | None = None) -> tuple[CenterTabSpec, ...]:
+    """Return the seven-tab catalog or the six-tab Config-hub catalog."""
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    return _HUB_TAB_SPECS if hub_enabled else _TAB_SPECS
+
+
+def active_tab_by_id(
+    *, hub_enabled: bool | None = None
+) -> dict[CenterTab, CenterTabSpec]:
+    """Return the id lookup for the active Admin Center catalog."""
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    return _HUB_TAB_BY_ID if hub_enabled else _TAB_BY_ID
+
+
+def active_tab_by_number(
+    *, hub_enabled: bool | None = None
+) -> dict[int, CenterTabSpec]:
+    """Return the numbered lookup for the active Admin Center catalog."""
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    return _HUB_TAB_BY_NUMBER if hub_enabled else _TAB_BY_NUMBER
+
+
+def active_tab_order(*, hub_enabled: bool | None = None) -> tuple[CenterTab, ...]:
+    """Return the working-tab order for the active Admin Center catalog."""
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    return _HUB_TAB_ORDER if hub_enabled else _TAB_ORDER
+
+
+def active_panel_tabs(*, hub_enabled: bool | None = None) -> tuple[PanelTab, ...]:
+    """Return the strip tabs for the active Admin Center catalog."""
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    return _HUB_PANEL_TABS if hub_enabled else _PANEL_TABS
+
 
 def center_tab_accent(tab: str) -> str | None:
     """Return the accent color for an Admin Center tab, if it exists."""
@@ -184,8 +264,21 @@ def center_tab_accent(tab: str) -> str | None:
     return spec.accent if spec is not None else None
 
 
-def validated_center_tab(value: object) -> CenterTab | None:
-    """Return a catalog-backed Admin Center tab identity, if valid."""
-    if isinstance(value, str) and value in _TAB_BY_ID:
-        return cast(CenterTab, value)
+def validated_center_tab(
+    value: object, *, hub_enabled: bool | None = None
+) -> CenterTab | None:
+    """Return a catalog-backed Admin Center tab identity, if valid.
+
+    When the Config hub is enabled, a persisted top-level ``xprompts``
+    identity maps to ``config`` so an old resume still reaches XPrompts
+    through the hub's default child.
+    """
+    if not isinstance(value, str):
+        return None
+    if hub_enabled is None:
+        hub_enabled = config_hub_enabled()
+    migrated = "config" if hub_enabled and value == "xprompts" else value
+    catalog = _HUB_TAB_BY_ID if hub_enabled else _TAB_BY_ID
+    if migrated in catalog:
+        return cast(CenterTab, migrated)
     return None

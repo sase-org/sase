@@ -583,6 +583,9 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "plugin catalog",
             "xprompts",
             "browse xprompts",
+            "glossary",
+            "memory",
+            "snippets",
         ),
     ),
     (

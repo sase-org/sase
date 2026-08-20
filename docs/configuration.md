@@ -155,15 +155,19 @@ import/publication commands, and recovery.
 ## SASE Admin Center (interactive editor)
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
-starts on its lightweight home page, where the seven working sections—**Config**,
-**Logs**, **Procs**, **Projects**, **Statistics**, **Updates**, and **XPrompts**—are
-introduced without loading their data. While home is visible, press `#` again to resume
-the last section that was successfully active in this ACE process. Before the first
-section visit, the repeated key leaves home unchanged and constructs no pane. Press
-`1`–`7` or click the numbered tab strip to enter a section. From home, `Tab` enters
-Config and `Shift+Tab` enters XPrompts; within a working section they wrap across the
-same seven tabs. Pane-local `[` / `]` keys switch sub-tabs or views where the active
-pane provides them.
+starts on its lightweight home page, where the working sections—**Config**, **Logs**,
+**Procs**, **Projects**, **Statistics**, **Updates**, and **XPrompts**—are introduced
+without loading their data. Enabling the `admin_center_config_hub`
+[feature flag](#feature_flags) folds XPrompts, Snippets, Glossary, Memory, and Misc into
+Config and drops the top-level XPrompts section so the home page lists six sections.
+While home is visible, press `#` again to resume the last section that was successfully
+active in this ACE process. Before the first section visit, the repeated key leaves home
+unchanged and constructs no pane. Press `1`–`7` (or `1`–`6` with
+`admin_center_config_hub`) or click the numbered tab strip to enter a section. From
+home, `Tab` enters Config and `Shift+Tab` enters the last section (XPrompts, or Updates
+when Config owns the catalog); within a working section they wrap across the same tabs.
+Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them,
+including Config's nested catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
