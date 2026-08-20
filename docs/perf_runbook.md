@@ -608,7 +608,7 @@ both methods next to each other and let the public name stay the trace span name
 ## Reading the Admin Center Perf view
 
 Perf is the eighth view in the ACE Admin Center's **Statistics** tab. Open Admin Center
-with `#`, press `4` for Statistics, then press `0` followed by `8`; `[` / `]` also cycle
+with `#`, press `5` for Statistics, then press `0` followed by `8`; `[` / `]` also cycle
 to it. The selected Statistics range applies, and `g` groups latency by subsystem,
 provider, or workflow. Perf is global rather than project-scoped: the project chip stays
 visible but is marked **not applied** because the underlying telemetry and TUI logs do

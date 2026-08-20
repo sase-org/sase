@@ -78,7 +78,7 @@ sase run "#git:home summarize this workspace's layout; do not change files"
 sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
 # Grok Build:
 sase run "%model:grok/grok-4.6 #git:home summarize this workspace's layout; do not change files"
-# Then:
+# Then, while it is still running:
 sase agent list
 ```
 
@@ -92,8 +92,10 @@ isolation is what lets you fire off several agents at once without them collidin
 what lets a failed run be retried without touching your primary checkout.
 
 The launched agent gets its own durable record on disk: prompt, reply transcript,
-artifacts directory, status, and workspace path. `sase agent list` gives you the first
-visible handle for that record while the model is thinking or after it finishes.
+artifacts directory, status, and workspace path. Default `sase agent list` shows
+**running** agents only. After the run finishes, use `sase agent list -a` (recent
+DONE/FAILED, capped at 50 most-recent per project) or open ACE's Agents tab to find the
+completed record.
 
 **What you just did.** Dispatched a read-only coding-agent run inside an explicit
 [workspace](workspace.md), then looked up the resulting SASE agent record.
@@ -122,6 +124,11 @@ ACE has three top-level tabs:
   mentor launches, error digests. ACE auto-starts AXE the first time it opens, so this
   tab is already ticking before you click it.
 
+The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
+— the project you most recently launched an agent on (or promoted with
+`sase project set-current`). First-open Artifacts filters seed from it. Press `?` for
+help and `q` to quit.
+
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
 visible in [ACE](ace.md), with [AXE](axe.md) handling lifecycle work in the background.
 
@@ -132,7 +139,7 @@ After you have seen the agent record, try a low-risk change:
 ```bash
 sase run \
   "#git:home create or update notes.md with one short note about SASE workspaces. Then run: sase artifact create -p notes.md -l 'Workspace note'"
-sase agent list
+sase agent list -a
 ```
 
 Now the agent has permission to make a visible diff in its isolated numbered workspace.
@@ -141,9 +148,10 @@ explicitly bring changes back. When the agent commits its work, SASE's commit wo
 records a Patch that you can review in ACE's Artifacts tab, under Patches, before
 landing or submitting anything.
 
-Wait until `sase agent list` reports that the run is done before continuing. The second
-instruction registers a durable snapshot while leaving the tracked `notes.md` in the
-workspace.
+Wait until the run is done before continuing: watch it on ACE's Agents tab, or run
+`sase agent list -a` until the row shows a completed status. Default `sase agent list`
+hides finished runs, so it will not report DONE by itself. The second instruction
+registers a durable snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, use `#git:<name>` to target a managed project or
 `#git:<bare-repo-path>` to register an existing bare repository. Provider plugins add
@@ -213,10 +221,12 @@ the reference on the clipboard.
 At launch, document, file, bead, and agent references become local `@absolute-path`
 tokens. A stitch becomes `stitch <full-sha> in <repo> (checkout: <path>)`; a Patch
 becomes `the <name> Patch in project <project>` plus a `sase patch show` inspection
-hint. A historical `@bug:` reference becomes its issue number and provider URL. A
-malformed or missing known reference stops the launch with a diagnostic instead of
-silently giving the agent bad context. Inline-code and fenced-code examples stay
-literal.
+hint. That hint currently names a command that is not registered — inspect a Patch from
+ACE's Patches view, with `sase patch search`, or with `sase patch current` when you are
+already in that Patch's workspace. A historical `@bug:` reference becomes its issue
+number and provider URL. A malformed or missing known reference stops the launch with a
+diagnostic instead of silently giving the agent bad context. Inline-code and fenced-code
+examples stay literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The
@@ -299,6 +309,9 @@ The names you'll keep bumping into, in one place:
 
 - **[ACE](ace.md)** — the TUI control surface for Patches, agents, notifications, and
   automation.
+- **[Current project](ace.md#current-project)** — the project SASE treats as working
+  context (the VCS xprompt MRU head). `sase project current` prints it;
+  `sase project set-current` and ACE's Projects tab `c` promote one without a launch.
 - **[AXE](axe.md)** — the background automation daemon. Runs hooks, mentor launches,
   comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the

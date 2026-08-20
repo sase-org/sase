@@ -28,7 +28,8 @@ This page documents Patch queries. The Agents tab in ACE has a separate agent qu
 language with agent-specific property keys.
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
-persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
+persistent filter row. Stitches, Beads, Plans, Files, and document-provider panes use
+the same idle chrome. Press `/` (or the local `f`) to edit it. Typing previews each
 valid query against the already-loaded Patch snapshot, `Enter` commits it and closes the
 editor, and `Escape` abandons the edit and restores the committed query, its result, and
 your selection. A parse error is reported inline and leaves the visible list on the last

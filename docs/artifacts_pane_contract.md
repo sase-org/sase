@@ -28,33 +28,41 @@ provider spec for them.
 enables registered host behavior; it never carries callbacks, widgets, colors, or
 provider code.
 
-| Capability              | Earned when                                 | Host actions (when ON)                            |
-| ----------------------- | ------------------------------------------- | ------------------------------------------------- |
-| `entry_navigation`      | Inventory or a built-in list adapter        | Pane `j`/`k` plus `jump_to_entry`                 |
-| `entry_open`            | Inventory or a built-in list adapter        | Pane Enter / view-selected                        |
-| `filter_session`        | Inventory plus fields                       | Inline filter bar / `edit_query`                  |
-| `refresh`               | Always (host)                               | `refresh` (`R`)                                   |
-| `project_scope`         | Adapter declares project scoping            | `pick_artifacts_project`                          |
-| `stable_marks`          | Inventory or a built-in list adapter        | `toggle_mark` / `clear_marks`                     |
-| `detail_scroll`         | A detail surface is declared                | Detail `Ctrl+D` / `Ctrl+U`                        |
-| `stable_reference_copy` | Stable identity facts                       | `artifacts_copy_reference` (`y`)                  |
-| `query_history`         | Inventory plus fields                       | `edit_query` history                              |
-| `saved_queries`         | Inventory plus fields                       | `start_saved_query_mode`                          |
-| `versions`              | Revision facts                              | Files previous/next version                       |
-| `mutation`              | Built-in adapter with `can_mutate`          | Bead/Patch mutate actions                         |
-| `plan_approve`          | Built-in Plan adapter                       | `plans_approve`                                   |
-| `plan_reject`           | Built-in Plan adapter                       | `plans_reject`                                    |
-| `plan_open_bead`        | Built-in Plan adapter                       | `plans_open_bead` (`L`)                           |
-| `relations`             | At least one validated relation declaration | `<` / `>` / `~` plus link-jump aliases            |
-| `grouping`              | At least one grouping mode                  | `h`/`l`/`H` plus grouping-cycle                   |
-| `status_counters`       | At least one declared status counter        | Presentation-only (relation glyphs / count lanes) |
-| `shell`                 | Always (host)                               | Presentation-only shared chrome                   |
+| Capability              | Earned when                                 | Host actions (when ON)                               |
+| ----------------------- | ------------------------------------------- | ---------------------------------------------------- |
+| `entry_navigation`      | Inventory or a built-in list adapter        | Pane `j`/`k` plus `jump_to_entry`                    |
+| `entry_open`            | Inventory or a built-in list adapter        | Pane Enter / view-selected                           |
+| `filter_session`        | Inventory plus fields                       | Persistent idle filter row; `/` / `f` / `edit_query` |
+| `refresh`               | Always (host)                               | `refresh` (`R`)                                      |
+| `project_scope`         | Adapter declares project scoping            | `pick_artifacts_project`                             |
+| `stable_marks`          | Inventory or a built-in list adapter        | `toggle_mark` / `clear_marks`                        |
+| `detail_scroll`         | A detail surface is declared                | Detail `Ctrl+D` / `Ctrl+U`                           |
+| `stable_reference_copy` | Stable identity facts                       | `artifacts_copy_reference` (`y`)                     |
+| `query_history`         | Inventory plus fields                       | `edit_query` history                                 |
+| `saved_queries`         | Inventory plus fields                       | `start_saved_query_mode`                             |
+| `versions`              | Revision facts                              | Files previous/next version                          |
+| `mutation`              | Built-in adapter with `can_mutate`          | Bead/Patch mutate actions                            |
+| `plan_approve`          | Built-in Plan adapter                       | `plans_approve`                                      |
+| `plan_reject`           | Built-in Plan adapter                       | `plans_reject`                                       |
+| `plan_open_bead`        | Built-in Plan adapter                       | `plans_open_bead` (`L`)                              |
+| `relations`             | At least one validated relation declaration | `<` / `>` / `~` plus link-jump aliases               |
+| `grouping`              | At least one grouping mode                  | `h`/`l`/`H` plus grouping-cycle                      |
+| `status_counters`       | At least one declared status counter        | Presentation-only (relation glyphs / count lanes)    |
+| `shell`                 | Always (host)                               | Presentation-only shared chrome                      |
 
 Derivation is a named pure rule per capability. Degraded panes keep only `refresh` and
 `shell`. The conformance suite asserts that every ON capability's host actions are
 registered, that every contract-declared key on a pane resolves to the action the
 contract names (no double-booked `o`), and that every OFF capability has an auditable
 verdict.
+
+Host-owned list paging is not a pane capability. Every pane with `filter_session`
+accepts a `limit:N` token that caps how many matched rows the list shows. ACE extracts
+it before dialect parse, then slices. Startup writes `limit:<ace.page_size>` into each
+pane's default query when no `limit:` is present; `limit:all` (and Stitches `limit:0`)
+remains an accepted unlimited synonym. `Ctrl+J` (`artifacts_load_more`) raises the cap
+by one page and `Ctrl+K` (`artifacts_unload`) lowers it, never dropping below one page.
+See [ACE Artifacts](ace.md) for the user-facing keys and coverage badges.
 
 ## Declarative `ref.pane`
 

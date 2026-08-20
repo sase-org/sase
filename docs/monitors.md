@@ -43,7 +43,7 @@ whatever the command itself changed.
 
 A monitor shell has an ordinary artifacts directory, just like an agent shell, so
 everything that already understands agent families — the Agents tab, family roster,
-runtime aggregation, `sase chats`, `%wait`/`#fork` resolution — works on it with no
+runtime aggregation, `sase chat`, `%wait`/`#fork` resolution — works on it with no
 special casing. There is no separate monitor store: a monitor's durable record is its
 `agent_meta.json` plus `done.json`, and `sase monitor list`/`show` are queries over the
 existing agent artifact index.
@@ -52,23 +52,25 @@ existing agent artifact index.
 
 ```bash
 sase monitor start \
-  --command 'just check-full' \
-  --reason 'Verify the refactor before replying to the user' \
-  --timeout 45m \
-  --start-status TESTING \
-  --stop-status TESTED \
-  --next 'Fix anything just check-full reported, then reply to the user.'
+  -s TESTING -S TESTED \
+  -r 'Verify the refactor before replying to the user' \
+  -t 45m \
+  -n 'Fix anything just check-full reported, then reply to the user.' \
+  -- just check-full
 ```
 
-- `--command` / `-c` is the full command handed to the shell.
-- `--reason` / `-r` and `--timeout` / `-t` (bare seconds, or `90s` / `45m` / `2h`) are
-  required — a monitor always says why it exists and has a bounded budget.
-- `--start-status` / `-s` and `--stop-status` / `-S` are required — the present-tense
-  label shown while the command runs (e.g. `TESTING`) and the past-tense label shown
-  when it finishes (e.g. `TESTED`). Each is capped at 20 characters; over-length values
-  are truncated with a trailing `…` and a warning. `TESTING` / `TESTED` is the pair for
+- The command is the remainder after `--` (for example `-- just check-full`). That is
+  the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
+  compatibility alias for a single shell string, but new invocations should use `--`.
+- `-s/--start-status` and `-S/--stop-status` are **required** — the present-tense label
+  shown while the command runs (e.g. `TESTING`) and the past-tense label shown when it
+  finishes (e.g. `TESTED`). Each is capped at 20 characters; over-length values are
+  truncated with a trailing `…` and a warning. `TESTING` / `TESTED` is the pair for
   `just check` and `just check-full`; a different kind of wait picks its own pair (for
   example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
+- `-r/--reason` defaults to `run command`. `-t/--timeout` defaults to `1h` (bare
+  seconds, or `90s` / `45m` / `2h`). Pass both when the default reason or budget would
+  be misleading.
 - `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
   for the given duration, while still allowing intentionally quiet commands when
   omitted.
@@ -308,19 +310,19 @@ recorded as not launched.
 
 ## In the ACE TUI
 
-A monitor row renders with its own amber `⚙` glyph beside the agent list's bash/python
-step glyphs, its configured label as the row title with the command as an annotation,
-and a live elapsed suffix while running or an exit-code / timeout badge once terminal.
-Monitor shells appear in the family roster and contribute to the family's total runtime,
-but — like workflow steps — they are not counted as agents in `sase stats` or tribe/clan
-summaries: a family with one agent and one monitor shell is a one-agent family that ran
-one command. A collapsed family or clan container row carries an amber `⚙N` badge for
-its running monitors and a grey `⚙N` badge for its finished ones, so both counts are
-visible without expanding the subtree; the two badges partition the subtree's monitors
-exactly, and a failed, timed-out, or lost monitor counts in the finished (grey) lane
-along with a clean completion. The tribe panel title aggregates both lanes across the
-whole tribe, so a fully collapsed panel still reports running and completed monitored
-work.
+A monitor row renders with an amber `⚙` glyph beside the agent list's bash/python step
+glyphs and omits a left-side title — identity is the right-hand `%id` (`<family>--mon`),
+not the configured monitor label or command. A live elapsed suffix shows while running,
+or an exit-code / timeout badge once terminal. Monitor shells appear in the family
+roster and contribute to the family's total runtime, but — like workflow steps — they
+are not counted as agents in `sase stats` or tribe/clan summaries: a family with one
+agent and one monitor shell is a one-agent family that ran one command. A collapsed
+family or clan container row carries an amber `⚙N` badge for its running monitors and a
+grey `⚙N` badge for its finished ones, so both counts are visible without expanding the
+subtree; the two badges partition the subtree's monitors exactly, and a failed,
+timed-out, or lost monitor counts in the finished (grey) lane along with a clean
+completion. The tribe panel title aggregates both lanes across the whole tribe, so a
+fully collapsed panel still reports running and completed monitored work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted
@@ -421,8 +423,7 @@ Concretely:
 Before this command existed, agents got a successor by monitoring a no-op command:
 
 ```bash
-sase monitor start --command 'sleep 1' --reason '...' \
-  --start-status SLEEPING --stop-status SLEPT --next '<the real prompt>'
+sase monitor start -s SLEEPING -S SLEPT -r '...' -n '<the real prompt>' -- sleep 1
 ```
 
 That only worked because `sase monitor start` already kills the caller and its

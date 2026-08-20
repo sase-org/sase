@@ -161,7 +161,7 @@ sase telemetry status
 
 ## Admin Center Statistics tab
 
-Open the SASE Admin Center with `#` or the command palette, then press `4` or select
+Open the SASE Admin Center with `#` or the command palette, then press `5` or select
 **Statistics**. The first seven views aggregate durable agent records. The eighth,
 **Perf**, combines bounded TUI diagnostic logs with the telemetry metric store described
 above. The pane loads only while visible, performs aggregation off the UI thread,

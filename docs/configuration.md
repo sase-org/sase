@@ -156,7 +156,7 @@ import/publication commands, and recovery.
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the seven working sections—**Config**,
-**Logs**, **Projects**, **Statistics**, **Procs**, **Updates**, and **XPrompts**—are
+**Logs**, **Procs**, **Projects**, **Statistics**, **Updates**, and **XPrompts**—are
 introduced without loading their data. While home is visible, press `#` again to resume
 the last section that was successfully active in this ACE process. Before the first
 section visit, the repeated key leaves home unchanged and constructs no pane. Press
@@ -663,8 +663,8 @@ ace:
   axe_description_expanded: true # Axe-tab description panel starts expanded
   artifacts:
     relations_expanded: false # Relation panel starts collapsed as a rail; . expands it
-    commits:
-      default_query: "sidecar:false since:24h"
+    stitches:
+      default_query: "sidecar:false merges:hide since:24h"
   tribes:
     default:
       icon: "⌂"
@@ -1582,16 +1582,13 @@ overlapping, or zero-usable-root configurations. See
 
 ### llm_provider
 
-Configures which LLM backend sase uses and how model tiers map to concrete models. See
+Configures which LLM backend sase uses and how size aliases map to concrete models. See
 [docs/llms.md](llms.md) for the full LLM provider architecture, preprocessing pipeline,
 and invocation lifecycle.
 
 ```yaml
 llm_provider:
   provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "grok", "fakey" (default: auto-detect)
-  model_tier_map:
-    large: opus
-    small: sonnet
   # Scalar launch settings. Same grammar as %model; may reference a built-in
   # size alias.
   default_model: "@large" # used when a launch has no %model directive
@@ -1616,8 +1613,7 @@ llm_provider:
 | Field                                    | Type   | Default     | Description                                                                                                                                                                                                                       |
 | ---------------------------------------- | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `llm_provider.provider`                  | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
-| `llm_provider.model_tier_map.large`      | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                            |
-| `llm_provider.model_tier_map.small`      | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
+| `llm_provider.model_tier_map`            | dict   | -           | Accepted by the config schema for compatibility. No runtime path currently reads it; setting `large`/`small` here has no effect. Size aliases and `default_model` / lander settings select models.                                |
 | `llm_provider.default_model`             | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
 | `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
 | `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
@@ -4171,10 +4167,15 @@ means `enabled`.
 | `sase project list`                        | `-s, --state enabled\|disabled\|sibling\|all` | List records in one state; default is true enabled projects.                   |
 | `sase project list`                        | `-j, --json`                                  | Emit machine-readable lifecycle and derived project/VCS fields.                |
 | `sase project current`                     | `-j, --json`                                  | Show the current project derived from the VCS xprompt MRU.                     |
+| `sase project set-current <project>`       | `-j, --json`                                  | Promote a project to the VCS xprompt MRU head without launching an agent.      |
 | `sase project show <project>`              | `-j, --json`                                  | Show state, source, project/archive files, workspace, launchability, warnings. |
 | `sase project set-state <project> <state>` | `-f, --force`                                 | Set `enabled`, `disabled`, or internal backing marker `sibling`.               |
 | `sase project enable <project>`            | `-f, --force`                                 | Enable a project; `--force` has no effect when enabling.                       |
 | `sase project disable <project>`           | `-f, --force`                                 | Disable a project after live-work safety checks.                               |
+
+`sase project set-current` promotes an enabled project to the VCS xprompt MRU head
+without launching an agent. That is display and filter-seed context, not a lifecycle
+state; see [Current project](project_spec.md#current-project).
 
 Disabling refuses projects with live `RUNNING` claims or live artifact markers
 (`running.json`, `waiting.json`, or `pending_question.json`) unless `--force` is passed.

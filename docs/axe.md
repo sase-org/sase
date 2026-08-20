@@ -175,7 +175,7 @@ Use these related commands according to intent:
 
 ## Default Lumberjacks
 
-Axe ships with five default lumberjacks:
+Axe ships with six default lumberjacks:
 
 ### hooks (5-second interval)
 

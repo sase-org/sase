@@ -58,9 +58,20 @@ just test-py 312    # Specific version
 
 ## Submitting Issues
 
-This project uses `bd` (beads) for issue tracking:
+External bug reports and questions belong in
+[GitHub Issues](https://github.com/sase-org/sase/issues).
+
+Inside a SASE-managed checkout, discovered follow-up work is a typed
+[task bead](https://sase.sh/beads/), not the standalone `bd` CLI:
 
 ```bash
-bd create --title="Description" --type=bug --priority=2
-bd ready    # See available work
+sase bead onboard
+sase bead task-type            # catalog of agent-creatable types
+sase bead create -T 'task(bug)' -t "Description" -z small \
+  -f location=src/foo.py -f repro='fails on retry'
+sase bead ready                # unblocked task beads awaiting triage
 ```
+
+New task beads require an explicit size and a catalog slug in `-T 'task(<slug>)'`. See
+[Beads](https://sase.sh/beads/) for snooze, corroboration, and the rest of the
+lifecycle.

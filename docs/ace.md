@@ -262,12 +262,13 @@ without changing the active query or closing the editor.
 Stitches keeps its effective canonical query visible above the timeline. Press `/` or
 the local `f` shortcut to focus that row for live editing; `Enter` commits the query and
 returns focus to the timeline, while `Escape` restores the last committed query and
-result. The row remains visible in either case. Beads and Plans use the same live editor
-interaction, but show the input row only during an edit session. The Beads info line
-always shows its committed query, including the visible `-status:closed` startup
-default. Tokens from different facets combine with AND semantics; comma-separated and
-repeated values within one facet combine with OR semantics. Free-text terms must all
-match. Press `Tab` to accept the highlighted key or value completion.
+result. The row remains visible in either case. Beads, Plans, Files, and every document
+provider pane keep the same persistent idle row, so the committed query stays visible
+without opening an editor. The Beads default is `-status:closed limit:<page_size>`; that
+query lives in the idle bar, not on the counts line. Tokens from different facets
+combine with AND semantics; comma-separated and repeated values within one facet combine
+with OR semantics. Free-text terms must all match. Press `Tab` to accept the highlighted
+key or value completion.
 
 Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `since:`,
 `until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against the commit
@@ -335,15 +336,16 @@ scope, such as `plans`, `research`, or `designs`. `kind:archive` matches committ
 documents that are not linked from a live bead, while `kind:designs` narrows documents
 to that sidecar.
 
-Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `project:`,
-`assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms,
-plus host-owned `limit:`. `task_type:` accepts catalog slugs plus `untyped` for legacy
-beads. Status values include the five stored states plus the derived `blocked`,
-`launched`, and `triage` states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and
-`triage`. `bug:` matches issue state, reference, relation, or project, with completion
-for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:`
-matches cached provider labels. Free text also searches cached external issue title,
-body, URL, and labels alongside the bead id, title, description, notes, design,
+Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `due:`,
+`project:`, `assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and
+`until:` terms, plus host-owned `limit:`. `task_type:` accepts catalog slugs plus
+`untyped` for legacy beads. Status values include the five stored states plus the
+derived `blocked`, `launched`, and `triage` states. `due:` accepts `live`, `soon`, or
+`due` for flag beads. `has:` accepts `+1`, `reopened`, `plan`, `bug`, `deps`, `notes`,
+and `triage`. `bug:` matches issue state, reference, relation, or project, with
+completion for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`;
+`label:` matches cached provider labels. Free text also searches cached external issue
+title, body, URL, and labels alongside the bead id, title, description, notes, design,
 references, and ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
@@ -617,24 +619,25 @@ copies — only its `Source` path reports `missing`.
 
 #### Filtering Files
 
-`f` opens the same live filter row provider document panes use, visible only during an
-edit session, and `/` opens it too. Filtering is purely in-memory over the loaded
-snapshot, so a query narrows thousands of rows without a re-query. Files accepts
-`kind:`, `project:`, `agent:`, `workflow:`, `origin:`, `since:`, `until:`, and
-host-owned `limit:`, plus free text matched against the label, logical path, stored
-path, source path, digest, and artifact id. Tokens from different facets combine with
-AND semantics, while comma-separated or repeated values within `kind:`, `project:`,
-`agent:`, `workflow:`, and `origin:` combine with OR semantics. `kind:` accepts the
-stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts
-`ref`, `created`, and `capture`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`,
-`YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each appear once.
+Files keeps its committed query visible in a persistent filter row, the same idle chrome
+Patches, Stitches, Beads, and Plans use. Press `f` or `/` to edit it. Filtering is
+purely in-memory over the loaded snapshot, so a query narrows thousands of rows without
+a re-query. Files accepts `kind:`, `project:`, `agent:`, `workflow:`, `origin:`,
+`since:`, `until:`, and host-owned `limit:`, plus free text matched against the label,
+logical path, stored path, source path, digest, and artifact id. Tokens from different
+facets combine with AND semantics, while comma-separated or repeated values within
+`kind:`, `project:`, `agent:`, `workflow:`, and `origin:` combine with OR semantics.
+`kind:` accepts the stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`;
+`origin:` accepts `ref`, `created`, and `capture`; `since:` and `until:` accept
+`YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each
+appear once.
 
 Files-pane filters do not support negation; a leading `-` is rejected with an explicit
-error rather than excluding a match. `s` and the `kind:` token drive the same filter
-state: cycling with `s` closes an open edit session and sets `kind:` to the next stored
+error rather than excluding a match. `z` and the `kind:` token drive the same filter
+state: cycling with `z` closes an open edit session and sets `kind:` to the next stored
 kind actually present in the snapshot, wrapping back to All. A query listing several
 kinds is treated like All, so the next press selects the first present kind. When a
-filter hides every row, the pane says so and names the key that reopens the query row.
+filter hides every row, the pane says so and names the key that focuses the query row.
 
 ### Epic phase sizes across plan surfaces
 
@@ -1878,16 +1881,16 @@ badges instead of verbose text:
 | `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
 
 A monitor shell (a family member whose work is a supervised command, started with
-`sase monitor start`) renders its own amber `⚙` glyph beside the bash/python step glyphs
-below, with its configured label as the row title and a live elapsed suffix or
-exit-code/timeout badge instead of the statuses above. The status token — the start
-label while running, the stop label once settled — is colored by a deterministic accent
-derived from that pair, so every `TESTING`/`TESTED` monitor is the same hue; failed,
-timed-out, and lost monitors stay red. Two extra badges mark a stalled monitor handoff:
-a red `⚠` replaces the exit-code badge when a terminal monitor's supervisor never
-reported a real exit code, and an amber `⚑` follows the row when its `--next` follow-up
-was dropped or launched degraded — a monitor can finish cleanly and still strand its
-follow-up. See [Monitors](monitors.md).
+`sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
+is the right-hand `%id` (`<family>--mon`), not the configured monitor label. A live
+elapsed suffix or exit-code/timeout badge replaces the ordinary agent statuses. The
+status token — the start label while running, the stop label once settled — is colored
+by a deterministic accent derived from that pair, so every `TESTING`/`TESTED` monitor is
+the same hue; failed, timed-out, and lost monitors stay red. Two extra badges mark a
+stalled monitor handoff: a red `⚠` replaces the exit-code badge when a terminal
+monitor's supervisor never reported a real exit code, and an amber `⚑` follows the row
+when its `--next` follow-up was dropped or launched degraded — a monitor can finish
+cleanly and still strand its follow-up. See [Monitors](monitors.md).
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
@@ -2423,12 +2426,11 @@ cancels, with configured target keys taking precedence.
 
 ### Editing Queries
 
-`/` is the app-level query key on every Artifacts pane. On Patches and Stitches it
-focuses a filter row that is always on screen; on Beads, provider document panes, and
-Files it opens an inline filter bar that is only visible while you are editing. Each of
-those panes also accepts a local `f` for the same thing. Agents reserves bare `/` for
-forward inline metadata search, so its structured query editor uses the independent `,/`
-leader chord instead. Help is the app-level `?` on every tab.
+`/` is the app-level query key on every Artifacts pane. Every pane with a filter session
+keeps a persistent idle filter row; `/` (or the local `f`) focuses it for editing.
+Agents reserves bare `/` for forward inline metadata search, so its structured query
+editor uses the independent `,/` leader chord instead. Help is the app-level `?` on
+every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
@@ -2599,7 +2601,7 @@ keys in that setting are treated as alternate bindings for the same action.
 
 ## Projects Tab
 
-Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `Tab` /
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `4`, `Tab` /
 `Shift+Tab`, or the main tab strip. The tab contains a second clickable strip:
 **Projects · Repos · Workspaces**. `[` / `]` cycle these sub-tabs while `Tab` /
 `Shift+Tab` continue switching the main Admin Center tabs.
@@ -2678,7 +2680,7 @@ system-managed projects such as `home` are excluded from the panel.
 
 ## Statistics Tab
 
-Open the SASE Admin Center with `#`, then press `4` or switch to **Statistics**. Its
+Open the SASE Admin Center with `#`, then press `5` or switch to **Statistics**. Its
 eight sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
 usage, plan/question activity, and performance for the selected time range. The strip is
 numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5 Activity · 6 XPrompts ·

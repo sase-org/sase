@@ -186,6 +186,24 @@ compact alias information, the detail pane shows the full list, the text filter 
 Alias edits replace the selected project's alias set; marked bulk operations remain
 lifecycle-only.
 
+### Current Project
+
+The **current project** is not a ProjectSpec field and not a lifecycle state. It is the
+enabled project SASE treats as working context: the first entry in the shared VCS
+xprompt MRU store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project. A
+Patch entry in that store yields its owning project.
+
+Launching an agent on a project — or on a Patch owned by that project — promotes it to
+that head. So do `sase project set-current <project>` and the ACE Projects tab `c` key,
+without a launch. The working directory never sets it, and there may be none.
+
+It supplies display and defaults only: the ACE top-bar `+<project>` chip and the
+first-open value of project filters. It never overrides an explicit `project:` / `+name`
+term, a pick you already made this session, project lifecycle state, or what a command
+targets. `sase project current` prints the resolved project, or explains that nothing
+resolves and exits 0. See [ACE: Current project](ace.md#current-project) and
+[`ace.current_project`](configuration.md#acecurrent_project).
+
 ### Project Lifecycle
 
 Project lifecycle state controls whether a project appears in the default lists used to
@@ -243,6 +261,8 @@ ProjectSpec files.
 
 Common workflows:
 
+- Show the current project: `sase project current`
+- Make a project current without launching: `sase project set-current my-project`
 - Disable a dormant project: `sase project disable old-project`
 - List disabled projects: `sase project list --state disabled`
 - List sibling project records: `sase project list --state sibling`
@@ -250,6 +270,8 @@ Common workflows:
 - Re-enable from the CLI: `sase project enable old-project`
 - Add a short project alias: `sase project alias add bob-cli bob`
 - Inspect project aliases as JSON: `sase project alias list bob-cli --json`
+- Make a project current from ACE: press `#`, switch to the Projects tab (`4`),
+  highlight the project, then press `c`
 - Re-enable from ACE: press `#`, switch to the Projects tab, highlight the project, then
   press `a`
 - Edit aliases from ACE: press `#`, switch to the Projects tab, highlight the project,

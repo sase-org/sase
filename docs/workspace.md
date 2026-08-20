@@ -485,6 +485,14 @@ rows from other projects. Registry entries whose checkout has been deleted remai
 visible with `exists: false`; preview reconciliation with
 `sase workspace repair -p <project> -n`.
 
+`sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
+reads every project's RUNNING field and each checkout's occupant record, then reports
+duplicate workspace-number claims, a live claim whose occupant names a different live
+pid, and occupant records with no matching claim. Conflicts include the last
+workspace-claim ledger mutation and caller tag when one exists. The check never
+auto-repairs; use `sase workspace repair -n` to preview registry/checkout reconciliation
+separately.
+
 `path` always resolves `#0` to the primary checkout. For other numbers, it prints the
 configured path without cloning. Use this command when you only need to inspect the
 path.
