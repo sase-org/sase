@@ -147,6 +147,7 @@ def test_add_refuses_xprompt_shadow_without_force(
         force=True,
     )
     assert outcome.action == "shadowed"
+    assert "-F" in outcome.restore_command
 
 
 def test_dry_run_does_not_write(
@@ -208,6 +209,8 @@ def test_delete_reveals_shadowed_definition(
     assert outcome.action == "deleted"
     assert outcome.revealed is not None
     assert outcome.revealed.origin.kind == "xprompt"
+    assert outcome.removed_paths == (str(config_path),)
+    assert "-F" in outcome.restore_command
     loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))["ace"]
     snippets = loaded.get("snippets") or {}
     assert "todo" not in snippets

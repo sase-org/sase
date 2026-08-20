@@ -1290,7 +1290,9 @@ authored `Foo` is never replaced. These aliases are runtime-only and are never w
 back into config. See [docs/ace.md — Capitalized aliases](ace.md#capitalized-aliases)
 for the full rule.
 
-See [docs/ace.md — Snippets](ace.md#snippets) for usage details.
+See [docs/ace.md — Snippets](ace.md#snippets) for usage details and
+[docs/xprompt.md — Snippet CLI](xprompt.md#snippet-cli) for `sase snippet list`, `show`,
+`add`, and `delete`.
 
 Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
 

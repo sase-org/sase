@@ -60,6 +60,7 @@ resolver order.
 - [Raw Prompt Placeholders](#raw-prompt-placeholders)
 - [Tags](#tags)
 - [Snippet Field](#snippet-field)
+  - [Snippet CLI](#snippet-cli)
 - [Skill Field](#skill-field)
   - [Canonical Skill Sources](#canonical-skill-sources)
   - [Source, Reference, and Provider Names](#source-reference-and-provider-names)
@@ -1032,7 +1033,57 @@ printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input
 widget and editor completion.
 
-Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`
+### Snippet CLI
+
+`sase snippet` inspects the same composed catalog ACE and the editor helper use. Bare
+`sase snippet` defaults to `sase snippet list`. `-p/--project` accepts a display name,
+alias, or project key, and output always renders the configured project name.
+
+```bash
+sase snippet list
+sase snippet list todo -f names
+sase snippet list Hello --definitions
+sase snippet show greet
+sase snippet show Greet -f markdown
+sase snippet add todo "TODO($1)$0"
+sase snippet add todo "TODO($1)$0" -F
+sase snippet delete todo -n
+sase snippet delete todo -a -f json
+```
+
+Each effective explicit trigger appears once. Generated initial-capital aliases (`foo` →
+`Foo`) are metadata on that source entry, not extra rows; lookup still maps an alias or
+unique prefix back to the explicit trigger. Xprompt-derived entries are viewable and
+linkable, but they are source-edited: converting the generated template back into
+xprompt/Jinja source would be lossy. Add and delete write only `ace.snippets`
+contributions; deleting a read-only, plugin, or xprompt-derived entry is refused and the
+command points at its source. When a config overlay is removed, the command reports the
+definition that becomes effective next.
+
+`sase snippet add TRIGGER TEMPLATE` validates a nonblank alphanumeric/underscore trigger
+and a nonblank template, writes the resolved `ace.snippet_config_path` by default, and
+supports `-t/--target`, `-n/--dry-run`, and `-f/--format rich|json`. It refuses an
+accidental overwrite or shadow unless `-F/--force` is given and names the source that
+currently wins. Dry runs run the same validation and planning as a real write without
+touching the destination, config caches, chezmoi, or git.
+
+`sase snippet delete TRIGGER` removes the winning writable `ace.snippets` contribution.
+`-a/--all` removes every writable config-layer contribution. The output includes a
+shell-quotable `sase snippet add …` restore command (with `-F` when restoring would
+shadow again) and any newly revealed lower-priority definition.
+
+`sase snippet list [PATTERN]` supports `-d/--definitions` matching and
+`-f/--format table|names|json`. The table shows trigger, origin, calls, backlinks, and a
+compact raw-template summary. Names and JSON are color-free and pipe-safe.
+
+`sase snippet show TRIGGER` supports `-f/--format rich|markdown|json` and prints the raw
+template, composed expansion, source stack, aliases, calls, backlinks, unresolved calls,
+and cycle diagnostics.
+
+See [CLI Reference](cli.md#prompt-and-workflow-authoring).
+
+Source: `src/sase/xprompt/snippet_bridge.py`, `src/sase/xprompt/models.py`,
+`src/sase/snippet/`
 
 ## Skill Field
 

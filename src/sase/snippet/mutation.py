@@ -189,8 +189,8 @@ def delete_snippet(
         candidate.pop(entry.trigger, None)
     else:
         candidate[entry.trigger] = revealed.raw_template
-    composed = _validate_candidate(candidate)
-    backlinks = composed.inbound.get(entry.trigger, ())
+    _validate_candidate(candidate)
+    backlinks = entry.relations.inbound
     write_path, original, new_text = targets[0]
     digest = snippet_config_digest(original or b"")
     if not dry_run:
@@ -212,10 +212,15 @@ def delete_snippet(
         source_kind=entry.origin.kind,
         via_chezmoi=False,
         restore_command=_restore_command(
-            entry.trigger, entry.raw_template, project_name, write_path
+            entry.trigger,
+            entry.raw_template,
+            project_name,
+            write_path,
+            force=revealed is not None,
         ),
         affected_backlinks=backlinks,
         revealed=revealed,
+        removed_paths=tuple(item[0] for item in targets),
         dry_run=dry_run,
         content_digest=digest,
         created=False,
@@ -319,9 +324,16 @@ def _apply_upsert(
         apply_target=apply_target,
         source_kind=source_kind,
         via_chezmoi=via_chezmoi,
-        restore_command=_restore_command(trigger, template, project_name, write_path),
+        restore_command=_restore_command(
+            trigger,
+            template,
+            project_name,
+            write_path,
+            force=action in {"replaced", "shadowed"},
+        ),
         affected_backlinks=backlinks,
         revealed=None,
+        removed_paths=(),
         dry_run=dry_run,
         content_digest=digest,
         created=trigger not in existing,
@@ -476,9 +488,16 @@ def _configured_snippet_path(workspace: Path | None) -> str | None:
 
 
 def _restore_command(
-    trigger: str, template: str, project_name: str, write_path: str
+    trigger: str,
+    template: str,
+    project_name: str,
+    write_path: str,
+    *,
+    force: bool = False,
 ) -> str:
     parts = ["sase", "snippet", "add", trigger, template]
+    if force:
+        parts.append("-F")
     if project_name:
         parts.extend(["-p", project_name])
     if write_path:

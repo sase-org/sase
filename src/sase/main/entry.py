@@ -457,6 +457,12 @@ def main() -> NoReturn:
 
         handle_skills_command(args)
 
+    # --- snippet ---
+    if args.command == "snippet":
+        from .snippet_handler import handle_snippet_command
+
+        handle_snippet_command(args)
+
     # --- proc / task ---
     if args.command in {"proc", "task"}:  # legacy command alias
         from .proc_handler import handle_proc_command

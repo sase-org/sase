@@ -127,6 +127,7 @@ class SnippetMutationOutcome:
     restore_command: str
     affected_backlinks: tuple[str, ...]
     revealed: SnippetEntry | None
+    removed_paths: tuple[str, ...]
     dry_run: bool
     content_digest: str
     created: bool

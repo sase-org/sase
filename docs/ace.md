@@ -6093,7 +6093,8 @@ import, status, and recovery behavior.
 
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
-to template strings:
+to template strings. Inspect or edit the same catalog from the shell with
+[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`).
 
 ```yaml
 ace:

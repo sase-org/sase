@@ -19592,6 +19592,384 @@
         ]
       },
       {
+        "aliases": [],
+        "default_child": "list",
+        "description_digest": "58043d84ac725b41",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "snippet",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "project",
+            "hidden": false,
+            "kind": "project",
+            "repeatable": false,
+            "strings": [
+              "-p",
+              "--project"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "snippet"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "77a33d5322a3e7c6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "add",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-F",
+                  "--force"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "target",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--target"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "snippet",
+              "add"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "trigger",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TRIGGER",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "template",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TEMPLATE",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "2418f5516daa598f",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "delete",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "all_layers",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "snippet",
+              "delete"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "trigger",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TRIGGER",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "0fca0cdbc4746fd5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "definitions",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--definitions"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "names",
+                  "table"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "snippet",
+              "list"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "pattern",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "PATTERN",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "f5cb151f115d7c14",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "snippet",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "trigger",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TRIGGER",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          }
+        ]
+      },
+      {
         "aliases": [
           "vcs"
         ],
