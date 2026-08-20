@@ -15,8 +15,8 @@ from sase.ace.tui.glossary_panel_catalog import (
     GlossaryProjectRef,
     GlossaryProjectSnapshot,
 )
-from sase.ace.tui.modals import glossary_panel as glossary_panel_module
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals import glossary_pane as glossary_pane_module
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from sase.ace.tui.modals.glossary_panel_load import GlossaryPanelInitialLoad
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
 from sase.xprompt.glossary_catalog import (
@@ -27,15 +27,14 @@ from sase.xprompt.glossary_catalog import (
 
 
 class GlossaryPanelTestApp(App[None]):
-    def __init__(self, panel: GlossaryPanel) -> None:
+    """Mount a reusable Glossary pane as the app's content widget."""
+
+    def __init__(self, panel: GlossaryPane) -> None:
         super().__init__()
         self.panel = panel
 
     def compose(self) -> ComposeResult:
-        yield Static("host")
-
-    def on_mount(self) -> None:
-        self.push_screen(self.panel)
+        yield self.panel
 
 
 def _plain(renderable: RenderableType) -> str:
@@ -45,7 +44,7 @@ def _plain(renderable: RenderableType) -> str:
     return capture.get()
 
 
-def panel_static_text(panel: GlossaryPanel, widget_id: str) -> str:
+def panel_static_text(panel: GlossaryPane, widget_id: str) -> str:
     return _plain(panel.query_one(f"#{widget_id}", Static).content)
 
 
@@ -175,14 +174,17 @@ def install_fixed_load(
         launch_workspace: str | None = None,
         initial_project_key: str | None = None,
         seed_from_current_project: bool = True,
+        session_project_key: str | None = None,
     ) -> GlossaryPanelInitialLoad:
+        del launch_workspace, seed_from_current_project
         off_main_thread.append(
             threading.current_thread() is not threading.main_thread()
         )
         index = project_index
-        if initial_project_key is not None:
+        selected_key = initial_project_key or session_project_key
+        if selected_key is not None:
             for i, candidate in enumerate(ring):
-                if candidate.key == initial_project_key:
+                if candidate.key == selected_key:
                     index = i
                     break
         if not ring:
@@ -198,9 +200,9 @@ def install_fixed_load(
         return snapshots[ref.key]
 
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_panel_initial_state", fake_initial_load
+        glossary_pane_module, "load_glossary_panel_initial_state", fake_initial_load
     )
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_project_snapshot", fake_project_load
+        glossary_pane_module, "load_glossary_project_snapshot", fake_project_load
     )
     return off_main_thread

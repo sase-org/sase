@@ -18,7 +18,7 @@ from sase.ace.tui.glossary_panel_catalog import invalidate_glossary_project
 from .glossary_panel_state import _FILTER_INPUT_ID
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
     from sase.ace.tui.glossary_panel_catalog import (
@@ -38,6 +38,7 @@ class GlossaryPanelNavigationMixin(_MixinBase):
         _entries: tuple[GlossaryEntry, ...]
         _filter_definitions: bool
         _filter_text: str
+        _host_visible: bool
         _loading: bool
         _project_index: int
         _project_selection_memory: dict[str, str]
@@ -103,7 +104,8 @@ class GlossaryPanelNavigationMixin(_MixinBase):
     def _close_filter(self) -> None:
         filter_input = self._filter_input()
         filter_input.display = False
-        self._term_list().focus()
+        if self._host_visible:
+            self.app.set_focus(self._term_list())
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != _FILTER_INPUT_ID:

@@ -19,12 +19,17 @@ from sase.glossary.text_filter import filter_glossary_entries
 from .glossary_panel_rendering import build_term_row_text, sorted_glossary_entries
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
 
-    from sase.ace.tui.glossary_panel_catalog import GlossaryProjectSnapshot
+    from sase.ace.tui.glossary_panel_catalog import (
+        GlossaryProjectRef,
+        GlossaryProjectSnapshot,
+    )
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
     from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
     from sase.core.glossary_facade import GlossaryEntry
+
+    from .catalog_pane_contract import CatalogPaneSession
 else:
     _MixinBase = object
 
@@ -33,7 +38,7 @@ _FILTER_INPUT_ID = "glossary-panel-filter"
 
 
 class GlossaryPanelStateMixin(_MixinBase):
-    """Snapshot application, filtering, and selection for :class:`GlossaryPanel`."""
+    """Snapshot application, filtering, and selection for :class:`GlossaryPane`."""
 
     if TYPE_CHECKING:
         _all_entries: tuple[GlossaryEntry, ...]
@@ -42,7 +47,10 @@ class GlossaryPanelStateMixin(_MixinBase):
         _entries: tuple[GlossaryEntry, ...]
         _filter_definitions: bool
         _filter_text: str
+        _project_index: int
+        _ring: tuple[GlossaryProjectRef, ...]
         _selection_guard: ProgrammaticSelectionGuard
+        _session: CatalogPaneSession | None
         _snapshot: GlossaryProjectSnapshot | None
 
         def _refresh_relations_for_current_entry(self) -> None: ...
@@ -112,6 +120,7 @@ class GlossaryPanelStateMixin(_MixinBase):
             self._current_term = identity
         else:
             self._current_term = None
+        self._record_session_selection()
         self._refresh_relations_for_current_entry()
         self._render_definition_card()
 
@@ -128,6 +137,18 @@ class GlossaryPanelStateMixin(_MixinBase):
         if option_list.highlighted is None:
             return 0
         return max(0, min(option_list.highlighted, max(0, len(self._entries) - 1)))
+
+    def _record_session_selection(self) -> None:
+        """Write the live project and term through the injected session."""
+        session = self._session
+        if session is None:
+            return
+        snapshot = self._snapshot
+        if snapshot is not None:
+            session.record_scope(snapshot.project.key)
+        elif self._ring:
+            session.record_scope(self._ring[self._project_index].key)
+        session.record_entry(self._current_term)
 
     def _selected_entry(self) -> GlossaryEntry | None:
         if not self._entries:
@@ -155,6 +176,7 @@ class GlossaryPanelStateMixin(_MixinBase):
         ):
             return
         self._current_term = identity
+        self._record_session_selection()
         self._refresh_relations_for_current_entry()
         self._update_footer()
         if self._debouncer is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from tests.ace.tui.modals.glossary_panel_test_helpers import (
     GlossaryPanelTestApp,
     glossary_entry,
@@ -23,7 +23,7 @@ async def test_back_restores_previous_term_and_pops_one(
     snapshot = project_snapshot(ref, entries, reverse_references={0: ("B",), 1: ("C",)})
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -51,7 +51,7 @@ async def test_back_on_empty_trail_is_a_no_op(
     entries = (glossary_entry(0, "Agent Hood"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -67,7 +67,7 @@ async def test_trail_is_bounded_at_32(monkeypatch: pytest.MonkeyPatch) -> None:
     entries = tuple(glossary_entry(index, term) for index, term in enumerate(terms))
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -95,7 +95,7 @@ async def test_project_cycling_clears_the_trail(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -115,7 +115,7 @@ async def test_back_skips_a_deleted_trail_entry(
     entries = (glossary_entry(0, "Real"), glossary_entry(1, "Other"))
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

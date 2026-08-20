@@ -15,7 +15,7 @@ from textual.containers import VerticalScroll
 from sase.ace.tui.glossary_panel_catalog import glossary_entry_relations
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import Input, OptionList
 
     from sase.ace.tui.glossary_panel_catalog import GlossaryProjectSnapshot
@@ -50,6 +50,8 @@ class GlossaryPanelTravelMixin(_MixinBase):
         ) -> None: ...
 
         def _filter_input(self) -> Input: ...
+
+        def _record_session_selection(self) -> None: ...
 
         def _render_definition_card(self) -> None: ...
 
@@ -143,6 +145,7 @@ class GlossaryPanelTravelMixin(_MixinBase):
                 self._selection_guard.prepare(term, row)
                 option_list.highlighted = row
                 self._current_term = term
+                self._record_session_selection()
                 self._refresh_relations_for_current_entry()
                 return True
         return False

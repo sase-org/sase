@@ -6,7 +6,7 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from tests.ace.tui.modals.glossary_panel_test_helpers import (
     GlossaryPanelTestApp,
     glossary_entry,
@@ -28,7 +28,7 @@ async def test_filter_matches_terms_aliases_and_definitions(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -61,7 +61,7 @@ async def test_empty_filter_shows_no_match_message(
     entries = (glossary_entry(0, "Agent Hood"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -85,7 +85,7 @@ async def test_term_rail_width_matches_widest_row_after_initial_load(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -105,7 +105,7 @@ async def test_filtering_to_short_terms_does_not_jitter_the_rail(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -135,7 +135,7 @@ async def test_cycling_to_a_project_with_short_terms_shrinks_the_rail(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -155,7 +155,7 @@ async def test_term_list_option_list_widget_exists(
     entries = (glossary_entry(0, "Agent Hood"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

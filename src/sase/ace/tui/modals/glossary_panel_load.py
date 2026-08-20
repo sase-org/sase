@@ -32,19 +32,22 @@ def load_glossary_panel_initial_state(
     launch_workspace: str | None,
     initial_project_key: str | None,
     seed_from_current_project: bool = True,
+    session_project_key: str | None = None,
 ) -> GlossaryPanelInitialLoad:
     """Build the project ring and load the initially selected snapshot.
 
-    *initial_project_key* selects a ring entry by key when present. Otherwise,
-    when *seed_from_current_project* is set, the current project's ring entry
-    is used. Failing both, the ring's first (alphabetically first display
-    name) project is used.
+    *initial_project_key* selects a ring entry by key when present. Otherwise
+    *session_project_key* is used, then — when *seed_from_current_project* is
+    set — the current project's ring entry. Failing those, the ring's first
+    (alphabetically first display name) project is used.
     """
     ring = build_glossary_project_ring(launch_workspace)
     if not ring:
         return GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None)
 
     project_index = _ring_index_for_key(ring, initial_project_key)
+    if project_index is None:
+        project_index = _ring_index_for_key(ring, session_project_key)
     if project_index is None and seed_from_current_project:
         try:
             current_project = resolve_current_project()

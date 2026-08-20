@@ -114,3 +114,34 @@ def test_current_project_resolve_failure_falls_back_to_default(
     )
 
     assert result.project_index == 0
+
+
+def test_session_project_key_used_when_no_initial_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ring = (project_ref("alpha", "Alpha"), project_ref("beta", "Beta"))
+    _install(monkeypatch, ring=ring, current_project=_current("alpha"))
+
+    result = gpl.load_glossary_panel_initial_state(
+        launch_workspace=None,
+        initial_project_key=None,
+        seed_from_current_project=False,
+        session_project_key="beta",
+    )
+
+    assert result.project_index == 1
+
+
+def test_initial_project_key_wins_over_session_project_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ring = (project_ref("alpha", "Alpha"), project_ref("beta", "Beta"))
+    _install(monkeypatch, ring=ring, current_project=_current("beta"))
+
+    result = gpl.load_glossary_panel_initial_state(
+        launch_workspace=None,
+        initial_project_key="alpha",
+        session_project_key="beta",
+    )
+
+    assert result.project_index == 0

@@ -6,8 +6,8 @@ import pytest
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.modals import glossary_panel as glossary_panel_module
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals import glossary_pane as glossary_pane_module
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from sase.ace.tui.modals.glossary_panel_load import GlossaryPanelInitialLoad
 from tests.ace.tui.modals.glossary_panel_test_helpers import (
     GlossaryPanelTestApp,
@@ -32,7 +32,7 @@ async def test_panel_mounts_and_selects_first_term(
         monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)}
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -56,15 +56,17 @@ async def test_seed_filters_setting_reaches_initial_load(
         launch_workspace: str | None = None,
         initial_project_key: str | None = None,
         seed_from_current_project: bool = True,
+        session_project_key: str | None = None,
     ) -> GlossaryPanelInitialLoad:
+        del session_project_key
         captured.append(seed_from_current_project)
         return GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None)
 
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_panel_initial_state", fake_initial_load
+        glossary_pane_module, "load_glossary_panel_initial_state", fake_initial_load
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     app._current_project_settings = CurrentProjectSettings(seed_filters=False)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -80,7 +82,7 @@ async def test_next_term_updates_card_after_debounce(
     entries = (glossary_entry(0, "Agent Hood"), glossary_entry(1, "Zebra"))
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -104,7 +106,7 @@ async def test_project_cycling_orders_by_display_name_and_scopes_terms(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -126,7 +128,7 @@ async def test_no_glossary_project_shows_invitation(
     ref = project_ref("sase", "sase", has_glossary=False)
     install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, ())})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -144,7 +146,7 @@ async def test_no_glossary_invitation_uses_display_name_not_spec_key(
         monkeypatch, (ref,), {"gh_org__research": project_snapshot(ref, ())}
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -160,7 +162,7 @@ async def test_diagnostics_project_shows_error(
     snapshot = project_snapshot(ref, (), diagnostics=("sase.yml: bad glossary shape",))
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -180,7 +182,7 @@ async def test_initial_and_project_switch_loads_run_off_event_loop(
     }
     off_main_thread = install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

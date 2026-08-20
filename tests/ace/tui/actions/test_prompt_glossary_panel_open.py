@@ -99,7 +99,7 @@ def _prompt_context(
 
 def _stub_panel_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.glossary_panel.load_glossary_panel_initial_state",
+        "sase.ace.tui.modals.glossary_pane.load_glossary_panel_initial_state",
         lambda **_: GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None),
     )
 

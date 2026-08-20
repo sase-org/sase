@@ -12,7 +12,7 @@ from sase.ace.tui.glossary_panel_catalog import (
     GlossaryProjectRef,
     GlossaryProjectSnapshot,
 )
-from sase.ace.tui.modals import glossary_panel as glossary_panel_module
+from sase.ace.tui.modals import glossary_pane as glossary_pane_module
 from sase.ace.tui.modals.glossary_panel import GlossaryPanel
 from sase.ace.tui.modals.glossary_panel_load import GlossaryPanelInitialLoad
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
@@ -183,8 +183,10 @@ def _install_panel_load(
         launch_workspace: str | None = None,
         initial_project_key: str | None = None,
         seed_from_current_project: bool = True,
+        session_project_key: str | None = None,
     ) -> GlossaryPanelInitialLoad:
         del launch_workspace, initial_project_key, seed_from_current_project
+        del session_project_key
         return GlossaryPanelInitialLoad(ring=(ref,), project_index=0, snapshot=snapshot)
 
     def fake_project_load(project: GlossaryProjectRef) -> GlossaryProjectSnapshot:
@@ -192,10 +194,10 @@ def _install_panel_load(
         return snapshot
 
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_panel_initial_state", fake_initial_load
+        glossary_pane_module, "load_glossary_panel_initial_state", fake_initial_load
     )
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_project_snapshot", fake_project_load
+        glossary_pane_module, "load_glossary_project_snapshot", fake_project_load
     )
 
 

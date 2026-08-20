@@ -18,11 +18,11 @@ from sase.ace.tui.glossary_panel_catalog import (
     GlossaryProjectRef,
     GlossaryProjectSnapshot,
 )
-from sase.ace.tui.modals import glossary_panel as glossary_panel_module
+from sase.ace.tui.modals import glossary_pane as glossary_pane_module
 from sase.ace.tui.modals import glossary_panel_actions as actions_mod
 from sase.ace.tui.modals.config_commit import ConfigCommitOffer
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from sase.ace.tui.modals.glossary_panel_add import (
     GlossaryAddDraft,
     GlossaryTermAddModal,
@@ -61,7 +61,7 @@ class _AddFormApp(App[None]):
 
 
 class _ActionsApp(App[None]):
-    def __init__(self, panel: GlossaryPanel) -> None:
+    def __init__(self, panel: GlossaryPane) -> None:
         super().__init__()
         self.panel = panel
         self.session_calls: list[str] = []
@@ -70,10 +70,7 @@ class _ActionsApp(App[None]):
         self.commit_prompts: list[ConfigCommitOffer] = []
 
     def compose(self) -> ComposeResult:
-        yield Static("host")
-
-    def on_mount(self) -> None:
-        self.push_screen(self.panel)
+        yield self.panel
 
     def notify(
         self, message: str, *, severity: str = "information", **kwargs: Any
@@ -197,7 +194,10 @@ def _install_fixed_load(
         launch_workspace: str | None = None,
         initial_project_key: str | None = None,
         seed_from_current_project: bool = True,
+        session_project_key: str | None = None,
     ) -> GlossaryPanelInitialLoad:
+        del launch_workspace, initial_project_key, seed_from_current_project
+        del session_project_key
         if not ring:
             return GlossaryPanelInitialLoad(ring=(), project_index=0, snapshot=None)
         return GlossaryPanelInitialLoad(
@@ -208,10 +208,10 @@ def _install_fixed_load(
         return snapshots[ref.key]
 
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_panel_initial_state", fake_initial_load
+        glossary_pane_module, "load_glossary_panel_initial_state", fake_initial_load
     )
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_project_snapshot", fake_project_load
+        glossary_pane_module, "load_glossary_project_snapshot", fake_project_load
     )
 
 
@@ -369,7 +369,7 @@ async def test_valid_add_writes_through_engine_and_selects_term(
         actions_mod, "push_config_commit_prompt", lambda *_a, **_k: None
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -413,7 +413,7 @@ async def test_delete_confirmation_lists_inbound_and_cancel_writes_nothing(
 
     monkeypatch.setattr(actions_mod, "delete_glossary_term", fake_delete)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -427,7 +427,7 @@ async def test_delete_confirmation_lists_inbound_and_cancel_writes_nothing(
             in confirm._subject
         )
         await pilot.press("escape")
-        await wait_for(pilot, lambda: app.screen is panel)
+        await wait_for(pilot, lambda: not isinstance(app.screen, ConfirmActionModal))
 
     assert called == []
     assert app.session_calls == []
@@ -465,7 +465,7 @@ async def test_delete_selects_neighbor_including_last_row(
         actions_mod, "push_config_commit_prompt", lambda *_a, **_k: None
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -503,11 +503,11 @@ async def test_conflict_toasts_and_refreshes(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(actions_mod, "delete_glossary_term", fake_delete)
     monkeypatch.setattr(
-        glossary_panel_module, "load_glossary_project_snapshot", fake_project_load
+        glossary_pane_module, "load_glossary_project_snapshot", fake_project_load
     )
     monkeypatch.setattr(actions_mod, "invalidate_glossary_project", lambda _key: None)
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -549,7 +549,7 @@ async def test_validation_error_toasts_and_leaves_file(
         actions_mod, "build_config_commit_offer", lambda *_a, **_k: None
     )
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -580,7 +580,7 @@ async def test_footer_shows_conditional_delete(monkeypatch: pytest.MonkeyPatch) 
     _install_fixed_load(
         monkeypatch, (ref,), {"sase": _snapshot(ref, (_entry(0, "Alpha"),))}
     )
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = _ActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

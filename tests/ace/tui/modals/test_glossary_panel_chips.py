@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.glossary_panel import GlossaryPanel
+from sase.ace.tui.modals.glossary_pane import GlossaryPane
 from tests.ace.tui.modals.glossary_panel_test_helpers import (
     GlossaryPanelTestApp,
     glossary_entry,
@@ -31,7 +31,7 @@ async def test_relation_chip_numbering_is_continuous_across_both_rows(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -65,7 +65,7 @@ async def test_digit_follows_referenced_by_chip_when_see_also_empty(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -93,7 +93,7 @@ async def test_tab_moves_chip_cursor_and_wraps(
     snapshot = project_snapshot(ref, entries, reverse_references={0: ("X", "Y")})
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -119,7 +119,7 @@ async def test_follow_moves_term_cursor_and_pushes_trail(
     snapshot = project_snapshot(ref, entries, reverse_references={0: ("X", "Y")})
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -143,7 +143,7 @@ async def test_follow_through_active_filter_clears_it_and_lands(
     snapshot = project_snapshot(ref, entries, reverse_references={0: ("X",)})
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -170,7 +170,7 @@ async def test_reverse_references_make_inbound_only_term_reachable(
     snapshot = project_snapshot(ref, entries, reverse_references={0: ("Referencer",)})
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = GlossaryPanel()
+    panel = GlossaryPane()
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

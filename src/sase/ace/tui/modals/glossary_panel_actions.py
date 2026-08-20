@@ -46,7 +46,7 @@ from .glossary_panel_rendering import sorted_glossary_entries
 from .glossary_preview_render import glossary_source_path
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.worker import Worker
 
     from sase.core.glossary_facade import GlossaryEntry

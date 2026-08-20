@@ -29,7 +29,7 @@ from .glossary_panel_rendering import (
 from .glossary_preview_render import glossary_definition_markdown, glossary_source_path
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
     from sase.ace.tui.glossary_panel_catalog import (
