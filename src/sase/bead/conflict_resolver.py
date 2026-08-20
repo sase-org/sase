@@ -21,6 +21,7 @@ from sase.core.bead_conflict_facade import (
     merge_event_streams_with_relocation,
     reduce_event_streams,
 )
+from sase.bead.relocation import BeadIdRelocation, normalize_bead_relocations
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.sdd._git import sdd_git_command
 
@@ -30,6 +31,7 @@ class _BeadConflictResolution:
     ok: bool
     message: str
     resolved_files: tuple[str, ...] = ()
+    bead_relocations: tuple[BeadIdRelocation, ...] = ()
 
 
 class _GitProbeFailure(RuntimeError):
@@ -129,7 +131,7 @@ def _resolve_bead_conflicts(
         set(streams) | {Path(path).stem for path in conflicted_streams},
     )
     merged_stream_ids: set[str] = set()
-    relocated_beads: list[tuple[str, str]] = []
+    relocated_beads: list[BeadIdRelocation] = []
     for path in conflicted_streams:
         stream_id = Path(path).stem
         stages = _unmerged_stages(repo_root, path)
@@ -152,10 +154,7 @@ def _resolve_bead_conflicts(
             relocated_id = str(relocated["stream_id"])
             streams[relocated_id] = relocated
             merged_stream_ids.add(relocated_id)
-        relocated_beads.extend(
-            (str(old_id), str(new_id))
-            for old_id, new_id in outcome.get("relocations") or ()
-        )
+        relocated_beads.extend(normalize_bead_relocations(outcome))
 
     ordered_streams = [streams[key] for key in sorted(streams)]
     issues = reduce_event_streams(ordered_streams)
@@ -180,12 +179,14 @@ def _resolve_bead_conflicts(
     message = "resolved bead conflicts: " + ", ".join(resolved_paths)
     if relocated_beads:
         message += "; relocated duplicate beads: " + ", ".join(
-            f"{old_id} -> {new_id}" for old_id, new_id in relocated_beads
+            f"{relocation.old_id} -> {relocation.new_id}"
+            for relocation in relocated_beads
         )
     return _BeadConflictResolution(
         True,
         message,
         tuple(resolved_paths),
+        tuple(relocated_beads),
     )
 
 

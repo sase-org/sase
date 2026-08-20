@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from sase.bead import cli as bead_cli
+from sase.bead.relocation import BeadIdRelocation
 from sase.bead.db import create_issue, get_issue, init_db
 from sase.bead.jsonl import export_to_jsonl, import_from_jsonl
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
@@ -54,6 +57,70 @@ def test_create_task_accepts_size_and_prints_type(
     assert capsys.readouterr().out == (
         f"Created task: {task.id} — Investigate follow-up\n"
     )
+
+
+def test_create_task_prints_relocated_published_id(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "create",
+            "--title",
+            "Relocated follow-up",
+            "--type",
+            "task(bug)",
+            "--size",
+            "small",
+            "--field",
+            "location=src/retry.py",
+            "--field",
+            "repro=fails on retry",
+        ]
+    )
+
+    class FakeProject:
+        last_prefix_repair: tuple[str, str] | None = None
+
+        def create(self, **kwargs: object) -> Issue:
+            return Issue(
+                id="sase-1",
+                title=str(kwargs["title"]),
+                issue_type=IssueType.TASK,
+                task_type=str(kwargs["task_type"]),
+                task_type_fields=dict(kwargs["task_type_fields"]),
+                size=PhaseSize.SMALL,
+            )
+
+    class FakeMutation:
+        def __init__(self) -> None:
+            self.project = FakeProject()
+            self.publication_outcome = SimpleNamespace(
+                bead_relocations=(
+                    BeadIdRelocation(
+                        "sase-1",
+                        "sase-2",
+                        "top_level_duplicate",
+                    ),
+                )
+            )
+
+        def commit(self, message: str) -> None:
+            self.commit_message = message
+
+    @contextmanager
+    def fake_bead_store_mutation(_auto_commit: object):
+        yield FakeMutation()
+
+    monkeypatch.setattr(
+        "sase.bead.cli_crud_create.bead_store_mutation",
+        fake_bead_store_mutation,
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    assert capsys.readouterr().out == "Created task: sase-2 — Relocated follow-up\n"
 
 
 def test_create_task_requires_type(

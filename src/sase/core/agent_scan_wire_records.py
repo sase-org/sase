@@ -141,6 +141,8 @@ class AgentArtifactIndexUpdateWire:
     rows_indexed: int = 0
     rows_deleted: int = 0
     rows_skipped: int = 0
+    hidden_terminal_rows_retained: int = 0
+    hidden_terminal_rows_pruned: int = 0
 
 
 @dataclass(frozen=True)
@@ -154,6 +156,9 @@ class AgentArtifactIndexStatusWire:
     agent_artifact_aliases_rows: int = 0
     agent_output_variables_rows: int = 0
     agent_artifact_model_aliases_rows: int = 0
+    hidden_terminal_retention_limit: int = 0
+    hidden_terminal_rows_retained: int = 0
+    hidden_terminal_rows_prunable: int = 0
 
 
 @dataclass(frozen=True)

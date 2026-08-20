@@ -7,6 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class PushOutcome:
     error: str | None
     skipped_locked: bool = False
     log_path: Path | None = None
+    bead_relocations: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ def push_bead_work_launch(
                 skipped_no_remote=False,
                 error=None,
                 log_path=log_path,
+                bead_relocations=result.bead_relocations,
             )
         if result.skipped_locked:
             if head_is_published(repo_root):
@@ -68,6 +71,7 @@ def push_bead_work_launch(
                     skipped_no_remote=False,
                     error=None,
                     log_path=log_path,
+                    bead_relocations=result.bead_relocations,
                 )
             return PushOutcome(
                 pushed=False,
@@ -75,6 +79,7 @@ def push_bead_work_launch(
                 error=None,
                 skipped_locked=True,
                 log_path=log_path,
+                bead_relocations=result.bead_relocations,
             )
         return PushOutcome(
             pushed=False,
@@ -82,6 +87,7 @@ def push_bead_work_launch(
             error=result.error
             or f"managed bead sync did not push and reported no error (see {log_path})",
             log_path=log_path,
+            bead_relocations=result.bead_relocations,
         )
     except Exception as exc:  # noqa: BLE001 - this API must never raise.
         return PushOutcome(

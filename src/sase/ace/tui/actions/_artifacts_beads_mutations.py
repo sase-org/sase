@@ -255,9 +255,16 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 if result.issue_type == IssueType.TASK.value and result.ready:
                     issue = mutation.project.update(issue.id, status=Status.READY.value)
                 mutation.commit(require_mutation_commit_message("create", [issue.id]))
+            from sase.bead.relocation import resolve_created_bead_id
+
+            published_id = resolve_created_bead_id(
+                issue.id,
+                getattr(mutation.publication_outcome, "bead_relocations", ()),
+            )
+            issue.id = published_id
             return TrackedProcResult(
                 True,
-                f"Created {result.issue_type} bead {issue.id}",
+                f"Created {result.issue_type} bead {published_id}",
                 issue,
             )
 

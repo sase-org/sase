@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Validate public Snippets panel API names that non-Python assets rely on."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PUBLIC_SYMBOLS = (
+    "SnippetsPane",
+    "SnippetsPaneHost",
+    "SnippetsPaneSessionState",
+)
+
+
+def main() -> int:
+    source = (ROOT / "src/sase/ace/tui/modals/snippets_panel.py").read_text(
+        encoding="utf-8"
+    )
+    stub = (ROOT / "src/sase/ace/tui/modals/__init__.pyi").read_text(
+        encoding="utf-8"
+    )
+    styles = ROOT / "src/sase/ace/tui/styles.tcss"
+    style_text = styles.read_text(encoding="utf-8")
+    missing = [
+        symbol
+        for symbol in PUBLIC_SYMBOLS
+        if f"class {symbol}" not in source or symbol not in stub
+    ]
+    if "SnippetsPane " not in style_text:
+        missing.append("SnippetsPane CSS selector")
+    if missing:
+        print("Missing Snippets panel public API references: " + ", ".join(missing))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

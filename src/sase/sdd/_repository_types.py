@@ -9,6 +9,8 @@ from enum import StrEnum
 from pathlib import Path
 import subprocess
 
+from sase.bead.relocation import BeadIdRelocation
+
 
 class SddIntegrationStatus(StrEnum):
     """Typed terminal state for one fetch/rebase transaction."""
@@ -82,6 +84,7 @@ class SddIntegrationOutcome:
     restored: bool = False
     error: str | None = None
     resolved_files: tuple[str, ...] = ()
+    bead_relocations: tuple[BeadIdRelocation, ...] = ()
     recovery_ref: str | None = None
 
     @property

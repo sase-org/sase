@@ -17,6 +17,7 @@ from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     default_agent_artifact_index_path,
     query_agent_artifact_index,
+    prune_hidden_terminal_agent_artifact_index_rows,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
     verify_agent_artifact_index,
@@ -86,7 +87,9 @@ def _handle_agents_index_rebuild(args: argparse.Namespace) -> None:
         return
 
     Console().print(
-        f"Rebuilt agent artifact index: {update.rows_indexed} rows ({index_path})"
+        f"Rebuilt agent artifact index: {update.rows_indexed} rows, "
+        f"{update.hidden_terminal_rows_pruned} hidden terminal rows pruned "
+        f"({index_path})"
     )
 
 
@@ -127,7 +130,9 @@ def _handle_agents_index_status(args: argparse.Namespace) -> None:
     Console().print(
         "Agent artifact index ready for normal refresh: "
         f"{payload['visible_rows']} visible rows, "
-        f"{payload['dismissed_projection_rows']} dismissed identities ({index_path})"
+        f"{payload['dismissed_projection_rows']} dismissed identities, "
+        f"{payload['hidden_terminal_rows_retained']} hidden terminal rows retained "
+        f"({index_path})"
     )
 
 
@@ -187,6 +192,9 @@ def _agent_index_status_payload(
         "complete_visible_inbox": False,
         "alias_rows": 0,
         "dismissed_projection_rows": 0,
+        "hidden_terminal_retention_limit": 0,
+        "hidden_terminal_rows_prunable": 0,
+        "hidden_terminal_rows_retained": 0,
         "indexed_rows": 0,
         "normal_refresh": "visible-inbox artifact-index query",
         "repair_command": "sase agent index gc",
@@ -220,6 +228,9 @@ def _agent_index_status_payload(
     base["indexed_rows"] = status.agent_artifacts_rows
     base["dismissed_projection_rows"] = status.dismissed_agents_rows
     base["alias_rows"] = status.agent_artifact_aliases_rows
+    base["hidden_terminal_retention_limit"] = status.hidden_terminal_retention_limit
+    base["hidden_terminal_rows_prunable"] = status.hidden_terminal_rows_prunable
+    base["hidden_terminal_rows_retained"] = status.hidden_terminal_rows_retained
     try:
         snapshot = query_agent_artifact_index(
             index_path,
@@ -271,8 +282,14 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     update = rebuild_agent_artifact_index(index_path, projects_root)
     dismissed, dismissed_bundle_skipped = _load_dismissed_identities_for_gc()
     hidden_update = replace_agent_artifact_index_dismissed_agents(index_path, dismissed)
+    prune_update = prune_hidden_terminal_agent_artifact_index_rows(index_path)
 
     payload = agent_scan_wire_to_json_dict(update)
+    payload["hidden_terminal_rows_pruned"] += prune_update.hidden_terminal_rows_pruned
+    payload["hidden_terminal_rows_retained"] = max(
+        payload["hidden_terminal_rows_retained"],
+        prune_update.hidden_terminal_rows_retained,
+    )
     payload.update(
         {
             "corrupt_rows": preflight.corrupt_rows,
@@ -294,6 +311,7 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
         f"{payload['rows_indexed']} rows indexed, "
         f"{payload['rows_deleted']} stale rows deleted, "
         f"{payload['rows_hidden']} dismissed identities hidden, "
+        f"{payload['hidden_terminal_rows_pruned']} hidden terminal rows pruned, "
         f"{payload['revived_bundles_purged']} revived bundles purged, "
         f"{payload['rows_skipped']} skipped ({index_path})"
     )

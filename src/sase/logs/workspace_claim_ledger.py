@@ -61,7 +61,18 @@ def _claims_for_workspace(
     from sase.core.agent_launch_claims import list_workspace_claims_from_content
 
     claims: list[WorkspaceClaim] = list_workspace_claims_from_content(content)
-    return [asdict(claim) for claim in claims if claim.workspace_num == workspace_num]
+    return [
+        _claim_snapshot(claim)
+        for claim in claims
+        if claim.workspace_num == workspace_num
+    ]
+
+
+def _claim_snapshot(claim: WorkspaceClaim) -> dict[str, Any]:
+    snapshot = asdict(claim)
+    if not snapshot["suffix_fields"]:
+        snapshot.pop("suffix_fields")
+    return snapshot
 
 
 def record_running_field_mutation(

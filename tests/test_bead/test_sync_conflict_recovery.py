@@ -12,6 +12,7 @@ import pytest
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from sase.bead.sync_worker import run_managed_sync_worker
+from sase.core import bead_mutation_facade
 from sase.sdd._repository_transaction import (
     SddIntegrationStatus,
     integrate_sdd_repository,
@@ -174,6 +175,83 @@ def test_clean_rebase_repairs_stale_manifest_and_repeated_sync_is_noop(
         for record in _log_records(log_path)
         if record["event"] == "manifest_repair"
     ][-1] == "noop"
+
+
+def test_managed_sync_worker_reports_duplicate_create_relocation_and_rewrites_subject(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "duplicate-create.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    seed = tmp_path / "duplicate-seed"
+    seed.mkdir()
+    init_git_repo(seed)
+    _git(seed, "branch", "-M", "main")
+    (seed / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(seed, beads_dirname="beads"):
+        pass
+    _commit(seed, "seed empty bead store")
+    _git(seed, "remote", "add", "origin", str(remote))
+    _git(seed, "push", "-u", "origin", "main")
+
+    left = tmp_path / "left-duplicate"
+    right = tmp_path / "right-duplicate"
+    _clone(remote, left)
+    _clone(remote, right)
+
+    upstream, _ = bead_mutation_facade.create(
+        right / "beads",
+        title="Upstream wins",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:00Z",
+    )
+    _commit(right, f"right creates {upstream.id}", "beads")
+    _git(right, "push")
+
+    local, _ = bead_mutation_facade.create(
+        left / "beads",
+        title="Local relocates",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:01Z",
+    )
+    assert local.id == upstream.id
+    _commit(left, f"chore(beads): create {local.id}", "beads")
+
+    log_path = tmp_path / "duplicate-create-sync.log"
+    outcome = run_managed_sync_worker(left, left / "beads", log_path=log_path)
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert len(outcome.bead_relocations) == 1
+    relocation = outcome.bead_relocations[0]
+    assert relocation.old_id == local.id
+    assert relocation.new_id == f"{local.id.rsplit('-', 1)[0]}-2"
+    assert relocation.kind == "top_level_duplicate"
+    assert _git(left, "log", "-1", "--format=%s").stdout.strip() == (
+        f"chore(beads): create {relocation.new_id}"
+    )
+    assert _git(left, "status", "--porcelain").stdout == ""
+    with BeadProject(left, beads_dirname="beads") as project:
+        assert project.show(upstream.id).title == "Upstream wins"
+        assert project.show(relocation.new_id).title == "Local relocates"
+    records = _log_records(log_path)
+    rewrite = next(
+        record for record in records if record["event"] == "relocation_subject_rewrite"
+    )
+    assert rewrite["rewritten"] is True
+    completed = records[-1]
+    assert completed["event"] == "completed"
+    assert completed["bead_relocations"] == [
+        {
+            "old_id": relocation.old_id,
+            "new_id": relocation.new_id,
+            "kind": "top_level_duplicate",
+        }
+    ]
 
 
 @pytest.mark.parametrize("invalid_kind", ["rewrite", "corrupt"])

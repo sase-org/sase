@@ -60,6 +60,7 @@ from .snippets_panel_view import SnippetsPanelViewMixin
 _SESSION_TRIGGER_LIMIT = 64
 
 
+# symvision: tools/validate_snippets_panel_public_api
 @dataclass
 class SnippetsPaneSessionState:
     """Session-only cursor state for an embedded Snippets content pane."""
@@ -92,6 +93,7 @@ class SnippetsPaneSessionState:
             self.project_triggers.pop(oldest, None)
 
 
+# symvision: tools/validate_snippets_panel_public_api
 class SnippetsPaneHost(Protocol):
     """Host callback required by :class:`SnippetsPane` for close requests."""
 
@@ -122,6 +124,7 @@ class _SnippetsFilterInput(FilterInput):
         return None
 
 
+# symvision: tools/validate_snippets_panel_public_api
 class SnippetsPane(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,

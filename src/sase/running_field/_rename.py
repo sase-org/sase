@@ -55,6 +55,7 @@ def update_running_field_cl_name(
                             pid=claim.pid,
                             artifacts_timestamp=claim.artifacts_timestamp,
                             pinned=claim.pinned,
+                            suffix_fields=claim.suffix_fields,
                         )
                         new_lines.append(updated_claim.to_line())
                         updated = True

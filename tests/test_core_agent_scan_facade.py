@@ -8,6 +8,7 @@ import pytest
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row_bounded,
+    prune_hidden_terminal_agent_artifact_index_rows,
     query_related_agent_artifact_dirs,
     read_agent_artifact_index_meta,
     scan_agent_artifact_dirs,
@@ -284,6 +285,39 @@ def test_agent_artifact_index_status_calls_rust_binding(
     assert status.schema_version == 3
     assert status.agent_artifacts_rows == 7
     assert status.dismissed_agents_rows == 2
+
+
+def test_hidden_terminal_artifact_index_prune_calls_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, int | None]] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+
+    def fake_prune(index: str, hot_rows: int | None) -> dict[str, Any]:
+        calls.append((index, hot_rows))
+        return {
+            "schema_version": 3,
+            "index_path": index,
+            "projects_root": "",
+            "rows_indexed": 0,
+            "rows_deleted": 2,
+            "rows_skipped": 0,
+            "hidden_terminal_rows_retained": 4096,
+            "hidden_terminal_rows_pruned": 2,
+        }
+
+    fake.prune_hidden_terminal_agent_artifact_index_rows = fake_prune  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    update = prune_hidden_terminal_agent_artifact_index_rows(index_path, hot_rows=4096)
+
+    assert calls == [(str(index_path), 4096)]
+    assert update.rows_deleted == 2
+    assert update.hidden_terminal_rows_retained == 4096
+    assert update.hidden_terminal_rows_pruned == 2
 
 
 def test_related_agent_artifact_dirs_calls_rust_binding(

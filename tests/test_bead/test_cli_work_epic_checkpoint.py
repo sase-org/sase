@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +12,8 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
+from sase.bead.relocation import BeadIdRelocation
+from sase.bead.cli_work_handler import launch_epic_bead_work
 
 from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond
 
@@ -95,6 +98,63 @@ def test_work_uses_sync_push_even_when_config_flag_disabled(
     out = capsys.readouterr().out
     assert f"Committed epic launch checkpoint for {epic_id}." in out
     assert "Pushed to remote." in out
+
+
+def test_work_rewrites_launch_query_and_env_after_graph_relocation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    relocated_id = "sase-99"
+    captured: dict[str, Any] = {}
+
+    def fake_launch(
+        query: str,
+        *,
+        segment_extra_env: tuple[dict[str, str], ...],
+        expected_names: set[str],
+        launch_context: Any,
+    ) -> list[FakeLaunchResult]:
+        captured["query"] = query
+        captured["segment_extra_env"] = segment_extra_env
+        captured["expected_names"] = expected_names
+        captured["launch_context"] = launch_context
+        return [FakeLaunchResult()]
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        fake_launch,
+    )
+
+    with BeadProject(project_dir) as project:
+        result = launch_epic_bead_work(
+            project,
+            epic_id,
+            dry_run=False,
+            yes=True,
+            no_push=True,
+            before_agent_launch=lambda _proj, _epic_id: SimpleNamespace(
+                bead_relocations=(
+                    BeadIdRelocation(
+                        epic_id,
+                        relocated_id,
+                        "top_level_duplicate",
+                    ),
+                )
+            ),
+        )
+
+    assert result.epic_id == relocated_id
+    assert relocated_id in captured["query"]
+    assert epic_id not in captured["query"]
+    env_values = [
+        value
+        for segment in captured["segment_extra_env"]
+        for value in segment.values()
+        if isinstance(value, str)
+    ]
+    assert any(relocated_id in value for value in env_values)
+    assert all(epic_id not in value for value in env_values)
 
 
 def test_work_no_push_flag_overrides_config(

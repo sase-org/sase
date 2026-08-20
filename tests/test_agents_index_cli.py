@@ -78,15 +78,27 @@ def test_index_gc_syncs_dismissed_identities_and_reports_counts(
                 rows_indexed=1,
             ),
         ) as mock_hide,
+        patch(
+            "sase.agents.cli_index.prune_hidden_terminal_agent_artifact_index_rows",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="",
+                hidden_terminal_rows_retained=4096,
+                hidden_terminal_rows_pruned=4,
+            ),
+        ) as mock_prune,
     ):
         handle_agents_index(_index_args("gc"))
 
     mock_hide.assert_called_once_with(Path("/tmp/index.sqlite"), dismissed)
+    mock_prune.assert_called_once_with(Path("/tmp/index.sqlite"))
     payload = json.loads(capsys.readouterr().out)
     assert payload["rows_indexed"] == 3
     assert payload["rows_deleted"] == 1
     assert payload["rows_hidden"] == 1
     assert payload["missing_rows_indexed"] == 1
+    assert payload["hidden_terminal_rows_pruned"] == 4
 
 
 def test_index_gc_rebuilds_after_corrupt_preflight_report(
@@ -121,6 +133,14 @@ def test_index_gc_rebuilds_after_corrupt_preflight_report(
         ),
         patch(
             "sase.agents.cli_index.replace_agent_artifact_index_dismissed_agents",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="",
+            ),
+        ),
+        patch(
+            "sase.agents.cli_index.prune_hidden_terminal_agent_artifact_index_rows",
             return_value=AgentArtifactIndexUpdateWire(
                 schema_version=1,
                 index_path="/tmp/index.sqlite",

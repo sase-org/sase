@@ -17,6 +17,23 @@ def test_workspace_claim_from_line_legacy_format_no_pid_no_cl_returns_none() -> 
     assert claim is None
 
 
+def test_workspace_claim_from_line_keeps_suffix_corrupt_rows_occupied() -> None:
+    """Unknown suffix fields must not make an otherwise valid row invisible."""
+    claim = WorkspaceClaim.from_line(
+        "  #10 | 12345 | run | demo | 20260820_121314 | legacy=bad | PINNED"
+    )
+
+    assert claim is not None
+    assert claim.workspace_num == 10
+    assert claim.pid == 12345
+    assert claim.artifacts_timestamp == "20260820_121314"
+    assert claim.pinned is True
+    assert (
+        claim.to_line()
+        == "  #10 | 12345 | run | demo | 20260820_121314 | legacy=bad | PINNED"
+    )
+
+
 def test_claim_workspace_new_running_field(tmp_path: Path) -> None:
     """Test claiming a workspace when RUNNING field doesn't exist (PID required)."""
     project_file = create_project_file_with_running(

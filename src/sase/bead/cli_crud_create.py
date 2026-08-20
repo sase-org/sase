@@ -219,4 +219,10 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         from sase.bead.cli_work_from_plan_render import render_prefix_repair
 
         render_prefix_repair(*prefix_repair)
-    print(f"Created {issue.issue_type.value}: {issue.id} — {issue.title}")
+    from sase.bead.relocation import resolve_created_bead_id
+
+    published_id = resolve_created_bead_id(
+        issue.id,
+        getattr(mutation.publication_outcome, "bead_relocations", ()),
+    )
+    print(f"Created {issue.issue_type.value}: {published_id} — {issue.title}")

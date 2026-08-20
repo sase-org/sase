@@ -12,6 +12,7 @@ from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.paths import bead_page_path
+from sase.core import bead_mutation_facade
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -406,6 +407,52 @@ def test_resolution_leaves_untouched_streams_alone(tmp_path: Path) -> None:
     assert not [path for path in staged if any(name in path for name in quiet)]
     merged = (tmp_path / contested).read_text(encoding="utf-8")
     assert "from local" in merged and "from other" in merged
+
+
+def test_duplicate_top_level_creations_report_typed_relocation(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(tmp_path, beads_dirname=BEADS_DIRNAME):
+        pass
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "seed empty bead store")
+
+    _git(tmp_path, "checkout", "-b", "other")
+    upstream, _ = bead_mutation_facade.create(
+        tmp_path / BEADS_DIRNAME,
+        title="Upstream wins",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:00Z",
+    )
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", f"other creates {upstream.id}")
+
+    _git(tmp_path, "checkout", "master")
+    local, _ = bead_mutation_facade.create(
+        tmp_path / BEADS_DIRNAME,
+        title="Local relocates",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:01Z",
+    )
+    assert local.id == upstream.id
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", f"local creates {local.id}")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
+
+    assert result.ok is True, result.message
+    assert len(result.bead_relocations) == 1
+    relocation = result.bead_relocations[0]
+    assert relocation.old_id == local.id
+    assert relocation.new_id == f"{local.id.rsplit('-', 1)[0]}-2"
+    assert relocation.kind == "top_level_duplicate"
+    assert f"{relocation.old_id} -> {relocation.new_id}" in result.message
+    with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
+        assert project.show(upstream.id).title == "Upstream wins"
+        assert project.show(relocation.new_id).title == "Local relocates"
 
 
 def test_resolution_preserves_non_ascii_bytes_in_untouched_streams(

@@ -246,6 +246,8 @@ def test_active_tier_maintenance_marks_fast_path_report_changed(
             index_path=str(index_path),
             projects_root="",
             rows_indexed=3,
+            hidden_terminal_rows_retained=4096,
+            hidden_terminal_rows_pruned=12,
         )
 
     monkeypatch.setattr(
@@ -259,6 +261,8 @@ def test_active_tier_maintenance_marks_fast_path_report_changed(
     assert report.synced
     assert report.changed
     assert report.terminalized_active_rows == 3
+    assert report.hidden_terminal_rows_retained == 4096
+    assert report.hidden_terminal_rows_pruned == 12
 
 
 def test_projection_sync_can_skip_active_tier_maintenance(

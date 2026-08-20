@@ -51,6 +51,7 @@ class _BeadStoreMutation:
 
     project: BeadProject
     commit_message: str | None = None
+    publication_outcome: Any | None = None
 
     def commit(self, message: str) -> None:
         self.commit_message = message
@@ -231,33 +232,36 @@ def bead_store_mutation(
                     commit_kwargs["operation_context"] = operation_context
                 committed = auto_commit(mutation.commit_message, **commit_kwargs)
     if committed and not no_push:
-        if cwd is None:
+        mutation.publication_outcome = (
             _push_committed_bead_store()
-        else:
-            _push_committed_bead_store(cwd=cwd)
-        _require_published_bead_mutation(
+            if cwd is None
+            else _push_committed_bead_store(cwd=cwd)
+        )
+        verified = _require_published_bead_mutation(
             description=mutation.commit_message,
             cwd=cwd,
         )
+        if verified is not None:
+            mutation.publication_outcome = verified
 
 
 def _require_published_bead_mutation(
     *,
     description: str | None,
     cwd: Path | None = None,
-) -> None:
+) -> Any | None:
     """Fail the mutation when its commit never reached the canonical remote."""
     location = resolve_beads_location(cwd=cwd, require_existing=True)
     if location is None or location.is_in_tree or location.read_only:
-        return
-    ensure_bead_mutation_published(location.beads_dir, description=description)
+        return None
+    return ensure_bead_mutation_published(location.beads_dir, description=description)
 
 
 def ensure_bead_mutation_published(
     beads_dir: Path,
     *,
     description: str | None = None,
-) -> None:
+) -> Any | None:
     """Verify a committed bead mutation was published; publish it if not.
 
     The configured push policy may be queued, detached, or aimed at a
@@ -278,14 +282,14 @@ def ensure_bead_mutation_published(
     try:
         status = verify_bead_store_published(beads_dir)
         if status.published:
-            return
-        push_bead_work_launch(
+            return None
+        outcome = push_bead_work_launch(
             beads_dir,
             worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
         )
         status = verify_bead_store_published(beads_dir)
         if status.published:
-            return
+            return outcome
         lines = bead_publication_failure_lines(status, description=description)
     except Exception:
         # Verification must never turn an otherwise healthy mutation into a
@@ -294,14 +298,14 @@ def ensure_bead_mutation_published(
             "Failed to verify publication of committed bead state",
             exc_info=True,
         )
-        return
+        return None
 
     for line in lines:
         print(line, file=sys.stderr)
     raise BeadPublicationError(lines[0], diagnostic="\n".join(lines))
 
 
-def _push_committed_bead_store(*, cwd: Path | None = None) -> None:
+def _push_committed_bead_store(*, cwd: Path | None = None) -> Any | None:
     """Apply the configured push policy after the mutation lock is released."""
     try:
         from sase.sdd._commit_store import (
@@ -312,22 +316,27 @@ def _push_committed_bead_store(*, cwd: Path | None = None) -> None:
 
         location = resolve_beads_location(cwd=cwd, require_existing=True)
         if location is None or location.is_in_tree:
-            return
+            return None
         store = location.store or SddStore(
             storage="local",
             sdd_dir=location.root,
             repo_root=location.root,
         )
+        last_outcome = None
         for target_store, _paths in sdd_commit_targets(
             store,
             [location.beads_dir],
         ):
-            push_sdd_store_after_commit(target_store, push_after_commit=None)
+            last_outcome = push_sdd_store_after_commit(
+                target_store, push_after_commit=None
+            )
+        return last_outcome
     except Exception:
         _logger.warning(
             "Failed to synchronize committed SDD bead store changes",
             exc_info=True,
         )
+        return None
 
 
 def normalize_workspace_path(resolved: Path) -> Path:

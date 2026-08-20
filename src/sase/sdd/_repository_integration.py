@@ -20,6 +20,7 @@ from sase.sdd._repository_types import (
     EventLogger,
     GitRunner,
     LockFactory,
+    BeadIdRelocation,
     SddIntegrationOutcome,
     SddIntegrationStatus,
     SddRepositoryState,
@@ -203,8 +204,10 @@ def _repair_or_abort_rebase(
     event_logger: EventLogger | None,
 ) -> SddIntegrationOutcome:
     from sase.bead.conflict_resolver import resolve_bead_conflicts
+    from sase.bead.relocation import compose_bead_relocations
 
     resolved: list[str] = []
+    bead_relocations: tuple[BeadIdRelocation, ...] = ()
     for _ in range(100):
         conflicts = unmerged_paths(repo_root, runner, op_prefix)
         if conflicts.error is not None:
@@ -235,7 +238,7 @@ def _repair_or_abort_rebase(
             message = (
                 f"semantic bead conflict resolution failed: {safe_git_error_text(exc)}"
             )
-            _emit_resolution(event_logger, False, message, ())
+            _emit_resolution(event_logger, False, message, (), ())
             return _abort_and_verify(
                 repo_root,
                 starting=starting,
@@ -248,6 +251,7 @@ def _repair_or_abort_rebase(
             resolution.ok,
             resolution.message,
             resolution.resolved_files,
+            resolution.bead_relocations,
         )
         if not resolution.ok:
             return _abort_and_verify(
@@ -258,6 +262,10 @@ def _repair_or_abort_rebase(
                 op_prefix=op_prefix,
             )
         resolved.extend(resolution.resolved_files)
+        bead_relocations = compose_bead_relocations(
+            bead_relocations,
+            resolution.bead_relocations,
+        )
 
         continued = runner(
             repo_root,
@@ -275,6 +283,7 @@ def _repair_or_abort_rebase(
                 integrated=True,
                 repaired=True,
                 resolved_files=tuple(sorted(dict.fromkeys(resolved))),
+                bead_relocations=bead_relocations,
                 op_prefix=op_prefix,
                 event_logger=event_logger,
             )
@@ -300,6 +309,7 @@ def _successful_integration(
     integrated: bool,
     repaired: bool,
     resolved_files: tuple[str, ...],
+    bead_relocations: tuple[BeadIdRelocation, ...] = (),
     op_prefix: str,
     event_logger: EventLogger | None,
 ) -> SddIntegrationOutcome:
@@ -393,6 +403,7 @@ def _successful_integration(
         integrated=integrated,
         upstream_present=upstream_present,
         resolved_files=resolved_files,
+        bead_relocations=bead_relocations,
     )
 
 
@@ -477,6 +488,7 @@ def _emit_resolution(
     ok: bool,
     message: str,
     resolved_files: tuple[str, ...],
+    bead_relocations: tuple[BeadIdRelocation, ...],
 ) -> None:
     if logger is not None:
         logger(
@@ -484,4 +496,7 @@ def _emit_resolution(
             ok=ok,
             message=message,
             resolved_files=list(resolved_files),
+            bead_relocations=[
+                relocation.to_json_dict() for relocation in bead_relocations
+            ],
         )

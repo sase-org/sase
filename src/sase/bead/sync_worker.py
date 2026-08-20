@@ -28,6 +28,7 @@ class _ManagedSyncOutcome:
     integrated: bool
     skipped_locked: bool = False
     error: str | None = None
+    bead_relocations: tuple[Any, ...] = ()
 
 
 def run_managed_sync_worker(
@@ -125,7 +126,13 @@ def _run_locked_sync(
     except BeadStreamIntegrityError as exc:
         return _failure(log_path, str(exc))
 
+    from sase.bead.relocation import (
+        compose_bead_relocations,
+        rewrite_head_subject_for_bead_relocations,
+    )
+
     integrated = False
+    bead_relocations: tuple[Any, ...] = ()
     for push_attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
         integration = _integrate_with_transient_dirty_retry(
             repo_root,
@@ -133,17 +140,41 @@ def _run_locked_sync(
             log_path,
         )
         integrated = integrated or integration.integrated
+        integration_relocations = _integration_relocations(integration)
+        bead_relocations = compose_bead_relocations(
+            bead_relocations,
+            integration_relocations,
+        )
         if not integration.succeeded:
             return _failure(
                 log_path,
                 integration.error
                 or f"SDD integration ended with {integration.status.value}",
                 integrated=integrated,
+                bead_relocations=bead_relocations,
+            )
+        if integration_relocations:
+            rewritten = rewrite_head_subject_for_bead_relocations(
+                repo_root,
+                integration_relocations,
+            )
+            _log(
+                log_path,
+                "relocation_subject_rewrite",
+                rewritten=rewritten,
+                bead_relocations=[
+                    relocation.to_json_dict() for relocation in integration_relocations
+                ],
             )
         try:
             refuse_unpublished_event_stream_shrink(repo_root, beads_dir)
         except BeadStreamIntegrityError as exc:
-            return _failure(log_path, str(exc), integrated=integrated)
+            return _failure(
+                log_path,
+                str(exc),
+                integrated=integrated,
+                bead_relocations=bead_relocations,
+            )
 
         # Any successful integration ends the clone's failed-integration
         # cooldown, not only the pull path that recorded it.
@@ -169,14 +200,22 @@ def _run_locked_sync(
                 pushed=True,
                 integrated=integrated,
                 push_attempts=push_attempt,
+                bead_relocations=[
+                    relocation.to_json_dict() for relocation in bead_relocations
+                ],
             )
-            return _ManagedSyncOutcome(pushed=True, integrated=integrated)
+            return _ManagedSyncOutcome(
+                pushed=True,
+                integrated=integrated,
+                bead_relocations=bead_relocations,
+            )
         if not _is_non_fast_forward_rejection(pushed):
             return _failure(
                 log_path,
                 "git push failed",
                 pushed,
                 integrated=integrated,
+                bead_relocations=bead_relocations,
             )
         if push_attempt == _MAX_PUSH_ATTEMPTS:
             return _failure(
@@ -184,6 +223,7 @@ def _run_locked_sync(
                 f"git push rejected after {_MAX_PUSH_ATTEMPTS} attempts",
                 pushed,
                 integrated=integrated,
+                bead_relocations=bead_relocations,
             )
         _log(
             log_path,
@@ -219,6 +259,7 @@ def _integrate_with_transient_dirty_retry(
             ),
             event_logger=lambda event, **fields: _log(log_path, event, **fields),
         )
+        integration_relocations = _integration_relocations(integration)
         _log(
             log_path,
             "integration",
@@ -227,6 +268,9 @@ def _integrate_with_transient_dirty_retry(
             integrated=integration.integrated,
             restored=integration.restored,
             resolved_files=list(integration.resolved_files),
+            bead_relocations=[
+                relocation.to_json_dict() for relocation in integration_relocations
+            ],
         )
         if (
             integration.status is not SddIntegrationStatus.LOCAL_CHANGES
@@ -242,6 +286,10 @@ def _integrate_with_transient_dirty_retry(
         time.sleep(_LOCAL_CHANGES_RETRY_DELAY_SECONDS)
 
     raise AssertionError("bounded local-changes loop ended without an outcome")
+
+
+def _integration_relocations(integration: Any) -> tuple[Any, ...]:
+    return tuple(getattr(integration, "bead_relocations", ()))
 
 
 def _is_non_fast_forward_rejection(
@@ -262,15 +310,23 @@ def _failure(
     result: subprocess.CompletedProcess[str] | None = None,
     *,
     integrated: bool = False,
+    bead_relocations: tuple[Any, ...] = (),
 ) -> _ManagedSyncOutcome:
     from sase.sdd._repository_health import format_git_error
 
     error = format_git_error(message, result) if result is not None else message
-    _log(log_path, "failed", error=error, integrated=integrated)
+    _log(
+        log_path,
+        "failed",
+        error=error,
+        integrated=integrated,
+        bead_relocations=[relocation.to_json_dict() for relocation in bead_relocations],
+    )
     return _ManagedSyncOutcome(
         pushed=False,
         integrated=integrated,
         error=error,
+        bead_relocations=bead_relocations,
     )
 
 

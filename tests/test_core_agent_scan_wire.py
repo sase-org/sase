@@ -140,6 +140,8 @@ def test_artifact_index_wire_helpers() -> None:
             "rows_indexed": 2,
             "rows_deleted": 1,
             "rows_skipped": 3,
+            "hidden_terminal_rows_retained": 4,
+            "hidden_terminal_rows_pruned": 5,
         }
     )
     assert update == AgentArtifactIndexUpdateWire(
@@ -149,6 +151,8 @@ def test_artifact_index_wire_helpers() -> None:
         rows_indexed=2,
         rows_deleted=1,
         rows_skipped=3,
+        hidden_terminal_rows_retained=4,
+        hidden_terminal_rows_pruned=5,
     )
 
     status = agent_artifact_index_status_from_dict(
@@ -158,6 +162,9 @@ def test_artifact_index_wire_helpers() -> None:
             "agent_artifacts_rows": 10,
             "agent_artifact_aliases_rows": 1,
             "dismissed_agents_rows": 2,
+            "hidden_terminal_retention_limit": 4096,
+            "hidden_terminal_rows_retained": 3,
+            "hidden_terminal_rows_prunable": 4,
         }
     )
     assert status == AgentArtifactIndexStatusWire(
@@ -166,6 +173,9 @@ def test_artifact_index_wire_helpers() -> None:
         agent_artifacts_rows=10,
         agent_artifact_aliases_rows=1,
         dismissed_agents_rows=2,
+        hidden_terminal_retention_limit=4096,
+        hidden_terminal_rows_retained=3,
+        hidden_terminal_rows_prunable=4,
     )
 
 

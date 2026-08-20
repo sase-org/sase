@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
@@ -28,13 +29,22 @@ class TaskLaunchCheckpointError(RuntimeError):
     """A task worker's pre-spawn checkpoint or publication failure."""
 
 
+@dataclass(frozen=True)
+class LaunchCheckpointResult:
+    pushed: bool
+    bead_relocations: tuple[Any, ...] = ()
+
+    def __bool__(self) -> bool:
+        return self.pushed
+
+
 def checkpoint_epic_work_launch(
     beads_dir: Path,
     epic_id: str,
     *,
     no_push: bool,
     timer: LaunchTimingRecorder,
-) -> bool:
+) -> LaunchCheckpointResult:
     """Commit and, when required, publish an epic launch before spawning.
 
     Returns whether a remote publication completed. A local checkpoint remains
@@ -69,7 +79,7 @@ def checkpoint_epic_work_launch(
                 retry_requires_push=True,
             )
         print(f"Committed epic launch checkpoint for {epic_id}.")
-        return False
+        return LaunchCheckpointResult(False)
 
     with timer.stage("push", mode="sync"):
         outcome = push_bead_work_launch(
@@ -101,7 +111,10 @@ def checkpoint_epic_work_launch(
 
     suffix = " Pushed to remote." if outcome.pushed else ""
     print(f"Committed epic launch checkpoint for {epic_id}.{suffix}")
-    return outcome.pushed
+    return LaunchCheckpointResult(
+        outcome.pushed,
+        tuple(getattr(outcome, "bead_relocations", ())),
+    )
 
 
 def checkpoint_task_work_launch(
@@ -199,6 +212,7 @@ def _publication_lock_timeout_message(log_path: Path | None) -> str:
 
 __all__ = [
     "EpicLaunchCheckpointError",
+    "LaunchCheckpointResult",
     "TaskLaunchCheckpointError",
     "checkpoint_epic_work_launch",
     "checkpoint_task_work_launch",

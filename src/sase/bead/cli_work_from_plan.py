@@ -36,7 +36,7 @@ from sase.bead.cli_work_from_plan_store import (
     commit_plan_file as _commit_plan_file,
     epic_launch_lock_anchor as _epic_launch_lock_anchor,
     epic_plan_launch_lock as _epic_plan_launch_lock,
-    publish_epic_graph_before_launch as _publish_epic_graph_before_launch,
+    publish_epic_graph_before_launch_result as _publish_epic_graph_before_launch,
     publish_epic_rollback as _publish_epic_rollback,
     push_store_after_launch as _push_store_after_launch,
     require_epic_launch_store_health,
@@ -423,6 +423,7 @@ def _work_from_plan_file_locked(
     launched_names: tuple[str, ...] = ()
     preserved_names: tuple[str, ...] = ()
     launch_state = ""
+    published_relocations: tuple[Any, ...] = ()
 
     def commit_plan_link(path: Path, content: str, message: str) -> bool:
         return _write_and_commit_plan_file(
@@ -433,14 +434,17 @@ def _work_from_plan_file_locked(
             message=message,
         )
 
-    def publish_created_graph(project: BeadProject, epic_id: str) -> None:
-        _checkpoint_and_publish_graph(
+    def publish_created_graph(project: BeadProject, epic_id: str) -> Any:
+        nonlocal published_relocations
+        publication = _checkpoint_and_publish_graph(
             store=store,
             project=project,
             epic_id=epic_id,
             no_push=no_push,
             render=render,
         )
+        published_relocations = tuple(getattr(publication, "bead_relocations", ()))
+        return publication
 
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
         nonlocal launched_names, preserved_names, launch_state
@@ -496,7 +500,12 @@ def _work_from_plan_file_locked(
                 expect_prompt_snapshot=expect_prompt_snapshot,
                 timer=timer,
             )
-            timer.fields["bead_id"] = created.epic.id
+            from sase.bead.relocation import resolve_created_bead_id
+
+            timer.fields["bead_id"] = resolve_created_bead_id(
+                created.epic.id,
+                published_relocations,
+            )
     except Exception as exc:
         retry_requires_push = False
         detail = str(exc)
@@ -522,14 +531,19 @@ def _work_from_plan_file_locked(
         ) from exc
 
     _push_store_after_launch(store, no_push=no_push)
+    from sase.bead.relocation import resolve_created_bead_id
+
     result = _PlanFileWorkResult(
         archived_plan_path=archived_path,
         authored_phase_ids=phase_ids,
         dry_run=False,
-        epic_id=created.epic.id,
+        epic_id=resolve_created_bead_id(created.epic.id, published_relocations),
         parent_id=created.epic.parent_id,
         replaced_stale_epic_id=stale_epic_id,
-        phase_bead_ids=tuple(phase.id for phase in created.phases),
+        phase_bead_ids=tuple(
+            resolve_created_bead_id(phase.id, published_relocations)
+            for phase in created.phases
+        ),
         launched_agent_names=launched_names,
         preserved_agent_names=preserved_names,
         launch_state=launch_state,
@@ -581,7 +595,7 @@ def _checkpoint_and_publish_graph(
     epic_id: str,
     no_push: bool,
     render: bool,
-) -> None:
+) -> Any:
     """Commit the complete ready graph and cross the visibility barrier."""
     from sase.bead.cli_work_handler import BeadWorkError
     from sase.bead.sync import bead_state_is_clean, commit_epic_graph_checkpoint
@@ -611,6 +625,7 @@ def _checkpoint_and_publish_graph(
     if render:
         destination = "remote" if published else "shared authoritative store"
         Console().print(f"[green]✓[/green] Graph published {epic_id} · {destination}")
+    return published
 
 
 __all__ = [

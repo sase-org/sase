@@ -150,6 +150,8 @@ def test_dispatch_index_rebuild_json(capsys: pytest.CaptureFixture[str]) -> None
         "rows_indexed": 7,
         "rows_deleted": 0,
         "rows_skipped": 0,
+        "hidden_terminal_rows_retained": 0,
+        "hidden_terminal_rows_pruned": 0,
     }
 
     with (
@@ -350,6 +352,16 @@ def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
                 rows_skipped=0,
             ),
         ) as mock_hide,
+        patch(
+            "sase.agents.cli_index.prune_hidden_terminal_agent_artifact_index_rows",
+            return_value=AgentArtifactIndexUpdateWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="",
+                hidden_terminal_rows_retained=4096,
+                hidden_terminal_rows_pruned=7,
+            ),
+        ) as mock_prune,
         pytest.raises(SystemExit) as excinfo,
     ):
         handle_agent_command(args)
@@ -358,6 +370,7 @@ def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
     mock_verify.assert_called_once()
     mock_rebuild.assert_called_once()
     mock_hide.assert_called_once()
+    mock_prune.assert_called_once()
     payload = json.loads(capsys.readouterr().out)
     assert payload["index_path"] == "/tmp/index.sqlite"
     assert payload["rows_indexed"] == 4
@@ -365,6 +378,7 @@ def test_dispatch_index_gc_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert payload["rows_hidden"] == 5
     assert payload["rows_skipped"] == 2
     assert payload["stale_rows_rewritten"] == 2
+    assert payload["hidden_terminal_rows_pruned"] == 7
 
 
 def test_dispatch_index_verify_json_exits_nonzero_when_stale(

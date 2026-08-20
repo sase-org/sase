@@ -95,6 +95,8 @@ class DismissedProjectionSyncReport:
     healed: bool = False
     quarantined_path: Path | None = None
     terminalized_active_rows: int = 0
+    hidden_terminal_rows_retained: int = 0
+    hidden_terminal_rows_pruned: int = 0
 
 
 def sync_dismissed_agent_artifact_index(
@@ -233,6 +235,8 @@ def _heal_corrupt_index_and_resync(
         healed=True,
         quarantined_path=quarantined,
         terminalized_active_rows=report.terminalized_active_rows,
+        hidden_terminal_rows_retained=report.hidden_terminal_rows_retained,
+        hidden_terminal_rows_pruned=report.hidden_terminal_rows_pruned,
     )
 
 
@@ -255,7 +259,9 @@ def _run_active_tier_maintenance(
         log.debug("agent artifact index active-tier maintenance failed", exc_info=True)
         return report
     terminalized = update.rows_indexed
-    if terminalized <= 0:
+    pruned = update.hidden_terminal_rows_pruned
+    retained = update.hidden_terminal_rows_retained
+    if terminalized <= 0 and pruned <= 0:
         return report
     return DismissedProjectionSyncReport(
         synced=report.synced,
@@ -263,6 +269,8 @@ def _run_active_tier_maintenance(
         healed=report.healed,
         quarantined_path=report.quarantined_path,
         terminalized_active_rows=terminalized,
+        hidden_terminal_rows_retained=retained,
+        hidden_terminal_rows_pruned=pruned,
     )
 
 

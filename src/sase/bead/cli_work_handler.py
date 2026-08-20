@@ -177,7 +177,7 @@ def launch_epic_bead_work(
     no_push: bool,
     yes_to_all: bool = False,
     defer_push: bool = False,
-    before_agent_launch: Callable[[BeadProject, str], None] | None = None,
+    before_agent_launch: Callable[[BeadProject, str], Any] | None = None,
     timer: LaunchTimingRecorder | None = None,
 ) -> _EpicWorkResult:
     """Run the epic bead-work path, returning the structured launch outcome.
@@ -433,17 +433,24 @@ def launch_epic_bead_work(
         raise BeadWorkError(str(exc)) from exc
 
     graph_published = False
+    graph_relocations: tuple[Any, ...] = ()
     try:
         with timer.stage("graph_publication"):
             if before_agent_launch is not None:
-                before_agent_launch(proj, epic_id)
+                callback_result = before_agent_launch(proj, epic_id)
+                graph_relocations = tuple(
+                    getattr(callback_result, "bead_relocations", ())
+                )
             else:
                 try:
-                    checkpoint_epic_work_launch(
+                    checkpoint_result = checkpoint_epic_work_launch(
                         proj.beads_dir,
                         epic_id,
                         no_push=no_push or defer_push,
                         timer=timer,
+                    )
+                    graph_relocations = tuple(
+                        getattr(checkpoint_result, "bead_relocations", ())
                     )
                 except EpicLaunchCheckpointError as exc:
                     raise BeadWorkError(
@@ -474,16 +481,38 @@ def launch_epic_bead_work(
             f"epic graph publication failed before agent launch for {epic_id}: {exc}"
         ) from exc
 
+    if graph_relocations:
+        from sase.bead.relocation import (
+            resolve_created_bead_id,
+            rewrite_text_for_bead_relocations,
+        )
+
+        epic_id = resolve_created_bead_id(epic_id, graph_relocations)
+        query = rewrite_text_for_bead_relocations(query, graph_relocations)
+
     try:
         with timer.stage("agent_launch"):
+            segment_env = epic_work_segment_env(
+                plan,
+                plan_ref=issue.design,
+                plan_snapshot=plan_snapshot,
+                launch_names=selection.launch_names,
+            )
+            if graph_relocations:
+                segment_env = tuple(
+                    {
+                        key: (
+                            rewrite_text_for_bead_relocations(value, graph_relocations)
+                            if isinstance(value, str)
+                            else value
+                        )
+                        for key, value in segment.items()
+                    }
+                    for segment in segment_env
+                )
             results = launch_bead_work_agents(
                 query,
-                segment_extra_env=epic_work_segment_env(
-                    plan,
-                    plan_ref=issue.design,
-                    plan_snapshot=plan_snapshot,
-                    launch_names=selection.launch_names,
-                ),
+                segment_extra_env=segment_env,
                 expected_names=set(selection.launch_names),
                 launch_context=patch_context or vcs_context,
             )

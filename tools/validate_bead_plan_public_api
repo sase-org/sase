@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""Validate compatibility exports for plan-file bead publication."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "src/sase/bead/cli_work_from_plan_store.py"
+PUBLIC_SYMBOLS = (
+    "publish_epic_graph_before_launch",
+    "publish_epic_graph_before_launch_result",
+)
+
+
+def main() -> int:
+    source = SOURCE.read_text(encoding="utf-8")
+    missing = [
+        symbol for symbol in PUBLIC_SYMBOLS if f"def {symbol}(" not in source
+    ]
+    if missing:
+        print("Missing bead plan public API symbol(s): " + ", ".join(missing))
+        return 1
+    if "-> bool:" not in source.split("def publish_epic_graph_before_launch(", 1)[1]:
+        print("publish_epic_graph_before_launch must keep returning bool")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

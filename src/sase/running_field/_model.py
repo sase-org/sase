@@ -40,6 +40,7 @@ class WorkspaceClaim:
     pid: int
     artifacts_timestamp: str | None = None
     pinned: bool = False
+    suffix_fields: tuple[str, ...] = ()
 
     def to_line(self) -> str:
         """Convert to RUNNING field line format.
@@ -51,9 +52,23 @@ class WorkspaceClaim:
             ValueError: If pid is not set (every RUNNING entry must have a PID).
         """
         cl_part = self.cl_name or ""
-        ts_part = f" | {self.artifacts_timestamp}" if self.artifacts_timestamp else ""
-        pin_part = " | PINNED" if self.pinned else ""
-        return f"  #{self.workspace_num} | {self.pid} | {self.workflow} | {cl_part}{ts_part}{pin_part}"
+        suffix_fields = list(self.suffix_fields)
+        if self.artifacts_timestamp and not any(
+            _is_timestamp_part(field) for field in suffix_fields
+        ):
+            insert_idx = (
+                suffix_fields.index("PINNED")
+                if "PINNED" in suffix_fields
+                else len(suffix_fields)
+            )
+            suffix_fields.insert(insert_idx, self.artifacts_timestamp)
+        if self.pinned and "PINNED" not in suffix_fields:
+            suffix_fields.append("PINNED")
+        suffix_part = f" | {' | '.join(suffix_fields)}" if suffix_fields else ""
+        return (
+            f"  #{self.workspace_num} | {self.pid} | {self.workflow} | "
+            f"{cl_part}{suffix_part}"
+        )
 
     @staticmethod
     def from_line(line: str) -> "WorkspaceClaim | None":
@@ -65,25 +80,41 @@ class WorkspaceClaim:
 
         Note: Returns None for entries without a PID (PID is required).
         """
-        match = re.match(
-            r"^\s*#(\d+)\s*\|\s*(\d+)\s*\|\s*(\S+)\s*\|\s*([^|]*?)"
-            r"(?:\s*\|\s*(\d{6}_\d{6}|\d{14}))?(?:\s*\|\s*([^|]+))?$",
-            line,
-        )
-        if match:
-            workspace_num = int(match.group(1))
-            pid = int(match.group(2))
-            workflow = match.group(3)
-            cl_name = match.group(4).strip() or None
-            artifacts_timestamp = match.group(5) if match.group(5) else None
-            pinned = match.group(6) is not None and match.group(6).strip() == "PINNED"
-            return WorkspaceClaim(
-                workspace_num=workspace_num,
-                workflow=workflow,
-                cl_name=cl_name,
-                pid=pid,
-                artifacts_timestamp=artifacts_timestamp,
-                pinned=pinned,
-            )
+        trimmed = line.strip()
+        if not trimmed.startswith("#"):
+            return None
+        parts = [part.strip() for part in trimmed.split("|")]
+        if len(parts) < 4:
+            return None
+        try:
+            workspace_num = int(parts[0].removeprefix("#"))
+            pid = int(parts[1])
+        except ValueError:
+            return None
+        workflow = parts[2]
+        if not workflow:
+            return None
 
-        return None
+        suffix_fields = tuple(parts[4:])
+        artifacts_timestamp = next(
+            (field for field in suffix_fields if _is_timestamp_part(field)),
+            None,
+        )
+        pinned = "PINNED" in suffix_fields
+        return WorkspaceClaim(
+            workspace_num=workspace_num,
+            workflow=workflow,
+            cl_name=parts[3].strip() or None,
+            pid=pid,
+            artifacts_timestamp=artifacts_timestamp,
+            pinned=pinned,
+            suffix_fields=suffix_fields,
+        )
+
+
+def _is_timestamp_part(value: str) -> bool:
+    return (
+        re.fullmatch(r"\d{14}", value) is not None
+        or re.fullmatch(r"\d{8}_\d{6}", value) is not None
+        or re.fullmatch(r"\d{6}_\d{6}", value) is not None
+    )

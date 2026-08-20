@@ -106,6 +106,8 @@ def agent_artifact_index_update_from_dict(
         rows_indexed=int(data.get("rows_indexed", 0)),
         rows_deleted=int(data.get("rows_deleted", 0)),
         rows_skipped=int(data.get("rows_skipped", 0)),
+        hidden_terminal_rows_retained=int(data.get("hidden_terminal_rows_retained", 0)),
+        hidden_terminal_rows_pruned=int(data.get("hidden_terminal_rows_pruned", 0)),
     )
 
 
@@ -122,6 +124,11 @@ def agent_artifact_index_status_from_dict(
         agent_artifact_model_aliases_rows=int(
             data.get("agent_artifact_model_aliases_rows", 0)
         ),
+        hidden_terminal_retention_limit=int(
+            data.get("hidden_terminal_retention_limit", 0)
+        ),
+        hidden_terminal_rows_retained=int(data.get("hidden_terminal_rows_retained", 0)),
+        hidden_terminal_rows_prunable=int(data.get("hidden_terminal_rows_prunable", 0)),
     )
 
 

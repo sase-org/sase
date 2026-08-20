@@ -230,6 +230,20 @@ def terminalize_stale_active_agent_artifact_index_rows(
     return agent_artifact_index_update_from_dict(payload)
 
 
+def prune_hidden_terminal_agent_artifact_index_rows(
+    index_path: Path | str,
+    *,
+    hot_rows: int | None = None,
+) -> AgentArtifactIndexUpdateWire:
+    """Prune old hidden terminal rows from the hot artifact index view."""
+    with agent_artifact_index_operation_lock():
+        rust_prune = require_rust_binding(
+            "prune_hidden_terminal_agent_artifact_index_rows"
+        )
+        payload: dict[str, Any] = rust_prune(str(index_path), hot_rows)
+    return agent_artifact_index_update_from_dict(payload)
+
+
 def replace_agent_artifact_index_dismissed_agents(
     index_path: Path | str,
     dismissed: Sequence[AgentCleanupIdentityWire],
@@ -475,6 +489,7 @@ __all__ = [
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
     "parse_output_variable_selector",
+    "prune_hidden_terminal_agent_artifact_index_rows",
     "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_output_variable_history",

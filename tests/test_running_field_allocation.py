@@ -228,6 +228,35 @@ def test_running_field_malformed_claim_rows_are_ignored_for_allocation(
         Path(project_file).unlink()
 
 
+def test_running_field_suffix_corrupt_claim_blocks_allocation(
+    tmp_path: Path,
+) -> None:
+    """A valid claim with unknown suffix fields still occupies its workspace."""
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", delete=False, suffix=".sase"
+    ) as f:
+        f.write(
+            "RUNNING:\n"
+            "  #10 | 11111 | spy-old | old | 20260820_121314 | legacy=bad\n"
+            "\n\n"
+            "NAME: Test Feature\n"
+            "STATUS: Ready\n"
+        )
+        project_file = f.name
+    try:
+        workspace_num = claim_next_axe_workspace(
+            project_file, "spy-new", 22222, cl_name="new"
+        )
+        assert workspace_num == 11
+
+        claims = get_claimed_workspaces(project_file)
+        assert {claim.workspace_num for claim in claims} == {10, 11}
+        old_claim = next(claim for claim in claims if claim.workspace_num == 10)
+        assert old_claim.artifacts_timestamp == "20260820_121314"
+    finally:
+        Path(project_file).unlink()
+
+
 def test_claim_next_axe_workspace_dir_resolves_after_claim(tmp_path: Path) -> None:
     """Directory resolution happens only after the atomic claim is held."""
     project_file = create_project_file_with_running(tmp_path)

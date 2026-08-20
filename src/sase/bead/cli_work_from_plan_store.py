@@ -414,16 +414,18 @@ def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
         )
 
 
-def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
+def publish_epic_graph_before_launch_result(store: SddStore, *, no_push: bool) -> Any:
     """Make a committed epic graph visible to detached worker workspaces.
 
-    Returns ``True`` when a remote publication completed and ``False`` when
-    the authoritative store is shared by the launch context and needs no
-    remote barrier. Unlike ordinary post-commit synchronization, publication
-    failures are fatal because workers cannot safely claim unpublished beads.
+    Returns a launch checkpoint result carrying whether a remote publication
+    completed, plus any bead-id relocations resolved during publication.
+    Unlike ordinary post-commit synchronization, publication failures are fatal
+    because workers cannot safely claim unpublished beads.
     """
+    from sase.bead.cli_work_commit import LaunchCheckpointResult
+
     if not _store_requires_remote_publication(store):
-        return False
+        return LaunchCheckpointResult(False)
     if no_push:
         raise RuntimeError(
             "--no-push cannot launch workers from this detached bead store; "
@@ -441,7 +443,10 @@ def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
         worker_lock_wait=PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
     )
     if outcome.pushed:
-        return True
+        return LaunchCheckpointResult(
+            True,
+            tuple(getattr(outcome, "bead_relocations", ())),
+        )
     if getattr(outcome, "skipped_locked", False):
         raise RuntimeError(
             _publication_lock_timeout_message(getattr(outcome, "log_path", None))
@@ -452,6 +457,11 @@ def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
         "the detached bead store has no push remote; configure its remote "
         "before launching workers"
     )
+
+
+# symvision: tools/validate_bead_plan_public_api
+def publish_epic_graph_before_launch(store: SddStore, *, no_push: bool) -> bool:
+    return bool(publish_epic_graph_before_launch_result(store, no_push=no_push))
 
 
 def publish_epic_rollback(store: SddStore) -> bool:
