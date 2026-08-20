@@ -15,6 +15,7 @@ __all__ = [
     "make_monitor",
     "monitor_home",
     "patch_project_records",
+    "pin_project",
 ]
 
 
@@ -25,6 +26,13 @@ def monitor_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home.mkdir()
     monkeypatch.setenv("SASE_HOME", str(home))
     return home
+
+
+def pin_project(monkeypatch: pytest.MonkeyPatch, project: str = "proj") -> None:
+    """Force the handler to treat the cwd as belonging to ``project``."""
+    monkeypatch.setattr(
+        "sase.main.monitor_handler._infer_project_name", lambda _cwd: project
+    )
 
 
 def dispatch(argv: list[str]) -> int:
