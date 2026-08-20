@@ -333,6 +333,7 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
+        --epic-symbol "sase-rl.2(load_mini_xprompt_target_catalog)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

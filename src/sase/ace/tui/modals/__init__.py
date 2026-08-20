@@ -16,6 +16,12 @@ if TYPE_CHECKING:
     )
     from .input_item_modal import InputItemModal as InputItemModal
     from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+    from .mini_xprompt_name_modal import (
+        MiniXPromptNameModal as MiniXPromptNameModal,
+    )
+    from .mini_xprompt_name_modal import (
+        MiniXPromptNameResult as MiniXPromptNameResult,
+    )
     from .project_select_modal import ProjectSelectModal as ProjectSelectModal
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
     from .snippet_name_modal import SnippetNameModal as SnippetNameModal
@@ -193,6 +199,14 @@ _LAZY_EXPORTS = {
     "MemoryPanel": (".memory_panel", "MemoryPanel"),
     "MemoryPane": (".memory_pane", "MemoryPane"),
     "MemoryPaneSession": (".memory_pane", "MemoryPaneSession"),
+    "MiniXPromptNameModal": (
+        ".mini_xprompt_name_modal",
+        "MiniXPromptNameModal",
+    ),
+    "MiniXPromptNameResult": (
+        ".mini_xprompt_name_modal",
+        "MiniXPromptNameResult",
+    ),
     "MentorApplyResult": (".mentor_review_models", "MentorApplyResult"),
     "MentorInfo": (".mentor_review_models", "MentorInfo"),
     "MentorKillResult": (".mentor_review_models", "MentorKillResult"),
@@ -419,6 +433,8 @@ __all__ = [
     "MemoryPanel",
     "MemoryPane",
     "MemoryPaneSession",
+    "MiniXPromptNameModal",
+    "MiniXPromptNameResult",
     "MentorApplyResult",
     "MentorInfo",
     "MentorKillResult",

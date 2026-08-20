@@ -4381,6 +4381,94 @@ SnippetNameModal #snippet-name-hints {
     text-align: center;
 }
 
+MiniXPromptNameModal {
+    align: center middle;
+}
+
+MiniXPromptNameModal > Container {
+    width: 88%;
+    height: 54%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-title {
+    text-style: bold;
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-field {
+    height: 3;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-field-label {
+    width: 13;
+    color: $text-muted;
+    padding-top: 1;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-field Input {
+    width: 1fr;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-body {
+    height: 1fr;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-matches-panel {
+    width: 62%;
+    padding-right: 1;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-destination-panel {
+    width: 38%;
+    border-left: solid $secondary;
+    padding-left: 1;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-panel-title {
+    height: 2;
+    text-style: bold;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-matches {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-destination {
+    height: auto;
+    border: solid $secondary;
+    padding: 1;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-verdict-success {
+    color: $success;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-verdict-warning {
+    color: $warning;
+}
+
+MiniXPromptNameModal .mini-xprompt-name-verdict-error {
+    color: $error;
+}
+
+MiniXPromptNameModal #mini-xprompt-name-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+}
+
 SnippetSaveConfirmModal {
     align: center middle;
 }
