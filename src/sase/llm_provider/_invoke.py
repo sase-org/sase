@@ -154,6 +154,7 @@ def invoke_agent(
         query = result.prompt
         result_directives = result.directives
     use_pluggable_finalizers = current_flags().enabled(FeatureFlag.pluggable_finalizers)
+    finalizer_plan = None
     if use_pluggable_finalizers or result_directives.final:
         from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 
@@ -169,6 +170,12 @@ def invoke_agent(
                 "finalizers",
                 finalizer_plan.agent_meta_projection(),
             )
+    if use_pluggable_finalizers and finalizer_plan is not None and artifacts_dir:
+        from sase.finalizers.declaration import (
+            append_finalizer_end_turn_instructions,
+        )
+
+        query = append_finalizer_end_turn_instructions(query)
     model_override = result_directives.model
     model_alias_overrides = dict(result_directives.model_alias_overrides)
     if model_alias_overrides and artifacts_dir:
@@ -288,6 +295,11 @@ def invoke_agent(
     context.metadata_llm_provider = requested_provider_label
     context.metadata_model = model_override
     t0 = time.monotonic()
+    previous_finalizer_nonce = os.environ.get("SASE_FINAL_TURN_NONCE")
+    if use_pluggable_finalizers and artifacts_dir:
+        from sase.finalizers.declaration import mint_finalizer_turn_nonce
+
+        mint_finalizer_turn_nonce()
     try:
         if provider_disables is None:
             provider = get_provider(provider_lookup_name)
@@ -462,3 +474,10 @@ def invoke_agent(
         )
 
         raise LLMInvocationError(error_content) from e
+
+    finally:
+        if use_pluggable_finalizers and artifacts_dir:
+            if previous_finalizer_nonce is None:
+                os.environ.pop("SASE_FINAL_TURN_NONCE", None)
+            else:
+                os.environ["SASE_FINAL_TURN_NONCE"] = previous_finalizer_nonce

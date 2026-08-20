@@ -126,3 +126,20 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase commit --resume" not in body
     assert "sase commit" not in body
     assert "sase stitch create -M" not in body
+
+
+def test_sase_final_skill_documents_declaration_commands() -> None:
+    """The final declaration skill should stay source-only and terminal-action focused."""
+    src = get_sase_package_skills_dir() / "sase_final.md"
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    flat = collapse_whitespace(body)
+
+    assert front_matter is not None
+    assert front_matter["skill"] is True
+    assert front_matter["log_skill_use"] is False
+    assert "sase final context -f json" in body
+    assert "sase final submit <manifest-file>" in body
+    assert (
+        "Do not mutate files or repositories after a successful declaration submit"
+        in flat
+    )

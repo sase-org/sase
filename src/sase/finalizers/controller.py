@@ -16,8 +16,10 @@ from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
 )
+from sase.finalizers.declaration import ensure_final_declaration_or_recover
 from sase.finalizers.plan import load_persisted_finalizer_plan
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.llm_provider.types import ModelTier
 
 
@@ -42,6 +44,16 @@ def run_finalizers(
     entries, plan_digest = _selected_entries(artifacts_dir)
     if not entries:
         return invoke_result
+    if current_flags().enabled(FeatureFlag.pluggable_finalizers):
+        invoke_result = ensure_final_declaration_or_recover(
+            provider=provider,
+            invoke_result=invoke_result,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            artifacts_dir=artifacts_dir,
+            options=options,
+        )
 
     config = load_finalizer_config()
     context = FinalizerExecutionContext(

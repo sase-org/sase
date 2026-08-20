@@ -125,6 +125,7 @@ def test_flag_off_invocation_uses_legacy_commit_finalizer(
 
     assert result.content == "response"
     legacy_finalizer.assert_called_once()
+    assert provider.invoke.call_args.args[0] == "processed"
 
 
 @patch("sase.finalizers.run_finalizers")
@@ -153,4 +154,5 @@ def test_flag_on_invocation_persists_plan_and_uses_beta_controller(
 
     assert result.content == "response"
     beta_controller.assert_called_once()
+    assert "/sase_final" in provider.invoke.call_args.args[0]
     assert (tmp_path / FINALIZER_PLAN_FILENAME).is_file()
