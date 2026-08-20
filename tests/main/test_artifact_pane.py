@@ -70,6 +70,8 @@ def test_pane_show_json_explains_verdicts(
         "children",
         "plans",
         "dependencies",
+        "links",
+        "linked_by",
     ]
     assert payload["grouping"]["default_mode"] is None
     assert payload["grouping"]["modes"] == []

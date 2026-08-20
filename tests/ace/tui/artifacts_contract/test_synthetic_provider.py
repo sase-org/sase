@@ -85,6 +85,8 @@ def test_synthetic_provider_earns_generic_document_capabilities() -> None:
         "link",
         "family",
         "bundle",
+        "links",
+        "linked_by",
     ]
     assert contract.has(PaneCapability.GROUPING)
     assert contract.grouping.default_mode == "by_status"

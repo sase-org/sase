@@ -19,6 +19,7 @@ from sase.ace.query_profile import (
     compiled_profile_for_builtin_pane,
 )
 
+from ._artifact_link_contract import with_artifact_link_relations
 from ._artifact_tab_contract_adapters import (
     BUILTIN_ADAPTERS,
     GENERIC_DOCUMENT_COPY_KEYMAP_GROUP,
@@ -77,6 +78,7 @@ def compile_builtin_contract(
     """Compile the host-owned contract for one built-in adapter."""
 
     adapter = BUILTIN_ADAPTERS[adapter_id]
+    relations = with_artifact_link_relations(adapter.relations)
     facts = PaneDeclaredFacts(
         source="builtin",
         adapter=adapter.adapter,
@@ -89,7 +91,7 @@ def compile_builtin_contract(
         is_plan_adapter=adapter.is_plan_adapter,
         project_scoped=adapter.project_scoped,
         has_detail=adapter.has_detail,
-        relations=adapter.relations,
+        relations=relations,
         grouping=adapter.grouping,
         status_counters=adapter.status_counters,
         suppressions={},
@@ -116,7 +118,7 @@ def compile_builtin_contract(
         detail_scroll_id=adapter.detail_scroll_id,
         empty_state=adapter.empty_state,
         presentation=PanePresentation(),
-        relations=adapter.relations,
+        relations=relations,
         grouping=adapter.grouping,
         adapter=adapter.adapter,
         provider_spec_digest=None,
@@ -197,6 +199,8 @@ def compile_provider_contract(
     elif not is_degraded and kind != "plan":
         if all(item.name != PROVIDER_BUNDLE_RELATION.name for item in relations):
             relations = (*relations, PROVIDER_BUNDLE_RELATION)
+    if not is_degraded:
+        relations = with_artifact_link_relations(relations)
 
     if kind == "plan":
         query_profile = compiled_profile_for_builtin_pane("ref:plan")

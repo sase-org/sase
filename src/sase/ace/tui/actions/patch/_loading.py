@@ -6,7 +6,7 @@ import sys
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
@@ -635,11 +635,16 @@ class PatchLoadingMixin:
         return getattr(self, "_patch_relation_index", None)
 
 
-def _build_patch_relation_index(patches: list[Patch]) -> RelationIndex | None:
+def _build_patch_relation_index(
+    patches: list[Patch],
+    *,
+    artifact_links: Any | None = None,
+) -> RelationIndex | None:
     """Build the Patch relation index on a load path, never a keystroke path."""
     from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
     from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
     from sase.ace.tui.relations import build_patches_relation_index
+    from sase.ace.tui.relations import load_artifact_links_snapshot
     from sase.ace.tui.relations._support import relation_index_if_enabled
 
     contract = compile_builtin_contract("patches", label="Patch", icon="", accent="")
@@ -649,5 +654,6 @@ def _build_patch_relation_index(patches: list[Patch]) -> RelationIndex | None:
             patches,
             build_patch_graph_index(patches),
             contract=compiled,
+            artifact_links=artifact_links or load_artifact_links_snapshot(None),
         ),
     )

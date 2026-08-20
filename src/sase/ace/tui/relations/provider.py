@@ -6,6 +6,10 @@ from collections import defaultdict
 from pathlib import Path
 
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract, PaneRelationDecl
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    artifact_link_edges,
+)
 from sase.ace.tui.relations._support import decls_by_name, emit_edge
 from sase.ace.tui.widgets.artifacts.plans_data_models import (
     PlansSnapshot,
@@ -26,14 +30,24 @@ def build_provider_relation_index(
     snapshot: PlansSnapshot,
     *,
     contract: ArtifactsPaneContract,
+    artifact_links: ArtifactLinksSnapshot | None = None,
 ) -> RelationIndex:
     """Build the host-owned provider-document relation index for *snapshot*."""
     source = _ProviderRelationSource(snapshot, contract)
+    known = source.known_targets()
     return build_relation_index(
         pane_id=source.pane_id,
         relations=source.relations(),
-        edges=source.raw_edges(),
-        known_targets=source.known_targets(),
+        edges=(
+            *source.raw_edges(),
+            *artifact_link_edges(
+                artifact_links or snapshot.artifact_links,
+                contract=contract,
+                known_targets=known,
+                project_hint=snapshot.project,
+            ),
+        ),
+        known_targets=known,
     )
 
 

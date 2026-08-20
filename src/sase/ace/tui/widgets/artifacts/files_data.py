@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, cast
@@ -12,6 +12,11 @@ from typing import Any, Literal, cast
 from sase.ace.tui.graphics import artifact_file_view_mode
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.util.trace import tui_trace
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    empty_artifact_links_snapshot,
+    load_artifact_links_snapshot,
+)
 from sase.core.artifact_file_query_facade import query_artifact_files
 from sase.core.artifact_file_types import (
     ArtifactFile,
@@ -103,6 +108,9 @@ class FilesSnapshot:
     view_mode_counts: Mapping[ArtifactViewMode, int]
     origin_counts: Mapping[FileOrigin, int]
     load_error: str | None = None
+    artifact_links: ArtifactLinksSnapshot = field(
+        default_factory=empty_artifact_links_snapshot
+    )
 
     def view_mode_for(self, version: FileVersion) -> ArtifactViewMode:
         return self.view_modes.get(version.version_id, "text")
@@ -173,6 +181,7 @@ def _files_snapshot(
             {origin: origin_counts.get(origin, 0) for origin in _ORIGINS}
         ),
         load_error=load_error,
+        artifact_links=load_artifact_links_snapshot(project),
     )
 
 

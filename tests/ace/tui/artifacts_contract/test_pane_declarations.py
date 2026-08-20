@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui._artifact_tab_contract import compile_provider_contract
+from sase.ace.tui._artifact_tab_contract import (
+    compile_builtin_contract,
+    compile_provider_contract,
+)
 from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
 from sase.ace.tui._artifact_tab_model import (
     PaneCapability,
@@ -127,6 +130,42 @@ def test_invalid_provider_pane_reference_degrades_contract() -> None:
     assert "unsafe_callback" in result.error
     assert result.contract.has(PaneCapability.REFRESH)
     assert not result.contract.has(PaneCapability.FILTER_SESSION)
+
+
+def test_compiled_artifact_panes_declare_artifact_link_relations() -> None:
+    contracts = [
+        compile_builtin_contract(adapter, label=adapter, icon="x", accent="#0")
+        for adapter in ("stitches", "patches", "beads", "files")
+    ]
+    contracts.append(
+        compile_provider_contract(
+            kind="plan",
+            label="Plan",
+            icon="P",
+            accent="#0",
+            spec=None,
+            provider_spec_digest="wire",
+        ).contract
+    )
+    contracts.append(
+        compile_provider_contract(
+            kind="notes",
+            label="Note",
+            icon="N",
+            accent="#0",
+            spec=_document_spec(),
+            provider_spec_digest="wire",
+        ).contract
+    )
+
+    for contract in contracts:
+        declarations = {item.name: item for item in contract.relations}
+        assert declarations["links"].source == "artifact_links"
+        assert declarations["links"].inverse == "linked_by"
+        assert declarations["links"].directed is True
+        assert declarations["linked_by"].source == "artifact_links"
+        assert declarations["linked_by"].inverse == "links"
+        assert declarations["linked_by"].transitive is False
 
 
 def test_pane_only_changes_presentation_digest_not_query_profile() -> None:

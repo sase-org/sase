@@ -13,6 +13,7 @@ from sase.ace.tui.external_issues import (
     list_project_issues,
     resolve_issue_tracker_scope,
 )
+from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.bead.flag_fields import flag_fields, is_flag_bead, is_flag_task_bead
 from sase.bead_flag_presentation import FlagDuePresentation, flag_due_presentation
 from sase.bead.model import IssueType
@@ -263,6 +264,7 @@ def load_beads_snapshot(
         external_source_key=external_source_key,
         flags=tuple(flags),
         flag_due=flag_due,
+        artifact_links=load_artifact_links_snapshot(project),
     )
 
 

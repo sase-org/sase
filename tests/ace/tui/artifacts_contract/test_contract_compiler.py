@@ -84,11 +84,15 @@ def test_patch_contract_names_relation_and_grouping_declarations() -> None:
         "ancestors",
         "children",
         "siblings",
+        "links",
+        "linked_by",
     ]
     assert [item.kind for item in contract.relations] == [
         RelationKind.HIERARCHY,
         RelationKind.HIERARCHY,
         RelationKind.FAMILY,
+        RelationKind.LINK,
+        RelationKind.LINK,
     ]
     assert contract.grouping.default_mode == "by_project"
     assert [item.id for item in contract.grouping.modes] == [
@@ -109,6 +113,8 @@ def test_stitches_contract_names_patches_not_plans() -> None:
         "parents",
         "children",
         "patches",
+        "links",
+        "linked_by",
     ]
     patches = next(item for item in contract.relations if item.name == "patches")
     assert patches.target_pane == "patches"
@@ -250,6 +256,8 @@ def test_plan_provider_earns_plan_only_capabilities() -> None:
         "parent",
         "children",
         "beads",
+        "links",
+        "linked_by",
     ]
 
 
@@ -271,7 +279,11 @@ def test_unknown_document_provider_gets_generic_copy_targets() -> None:
     assert not contract.has(PaneCapability.VERSIONS)
     assert not contract.has(PaneCapability.PLAN_APPROVE)
     assert contract.has(PaneCapability.RELATIONS)
-    assert [item.name for item in contract.relations] == ["bundle"]
+    assert [item.name for item in contract.relations] == [
+        "bundle",
+        "links",
+        "linked_by",
+    ]
     assert not contract.has(PaneCapability.GROUPING)
     relations = contract.verdict_for(PaneCapability.RELATIONS)
     grouping = contract.verdict_for(PaneCapability.GROUPING)

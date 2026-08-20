@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    empty_artifact_links_snapshot,
+)
 from sase.ace.patch.models import Patch
 from sase.bead_flag_presentation import FlagDuePresentation
 from sase.bead.model import Issue
@@ -123,6 +127,9 @@ class BeadsSnapshot:
     external_source_key: tuple[object, ...] = ()
     flags: tuple[ProjectBead, ...] = ()
     flag_due: dict[tuple[str, str], FlagDuePresentation] = field(default_factory=dict)
+    artifact_links: ArtifactLinksSnapshot = field(
+        default_factory=empty_artifact_links_snapshot
+    )
 
 
 __all__ = [

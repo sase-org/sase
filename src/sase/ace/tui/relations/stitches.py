@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    artifact_link_edges,
+)
 from sase.ace.tui.relations._support import decls_by_name, emit_edge
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relations import (
@@ -22,14 +26,25 @@ def build_stitches_relation_index(
     *,
     contract: ArtifactsPaneContract,
     project_keys_by_repo: Mapping[str, str],
+    artifact_links: ArtifactLinksSnapshot | None = None,
 ) -> RelationIndex:
     """Build the host-owned Stitches relation index for *entries*."""
     source = _StitchesRelationSource(entries, contract, project_keys_by_repo)
+    known = source.known_targets()
+    project_hint = next(iter(project_keys_by_repo.values()), None)
     return build_relation_index(
         pane_id=source.pane_id,
         relations=source.relations(),
-        edges=source.raw_edges(),
-        known_targets=source.known_targets(),
+        edges=(
+            *source.raw_edges(),
+            *artifact_link_edges(
+                artifact_links,
+                contract=contract,
+                known_targets=known,
+                project_hint=project_hint,
+            ),
+        ),
+        known_targets=known,
     )
 
 

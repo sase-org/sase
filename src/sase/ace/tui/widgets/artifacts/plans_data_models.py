@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from sase.ace.tui._artifact_tab_model import PanePresentation
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    empty_artifact_links_snapshot,
+)
 from sase.notifications.models import Notification
 from sase.plan_search.model import PlanSearchMatch
 
@@ -88,6 +92,9 @@ class PlansSnapshot:
     provider_label: str = "Plan"
     provider_presentation_digest: str = ""
     provider_presentation: PanePresentation = field(default_factory=PanePresentation)
+    artifact_links: ArtifactLinksSnapshot = field(
+        default_factory=empty_artifact_links_snapshot
+    )
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@ from sase.ace.tui._artifact_tab_contract import (
 )
 from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
 from sase.ace.tui.relations import (
+    ArtifactLinksSnapshot,
     build_beads_relation_index,
     build_documents_relation_index,
     build_files_relation_index,
@@ -200,6 +201,77 @@ def test_files_source_emits_row_to_version_family() -> None:
     }
     assert index.edges_for_relation(v1, "versions")[0].target == row
     assert not any(edge.dangling for edge in index.edges)
+
+
+def test_artifact_links_source_emits_links_and_linked_by_for_current_pane() -> None:
+    snapshot = _files_snapshot_with_link_rows(
+        (
+            {
+                "source_ref": "file:doc",
+                "relation": "implements",
+                "target_ref": "bead:sase-r8",
+            },
+            {
+                "source_ref": "bead:sase-r7",
+                "relation": "motivates",
+                "target_ref": "file:doc",
+            },
+        )
+    )
+    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
+    index = build_files_relation_index(snapshot, contract=contract)
+    row = ArtifactEntryTarget("files", ("doc",))
+
+    assert index.edges_for_relation(row, "links")[0].target == ArtifactEntryTarget(
+        "beads", ("alpha", "task", "sase-r8")
+    )
+    linked_by = index.edges_for_relation(row, "linked_by")
+    assert linked_by[0].target == ArtifactEntryTarget(
+        "beads", ("alpha", "task", "sase-r7")
+    )
+    assert linked_by[0].label == "Linked By"
+
+
+def test_artifact_links_source_returns_empty_when_flag_snapshot_is_disabled() -> None:
+    snapshot = _files_snapshot_with_link_rows(
+        (
+            {
+                "source_ref": "file:doc",
+                "relation": "implements",
+                "target_ref": "bead:sase-r8",
+            },
+        ),
+        enabled=False,
+    )
+    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
+    index = build_files_relation_index(snapshot, contract=contract)
+
+    assert not index.edges_for_relation(ArtifactEntryTarget("files", ("doc",)), "links")
+
+
+def test_artifact_links_source_deduplicates_undirected_related_rows() -> None:
+    snapshot = _files_snapshot_with_link_rows(
+        (
+            {
+                "source_ref": "file:doc",
+                "relation": "related",
+                "target_ref": "file:other",
+            },
+            {
+                "source_ref": "file:other",
+                "relation": "related",
+                "target_ref": "file:doc",
+            },
+        ),
+        extra_logical_ids=("other",),
+    )
+    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
+    index = build_files_relation_index(snapshot, contract=contract)
+    row = ArtifactEntryTarget("files", ("doc",))
+
+    assert [
+        edge.target.parts[0] for edge in index.edges_for_relation(row, "links")
+    ] == ["other"]
 
 
 def test_stitches_source_emits_parents_and_patch_tag() -> None:
@@ -429,5 +501,51 @@ def _archive(
             ),
             matched_fields=[],
             score=1.0,
+        ),
+    )
+
+
+def _files_snapshot_with_link_rows(
+    rows: tuple[dict[str, str], ...],
+    *,
+    enabled: bool = True,
+    extra_logical_ids: tuple[str, ...] = (),
+) -> FilesSnapshot:
+    logical_ids = ("doc", *extra_logical_ids)
+    logical_rows: list[LogicalFile] = []
+    for logical_id in logical_ids:
+        version = FileVersion(
+            version_id=f"{logical_id}-v1",
+            logical_id=logical_id,
+            label=logical_id,
+            kind="file",
+            origin="ref",
+            origins=frozenset({"ref"}),
+            created_at=None,
+            agents=(),
+            projects=("alpha",),
+        )
+        logical_rows.append(
+            LogicalFile(
+                logical_id=logical_id,
+                label=logical_id,
+                kind="file",
+                versions=(version,),
+                agents=(),
+                projects=("alpha",),
+                origins=frozenset({"ref"}),
+                latest_seen_at=None,
+            )
+        )
+    return FilesSnapshot(
+        rows=tuple(logical_rows),
+        project="alpha",
+        complete=True,
+        view_modes={f"{logical_id}-v1": "text" for logical_id in logical_ids},
+        view_mode_counts={"text": len(logical_ids)},
+        origin_counts={"ref": len(logical_ids)},
+        artifact_links=ArtifactLinksSnapshot(
+            enabled=enabled,
+            rows=tuple({**row, "_project": "alpha"} for row in rows),
         ),
     )

@@ -18,6 +18,7 @@ from sase.core.query_profile_corpus_facade import (
 from sase.project_display_names import load_project_ref_display_snapshot
 from sase.vcs_log.models import VcsLogResult
 
+from ...relations import load_artifact_links_snapshot
 from ...relations import build_stitches_relation_index
 from ...relations._support import relation_index_if_enabled
 
@@ -228,6 +229,7 @@ class CommitsCollectionMixin(_MixinBase):
                     result.commits,
                     contract=contract,
                     project_keys_by_repo=project_keys_by_repo,
+                    artifact_links=load_artifact_links_snapshot(spec.project_scope),
                 ),
             ),
         )

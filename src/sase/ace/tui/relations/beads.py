@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    artifact_link_edges,
+)
 from sase.ace.tui.relations._support import decls_by_name, emit_edge
 from sase.ace.tui.widgets.artifacts.beads_data_models import BeadsSnapshot, ProjectBead
 from sase.bead.flag_fields import is_flag_bead
@@ -26,14 +30,24 @@ def build_beads_relation_index(
     snapshot: BeadsSnapshot,
     *,
     contract: ArtifactsPaneContract,
+    artifact_links: ArtifactLinksSnapshot | None = None,
 ) -> RelationIndex:
     """Build the host-owned Beads relation index for *snapshot*."""
     source = _BeadsRelationSource(snapshot, contract)
+    known = source.known_targets()
     return build_relation_index(
         pane_id=source.pane_id,
         relations=source.relations(),
-        edges=source.raw_edges(),
-        known_targets=source.known_targets(),
+        edges=(
+            *source.raw_edges(),
+            *artifact_link_edges(
+                artifact_links or snapshot.artifact_links,
+                contract=contract,
+                known_targets=known,
+                project_hint=snapshot.project,
+            ),
+        ),
+        known_targets=known,
     )
 
 

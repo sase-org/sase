@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui._artifact_tab_model import PanePresentation, PaneSortField
+from sase.ace.tui.relations.artifact_links import load_artifact_links_snapshot
 from sase.bead.model import Issue
 
 from . import plans_data_documents as _documents
@@ -268,6 +269,7 @@ def load_plans_snapshot(
         provider_label=provider_label or _provider_label(provider_kind),
         provider_presentation_digest=provider_presentation_digest,
         provider_presentation=presentation,
+        artifact_links=load_artifact_links_snapshot(project),
     )
 
 

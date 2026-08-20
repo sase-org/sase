@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract
+from sase.ace.tui.relations.artifact_links import (
+    ArtifactLinksSnapshot,
+    artifact_link_edges,
+)
 from sase.ace.tui.relations._support import decls_by_name, emit_edge
 from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot
 from sase.core.artifact_entry_target import ArtifactEntryTarget
@@ -18,14 +22,24 @@ def build_files_relation_index(
     snapshot: FilesSnapshot,
     *,
     contract: ArtifactsPaneContract,
+    artifact_links: ArtifactLinksSnapshot | None = None,
 ) -> RelationIndex:
     """Build the host-owned Files relation index for *snapshot*."""
     source = _FilesRelationSource(snapshot, contract)
+    known = source.known_targets()
     return build_relation_index(
         pane_id=source.pane_id,
         relations=source.relations(),
-        edges=source.raw_edges(),
-        known_targets=source.known_targets(),
+        edges=(
+            *source.raw_edges(),
+            *artifact_link_edges(
+                artifact_links or snapshot.artifact_links,
+                contract=contract,
+                known_targets=known,
+                project_hint=snapshot.project,
+            ),
+        ),
+        known_targets=known,
     )
 
 
