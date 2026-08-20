@@ -165,8 +165,10 @@ ace:
     # Press . on an Artifacts pane to toggle this state for the current session.
     relations_expanded: false
     stitches:
-      # Relative date windows re-anchor whenever the pane refreshes. Queries
-      # without an explicit positive limit:N are uncapped.
+      # Relative date windows re-anchor whenever the pane refreshes. Startup
+      # injects limit:<ace.page_size> when this query has no limit token; an
+      # explicit limit: (including limit:all) is left alone. A user-deleted
+      # token stays uncapped.
       default_query: "sidecar:false merges:hide since:24h"
   current_project:
     # Show the +<project> chip in the top bar. The current project is derived
