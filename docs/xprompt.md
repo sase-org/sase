@@ -1223,7 +1223,6 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | Skill                | Purpose                                                                                       |
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `sase_agents_status` | Report on currently running SASE agents                                                       |
-| `sase_artifact_file` | Create, read, resolve, open, and link SASE artifacts through `sase artifact`                  |
 | `sase_changespecs`   | Legacy compatibility shim that points agents to `sase_patches`                                |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |

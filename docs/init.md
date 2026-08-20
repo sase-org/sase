@@ -195,11 +195,12 @@ lifecycle state and is independent of `sase project enable`.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal
 agent instructions, `sase/memory/sase.md`, and `sase/memory/README.md` with
-root-relative paths in `sase/sase.yml`. The generated `sase/memory/sase_beads.md` bead
-reference is a fixed packaged asset with no override key, generated only for
-SASE-managed project repositories and never for home or chezmoi-home roots. Home roots
-use convention-based template files in the SASE user-config directory (or its chezmoi
-source counterpart). Template variables and validation rules are listed in the
+root-relative paths in `sase/sase.yml`. The generated project-only long notes
+`sase/memory/sase_artifacts.md`, `sase/memory/sase_beads.md`, and
+`sase/memory/sase_sizes.md` are fixed packaged assets with no override keys, generated
+only for SASE-managed project repositories and never for home or chezmoi-home roots.
+Home roots use convention-based template files in the SASE user-config directory (or its
+chezmoi source counterpart). Template variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
 
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
@@ -250,19 +251,22 @@ command can then commit those home changes and run `chezmoi apply --force`;
 `--no-commit` does not disable that home deployment path.
 
 The generated `sase/memory/sase.md` summarizes workspace naming and linked repositories.
-The generated long-term `sase/memory/sase_beads.md` note provides shared bead workflow
-guidance and is listed in Tier 2 of managed agent instructions, generated for
-SASE-managed project repositories only and never for home or chezmoi-home roots. A root
-that no longer manages the note (for example, a home root that previously generated it)
-deletes an unmodified copy on the next `sase memory init` pass; a copy a human has since
-edited is left alone and keeps behaving as an ordinary long note. Project memory reads
-linked-repo descriptions from the project-local `sase/sase.yml`; home memory reads them
-from the global config `~/.config/sase/sase.yml`, or from the chezmoi-managed config
-path when `use_chezmoi: true`. Generated memory requires agents to use `/sase_repo`
-before reading or modifying any repository outside their own workspace checkout. This
-rule applies to configured linked repos and sidecars, other SASE projects, and unlinked
-GitHub repos even when no linked repositories are configured; the skill carries the
-command grammar and workspace-selection details.
+The generated long-term `sase/memory/sase_artifacts.md` note owns artifact-reference and
+indexed-file workflow guidance. The generated long-term `sase/memory/sase_beads.md` note
+provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a child
+size-scale note. Top-level project-only long notes are listed in Tier 2 of managed agent
+instructions, generated for SASE-managed project repositories only and never for home or
+chezmoi-home roots. A root that no longer manages those notes (for example, a home root
+that previously generated them) deletes unmodified copies on the next `sase memory init`
+pass; copies a human has since edited are left alone and keep behaving as ordinary long
+notes. Project memory reads linked-repo descriptions from the project-local
+`sase/sase.yml`; home memory reads them from the global config
+`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
+`use_chezmoi: true`. Generated memory requires agents to use `/sase_repo` before reading
+or modifying any repository outside their own workspace checkout. This rule applies to
+configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos
+even when no linked repositories are configured; the skill carries the command grammar
+and workspace-selection details.
 
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must
 have a non-empty `description`. Initialization fails instead of generating ambiguous

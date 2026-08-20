@@ -24,16 +24,18 @@ Use [initialization](init.md#memory-initialization) to create or refresh the fil
 provider instruction file status. Initialization always generates the short
 `sase/memory/sase.md` workspace note and the short `sase/memory/task_types.md` catalog
 note (agent-creatable types, their `when_to_use` text, and field names). For
-SASE-managed project repositories it additionally generates two long notes: the
-`sase/memory/sase_beads.md` bead reference listed in Tier 2 of managed agent
-instructions, plus `sase/memory/sase_sizes.md` size-scale guidance nested under
-`sase_beads.md` and surfaced through that note's `## Children` section on an audited
-read. The project-root task-type note and `sase/task_types.json` snapshot render from
-the committed catalog (builtins, `plugins.required` types, and `bead.task_types`); the
-home-root note renders from the builtin catalog only. Day to day, the usual order is:
-inspect loaded context with `sase memory list`, have agents use `sase memory read` for
-audited long-term reads, have agents use `sase memory write` only to create proposals,
-then have a human approve or reject those proposals with `sase memory review`.
+SASE-managed project repositories it additionally generates
+`sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
+`sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
+size-scale guidance nested under `sase_beads.md` and surfaced through that note's
+`## Children` section on an audited read. The top-level long notes are listed in Tier 2
+of managed agent instructions. The project-root task-type note and
+`sase/task_types.json` snapshot render from the committed catalog (builtins,
+`plugins.required` types, and `bead.task_types`); the home-root note renders from the
+builtin catalog only. Day to day, the usual order is: inspect loaded context with
+`sase memory list`, have agents use `sase memory read` for audited long-term reads, have
+agents use `sase memory write` only to create proposals, then have a human approve or
+reject those proposals with `sase memory review`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
 deleting these notes by hand across every memory-bearing project plus Home. From a
@@ -45,7 +47,8 @@ only `sase memory init` (run from the panel's publish flow, or by hand) does tha
 ## XPrompt Inclusion
 
 Every valid, flat, non-README note is also available as an explicit `#memory/<stem>`
-xprompt reference: `sase/memory/sase_beads.md` (or the home equivalent) expands with
+xprompt reference: `sase/memory/sase_artifacts.md` expands with
+`#memory/sase_artifacts`, and `sase/memory/sase_beads.md` expands with
 `#memory/sase_beads`. The `memory/` prefix is required — there is no bare `#<stem>`
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence

@@ -104,6 +104,19 @@ def test_default_beads_template_renders_canonical_long_note() -> None:
     assert generated.parent == "AGENTS.md"
 
 
+def test_default_artifacts_template_renders_canonical_long_note() -> None:
+    content = _generated_project_note("sase/memory/sase_artifacts.md")
+
+    relative_path = "sase/memory/sase_artifacts.md"
+    note = parse_memory_note_text(content, relative_path)
+    assert note.type == "long"
+    assert note.parent == "AGENTS.md"
+    assert note.description
+    generated = generated_long_notes({relative_path: content})[relative_path]
+    assert generated.description == note.description
+    assert generated.parent == "AGENTS.md"
+
+
 def test_plus_one_close_boundary_guidance_stays_current() -> None:
     generated = _generated_project_note("sase/memory/sase_beads.md")
     docs = Path("docs/beads.md").read_text(encoding="utf-8")
@@ -157,6 +170,7 @@ def test_generated_project_long_notes_omit_feature_flags() -> None:
     assert error is None
     assert "sase/memory/sase_flags.md" not in contents
     assert set(contents) == {
+        "sase/memory/sase_artifacts.md",
         "sase/memory/sase_beads.md",
         "sase/memory/sase_sizes.md",
     }

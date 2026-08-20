@@ -402,6 +402,7 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     _write_note(workspace, "sase", note_type="short")
     _write_note(workspace, "task_types", note_type="short")
     _write_note(workspace, "glossary", note_type="short")
+    _write_note(workspace, "sase_artifacts")
     _write_note(workspace, "sase_beads")
     _write_note(workspace, "sase_sizes", parent="sase/memory/sase_beads.md")
     _write_note(workspace, "local")
@@ -422,6 +423,7 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     assert "sase/memory/sase.md" in snapshot.generated_paths
     assert "sase/memory/task_types.md" in snapshot.generated_paths
     assert "sase/memory/glossary.md" in snapshot.generated_paths
+    assert "sase/memory/sase_artifacts.md" in snapshot.generated_paths
     assert "sase/memory/sase_beads.md" in snapshot.generated_paths
     assert "sase/memory/sase_sizes.md" in snapshot.generated_paths
     assert "sase/memory/local.md" not in snapshot.generated_paths
@@ -433,6 +435,7 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
     home = tmp_path / "isolated-home"
     _write_note(home, "sase", note_type="short")
     _write_note(home, "glossary", note_type="short")
+    _write_note(home, "sase_artifacts")
     _write_note(home, "sase_beads")
     monkeypatch.setattr(panel_catalog, "_home_content_root", lambda: home)
 
@@ -440,6 +443,7 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
     assert "sase/memory/sase.md" in snapshot.generated_paths
     assert "sase/memory/task_types.md" in snapshot.generated_paths
     assert "sase/memory/glossary.md" not in snapshot.generated_paths
+    assert "sase/memory/sase_artifacts.md" not in snapshot.generated_paths
     assert "sase/memory/sase_beads.md" not in snapshot.generated_paths
     assert snapshot.shadowed_stems == frozenset()
 

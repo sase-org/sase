@@ -34,6 +34,7 @@ from .root_rendering_artifact_relations import (
 from .root_rendering_task_types import generated_task_types_memory_relative_path
 
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
+MEMORY_SASE_ARTIFACTS_TEMPLATE_FILENAME = "memory-sase-artifacts.template.md"
 MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
 MEMORY_SASE_SIZES_TEMPLATE_FILENAME = "memory-sase-sizes.template.md"
 MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME = "memory-sase-glossary.template.md"
@@ -104,6 +105,10 @@ def generated_glossary_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
 
 
+def _generated_artifacts_memory_relative_path() -> Path:
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_artifacts.md"
+
+
 def _generated_beads_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md"
 
@@ -112,6 +117,12 @@ def _generated_sizes_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_sizes.md"
 
 
+_GENERATED_ARTIFACTS_MEMORY_SPEC = _GeneratedLongMemorySpec(
+    template_filename=MEMORY_SASE_ARTIFACTS_TEMPLATE_FILENAME,
+    relative_path=_generated_artifacts_memory_relative_path(),
+    parent=AGENTS_PARENT,
+    detail="generated SASE artifact memory",
+)
 _GENERATED_BEADS_MEMORY_SPEC = _GeneratedLongMemorySpec(
     template_filename=MEMORY_SASE_BEADS_TEMPLATE_FILENAME,
     relative_path=_generated_beads_memory_relative_path(),
@@ -125,6 +136,7 @@ _GENERATED_SIZES_MEMORY_SPEC = _GeneratedLongMemorySpec(
     detail="generated SASE size memory",
 )
 _GENERATED_PROJECT_LONG_MEMORY_SPECS = (
+    _GENERATED_ARTIFACTS_MEMORY_SPEC,
     _GENERATED_BEADS_MEMORY_SPEC,
     _GENERATED_SIZES_MEMORY_SPEC,
 )
@@ -155,8 +167,8 @@ def generated_memory_note_relative_paths(
     """Return the generated memory-note paths for one memory root.
 
     Shared notes are always included. Project-only notes
-    (``artifact_relations.md``, ``glossary.md``, ``sase_beads.md``, and
-    ``sase_sizes.md``) are added when
+    (``artifact_relations.md``, ``glossary.md``, ``sase_artifacts.md``,
+    ``sase_beads.md``, and ``sase_sizes.md``) are added when
     *include_project_memory* is true; ``glossary.md`` is reserved for the
     generated note whether or not this project declares glossary entries,
     because ``sase memory init`` either regenerates that path or blocks on an
@@ -172,6 +184,7 @@ def generated_memory_note_relative_paths(
             *paths,
             generated_artifact_relations_memory_relative_path(),
             generated_glossary_memory_relative_path(),
+            _generated_artifacts_memory_relative_path(),
             _generated_beads_memory_relative_path(),
             _generated_sizes_memory_relative_path(),
         )

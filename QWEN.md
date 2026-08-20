@@ -317,27 +317,32 @@ Read when working with sase agent skills (aka xprompt skills), which are generat
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-### 2.3 `sase/memory/sase_beads.md`
+### 2.3 `sase/memory/sase_artifacts.md`
+
+Read before creating, consuming, resolving, linking, or managing retention for SASE
+artifact references and indexed files.
+
+### 2.4 `sase/memory/sase_beads.md`
 
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-### 2.4 `sase/memory/sase_flags.md`
+### 2.5 `sase/memory/sase_flags.md`
 
 Read before adding, deferring, or removing a SASE feature flag or flag bead.
 
-### 2.5 `sase/memory/symvision.md`
+### 2.6 `sase/memory/symvision.md`
 
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-### 2.6 `sase/memory/tui_perf.md`
+### 2.7 `sase/memory/tui_perf.md`
 
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-### 2.7 `sase/memory/xprompts.md`
+### 2.8 `sase/memory/xprompts.md`
 
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.

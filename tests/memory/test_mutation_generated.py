@@ -39,6 +39,7 @@ def test_generated_memory_note_relative_paths_match_private_helpers() -> None:
         "sase/memory/task_types.md",
         "sase/memory/artifact_relations.md",
         "sase/memory/glossary.md",
+        "sase/memory/sase_artifacts.md",
         "sase/memory/sase_beads.md",
         "sase/memory/sase_sizes.md",
     )
@@ -112,6 +113,8 @@ def test_generated_notes_are_refused_for_create_update_and_delete(
 
     with pytest.raises(MemoryGeneratedNoteError, match="sase_beads"):
         create_note(tmp_path, "sase_beads", description="Project generated.")
+    with pytest.raises(MemoryGeneratedNoteError, match="sase_artifacts"):
+        create_note(tmp_path, "sase_artifacts", description="Project generated.")
 
 
 def test_generated_glossary_note_is_refused_in_a_project_scope(tmp_path: Path) -> None:
@@ -169,3 +172,13 @@ def test_home_scope_allows_project_only_generated_names(tmp_path: Path) -> None:
     )
     assert outcome.relative_path == "sase/memory/sase_beads.md"
     assert (tmp_path / "sase" / "memory" / "sase_beads.md").is_file()
+
+    artifact_outcome = create_note(
+        tmp_path,
+        "sase_artifacts",
+        description="Home-authored artifacts note.",
+        scope_key="home",
+        scope_kind="home",
+    )
+    assert artifact_outcome.relative_path == "sase/memory/sase_artifacts.md"
+    assert (tmp_path / "sase" / "memory" / "sase_artifacts.md").is_file()

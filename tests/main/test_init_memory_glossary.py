@@ -231,7 +231,7 @@ memory:
     )
     assert expected in _normalized(_tier1_memory(agents))
     assert expected in _normalized(note)
-    assert "artifact references" not in agents
+    assert "artifact references" not in _tier1_memory(agents)
     assert "artifact references" not in note
     assert format_generated_memory_markdown(agents) == agents
     assert format_generated_memory_markdown(note) == note

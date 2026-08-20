@@ -299,6 +299,7 @@ def deploy_to_project_repo(
             *(
                 (
                     memory_write_root(project_result.root) / "sase.md",
+                    memory_write_root(project_result.root) / "sase_artifacts.md",
                     memory_write_root(project_result.root) / "sase_beads.md",
                     memory_write_root(project_result.root) / "sase_sizes.md",
                 )

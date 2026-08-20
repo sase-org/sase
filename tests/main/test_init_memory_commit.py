@@ -155,6 +155,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         "add",
         "add",
         "add",
+        "add",
         "diff",
         "commit",
         "rev-parse",
@@ -170,6 +171,7 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         project_root / "sase" / "memory" / "assets" / "memory-directory-map.png"
         in add_paths
     )
+    assert project_root / "sase" / "memory" / "sase_artifacts.md" in add_paths
     assert project_root / "sase" / "memory" / "sase_beads.md" in add_paths
     assert project_root / "sase" / "memory" / "sase_flags.md" not in add_paths
     assert project_root / "sase" / "memory" / "sase_sizes.md" in add_paths

@@ -282,6 +282,7 @@ def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
     parsed = parse_amd_agents_document(agents)
     expected_paths = (
         "sase/memory/block.md",
+        "sase/memory/sase_artifacts.md",
         "sase/memory/sase_beads.md",
     )
     assert tuple(entry.path for entry in parsed.long_memory_entries) == expected_paths

@@ -12,7 +12,7 @@ from sase.main.init_skills_handler import (
     get_skill_target_providers,
     handle_init_skills_command,
 )
-from sase.xprompt.loader import get_sase_package_skills_dir
+from sase.xprompt.loader import get_sase_package_skills_dir, load_skills_from_package
 from sase.xprompt.loader_parsing import parse_yaml_front_matter
 from tests.main.init_skills_handler_helpers import collapse_whitespace, make_args
 
@@ -29,22 +29,6 @@ def _disable_prettier_for_skill_generation(
 @pytest.mark.parametrize(
     ("skill_name", "expected_phrases"),
     [
-        (
-            "sase_artifact_file",
-            (
-                "sase artifact create -p",
-                "--kind",
-                "--move",
-                "sase artifact list",
-                "sase artifact show",
-                "sase artifact read",
-                "sase artifact path",
-                "sase artifact open",
-                "sase artifact link add",
-                "sase artifact doctor",
-                'sase artifact create -p <path> -l "<label>" --bead',
-            ),
-        ),
         (
             "sase_agents_status",
             (
@@ -168,6 +152,8 @@ def _disable_prettier_for_skill_generation(
             (
                 "sase memory read sase_beads.md",
                 "sase memory read sase_sizes.md",
+                "sase_artifacts.md",
+                "sase artifact create",
                 "sase bead search "
                 "'symbol|filename|command|error-fragment' --regex --type task",
                 "sase bead +1 <task-id>",
@@ -333,3 +319,10 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
         rendered = collapse_whitespace(target.read_text(encoding="utf-8"))
         for phrase in expected_phrases:
             assert collapse_whitespace(phrase) in rendered
+
+
+def test_retired_artifact_file_skill_source_is_not_packaged() -> None:
+    skill_name = "sase_artifact_file"
+
+    assert not (get_sase_package_skills_dir() / f"{skill_name}.md").exists()
+    assert f"skill/{skill_name}" not in load_skills_from_package()

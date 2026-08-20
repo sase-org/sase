@@ -36,11 +36,15 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     assert {action.operation for action in plan.actions} == {"create"}
     action_by_path = {action.path: action for action in plan.actions}
     assert project_root / "sase" / "memory" / "sase.md" in action_by_path
+    assert project_root / "sase" / "memory" / "sase_artifacts.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_beads.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_flags.md" not in action_by_path
     assert project_root / "sase" / "memory" / "sase_sizes.md" in action_by_path
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
-    assert "### 2.1 `sase/memory/sase_beads.md`" in str(
+    assert "### 2.1 `sase/memory/sase_artifacts.md`" in str(
+        action_by_path[project_root / "AGENTS.md"].new_content
+    )
+    assert "### 2.2 `sase/memory/sase_beads.md`" in str(
         action_by_path[project_root / "AGENTS.md"].new_content
     )
     assert "`sase/memory/sase_flags.md`" not in str(
@@ -54,6 +58,9 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     )
     assert "sase/memory/sase_sizes.md" not in str(
         action_by_path[project_root / "AGENTS.md"].new_content
+    )
+    assert "### `sase/memory/sase_artifacts.md`" in str(
+        action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
     )
     assert "### `sase/memory/sase_beads.md`" in str(
         action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
@@ -99,11 +106,13 @@ linked_repos:
 
     assert plan.blockers == ()
     assert home_root / "sase" / "memory" / "sase.md" in action_paths
+    assert home_root / "sase" / "memory" / "sase_artifacts.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_beads.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_flags.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_sizes.md" not in action_paths
     assert home_root / "AGENTS.md" in action_paths
     assert project_root / "sase" / "memory" / "sase.md" not in action_paths
+    assert project_root / "sase" / "memory" / "sase_artifacts.md" not in action_paths
     assert project_root / "sase" / "memory" / "sase_beads.md" not in action_paths
     assert project_root / "sase" / "memory" / "sase_flags.md" not in action_paths
     assert project_root / "sase" / "memory" / "sase_sizes.md" not in action_paths
