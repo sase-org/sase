@@ -9132,7 +9132,7 @@
       {
         "aliases": [],
         "default_child": "list",
-        "description_digest": "f3a645cb06175c36",
+        "description_digest": "da633b9e6c88de96",
         "hidden": false,
         "mutex_groups": [],
         "name": "final",
@@ -9155,6 +9155,49 @@
         ],
         "positionals": [],
         "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "615390ab6fefea87",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "context",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "pretty",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "final",
+              "context"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
           {
             "aliases": [],
             "default_child": null,
@@ -9288,6 +9331,43 @@
                 "is_remainder": false,
                 "kind": null,
                 "metavar": "instance",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "8d0aa74a73c4bb07",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "submit",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "final",
+              "submit"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "manifest",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<manifest-file|->",
                 "nargs": null
               }
             ],
