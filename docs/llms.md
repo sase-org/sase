@@ -61,45 +61,48 @@ Key design principles:
 
 ### Source Layout
 
-| File                                              | Purpose                                                                                  |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `src/sase/llm_provider/__init__.py`               | Public API exports                                                                       |
-| `src/sase/llm_provider/base.py`                   | `LLMProvider` abstract base class                                                        |
-| `src/sase/llm_provider/_hookspec.py`              | Pluggy hook specifications (`LLMHookSpec`)                                               |
-| `src/sase/llm_provider/_plugin_manager.py`        | Plugin manager wrapping pluggy (`LLMPluginManager`)                                      |
-| `src/sase/llm_provider/claude.py`                 | Claude Code provider implementation                                                      |
-| `src/sase/llm_provider/codex.py`                  | Codex CLI provider implementation                                                        |
-| `src/sase/llm_provider/fakey.py`                  | Bundled deterministic testing provider                                                   |
-| `src/sase/llm_provider/agy.py`                    | Antigravity CLI (`agy`) provider implementation                                          |
-| `src/sase/llm_provider/qwen.py`                   | Qwen Code provider implementation                                                        |
-| `src/sase/llm_provider/opencode.py`               | OpenCode provider implementation                                                         |
-| `src/sase/llm_provider/muse.py`                   | Meta Muse Code provider implementation                                                   |
-| `src/sase/llm_provider/_subprocess_muse.py`       | Muse `exec --json` JSONL stream parser                                                   |
-| `src/sase/llm_provider/_tool_call_muse.py`        | Muse tool-call record extraction from the event stream                                   |
-| `src/sase/llm_provider/_muse_session_usage.py`    | Muse token-usage recovery from the on-disk session log                                   |
-| `src/sase/llm_provider/grok.py`                   | xAI Grok Build provider implementation                                                   |
-| `src/sase/llm_provider/_subprocess_claude.py`     | Provider-neutral Anthropic-Messages stream reader shared by Claude and Grok              |
-| `src/sase/llm_provider/_tool_call_grok.py`        | Grok tool-call normalization (native names → canonical display names)                    |
-| `src/sase/llm_provider/registry.py`               | Provider registration and lookup                                                         |
-| `src/sase/llm_provider/_registry_metadata.py`     | Provider metadata normalization and cache fingerprints                                   |
-| `src/sase/llm_provider/_registry_plugins.py`      | Plugin discovery/construction via `sase_llm` entry points                                |
-| `src/sase/llm_provider/model_alias_defaults.yml`  | Single bundled source of truth for shipped implicit-alias targets/fallbacks/descriptions |
-| `src/sase/llm_provider/model_alias_policy.py`     | Model-alias name constants and the validating loader for `model_alias_defaults.yml`      |
-| `src/sase/llm_provider/model_alias_config.py`     | Model-alias config parsing and presentation metadata                                     |
-| `src/sase/llm_provider/model_alias_resolution.py` | Alias/target/effort resolution logic                                                     |
-| `src/sase/llm_provider/alias_view.py`             | ACE Launch Control alias-view construction (`build_alias_views()`)                       |
-| `src/sase/llm_provider/config.py`                 | Config file reader (`sase.yml`)                                                          |
-| `src/sase/llm_provider/temporary_override.py`     | Primary/worker temporary override state and resolution                                   |
-| `src/sase/llm_provider/provider_disable.py`       | Rust-backed temporary provider-disable facade                                            |
-| `src/sase/llm_provider/provider_disable_peek.py`  | Lock-free display peek for active provider disables                                      |
-| `src/sase/llm_provider/commit_finalizer.py`       | Provider-neutral dirty-workspace finalizer                                               |
-| `src/sase/llm_provider/types.py`                  | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
-| `src/sase/llm_provider/_invoke.py`                | `invoke_agent()` orchestrator                                                            |
-| `src/sase/llm_provider/_subprocess.py`            | Provider stream-parser compatibility exports                                             |
-| `src/sase/llm_provider/_plan_utils.py`            | Shared plan utilities                                                                    |
-| `src/sase/llm_provider/preprocessing.py`          | Shared prompt preprocessing pipeline                                                     |
-| `src/sase/llm_provider/postprocessing.py`         | Logging, chat history, audio                                                             |
-| `src/sase/llm_provider/retry_config.py`           | `ProviderRetryConfig` (per-provider retry defaults)                                      |
+| File                                                       | Purpose                                                                                  |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/sase/llm_provider/__init__.py`                        | Public API exports                                                                       |
+| `src/sase/llm_provider/base.py`                            | `LLMProvider` abstract base class                                                        |
+| `src/sase/llm_provider/_hookspec.py`                       | Pluggy hook specifications (`LLMHookSpec`)                                               |
+| `src/sase/llm_provider/_plugin_manager.py`                 | Plugin manager wrapping pluggy (`LLMPluginManager`)                                      |
+| `src/sase/llm_provider/claude.py`                          | Claude Code provider implementation                                                      |
+| `src/sase/llm_provider/codex.py`                           | Codex CLI provider implementation                                                        |
+| `src/sase/llm_provider/fakey.py`                           | Bundled deterministic testing provider                                                   |
+| `src/sase/llm_provider/agy.py`                             | Antigravity CLI (`agy`) provider implementation                                          |
+| `src/sase/llm_provider/qwen.py`                            | Qwen Code provider implementation                                                        |
+| `src/sase/llm_provider/opencode.py`                        | OpenCode provider implementation                                                         |
+| `src/sase/llm_provider/muse.py`                            | Meta Muse Code provider implementation                                                   |
+| `src/sase/llm_provider/_subprocess_muse.py`                | Muse `exec --json` JSONL stream parser                                                   |
+| `src/sase/llm_provider/_tool_call_muse.py`                 | Muse tool-call record extraction from the event stream                                   |
+| `src/sase/llm_provider/_muse_session_usage.py`             | Muse token-usage recovery from the on-disk session log                                   |
+| `src/sase/llm_provider/grok.py`                            | xAI Grok Build provider implementation                                                   |
+| `src/sase/llm_provider/_subprocess_claude.py`              | Provider-neutral Anthropic-Messages stream reader shared by Claude and Grok              |
+| `src/sase/llm_provider/_tool_call_grok.py`                 | Grok tool-call normalization (native names → canonical display names)                    |
+| `src/sase/llm_provider/registry.py`                        | Provider registration and lookup                                                         |
+| `src/sase/llm_provider/_registry_metadata.py`              | Provider metadata normalization and cache fingerprints                                   |
+| `src/sase/llm_provider/_registry_plugins.py`               | Plugin discovery/construction via `sase_llm` entry points                                |
+| `src/sase/llm_provider/model_alias_defaults.yml`           | Single bundled source of truth for shipped implicit-alias targets/fallbacks/descriptions |
+| `src/sase/llm_provider/model_alias_policy.py`              | Model-alias name constants and the validating loader for `model_alias_defaults.yml`      |
+| `src/sase/llm_provider/model_alias_config.py`              | Model-alias config parsing and presentation metadata                                     |
+| `src/sase/llm_provider/model_alias_resolution.py`          | Alias/target/effort resolution façade (import/monkeypatch surface)                       |
+| `src/sase/llm_provider/model_alias_resolution_types.py`    | Alias-resolution types, normalization, and target availability                           |
+| `src/sase/llm_provider/model_alias_resolution_resolve.py`  | Alias-chain walker and effort/selector provenance                                        |
+| `src/sase/llm_provider/model_alias_resolution_selector.py` | Selector member diagnostics and selector-value validation                                |
+| `src/sase/llm_provider/alias_view.py`                      | ACE Launch Control alias-view construction (`build_alias_views()`)                       |
+| `src/sase/llm_provider/config.py`                          | Config file reader (`sase.yml`)                                                          |
+| `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                   |
+| `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                            |
+| `src/sase/llm_provider/provider_disable_peek.py`           | Lock-free display peek for active provider disables                                      |
+| `src/sase/llm_provider/commit_finalizer.py`                | Provider-neutral dirty-workspace finalizer                                               |
+| `src/sase/llm_provider/types.py`                           | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
+| `src/sase/llm_provider/_invoke.py`                         | `invoke_agent()` orchestrator                                                            |
+| `src/sase/llm_provider/_subprocess.py`                     | Provider stream-parser compatibility exports                                             |
+| `src/sase/llm_provider/_plan_utils.py`                     | Shared plan utilities                                                                    |
+| `src/sase/llm_provider/preprocessing.py`                   | Shared prompt preprocessing pipeline                                                     |
+| `src/sase/llm_provider/postprocessing.py`                  | Logging, chat history, audio                                                             |
+| `src/sase/llm_provider/retry_config.py`                    | `ProviderRetryConfig` (per-provider retry defaults)                                      |
 
 ## Provider Architecture
 
