@@ -12,7 +12,27 @@ from sase.ace.tui import prompt_catalog
 from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMixin
 from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.snippet.models import SnippetSourceContribution
 from sase.xprompt.models import XPrompt
+
+
+def _config_contributions(
+    snippets: dict[str, str],
+) -> tuple[tuple[SnippetSourceContribution, ...], tuple[object, ...]]:
+    return (
+        tuple(
+            SnippetSourceContribution(
+                trigger=trigger,
+                template=template,
+                kind="user",
+                path="ace.snippets",
+                display_path="ace.snippets",
+                writable=True,
+            )
+            for trigger, template in snippets.items()
+        ),
+        (),
+    )
 
 
 def _entry(name: str) -> XPromptAssistEntry:
@@ -147,8 +167,7 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        prompt_catalog,
-        "get_all_xprompts",
+        "sase.xprompt.loader.get_all_xprompts",
         lambda project=None: {
             "review": XPrompt(
                 name="review",
@@ -162,13 +181,9 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         "build_xprompt_assist_entries",
         lambda project=None: [_entry("review")],
     )
-
-    import sase.config
-
     monkeypatch.setattr(
-        sase.config,
-        "load_merged_config",
-        lambda: {"ace": {"snippets": {"user": "User body$0"}}},
+        "sase.snippet.catalog._config_layer_contributions",
+        lambda *_a, **_k: _config_contributions({"user": "User body$0"}),
     )
 
     snapshot = prompt_catalog.build_prompt_catalog_snapshot(
@@ -212,8 +227,7 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
         lambda _projects: ("changed",),
     )
     monkeypatch.setattr(
-        prompt_catalog,
-        "get_all_xprompts",
+        "sase.xprompt.loader.get_all_xprompts",
         lambda project=None: {
             "foo": XPrompt(name="foo", content="xprompt lower", snippet=True),
             "Foo": XPrompt(name="Foo", content="xprompt capital", snippet=True),
@@ -225,22 +239,16 @@ def test_prompt_catalog_preserves_explicit_capitalized_collisions(
         "build_xprompt_assist_entries",
         lambda project=None: [],
     )
-
-    import sase.config
-
     monkeypatch.setattr(
-        sase.config,
-        "load_merged_config",
-        lambda: {
-            "ace": {
-                "snippets": {
-                    "foo": "user lower",
-                    "Bar": "user capital",
-                    "User_only": "authored capital",
-                    "user_only": "user lowercase",
-                }
+        "sase.snippet.catalog._config_layer_contributions",
+        lambda *_a, **_k: _config_contributions(
+            {
+                "foo": "user lower",
+                "Bar": "user capital",
+                "User_only": "authored capital",
+                "user_only": "user lowercase",
             }
-        },
+        ),
     )
 
     snapshot = prompt_catalog.build_prompt_catalog_snapshot(
@@ -278,14 +286,13 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
         "_prompt_source_token",
         lambda _projects: ("fresh",) if state["fresh"] else ("stale",),
     )
-    monkeypatch.setattr(prompt_catalog, "get_all_xprompts", lambda project=None: {})
+    monkeypatch.setattr("sase.xprompt.loader.get_all_xprompts", lambda project=None: {})
     monkeypatch.setattr(
         prompt_catalog,
         "build_xprompt_assist_entries",
         lambda project=None: [],
     )
 
-    import sase.config
     from sase.config import core as config_core
 
     monkeypatch.setattr(
@@ -294,15 +301,10 @@ def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
         lambda: state.__setitem__("fresh", True),
     )
     monkeypatch.setattr(
-        sase.config,
-        "load_merged_config",
-        lambda: {
-            "ace": {
-                "snippets": {
-                    "saved": "new" if state["fresh"] else "old",
-                }
-            }
-        },
+        "sase.snippet.catalog._config_layer_contributions",
+        lambda *_a, **_k: _config_contributions(
+            {"saved": "new" if state["fresh"] else "old"}
+        ),
     )
 
     snapshot = prompt_catalog.build_prompt_catalog_snapshot(

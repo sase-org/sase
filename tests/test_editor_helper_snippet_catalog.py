@@ -8,7 +8,34 @@ import pytest
 
 from sase.integrations.editor_helpers import handle_editor_helper_bridge
 from sase.main.parser import create_parser
+from sase.snippet.models import SnippetSourceContribution
 from sase.xprompt.models import UNSET, InputArg, XPrompt
+
+
+def _install_snippet_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    xprompts: dict[str, XPrompt],
+    snippets: dict[str, str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_all_xprompts",
+        lambda project=None: xprompts,
+    )
+    contributions = tuple(
+        SnippetSourceContribution(
+            trigger=trigger,
+            template=template,
+            kind="user",
+            path="ace.snippets",
+            display_path="ace.snippets",
+            writable=True,
+        )
+        for trigger, template in snippets.items()
+    )
+    monkeypatch.setattr(
+        "sase.snippet.catalog._config_layer_contributions",
+        lambda *_a, **_k: (contributions, ()),
+    )
 
 
 def test_parser_accepts_editor_helper_bridge_snippet_catalog() -> None:
@@ -32,14 +59,7 @@ def test_editor_helper_bridge_snippet_catalog_merges_xprompt_and_user_config(
             description="Helper prompt",
         )
     }
-    monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
-        lambda project=None: xprompts,
-    )
-    monkeypatch.setattr(
-        "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {"ace": {"snippets": {"user_snip": "User $1$0"}}},
-    )
+    _install_snippet_sources(monkeypatch, xprompts, {"user_snip": "User $1$0"})
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -102,20 +122,13 @@ def test_editor_helper_bridge_snippet_catalog_user_overrides_xprompt(
             snippet=True,
         )
     }
-    monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
-        lambda project=None: xprompts,
-    )
-    monkeypatch.setattr(
-        "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {
-            "ace": {
-                "snippets": {
-                    "shared": "from user",
-                    "Shared": "authored capital",
-                    "bad-trigger": "no",
-                }
-            }
+    _install_snippet_sources(
+        monkeypatch,
+        xprompts,
+        {
+            "shared": "from user",
+            "Shared": "authored capital",
+            "bad-trigger": "no",
         },
     )
 
@@ -147,14 +160,7 @@ def test_editor_helper_bridge_snippet_catalog_composes_nested_xprompts(
         "leaf": XPrompt(name="leaf", content="leaf text", snippet=None),
         "outer": XPrompt(name="outer", content="outer #leaf", snippet=True),
     }
-    monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
-        lambda project=None: xprompts,
-    )
-    monkeypatch.setattr(
-        "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {},
-    )
+    _install_snippet_sources(monkeypatch, xprompts, {})
 
     stdout = io.StringIO()
     stderr = io.StringIO()
@@ -205,17 +211,10 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
             snippet=True,
         ),
     }
-    monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
-        lambda project=None: xprompts,
-    )
-    monkeypatch.setattr(
-        "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {
-            "ace": {
-                "snippets": {"user_snip": "User $1$0", "wrap": "#[helper(World)] $1$0"}
-            }
-        },
+    _install_snippet_sources(
+        monkeypatch,
+        xprompts,
+        {"user_snip": "User $1$0", "wrap": "#[helper(World)] $1$0"},
     )
 
     stdout = io.StringIO()
@@ -248,19 +247,12 @@ def test_editor_helper_bridge_snippet_aliases_keep_provenance_metadata(
             description="Foo source",
         )
     }
-    monkeypatch.setattr(
-        "sase.xprompt.loader.get_all_xprompts",
-        lambda project=None: xprompts,
-    )
-    monkeypatch.setattr(
-        "sase.integrations._editor_helper_snippets.load_merged_config",
-        lambda: {
-            "ace": {
-                "snippets": {
-                    "wrap": "#[Foo] tail $1$0",
-                    "bad-trigger": "filtered before composition",
-                }
-            }
+    _install_snippet_sources(
+        monkeypatch,
+        xprompts,
+        {
+            "wrap": "#[Foo] tail $1$0",
+            "bad-trigger": "filtered before composition",
         },
     )
 

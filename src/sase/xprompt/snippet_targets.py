@@ -48,6 +48,32 @@ def _short_display_path(path: str) -> str:
     return path
 
 
+def _project_root_for_snippet_locations(
+    project: str | None,
+    launch_workspace: str | Path | None,
+) -> Path:
+    """Return the project workspace for snippet config discovery.
+
+    Named project refs resolve through the enabled-project registry. This never
+    changes process CWD; CWD is only a fallback when no project is selected.
+    """
+    if project:
+        from sase.xprompt._glossary_catalog_projects import select_project
+        from sase.xprompt.glossary_catalog import enabled_project_records
+
+        selected = select_project(
+            project,
+            enabled_project_records(None),
+            launch_workspace=launch_workspace,
+        )
+        if selected is not None:
+            return selected.workspace_dir
+    if launch_workspace is not None:
+        start = Path(launch_workspace).expanduser()
+        return discover_project_root(start) or start
+    return discover_project_root() or Path.cwd()
+
+
 def _writability_reason(path: Path) -> str | None:
     if path.name == "sase.yml" and path.parent.name == "sase":
         legacy = path.parent.parent / "sase.yml"
@@ -76,9 +102,15 @@ def _writability_reason(path: Path) -> str | None:
 
 def load_snippet_config_locations(
     project: str | None = None,
+    *,
+    launch_workspace: str | Path | None = None,
 ) -> list[SnippetConfigLocation]:
-    """Discover user config files offered by the unified snippet panel."""
-    del project
+    """Discover user config files offered by the unified snippet panel.
+
+    *project* selects the project-local destination without changing process
+    CWD: display names, aliases, and project keys all resolve. When omitted,
+    the launch workspace (or CWD) supplies the project config path.
+    """
     chezmoi = get_use_chezmoi()
     config_dir = CHEZMOI_HOME / "dot_config" / "sase" if chezmoi else CONFIG_DIR
     candidates: list[tuple[str, Path]] = [("User sase.yml", config_dir / "sase.yml")]
@@ -87,7 +119,7 @@ def load_snippet_config_locations(
             (f"User {overlay.name}", overlay)
             for overlay in sorted(config_dir.glob("sase_*.yml"))
         )
-    project_root = discover_project_root() or Path.cwd()
+    project_root = _project_root_for_snippet_locations(project, launch_workspace)
     local_config = resolve_project_layout(project_root).config.write_path
     candidates.append(("Project sase/sase.yml", local_config))
     return [

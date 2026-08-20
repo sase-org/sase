@@ -82,15 +82,20 @@ def _xprompt_to_snippet_template(xp: XPrompt) -> str | None:
 
 def build_xprompt_snippet_entries_from_catalog(
     xprompts: Mapping[str, XPrompt],
+    *,
+    include_shadowed: bool = False,
 ) -> list[XPromptSnippetEntry]:
     """Build xprompt snippets from an already-loaded xprompt catalog.
 
     Args:
         xprompts: XPrompt catalog in loader precedence order.
+        include_shadowed: When true, keep later xprompts that reuse a trigger
+            already claimed by a higher-priority source.
 
     Returns:
         Entries in loader priority order. The first xprompt wins on trigger
-        collision, matching :func:`_get_xprompt_snippets`.
+        collision, matching :func:`_get_xprompt_snippets`, unless
+        *include_shadowed* is true.
     """
     entries: list[XPromptSnippetEntry] = []
     seen_triggers: set[str] = set()
@@ -121,7 +126,7 @@ def build_xprompt_snippet_entries_from_catalog(
             continue
 
         # First xprompt wins on trigger collision (higher-priority source loaded first)
-        if trigger in seen_triggers:
+        if trigger in seen_triggers and not include_shadowed:
             continue
         seen_triggers.add(trigger)
         entries.append(

@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.xprompt.save_index import (
+    invalidate_save_index,
     load_definition,
     names_for_location,
 )
@@ -63,3 +64,13 @@ def test_definition_text_is_loaded_lazily_and_invalidated(tmp_path: Path) -> Non
     assert load_definition("markdown", str(path), "review") == "old"
     path.write_text("new content", encoding="utf-8")
     assert load_definition("markdown", str(path), "review") == "new content"
+
+
+def test_invalidate_save_index_drops_cached_snippet_names(tmp_path: Path) -> None:
+    config = tmp_path / "sase.yml"
+    config.write_text("ace:\n  snippets:\n    trig: body\n", encoding="utf-8")
+    assert names_for_location("snippet_config", str(config)) == {"trig"}
+    config.write_text("ace:\n  snippets:\n    other: body\n", encoding="utf-8")
+    os.utime(config, ns=(0, 0))
+    invalidate_save_index(config)
+    assert names_for_location("snippet_config", str(config)) == {"other"}

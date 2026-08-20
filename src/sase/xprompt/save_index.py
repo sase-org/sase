@@ -117,6 +117,23 @@ def load_definition(
     return text
 
 
+def invalidate_save_index(path: str | Path | None = None) -> None:
+    """Drop cached names and definitions, optionally for one location only."""
+    if path is None:
+        with _CACHE_LOCK:
+            _INDEX_CACHE.clear()
+            _DEFINITION_CACHE.clear()
+        return
+    location = str(Path(path))
+    with _CACHE_LOCK:
+        index_keys = [item for item in _INDEX_CACHE if item[1] == location]
+        definition_keys = [item for item in _DEFINITION_CACHE if item[1] == location]
+        for index_key in index_keys:
+            _INDEX_CACHE.pop(index_key, None)
+        for definition_key in definition_keys:
+            _DEFINITION_CACHE.pop(definition_key, None)
+
+
 def _split_markdown(markdown: str) -> tuple[PromptFrontmatter, str]:
     if not markdown.startswith("---"):
         return PromptFrontmatter(), markdown.rstrip("\n")
@@ -132,6 +149,7 @@ def _split_markdown(markdown: str) -> tuple[PromptFrontmatter, str]:
 __all__ = [
     "DefinitionKind",
     "IndexKind",
+    "invalidate_save_index",
     "load_definition",
     "names_for_location",
 ]

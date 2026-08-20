@@ -4,7 +4,17 @@ from pathlib import Path
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.xprompt.snippet_config_yaml import insert_snippet_into_config
+import pytest
+
+from sase.xprompt.snippet_config_yaml import (
+    SnippetConfigConflictError,
+    apply_snippet_config_text,
+    insert_snippet_into_config,
+    parse_ace_snippets,
+    preview_snippet_delete,
+    preview_snippet_upsert,
+    snippet_config_digest,
+)
 
 
 def _insert(
@@ -286,3 +296,68 @@ def test_existing_pipe_entry_preserved_while_new_entry_uses_strip_chomp(
     snippets = _snippets(text)
     assert snippets["legacy"] == "L$0\n"
     assert snippets["fresh"] == "F$0"
+
+
+def test_preview_delete_removes_only_named_entry(tmp_path: Path) -> None:
+    initial = (
+        "ace:\n"
+        "  snippets:\n"
+        "    alpha: |\n"
+        "      A$0\n"
+        "    bravo: |\n"
+        "      B$0\n"
+        "    charlie: |\n"
+        "      C$0\n"
+    )
+
+    text = preview_snippet_delete(initial, "bravo")
+
+    assert parse_ace_snippets(text) == {"alpha": "A$0\n", "charlie": "C$0\n"}
+    assert "bravo" not in text
+    assert "alpha: |" in text
+    assert "charlie: |" in text
+
+
+def test_preview_delete_unknown_trigger_raises() -> None:
+    with pytest.raises(KeyError, match="missing"):
+        preview_snippet_delete(
+            "ace:\n  snippets:\n    alpha: |\n      A$0\n", "missing"
+        )
+
+
+def test_apply_raises_conflict_on_stale_digest(tmp_path: Path) -> None:
+    path = tmp_path / "sase.yml"
+    original = "ace:\n  snippets: {}\n"
+    path.write_text(original, encoding="utf-8")
+    new_text = preview_snippet_upsert(original, "foo", "body$0")
+    path.write_text("changed: true\n", encoding="utf-8")
+
+    with pytest.raises(SnippetConfigConflictError, match="reload and retry"):
+        apply_snippet_config_text(
+            path,
+            new_text,
+            expected_digest=snippet_config_digest(original.encode()),
+        )
+
+    assert path.read_text(encoding="utf-8") == "changed: true\n"
+
+
+def test_apply_is_atomic_on_replace_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "sase.yml"
+    original = "ace:\n  snippets: {}\n"
+    path.write_text(original, encoding="utf-8")
+    new_text = preview_snippet_upsert(original, "foo", "body$0")
+
+    def boom(*_a, **_k):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr("sase.xprompt.snippet_config_yaml.os.replace", boom)
+
+    with pytest.raises(OSError, match="replace failed"):
+        apply_snippet_config_text(path, new_text, expected_bytes=original.encode())
+
+    assert path.read_text(encoding="utf-8") == original
+    leftovers = list(tmp_path.glob(".sase.yml.*.tmp"))
+    assert leftovers == []

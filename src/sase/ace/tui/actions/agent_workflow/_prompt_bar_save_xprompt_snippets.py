@@ -348,10 +348,9 @@ def existing_snippet_names(config_path: str) -> set[str]:
 
 
 def write_snippet_sync(config_path: str, name: str, body: str) -> None:
-    from sase.xprompt.snippet_config_yaml import insert_snippet_into_config
+    from sase.snippet.mutation import upsert_snippet_at_path
 
-    if not insert_snippet_into_config(config_path, name, body):
-        raise RuntimeError("snippet insertion failed")
+    upsert_snippet_at_path(config_path, name, body, force=True)
 
 
 def _load_snippet_save_disk_state(

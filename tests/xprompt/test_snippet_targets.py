@@ -9,9 +9,14 @@ import pytest
 import yaml
 
 from sase.xprompt import snippet_targets, write_targets
+from sase.core.project_lifecycle_wire import (
+    PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+    ProjectRecordWire,
+)
 from sase.xprompt.snippet_targets import (
     SnippetConfigLocation,
     SnippetSaveTarget,
+    load_snippet_config_locations,
     load_snippet_template,
     resolve_snippet_save_target,
     snippet_collision,
@@ -375,3 +380,44 @@ def test_load_snippet_template_returns_plain_template(tmp_path: Path) -> None:
     _write_snippet_config(config, {"todo": "TODO($1): $0"})
 
     assert load_snippet_template(config, "todo") == "TODO($1): $0"
+
+
+def test_load_snippet_config_locations_uses_named_project_not_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    _set_dirs(monkeypatch, home, use_chezmoi=False)
+    cwd_root = tmp_path / "cwd_project"
+    named_root = tmp_path / "named_project"
+    cwd_root.mkdir()
+    named_root.mkdir()
+    (cwd_root / ".git").mkdir()
+    (named_root / ".git").mkdir()
+    record = ProjectRecordWire(
+        schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+        project_name="gh_named__app",
+        project_dir="/tmp/projects/gh_named__app",
+        project_file="/tmp/projects/gh_named__app/gh_named__app.sase",
+        archive_file=None,
+        workspace_dir=str(named_root),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=["named"],
+        warnings=[],
+        parse_warnings=[],
+        display_name="named",
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.glossary_catalog.list_project_records",
+        lambda *_a, **_k: [record],
+    )
+    monkeypatch.chdir(cwd_root)
+
+    locations = load_snippet_config_locations("named")
+
+    project_path = locations[-1].path
+    assert project_path.endswith("named_project/sase/sase.yml")
+    assert "cwd_project" not in project_path

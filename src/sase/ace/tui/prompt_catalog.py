@@ -24,16 +24,15 @@ from sase.content_layout import (
     resolve_xprompt_file_sources,
 )
 from sase.core.snippet_catalog_facade import compose_snippet_catalog
+from sase.snippet.catalog import load_snippet_catalog, prompt_catalog_projection
 from sase.xprompt.loader import (
     detect_project,
-    get_all_xprompts,
     get_xprompt_search_paths,
 )
 from sase.xprompt.project_identity import (
     canonical_xprompt_project,
     known_project_namespaces,
 )
-from sase.xprompt.snippet_bridge import build_xprompt_snippet_entries_from_catalog
 
 PROMPT_SOURCE_SUFFIXES = frozenset({".md", ".yml", ".yaml"})
 PROMPT_SOURCE_DEBOUNCE_S = 0.3
@@ -77,28 +76,10 @@ def build_prompt_catalog_snapshot(
     if previous_source_token is not None and source_token == previous_source_token:
         return None
 
-    xprompts = get_all_xprompts(project=None)
-    explicit_snippets = {
-        entry.trigger: entry.template
-        for entry in build_xprompt_snippet_entries_from_catalog(xprompts)
-    }
-
-    from sase.config import load_merged_config
-
-    merged = load_merged_config()
-    ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
-    raw_user_snippets = ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
-    user_snippets: dict[str, str] = {}
-    if isinstance(raw_user_snippets, dict):
-        user_snippets = {
-            str(key): value
-            for key, value in raw_user_snippets.items()
-            if isinstance(value, str)
-        }
-        explicit_snippets.update(user_snippets)
-    if pending_snippet_saves:
-        explicit_snippets.update(pending_snippet_saves)
-    composed_snippets = compose_snippet_catalog(explicit_snippets)
+    catalog = load_snippet_catalog(pending_saves=pending_snippet_saves)
+    explicit_snippets, composed_snippets, user_snippets = prompt_catalog_projection(
+        catalog
+    )
 
     assist_entries_by_project: dict[str | None, tuple[XPromptAssistEntry, ...]] = {}
     for project in project_tuple:
@@ -110,7 +91,7 @@ def build_prompt_catalog_snapshot(
         generation=generation,
         source_token=source_token,
         explicit_snippets=dict(explicit_snippets),
-        snippets=dict(composed_snippets.templates),
+        snippets=dict(composed_snippets),
         user_snippets=user_snippets,
         assist_entries_by_project=assist_entries_by_project,
     )
