@@ -27,6 +27,7 @@ class FeatureFlag(StrEnum):
     commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
     completion_refresh_on_update = "completion_refresh_on_update"
     epic_resume_gate = "epic_resume_gate"
+    pluggable_finalizers = "pluggable_finalizers"
     plugin_catalog_scoped_latest = "plugin_catalog_scoped_latest"
     prettier_enabled = "prettier_enabled"
     ref_sync_gesture = "ref_sync_gesture"
@@ -92,6 +93,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "when a failed phase agent stalls an epic."
         ),
         bead="sase-qh",
+    ),
+    FeatureFlag.pluggable_finalizers: FeatureFlagDefinition(
+        key=FeatureFlag.pluggable_finalizers,
+        kind="beta",
+        description=(
+            "Opt-in beta: SASE agent completion resolves host-owned pluggable "
+            "finalizer plans instead of directly invoking the legacy commit "
+            "finalizer."
+        ),
+        bead="sase-ro",
     ),
     FeatureFlag.plugin_catalog_scoped_latest: FeatureFlagDefinition(
         key=FeatureFlag.plugin_catalog_scoped_latest,

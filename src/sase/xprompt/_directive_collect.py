@@ -121,6 +121,12 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_runners_args.append(named_args["runners"])
                     if "priority" in named_args:
                         collected.wait_priority_args.append(named_args["priority"])
+                if name == "final" and named_args:
+                    keys = ", ".join(f"{key}=" for key in sorted(named_args))
+                    raise DirectiveError(
+                        f"Unsupported keyword on %final: {keys}. "
+                        "%final only accepts selector operations."
+                    )
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if name == "clan":
@@ -148,6 +154,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
                 raw_args = [colon_arg[1:-1]]
                 collected.literal_directives.add(name)
+            elif name == "final":
+                raw_args = _split_final_selector_args(colon_arg)
             elif is_multi:
                 raw_args = [seg for seg in colon_arg.split(",") if seg]
             else:
@@ -175,6 +183,14 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
 
     _validate_clan_directive_contract(collected)
     return collected
+
+
+def _split_final_selector_args(raw: str) -> list[str]:
+    """Split a colon-form ``%final`` argument without dropping empty elements."""
+
+    if "," not in raw:
+        return [raw]
+    return [part.strip() for part in raw.split(",")]
 
 
 def _collect_clan_paren_args(

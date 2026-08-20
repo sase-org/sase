@@ -33,6 +33,7 @@ _KNOWN_DIRECTIVES = frozenset(
         "auto",
         "clan",
         "effort",
+        "final",
         "hide",
         "model",
         "id",
@@ -42,7 +43,7 @@ _KNOWN_DIRECTIVES = frozenset(
 )
 
 # Directives that allow multiple occurrences (values are collected into a list)
-_MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
+_MULTI_VALUE_DIRECTIVES = frozenset({"final", "wait"})
 
 # Compatibility argument suggestions for the %auto/%a directive. The parser
 # retains arbitrary raw arguments; the adapter that opens a gate owns validation.
@@ -136,6 +137,8 @@ class PromptDirectives:
             %wait(runners=...) keyword.
         wait_priority: Runner-slot queue priority from the
             %wait(priority=...) keyword. Lower values start first.
+        final: Ordered raw selector operations from repeatable ``%final``
+            directives. Resolution is owned by the finalizer launch gate.
         auto_mode: Compatibility rendering of the raw ``%auto`` argument;
             bare ``%auto`` is ``"plan"`` and absence is None.
         auto_enabled: Whether ``%auto``/``%a`` was present.
@@ -176,6 +179,7 @@ class PromptDirectives:
     wait_until: str | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
+    final: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))

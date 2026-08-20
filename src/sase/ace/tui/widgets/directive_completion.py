@@ -111,6 +111,7 @@ class _ModelEntryDisplay(Protocol):
 
 _TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
 _IDENTITY_ROLES = frozenset({"clan", "family", "tribe"})
+_HIDDEN_COMPLETION_DIRECTIVES = frozenset({"final"})
 
 
 def build_directive_completion_candidates(
@@ -128,7 +129,7 @@ def build_directive_completion_candidates(
     candidates = [
         _directive_name_candidate(row)
         for row in _core_candidate_rows(clause)
-        if isinstance(row.get("insertion"), str)
+        if isinstance(row.get("insertion"), str) and not _is_hidden_directive_name(row)
     ]
     return candidates, _shared_extension(
         [candidate.insertion[1:] for candidate in candidates],
@@ -155,6 +156,10 @@ def build_directive_clause_candidates(
 
     if _offers_model_values(clause):
         return _build_model_clause_candidates(clause)
+
+    keyword_fallback = _parenthesized_keyword_fallback(clause)
+    if keyword_fallback is not None:
+        return keyword_fallback
 
     if clause.value_role == "bead":
         return _build_bead_clause_candidates(
@@ -413,6 +418,40 @@ def _directive_name_candidate(row: dict[str, object]) -> CompletionCandidate:
             description=str(description),
         ),
     )
+
+
+def _is_hidden_directive_name(row: dict[str, object]) -> bool:
+    insertion = str(row.get("insertion") or "")
+    name = str(row.get("name") or insertion.removeprefix("%"))
+    return name in _HIDDEN_COMPLETION_DIRECTIVES
+
+
+def _parenthesized_keyword_fallback(
+    clause: DirectiveClauseCompletion,
+) -> tuple[list[CompletionCandidate], str] | None:
+    if (
+        clause.kind != "directive_argument"
+        or clause.syntax_form != "parenthesized"
+        or clause.clause_kind != "positional"
+        or clause.directive_name not in {"clan", "id"}
+    ):
+        return None
+    keyword_clause = synthetic_directive_clause(
+        kind="directive_argument_keyword",
+        token=clause.token,
+        directive_name=clause.directive_name,
+        syntax_form="parenthesized",
+        clause_kind="keyword_name",
+        selected_values=clause.selected_values,
+        selected_keywords=clause.selected_keywords,
+    )
+    candidates = [
+        _static_or_keyword_candidate(row, keyword_clause)
+        for row in _core_candidate_rows(keyword_clause)
+        if isinstance(row.get("insertion"), str)
+        and str(row["insertion"]).lower().startswith(clause.token.lower())
+    ]
+    return (candidates, "") if candidates else None
 
 
 def _static_or_keyword_candidate(

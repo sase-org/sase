@@ -28,6 +28,7 @@ from .postprocessing import (
     save_prompt_to_file,
 )
 from .preprocessing import preprocess_prompt
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.xprompt.directives import PromptDirectives
 from .commit_finalizer import run_commit_finalizer
 from .config import resolve_effective_effort
@@ -152,6 +153,22 @@ def invoke_agent(
         result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
         query = result.prompt
         result_directives = result.directives
+    use_pluggable_finalizers = current_flags().enabled(FeatureFlag.pluggable_finalizers)
+    if use_pluggable_finalizers or result_directives.final:
+        from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+
+        finalizer_plan = resolve_and_persist_finalizer_plan(
+            result_directives,
+            artifacts_dir=artifacts_dir,
+        )
+        if finalizer_plan is not None and artifacts_dir:
+            from sase.axe.run_agent_helpers import update_meta_field
+
+            update_meta_field(
+                artifacts_dir,
+                "finalizers",
+                finalizer_plan.agent_meta_projection(),
+            )
     model_override = result_directives.model
     model_alias_overrides = dict(result_directives.model_alias_overrides)
     if model_alias_overrides and artifacts_dir:
@@ -307,16 +324,30 @@ def invoke_agent(
             model_override=model_override,
             options=invocation_options,
         )
-        invoke_result = run_commit_finalizer(
-            provider=provider,
-            original_prompt=query,
-            invoke_result=invoke_result,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            artifacts_dir=artifacts_dir,
-            options=invocation_options,
-        )
+        if use_pluggable_finalizers:
+            from sase.finalizers import run_finalizers
+
+            invoke_result = run_finalizers(
+                provider=provider,
+                original_prompt=query,
+                invoke_result=invoke_result,
+                model_tier=model_tier,
+                suppress_output=suppress_output,
+                model_override=model_override,
+                artifacts_dir=artifacts_dir,
+                options=invocation_options,
+            )
+        else:
+            invoke_result = run_commit_finalizer(
+                provider=provider,
+                original_prompt=query,
+                invoke_result=invoke_result,
+                model_tier=model_tier,
+                suppress_output=suppress_output,
+                model_override=model_override,
+                artifacts_dir=artifacts_dir,
+                options=invocation_options,
+            )
         response_content = invoke_result.content
 
         # Record success metrics

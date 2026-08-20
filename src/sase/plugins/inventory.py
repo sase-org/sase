@@ -18,6 +18,7 @@ ENTRY_POINT_GROUPS: tuple[str, ...] = (
     "sase_artifact_refs",
     "sase_config",
     "sase_file_hooks",
+    "sase_finalizers",
     "sase_llm",
     "sase_plugin_manifest",
     "sase_task_types",

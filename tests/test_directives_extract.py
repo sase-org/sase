@@ -172,6 +172,26 @@ def test_model_colon_arg_with_comma_is_single_value() -> None:
     assert directives.model == "a,b"
 
 
+def test_final_directive_collects_ordered_selector_operations() -> None:
+    prompt = "%final:lint,commit\n%final:!commit\n%final:none\nDo work"
+
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.final == ["lint", "commit", "!commit", "none"]
+
+
+def test_final_directive_preserves_empty_comma_element_for_launch_validation() -> None:
+    _, directives = extract_prompt_directives("%final:lint,,commit\nDo work")
+
+    assert directives.final == ["lint", "", "commit"]
+
+
+def test_final_directive_rejects_keyword_arguments() -> None:
+    with pytest.raises(DirectiveError, match="Unsupported keyword on %final"):
+        extract_prompt_directives("%final(commit, timeout=10)\nDo work")
+
+
 # --- Xprompt expansion in directive args ---
 
 

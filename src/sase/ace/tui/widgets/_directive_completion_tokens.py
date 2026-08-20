@@ -212,6 +212,14 @@ def compat_directive_name(clause: DirectiveClauseCompletion) -> str:
         if name == "model":
             return "model_alias_key"
     if (
+        name == "id"
+        and clause.kind == "directive_argument"
+        and clause.syntax_form == "parenthesized"
+        and clause.clause_kind == "positional"
+        and _looks_like_id_keyword_prefix(clause.token)
+    ):
+        return "id_keyword"
+    if (
         name == "model"
         and clause.syntax_form == "parenthesized"
         and clause.clause_kind == "positional"
@@ -219,6 +227,13 @@ def compat_directive_name(clause: DirectiveClauseCompletion) -> str:
     ):
         return "model_or_alias_key"
     return name
+
+
+def _looks_like_id_keyword_prefix(token: str) -> bool:
+    partial = token.casefold()
+    return any(
+        keyword.startswith(partial) for keyword in ("bead", "clan", "family", "tribe")
+    )
 
 
 def synthetic_directive_clause(

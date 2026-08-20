@@ -18,7 +18,9 @@ import pytest
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
+    FINALIZER_BASELINE_FILENAME,
     capture_dirty_baseline,
+    capture_opened_repo_dirty_baseline,
     load_dirty_baseline,
 )
 from sase.llm_provider.commit_finalizer_git import (
@@ -398,6 +400,48 @@ def test_capture_writes_fingerprints_for_dirty_paths(
     xy, content_hash = repo_entries["dirty.txt"]
     assert xy == "??"
     assert content_hash == _run_git(repo, "hash-object", "dirty.txt").strip()
+    payload = json.loads(
+        (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_text(encoding="utf-8")
+    )
+    assert payload["schema_version"] == 1
+    assert payload["repositories"][0]["fingerprints"]["dirty.txt"][0] == "??"
+
+
+def test_late_open_baseline_capture_first_repo_id_wins(tmp_path: Path) -> None:
+    repo = tmp_path / "linked"
+    _init_git_repo_with_identity(repo)
+    (repo / "pre_existing.txt").write_text("foreign\n", encoding="utf-8")
+    artifacts_dir = tmp_path / "artifacts"
+
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:core",
+            str(repo),
+            kind="linked",
+            name="core",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+    (repo / "after_open.txt").write_text("mine\n", encoding="utf-8")
+    assert (
+        capture_opened_repo_dirty_baseline(
+            "linked:core",
+            str(repo),
+            kind="linked",
+            name="core",
+            artifacts_dir=str(artifacts_dir),
+        )
+        is None
+    )
+
+    payload = json.loads(
+        (artifacts_dir / FINALIZER_BASELINE_FILENAME).read_text(encoding="utf-8")
+    )
+    assert payload["repositories"][0]["path"] == finalizer_git.normalize_path(str(repo))
+    assert payload["repositories"][0]["scope"] == "opened_repo"
+    assert sorted(payload["repositories"][0]["fingerprints"]) == ["pre_existing.txt"]
+    assert load_dirty_baseline(artifacts_dir) == {}
 
 
 @pytest.mark.parametrize(

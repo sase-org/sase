@@ -210,6 +210,7 @@ def extract_prompt_directives(
         wait_until=wait_until,
         wait_runners=wait_runners,
         wait_priority=wait_priority,
+        final=expanded_multi.get("final", []),
     )
 
     cleaned = unprotect_disabled_regions(cleaned, disabled_regions)

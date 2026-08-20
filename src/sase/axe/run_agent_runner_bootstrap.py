@@ -119,7 +119,10 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
         FamilyAttachError,
         load_family_attach_plan_from_env,
     )
-    from sase.llm_provider.commit_finalizer_baseline import BASELINE_FILENAME
+    from sase.llm_provider.commit_finalizer_baseline import (
+        BASELINE_FILENAME,
+        FINALIZER_BASELINE_FILENAME,
+    )
 
     try:
         plan = load_family_attach_plan_from_env()
@@ -128,13 +131,22 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
     if plan is None:
         return False
 
-    parent_baseline = os.path.join(plan.parent_artifacts_dir, BASELINE_FILENAME)
-    if not os.path.isfile(parent_baseline):
+    parent_baselines = [
+        os.path.join(plan.parent_artifacts_dir, name)
+        for name in (BASELINE_FILENAME, FINALIZER_BASELINE_FILENAME)
+    ]
+    if not any(os.path.isfile(path) for path in parent_baselines):
         return False
 
     try:
         os.makedirs(artifacts_dir, exist_ok=True)
-        shutil.copyfile(parent_baseline, os.path.join(artifacts_dir, BASELINE_FILENAME))
+        for parent_baseline in parent_baselines:
+            if not os.path.isfile(parent_baseline):
+                continue
+            shutil.copyfile(
+                parent_baseline,
+                os.path.join(artifacts_dir, os.path.basename(parent_baseline)),
+            )
     except OSError:
         return False
     return True

@@ -22,6 +22,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     refresh = definitions[FeatureFlag.completion_refresh_on_update]
     scoped = definitions[FeatureFlag.plugin_catalog_scoped_latest]
     prettier = definitions[FeatureFlag.prettier_enabled]
+    pluggable = definitions[FeatureFlag.pluggable_finalizers]
 
     assert artifact_links.kind == "beta"
     assert artifact_links.default is False
@@ -39,6 +40,10 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert scoped.default is False
     assert scoped.bead == "sase-qq"
 
+    assert pluggable.kind == "beta"
+    assert pluggable.default is False
+    assert pluggable.bead == "sase-ro"
+
     assert prettier.kind == "sunset"
     assert prettier.default is True
     assert prettier.bead == "sase-qf"
@@ -50,6 +55,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     default = resolve_feature_flags(definitions=definitions, layers=[])
     assert default.enabled(FeatureFlag.artifact_links) is False
     assert default.enabled(FeatureFlag.coder_inherits_planner_chat) is False
+    assert default.enabled(FeatureFlag.pluggable_finalizers) is False
     assert default.enabled(FeatureFlag.prettier_enabled) is True
 
     user = resolve_feature_flags(
@@ -59,6 +65,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                 "user",
                 {
                     "coder_inherits_planner_chat": True,
+                    "pluggable_finalizers": True,
                     "prettier_enabled": False,
                 },
                 detail="user.yml",
@@ -66,6 +73,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
         ],
     )
     assert user.enabled(FeatureFlag.coder_inherits_planner_chat) is True
+    assert user.enabled(FeatureFlag.pluggable_finalizers) is True
     assert user.enabled(FeatureFlag.prettier_enabled) is False
     assert user.decision(FeatureFlag.coder_inherits_planner_chat).source == "user"
 

@@ -3013,6 +3013,88 @@
         }
       }
     },
+    "finalizers": {
+      "type": "object",
+      "description": "Host-owned finalizer instances selected for SASE agent completion when the pluggable_finalizers beta is enabled.",
+      "additionalProperties": false,
+      "properties": {
+        "defaults": {
+          "type": "array",
+          "description": "Default finalizer instance IDs selected when no %final directive overrides them.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "default": [
+            "commit"
+          ]
+        },
+        "required": {
+          "type": "array",
+          "description": "Finalizer instance IDs that cannot be removed by %final.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "default": []
+        },
+        "instances": {
+          "type": "object",
+          "description": "Configured finalizer instances keyed by lowercase slug.",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "use"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "use": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]+@[a-z][a-z0-9_-]*$",
+                "description": "Provider reference such as builtin@commit or distribution@provider."
+              },
+              "after": {
+                "type": "array",
+                "description": "Finalizer instances that must run before this instance.",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*$"
+                },
+                "default": []
+              },
+              "max_attempts": {
+                "type": "integer",
+                "description": "Maximum executor attempts for this finalizer.",
+                "minimum": 1,
+                "default": 1
+              },
+              "refusal": {
+                "type": "string",
+                "description": "Policy for model refusal payloads.",
+                "enum": [
+                  "fail"
+                ],
+                "default": "fail"
+              },
+              "config": {
+                "type": "object",
+                "description": "Provider-specific trusted configuration.",
+                "additionalProperties": true,
+                "default": {}
+              }
+            }
+          },
+          "default": {
+            "commit": {
+              "use": "builtin@commit",
+              "after": [],
+              "max_attempts": 2,
+              "refusal": "fail"
+            }
+          }
+        }
+      }
+    },
     "github_orgs": {
       "description": "GitHub organization/user names the user has push access to, used for cloning and PR submission",
       "oneOf": [
@@ -3669,6 +3751,11 @@
         "plugin_catalog_scoped_latest": {
           "type": "boolean",
           "description": "Eager PyPI latest-version enrichment is limited to installed plugins. The Updates > Plugins highlighted row lazily fetches latest for the current uninstalled entry through the detail debouncer. sase plugin show still fetches the requested plugin. sase plugin list stays installed-only unless -A|--all-latest.",
+          "default": false
+        },
+        "pluggable_finalizers": {
+          "type": "boolean",
+          "description": "Opt-in beta: SASE agent completion resolves host-owned pluggable finalizer plans instead of directly invoking the legacy commit finalizer.",
           "default": false
         },
         "prettier_enabled": {

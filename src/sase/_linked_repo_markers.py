@@ -98,6 +98,13 @@ def record_opened_repo(
     for filename, records_key in marker_targets:
         marker = root / filename
         records = _opened_records(marker)
+        baseline_error = _capture_opened_repo_baseline(
+            repo_id=f"{kind}:{normalized_name}",
+            workspace_dir=workspace_dir,
+            kind=kind,
+            name=normalized_name,
+            artifacts_dir=str(root),
+        )
         record = {
             "name": normalized_name,
             "workspace_dir": normalize_path(workspace_dir),
@@ -107,6 +114,8 @@ def record_opened_repo(
         }
         if kind == "external":
             record["ref"] = normalized_ref
+        if baseline_error:
+            record["baseline_error"] = baseline_error
         records[normalized_name] = record
         _write_opened_marker(marker, records, records_key)
 
@@ -221,5 +230,32 @@ def _opened_records(marker: Path) -> dict[str, dict[str, str]]:
         if kind == "external":
             ref = item.get("ref")
             record["ref"] = ref.strip() if isinstance(ref, str) else normalized_name
+        baseline_error = item.get("baseline_error")
+        if isinstance(baseline_error, str) and baseline_error.strip():
+            record["baseline_error"] = baseline_error.strip()
         records[normalized_name] = record
     return records
+
+
+def _capture_opened_repo_baseline(
+    *,
+    repo_id: str,
+    workspace_dir: str,
+    kind: OpenedRepoKind,
+    name: str,
+    artifacts_dir: str,
+) -> str | None:
+    try:
+        from sase.llm_provider.commit_finalizer_baseline import (
+            capture_opened_repo_dirty_baseline,
+        )
+
+        return capture_opened_repo_dirty_baseline(
+            repo_id,
+            workspace_dir,
+            kind=kind,
+            name=name,
+            artifacts_dir=artifacts_dir,
+        )
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"

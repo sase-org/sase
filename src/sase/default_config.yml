@@ -1200,6 +1200,16 @@ commit:
     # built-in set rather than extending it.
     allowed_types: [build, chore, ci, deps, docs, feat, fix, perf, refactor, revert, style, test]
 
+finalizers:
+  defaults: [commit]
+  required: []
+  instances:
+    commit:
+      use: builtin@commit
+      after: []
+      max_attempts: 2
+      refusal: fail
+
 vcs_provider:
   provider: "auto"
   use_project_pr_prefix: false
