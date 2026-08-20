@@ -9132,6 +9132,172 @@
       {
         "aliases": [],
         "default_child": "list",
+        "description_digest": "f3a645cb06175c36",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "final",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "final"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "5450bad30b2fb45d",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "doctor",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "pretty",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "final",
+              "doctor"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6e49f66b18963e2e",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "pretty",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "final",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "9fe79f3cdca30ad0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "pretty",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "final",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "instance",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "instance",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          }
+        ]
+      },
+      {
+        "aliases": [],
+        "default_child": "list",
         "description_digest": "ba40848d8b53d444",
         "hidden": false,
         "mutex_groups": [],

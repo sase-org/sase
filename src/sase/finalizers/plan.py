@@ -20,6 +20,10 @@ from sase.finalizers.config import (
     FinalizerConfigDiagnostic,
     load_finalizer_config,
 )
+from sase.finalizers.providers import (
+    diagnose_finalizer_providers,
+    fatal_provider_diagnostics,
+)
 from sase.finalizers.selection import (
     FinalizerSelectorError,
     parse_finalizer_selector_ops,
@@ -86,6 +90,11 @@ def resolve_and_persist_finalizer_plan(
         plan = resolve_finalizer_plan(config.to_plan_input(selectors))
     except Exception as exc:
         raise FinalizerPlanError(f"invalid finalizer plan: {exc}") from exc
+    provider_fatal = fatal_provider_diagnostics(
+        diagnose_finalizer_providers(config, plan=plan, selected_only=True)
+    )
+    if provider_fatal:
+        raise FinalizerPlanError(_provider_diagnostics_message(provider_fatal))
 
     artifact_path = _persist_plan(
         artifacts_dir,
@@ -173,6 +182,13 @@ def _diagnostics_message(diagnostics: Sequence[FinalizerConfigDiagnostic]) -> st
     return (
         f"invalid finalizer configuration: {first.layer}:{first.path}: {first.message}"
     )
+
+
+def _provider_diagnostics_message(diagnostics: Sequence[Any]) -> str:
+    first = diagnostics[0]
+    location = getattr(first, "path", None) or getattr(first, "provider_ref", None)
+    prefix = f"{location}: " if location else ""
+    return f"invalid finalizer provider: {prefix}{first.message}"
 
 
 __all__ = [

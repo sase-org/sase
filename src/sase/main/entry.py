@@ -250,6 +250,12 @@ def main() -> NoReturn:
 
         handle_file_hook_command(args)
 
+    # --- final ---
+    if args.command == "final":
+        from .final_handler import handle_final_command
+
+        handle_final_command(args)
+
     # --- flag ---
     if args.command == "flag":
         from .flag_handler import handle_flag_group
