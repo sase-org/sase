@@ -26,6 +26,16 @@ def _isolated_sase_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("SASE_SDD_PLANS_DIR", raising=False)
 
 
+def test_artifact_relation_candidates_include_cli_slugs() -> None:
+    values = {
+        candidate.value
+        for candidate in candidates_for(
+            "artifact_relation", "", project=None, limit=200
+        )
+    }
+    assert {"related", "implements", "supersedes", "derives-from"} <= values
+
+
 def test_candidates_for_unknown_kind_returns_empty_list() -> None:
     assert candidates_for("bogus", "", project=None, limit=200) == []
 

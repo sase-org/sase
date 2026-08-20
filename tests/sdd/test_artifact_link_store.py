@@ -220,6 +220,65 @@ def test_v1_sidecar_file_migrates_on_flag_on_write(
     assert relations == {"cites", "implements"}
 
 
+def test_remove_rows_drops_every_edge_between_a_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    with override_flags(artifact_links=True):
+        store.upsert_row(_row())
+        store.upsert_row(_row(relation="related", description="shares a root cause"))
+        removed = store.remove_rows("plan:202608/a.md", "plan:202608/b.md")
+
+    assert {row["relation"] for row in removed} == {"implements", "related"}
+    assert store.load_artifact_rows("plan:202608/a.md") == ()
+    assert store.load_aggregate()["rows"] == []
+
+
+def test_remove_rows_can_target_one_relation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    with override_flags(artifact_links=True):
+        store.upsert_row(_row())
+        store.upsert_row(_row(relation="related", description="shares a root cause"))
+        removed = store.remove_rows(
+            "plan:202608/a.md", "plan:202608/b.md", relation="implements"
+        )
+
+    assert [row["relation"] for row in removed] == ["implements"]
+    remaining = store.load_artifact_rows("plan:202608/a.md")
+    assert len(remaining) == 1
+    assert remaining[0]["relation"] == "related"
+
+
+def test_file_file_row_persists_in_the_aggregate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    with override_flags(artifact_links=True):
+        store.upsert_row(
+            _row(
+                source="file:explicit:0123456789abcdef01234567",
+                relation="related",
+                target="file:default:abcdef0123456789abcdef01",
+                description="same diagram family",
+            )
+        )
+
+    assert list((tmp_path / "plans").rglob("*.json")) == []
+    rows = store.load_aggregate()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["source_ref"] == "file:explicit:0123456789abcdef01234567"
+
+
+def test_remove_refuses_when_flag_is_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
+        store.remove_rows("plan:202608/a.md", "plan:202608/b.md")
+
+
 def test_upsert_canonicalizes_historical_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

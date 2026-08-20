@@ -28,6 +28,8 @@ from sase.completion.candidates.catalog_agents import (
     proc_source_path,
 )
 from sase.completion.candidates.catalog_build import (
+    artifact_relation_candidates,
+    artifact_relation_source_path,
     flag_candidates,
     flag_source_path,
     model_candidates,
@@ -84,6 +86,10 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.PROC: (proc_candidates, proc_source_path),
     ValueKind.MONITOR: (monitor_candidates, monitor_source_path),
     ValueKind.ARTIFACT: (artifact_candidates, artifact_source_path),
+    ValueKind.ARTIFACT_RELATION: (
+        artifact_relation_candidates,
+        artifact_relation_source_path,
+    ),
     ValueKind.TAG: (tag_candidates, tag_source_path),
     ValueKind.AGENT: (agent_candidates, agent_source_path),
     ValueKind.MODEL: (model_candidates, model_source_path),

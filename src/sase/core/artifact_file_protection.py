@@ -113,6 +113,11 @@ def collect_protected_artifact_ids() -> ProtectedArtifactIds:
         scanned=scanned,
         unavailable=unavailable,
     )
+    _collect_linked_ids(
+        ids=referenced_ids,
+        scanned=scanned,
+        unavailable=unavailable,
+    )
 
     return ProtectedArtifactIds(
         referenced_ids=frozenset(referenced_ids),
@@ -148,6 +153,41 @@ def _collect_consumed_ids(
         match = _CONSUMED_FILE_REF_RE.fullmatch(reference)
         if match is not None:
             ids.add(match.group("id"))
+
+
+def _collect_linked_ids(
+    *,
+    ids: set[str],
+    scanned: set[str],
+    unavailable: set[str],
+) -> None:
+    """Protect ``file:`` ids named by the rebuildable artifact-link aggregate."""
+
+    projects_root = sase_projects_dir()
+    try:
+        if not projects_root.is_dir():
+            return
+        project_dirs = sorted(projects_root.iterdir())
+    except OSError as exc:
+        unavailable.add(f"{projects_root}: {exc}")
+        return
+
+    for project_dir in project_dirs:
+        path = project_dir / "artifact-links.json"
+        try:
+            exists = path.is_file()
+        except OSError as exc:
+            unavailable.add(f"{path}: {exc}")
+            continue
+        if not exists:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            unavailable.add(f"{path}: {exc}")
+            continue
+        scanned.add(str(path))
+        ids.update(match.group("id") for match in _ARTIFACT_ID_RE.finditer(text))
 
 
 def _live_sidecar_root(

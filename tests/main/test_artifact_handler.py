@@ -40,11 +40,26 @@ def test_parser_registers_canonical_group_alias_and_all_subcommands() -> None:
     assert canonical.move is False
     assert move.move is True
     assert (
-        "{create,doctor,list,open,pane,path,prune,reclaim,show,stats,trash}"
+        "{create,doctor,link,list,open,pane,path,prune,read,reclaim,show,stats,trash}"
         in help_text
         or "pane" in help_text
     )
     assert "Bare `sase artifact` defaults to `sase artifact list`." in help_text
+
+
+def test_parser_defaults_bare_link_group_to_list_with_notice() -> None:
+    args = create_parser().parse_args(["artifact", "link"])
+
+    assert args.artifact_subcommand == "link"
+    assert args.link_subcommand == "list"
+    assert args.reference is None
+    assert args.direction == "both"
+    assert args.json is False
+    assert args.limit == 50
+    assert default_list_delegation_notice(args) == (
+        "No subcommand provided for 'sase artifact link'; delegating to "
+        "'sase artifact link list'."
+    )
 
 
 def test_parser_defaults_bare_group_to_list_with_notice() -> None:
@@ -134,6 +149,21 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--path",
     ]
     assert _long_options(subcommands.choices["doctor"]) == ["--fix", "--verify"]
+    link_subcommands = _subparser_action(subcommands.choices["link"])
+    assert list(link_subcommands.choices) == ["add", "list", "migrate-notes", "rm"]
+    assert _long_options(link_subcommands.choices["add"]) == []
+    assert _long_options(link_subcommands.choices["list"]) == [
+        "--direction",
+        "--json",
+        "--limit",
+        "--origin",
+        "--relation",
+    ]
+    assert _long_options(link_subcommands.choices["migrate-notes"]) == [
+        "--apply",
+        "--json",
+    ]
+    assert _long_options(link_subcommands.choices["rm"]) == ["--relation"]
     assert _long_options(subcommands.choices["list"]) == [
         "--agent",
         "--explicit",
@@ -168,16 +198,19 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     assert list(subcommands.choices) == [
         "create",
         "doctor",
+        "link",
         "list",
         "open",
         "pane",
         "path",
         "prune",
+        "read",
         "reclaim",
         "show",
         "stats",
         "trash",
     ]
+    assert _long_options(subcommands.choices["read"]) == ["--format", "--lines"]
     assert _long_options(subcommands.choices["stats"]) == [
         "--json",
         "--project",
@@ -204,6 +237,27 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
                 option.startswith("-") and not option.startswith("--")
                 for option in action.option_strings
             )
+
+
+def test_parser_read_positionals_and_format() -> None:
+    args = create_parser().parse_args(
+        [
+            "artifact",
+            "read",
+            "plan:doc.md",
+            "Need the design of record",
+            "-f",
+            "json",
+            "-n",
+            "20",
+        ]
+    )
+
+    assert args.artifact_subcommand == "read"
+    assert args.reference == "plan:doc.md"
+    assert args.reason == "Need the design of record"
+    assert args.format == "json"
+    assert args.lines == 20
 
 
 def test_create_requires_agent_environment(

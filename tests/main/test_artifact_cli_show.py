@@ -39,8 +39,10 @@ def test_show_json_uses_common_envelope(
         "file",
         "resolution",
         "consumption",
+        "links",
         "entry",
     ]
+    assert payload["links"] == []
     assert payload["reference"] == "plan:doc.md#L3"
     assert payload["kind"] == "plan"
     assert payload["consumption"] is None
@@ -160,3 +162,35 @@ def test_show_joins_fragment_reference_to_fragment_free_consumption_key(
     assert handle_show(argparse.Namespace(reference=result.input, json=True)) == 0
     assert json.loads(capsys.readouterr().out)["consumption"] is None
     assert calls == [["plan:report.md"]]
+
+
+def test_show_json_includes_links_when_flag_is_on(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.feature_flags import override_flags
+
+    result = resolved_reference(tmp_path / "report.md", reference="plan:report.md")
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.show.summarize_artifact_consumption",
+        lambda _refs: {},
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.show._load_links",
+        lambda _reference: [
+            {
+                "relation": "implements",
+                "source_ref": "plan:report.md",
+                "target_ref": "bead:sase-js",
+            }
+        ],
+    )
+    with override_flags(artifact_links=True):
+        assert handle_show(argparse.Namespace(reference=result.input, json=True)) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["links"][0]["target_ref"] == "bead:sase-js"

@@ -25,6 +25,37 @@ def flag_source_path(_project: str | None) -> Path | None:
     return None
 
 
+def artifact_relation_source_path(_project: str | None) -> Path | None:
+    """Return no cache-invalidation path: relations are compiled in."""
+
+    return None
+
+
+def artifact_relation_candidates(_project: str | None) -> list[Candidate]:
+    """Return builtin artifact-link relation slugs."""
+
+    from sase.core.rust import require_rust_binding
+
+    try:
+        rows = require_rust_binding("artifact_relations_builtins")()
+    except Exception:  # noqa: BLE001 - completion must not traceback
+        return []
+    if not isinstance(rows, list):
+        return []
+    candidates: list[Candidate] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        slug = str(row.get("slug") or "")
+        if not slug:
+            continue
+        inverse = str(row.get("inverse") or "")
+        written_by = str(row.get("written_by") or "")
+        description = f"inverse {inverse}" if inverse else written_by
+        candidates.append(Candidate(slug, description))
+    return candidates
+
+
 def flag_candidates(_project: str | None) -> list[Candidate]:
     """Return every registered feature flag key, with kind and description."""
     from sase.feature_flags.registry import feature_flag_definitions
@@ -71,6 +102,8 @@ def model_candidates(_project: str | None) -> list[Candidate]:
 
 
 __all__ = [
+    "artifact_relation_candidates",
+    "artifact_relation_source_path",
     "flag_candidates",
     "flag_source_path",
     "model_candidates",

@@ -20,6 +20,7 @@ class ValueKind(StrEnum):
     PLAN = "plan"
     PATCH = "patch"
     ARTIFACT = "artifact"
+    ARTIFACT_RELATION = "artifact_relation"
     XPROMPT = "xprompt"
     SKILL = "skill"
     MEMORY = "memory"
@@ -53,6 +54,7 @@ NAME_TABLE: Final[dict[str, ValueKind]] = {
     "plugin_name": ValueKind.PLUGIN,
     "proc_id": ValueKind.PROC,
     "project": ValueKind.PROJECT,
+    "relation": ValueKind.ARTIFACT_RELATION,
     "repo": ValueKind.REPO,
     "skill": ValueKind.SKILL,
     "tag": ValueKind.TAG,
@@ -97,8 +99,14 @@ _PATCH_NAME_COMMANDS: Final[tuple[str, ...]] = (
     "tag",
 )
 _ARTIFACT_REF_SLOTS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
+    (("artifact", "link", "add"), "source_ref"),
+    (("artifact", "link", "add"), "target_ref"),
+    (("artifact", "link", "list"), "reference"),
+    (("artifact", "link", "rm"), "source_ref"),
+    (("artifact", "link", "rm"), "target_ref"),
     (("artifact", "open"), "reference"),
     (("artifact", "path"), "reference"),
+    (("artifact", "read"), "reference"),
     (("artifact", "show"), "reference"),
     (("artifact", "trash", "restore"), "reference"),
     (("bead", "ref", "add"), "refs"),

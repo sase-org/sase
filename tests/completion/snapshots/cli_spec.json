@@ -2774,6 +2774,310 @@
           },
           {
             "aliases": [],
+            "default_child": "list",
+            "description_digest": "ac0f7dc397a837b5",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "link",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "artifact",
+              "link"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "ea56eca452a048a6",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "add",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "add"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "source_ref",
+                    "is_remainder": false,
+                    "kind": "artifact",
+                    "metavar": "SOURCE",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "relation",
+                    "is_remainder": false,
+                    "kind": "artifact_relation",
+                    "metavar": "RELATION",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "target_ref",
+                    "is_remainder": false,
+                    "kind": "artifact",
+                    "metavar": "TARGET",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "why",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "WHY",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "eb54c4614dd538be",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "both",
+                      "in",
+                      "out"
+                    ],
+                    "dest": "direction",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-d",
+                      "--direction"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "limit",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-l",
+                      "--limit"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "origin",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-o",
+                      "--origin"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "relation",
+                    "hidden": false,
+                    "kind": "artifact_relation",
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--relation"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "list"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "reference",
+                    "is_remainder": false,
+                    "kind": "artifact",
+                    "metavar": "reference",
+                    "nargs": "?"
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "2a5fdb7d5222501e",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "migrate-notes",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "apply",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--apply"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "migrate-notes"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "4d60e87996a13d67",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "rm",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "relation",
+                    "hidden": false,
+                    "kind": "artifact_relation",
+                    "repeatable": false,
+                    "strings": [
+                      "-R",
+                      "--relation"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "rm"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "source_ref",
+                    "is_remainder": false,
+                    "kind": "artifact",
+                    "metavar": "SOURCE",
+                    "nargs": null
+                  },
+                  {
+                    "choices": null,
+                    "dest": "target_ref",
+                    "is_remainder": false,
+                    "kind": "artifact",
+                    "metavar": "TARGET",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
             "default_child": null,
             "description_digest": "db647dbe7dfa2fe8",
             "hidden": false,
@@ -3197,6 +3501,79 @@
               "prune"
             ],
             "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "1e2562959cb5a1cf",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "read",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "markdown",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "lines",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--lines"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "artifact",
+              "read"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "reference",
+                "is_remainder": false,
+                "kind": "artifact",
+                "metavar": "reference",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "reason",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "reason",
+                "nargs": null
+              }
+            ],
             "subcommands": []
           },
           {
@@ -7791,6 +8168,7 @@
                 "choices": [
                   "agent",
                   "artifact",
+                  "artifact_relation",
                   "bead",
                   "flag",
                   "glossary",

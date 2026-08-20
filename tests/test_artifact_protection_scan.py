@@ -389,3 +389,48 @@ def test_query_failure_marks_present_consumption_ledger_unavailable(
     assert result.consumed_ids == frozenset()
     assert str(ledger) not in result.sources_scanned
     assert result.sources_unavailable == (f"{ledger}: query failed",)
+
+
+def test_artifact_link_aggregate_protects_linked_file_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects = tmp_path / "projects"
+    plans = tmp_path / "plans"
+    beads = tmp_path / "beads"
+    for path in (projects, plans, beads):
+        path.mkdir()
+    linked_id = "explicit:aaaaaaaaaaaaaaaaaaaaaaaa"
+    aggregate = projects / "gh_sase-org__sase" / "artifact-links.json"
+    aggregate.parent.mkdir()
+    aggregate.write_text(
+        '{"schema_version": 2, "rows": [{'
+        f'"source_ref": "file:{linked_id}", '
+        '"target_ref": "plan:202608/a.md"}]}',
+        encoding="utf-8",
+    )
+    inventory = RepoInventory(
+        (
+            _record("sase", tmp_path, kind="primary"),
+            _record("plans", plans),
+            _record("beads", beads),
+        )
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.sase_projects_dir",
+        lambda: projects,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.collect_repo_inventory",
+        lambda: inventory,
+    )
+    monkeypatch.setattr(
+        "sase.core.artifact_file_protection.default_artifact_consumption_log_path",
+        lambda: tmp_path / "missing-consumption.jsonl",
+    )
+
+    result = collect_protected_artifact_ids()
+
+    assert linked_id in result.referenced_ids
+    assert linked_id in result.ids
+    assert str(aggregate) in result.sources_scanned

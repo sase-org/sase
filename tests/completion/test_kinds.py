@@ -91,6 +91,11 @@ def test_path_overrides_cover_shipped_catalog_slots() -> None:
     assert PATH_OVERRIDES[(("plan", "show"), "target")] is ValueKind.PLAN
     assert PATH_OVERRIDES[(("bead", "ref", "add"), "refs")] is ValueKind.ARTIFACT
     assert PATH_OVERRIDES[(("artifact", "show"), "reference")] is ValueKind.ARTIFACT
+    assert PATH_OVERRIDES[(("artifact", "read"), "reference")] is ValueKind.ARTIFACT
+    assert PATH_OVERRIDES[(("artifact", "link", "add"), "source_ref")] is (
+        ValueKind.ARTIFACT
+    )
+    assert NAME_TABLE["relation"] is ValueKind.ARTIFACT_RELATION
     assert PATH_OVERRIDES[(("glossary", "read"), "term")] is ValueKind.GLOSSARY
     assert PATH_OVERRIDES[(("glossary", "show"), "term")] is ValueKind.GLOSSARY
     assert PATH_OVERRIDES[(("glossary", "log"), "term")] is ValueKind.GLOSSARY

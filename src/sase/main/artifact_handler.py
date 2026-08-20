@@ -14,11 +14,13 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
     from sase.artifact_cli import (
         handle_create,
         handle_doctor,
+        handle_link,
         handle_list,
         handle_open,
         handle_pane,
         handle_path,
         handle_prune,
+        handle_read,
         handle_reclaim,
         handle_show,
         handle_stats,
@@ -28,11 +30,13 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
     handlers: dict[str, Callable[[argparse.Namespace], int]] = {
         "create": handle_create,
         "doctor": handle_doctor,
+        "link": handle_link,
         "list": handle_list,
         "open": handle_open,
         "pane": handle_pane,
         "path": handle_path,
         "prune": handle_prune,
+        "read": handle_read,
         "reclaim": handle_reclaim,
         "show": handle_show,
         "stats": handle_stats,
@@ -43,7 +47,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
     if handler is None:
         print(
             "Usage: sase artifact "
-            "{create,doctor,list,open,pane,path,prune,reclaim,show,stats,trash}",
+            "{create,doctor,link,list,open,pane,path,prune,read,reclaim,show,stats,trash}",
             file=sys.stderr,
         )
         sys.exit(2)

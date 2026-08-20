@@ -8,6 +8,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from sase.artifact_cli.link_health import (
+    ArtifactLinkHealthReport,
+    inspect_artifact_link_health,
+)
 from sase.core.artifact_file_facade import (
     ArtifactFileBackfillReport,
     ArtifactFileIndexInspection,
@@ -28,13 +32,22 @@ def handle_doctor(args: argparse.Namespace) -> int:
     verification = (
         verify_artifact_file_index() if bool(getattr(args, "verify", False)) else None
     )
-    healthy = _inspection_healthy(inspection) and (
-        verification is None or _verification_healthy(verification)
+    try:
+        link_report = inspect_artifact_link_health(
+            fix=bool(getattr(args, "fix", False))
+        )
+    except Exception:  # noqa: BLE001 - doctor still reports the file index
+        link_report = ArtifactLinkHealthReport(enabled=True, skipped=True)
+    healthy = (
+        _inspection_healthy(inspection)
+        and (verification is None or _verification_healthy(verification))
+        and link_report.healthy
     )
     _print_report(
         inspection,
         backfill=backfill,
         verification=verification,
+        link_report=link_report,
         healthy=healthy,
     )
     return 0 if healthy else 1
@@ -70,6 +83,7 @@ def _print_report(
     *,
     backfill: ArtifactFileBackfillReport | None,
     verification: ArtifactFileVerifyReport | None,
+    link_report: ArtifactLinkHealthReport,
     healthy: bool,
 ) -> None:
     table = Table(show_header=False, box=None, pad_edge=False)
@@ -129,6 +143,33 @@ def _print_report(
             table,
             "Digest mismatches",
             tuple(mismatch.id for mismatch in verification.mismatches),
+        )
+    if link_report.skipped:
+        table.add_row(
+            "Artifact links",
+            (
+                "[dim]skipped (artifact_links disabled)[/dim]"
+                if not link_report.enabled
+                else "[dim]skipped (no store)[/dim]"
+            ),
+        )
+    else:
+        _add_ids(table, "Dangling link refs", link_report.dangling)
+        _add_ids(table, "Stale Links tables", link_report.stale_tables)
+        _add_ids(table, "Missing companions", link_report.missing_companions)
+        _add_ids(
+            table,
+            "Rendered block missing links/ JSON in HEAD",
+            link_report.missing_head_indexes,
+        )
+        table.add_row("Recorded reads", str(link_report.read_events))
+        if link_report.rebuilt:
+            table.add_row("Link aggregate", "[green]rebuilt[/green]")
+        _add_ids(
+            table,
+            "Migrated v1 indexes",
+            link_report.migrated_paths,
+            healthy=True,
         )
 
     Console().print(

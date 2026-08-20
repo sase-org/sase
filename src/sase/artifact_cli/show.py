@@ -22,6 +22,11 @@ from sase.core.artifact_consumption_query import (
     ArtifactConsumptionSummary,
     summarize_artifact_consumption,
 )
+from sase.sdd.artifact_link_store import (
+    artifact_links_enabled,
+    canonicalize_artifact_link_ref,
+    resolve_artifact_link_store,
+)
 
 
 def handle_show(args: argparse.Namespace) -> int:
@@ -38,14 +43,21 @@ def handle_show(args: argparse.Namespace) -> int:
         consumption_reference
     )
     result = replace(result, consumption=summary)
+    links = _load_links(consumption_reference)
 
     if bool(getattr(args, "json", False)):
-        json.dump(result.to_json_dict(), sys.stdout, indent=2)
+        payload = result.to_json_dict()
+        ordered: dict[str, object] = {}
+        for key, value in payload.items():
+            ordered[key] = value
+            if key == "consumption":
+                ordered["links"] = links
+        json.dump(ordered, sys.stdout, indent=2)
         sys.stdout.write("\n")
     elif result.parsed.kind_type == "file" and result.file is not None:
-        _print_file(result)
+        _print_file(result, links=links)
     else:
-        _print_resolution(result)
+        _print_resolution(result, links=links)
 
     if result.parsed.kind_type == "file" and result.file is None:
         print(
@@ -56,7 +68,9 @@ def handle_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_file(result: ResolvedArtifactReference) -> None:
+def _print_file(
+    result: ResolvedArtifactReference, *, links: list[dict[str, object]]
+) -> None:
     assert result.file is not None
     table = _metadata_table()
     payload = artifact_file_json_dict(result.file)
@@ -87,6 +101,7 @@ def _print_file(result: ResolvedArtifactReference) -> None:
         "\n".join(result.resolution.candidates) or "-",
     )
     _add_consumption_rows(table, result.consumption)
+    _add_link_rows(table, links)
     Console().print(
         Panel(
             table,
@@ -96,7 +111,9 @@ def _print_file(result: ResolvedArtifactReference) -> None:
     )
 
 
-def _print_resolution(result: ResolvedArtifactReference) -> None:
+def _print_resolution(
+    result: ResolvedArtifactReference, *, links: list[dict[str, object]]
+) -> None:
     table = _metadata_table()
     table.add_row("kind", result.parsed.kind)
     table.add_row("reference", result.canonical_reference)
@@ -123,6 +140,7 @@ def _print_resolution(result: ResolvedArtifactReference) -> None:
         "\n".join(result.resolution.candidates) or "-",
     )
     _add_consumption_rows(table, result.consumption)
+    _add_link_rows(table, links)
     Console().print(
         Panel(
             table,
@@ -159,6 +177,31 @@ def _add_consumption_rows(
     table.add_row("consumed_by_agents", str(summary.distinct_agent_count))
     table.add_row("consuming_agents", consuming_agents or "-")
     table.add_row("last_consumed_at", summary.last_consumed_at or "-")
+
+
+def _add_link_rows(table: Table, links: list[dict[str, object]]) -> None:
+    if not artifact_links_enabled():
+        return
+    if not links:
+        table.add_row("links", "none")
+        return
+    rendered = []
+    for row in links:
+        rendered.append(
+            f"{row.get('relation')} {row.get('source_ref')} -> {row.get('target_ref')}"
+        )
+    table.add_row("links", "\n".join(rendered))
+
+
+def _load_links(reference: str) -> list[dict[str, object]]:
+    if not artifact_links_enabled():
+        return []
+    try:
+        store = resolve_artifact_link_store()
+        canonical = canonicalize_artifact_link_ref(reference)
+        return [dict(row) for row in store.load_artifact_rows(canonical)]
+    except Exception:  # noqa: BLE001 - show still reports metadata
+        return []
 
 
 def _display_value(value: object) -> str:

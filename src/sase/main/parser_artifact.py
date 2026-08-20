@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
+from sase.main.parser_artifact_link import register_artifact_link_parser
 from sase.main.parser_bead import nonnegative_int
 from sase.main.plan_search_handler import plan_date_arg
 
@@ -27,13 +28,19 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "Create, discover, inspect, resolve, open, and repair indexed "
             "artifacts.\n\n"
             "Bare `sase artifact` defaults to `sase artifact list`. "
-            "Canonical prompt archives live in the agents sidecar and are "
-            "inspected with `sase agent prompts`."
+            "`sase artifact link` writes typed edges; `sase artifact read` "
+            "prints an artifact and records the read. Canonical prompt "
+            "archives live in the agents sidecar and are inspected with "
+            "`sase agent prompts`."
         ),
         epilog=(
             "examples:\n"
             "  sase artifact\n"
             "  sase artifact list --kind image --project sase\n"
+            "  sase artifact link add plan:a.md related plan:b.md "
+            '"shares a root cause"\n'
+            "  sase artifact link list plan:a.md\n"
+            '  sase artifact read plan:a.md "Need the design of record"\n'
             "  sase artifact prune --keep-generations 3\n"
             "  sase artifact reclaim\n"
             "  sase artifact pane show stitches\n"
@@ -105,7 +112,11 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  Incomplete VCS provenance   rows with a partial vcs_repo /\n"
             "                              vcs_sha / vcs_relpath triple\n"
             "  Unresolvable VCS references rows --verify could not\n"
-            "                              materialize from any checkout"
+            "                              materialize from any checkout\n\n"
+            "When `artifact_links` is on, also reports dangling link rows,\n"
+            "stale Links tables, missing companions, and rendered blocks\n"
+            "whose links/ JSON is not in HEAD. --fix rebuilds the aggregate\n"
+            "and projections from truth; it never parses Markdown for state."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -124,6 +135,8 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "verify recorded digests"
         ),
     )
+
+    register_artifact_link_parser(artifact_subparsers)
 
     list_parser = artifact_subparsers.add_parser(
         "list",
@@ -315,6 +328,57 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project",
         default=None,
         help="Only prune a project by display name, alias, or canonical key",
+    )
+
+    read_parser = artifact_subparsers.add_parser(
+        "read",
+        help="Print an artifact after recording an audited read",
+        description=(
+            "Resolve an artifact reference, strip leading frontmatter and "
+            "managed Links / Referenced By tables, print the body, and "
+            "record an audited read.\n\n"
+            "A non-empty reason is required (positional). Markdown prints "
+            "to stdout; a TTY pages, a pipe stays raw. Images, PDFs, and "
+            "video print a metadata card and point at `sase artifact open`. "
+            "`stitch:` prints the show payload plus the commit subject.\n\n"
+            "The read is refused if the audit row cannot be recorded. When "
+            "the `artifact_links` flag is on inside an agent run, a `read` "
+            "graph edge is also stored. `show`, `path`, and `open` stay "
+            "silent."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase artifact read plan:202608/artifact_link_graph.md "
+            '"Need the CLI contract"\n'
+            "  sase artifact read @research:202608/report.md "
+            '"Skim the measurements" -n 80\n'
+            "  sase artifact read file:explicit:0123456789abcdef01234567 "
+            '"Inspect the diagram" -f json'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    read_parser.add_argument(
+        "reference",
+        help="Artifact reference or a bare default:/explicit: file id",
+    )
+    read_parser.add_argument(
+        "reason",
+        help="Why this artifact is being read (required, non-empty)",
+    )
+    read_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "markdown", "rich"),
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    read_parser.add_argument(
+        "-n",
+        "--lines",
+        type=_positive_int,
+        default=None,
+        metavar="LINES",
+        help="Print only the first LINES of stripped text",
     )
 
     reclaim_parser = artifact_subparsers.add_parser(

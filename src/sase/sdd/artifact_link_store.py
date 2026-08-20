@@ -47,13 +47,13 @@ def artifact_links_enabled() -> bool:
     return current_flags().enabled(FeatureFlag.artifact_links)
 
 
-def _artifact_links_disabled_message() -> str:
+def artifact_links_disabled_message() -> str:
     """Return the flag-off diagnostic used by writers."""
 
     return (
-        "feature flag `artifact_links` is disabled; enable it to write typed "
-        "artifact links. Existing v1 Referenced By projections in links/ keep "
-        "updating."
+        "feature flag `artifact_links` is disabled; enable it with "
+        "`sase -f artifact_links ...` to write typed artifact links. Existing "
+        "v1 Referenced By projections in links/ keep updating."
     )
 
 
@@ -61,7 +61,7 @@ def _require_artifact_links_enabled() -> None:
     """Refuse v2 writes when the beta flag is off."""
 
     if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(_artifact_links_disabled_message())
+        raise ArtifactLinksDisabledError(artifact_links_disabled_message())
 
 
 def assembled_artifact_relations(
@@ -94,7 +94,7 @@ def artifact_link_aggregate_path(project_key: str) -> Path:
     return sase_projects_dir() / key / ARTIFACT_LINK_AGGREGATE_FILENAME
 
 
-def _canonicalize_artifact_link_ref(value: str) -> str:
+def canonicalize_artifact_link_ref(value: str) -> str:
     """Strip ``@`` and rewrite historical kind aliases through sase-core."""
 
     return str(require_rust_binding("artifact_link_canonicalize")(value))
@@ -109,7 +109,7 @@ def _sidecar_kind_for_role(role: str) -> str:
 def _kind_of_ref(value: str) -> str:
     """Return the canonical kind of *value*."""
 
-    canonical = _canonicalize_artifact_link_ref(value)
+    canonical = canonicalize_artifact_link_ref(value)
     kind, _sep, _rest = canonical.partition(":")
     return kind
 
@@ -123,7 +123,7 @@ def _writes_sidecar_json(value: str) -> bool:
 def _sidecar_index_path(repo_root: Path, artifact_ref: str) -> Path:
     """Return ``<repo>/links/<relpath>.json`` for a document-shaped ref."""
 
-    canonical = _canonicalize_artifact_link_ref(artifact_ref)
+    canonical = canonicalize_artifact_link_ref(artifact_ref)
     _kind, _sep, relpath = canonical.partition(":")
     return repo_root / referenced_by_index_relpath(relpath)
 
@@ -133,7 +133,7 @@ def _empty_artifact_link_index(artifact_ref: str) -> dict[str, Any]:
 
     return {
         "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-        "artifact_ref": _canonicalize_artifact_link_ref(artifact_ref),
+        "artifact_ref": canonicalize_artifact_link_ref(artifact_ref),
         "rows": [],
     }
 
@@ -161,7 +161,7 @@ def _read_artifact_link_index(path: Path, *, artifact_ref: str) -> dict[str, Any
     ref = str(payload.get("artifact_ref") or artifact_ref)
     return {
         "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-        "artifact_ref": _canonicalize_artifact_link_ref(ref),
+        "artifact_ref": canonicalize_artifact_link_ref(ref),
         "rows": [dict(row) for row in rows if isinstance(row, dict)],
     }
 
@@ -217,6 +217,16 @@ class ArtifactLinkStore:
             return None
         return self.sidecar_roots.get(_kind_of_ref(artifact_ref))
 
+    def _is_aggregate_only(self, row: Mapping[str, Any]) -> bool:
+        """Return whether neither endpoint owns sidecar ``links/`` JSON."""
+
+        source = str(row.get("source_ref") or "")
+        target = str(row.get("target_ref") or "")
+        return (
+            self.sidecar_root_for(source) is None
+            and self.sidecar_root_for(target) is None
+        )
+
     def upsert_row(self, row: Mapping[str, Any]) -> dict[str, Any]:
         """Write one validated row to sidecar JSON (when owned) and the aggregate."""
 
@@ -227,19 +237,53 @@ class ArtifactLinkStore:
             written = self._upsert_sidecar(ref, validated)
             if written is not None:
                 outcome = written
-        rebuilt = self.rebuild_aggregate()
-        if _is_bead_bead(validated):
+        if self._is_aggregate_only(validated):
             outcome = self._upsert_aggregate_row(validated)
+        rebuilt = self.rebuild_aggregate()
         return outcome or {
             "kind": "unchanged",
             "row": validated,
             "rows": list(rebuilt.get("rows", [])),
         }
 
+    def remove_rows(
+        self,
+        source_ref: str,
+        target_ref: str,
+        *,
+        relation: str | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Remove edges between *source_ref* and *target_ref*.
+
+        Without *relation*, every stored edge between the pair is removed.
+        With *relation*, only that slug is removed. Matching is undirected:
+        A→B and B→A are both removed.
+        """
+
+        _require_artifact_links_enabled()
+        source = canonicalize_artifact_link_ref(source_ref)
+        target = canonicalize_artifact_link_ref(target_ref)
+        if relation is not None:
+            relation = str(
+                require_rust_binding("artifact_relation_lookup")(relation)["slug"]
+            )
+        dropped: list[dict[str, Any]] = []
+        for ref in (source, target):
+            dropped.extend(
+                self._remove_sidecar_rows(
+                    ref, source=source, target=target, relation=relation
+                )
+            )
+        dropped.extend(
+            self._remove_aggregate_rows(source=source, target=target, relation=relation)
+        )
+        self.rebuild_aggregate()
+        return tuple(_unique_rows(dropped))
+
     def load_artifact_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:
         """Return every stored row touching *artifact_ref*."""
 
-        canonical = _canonicalize_artifact_link_ref(artifact_ref)
+        canonical = canonicalize_artifact_link_ref(artifact_ref)
         root = self.sidecar_root_for(canonical)
         if root is not None:
             index = _read_artifact_link_index(
@@ -276,7 +320,7 @@ class ArtifactLinkStore:
 
         collected = list(self._iter_sidecar_rows())
         for row in self.load_aggregate().get("rows", []):
-            if _is_bead_bead(row):
+            if self._is_aggregate_only(row):
                 collected.append(row)
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -296,7 +340,7 @@ class ArtifactLinkStore:
         root = self.sidecar_root_for(artifact_ref)
         if root is None:
             return None
-        canonical = _canonicalize_artifact_link_ref(artifact_ref)
+        canonical = canonicalize_artifact_link_ref(artifact_ref)
         path = _sidecar_index_path(root, canonical)
         with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
             index = _read_artifact_link_index(path, artifact_ref=canonical)
@@ -310,6 +354,77 @@ class ArtifactLinkStore:
                 },
             )
         return outcome
+
+    def _remove_sidecar_rows(
+        self,
+        artifact_ref: str,
+        *,
+        source: str,
+        target: str,
+        relation: str | None,
+    ) -> list[dict[str, Any]]:
+        root = self.sidecar_root_for(artifact_ref)
+        if root is None:
+            return []
+        canonical = canonicalize_artifact_link_ref(artifact_ref)
+        path = _sidecar_index_path(root, canonical)
+        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+            if not path.is_file():
+                return []
+            index = _read_artifact_link_index(path, artifact_ref=canonical)
+            kept: list[dict[str, Any]] = []
+            dropped: list[dict[str, Any]] = []
+            for row in index.get("rows", []):
+                if _pair_matches(row, source=source, target=target, relation=relation):
+                    dropped.append(dict(row))
+                else:
+                    kept.append(dict(row))
+            if dropped:
+                atomic_write_json(
+                    path,
+                    {
+                        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                        "artifact_ref": canonical,
+                        "rows": kept,
+                    },
+                )
+        return dropped
+
+    def _remove_aggregate_rows(
+        self,
+        *,
+        source: str,
+        target: str,
+        relation: str | None,
+    ) -> list[dict[str, Any]]:
+        path = artifact_link_aggregate_path(self.project_key)
+        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+            if not path.is_file():
+                return []
+            payload = _read_json_object(path)
+            rows = payload.get("rows")
+            if not isinstance(rows, list):
+                return []
+            kept: list[dict[str, Any]] = []
+            dropped: list[dict[str, Any]] = []
+            for raw in rows:
+                if not isinstance(raw, dict):
+                    continue
+                if _pair_matches(
+                    raw, source=source, target=target, relation=relation
+                ) and self._is_aggregate_only(raw):
+                    dropped.append(dict(raw))
+                else:
+                    kept.append(dict(raw))
+            if dropped:
+                atomic_write_json(
+                    path,
+                    {
+                        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                        "rows": kept,
+                    },
+                )
+        return dropped
 
     def _upsert_aggregate_row(self, incoming: Mapping[str, Any]) -> dict[str, Any]:
         path = artifact_link_aggregate_path(self.project_key)
@@ -362,10 +477,22 @@ class ArtifactLinkStore:
                         yield dict(row)
 
 
-def _is_bead_bead(row: Mapping[str, Any]) -> bool:
-    source = str(row.get("source_ref") or "")
-    target = str(row.get("target_ref") or "")
-    return _kind_of_ref(source) == "bead" and _kind_of_ref(target) == "bead"
+def _pair_matches(
+    row: Mapping[str, Any],
+    *,
+    source: str,
+    target: str,
+    relation: str | None,
+) -> bool:
+    endpoints = {
+        str(row.get("source_ref") or ""),
+        str(row.get("target_ref") or ""),
+    }
+    if endpoints != {source, target}:
+        return False
+    if relation is None:
+        return True
+    return str(row.get("relation") or "") == relation
 
 
 def _row_touches(row: Mapping[str, Any], artifact_ref: str) -> bool:
@@ -410,6 +537,44 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     return payload
 
 
+def resolve_artifact_link_store(
+    cwd: Path | None = None,
+) -> ArtifactLinkStore:
+    """Resolve the current checkout's artifact-link adapter."""
+
+    from sase.sdd.checkout_anchor import resolve_checkout_anchor
+    from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+    from sase.sdd.store import resolve_sdd_store
+
+    start = (cwd or Path.cwd()).expanduser().resolve(strict=False)
+    project_key = _project_key_for_cwd(start)
+    if not project_key:
+        raise RuntimeError("could not resolve the current project for artifact links")
+    anchor = resolve_checkout_anchor(start)
+    primary_root, workspace_num = workspace_context_for_plan_resolution(
+        anchor.primary_root
+    )
+    store = resolve_sdd_store(primary_root, workspace_num)
+    return ArtifactLinkStore.from_sdd_store(store, project_key)
+
+
+def _project_key_for_cwd(cwd: Path) -> str | None:
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(cwd))
+    except Exception:  # noqa: BLE001 - CLI resolution is best-effort
+        found = None
+    if found is not None and found[1].project_key:
+        return found[1].project_key
+    try:
+        from sase.bead.project_name import infer_project_name_from_cwd
+
+        return infer_project_name_from_cwd(str(cwd))
+    except Exception:  # noqa: BLE001 - CLI resolution is best-effort
+        return None
+
+
 __all__ = [
     "ARTIFACT_LINK_AGGREGATE_FILENAME",
     "ARTIFACT_LINK_ROW_SCHEMA_VERSION",
@@ -417,6 +582,9 @@ __all__ = [
     "ArtifactLinkStore",
     "ArtifactLinksDisabledError",
     "artifact_link_aggregate_path",
+    "artifact_links_disabled_message",
     "artifact_links_enabled",
     "assembled_artifact_relations",
+    "canonicalize_artifact_link_ref",
+    "resolve_artifact_link_store",
 ]
