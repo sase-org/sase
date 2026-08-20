@@ -165,6 +165,38 @@ def _ordered_candidates(
     return tuple(ordered)
 
 
+def raw_wait_bead_inventory(
+    project_key: str | None,
+) -> tuple[tuple[dict[str, str], ...], bool]:
+    """Return unordered bead inventory rows from the mtime-keyed store cache.
+
+    Worker-thread entry point: this touches the bead store and must only be
+    called off the Textual event loop. Ranking and prefix filtering belong to
+    the shared ``sase-core`` candidate builder.
+    """
+    if not project_key:
+        return (), False
+
+    raw = _load_raw_catalog(project_key)
+    if not raw.available:
+        return (), False
+    rows = tuple(_inventory_row(issue, project_key) for issue in raw.issues)
+    return rows, True
+
+
+def _inventory_row(issue: Issue, project_key: str) -> dict[str, str]:
+    return {
+        "id": issue.id,
+        "title": issue.title,
+        "status": issue.status.value,
+        "type_label": issue.issue_type.value,
+        "created_at": issue.created_at,
+        "updated_at": issue.updated_at,
+        "task_type": issue.task_type,
+        "project": project_key,
+    }
+
+
 def load_wait_bead_catalog(
     project_key: str | None,
     *,
@@ -304,4 +336,5 @@ __all__ = [
     "classify_wait_bead_selection",
     "filter_wait_bead_candidates",
     "load_wait_bead_catalog",
+    "raw_wait_bead_inventory",
 ]

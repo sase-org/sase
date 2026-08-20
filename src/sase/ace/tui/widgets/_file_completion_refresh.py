@@ -7,7 +7,6 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     build_xprompt_arg_completion_candidates,
 )
 from sase.ace.tui.widgets.directive_completion import (
-    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
     is_directive_like_token,
 )
@@ -271,28 +270,13 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             ].insertion
 
         if self._completion_kind == "directive_arg":
-            directive_arg_ctx = self._get_directive_arg_token_context()
-            if directive_arg_ctx is None:
+            clause_ctx = self._directive_clause_at_cursor()
+            if clause_ctx is None or clause_ctx[1].is_name:
                 self._clear_file_completion()
                 return
-            (
-                _row,
-                _start,
-                _end,
-                directive_name,
-                token,
-                selected_values,
-            ) = directive_arg_ctx
-            candidates, _shared = build_directive_arg_completion_candidates(
-                directive_name,
-                token,
-                agent_candidates=(
-                    self._snapshot_agent_completion_candidates()
-                    if directive_name == "wait"
-                    else None
-                ),
-                selected_values=selected_values,
-            )
+            _row, clause = clause_ctx
+            token = clause.token
+            candidates, _shared = self._build_live_directive_arg_candidates(clause)
         elif self._completion_kind == "xprompt":
             xprompt_ctx = self._get_xprompt_token_context()
             if xprompt_ctx is None:

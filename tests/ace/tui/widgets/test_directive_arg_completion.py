@@ -6,10 +6,13 @@ from unittest.mock import patch
 
 from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
+    BeadCompletionMetadata,
     DirectiveArgCompletionMetadata,
+    DirectiveCatalogPlaceholder,
     ModelCompletionMetadata,
     build_agent_arg_completion_candidates,
-    build_directive_arg_completion_candidates,
+    build_directive_clause_candidates,
+    classify_directive_completion,
 )
 from sase.ace.tui.widgets._directive_completion_tokens import (
     extract_directive_arg_token_around_cursor,
@@ -22,6 +25,7 @@ from sase.xprompt.model_completion import _ModelCompletionEntry
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
     agent_candidate,
+    build_directive_arg_completion_candidates,
     directive_arg_metadata,
     model_metadata,
     model_entries,
@@ -133,6 +137,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
     )
 
     assert [candidate.insertion for candidate in candidates] == [
+        "bead=",
         "priority=",
         "runners=",
         "time=",
@@ -162,6 +167,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
         ],
     )
     assert [candidate.insertion for candidate in candidates] == [
+        "bead=",
         "priority=",
         "runners=",
         "time=",
@@ -215,6 +221,7 @@ def test_wait_arg_completion_excludes_selected_keywords_case_insensitively() -> 
     )
 
     assert [candidate.insertion for candidate in candidates] == [
+        "bead=",
         "priority=",
         "runners=",
         "coder",
@@ -227,7 +234,7 @@ def test_wait_priority_completion_describes_order_and_default() -> None:
 
     assert [candidate.insertion for candidate in candidates] == ["priority="]
     assert directive_arg_metadata(candidates[0]).description == (
-        "lower values start first; the default is 10"
+        "Lower values start first; the default is 10"
     )
 
 
@@ -471,3 +478,97 @@ def test_auto_argument_completion_suggests_compatibility_values_without_closing_
     cleaned, directives = extract_prompt_directives("%auto:foo\nDo the work")
     assert cleaned == "Do the work"
     assert directives.auto_argument == "foo"
+
+
+def test_xprompts_enabled_offers_bool_values() -> None:
+    candidates, _ = build_directive_arg_completion_candidates("xprompts_enabled", "")
+
+    assert [candidate.insertion for candidate in candidates] == ["false", "true"]
+    assert all(
+        directive_arg_metadata(candidate).description for candidate in candidates
+    )
+
+
+def test_repeat_offers_positive_count_examples() -> None:
+    candidates, _ = build_directive_arg_completion_candidates("repeat", "")
+
+    assert [candidate.insertion for candidate in candidates] == ["2", "3"]
+
+
+def test_id_conflict_omits_family_and_tribe_after_clan() -> None:
+    line = "%id(worker, clan=builders, )"
+    clause = classify_directive_completion(line, line.index(")"))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(clause)
+
+    assert [candidate.insertion for candidate in candidates] == ["bead="]
+
+
+def test_clan_summary_conflict_omits_summary_script() -> None:
+    line = "%clan(research, summary=hi, )"
+    clause = classify_directive_completion(line, line.index(")"))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(clause)
+
+    assert [candidate.insertion for candidate in candidates] == ["tribe="]
+
+
+def test_id_clan_value_filters_to_clan_kind() -> None:
+    line = "%id(worker, clan=re"
+    clause = classify_directive_completion(line, len(line))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(
+        clause,
+        agent_candidates=[
+            AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+            agent_candidate("coder"),
+        ],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == ["review"]
+
+
+def test_wait_bead_values_use_core_ranked_inventory() -> None:
+    line = "%wait(bead="
+    clause = classify_directive_completion(line, len(line))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(
+        clause,
+        bead_inventory=(
+            {
+                "id": "z-open",
+                "title": "Later open",
+                "status": "open",
+                "type_label": "task",
+                "updated_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "id": "a-progress",
+                "title": "Active bug",
+                "status": "in_progress",
+                "type_label": "task",
+                "updated_at": "2026-01-01T00:00:00Z",
+            },
+        ),
+        beads_state="warm",
+    )
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "a-progress",
+        "z-open",
+    ]
+    assert isinstance(candidates[0].metadata, BeadCompletionMetadata)
+    assert candidates[0].metadata.title == "Active bug"
+
+
+def test_wait_bead_values_show_loading_when_catalog_is_cold() -> None:
+    line = "%wait(bead="
+    clause = classify_directive_completion(line, len(line))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(clause, beads_state="loading")
+
+    assert len(candidates) == 1
+    assert isinstance(candidates[0].metadata, DirectiveCatalogPlaceholder)
+    assert candidates[0].metadata.kind == "loading"
+    assert candidates[0].insertion == ""

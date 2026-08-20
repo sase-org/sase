@@ -12,6 +12,9 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
     artifact_ref_next_selectable_index,
 )
+from sase.ace.tui.widgets.directive_completion import (
+    is_directive_catalog_placeholder,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -276,6 +279,8 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         if not self._file_completion_active or not self._file_completion_candidates:
             return False
         selected = self._file_completion_candidates[self._file_completion_index]
+        if is_directive_catalog_placeholder(selected):
+            return False
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
             return self._accept_vcs_project_completion(selected)
         if self._completion_kind == VCS_REF_COMPLETION_KIND:

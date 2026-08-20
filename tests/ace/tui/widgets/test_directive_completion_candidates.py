@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets.directive_completion import (
-    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
     extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
@@ -11,6 +10,7 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 
 from ._directive_completion_helpers import (
+    build_directive_arg_completion_candidates,
     directive_metadata,
     single_directive_candidate,
 )
@@ -38,7 +38,7 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%plan" not in insertions
     assert "%tale" not in insertions
     assert "%epic" not in insertions
-    assert "%xprompts_enabled" not in insertions
+    assert "%xprompts_enabled" in insertions
     assert "%approve" not in insertions
 
 
@@ -81,26 +81,26 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     auto, _ = single_directive_candidate("%au")
 
     assert directive_metadata(model).description == (
-        "choose a model and optional launch-family alias overrides"
+        "Override the LLM model for this prompt"
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(agent_id).description == (
-        "assign an agent id/template with optional bead, clan, family, or tribe"
+        "Assign an agent ID with optional bead, clan, family, or user-managed tribe"
     )
     assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id or :name.{@key}; ([id], bead=bead, clan=/family=/tribe=)"
+        ":agent-id or :name.{@key}; ([id], bead=, clan=/family=/tribe=)"
     )
     assert directive_metadata(wait).description == (
-        "defer launch for agents, a time floor, or a runner threshold"
+        "Wait for another agent/workflow and/or a time floor"
     )
     assert directive_metadata(wait).argument_hint == (
-        ":agent or (agent, time=5m, runners=1, priority=10)"
+        ":agent or (agent, bead=, time=, runners=, priority=)"
     )
     assert directive_metadata(alt).description == (
-        "split a prompt into variants; shorthand %{A | B}"
+        "Split prompt into variants with different text; shorthand %{A | B}"
     )
     assert directive_metadata(auto).description == (
-        "request automatic gate resolution; arguments are gate-specific"
+        "Request automatic gate resolution; arguments are interpreted by the gate kind"
     )
     assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
@@ -121,12 +121,9 @@ def test_directive_completion_includes_clan_and_alias() -> None:
     assert alias.insertion == "%clan"
     assert directive_metadata(clan).aliases == ("c",)
     assert directive_metadata(clan).argument_hint == (
-        ":name or :name.{@key}, "
-        "(name, tribe=/summary=/summary_script=), or :name:: summary"
+        ":name or :name.{@key}, (name, tribe=/summary=/summary_script=), or :name:: summary"
     )
-    assert directive_metadata(clan).description == (
-        "declare a parallel agent clan; use {@key} for swarm-safe templates"
-    )
+    assert directive_metadata(clan).description == ("Declare a new parallel agent clan")
 
 
 def test_clan_parenthesized_completion_advertises_tribe_keyword() -> None:

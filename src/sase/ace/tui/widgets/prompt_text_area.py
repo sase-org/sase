@@ -153,6 +153,10 @@ class PromptTextArea(
         self._prompt_commit_snapshots: dict[str | None, PromptCommitSnapshot] = {}
         self._prompt_commit_inflight: set[str | None] = set()
         self._prompt_commit_worker_projects: dict[str, str | None] = {}
+        self._wait_bead_inventory: tuple[dict[str, str], ...] | None = None
+        self._wait_bead_available: bool = False
+        self._wait_bead_project: str | None = None
+        self._wait_bead_inflight: set[str] = set()
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_xprompt_completion_spacer: (
             PendingXPromptCompletionSpacer | None

@@ -1,15 +1,64 @@
-"""Token extraction helpers for prompt directive completion."""
+"""Token extraction helpers for prompt directive completion.
+
+Classification and replacement ranges come from the shared
+``sase_core_rs`` grammar. ACE only maps UTF-16 positions, rejects
+non-directive ``%`` contexts, and keeps wait-prose commas from opening
+a completion menu.
+"""
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from dataclasses import dataclass
+from functools import cache
+from typing import Any, Literal
 
-from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _KNOWN_DIRECTIVES
+from sase.ace.tui.util.editor_offsets import editor_range_to_offsets, utf16_character
+from sase.core.rust import require_rust_binding
 
 _DIRECTIVE_TOKEN_RE = re.compile(r"^%[A-Za-z0-9_]*$")
-_DIRECTIVE_IDENTIFIER_RE = re.compile(r"[A-Za-z0-9_]")
 _DIRECTIVE_OPENING_CONTEXTS = frozenset("([{\"'")
+
+DirectiveCompletionKind = Literal[
+    "directive_name",
+    "directive_argument",
+    "directive_argument_keyword",
+    "directive_argument_value",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class DirectiveClauseCompletion:
+    """ACE-facing classification of the directive clause at the cursor."""
+
+    kind: DirectiveCompletionKind
+    token: str
+    start: int
+    end: int
+    directive_name: str | None
+    syntax_form: str | None
+    clause_kind: str | None
+    active_keyword: str | None
+    value_role: str | None
+    selected_values: tuple[str, ...]
+    selected_keywords: tuple[str, ...]
+    raw: dict[str, Any]
+
+    @property
+    def is_name(self) -> bool:
+        return self.kind == "directive_name"
+
+    @property
+    def is_keyword_value(self) -> bool:
+        return self.kind == "directive_argument_value"
+
+    @property
+    def is_wait_positional(self) -> bool:
+        return (
+            self.directive_name == "wait"
+            and not self.is_keyword_value
+            and self.value_role != "bead"
+        )
 
 
 def is_directive_like_token(token: str) -> bool:
@@ -17,110 +66,123 @@ def is_directive_like_token(token: str) -> bool:
     return _DIRECTIVE_TOKEN_RE.fullmatch(token) is not None
 
 
+def classify_directive_completion(
+    line: str,
+    col: int,
+) -> DirectiveClauseCompletion | None:
+    """Classify the directive clause at a Python character offset.
+
+    *line* is treated as a one-line document so replacement columns stay
+    row-local for the prompt widget.
+    """
+    col = min(max(col, 0), len(line))
+    percent_index = line.rfind("%", 0, col if col > 0 else 0)
+    if percent_index < 0 or not _has_valid_directive_context(line, percent_index):
+        return None
+
+    payload = require_rust_binding("directive_completion_context")(
+        line,
+        0,
+        utf16_character(line[:col]),
+    )
+    if not isinstance(payload, dict):
+        return None
+
+    kind = payload.get("kind")
+    if kind not in {
+        "directive_name",
+        "directive_argument",
+        "directive_argument_keyword",
+        "directive_argument_value",
+    }:
+        return None
+
+    token_info = payload.get("token")
+    token = ""
+    if isinstance(token_info, dict):
+        token = str(token_info.get("text") or "")
+
+    if kind == "directive_name" and not is_directive_like_token(token):
+        return None
+
+    replacement = editor_range_to_offsets(
+        line,
+        payload.get("replacement_range"),
+        allow_empty=True,
+    )
+    if replacement is None:
+        token_range = (
+            editor_range_to_offsets(
+                line,
+                token_info.get("range") if isinstance(token_info, dict) else None,
+                allow_empty=True,
+            )
+            if isinstance(token_info, dict)
+            else None
+        )
+        if token_range is None:
+            return None
+        start, end = token_range
+    else:
+        start, end = replacement
+
+    directive = payload.get("directive")
+    directive_fields = directive if isinstance(directive, dict) else {}
+    selected_values = _string_tuple(payload.get("selected_values"))
+    selected_keywords = _string_tuple(directive_fields.get("selected_keywords"))
+    raw_name = payload.get("directive_name")
+    canonical = (
+        _canonical_directive_name(str(raw_name)) if isinstance(raw_name, str) else None
+    )
+    if canonical is None and isinstance(raw_name, str) and raw_name:
+        canonical = raw_name
+    clause = DirectiveClauseCompletion(
+        kind=kind,
+        token=token,
+        start=start,
+        end=end,
+        directive_name=canonical,
+        syntax_form=_optional_str(directive_fields.get("syntax_form")),
+        clause_kind=_optional_str(directive_fields.get("clause_kind")),
+        active_keyword=_optional_str(directive_fields.get("active_keyword")),
+        value_role=_optional_str(directive_fields.get("value_role")),
+        selected_values=selected_values,
+        selected_keywords=selected_keywords,
+        raw=payload,
+    )
+    if clause.directive_name == "wait" and not _wait_fragments_are_structured(clause):
+        return None
+    if not _colon_argument_chars_are_valid(clause):
+        return None
+    return clause
+
+
 def extract_directive_token_around_cursor(
     line: str,
     col: int,
 ) -> tuple[int, int, str] | None:
     """Extract a directive token around a cursor position in one line."""
-    col = min(col, len(line))
-
-    token_start = col
-    while token_start > 0 and _is_directive_identifier(line[token_start - 1]):
-        token_start -= 1
-
-    percent_index = token_start - 1
-    if percent_index < 0 or line[percent_index] != "%":
+    clause = classify_directive_completion(line, col)
+    if clause is None or not clause.is_name:
         return None
-    if not _has_valid_directive_context(line, percent_index):
-        return None
-
-    token_end = col
-    while token_end < len(line) and _is_directive_identifier(line[token_end]):
-        token_end += 1
-
-    token = line[percent_index:token_end]
-    if not is_directive_like_token(token):
-        return None
-    return percent_index, token_end, token
+    return clause.start, clause.end, clause.token
 
 
 def extract_directive_arg_token_around_cursor(
     line: str,
     col: int,
 ) -> tuple[int, int, str, str] | None:
-    """Extract a fixed-value directive argument token around the cursor.
+    """Extract a directive argument token around the cursor.
 
-    Returns ``(arg_start, arg_end, directive_name, partial)`` where
-    ``directive_name`` is canonical and ``arg_start``/``arg_end`` bound the
-    replaceable argument value after ``:``.
+    Returns ``(arg_start, arg_end, directive_name, partial)``. Keyword-name
+    contexts keep the historical ``clan_keyword`` / ``id_keyword`` /
+    ``model_alias_key`` / ``model_or_alias_key`` labels so existing callers
+    can dispatch without the full clause object.
     """
-    col = min(col, len(line))
-
-    percent_index = line.rfind("%", 0, col)
-    if percent_index < 0:
+    clause = classify_directive_completion(line, col)
+    if clause is None or clause.is_name:
         return None
-    if not _has_valid_directive_context(line, percent_index):
-        return None
-
-    name_start = percent_index + 1
-    name_end = name_start
-    while name_end < len(line) and _is_directive_identifier(line[name_end]):
-        name_end += 1
-    if name_end == name_start or name_end >= len(line):
-        return None
-
-    raw_name = line[name_start:name_end]
-    marker = line[name_end]
-    if marker not in {":", "("}:
-        return None
-    if col <= name_end:
-        return None
-
-    directive_name = canonical_directive_name(raw_name)
-    if directive_name is None:
-        return None
-
-    if marker == "(":
-        if directive_name == "clan":
-            return _extract_clan_paren_arg_token(line, col, name_end)
-        if directive_name == "id":
-            return _extract_id_paren_arg_token(line, col, name_end)
-        if directive_name == "wait":
-            return _extract_wait_paren_arg_token(line, col, name_end)
-        if directive_name == "model":
-            return _extract_model_paren_arg_token(line, col, name_end)
-        return None
-
-    colon_index = name_end
-    if col <= colon_index:
-        return None
-    if directive_name == "wait":
-        return _extract_wait_colon_arg_token(line, col, colon_index)
-
-    arg_start = colon_index + 1
-    arg_predicate = _directive_argument_predicate(directive_name)
-    if any(not arg_predicate(char) for char in line[arg_start:col]):
-        return None
-
-    arg_end = col
-    while arg_end < len(line) and arg_predicate(line[arg_end]):
-        arg_end += 1
-
-    if directive_name == "model":
-        prefix = line[arg_start:col]
-        at_index = prefix.rfind("@")
-        # A leading `@` marks a model alias. Only a non-leading `@` opens
-        # reasoning-effort completion for a `%model:<model>@<effort>` suffix.
-        if at_index > 0:
-            suffix_start = arg_start + at_index + 1
-            suffix_end = col
-            while suffix_end < len(line) and _is_directive_argument_identifier(
-                line[suffix_end]
-            ):
-                suffix_end += 1
-            return suffix_start, suffix_end, "effort", line[suffix_start:suffix_end]
-
-    return arg_start, arg_end, directive_name, line[arg_start:arg_end]
+    return clause.start, clause.end, compat_directive_name(clause), clause.token
 
 
 def selected_wait_values_around_cursor(
@@ -128,220 +190,115 @@ def selected_wait_values_around_cursor(
     active_start: int,
 ) -> frozenset[str]:
     """Return completed ``%wait`` values outside the active comma clause."""
-    percent_index = line.rfind("%", 0, active_start)
-    if percent_index < 0:
+    clause = classify_directive_completion(line, min(max(active_start, 0), len(line)))
+    if clause is None or clause.directive_name != "wait":
         return frozenset()
-    name_end = percent_index + 1
-    while name_end < len(line) and _is_directive_identifier(line[name_end]):
-        name_end += 1
-    if name_end >= len(line) or line[name_end] not in {":", "("}:
-        return frozenset()
-
-    value_start = name_end + 1
-    body_end = len(line)
-    if line[name_end] == "(":
-        close_index = line.find(")", value_start)
-        if close_index >= 0:
-            body_end = close_index
-    active_index = line.count(",", value_start, active_start)
-    selected: set[str] = set()
-    for index, raw_value in enumerate(line[value_start:body_end].split(",")):
-        if index == active_index:
-            continue
-        value = raw_value.strip()
-        if value and all(
-            _is_wait_directive_argument_identifier(char) for char in value
-        ):
-            selected.add(value)
-    return frozenset(selected)
+    return frozenset(clause.selected_values)
 
 
-def canonical_directive_name(raw_name: str) -> str | None:
+def _canonical_directive_name(raw_name: str) -> str | None:
     """Resolve a directive alias to a known canonical name."""
-    canonical = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-    if canonical not in _KNOWN_DIRECTIVES:
-        return None
-    return canonical
+    return _contract_aliases().get(raw_name)
 
 
-def _extract_wait_colon_arg_token(
-    line: str,
-    col: int,
-    colon_index: int,
-) -> tuple[int, int, str, str] | None:
-    value_start = colon_index + 1
-    if not _is_valid_wait_argument_prefix(line[value_start:col]):
-        return None
-    fragment_start = line.rfind(",", value_start, col) + 1
-    if fragment_start <= 0:
-        fragment_start = value_start
-    while fragment_start < col and line[fragment_start].isspace():
-        fragment_start += 1
-
-    if any(
-        not _is_wait_directive_argument_identifier(char)
-        for char in line[fragment_start:col]
+def compat_directive_name(clause: DirectiveClauseCompletion) -> str:
+    """Return the historical argument-dispatch name for *clause*."""
+    name = clause.directive_name or ""
+    if clause.kind == "directive_argument_keyword":
+        if name == "clan":
+            return "clan_keyword"
+        if name == "id":
+            return "id_keyword"
+        if name == "model":
+            return "model_alias_key"
+    if (
+        name == "model"
+        and clause.syntax_form == "parenthesized"
+        and clause.clause_kind == "positional"
+        and clause.kind == "directive_argument"
     ):
-        return None
+        return "model_or_alias_key"
+    return name
 
-    fragment_end = col
-    while fragment_end < len(line) and _is_wait_directive_argument_identifier(
-        line[fragment_end]
+
+def synthetic_directive_clause(
+    *,
+    kind: DirectiveCompletionKind,
+    token: str,
+    directive_name: str | None,
+    syntax_form: str | None = None,
+    clause_kind: str | None = None,
+    active_keyword: str | None = None,
+    value_role: str | None = None,
+    selected_values: frozenset[str] | tuple[str, ...] = (),
+    selected_keywords: frozenset[str] | tuple[str, ...] = (),
+) -> DirectiveClauseCompletion:
+    """Build a clause object for tests and the argument-name convenience API."""
+    selected_value_tuple = tuple(selected_values)
+    selected_keyword_tuple = tuple(selected_keywords)
+    token_range = {
+        "start": {"line": 0, "character": 0},
+        "end": {"line": 0, "character": utf16_character(token)},
+    }
+    raw: dict[str, Any] = {
+        "kind": kind,
+        "token": {
+            "text": token,
+            "range": token_range,
+            "byte_start": 0,
+            "byte_end": len(token),
+        },
+        "directive_name": directive_name,
+        "selected_values": list(selected_value_tuple),
+        "replacement_range": token_range,
+    }
+    if (
+        syntax_form is not None
+        or clause_kind is not None
+        or active_keyword is not None
+        or value_role is not None
+        or selected_keyword_tuple
     ):
-        fragment_end += 1
-
-    return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
-
-
-def _extract_wait_paren_arg_token(
-    line: str,
-    col: int,
-    open_index: int,
-) -> tuple[int, int, str, str] | None:
-    value_start = open_index + 1
-    if ")" in line[value_start:col]:
-        return None
-    if not _is_valid_wait_argument_prefix(line[value_start:col]):
-        return None
-
-    fragment_start = line.rfind(",", value_start, col) + 1
-    if fragment_start <= 0:
-        fragment_start = value_start
-    while fragment_start < col and line[fragment_start].isspace():
-        fragment_start += 1
-
-    if any(
-        not _is_wait_directive_argument_identifier(char)
-        for char in line[fragment_start:col]
-    ):
-        return None
-
-    fragment_end = col
-    while fragment_end < len(line) and _is_wait_directive_argument_identifier(
-        line[fragment_end]
-    ):
-        fragment_end += 1
-
-    return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
-
-
-def _extract_clan_paren_arg_token(
-    line: str,
-    col: int,
-    open_index: int,
-) -> tuple[int, int, str, str] | None:
-    value_start = open_index + 1
-    prefix = line[value_start:col]
-    if ")" in prefix:
-        return None
-    comma_index = line.rfind(",", value_start, col)
-    if comma_index < value_start:
-        return None
-    fragment_start = comma_index + 1
-    while fragment_start < col and line[fragment_start].isspace():
-        fragment_start += 1
-    fragment = line[fragment_start:col]
-    if "=" in fragment or any(
-        not _is_directive_argument_identifier(char) for char in fragment
-    ):
-        return None
-    fragment_end = col
-    while fragment_end < len(line) and _is_directive_argument_identifier(
-        line[fragment_end]
-    ):
-        fragment_end += 1
-    return (
-        fragment_start,
-        fragment_end,
-        "clan_keyword",
-        line[fragment_start:fragment_end],
+        directive: dict[str, Any] = {
+            "syntax_form": syntax_form or "colon",
+            "clause_kind": clause_kind or "positional",
+            "selected_keywords": list(selected_keyword_tuple),
+        }
+        if active_keyword is not None:
+            directive["active_keyword"] = active_keyword
+        if value_role is not None:
+            directive["value_role"] = value_role
+        raw["directive"] = directive
+    return DirectiveClauseCompletion(
+        kind=kind,
+        token=token,
+        start=0,
+        end=len(token),
+        directive_name=directive_name,
+        syntax_form=syntax_form,
+        clause_kind=clause_kind,
+        active_keyword=active_keyword,
+        value_role=value_role,
+        selected_values=selected_value_tuple,
+        selected_keywords=selected_keyword_tuple,
+        raw=raw,
     )
 
 
-def _extract_id_paren_arg_token(
-    line: str,
-    col: int,
-    open_index: int,
-) -> tuple[int, int, str, str] | None:
-    """Extract an ``%id(...)`` keyword fragment in any argument slot."""
-    value_start = open_index + 1
-    prefix = line[value_start:col]
-    if ")" in prefix:
-        return None
-    comma_index = line.rfind(",", value_start, col)
-    fragment_start = comma_index + 1 if comma_index >= value_start else value_start
-    while fragment_start < col and line[fragment_start].isspace():
-        fragment_start += 1
-    fragment = line[fragment_start:col]
-    if "=" in fragment or any(
-        not _is_directive_argument_identifier(char) for char in fragment
-    ):
-        return None
-    fragment_end = col
-    while fragment_end < len(line) and _is_directive_argument_identifier(
-        line[fragment_end]
-    ):
-        fragment_end += 1
-    return (
-        fragment_start,
-        fragment_end,
-        "id_keyword",
-        line[fragment_start:fragment_end],
-    )
-
-
-def _extract_model_paren_arg_token(
-    line: str,
-    col: int,
-    open_index: int,
-) -> tuple[int, int, str, str] | None:
-    value_start = open_index + 1
-    prefix = line[value_start:col]
-    if ")" in prefix:
-        return None
-
-    fragment_start = line.rfind(",", value_start, col) + 1
-    if fragment_start <= 0:
-        fragment_start = value_start
-    while fragment_start < col and line[fragment_start].isspace():
-        fragment_start += 1
-    fragment = line[fragment_start:col]
-
-    equals_index = fragment.find("=")
-    if equals_index >= 0:
-        arg_start = fragment_start + equals_index + 1
-        if any(
-            not _is_model_directive_argument_identifier(char)
-            for char in line[arg_start:col]
-        ):
-            return None
-        arg_end = col
-        while arg_end < len(line) and _is_model_directive_argument_identifier(
-            line[arg_end]
-        ):
-            arg_end += 1
-        return arg_start, arg_end, "model", line[arg_start:arg_end]
-
-    if any(not _is_model_directive_argument_identifier(char) for char in fragment):
-        return None
-    arg_end = col
-    while arg_end < len(line) and _is_model_directive_argument_identifier(
-        line[arg_end]
-    ):
-        arg_end += 1
-
-    if fragment_start == value_start:
-        at_index = fragment.rfind("@")
-        if at_index > 0:
-            effort_start = fragment_start + at_index + 1
-            return effort_start, arg_end, "effort", line[effort_start:arg_end]
-        return (
-            fragment_start,
-            arg_end,
-            "model_or_alias_key",
-            line[fragment_start:arg_end],
-        )
-    return fragment_start, arg_end, "model_alias_key", line[fragment_start:arg_end]
+@cache
+def _contract_aliases() -> dict[str, str]:
+    mapping: dict[str, str] = {"(": "alt", "{": "alt"}
+    for entry in require_rust_binding("directive_contract")():
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        mapping[name] = name
+        alias = entry.get("alias")
+        if isinstance(alias, str) and alias:
+            mapping[alias] = name
+    return mapping
 
 
 def _has_valid_directive_context(line: str, percent_index: int) -> bool:
@@ -351,39 +308,38 @@ def _has_valid_directive_context(line: str, percent_index: int) -> bool:
     return previous.isspace() or previous in _DIRECTIVE_OPENING_CONTEXTS
 
 
-def _is_directive_identifier(char: str) -> bool:
-    return _DIRECTIVE_IDENTIFIER_RE.fullmatch(char) is not None
+def _wait_fragments_are_structured(clause: DirectiveClauseCompletion) -> bool:
+    """Return False when wait completion would attach to surrounding prose."""
+    fragments = (*clause.selected_values, clause.token)
+    return all(_wait_fragment_is_structured(fragment) for fragment in fragments)
 
 
-def _is_directive_argument_identifier(char: str) -> bool:
-    return _is_directive_identifier(char) or char in "-="
+def _colon_argument_chars_are_valid(clause: DirectiveClauseCompletion) -> bool:
+    """Keep colon-form typing from attaching to trailing prose or punctuation."""
+    if clause.is_name or clause.syntax_form != "colon":
+        return True
+    if clause.directive_name == "wait":
+        return True
+    extra = "-="
+    if clause.directive_name == "model" or clause.value_role == "model":
+        extra = "-=./@"
+    return all(char.isalnum() or char == "_" or char in extra for char in clause.token)
 
 
-def _is_model_directive_argument_identifier(char: str) -> bool:
-    return _is_directive_argument_identifier(char) or char in "./@"
+def _wait_fragment_is_structured(fragment: str) -> bool:
+    stripped = fragment.strip()
+    if not stripped:
+        return True
+    if stripped[0] in "\"'`" or stripped.startswith("[["):
+        return True
+    return " " not in stripped and "\t" not in stripped
 
 
-def _is_wait_directive_argument_identifier(char: str) -> bool:
-    return _is_directive_identifier(char) or char in "-.=@"
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
 
 
-def _is_valid_wait_argument_prefix(prefix: str) -> bool:
-    """Return True when prefix is a well-formed (possibly partial) wait list.
-
-    Each comma-separated segment may carry surrounding whitespace but must
-    otherwise contain only wait-argument identifier characters. Prose with
-    internal spaces before the active fragment is therefore rejected, so a
-    later prose comma cannot masquerade as a new comma-separated wait argument.
-    """
-    for segment in prefix.split(","):
-        if any(
-            not _is_wait_directive_argument_identifier(char) for char in segment.strip()
-        ):
-            return False
-    return True
-
-
-def _directive_argument_predicate(directive_name: str) -> Callable[[str], bool]:
-    if directive_name == "model":
-        return _is_model_directive_argument_identifier
-    return _is_directive_argument_identifier
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None

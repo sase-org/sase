@@ -16,6 +16,7 @@ from ._completion_helpers import CompletionTestApp
 from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
     agent_candidate,
+    directive_arg_metadata,
     model_entries,
     model_entries_with_providers,
 )
@@ -39,10 +40,7 @@ async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
         assert panel.border_title == "directives"
-        assert (
-            "choose a model and optional launch-family alias overrides"
-            in panel.render().plain
-        )
+        assert "Override the LLM model for this prompt" in panel.render().plain
 
 
 async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:
@@ -186,14 +184,15 @@ async def test_colon_after_wait_auto_opens_wait_targets_panel() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == [
-            "priority=",
-            "runners=",
-            "time=",
             "@builders",
             "review",
             "ship",
             "coder",
         ]
+        assert all(
+            not candidate.insertion.endswith("=")
+            for candidate in ta._file_completion_candidates
+        )
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "wait targets"
 
@@ -310,6 +309,7 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == [
+            "bead=",
             "priority=",
             "runners=",
             "time=",
@@ -339,7 +339,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_in_paren_form() -> 
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["priority=", "runners=", "planner", "coder"]
+        ] == ["bead=", "priority=", "runners=", "planner", "coder"]
 
 
 async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -> None:
@@ -347,6 +347,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         agent_candidate("planner"),
         agent_candidate("coder"),
+        agent_candidate("reviewer"),
     ]
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -363,7 +364,7 @@ async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["priority=", "time=", "planner"]
+        ] == ["planner", "reviewer"]
 
 
 async def test_wait_arg_completion_inserts_tribe_target() -> None:
@@ -649,3 +650,92 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         await pilot.press("space")
         assert ta.text == "%a "
         assert ta._file_completion_active is False
+
+
+async def test_wait_paren_empty_clause_offers_documented_bead_keyword() -> None:
+    """Regression for `%w(..., )`: bead= is a documented wait keyword row."""
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("coder")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        text = "%w(time=5m, )"
+        ta.load_text(text)
+        ta.cursor_location = (0, text.index(")"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        insertions = [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ]
+        assert insertions[:3] == ["bead=", "priority=", "runners="]
+        bead = ta._file_completion_candidates[0]
+        assert directive_arg_metadata(bead).description == (
+            "Wait until this bead is closed"
+        )
+
+
+async def test_xprompts_enabled_colon_offers_bool_values() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        for char in "%xprompts_enabled:":
+            await pilot.press(char)
+
+        assert ta._completion_kind == "directive_arg"
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == [
+            "false",
+            "true",
+        ]
+
+
+async def test_wait_bead_value_uses_warm_inventory_without_blocking() -> None:
+    app = CompletionTestApp()
+    app.wait_bead_inventory = lambda: (  # type: ignore[attr-defined]
+        (
+            {
+                "id": "sase-a",
+                "title": "Active bug",
+                "status": "in_progress",
+                "type_label": "task",
+                "updated_at": "2026-08-20T12:00:00Z",
+            },
+            {
+                "id": "sase-b",
+                "title": "Open follow-up",
+                "status": "open",
+                "type_label": "task",
+                "updated_at": "2026-08-19T12:00:00Z",
+            },
+        ),
+        True,
+    )
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        text = "%wait(bead="
+        ta.load_text(text)
+        ta.cursor_location = (0, len(text))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["sase-a", "sase-b"]
+        bar = app.query_one(PromptInputBar)
+        panel = bar.query_one("#prompt-completion", Static)
+        assert panel.border_title == "beads"
+        assert "Active bug" in panel.render().plain

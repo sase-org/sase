@@ -1,38 +1,37 @@
-"""Pure-logic directive completion engine for the prompt input bar."""
+"""ACE adapters over the shared ``sase_core_rs`` directive completion contract."""
 
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from functools import cache
+from typing import Literal, Protocol
 
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
     filter_agent_completion_candidates,
 )
 from sase.ace.tui.widgets._directive_completion_tokens import (
-    canonical_directive_name as _canonical_directive_name,
+    DirectiveClauseCompletion,
+    classify_directive_completion,
     extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
     is_directive_like_token,
     selected_wait_values_around_cursor,
+    synthetic_directive_clause,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.core.rust import require_rust_binding
 from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
-from sase.xprompt._directive_types import (
-    AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
-    _DIRECTIVE_ALIASES,
-    _KNOWN_DIRECTIVES,
-)
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 from sase.xprompt.model_completion import (
     build_model_completion_catalog,
     filter_model_completion_entries,
 )
 
-_USER_FACING_DIRECTIVES = frozenset((*_KNOWN_DIRECTIVES, "alt"))
+BeadsState = Literal["warm", "loading", "unavailable"]
+PathCandidateBuilder = Callable[[str], tuple[list[CompletionCandidate], str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +74,28 @@ class ModelCompletionMetadata:
     provider_model_count: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class BeadCompletionMetadata:
+    """Display metadata for an open-bead directive value row."""
+
+    bead_id: str
+    title: str = ""
+    status: str = ""
+    type_label: str = ""
+    task_type: str = ""
+    project: str = ""
+    created_at: str = ""
+    documentation: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class DirectiveCatalogPlaceholder:
+    """Non-selectable loading or unavailable dynamic-catalog row."""
+
+    kind: Literal["loading", "unavailable"]
+    message: str
+
+
 class _ModelEntryDisplay(Protocol):
     """Catalog scalars used to recover the provider's display label."""
 
@@ -88,80 +109,8 @@ class _ModelEntryDisplay(Protocol):
     def aliases(self) -> tuple[str, ...]: ...
 
 
-_DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
-    "alt": "(variants)",
-    "auto": ":argument (e.g. plan|tale|epic)",
-    "clan": (
-        ":name or :name.{@key}, "
-        "(name, tribe=/summary=/summary_script=), or :name:: summary"
-    ),
-    "effort": ":level",
-    "hide": "flag",
-    "model": ":model or (model, alias=model)",
-    "id": (":agent-id or :name.{@key}; ([id], bead=bead, clan=/family=/tribe=)"),
-    "repeat": ":count",
-    "wait": ":agent or (agent, time=5m, runners=1, priority=10)",
-}
-
-
-_DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
-    "alt": "split a prompt into variants; shorthand %{A | B}",
-    "auto": "request automatic gate resolution; arguments are gate-specific",
-    "clan": "declare a parallel agent clan; use {@key} for swarm-safe templates",
-    "effort": "set the reasoning-effort level for this prompt",
-    "hide": "hide the agent from the default Agents tab",
-    "model": "choose a model and optional launch-family alias overrides",
-    "id": "assign an agent id/template with optional bead, clan, family, or tribe",
-    "repeat": "run the prompt multiple serial iterations",
-    "wait": "defer launch for agents, a time floor, or a runner threshold",
-}
-
-_EFFORT_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
-    "none": "no reasoning-effort override",
-    "minimal": "minimal reasoning effort",
-    "low": "low reasoning effort",
-    "medium": "medium reasoning effort",
-    "high": "high reasoning effort",
-    "xhigh": "extra-high reasoning effort",
-    "max": "maximum reasoning effort",
-}
-
-_AUTO_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
-    "plan": "plan-gate compatibility alias for normal approval",
-    "tale": "plan-gate compatibility alias for SDD tale approval",
-    "epic": "plan-gate compatibility alias for SDD epic approval",
-}
-
-_DIRECTIVE_ARGUMENT_VALUES: dict[str, tuple[str, ...]] = {
-    "effort": EFFORT_LEVELS_ORDERED,
-    "auto": AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
-}
-
-_DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
-    "effort": _EFFORT_ARGUMENT_DESCRIPTIONS,
-    "auto": _AUTO_ARGUMENT_DESCRIPTIONS,
-}
-
-_WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
-    ("priority=", "lower values start first; the default is 10"),
-    ("runners=", "start when at most this many agents are already running"),
-    ("time=", "start after a duration or absolute wall-clock time"),
-)
-
-_CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
-    ("summary=", "attach a literal Rich-markup clan summary"),
-    ("summary_script=", "run an executable to produce the clan summary"),
-    ("tribe=", "assign one tribe to the entire clan"),
-)
-
-_ID_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
-    ("bead=", "associate this launch with a bead"),
-    ("clan=", "derive the full name and join this agent clan"),
-    ("family=", "attach this suffix to an existing agent family"),
-    ("tribe=", "assign this agent to a user-managed tribe"),
-)
-
 _TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
+_IDENTITY_ROLES = frozenset({"clan", "family", "tribe"})
 
 
 def build_directive_completion_candidates(
@@ -171,105 +120,78 @@ def build_directive_completion_candidates(
     if not is_directive_like_token(token):
         return [], ""
 
-    partial = token[1:]
-    partial_lower = partial.lower()
-    aliases_by_directive = _aliases_by_directive()
+    clause = synthetic_directive_clause(
+        kind="directive_name",
+        token=token,
+        directive_name=None,
+    )
     candidates = [
-        CompletionCandidate(
-            display=f"%{directive}",
-            insertion=f"%{directive}",
-            is_dir=False,
-            name=directive,
-            metadata=DirectiveCompletionMetadata(
-                aliases=aliases_by_directive.get(directive, ()),
-                argument_hint=_DIRECTIVE_ARGUMENT_HINTS.get(directive, ""),
-                description=_DIRECTIVE_DESCRIPTIONS.get(directive, ""),
-            ),
-        )
-        for directive in sorted(_USER_FACING_DIRECTIVES)
-        if _matches_directive(directive, aliases_by_directive, partial_lower)
+        _directive_name_candidate(row)
+        for row in _core_candidate_rows(clause)
+        if isinstance(row.get("insertion"), str)
     ]
-
-    shared_extension = ""
-    if len(candidates) > 1:
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion[1:] for candidate in candidates]
-        )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-
-    return candidates, shared_extension
+    return candidates, _shared_extension(
+        [candidate.insertion[1:] for candidate in candidates],
+        token[1:],
+    )
 
 
-def build_directive_arg_completion_candidates(
-    directive_name: str,
-    partial: str,
+def build_directive_clause_candidates(
+    clause: DirectiveClauseCompletion,
     *,
     agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
-    selected_values: frozenset[str] = frozenset(),
+    bead_inventory: Sequence[Mapping[str, str]] | None = None,
+    beads_state: BeadsState = "unavailable",
+    excluded_bead_ids: Sequence[str] = (),
+    path_candidates: PathCandidateBuilder | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build fixed-value candidates for a directive argument token."""
-    if directive_name == "model_alias_key":
-        return _build_model_alias_key_completion_candidates(partial)
-    if directive_name == "clan_keyword":
-        return _build_keyword_completion_candidates(
-            partial,
-            directive_name="clan",
-            keywords=_CLAN_KEYWORD_ARGUMENTS,
-        )
-    if directive_name == "id_keyword":
-        return _build_keyword_completion_candidates(
-            partial,
-            directive_name="id",
-            keywords=_ID_KEYWORD_ARGUMENTS,
-        )
-    if directive_name == "model_or_alias_key":
-        models, _ = _build_model_arg_completion_candidates(partial)
-        aliases, _ = _build_model_alias_key_completion_candidates(partial)
-        return [*models, *aliases], ""
-    canonical = _canonical_directive_name(directive_name)
-    if canonical is None:
-        return [], ""
+    """Build ACE rows for a classified directive clause."""
+    if clause.is_name:
+        return build_directive_completion_candidates(clause.token)
 
-    if canonical == "model":
-        return _build_model_arg_completion_candidates(partial)
-    if canonical == "wait":
-        return _build_wait_arg_completion_candidates(
-            partial,
+    if clause.value_role == "path_or_executable" and path_candidates is not None:
+        token = clause.token if clause.token else "./"
+        return path_candidates(token)
+
+    if _offers_model_values(clause):
+        return _build_model_clause_candidates(clause)
+
+    if clause.value_role == "bead":
+        return _build_bead_clause_candidates(
+            clause,
+            bead_inventory=bead_inventory,
+            beads_state=beads_state,
+            excluded_bead_ids=excluded_bead_ids,
+        )
+
+    if clause.value_role in _IDENTITY_ROLES:
+        return build_agent_arg_completion_candidates(
+            clause.token,
             agent_candidates,
-            selected_values=selected_values,
+            excluded_names=frozenset(clause.selected_values),
+            required_kind=clause.value_role,
         )
 
-    values = _DIRECTIVE_ARGUMENT_VALUES.get(canonical)
-    if values is None:
-        return [], ""
+    if clause.is_wait_positional or clause.value_role == "agent":
+        return _build_wait_or_agent_clause_candidates(clause, agent_candidates)
 
-    partial_lower = partial.lower()
-    descriptions = _DIRECTIVE_ARGUMENT_DESCRIPTIONS.get(canonical, {})
+    partial_lower = clause.token.lower()
     candidates = [
-        CompletionCandidate(
-            display=value,
-            insertion=value,
-            is_dir=False,
-            name=value,
-            metadata=DirectiveArgCompletionMetadata(
-                directive_name=canonical,
-                description=descriptions.get(value, ""),
-            ),
+        _static_or_keyword_candidate(row, clause)
+        for row in _core_candidate_rows(
+            clause,
+            bead_inventory=bead_inventory,
+            excluded_bead_ids=excluded_bead_ids,
         )
-        for value in values
-        if value.lower().startswith(partial_lower)
+        if isinstance(row.get("insertion"), str)
+        and str(row["insertion"]).lower().startswith(partial_lower)
     ]
-
-    shared_extension = ""
-    if len(candidates) > 1:
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion for candidate in candidates]
-        )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-
-    return candidates, shared_extension
+    if clause.kind == "directive_argument_keyword":
+        return candidates, ""
+    return candidates, _shared_extension(
+        [candidate.insertion for candidate in candidates],
+        clause.token,
+    )
 
 
 def build_agent_arg_completion_candidates(
@@ -277,14 +199,19 @@ def build_agent_arg_completion_candidates(
     agent_candidates: Sequence[AgentCompletionCandidate] | None,
     *,
     excluded_names: frozenset[str] = frozenset(),
+    required_kind: str | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build kind-aware target candidates for a wait/fork argument."""
+    """Build kind-aware target candidates for a wait/fork/identity argument."""
     if "=" in partial:
         return [], ""
 
     partial_lower = partial.lower()
     source_entries = list(agent_candidates or ())
     source_entries = [*_derived_tribe_entries(source_entries), *source_entries]
+    if required_kind is not None:
+        source_entries = [
+            entry for entry in source_entries if entry.kind == required_kind
+        ]
     excluded = {name.casefold() for name in excluded_names}
     matching = [
         entry
@@ -315,13 +242,247 @@ def build_agent_arg_completion_candidates(
         candidate.insertion.lower().startswith(partial_lower)
         for candidate in candidates
     ):
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion for candidate in candidates]
+        shared_extension = _shared_extension(
+            [candidate.insertion for candidate in candidates],
+            partial,
         )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-
     return candidates, shared_extension
+
+
+def is_directive_catalog_placeholder(candidate: CompletionCandidate) -> bool:
+    """Return True when *candidate* is a non-selectable catalog status row."""
+    return isinstance(candidate.metadata, DirectiveCatalogPlaceholder)
+
+
+def clause_needs_agent_snapshot(clause: DirectiveClauseCompletion) -> bool:
+    """Return True when live agent rows can appear for *clause*."""
+    return clause.is_wait_positional or clause.value_role in {
+        "agent",
+        *_IDENTITY_ROLES,
+    }
+
+
+def clause_needs_bead_inventory(clause: DirectiveClauseCompletion) -> bool:
+    """Return True when bead-backed completion should be warmed for *clause*."""
+    if clause.value_role == "bead":
+        return True
+    return clause.directive_name in {"wait", "id"} and clause.syntax_form == (
+        "parenthesized"
+    )
+
+
+@cache
+def _directive_contract_by_name() -> dict[str, dict[str, object]]:
+    entries: dict[str, dict[str, object]] = {}
+    for entry in require_rust_binding("directive_contract")():
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str):
+            entries[str(entry["name"])] = entry
+    return entries
+
+
+def _offers_model_values(clause: DirectiveClauseCompletion) -> bool:
+    if clause.directive_name != "model":
+        return False
+    if clause.value_role == "model":
+        return True
+    if clause.kind == "directive_argument_keyword":
+        return True
+    return clause.syntax_form == "parenthesized" and clause.clause_kind == "positional"
+
+
+def _build_model_clause_candidates(
+    clause: DirectiveClauseCompletion,
+) -> tuple[list[CompletionCandidate], str]:
+    if clause.kind == "directive_argument_keyword":
+        return _build_model_alias_key_completion_candidates(
+            clause.token,
+            selected_keywords=clause.selected_keywords,
+        )
+    models, shared = _build_model_arg_completion_candidates(clause.token)
+    if (
+        clause.syntax_form == "parenthesized"
+        and clause.clause_kind == "positional"
+        and not clause.is_keyword_value
+    ):
+        aliases, _ = _build_model_alias_key_completion_candidates(
+            clause.token,
+            selected_keywords=clause.selected_keywords,
+        )
+        return [*models, *aliases], ""
+    return models, shared
+
+
+def _build_bead_clause_candidates(
+    clause: DirectiveClauseCompletion,
+    *,
+    bead_inventory: Sequence[Mapping[str, str]] | None,
+    beads_state: BeadsState,
+    excluded_bead_ids: Sequence[str],
+) -> tuple[list[CompletionCandidate], str]:
+    if beads_state == "loading":
+        return [_catalog_placeholder("loading", "loading beads…")], ""
+    if beads_state != "warm":
+        return [
+            _catalog_placeholder(
+                "unavailable",
+                "bead store unavailable — type a bead ID",
+            )
+        ], ""
+
+    rows = _core_candidate_rows(
+        clause,
+        bead_inventory=bead_inventory or (),
+        excluded_bead_ids=excluded_bead_ids,
+    )
+    by_id = {
+        str(entry.get("id")): entry
+        for entry in (bead_inventory or ())
+        if entry.get("id")
+    }
+    candidates = [
+        _bead_candidate(row, by_id.get(str(row.get("insertion") or "")))
+        for row in rows
+        if isinstance(row.get("insertion"), str)
+    ]
+    if not candidates:
+        return [_catalog_placeholder("unavailable", "no matching open beads")], ""
+    return candidates, ""
+
+
+def _build_wait_or_agent_clause_candidates(
+    clause: DirectiveClauseCompletion,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None,
+) -> tuple[list[CompletionCandidate], str]:
+    keywords = [
+        _static_or_keyword_candidate(row, clause)
+        for row in _core_candidate_rows(clause)
+        if isinstance(row.get("insertion"), str) and str(row["insertion"]).endswith("=")
+    ]
+    agents, agent_shared = build_agent_arg_completion_candidates(
+        clause.token,
+        agent_candidates,
+        excluded_names=frozenset(clause.selected_values),
+    )
+    candidates = [*keywords, *agents]
+    if keywords:
+        return candidates, ""
+    return candidates, agent_shared
+
+
+def _core_candidate_rows(
+    clause: DirectiveClauseCompletion,
+    *,
+    bead_inventory: Sequence[Mapping[str, str]] | None = None,
+    excluded_bead_ids: Sequence[str] = (),
+) -> list[dict[str, object]]:
+    inventories: dict[str, object] = {
+        "models": [],
+        "model_alias_keys": [],
+        "agents": [],
+        "beads": [dict(entry) for entry in bead_inventory or ()],
+        "excluded_bead_ids": list(excluded_bead_ids),
+    }
+    payload = require_rust_binding("directive_completion_candidates")(
+        clause.raw,
+        inventories,
+    )
+    if not isinstance(payload, dict):
+        return []
+    rows = payload.get("candidates")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _directive_name_candidate(row: dict[str, object]) -> CompletionCandidate:
+    insertion = str(row["insertion"])
+    name = str(row.get("name") or insertion.removeprefix("%"))
+    contract = _directive_contract_by_name().get(name, {})
+    alias = contract.get("alias")
+    aliases = (str(alias),) if isinstance(alias, str) and alias else ()
+    argument_hint = contract.get("argument_hint")
+    description = contract.get("description") or row.get("documentation") or ""
+    return CompletionCandidate(
+        display=str(row.get("display") or insertion),
+        insertion=insertion,
+        is_dir=False,
+        name=name,
+        metadata=DirectiveCompletionMetadata(
+            aliases=aliases,
+            argument_hint=str(argument_hint) if argument_hint else "",
+            description=str(description),
+        ),
+    )
+
+
+def _static_or_keyword_candidate(
+    row: dict[str, object],
+    clause: DirectiveClauseCompletion,
+) -> CompletionCandidate:
+    insertion = str(row["insertion"])
+    documentation = row.get("documentation") or ""
+    return CompletionCandidate(
+        display=str(row.get("display") or insertion),
+        insertion=insertion,
+        is_dir=insertion.endswith("="),
+        name=str(row.get("name") or insertion.removesuffix("=")),
+        metadata=DirectiveArgCompletionMetadata(
+            directive_name=clause.directive_name or "",
+            description=str(documentation),
+        ),
+    )
+
+
+def _bead_candidate(
+    row: dict[str, object],
+    inventory: Mapping[str, str] | None,
+) -> CompletionCandidate:
+    bead_id = str(row["insertion"])
+    title = ""
+    status = str(row.get("status") or "")
+    type_label = ""
+    task_type = ""
+    project = str(row.get("project") or "")
+    created_at = ""
+    documentation = str(row.get("documentation") or "")
+    if inventory is not None:
+        title = str(inventory.get("title") or "")
+        status = str(inventory.get("status") or status)
+        type_label = str(inventory.get("type_label") or "")
+        task_type = str(inventory.get("task_type") or "")
+        project = str(inventory.get("project") or project)
+        created_at = str(inventory.get("created_at") or "")
+        if not documentation:
+            documentation = title
+    return CompletionCandidate(
+        display=str(row.get("display") or bead_id),
+        insertion=bead_id,
+        is_dir=False,
+        name=bead_id,
+        metadata=BeadCompletionMetadata(
+            bead_id=bead_id,
+            title=title,
+            status=status,
+            type_label=type_label,
+            task_type=task_type,
+            project=project,
+            created_at=created_at,
+            documentation=documentation,
+        ),
+    )
+
+
+def _catalog_placeholder(
+    kind: Literal["loading", "unavailable"],
+    message: str,
+) -> CompletionCandidate:
+    return CompletionCandidate(
+        display=message,
+        insertion="",
+        is_dir=False,
+        name="",
+        metadata=DirectiveCatalogPlaceholder(kind=kind, message=message),
+    )
 
 
 def _derived_tribe_entries(
@@ -369,73 +530,6 @@ def _target_is_excluded(
     if canonical in excluded:
         return True
     return entry.kind == "tribe" and canonical.removeprefix("@") in excluded
-
-
-def _build_wait_arg_completion_candidates(
-    partial: str,
-    agent_candidates: Sequence[AgentCompletionCandidate] | None,
-    *,
-    selected_values: frozenset[str] = frozenset(),
-) -> tuple[list[CompletionCandidate], str]:
-    """Build agent-name and keyword candidates for ``%wait`` arguments."""
-    agents, _ = build_agent_arg_completion_candidates(
-        partial,
-        agent_candidates,
-        excluded_names=selected_values,
-    )
-    partial_lower = partial.lower()
-    selected = {value.casefold() for value in selected_values}
-    keywords = [
-        CompletionCandidate(
-            display=value,
-            insertion=value,
-            is_dir=False,
-            name=value[:-1],
-            metadata=DirectiveArgCompletionMetadata(
-                directive_name="wait",
-                description=description,
-            ),
-        )
-        for value, description in _WAIT_KEYWORD_ARGUMENTS
-        if value.lower().startswith(partial_lower)
-        and not any(
-            selected_value.startswith(value.casefold()) for selected_value in selected
-        )
-    ]
-    candidates = [*keywords, *agents]
-
-    shared_extension = ""
-    if len(candidates) > 1:
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion for candidate in candidates]
-        )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-    return candidates, shared_extension
-
-
-def _build_keyword_completion_candidates(
-    partial: str,
-    *,
-    directive_name: str,
-    keywords: tuple[tuple[str, str], ...],
-) -> tuple[list[CompletionCandidate], str]:
-    partial_lower = partial.lower()
-    candidates = [
-        CompletionCandidate(
-            display=value,
-            insertion=value,
-            is_dir=False,
-            name=value[:-1],
-            metadata=DirectiveArgCompletionMetadata(
-                directive_name=directive_name,
-                description=description,
-            ),
-        )
-        for value, description in keywords
-        if value.lower().startswith(partial_lower)
-    ]
-    return candidates, ""
 
 
 def _build_model_arg_completion_candidates(
@@ -486,12 +580,10 @@ def _build_model_arg_completion_candidates(
         candidate.insertion.lower().startswith(partial_lower)
         for candidate in candidates
     ):
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion for candidate in candidates]
+        shared_extension = _shared_extension(
+            [candidate.insertion for candidate in candidates],
+            partial,
         )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-
     return candidates, shared_extension
 
 
@@ -509,16 +601,22 @@ def _model_provider_display(entry: _ModelEntryDisplay) -> str:
 
 def _build_model_alias_key_completion_candidates(
     partial: str,
+    *,
+    selected_keywords: Sequence[str] = (),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build ``alias=`` candidates for parenthesized ``%model`` kwargs."""
     from sase.llm_provider.config import model_alias_description, model_alias_names
 
     partial_lower = partial.lower()
+    selected = {
+        value.split("=", 1)[0].casefold() if "=" in value else value.casefold()
+        for value in selected_keywords
+    }
     candidates = [
         CompletionCandidate(
             display=f"{alias}=",
             insertion=f"{alias}=",
-            is_dir=False,
+            is_dir=True,
             name=alias,
             metadata=DirectiveArgCompletionMetadata(
                 directive_name="model",
@@ -526,35 +624,41 @@ def _build_model_alias_key_completion_candidates(
             ),
         )
         for alias in sorted(model_alias_names())
-        if alias.lower().startswith(partial_lower)
+        if alias.lower().startswith(partial_lower) and alias.casefold() not in selected
     ]
-    shared_extension = ""
-    if len(candidates) > 1:
-        shared_prefix = os.path.commonprefix(
-            [candidate.insertion for candidate in candidates]
-        )
-        if len(shared_prefix) > len(partial):
-            shared_extension = shared_prefix[len(partial) :]
-    return candidates, shared_extension
-
-
-def _matches_directive(
-    directive: str,
-    aliases_by_directive: dict[str, tuple[str, ...]],
-    partial_lower: str,
-) -> bool:
-    if directive.lower().startswith(partial_lower):
-        return True
-    return any(
-        alias.startswith(partial_lower) for alias in aliases_by_directive[directive]
+    return candidates, _shared_extension(
+        [candidate.insertion for candidate in candidates],
+        partial,
     )
 
 
-def _aliases_by_directive() -> dict[str, tuple[str, ...]]:
-    grouped: dict[str, list[str]] = {
-        directive: [] for directive in _USER_FACING_DIRECTIVES
-    }
-    for alias, canonical in _DIRECTIVE_ALIASES.items():
-        if canonical in grouped:
-            grouped[canonical].append(alias)
-    return {directive: tuple(sorted(aliases)) for directive, aliases in grouped.items()}
+def _shared_extension(insertions: Sequence[str], partial: str) -> str:
+    if len(insertions) <= 1:
+        return ""
+    shared_prefix = os.path.commonprefix(list(insertions))
+    if len(shared_prefix) > len(partial):
+        return shared_prefix[len(partial) :]
+    return ""
+
+
+__all__ = [
+    "BeadCompletionMetadata",
+    "BeadsState",
+    "DirectiveArgCompletionMetadata",
+    "DirectiveCatalogPlaceholder",
+    "DirectiveClauseCompletion",
+    "DirectiveCompletionMetadata",
+    "ModelCompletionMetadata",
+    "PathCandidateBuilder",
+    "build_agent_arg_completion_candidates",
+    "build_directive_clause_candidates",
+    "build_directive_completion_candidates",
+    "classify_directive_completion",
+    "clause_needs_agent_snapshot",
+    "clause_needs_bead_inventory",
+    "extract_directive_arg_token_around_cursor",
+    "extract_directive_token_around_cursor",
+    "is_directive_catalog_placeholder",
+    "is_directive_like_token",
+    "selected_wait_values_around_cursor",
+]

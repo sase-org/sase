@@ -52,6 +52,8 @@ def completion_panel_title(
         return "xprompts"
     if kinds.directive:
         return "directives"
+    if kinds.bead:
+        return "beads"
     if kinds.directive_arg_agent:
         return "wait targets"
     if kinds.model:

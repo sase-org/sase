@@ -8,6 +8,8 @@ from typing import Any
 def editor_range_to_offsets(
     text: str,
     editor_range: Any,
+    *,
+    allow_empty: bool = False,
 ) -> tuple[int, int] | None:
     """Convert an LSP-style UTF-16 range to Python character offsets.
 
@@ -19,7 +21,9 @@ def editor_range_to_offsets(
         return None
     start = _editor_position_to_offset(text, editor_range.get("start"))
     end = _editor_position_to_offset(text, editor_range.get("end"))
-    if start is None or end is None or end <= start:
+    if start is None or end is None or end < start:
+        return None
+    if end == start and not allow_empty:
         return None
     return start, end
 

@@ -16,10 +16,13 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_agents import (
     is_agent_completion_candidate,
 )
 from sase.ace.tui.widgets.directive_completion import (
+    BeadCompletionMetadata,
     DirectiveArgCompletionMetadata,
+    DirectiveCatalogPlaceholder,
     DirectiveCompletionMetadata,
     ModelCompletionMetadata,
 )
+from sase.bead_status_presentation import bead_status_presentation
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 _MODEL_NAME_CELL_MAX = 30
@@ -82,6 +85,14 @@ def append_directive_arg_completion_row(
             is_selected,
             model_widths or model_completion_column_widths([candidate]),
         )
+        return
+
+    if isinstance(candidate.metadata, DirectiveCatalogPlaceholder):
+        content.append(candidate.display, style="dim")
+        return
+
+    if isinstance(candidate.metadata, BeadCompletionMetadata):
+        _append_bead_completion_row(content, candidate.metadata, is_selected)
         return
 
     content.append(
@@ -249,3 +260,26 @@ def _selected_style(style: str, selected: bool) -> str:
     """Use a kind's color without bolding unselected alias names."""
     unselected = style.removeprefix("bold ")
     return style if selected else unselected
+
+
+def _append_bead_completion_row(
+    content: Text,
+    metadata: BeadCompletionMetadata,
+    is_selected: bool,
+) -> None:
+    presentation = bead_status_presentation(metadata.status)
+    content.append(f"{presentation.tui_glyph} ", style=presentation.rich_style)
+    content.append(
+        metadata.bead_id,
+        style="bold magenta" if is_selected else "magenta",
+    )
+    details: list[str] = []
+    if metadata.title:
+        details.append(metadata.title)
+    status_label = presentation.label
+    type_label = metadata.task_type or metadata.type_label
+    extras = " · ".join(part for part in (status_label, type_label) if part)
+    if extras:
+        details.append(extras)
+    if details:
+        content.append(f"  {'  '.join(details)}", style="dim")

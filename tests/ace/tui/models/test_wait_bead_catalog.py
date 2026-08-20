@@ -13,6 +13,7 @@ from sase.ace.tui.models.wait_bead_catalog import (
     classify_wait_bead_selection,
     filter_wait_bead_candidates,
     load_wait_bead_catalog,
+    raw_wait_bead_inventory,
 )
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
@@ -59,6 +60,28 @@ def test_load_wait_bead_catalog_returns_unavailable_without_project_key() -> Non
     catalog = load_wait_bead_catalog(None)
     assert catalog.available is False
     assert catalog.candidates == ()
+
+
+def test_raw_wait_bead_inventory_reuses_mtime_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issues = (
+        _issue("sase-a", title="Active", status=Status.IN_PROGRESS),
+        _issue("sase-b", title="Open"),
+    )
+    monkeypatch.setattr(wbc, "_index_token", lambda project: (1, 1))
+    monkeypatch.setattr(wbc, "open_bead_candidates_for_project", lambda project: issues)
+    monkeypatch.setattr(wbc, "closed_bead_ids_for_project", lambda project: frozenset())
+    wbc._RAW_CACHE.clear()
+
+    rows, available = raw_wait_bead_inventory("raw-inv")
+    again, again_available = raw_wait_bead_inventory("raw-inv")
+
+    assert available is True
+    assert again_available is True
+    assert rows == again
+    assert {row["id"] for row in rows} == {"sase-a", "sase-b"}
+    assert rows[0]["project"] == "raw-inv"
 
 
 def test_load_wait_bead_catalog_returns_unavailable_when_store_missing(

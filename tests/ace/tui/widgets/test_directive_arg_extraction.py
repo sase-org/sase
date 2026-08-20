@@ -103,10 +103,10 @@ def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
 
     time_col = line.index(")")
     assert extract_directive_arg_token_around_cursor(line, time_col) == (
-        line.index("time="),
+        line.index("5m"),
         time_col,
         "wait",
-        "time=5m",
+        "5m",
     )
 
 
@@ -145,7 +145,7 @@ def test_wait_arg_extraction_keeps_valid_comma_fragments() -> None:
     for line, expected_partial in (
         ("%wait:planner, co", "co"),
         ("%wait:planner,", ""),
-        ("%wait(planner, co, time=5m", "time=5m"),
+        ("%wait(planner, co, time=5m", "5m"),
     ):
         result = extract_directive_arg_token_around_cursor(line, len(line))
         assert result is not None

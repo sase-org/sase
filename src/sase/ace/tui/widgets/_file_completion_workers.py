@@ -65,6 +65,15 @@ class _PromptCommitInventoryWorkerResult:
     changed: bool
 
 
+@dataclass(frozen=True)
+class _WaitBeadInventoryWorkerResult:
+    """Result returned by a prompt wait-bead inventory worker."""
+
+    project_key: str
+    rows: tuple[dict[str, str], ...]
+    available: bool
+
+
 class FileCompletionWorkerMixin(FileCompletionContextMixin):
     """Mixin providing background inventory loading and result routing."""
 
@@ -82,6 +91,10 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         _prompt_commit_snapshots: dict[str | None, PromptCommitSnapshot]
         _prompt_commit_inflight: set[str | None]
         _prompt_commit_worker_projects: dict[str, str | None]
+        _wait_bead_inventory: tuple[dict[str, str], ...] | None
+        _wait_bead_available: bool
+        _wait_bead_project: str | None
+        _wait_bead_inflight: set[str]
 
         def _clear_file_completion(
             self,
@@ -92,6 +105,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         def _refresh_file_completion_from_cursor(self) -> None: ...
         def _update_file_completion_panel(self, token: str) -> None: ...
         def _xprompt_arg_assist_project_from_text(self) -> str | None: ...
+        def _wait_bead_project_key(self) -> str | None: ...
 
     def _schedule_vcs_repo_completion_fetch(self, trigger: VcsRepoTrigger) -> None:
         """Fetch repo candidates in a background worker with key dedupe."""
@@ -237,6 +251,46 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             return
         self._refresh_file_completion_from_cursor()
 
+    def _schedule_wait_bead_inventory_load(self, project_key: str) -> None:
+        """Coalesce one bead-store read on a background worker."""
+        if project_key in self._wait_bead_inflight:
+            return
+        self._wait_bead_inflight.add(project_key)
+
+        def task() -> _WaitBeadInventoryWorkerResult:
+            from sase.ace.tui.models.wait_bead_catalog import raw_wait_bead_inventory
+
+            try:
+                rows, available = raw_wait_bead_inventory(project_key)
+            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
+                rows, available = (), False
+            return _WaitBeadInventoryWorkerResult(
+                project_key=project_key,
+                rows=rows,
+                available=available,
+            )
+
+        self.run_worker(
+            task,
+            name=f"prompt-wait-beads:{project_key}",
+            group="prompt-wait-beads",
+            thread=True,
+        )
+
+    def _apply_wait_bead_inventory_result(
+        self,
+        result: _WaitBeadInventoryWorkerResult,
+    ) -> None:
+        """Store a warm bead inventory and refresh a matching open menu."""
+        self._wait_bead_inventory = result.rows
+        self._wait_bead_available = result.available
+        self._wait_bead_project = result.project_key
+        if not self._file_completion_active or self._completion_kind != "directive_arg":
+            return
+        if self._wait_bead_project_key() != result.project_key:
+            return
+        self._refresh_file_completion_from_cursor()
+
     def _apply_vcs_repo_completion_result(
         self,
         worker_result: _VcsRepoCompletionWorkerResult,
@@ -318,6 +372,24 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 directory_key = event.worker.name.removeprefix("prompt-path-inventory:")
                 self._prompt_path_inflight.discard(directory_key)
 
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
+        if event.worker.group == "prompt-wait-beads":
+            if event.state in (
+                WorkerState.SUCCESS,
+                WorkerState.ERROR,
+                WorkerState.CANCELLED,
+            ):
+                project_key = event.worker.name.removeprefix("prompt-wait-beads:")
+                self._wait_bead_inflight.discard(project_key)
+            if event.state == WorkerState.SUCCESS:
+                result = event.worker.result
+                if isinstance(result, _WaitBeadInventoryWorkerResult):
+                    self._apply_wait_bead_inventory_result(result)
+                    return
             handler = getattr(super(), "on_worker_state_changed", None)
             if callable(handler):
                 handler(event)

@@ -84,6 +84,10 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
         _prompt_commit_snapshots: dict[str | None, PromptCommitSnapshot]
         _prompt_commit_inflight: set[str | None]
         _prompt_commit_worker_projects: dict[str, str | None]
+        _wait_bead_inventory: tuple[dict[str, str], ...] | None
+        _wait_bead_available: bool
+        _wait_bead_project: str | None
+        _wait_bead_inflight: set[str]
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
         )
@@ -133,6 +137,7 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
         def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None: ...
         def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
+        def _schedule_wait_bead_inventory_load(self, project_key: str) -> None: ...
         def _artifact_ref_sync_row(
             self,
             project: str | None,
@@ -308,6 +313,96 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
         except Exception:
             self._agent_completion_candidates = []
         return self._agent_completion_candidates
+
+    def _build_live_directive_arg_candidates(
+        self,
+        clause: object,
+    ) -> tuple[list[CompletionCandidate], str]:
+        """Build directive-argument rows from warm snapshots and the shared core."""
+        from sase.ace.tui.widgets.directive_completion import (
+            BeadsState,
+            DirectiveClauseCompletion,
+            build_directive_clause_candidates,
+            clause_needs_agent_snapshot,
+            clause_needs_bead_inventory,
+        )
+        from sase.ace.tui.widgets.file_completion import build_completion_candidates
+
+        if not isinstance(clause, DirectiveClauseCompletion):
+            return [], ""
+
+        if clause_needs_bead_inventory(clause):
+            self._ensure_wait_bead_inventory()
+        raw_state, bead_inventory = self._wait_bead_inventory_state()
+        beads_state: BeadsState
+        if raw_state == "warm":
+            beads_state = "warm"
+        elif raw_state == "loading":
+            beads_state = "loading"
+        else:
+            beads_state = "unavailable"
+        agent_candidates = (
+            self._snapshot_agent_completion_candidates()
+            if clause_needs_agent_snapshot(clause)
+            else None
+        )
+        base_dir = self._prompt_completion_base_dir()
+
+        def path_candidates(token: str) -> tuple[list[CompletionCandidate], str]:
+            path_token = token if token else "./"
+            return build_completion_candidates(path_token, base_dir=base_dir)
+
+        return build_directive_clause_candidates(
+            clause,
+            agent_candidates=agent_candidates,
+            bead_inventory=bead_inventory,
+            beads_state=beads_state,
+            path_candidates=path_candidates,
+        )
+
+    def _wait_bead_project_key(self) -> str | None:
+        """Return the project whose bead store should back directive completion."""
+        project = self._xprompt_arg_assist_project_from_text()
+        if isinstance(project, str) and project:
+            return project
+        ctx = getattr(self.app, "_prompt_context", None)
+        if ctx is not None and not bool(getattr(ctx, "is_home_mode", False)):
+            project_name = getattr(ctx, "project_name", None)
+            if isinstance(project_name, str) and project_name:
+                return project_name
+        return None
+
+    def _wait_bead_inventory_state(
+        self,
+    ) -> tuple[str, tuple[dict[str, str], ...] | None]:
+        provider = getattr(self.app, "wait_bead_inventory", None)
+        if callable(provider):
+            provided = provider()
+            if isinstance(provided, tuple) and len(provided) == 2:
+                rows, available = provided
+                if available:
+                    return "warm", tuple(rows)
+                return "unavailable", ()
+        project = self._wait_bead_project_key()
+        if self._wait_bead_inventory is not None and self._wait_bead_project == project:
+            if self._wait_bead_available:
+                return "warm", self._wait_bead_inventory
+            return "unavailable", ()
+        if not project:
+            return "unavailable", ()
+        return "loading", None
+
+    def _ensure_wait_bead_inventory(self) -> None:
+        """Warm the wait-bead inventory off the keystroke path."""
+        if self._wait_bead_inventory_state()[0] != "loading":
+            return
+        project = self._wait_bead_project_key()
+        if not project:
+            self._wait_bead_inventory = ()
+            self._wait_bead_available = False
+            self._wait_bead_project = None
+            return
+        self._schedule_wait_bead_inventory_load(project)
 
     def _artifact_ref_completion_result(
         self,

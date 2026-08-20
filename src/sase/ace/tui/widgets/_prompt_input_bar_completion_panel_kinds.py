@@ -17,7 +17,11 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
     ArtifactRefKindCompletionMetadata,
 )
-from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
+from sase.ace.tui.widgets.directive_completion import (
+    BeadCompletionMetadata,
+    DirectiveCatalogPlaceholder,
+    ModelCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -40,6 +44,7 @@ class CompletionPanelKinds:
     directive: bool
     directive_arg: bool
     directive_arg_agent: bool
+    bead: bool
     model: bool
     history: bool
     arg_completion: bool
@@ -68,6 +73,14 @@ class CompletionPanelKinds:
             directive_arg=is_directive_arg,
             directive_arg_agent=is_directive_arg
             and any(is_agent_completion_candidate(candidate) for candidate in rows),
+            bead=is_directive_arg
+            and any(
+                isinstance(
+                    candidate.metadata,
+                    (BeadCompletionMetadata, DirectiveCatalogPlaceholder),
+                )
+                for candidate in rows
+            ),
             model=is_directive_arg
             and any(
                 isinstance(candidate.metadata, ModelCompletionMetadata)

@@ -14,10 +14,10 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     cursor_prefix_may_contain_xprompt_args,
     effective_xprompt_arg_token,
 )
+from sase.ace.tui.widgets._directive_completion_tokens import compat_directive_name
 from sase.ace.tui.widgets.directive_completion import (
-    extract_directive_arg_token_around_cursor,
-    extract_directive_token_around_cursor,
-    selected_wait_values_around_cursor,
+    DirectiveClauseCompletion,
+    classify_directive_completion,
 )
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -143,32 +143,43 @@ class FileCompletionContextMixin(_MixinBase):
 
     def _get_directive_token_context(self) -> tuple[int, int, int, str] | None:
         """Return (row, start, end, token) for the current directive token."""
+        clause_ctx = self._directive_clause_at_cursor()
+        if clause_ctx is None:
+            return None
+        row, clause = clause_ctx
+        if not clause.is_name:
+            return None
+        return row, clause.start, clause.end, clause.token
+
+    def _directive_clause_at_cursor(
+        self,
+    ) -> tuple[int, DirectiveClauseCompletion] | None:
+        """Return the shared-core directive clause at the current cursor."""
         row, col = self.cursor_location
         line = self.document.get_line(row)
-        token_info = extract_directive_token_around_cursor(line, col)
-        if token_info is None:
+        clause = classify_directive_completion(line, col)
+        if clause is None:
             return None
-
-        start, end, token = token_info
-        return row, start, end, token
+        return row, clause
 
     def _get_directive_arg_token_context(
         self,
     ) -> tuple[int, int, int, str, str, frozenset[str]] | None:
         """Return row-local directive context plus already-selected wait values."""
-        row, col = self.cursor_location
-        line = self.document.get_line(row)
-        token_info = extract_directive_arg_token_around_cursor(line, col)
-        if token_info is None:
+        clause_ctx = self._directive_clause_at_cursor()
+        if clause_ctx is None:
             return None
-
-        start, end, directive_name, partial = token_info
-        selected_values = (
-            selected_wait_values_around_cursor(line, start)
-            if directive_name == "wait"
-            else frozenset()
+        row, clause = clause_ctx
+        if clause.is_name:
+            return None
+        return (
+            row,
+            clause.start,
+            clause.end,
+            compat_directive_name(clause),
+            clause.token,
+            frozenset(clause.selected_values),
         )
-        return row, start, end, directive_name, partial, selected_values
 
     def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
         """Replace token range and put cursor at token end."""

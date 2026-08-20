@@ -9,7 +9,6 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     build_xprompt_arg_completion_candidates,
 )
 from sase.ace.tui.widgets.directive_completion import (
-    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
     is_directive_like_token,
 )
@@ -301,23 +300,18 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
 
     def _try_auto_directive_arg_completion(self) -> bool:
         """Open fixed-value directive argument completion after ``:``."""
-        ctx = self._get_directive_arg_token_context()
-        if ctx is None:
+        clause_ctx = self._directive_clause_at_cursor()
+        if clause_ctx is None:
+            return False
+        _row, clause = clause_ctx
+        if clause.is_name:
             return False
 
-        _row, _start, _end, directive_name, partial, selected_values = ctx
-        candidates, _shared_extension = build_directive_arg_completion_candidates(
-            directive_name,
-            partial,
-            agent_candidates=(
-                self._snapshot_agent_completion_candidates()
-                if directive_name == "wait"
-                else None
-            ),
-            selected_values=selected_values,
+        candidates, _shared_extension = self._build_live_directive_arg_candidates(
+            clause
         )
         if not candidates:
-            if directive_name == "wait":
+            if clause.directive_name == "wait":
                 self._agent_completion_candidates = None
             return False
 
@@ -325,7 +319,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._file_completion_active = True
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
-        self._update_file_completion_panel(partial)
+        self._update_file_completion_panel(clause.token)
         return True
 
     def _try_auto_directive_completion(self) -> bool:

@@ -10,8 +10,8 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
     effective_xprompt_arg_token,
 )
 from sase.ace.tui.widgets.directive_completion import (
-    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
+    is_directive_catalog_placeholder,
     is_directive_like_token,
 )
 from sase.ace.tui.widgets.file_completion import (
@@ -91,19 +91,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         if jinja_result is not None:
             return self._try_jinja_completion_tab(jinja_result)
 
-        directive_arg_ctx = self._get_directive_arg_token_context()
-        if directive_arg_ctx is not None:
+        clause_ctx = self._directive_clause_at_cursor()
+        if clause_ctx is not None and not clause_ctx[1].is_name:
             self._completion_kind = "directive_arg"
-            row, start, end, directive_name, token, selected_values = directive_arg_ctx
-            candidates, shared_extension = build_directive_arg_completion_candidates(
-                directive_name,
-                token,
-                agent_candidates=(
-                    self._snapshot_agent_completion_candidates()
-                    if directive_name == "wait"
-                    else None
-                ),
-                selected_values=selected_values,
+            row, clause = clause_ctx
+            start, end, token = clause.start, clause.end, clause.token
+            candidates, shared_extension = self._build_live_directive_arg_candidates(
+                clause
             )
         else:
             arg_ctx = self._get_xprompt_arg_completion_context()
@@ -156,7 +150,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             self._clear_file_completion()
             return True
 
-        if len(candidates) == 1:
+        if len(candidates) == 1 and not is_directive_catalog_placeholder(candidates[0]):
             selected = candidates[0]
             accepted_kind = self._completion_kind
             used_xprompt_skeleton = (
@@ -206,28 +200,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 if self._completion_kind == "directive":
                     candidates, _ = build_directive_completion_candidates(token)
                 elif self._completion_kind == "directive_arg":
-                    directive_arg_ctx = self._get_directive_arg_token_context()
-                    if directive_arg_ctx is None:
+                    clause_ctx = self._directive_clause_at_cursor()
+                    if clause_ctx is None or clause_ctx[1].is_name:
                         self._clear_file_completion()
                         return True
-                    (
-                        row,
-                        start,
-                        end,
-                        directive_name,
-                        token,
-                        selected_values,
-                    ) = directive_arg_ctx
-                    candidates, _ = build_directive_arg_completion_candidates(
-                        directive_name,
-                        token,
-                        agent_candidates=(
-                            self._snapshot_agent_completion_candidates()
-                            if directive_name == "wait"
-                            else None
-                        ),
-                        selected_values=selected_values,
-                    )
+                    row, clause = clause_ctx
+                    start, end, token = clause.start, clause.end, clause.token
+                    candidates, _ = self._build_live_directive_arg_candidates(clause)
                 elif self._completion_kind.startswith("xprompt_arg_"):
                     arg_ctx = self._get_xprompt_arg_completion_context()
                     if arg_ctx is None:
