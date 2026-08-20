@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from textual.widgets import Static
+
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.testing import AcePage
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.widgets.artifacts import (
     files_detail_panel,
     files_pane,
 )
+from sase.ace.tui.widgets.artifacts.file_filter_bar import FileFilterBar
 from sase.ace.tui.widgets.artifacts.files_detail import FileDetailData
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.files_rendering import (
@@ -169,14 +173,14 @@ async def test_artifacts_files_populated_png_snapshot(
             )
         )
         await wait_for_svg_contains(page, "release-notes artifact")
-        await wait_for_svg_contains(page, "Source:")
+        await wait_for_svg_contains(page, "Stored:")
         await wait_for_visual_idle(page)
 
         for glyph in set(FILE_VIEW_MODE_GLYPHS.values()):
             assert_page_svg_contains(page, glyph)
         for chip in ("1 images", "2 documents", "1 videos", "1 files"):
             assert_page_svg_contains(page, chip)
-        for token in ("Captured", "Created", "[Alpha]", "[Beta]", "live", "Source:"):
+        for token in ("Captured", "Created", "[Alpha]", "[Beta]", "live"):
             assert_page_svg_contains(page, token)
         # The even split intentionally ellipsizes long labels; stable row identity
         # prefixes remain visible while full labels stay covered by ``snapshot.rows``.
@@ -190,4 +194,51 @@ async def test_artifacts_files_populated_png_snapshot(
             page,
             "artifacts_files_populated_120x40",
             title="ACE Artifacts - Files populated",
+        )
+
+
+async def test_artifacts_files_idle_placeholder_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Idle Files bar shows the empty-query placeholder, not a token echo."""
+    patch_startup_loaders(monkeypatch)
+    rows = _fixture_rows()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _all_choices,
+    )
+    monkeypatch.setattr(
+        files_pane,
+        "load_files_snapshot",
+        lambda project, _limit: snapshot(rows, project=project),
+    )
+    profile = compiled_profile_for_builtin_pane("files")
+    assert profile is not None
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("files"), "(")
+        await page.expect_state("artifacts_subtab", "files")
+        pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        bar = pane.query_one(FileFilterBar)
+        display = bar.query_one("#file-filter-display", Static)
+
+        await page.press("/")
+        bar.set_query("")
+        bar.post_message(FileFilterBar.Submitted(""))
+        await page.wait_for(
+            lambda _state: (
+                not bar._editing  # noqa: SLF001
+                and display.render().plain == profile.free_text_hint
+            )
+        )
+        await wait_for_svg_contains(page, profile.free_text_hint)
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_files_idle_placeholder_120x40",
+            title="ACE Artifacts - Files idle placeholder",
         )

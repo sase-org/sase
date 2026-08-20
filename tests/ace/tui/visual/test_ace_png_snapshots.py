@@ -85,12 +85,14 @@ async def test_patch_filter_bar_closed_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
+        bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
+        committed = bar._last_query_text  # noqa: SLF001
         page.app._saved_queries = {
             "patches": {
-                "1": QueryRecord(source='"visual"', canonical='"visual"'),
+                "1": QueryRecord(source=committed, canonical=committed),
             }
         }
-        page.app._refresh_display()
+        bar.set_query(committed)
         await wait_for_svg_contains(page, "[01]")
         await wait_for_visual_idle(page)
 

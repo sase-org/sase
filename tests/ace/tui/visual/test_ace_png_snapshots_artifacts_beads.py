@@ -7,7 +7,10 @@ from pathlib import Path
 
 import pytest
 
+from textual.widgets import Static
+
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
@@ -66,8 +69,10 @@ async def test_artifacts_beads_populated_png_snapshot(
         await wait_for_svg_contains(page, "Build bead browsing")
         await wait_for_visual_idle(page)
 
-        for token in ("Tasks", "Epics", "awaiting triage", "-status:closed"):
+        for token in ("Tasks", "Epics", "awaiting triage"):
             assert_page_svg_contains(page, token)
+        display = pane.query_one("#bead-filter-display", Static)
+        assert "-status:closed" in display.render().plain
 
         ace_png_visual.assert_page_png(
             page,
@@ -115,4 +120,49 @@ async def test_artifacts_beads_collapsed_relations_rail_png_snapshot(
             page,
             "artifacts_beads_collapsed_relations_120x40",
             title="ACE Artifacts - Beads collapsed relations",
+        )
+
+
+async def test_artifacts_beads_idle_query_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Idle Beads bar holds a committed non-empty query, not header chips."""
+    patch_startup_loaders(monkeypatch)
+    snapshot = _snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_pane.load_beads_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("3")
+        await page.expect_state("artifacts_subtab", "beads")
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        bar = pane.query_one(BeadFilterBar)
+        display = bar.query_one("#bead-filter-display", Static)
+
+        await page.press("/")
+        bar.set_query("tier:epic")
+        bar.post_message(BeadFilterBar.Submitted("tier:epic"))
+        await page.wait_for(
+            lambda _state: (
+                not bar._editing  # noqa: SLF001
+                and display.render().plain == "tier:epic"
+            )
+        )
+        await wait_for_svg_contains(page, "Epics")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_beads_idle_query_120x40",
+            title="ACE Artifacts - Beads idle query bar",
         )

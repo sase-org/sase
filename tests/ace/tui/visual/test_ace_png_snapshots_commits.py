@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 from textual.widgets._header import HeaderIcon
-from textual.widgets import OptionList
+from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
@@ -263,7 +263,7 @@ async def test_commits_merge_row_png_snapshot(
         )
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "project:sase sidecar:false merges:show since:24h"
+            == "project:sase sidecar:false merges:show since:24h limit:100"
         )
         await wait_for_svg_contains(page, "mmmmmmm")
         await wait_for_svg_contains(page, "◆ merge")
@@ -514,22 +514,19 @@ async def test_commits_sidecar_filter_png_snapshot(
         initial_tab="patches",
     ) as page:
         pane, bar = await _open_commits(page, narrow)
-        await page.press("slash")
-        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
-        editor.load_text("sidecar:true")
-        editor.cursor_position = len(editor.text)
-        completion = bar.query_one("#commit-filter-completion", OptionList)
-        await page.wait_for(
-            lambda _state: (
+        await _commit_filter_query(page, pane, bar, "sidecar:true")
+        display = bar.query_one("#commit-filter-display", Static)
+        await wait_for_state(
+            page,
+            lambda: (
                 pane.filters.sidecar
                 and pane.result is broad
-                and completion.display
-                and completion.option_count == 1
-            )
+                and "sidecar:true" in display.render().plain
+            ),
+            description="idle sidecar query on the closed display",
+            timeout=30.0,
         )
-        await wait_for_svg_contains(page, "sidecar:true")
         await wait_for_svg_contains(page, "ccccccc")
-        await wait_for_svg_contains(page, "include sidecar repositories")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
