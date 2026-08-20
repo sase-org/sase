@@ -48,7 +48,10 @@ class FilesFilterSessionMixin(_MixinBase):
         def _set_filter_completion_sources(self) -> None: ...
 
     def _init_files_filter_session(self) -> None:
-        self.filters = FilesFilterValues()
+        from sase.ace.config import get_ace_page_size
+        from sase.ace.query.limit_token import ensure_limit
+
+        self.filters = parse_files_filter_query(ensure_limit("", get_ace_page_size()))
         self._filter_session_open = False
         self._filter_restore_values = None
         self._filter_restore_selection = None

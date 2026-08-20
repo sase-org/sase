@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Literal
 
+from sase.ace.query.limit_token import extract_limit_as, limit_query_token
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
 from sase.filter_tokens import (
     FilterQueryError,
@@ -32,6 +33,7 @@ FileCompletionKind = Literal[
     "origin",
     "since",
     "until",
+    "limit",
     "text",
 ]
 
@@ -79,6 +81,7 @@ class FilesFilterValues:
     excluded_until: int | None = None
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
+    limit: int | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -121,6 +124,7 @@ def parse_files_filter_query(
 ) -> FilesFilterValues:
     """Parse a Files query into normalized, validated filter values."""
 
+    remainder, cap = extract_limit_as(text, FilesFilterQueryError)
     repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     excluded_repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     singles: dict[str, tuple[str, FilterToken]] = {}
@@ -129,7 +133,7 @@ def parse_files_filter_query(
     text_terms: list[str] = []
     excluded_text_terms: list[str] = []
 
-    for token in tokenize(text, error_type=FilesFilterQueryError):
+    for token in tokenize(remainder, error_type=FilesFilterQueryError):
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
             value = token.body
@@ -217,6 +221,7 @@ def parse_files_filter_query(
         excluded_until=excluded_until,
         text=tuple(text_terms),
         excluded_text=tuple(excluded_text_terms),
+        limit=cap,
     )
 
 
@@ -244,6 +249,8 @@ def to_query_tokens(values: FilesFilterValues) -> tuple[str, ...]:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
     if values.excluded_until_text:
         tokens.append(f"-until:{quote_value(values.excluded_until_text, keyed=True)}")
+    if token := limit_query_token(values.limit):
+        tokens.append(token)
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
     tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
@@ -264,7 +271,7 @@ def files_completion_context(
     kind, prefix, negated = completion_context(
         text,
         cursor,
-        keys=_FILTER_KEYS,
+        keys=(*_FILTER_KEYS, "limit"),
         repeatable_keys=_REPEATABLE_KEYS,
         negatable_keys=frozenset(_FILTER_KEYS),
     )

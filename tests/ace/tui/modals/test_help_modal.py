@@ -91,7 +91,7 @@ async def test_help_digits_do_not_load_saved_queries(monkeypatch) -> None:
         await page.press("7", "2")
         await page.pause()
         assert calls == []
-        assert page.app.canonical_query_string == '"feature"'
+        assert page.app.canonical_query_string == '"feature" limit:100'
         assert page.state["modal"] == "HelpModal"
 
 

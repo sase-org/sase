@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..patch import Patch
-from ..query import to_canonical_string
+
 from .widgets.artifacts.patch_entry import patch_row_target
 from .actions import (
     AgentsMixin,
@@ -345,7 +345,7 @@ class AceApp(
     @property
     def canonical_query_string(self) -> str:
         """Get the canonical (normalized) form of the query string."""
-        return to_canonical_string(self.parsed_query)
+        return self._canonical_patch_query(self.query_string, self.parsed_query)
 
     @property
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:

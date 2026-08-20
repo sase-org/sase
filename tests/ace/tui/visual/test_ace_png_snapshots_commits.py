@@ -146,7 +146,7 @@ async def test_commits_timeline_and_detail_png_snapshot(
         )
         assert (
             pane.query_one("#commit-filter-input", SingleLineVimTextArea).text
-            == "project:sase sidecar:false merges:hide since:24h"
+            == "project:sase sidecar:false merges:hide since:24h limit:100"
         )
         await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await wait_for_svg_contains(page, "Changes:")

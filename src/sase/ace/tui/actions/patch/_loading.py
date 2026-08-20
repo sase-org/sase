@@ -114,6 +114,7 @@ class PatchLoadingMixin:
     _pr_unmirrored_counts_by_display_name: dict[str, int]
     _patch_relation_index: RelationIndex | None
     _patch_relation_index_for_id: int | None
+    _patch_limit_truncated: bool
 
     def _compat_loader(
         self,
@@ -284,10 +285,16 @@ class PatchLoadingMixin:
             query_explicitly_targets_terminal,
         )
 
+        from ....query.limit_token import LimitTokenError, apply_limit, extract_limit
+
         display_query_fn = getattr(self, "_display_patch_query", None)
         display_query = (
             display_query_fn() if callable(display_query_fn) else self.query_string
         )
+        try:
+            membership_query, cap = extract_limit(display_query)
+        except LimitTokenError:
+            membership_query, cap = display_query, None
         display_parsed_query_fn = getattr(self, "_display_patch_parsed_query", None)
         display_parsed_query = (
             display_parsed_query_fn()
@@ -303,10 +310,10 @@ class PatchLoadingMixin:
         status_map = ctx.status_map
 
         index = self._get_patch_query_index(patches)
-        if not display_query.strip():
+        if not membership_query.strip():
             result = list(patches)
         else:
-            query_result = self._patch_query_result(display_query, index)
+            query_result = self._patch_query_result(membership_query, index)
             result = [
                 cs
                 for cs, keep in zip(patches, query_result.matched_mask, strict=True)
@@ -342,7 +349,9 @@ class PatchLoadingMixin:
                     filtered.append(cs)
             result = filtered
 
-        return result
+        capped, truncated = apply_limit(result, cap)
+        self._patch_limit_truncated = truncated
+        return list(capped)
 
     def _patch_query_result(
         self,

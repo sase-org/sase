@@ -43,12 +43,14 @@ class FileFilterBar(FilterBar):
         ("origin", "explicit or default"),
         ("since", "YYYY-MM-DD, YYYY-MM, Nd/Nw/Nm"),
         ("until", "YYYY-MM-DD, YYYY-MM, Nd/Nw/Nm"),
+        ("limit", "row cap; all removes it"),
     )
     STATIC_VALUE_COMPLETIONS = {
         "kind": ARTIFACT_FILE_KINDS,
         "origin": FILE_ORIGIN_VALUES,
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
+        "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
         "kind": "stored artifact kind",
@@ -58,6 +60,7 @@ class FileFilterBar(FilterBar):
         "origin": "registration origin",
         "since": "date bound",
         "until": "date bound",
+        "limit": "row cap or all",
     }
     REPEATABLE_VALUE_KINDS = frozenset(
         ("kind", "project", "agent", "workflow", "origin")

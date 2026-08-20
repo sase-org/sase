@@ -55,7 +55,14 @@ class PatchesFilterSessionMixin(_MixinBase):
         if index is not None:
             bar.set_observed_facets(index.facets)
         bar.open(app.query_string)
-        bar.set_status(len(app.patches), exact=True, error=None)
+        truncated = bool(getattr(app, "_patch_limit_truncated", False))
+        bar.set_status(
+            len(app.patches),
+            exact=not truncated,
+            error=None,
+            coverage_label="capped" if truncated else None,
+            lower_bound=truncated,
+        )
 
     def on_patch_filter_bar_query_changed(
         self,
@@ -74,7 +81,14 @@ class PatchesFilterSessionMixin(_MixinBase):
             return
 
         app._set_patch_live_query(event.text, parsed)
-        bar.set_status(len(app.patches), exact=True, error=None)
+        truncated = bool(getattr(app, "_patch_limit_truncated", False))
+        bar.set_status(
+            len(app.patches),
+            exact=not truncated,
+            error=None,
+            coverage_label="capped" if truncated else None,
+            lower_bound=truncated,
+        )
 
     def on_patch_filter_bar_submitted(
         self,

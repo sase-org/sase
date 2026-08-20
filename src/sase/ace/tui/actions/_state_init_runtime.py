@@ -12,7 +12,10 @@ from textual.timer import Timer
 
 from sase.xprompt.highlight_theme import ACE_THEME_NAME
 
+from ...config import get_ace_page_size
 from ...query import parse_query_for_profile
+from ...query.limit_token import LimitTokenError, ensure_limit, extract_limit
+from ...query.types import StringMatch
 from ...query_profile import compiled_profile_for_builtin_pane
 from ..exit_action import AceExitAction
 from ..util.fs_watcher import ArtifactWatcher
@@ -157,11 +160,20 @@ def init_runtime_state(
     self._diff_badge_scan_pending = False
     self._diff_badge_scan_source = "unknown"
     self._diff_badge_async_tasks = set()
-    self.query_string = query
+    self._patch_limit_truncated = False
+    self.query_string = ensure_limit(query, get_ace_page_size())
     patch_profile = compiled_profile_for_builtin_pane("patches")
     if patch_profile is None:
         raise ValueError("Patch query profile is not registered")
-    self.parsed_query = parse_query_for_profile(query, patch_profile)
+    try:
+        remainder, _cap = extract_limit(self.query_string)
+    except LimitTokenError:
+        remainder = self.query_string
+    self.parsed_query = (
+        StringMatch("")
+        if not remainder.strip()
+        else parse_query_for_profile(remainder, patch_profile)
+    )
     from ...query import get_sole_project_filter
 
     # Shared Artifacts scope state is memory-only for this TUI session.

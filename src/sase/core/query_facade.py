@@ -28,7 +28,9 @@ from sase.ace.query.profile_reference import (
     ArtifactQueryRowInput,
     evaluate_query_many_for_profile,
 )
-from sase.ace.query.types import QueryExpr
+from sase.ace.query.limit_token import LimitTokenError, extract_limit
+from sase.ace.query.parser import QueryParseError
+from sase.ace.query.types import QueryExpr, StringMatch
 from sase.ace.query_profile import CompiledQueryProfile
 from sase.core.query_wire_conversion import (
     query_expr_from_wire,
@@ -39,8 +41,14 @@ from sase.core.rust import require_rust_binding
 
 def parse_query(query: str) -> QueryExpr:
     """Parse a query string into a :class:`QueryExpr` via ``sase_core_rs``."""
+    try:
+        remainder, _cap = extract_limit(query)
+    except LimitTokenError as exc:
+        raise QueryParseError(exc.message, exc.start) from exc
+    if not remainder.strip():
+        return StringMatch("")
     rust_parse_query = require_rust_binding("parse_query")
-    record: dict[str, Any] = rust_parse_query(query)
+    record: dict[str, Any] = rust_parse_query(remainder)
     return query_expr_from_wire(query_expr_wire_from_dict(record))
 
 

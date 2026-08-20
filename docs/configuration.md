@@ -794,14 +794,15 @@ name. Once startup merging is complete, no `project:` token always means a true
 all-project collection. The Stitches project picker replaces only that token, and **All
 projects** removes it while preserving the rest of the query.
 
-Stitches queries are uncapped unless they contain an explicit positive `limit:N`, so the
-bundled 24-hour query has no row cap. When an explicit cap clips the result, ACE keeps
-the token visible and shows a lower-bound total such as `[1/40+]` in the repository
-legend while the filter row says `capped`. The legend's `[P/N]` form means selected
-one-based position over displayed matched entries. `limit:all` is accepted as an
-unlimited synonym but is omitted from canonical query text. Day-granular `until:` values
-include the full named day. This setting is independent of the `sase stitch list` CLI's
-sidecar opt-in and limit contract.
+Startup injects `limit:<ace.page_size>` (default 100) when this query has no `limit:`
+token. An explicit `limit:` in the configured string — including `limit:all` — is left
+alone, and deleting the token at runtime leaves the list uncapped. When a numeric cap
+clips the result, ACE keeps the token visible and shows a lower-bound total such as
+`[1/40+]` in the repository legend while the filter row says `capped`. The legend's
+`[P/N]` form means selected one-based position over displayed matched entries.
+`limit:all` is accepted as an unlimited synonym but is omitted from canonical query
+text. Day-granular `until:` values include the full named day. This setting is
+independent of the `sase stitch list` CLI's sidecar opt-in and limit contract.
 
 #### `ace.axe_description_expanded`
 

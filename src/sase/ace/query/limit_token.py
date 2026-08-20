@@ -7,6 +7,7 @@ row-matching field: extract it before dialect parse / Rust eval, then slice.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Literal
 
 from sase.filter_tokens import (
@@ -18,6 +19,11 @@ from sase.filter_tokens import (
 )
 
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
+
+HOST_LIMIT_KEY = "limit"
+HOST_LIMIT_HINT = "row cap; all removes it"
+HOST_LIMIT_VALUE_HINT = "row cap or all"
+HOST_LIMIT_VALUES = ("40", "100", "200", "all")
 
 
 class LimitTokenError(FilterQueryError):
@@ -35,6 +41,43 @@ def extract_limit(query: str) -> tuple[str, int | None]:
     if token is None:
         return query, None
     return " ".join(remainder_parts), cap
+
+
+def extract_limit_as(
+    query: str,
+    error_type: type[FilterQueryError],
+) -> tuple[str, int | None]:
+    """:func:`extract_limit` re-raised as a dialect-specific error type."""
+
+    try:
+        return extract_limit(query)
+    except LimitTokenError as exc:
+        raise error_type(
+            exc.message,
+            token=exc.token,
+            start=exc.start,
+            end=exc.end,
+        ) from exc
+
+
+def apply_limit[T](
+    items: Sequence[T],
+    cap: int | None,
+) -> tuple[tuple[T, ...], bool]:
+    """Slice *items* to *cap*. Returns ``(sliced, truncated)``."""
+
+    sequence = tuple(items)
+    if cap is None:
+        return sequence, False
+    return sequence[:cap], len(sequence) > cap
+
+
+def limit_query_token(cap: int | None) -> str | None:
+    """Return the canonical ``limit:N`` token, or ``None`` when unlimited."""
+
+    if cap is None:
+        return None
+    return f"limit:{cap}"
 
 
 def ensure_limit(query: str, n: int) -> str:
@@ -153,9 +196,16 @@ def _error(message: str, token: FilterToken) -> LimitTokenError:
 
 
 __all__ = [
+    "HOST_LIMIT_HINT",
+    "HOST_LIMIT_KEY",
+    "HOST_LIMIT_VALUES",
+    "HOST_LIMIT_VALUE_HINT",
     "LimitTokenError",
     "adjust_limit",
+    "apply_limit",
     "ensure_limit",
     "extract_limit",
+    "extract_limit_as",
+    "limit_query_token",
     "replace_limit",
 ]

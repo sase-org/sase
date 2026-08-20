@@ -10,6 +10,7 @@ from typing import Literal
 from sase.bead.model import BeadTier
 from sase.bead_status_presentation import bead_status_display_order
 from sase.bead_type_presentation import BEAD_TYPE_VALUES
+from sase.ace.query.limit_token import extract_limit_as, limit_query_token
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -48,6 +49,7 @@ BeadCompletionKind = Literal[
     "since",
     "until",
     "task_type",
+    "limit",
     "text",
 ]
 
@@ -128,6 +130,7 @@ class BeadFilterValues:
     excluded_until: tuple[int, ...] = ()
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
+    limit: int | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -182,7 +185,12 @@ class BeadFilterQueryError(FilterQueryError):
 def default_bead_filter_values() -> BeadFilterValues:
     """Return the committed startup filter for the Beads pane."""
 
-    return BeadFilterValues(excluded_statuses=("closed",))
+    from sase.ace.config import get_ace_page_size
+    from sase.ace.query.limit_token import ensure_limit
+
+    return parse_bead_filter_query(
+        ensure_limit(DEFAULT_BEAD_FILTER_QUERY, get_ace_page_size())
+    )
 
 
 def parse_bead_filter_query(
@@ -192,6 +200,7 @@ def parse_bead_filter_query(
 ) -> BeadFilterValues:
     """Parse a bead query into normalized, validated filter values."""
 
+    remainder, cap = extract_limit_as(text, BeadFilterQueryError)
     repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     excluded_repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     date_terms: dict[str, list[tuple[str, FilterToken]]] = {
@@ -203,7 +212,7 @@ def parse_bead_filter_query(
     text_terms: list[str] = []
     excluded_text_terms: list[str] = []
 
-    for token in tokenize(text, error_type=BeadFilterQueryError):
+    for token in tokenize(remainder, error_type=BeadFilterQueryError):
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
             value = token.body
@@ -318,6 +327,7 @@ def parse_bead_filter_query(
         ),
         text=tuple(text_terms),
         excluded_text=tuple(excluded_text_terms),
+        limit=cap,
     )
 
 
@@ -346,6 +356,8 @@ def to_query_tokens(values: BeadFilterValues) -> tuple[str, ...]:
         tokens.extend(
             f"-{key}:{quote_value(value, keyed=True)}" for value in excluded_entries
         )
+    if token := limit_query_token(values.limit):
+        tokens.append(token)
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
     tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
@@ -366,7 +378,7 @@ def bead_completion_context(
     kind, prefix, negated = completion_context(
         text,
         cursor,
-        keys=_FILTER_KEYS,
+        keys=(*_FILTER_KEYS, "limit"),
         repeatable_keys=_REPEATABLE_KEYS,
         negatable_keys=_NEGATABLE_KEYS,
     )

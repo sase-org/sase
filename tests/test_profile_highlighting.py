@@ -44,6 +44,13 @@ def test_known_key() -> None:
     ]
 
 
+def test_host_owned_limit_highlights_as_a_known_key() -> None:
+    assert _classify_flat_query_tokens("limit:100", _BEADS_PROFILE) == [
+        ("limit:", "property_key"),
+        ("100", "property_value"),
+    ]
+
+
 def test_unknown_key() -> None:
     assert _classify_flat_query_tokens("bogus:x", _BEADS_PROFILE) == [
         ("bogus:", "unknown_key"),

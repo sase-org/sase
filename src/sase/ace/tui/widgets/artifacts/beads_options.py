@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.widgets import Static
 
+from sase.ace.query.limit_token import apply_limit
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.bead.filter_query import BeadFilterQueryError, BeadFilterValues
@@ -114,12 +115,17 @@ class BeadsOptionsMixin(_MixinBase):
         values = self._display_filter_values()
         matched_option_ids: frozenset[str] | None = None
         match_count: int | None = None
+        limit_truncated = False
         self._display_matched_counts = None
         self._display_matched_triage_count = None
         self._expand_parent_for_pending_target()
         pending_query = False
         filter_index = self._ensure_filter_index(
-            needed=self._filter_session_open or not values.is_empty
+            needed=(
+                self._filter_session_open
+                or not values.is_empty
+                or values.limit is not None
+            )
         )
         if filter_index is not None:
             query_index = self._query_index
@@ -136,9 +142,22 @@ class BeadsOptionsMixin(_MixinBase):
                     for record in filter_index
                     if record.option_id in matched_option_ids
                 )
+                matching_records, limit_truncated = apply_limit(
+                    matching_records, values.limit
+                )
+                matched_option_ids = frozenset(
+                    record.option_id for record in matching_records
+                )
                 match_count = len(matching_records)
             elif values.is_empty:
                 matching_records = tuple(filter_index)
+                matching_records, limit_truncated = apply_limit(
+                    matching_records, values.limit
+                )
+                if values.limit is not None:
+                    matched_option_ids = frozenset(
+                        record.option_id for record in matching_records
+                    )
                 match_count = len(matching_records)
             else:
                 matching_records = ()
@@ -203,8 +222,14 @@ class BeadsOptionsMixin(_MixinBase):
         self._update_static("#beads-info", self._scope_text())
         self._sync_query_bar(
             match_count,
-            exact=match_count is not None,
-            blank=not self._filter_session_open and values.is_empty,
+            exact=match_count is not None and not limit_truncated,
+            blank=(
+                not self._filter_session_open
+                and values.is_empty
+                and values.limit is None
+            ),
+            coverage_label="capped" if limit_truncated else None,
+            lower_bound=limit_truncated,
         )
         if update_detail:
             if self._detail_debouncer is None:
@@ -219,6 +244,8 @@ class BeadsOptionsMixin(_MixinBase):
         *,
         exact: bool,
         blank: bool = False,
+        coverage_label: str | None = None,
+        lower_bound: bool = False,
     ) -> None:
         """Keep the persistent Beads bar's text and status lane truthful.
 
@@ -236,7 +263,13 @@ class BeadsOptionsMixin(_MixinBase):
         if blank:
             bar.clear_status()
         else:
-            bar.set_status(match_count, exact=exact, error=None)
+            bar.set_status(
+                match_count,
+                exact=exact,
+                error=None,
+                coverage_label=coverage_label,
+                lower_bound=lower_bound,
+            )
 
     def _scope_text(self) -> Any:
         return build_beads_scope(

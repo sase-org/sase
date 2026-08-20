@@ -164,7 +164,7 @@ async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None
 
         await page.press("1")
         await page.expect_state("artifacts_subtab", "stitches")
-        assert page.app.canonical_query_string == '"feature"'
+        assert page.app.canonical_query_string == '"feature" limit:100'
 
         for subtab_key in ("1", "3", "4"):
             await page.press(subtab_key, "asterisk")
@@ -191,7 +191,7 @@ async def test_malformed_cached_query_reports_error_without_crashing(
 
         await page.press("3")
         await page.expect_no_modal()
-        assert page.app.canonical_query_string == '"feature"'
+        assert page.app.canonical_query_string == '"feature" limit:100'
         assert notifications
         assert notifications[-1][0].startswith("Error loading query:")
         assert notifications[-1][1] == "error"

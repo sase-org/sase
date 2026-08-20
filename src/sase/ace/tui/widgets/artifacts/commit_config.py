@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
+from sase.ace.config import get_ace_page_size
+from sase.ace.query.limit_token import ensure_limit
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     CommitLogFilterValues,
@@ -34,13 +36,13 @@ def resolve_commits_default_query(
 ) -> _ResolvedCommitsDefaultQuery:
     """Resolve and validate the commits query from already-loaded ACE config."""
     if not isinstance(ace_config, Mapping):
-        return _bundled_fallback("ACE configuration is not an object")
+        return _bundled_fallback("ACE configuration is not an object", ace_config)
 
     artifacts = ace_config.get("artifacts")
     if artifacts is None:
-        return _bundled_default()
+        return _bundled_default(ace_config)
     if not isinstance(artifacts, Mapping):
-        return _bundled_fallback("ace.artifacts is not an object")
+        return _bundled_fallback("ace.artifacts is not an object", ace_config)
 
     stitches = artifacts.get("stitches")
     legacy_commits = artifacts.get("commits")
@@ -48,7 +50,7 @@ def resolve_commits_default_query(
     section_path = "ace.artifacts.stitches"
     if stitches is None:
         if legacy_commits is None:
-            return _bundled_default()
+            return _bundled_default(ace_config)
         log.warning(
             "ace.artifacts.commits is deprecated; treating it as ace.artifacts.stitches"
         )
@@ -62,19 +64,20 @@ def resolve_commits_default_query(
         )
 
     if not isinstance(stitches, Mapping):
-        return _bundled_fallback(f"{section_path} is not an object")
+        return _bundled_fallback(f"{section_path} is not an object", ace_config)
 
     configured = stitches.get("default_query")
     if configured is None:
-        return _bundled_default()
+        return _bundled_default(ace_config)
     if not isinstance(configured, str):
-        return _bundled_fallback(f"{config_path} must be a string")
+        return _bundled_fallback(f"{config_path} must be a string", ace_config)
 
     try:
-        values = parse_commit_filter_query(configured)
+        values = parse_commit_filter_query(_with_default_limit(configured, ace_config))
     except CommitFilterQueryError as exc:
         return _bundled_fallback(
             f"{config_path} is invalid: {exc.message}",
+            ace_config,
         )
     return _ResolvedCommitsDefaultQuery(values)
 
@@ -99,15 +102,36 @@ def merge_commits_startup_project(
     return replace(values, project=project)
 
 
-def _bundled_default() -> _ResolvedCommitsDefaultQuery:
+def _page_size(ace_config: Mapping[str, Any] | object) -> int:
+    if isinstance(ace_config, Mapping):
+        value = ace_config.get("page_size", 100)
+        if type(value) is int and value >= 1:
+            return value
+    return get_ace_page_size()
+
+
+def _with_default_limit(query: str, ace_config: Mapping[str, Any] | object) -> str:
+    return ensure_limit(query, _page_size(ace_config))
+
+
+def _bundled_default(
+    ace_config: Mapping[str, Any] | object = (),
+) -> _ResolvedCommitsDefaultQuery:
     return _ResolvedCommitsDefaultQuery(
-        parse_commit_filter_query(BUNDLED_COMMITS_DEFAULT_QUERY)
+        parse_commit_filter_query(
+            _with_default_limit(BUNDLED_COMMITS_DEFAULT_QUERY, ace_config)
+        )
     )
 
 
-def _bundled_fallback(reason: str) -> _ResolvedCommitsDefaultQuery:
+def _bundled_fallback(
+    reason: str,
+    ace_config: Mapping[str, Any] | object = (),
+) -> _ResolvedCommitsDefaultQuery:
     return _ResolvedCommitsDefaultQuery(
-        parse_commit_filter_query(BUNDLED_COMMITS_DEFAULT_QUERY),
+        parse_commit_filter_query(
+            _with_default_limit(BUNDLED_COMMITS_DEFAULT_QUERY, ace_config)
+        ),
         _fallback_diagnostic(reason),
     )
 

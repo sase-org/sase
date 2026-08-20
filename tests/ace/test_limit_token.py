@@ -7,10 +7,14 @@ import pytest
 from sase.ace.query.limit_token import (
     LimitTokenError,
     adjust_limit,
+    apply_limit,
     ensure_limit,
     extract_limit,
+    extract_limit_as,
+    limit_query_token,
     replace_limit,
 )
+from sase.filter_tokens import FilterQueryError
 
 
 def test_extract_limit_absent_returns_original_query_unlimited() -> None:
@@ -154,6 +158,28 @@ def test_adjust_limit_rejects_invalid_page_size_and_direction() -> None:
         adjust_limit(100, 0, "load_more")
     with pytest.raises(ValueError, match="unknown limit direction"):
         adjust_limit(100, 100, "sideways")  # type: ignore[arg-type]
+
+
+def test_apply_limit_slices_and_reports_truncation() -> None:
+    rows = ("a", "b", "c")
+    assert apply_limit(rows, None) == (("a", "b", "c"), False)
+    assert apply_limit(rows, 3) == (("a", "b", "c"), False)
+    assert apply_limit(rows, 2) == (("a", "b"), True)
+    assert apply_limit((), 100) == ((), False)
+
+
+def test_limit_query_token_omits_unlimited() -> None:
+    assert limit_query_token(None) is None
+    assert limit_query_token(100) == "limit:100"
+
+
+def test_extract_limit_as_rewrites_error_type() -> None:
+    class _DialectError(FilterQueryError):
+        pass
+
+    with pytest.raises(_DialectError, match="may not be negated") as exc_info:
+        extract_limit_as("-limit:10", _DialectError)
+    assert exc_info.value.span == (0, 9)
 
 
 def test_ensure_and_replace_reject_non_positive_n() -> None:

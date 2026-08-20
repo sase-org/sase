@@ -9,6 +9,7 @@ from rich.console import RenderableType
 from textual.widgets import Static
 from textual.widgets.option_list import Option
 
+from sase.ace.query.limit_token import apply_limit
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.core.artifact_file_types import ArtifactFile
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
@@ -141,7 +142,7 @@ class FilesOptionsMixin(_MixinBase):
         elif preferred_target is None:
             preferred_target = self.selected_entry_target()
         values = self._display_filter_values()
-        filtered, exact, pending = self._filtered_snapshot(values)
+        filtered, exact, pending, truncated = self._filtered_snapshot(values)
         if pending:
             self._sync_query_bar(None, exact=False)
             return
@@ -215,35 +216,41 @@ class FilesOptionsMixin(_MixinBase):
         self._update_static("#files-hints", self._hints_text())
         self._sync_query_bar(
             self._filtered_count,
-            exact=exact,
-            blank=not self._filter_session_open and values.is_empty,
+            exact=exact and not truncated,
+            blank=(
+                not self._filter_session_open
+                and values.is_empty
+                and values.limit is None
+            ),
+            coverage_label="capped" if truncated else None,
+            lower_bound=truncated,
         )
         self._schedule_detail()
 
     def _filtered_snapshot(
         self, values: FilesFilterValues
-    ) -> tuple[FilesSnapshot | None, bool, bool]:
+    ) -> tuple[FilesSnapshot | None, bool, bool, bool]:
         snapshot = self._current_snapshot()
-        if snapshot is None or values.is_empty:
-            return snapshot, True, False
+        if snapshot is None:
+            return snapshot, True, False, False
         query_index = self._query_index
         query = to_query_string(values)
-        if query_index is None or not query:
-            return snapshot, False, True
-        result = self._query_session.result(query, query_index)
-        if result is None:
-            return snapshot, False, True
-        matched = frozenset(result.matched_row_ids)
-        return (
-            replace(
-                snapshot,
-                rows=tuple(
-                    row for row in snapshot.rows if f"file:{row.logical_id}" in matched
-                ),
-            ),
-            True,
-            False,
-        )
+        if values.is_empty:
+            rows = snapshot.rows
+        else:
+            if query_index is None or not query:
+                return snapshot, False, True, False
+            result = self._query_session.result(query, query_index)
+            if result is None:
+                return snapshot, False, True, False
+            matched = frozenset(result.matched_row_ids)
+            rows = tuple(
+                row for row in snapshot.rows if f"file:{row.logical_id}" in matched
+            )
+        rows, truncated = apply_limit(rows, values.limit)
+        if truncated or not values.is_empty:
+            snapshot = replace(snapshot, rows=rows)
+        return snapshot, not truncated, False, truncated
 
     def _update_empty(self) -> None:
         if not self.is_mounted:
@@ -301,6 +308,8 @@ class FilesOptionsMixin(_MixinBase):
         *,
         exact: bool,
         blank: bool = False,
+        coverage_label: str | None = None,
+        lower_bound: bool = False,
     ) -> None:
         """Keep the persistent Files bar's text and status lane truthful.
 
@@ -318,7 +327,13 @@ class FilesOptionsMixin(_MixinBase):
         if blank:
             bar.clear_status()
         else:
-            bar.set_status(match_count, exact=exact, error=None)
+            bar.set_status(
+                match_count,
+                exact=exact,
+                error=None,
+                coverage_label=coverage_label,
+                lower_bound=lower_bound,
+            )
 
     def _scope_text(self) -> RenderableType:
         snapshot = self._current_snapshot()

@@ -83,7 +83,6 @@ class PatchQueryMixin:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ....query import to_canonical_string
         from ....query_history import (
             QueryHistoryStacks,
             push_to_prev_stack,
@@ -107,7 +106,9 @@ class PatchQueryMixin:
 
         try:
             new_parsed = self._parse_patch_query(record.source)  # type: ignore[attr-defined]
-            new_canonical = to_canonical_string(new_parsed)
+            new_canonical = self._canonical_patch_query(  # type: ignore[attr-defined]
+                record.source, new_parsed
+            )
 
             # Only push to history if query actually changes
             current_canonical = self.canonical_query_string  # type: ignore[attr-defined]

@@ -74,7 +74,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert calls[0]["force_fetch"] is False
         assert calls[0]["include_sidecars"] is False
         assert calls[0]["filter_spec"].since is not None
-        assert calls[0]["limit"] == 0
+        assert calls[0]["limit"] == 100
 
         await page.press("j")
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)
@@ -86,12 +86,12 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert bar.display is True
         assert editor.read_only is True
-        assert editor.text == "sidecar:false merges:hide since:24h"
+        assert editor.text == "sidecar:false merges:hide since:24h limit:100"
         baseline_calls = len(calls)
         await page.press("slash")
         await page.wait_for(lambda _state: page.app.focused is editor)
         assert editor.read_only is False
-        assert editor.text == "sidecar:false merges:hide since:24h"
+        assert editor.text == "sidecar:false merges:hide since:24h limit:100"
         assert page.app.focused is editor
 
         await page.press("ctrl+u", "f", "i", "x")
@@ -339,7 +339,7 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
                 and calls[-1]["filter_spec"].merges == "show"
             )
         )
-        assert editor.text == "sidecar:false merges:show since:24h"
+        assert editor.text == "sidecar:false merges:show since:24h limit:100"
 
         await page.press("z")
         await page.wait_for(
@@ -348,8 +348,8 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
                 and calls[-1]["filter_spec"].merges == "only"
             )
         )
-        assert editor.text == "sidecar:false merges:only since:24h"
+        assert editor.text == "sidecar:false merges:only since:24h limit:100"
 
         await page.press("z")
         await page.wait_for(lambda _state: pane.filters.merges == "hide")
-        assert editor.text == "sidecar:false merges:hide since:24h"
+        assert editor.text == "sidecar:false merges:hide since:24h limit:100"

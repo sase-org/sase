@@ -74,7 +74,10 @@ class PlansFilterSessionMixin(_MixinBase):
         def focus_list(self) -> None: ...
 
     def _init_plans_filter_session(self) -> None:
-        self.filters = PlanFilterValues()
+        from sase.ace.config import get_ace_page_size
+        from sase.ace.query.limit_token import ensure_limit
+
+        self.filters = parse_plan_filter_query(ensure_limit("", get_ace_page_size()))
         self._filter_index = None
         self._filter_index_snapshot = None
         self._filter_session_open = False

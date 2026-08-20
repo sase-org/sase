@@ -212,6 +212,7 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
                     "name",
                     "sibling",
                     "origin",
+                    "limit",
                 ):
                     # Property key
                     tokens.append((word + ":", "property_key"))

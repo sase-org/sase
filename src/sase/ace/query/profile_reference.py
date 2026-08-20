@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from sase.ace.query.limit_token import LimitTokenError, extract_limit
 from sase.ace.query.profile_evaluator import (
     ArtifactQueryEvaluationContext,
     ArtifactQueryRow,
@@ -27,11 +28,16 @@ from sase.ace.query_profile import CompiledQueryProfile
 
 
 def parse_query_for_profile(query: str, profile: CompiledQueryProfile) -> QueryExpr:
-    """Parse *query* using the syntax declared by *profile*."""
+    """Parse *query* using the syntax declared by *profile*.
 
+    Host-owned ``limit:`` is stripped before dialect parse so it is never a
+    row-matching :class:`~sase.ace.query.types.PropertyMatch`.
+    """
+
+    remainder = _membership_query(query)
     if profile.boolean:
-        return parse_boolean_query(query, profile)
-    return parse_flat_query(query, profile)
+        return parse_boolean_query(remainder, profile)
+    return parse_flat_query(remainder, profile)
 
 
 def evaluate_query_many_for_profile(
@@ -47,11 +53,26 @@ def evaluate_query_many_for_profile(
 
 
 def canonical_query_for_profile(query: str, profile: CompiledQueryProfile) -> str:
-    """Return the canonical query for *profile*'s declared syntax."""
+    """Return the canonical query for *profile*'s declared syntax.
 
+    Host-owned ``limit:`` is omitted: it is a presentation cap, not a
+    row-membership field, so cache keys and Rust programs see the remainder.
+    """
+
+    remainder = _membership_query(query)
+    if not remainder.strip():
+        return ""
     if profile.boolean:
-        return to_canonical_string(parse_query_for_profile(query, profile))
-    return canonical_flat_query(query, profile)
+        return to_canonical_string(parse_query_for_profile(remainder, profile))
+    return canonical_flat_query(remainder, profile)
+
+
+def _membership_query(query: str) -> str:
+    try:
+        remainder, _cap = extract_limit(query)
+    except LimitTokenError as exc:
+        raise ProfileQueryError(exc.message, exc.start) from exc
+    return remainder
 
 
 __all__ = [

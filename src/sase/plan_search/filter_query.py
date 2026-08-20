@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from sase.ace.query.limit_token import extract_limit_as, limit_query_token
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -33,6 +34,7 @@ PlanCompletionKind = Literal[
     "project",
     "since",
     "until",
+    "limit",
     "text",
 ]
 
@@ -59,6 +61,7 @@ class PlanFilterValues:
     until: int | None = None
     text: tuple[str, ...] = ()
     excluded_text: tuple[str, ...] = ()
+    limit: int | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -93,13 +96,14 @@ def parse_plan_filter_query(
     now: datetime | None = None,
 ) -> PlanFilterValues:
     """Parse a plans-filter query into validated filter values."""
+    remainder, cap = extract_limit_as(text, PlanFilterQueryError)
     repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     excluded_repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     singles: dict[str, tuple[str, FilterToken]] = {}
     text_terms: list[str] = []
     excluded_text_terms: list[str] = []
 
-    for token in tokenize(text, error_type=PlanFilterQueryError):
+    for token in tokenize(remainder, error_type=PlanFilterQueryError):
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
             value = token.body
@@ -168,6 +172,7 @@ def parse_plan_filter_query(
         until=until,
         text=tuple(text_terms),
         excluded_text=tuple(excluded_text_terms),
+        limit=cap,
     )
 
 
@@ -188,6 +193,8 @@ def to_query_tokens(values: PlanFilterValues) -> tuple[str, ...]:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
+    if token := limit_query_token(values.limit):
+        tokens.append(token)
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
     tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
@@ -206,7 +213,7 @@ def plan_completion_context(
     kind, prefix, negated = completion_context(
         text,
         cursor,
-        keys=_FILTER_KEYS,
+        keys=(*_FILTER_KEYS, "limit"),
         repeatable_keys=_REPEATABLE_KEYS,
         negatable_keys=_NEGATABLE_KEYS,
     )

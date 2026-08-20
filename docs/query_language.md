@@ -5,6 +5,19 @@ matching, property filters, and operational shorthands. It is used by the Patche
 sub-tab in `sase ace [query]` and by other Patch filters such as
 `sase axe start --query`.
 
+## Host-owned `limit:` cap
+
+Every Artifacts pane — Patches, Stitches, Beads, Files, and every document-provider pane
+— accepts `limit:N` / `limit:all` as a **host-owned presentation cap**, not a
+row-matching field. ACE extracts the token before dialect parse and Rust evaluation,
+matches rows against the remainder, then slices the visible list. Completions offer
+`40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>` (default 100)
+into each pane's default query when no `limit:` is present. An explicit token is left
+alone; deleting it leaves that pane uncapped. `limit:all` and Stitches `limit:0` mean
+unlimited. The token cannot be negated and may appear only once. Do not add `limit` as a
+filterable profile field on Beads, Plans, Files, Patches, or provider dialects; Stitches
+already treats it as a cap and strips it before row eval.
+
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
 history or old artifacts opt into all project lifecycle states explicitly.

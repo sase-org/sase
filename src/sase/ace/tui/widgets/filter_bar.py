@@ -15,6 +15,12 @@ from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static, TextArea
 
+from sase.ace.query.limit_token import (
+    HOST_LIMIT_HINT,
+    HOST_LIMIT_KEY,
+    HOST_LIMIT_VALUE_HINT,
+    HOST_LIMIT_VALUES,
+)
 from sase.ace.query.profile_highlighting import highlight_query
 from sase.ace.query_profile import CompiledQueryProfile
 from sase.ace.tui.widgets._filter_bar_completion import (
@@ -110,6 +116,8 @@ class FilterBar(FilterBarCompletionMixin, Static):
         self._profile = profile
         if profile is not None:
             self._configure_from_profile(profile)
+        else:
+            self._inject_host_limit_completions()
         self._completion_sources: dict[str, tuple[str, ...]] = {}
         self._completion_candidates: list[CompletionCandidate] = []
         self._completion_visible = False
@@ -146,6 +154,23 @@ class FilterBar(FilterBarCompletionMixin, Static):
         self.REPEATABLE_VALUE_KINDS = frozenset(profile.repeatable_fields())
         self.NEGATABLE_KEYS = frozenset(profile.negatable_fields())
         self.FREE_TEXT_HINT = profile.free_text_hint
+        self._inject_host_limit_completions()
+
+    def _inject_host_limit_completions(self) -> None:
+        """Expose the host-owned ``limit:`` cap on every Artifacts filter bar."""
+
+        if not any(key == HOST_LIMIT_KEY for key, _hint in self.KEY_COMPLETIONS):
+            items = [*(self.KEY_COMPLETIONS), (HOST_LIMIT_KEY, HOST_LIMIT_HINT)]
+            items.sort(key=lambda item: item[0])
+            self.KEY_COMPLETIONS = tuple(items)
+        static = dict(self.STATIC_VALUE_COMPLETIONS)
+        if not static.get(HOST_LIMIT_KEY):
+            static[HOST_LIMIT_KEY] = HOST_LIMIT_VALUES
+            self.STATIC_VALUE_COMPLETIONS = static
+        hints = dict(self.VALUE_HINTS)
+        if HOST_LIMIT_KEY not in hints:
+            hints[HOST_LIMIT_KEY] = HOST_LIMIT_VALUE_HINT
+            self.VALUE_HINTS = hints
 
     def compose(self) -> ComposeResult:
         """Compose the command line and its screen-overlay completion menu."""

@@ -140,6 +140,16 @@ async def test_unlimited_commits_status_follows_backend_coverage_without_a_query
     expected_count: int,
     capped: bool,
 ) -> None:
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "stitches": {"default_query": "sidecar:false since:24h limit:all"}
+                }
+            }
+        },
+    )
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 

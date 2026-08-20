@@ -37,12 +37,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
+from sase.ace.query.limit_token import LimitTokenError, extract_limit
 from sase.ace.query.profile_evaluator import (
     ArtifactQueryRow,
     ArtifactQueryRowInput,
     coerce_artifact_query_rows,
 )
 from sase.ace.query.profile_reference import canonical_query_for_profile
+from sase.ace.query.profile_reference_support import ProfileQueryError
 from sase.ace.query.types import QueryExpr
 from sase.ace.query_profile import CompiledQueryProfile
 from sase.core.query_wire_conversion import (
@@ -148,11 +150,28 @@ def evaluate_artifact_query_many(
     """
 
     index.validate()
+    try:
+        remainder, _cap = extract_limit(query)
+    except LimitTokenError as exc:
+        raise ProfileQueryError(exc.message, exc.start) from exc
+    if not remainder.strip():
+        return ArtifactQueryResult(
+            cache_key=index.cache_key(""),
+            matched_row_ids=index.row_ids,
+            matched_mask=tuple(True for _ in index.row_ids),
+        )
     resolved_canonical = (
         canonical_query
         if canonical_query is not None
-        else canonical_query_for_profile(query, index.profile)
+        else canonical_query_for_profile(remainder, index.profile)
     )
+    if resolved_canonical:
+        try:
+            resolved_canonical, _ = extract_limit(resolved_canonical)
+        except LimitTokenError as exc:
+            raise ProfileQueryError(exc.message, exc.start) from exc
+    if not resolved_canonical.strip():
+        resolved_canonical = canonical_query_for_profile(remainder, index.profile)
     compile_query = require_rust_binding("compile_query_with_profile")
     evaluate_many = require_rust_binding("evaluate_many")
     program = compile_query(resolved_canonical, index.profile.to_wire())

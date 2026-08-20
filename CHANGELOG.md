@@ -10,6 +10,7 @@
 
 ### Features
 
+* **ace:** accept host-owned `limit:N` on every Artifacts pane and inject it into each default query
 * **ace-tui:** add shared list-marker model and ordered renumber engine ([cb1007e](https://github.com/sase-org/sase/commit/cb1007e0900c4be02fe4b94d966ccbec164a503d))
 * **ace-tui:** drop and renumber ordered markers on NORMAL-mode J ([ecce0c3](https://github.com/sase-org/sase/commit/ecce0c3888b8381dce9fb0881a2927090d05b2e0))
 * **ace-tui:** give each notification exactly one tab, counted in the core ([5e6a94a](https://github.com/sase-org/sase/commit/5e6a94a3890d192dca6091d2165783381c8348e3))

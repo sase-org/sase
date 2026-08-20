@@ -285,15 +285,16 @@ other committed token; its **All projects** choice removes it. The compatibility
 action removes an active project token and restores the last automatic or picked project
 on the next press.
 
-The bundled initial query is `sidecar:false merges:hide since:24h`; it is configurable
-with `ace.artifacts.stitches.default_query` (`ace.artifacts.commits.default_query` is a
-deprecated alias), and changes take effect the next time ACE starts. An explicit
-`project:` in the ACE query or in the configured default query wins over the
-current-project seed. An empty parsed query includes sidecar repositories; at ACE
-startup the async Artifacts seed can add a visible project token. Canonical rendering
-always includes either `sidecar:true` or `sidecar:false`, and the configured `d` action
-rewrites that same visible token. Selecting a sidecar with `repo:` therefore requires
-`sidecar:true`. For example,
+The bundled initial query is `sidecar:false merges:hide since:24h`; ACE injects
+`limit:<ace.page_size>` (default `limit:100`) when that string has no `limit:` token. It
+is configurable with `ace.artifacts.stitches.default_query`
+(`ace.artifacts.commits.default_query` is a deprecated alias), and changes take effect
+the next time ACE starts. An explicit `project:` in the ACE query or in the configured
+default query wins over the current-project seed. An empty parsed query includes sidecar
+repositories; at ACE startup the async Artifacts seed can add a visible project token.
+Canonical rendering always includes either `sidecar:true` or `sidecar:false`, and the
+configured `d` action rewrites that same visible token. Selecting a sidecar with `repo:`
+therefore requires `sidecar:true`. For example,
 `project:sase repo:sase author:Ada origin:stitch since:7d sidecar:false fix` shows
 recent tracked SASE commits by Ada whose subjects contain `fix`,
 `repo:plans sidecar:true` shows that sidecar across all projects, and `limit:40` caps a
@@ -313,30 +314,34 @@ commits, and `✎ manual` when the commit has no SASE provenance footer. The leg
 only the origins present in the displayed commits, so a result containing only tracked
 work shows only `✦ stitch`.
 
-Stitches queries are uncapped unless they include an explicit positive `limit:N`, so the
-bundled 24-hour query shows all matching commits. When an explicit limit may have
-omitted rows, the legend uses a lower-bound total such as `[1/40+]`, the filter row says
-`capped`, and `limit:40` remains visible in the persistent filter row and pane header.
-`limit:all` remains an accepted synonym for the unlimited state, but canonical query
-text omits it. Provider or aggregate truncation metadata can still mark a count as
-capped without inventing an active query limit.
+Every Artifacts pane accepts a host-owned `limit:N` token that caps how many matched
+rows the list shows. It is not a row property: ACE extracts it before dialect parse /
+Rust eval, matches against the remainder, then slices. Startup writes
+`limit:<ace.page_size>` into each pane's default query when no `limit:` is present; a
+user-authored `limit:40` or `limit:all` is left alone, and deleting the token leaves
+that pane uncapped. When the cap clips the result, the filter row says `capped` and
+Stitches uses a lower-bound total such as `[1/40+]`. `limit:all` (and Stitches
+`limit:0`) remains an accepted synonym for the unlimited state, but canonical query text
+omits it. Provider or aggregate truncation metadata can still mark a count as capped
+without inventing an active query limit.
 
-Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free
-text matched across plan-document metadata and content. `kind:` accepts `proposal`,
-`active`, `archive`, and the document-sidecar roles present in the current scope, such
-as `plans`, `research`, or `designs`. `kind:archive` matches committed documents that
-are not linked from a live bead, while `kind:designs` narrows documents to that sidecar.
+Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, `until:`, and `limit:`
+plus free text matched across plan-document metadata and content. `kind:` accepts
+`proposal`, `active`, `archive`, and the document-sidecar roles present in the current
+scope, such as `plans`, `research`, or `designs`. `kind:archive` matches committed
+documents that are not linked from a live bead, while `kind:designs` narrows documents
+to that sidecar.
 
 Beads accepts repeatable `type:`, `task_type:`, `tier:`, `status:`, `size:`, `project:`,
-`assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms.
-`task_type:` accepts catalog slugs plus `untyped` for legacy beads. Status values
-include the five stored states plus the derived `blocked`, `launched`, and `triage`
-states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:` matches
-issue state, reference, relation, or project, with completion for `none`, `open`,
-`closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:` matches cached
-provider labels. Free text also searches cached external issue title, body, URL, and
-labels alongside the bead id, title, description, notes, design, references, and
-ownership metadata.
+`assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms,
+plus host-owned `limit:`. `task_type:` accepts catalog slugs plus `untyped` for legacy
+beads. Status values include the five stored states plus the derived `blocked`,
+`launched`, and `triage` states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and
+`triage`. `bug:` matches issue state, reference, relation, or project, with completion
+for `none`, `open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:`
+matches cached provider labels. Free text also searches cached external issue title,
+body, URL, and labels alongside the bead id, title, description, notes, design,
+references, and ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
 subject text; Beads and Plans can exclude their filter facets and free text. Exclusion
@@ -358,8 +363,9 @@ status and ownership metadata, `✦` when a task has a pending TaskTriage decisi
 `▤` when the bead links a plan document. Linked issue chips use `○` for open, `●` for
 closed, and `?` for a stale issue absent from the complete cached listing; stale or
 drifted links are highlighted, and `+N` summarizes additional links. Closed beads are
-loaded but hidden by the visible `-status:closed` default; press `f` to edit or clear
-that query. Section headings report matched and total counts while a filter is active.
+loaded but hidden by the visible `-status:closed limit:<page_size>` default; press `f`
+to edit or clear that query. Section headings report matched and total counts while a
+filter is active.
 
 The pane supports the full bead workflow:
 
@@ -608,14 +614,14 @@ copies — only its `Source` path reports `missing`.
 `f` opens the same live filter row provider document panes use, visible only during an
 edit session, and `/` opens it too. Filtering is purely in-memory over the loaded
 snapshot, so a query narrows thousands of rows without a re-query. Files accepts
-`kind:`, `project:`, `agent:`, `workflow:`, `origin:`, `since:`, and `until:`, plus free
-text matched against the label, logical path, stored path, source path, digest, and
-artifact id. Tokens from different facets combine with AND semantics, while
-comma-separated or repeated values within `kind:`, `project:`, `agent:`, `workflow:`,
-and `origin:` combine with OR semantics. `kind:` accepts the stored kinds `chat`,
-`plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts `ref`, `created`, and
-`capture`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative
-`Nd` / `Nw` / `Nm` offset and may each appear once.
+`kind:`, `project:`, `agent:`, `workflow:`, `origin:`, `since:`, `until:`, and
+host-owned `limit:`, plus free text matched against the label, logical path, stored
+path, source path, digest, and artifact id. Tokens from different facets combine with
+AND semantics, while comma-separated or repeated values within `kind:`, `project:`,
+`agent:`, `workflow:`, and `origin:` combine with OR semantics. `kind:` accepts the
+stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts
+`ref`, `created`, and `capture`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`,
+`YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each appear once.
 
 Files-pane filters do not support negation; a leading `-` is rejected with an explicit
 error rather than excluding a match. `s` and the `kind:` token drive the same filter

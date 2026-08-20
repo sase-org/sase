@@ -67,6 +67,7 @@ def _classify_flat_query_tokens(
         return [(text, "term")] if text else []
 
     known_keys = {key.casefold() for key in profile.filterable_fields()}
+    known_keys.add("limit")
     sigil_map = {item.sigil: item.field for item in profile.sigils}
     macro_tokens = {f"{item.trigger}{item.letter}" for item in profile.macros}
 

@@ -100,7 +100,7 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
             "#commit-filter-input",
             SingleLineVimTextArea,
         )
-        assert editor.text == "project:ace-query sidecar:false merges:hide"
+        assert editor.text == "project:ace-query sidecar:false merges:hide limit:100"
         await page.wait_for(lambda _state: bool(calls))
 
         assert calls[0]["project_scope"] == "ace-query"
@@ -147,7 +147,7 @@ async def test_inferred_project_scopes_stitches_after_async_inventory(
         )
         await page.wait_for(lambda _state: pane.filters.project == "cwd-project")
         assert editor.text == (
-            "project:cwd-project sidecar:false merges:hide since:24h"
+            "project:cwd-project sidecar:false merges:hide since:24h limit:100"
         )
         await page.wait_for(
             lambda _state: any(call["project_scope"] == "cwd-project" for call in calls)

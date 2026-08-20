@@ -60,6 +60,7 @@ class BeadFilterBar(FilterBar):
         ("label", "provider issue label"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
+        ("limit", "row cap; all removes it"),
     )
     STATIC_VALUE_COMPLETIONS = {
         "type": BEAD_FILTER_TYPE_VALUES,
@@ -71,6 +72,7 @@ class BeadFilterBar(FilterBar):
         "bug": ("none", "open", "closed", "stale", "drift", "mirrored", "referenced"),
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
+        "limit": ("40", "100", "200", "all"),
     }
     VALUE_HINTS = {
         "type": "bead type",
@@ -88,6 +90,7 @@ class BeadFilterBar(FilterBar):
         "label": "issue label",
         "since": "date bound",
         "until": "date bound",
+        "limit": "row cap or all",
     }
     REPEATABLE_VALUE_KINDS = frozenset(
         (

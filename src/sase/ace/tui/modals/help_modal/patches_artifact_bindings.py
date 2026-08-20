@@ -80,6 +80,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("@@@ / !@", "Has / lacks running agents"),
                 ("$$$ / !$ / *", "Process state / any special state"),
                 ("#N QUERY / #N", "Save / delete slot N"),
+                ("limit:N / limit:all", "Host cap; omitted/all unlimited"),
                 ("Enter / Esc", "Commit / restore query and selection"),
                 *artifact_list_navigation,
             ],
@@ -107,7 +108,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("sidecar:true / false", "Include / exclude sidecars"),
                 ("merges:hide / show / only", "Merge-commit visibility"),
                 ("origin:stitch/auto/manual", "Commit origin"),
-                ("limit:N / limit:all", "N caps; omitted/all unlimited"),
+                ("limit:N / limit:all", "Host cap; default page size; all unlimited"),
                 (
                     "[P/N] / [P/N+]",
                     "Selected position / matched total; + is a lower bound",
@@ -147,6 +148,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     "Filter people or runtime",
                 ),
                 ("since: / until: / bare text", "Filter recency or words"),
+                ("limit:N / limit:all", "Host cap; default page size; all unlimited"),
                 (
                     f"{d(a.beads_expand)} / {d(a.beads_collapse)}",
                     "Expand / collapse epic",
@@ -183,6 +185,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.files_open_external), "Open externally"),
                 (d(a.files_open_agent), "Open producing agent"),
                 (d(a.files_filters), "Open artifact-file filters"),
+                ("limit:N / limit:all", "Host cap; default page size; all unlimited"),
                 (d(a.files_cycle_kind), "Cycle file kind"),
                 (d(a.artifacts_copy_reference), "Copy @file: reference"),
                 (d(a.files_copy_path), "Copy stored path"),
@@ -238,6 +241,10 @@ def _document_contract_sections(
                         "Filter project or creation date",
                     ),
                     ("bare text", "Title/body/id/metadata (AND)"),
+                    (
+                        "limit:N / limit:all",
+                        "Host cap; default page size; all unlimited",
+                    ),
                 )
             )
         if contract.has(PaneCapability.PLAN_APPROVE) and action_applies_to_contract(

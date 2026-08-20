@@ -8,6 +8,8 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace import saved_queries
+from sase.ace.config import get_ace_page_size
+from sase.ace.query.limit_token import ensure_limit
 from sase.ace.query.completion import patch_completion_context
 from sase.ace.query_history import QueryHistoryStacks
 from sase.ace.query_record import QueryRecord
@@ -15,6 +17,10 @@ from sase.ace.testing import AcePage, make_patch
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts.panes import ArtifactsPatchesPane
 from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
+
+
+def _capped(query: str) -> str:
+    return ensure_limit(query, get_ace_page_size())
 
 
 @pytest.fixture
@@ -172,7 +178,7 @@ async def test_patch_filter_live_typing_rolls_back_without_persistence(
 
         await _set_live_query(page, bar, '"feature_b"')
 
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
         assert page.app._query_history["patches"].prev == []
         assert not (isolated_query_persistence / "last_query.txt").exists()
         assert [patch.name for patch in page.app.patches] == ["feature_b"]
@@ -184,7 +190,7 @@ async def test_patch_filter_live_typing_rolls_back_without_persistence(
             )
         )
 
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
         assert page.app.current_idx == 0
         assert page.app.patches[0].name == "feature_a"
         assert page.app._query_history["patches"].prev == []
@@ -209,7 +215,7 @@ async def test_patch_filter_submit_commits_history_and_last_query(
         assert not bar._editing  # type: ignore[attr-defined]
         assert [patch.name for patch in page.app.patches] == ["feature_b"]
         assert page.app._query_history["patches"].prev == [
-            QueryRecord(source='"feature"', canonical='"feature"')
+            QueryRecord(source=_capped('"feature"'), canonical=_capped('"feature"'))
         ]
         assert (isolated_query_persistence / "last_query.txt").read_text() == (
             '"feature_b"'
@@ -231,7 +237,7 @@ async def test_patch_filter_parse_error_leaves_visible_list_unchanged() -> None:
         assert status.has_class("error")
         assert status.content.plain
         assert [patch.name for patch in page.app.patches] == baseline
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
 
 
 async def test_patch_filter_save_slot_grammar_keeps_active_query(
@@ -250,7 +256,7 @@ async def test_patch_filter_save_slot_grammar_keeps_active_query(
             lambda _state: "3" in saved_queries.load_saved_queries("patches")
         )
 
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
         assert bar._editing  # type: ignore[attr-defined]
         saved = saved_queries.load_saved_queries("patches")["3"]
         assert saved.source == "status:DRAFT"
@@ -262,7 +268,7 @@ async def test_patch_filter_save_slot_grammar_keeps_active_query(
             lambda _state: "3" not in saved_queries.load_saved_queries("patches")
         )
 
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
         assert bar._editing  # type: ignore[attr-defined]
 
 

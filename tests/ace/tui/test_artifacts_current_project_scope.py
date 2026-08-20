@@ -8,6 +8,8 @@ from typing import Any
 
 import pytest
 
+from sase.ace.config import get_ace_page_size
+from sase.ace.query.limit_token import ensure_limit
 from sase.ace.query.project_scope import has_project_scope
 from sase.ace.saved_queries import load_last_query
 from sase.ace.testing import AcePage, make_patch
@@ -36,6 +38,10 @@ from sase.project_display_names import (
 from sase.vcs_log.models import VcsLogResult
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from tests._project_display_case import ProjectDisplayCase
+
+
+def _capped(query: str) -> str:
+    return ensure_limit(query, get_ace_page_size())
 
 
 @pytest.fixture(autouse=True)
@@ -245,7 +251,7 @@ async def test_seeded_scope_reaches_stitches_beads_files_and_plans(
         assert page.app.query_one(ArtifactsFilesPane).project_scope == "alpha"
         for pane in page.app.query(ArtifactsDocumentsPane):
             assert pane.project_scope == "alpha"
-        assert page.app.query_string == '"feature" AND project:Alpha'
+        assert page.app.query_string == _capped('"feature"') + " AND project:Alpha"
         assert "project:alpha" not in page.app.query_string
 
 
@@ -270,7 +276,7 @@ async def test_seed_filters_false_keeps_today_s_unscoped_multi_project_behavior(
         assert page.app._current_project_settings.seed_filters is False
         assert page.app.artifacts_project_scope is None
         assert page.app.query_one(CommitsPane).filters.project is None
-        assert page.app.query_string == '"feature"'
+        assert page.app.query_string == _capped('"feature"')
 
 
 async def test_explicit_query_term_wins_over_current_project(
@@ -289,7 +295,7 @@ async def test_explicit_query_term_wins_over_current_project(
         )
         assert page.app.artifacts_project_scope == "beta"
         assert page.app.query_one(CommitsPane).filters.project == "beta"
-        assert page.app.query_string == "project:beta"
+        assert page.app.query_string == _capped("project:beta")
 
 
 async def test_mid_session_current_project_change_does_not_re_scope(
@@ -372,11 +378,13 @@ async def test_first_open_seeds_patches_query_with_display_label(
     ) as page:
         await _wait_for_choices(page, choices)
         await page.wait_for(
-            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+            lambda _state: (
+                page.app.query_string == _capped('"needle"') + " AND project:Alpha"
+            )
         )
 
         assert page.app.artifacts_project_scope == "alpha"
-        assert page.app.query_string == '"needle" AND project:Alpha'
+        assert page.app.query_string == _capped('"needle"') + " AND project:Alpha"
         assert [patch.name for patch in page.app.patches] == ["needle_alpha"]
 
 
@@ -396,7 +404,7 @@ async def test_not_project_term_is_not_inverted_by_seed(
             lambda _state: page.app._patch_query_scope_seed_attempted is True
         )
 
-        assert page.app.query_string == query
+        assert page.app.query_string == _capped(query)
         assert "NOT project:Alpha" not in page.app.query_string
 
 
@@ -417,7 +425,7 @@ async def test_nested_project_term_is_left_byte_identical_without_toast(
             lambda _state: page.app._patch_query_scope_seed_attempted is True
         )
 
-        assert page.app.query_string == query
+        assert page.app.query_string == _capped(query)
         assert not any("grouped expression" in message for message in seen)
 
 
@@ -437,21 +445,25 @@ async def test_startup_save_persists_pre_seed_query(
     async with AcePage(query=starting, initial_tab="patches") as page:
         await _wait_for_choices(page, choices)
         await page.wait_for(
-            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+            lambda _state: (
+                page.app.query_string == _capped('"needle"') + " AND project:Alpha"
+            )
         )
         page.app._save_startup_query()
 
         persisted = last_query.read_text()
-        assert persisted == starting
-        assert load_last_query() == starting
+        assert persisted == _capped(starting)
+        assert load_last_query() == _capped(starting)
         assert "project:" not in persisted
 
     async with AcePage(query=starting, initial_tab="patches") as page:
         await _wait_for_choices(page, choices)
         await page.wait_for(
-            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+            lambda _state: (
+                page.app.query_string == _capped('"needle"') + " AND project:Alpha"
+            )
         )
-        assert page.app.query_string == '"needle" AND project:Alpha'
+        assert page.app.query_string == _capped('"needle"') + " AND project:Alpha"
 
 
 async def test_user_commit_after_seed_persists_committed_query(
@@ -469,7 +481,9 @@ async def test_user_commit_after_seed_persists_committed_query(
     async with AcePage(query='"needle"', initial_tab="patches") as page:
         await _wait_for_choices(page, choices)
         await page.wait_for(
-            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+            lambda _state: (
+                page.app.query_string == _capped('"needle"') + " AND project:Alpha"
+            )
         )
         seeded = page.app.query_string
         assert page.app._patch_query_scope_seed_baseline is not None
@@ -497,7 +511,9 @@ async def test_cross_pane_pick_rewrites_patches_query_without_toast(
     async with AcePage(query='"needle"', initial_tab="patches") as page:
         await _wait_for_choices(page, choices)
         await page.wait_for(
-            lambda _state: page.app.query_string == '"needle" AND project:Alpha'
+            lambda _state: (
+                page.app.query_string == _capped('"needle"') + " AND project:Alpha"
+            )
         )
         await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
@@ -506,7 +522,7 @@ async def test_cross_pane_pick_rewrites_patches_query_without_toast(
         await _pick_inventory_row(page, 2)
         await page.wait_for(lambda _state: page.app.artifacts_project_scope == "beta")
 
-        assert page.app.query_string == '"needle" AND project:Beta'
+        assert page.app.query_string == _capped('"needle"') + " AND project:Beta"
         assert page.app.artifacts_project_scope == "beta"
         assert "Query updated" not in seen
 
@@ -529,7 +545,7 @@ async def test_live_filter_session_suppresses_seed_and_consumes_attempt(
             lambda _state: page.app._patch_query_scope_seed_attempted is True
         )
 
-        assert page.app.query_string == '"needle"'
+        assert page.app.query_string == _capped('"needle"')
         assert page.app._patch_query_scope_seed_attempted is True
 
         page.app._live_patch_query = None
@@ -537,7 +553,7 @@ async def test_live_filter_session_suppresses_seed_and_consumes_attempt(
         page.app._ensure_artifacts_project_choices()
         await _wait_for_choices(page, choices)
 
-        assert page.app.query_string == '"needle"'
+        assert page.app.query_string == _capped('"needle"')
 
 
 async def test_patches_pane_sync_triggers_project_inventory(

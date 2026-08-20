@@ -66,7 +66,9 @@ def test_valid_custom_commits_query_is_parsed_once_for_startup() -> None:
         {"artifacts": {"commits": {"default_query": "repo:sase sidecar:true"}}}
     )
 
-    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert to_query_string(resolved.values) == (
+        "repo:sase sidecar:true merges:hide limit:100"
+    )
     assert resolved.diagnostic is None
 
 
@@ -75,7 +77,9 @@ def test_valid_custom_stitches_query_is_parsed_once_for_startup() -> None:
         {"artifacts": {"stitches": {"default_query": "repo:sase sidecar:true"}}}
     )
 
-    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert to_query_string(resolved.values) == (
+        "repo:sase sidecar:true merges:hide limit:100"
+    )
     assert resolved.diagnostic is None
 
 
@@ -87,7 +91,9 @@ def test_legacy_commits_key_falls_back_with_deprecation_warning(
             {"artifacts": {"commits": {"default_query": "repo:sase sidecar:true"}}}
         )
 
-    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert to_query_string(resolved.values) == (
+        "repo:sase sidecar:true merges:hide limit:100"
+    )
     assert "ace.artifacts.commits is deprecated" in caplog.text
 
 
@@ -104,7 +110,9 @@ def test_stitches_key_wins_when_both_configured(
             }
         )
 
-    assert to_query_string(resolved.values) == "repo:sase sidecar:true merges:hide"
+    assert to_query_string(resolved.values) == (
+        "repo:sase sidecar:true merges:hide limit:100"
+    )
     assert "ace.artifacts.commits is deprecated and ignored" in caplog.text
 
 
@@ -114,7 +122,9 @@ def test_invalid_runtime_query_falls_back_with_diagnostic(value: object) -> None
         {"artifacts": {"commits": {"default_query": value}}}
     )
 
-    assert resolved.values == parse_commit_filter_query(BUNDLED_COMMITS_DEFAULT_QUERY)
+    assert resolved.values == parse_commit_filter_query(
+        f"{BUNDLED_COMMITS_DEFAULT_QUERY} limit:100"
+    )
     assert resolved.diagnostic is not None
     assert "using bundled commits query" in resolved.diagnostic
 
@@ -122,8 +132,20 @@ def test_invalid_runtime_query_falls_back_with_diagnostic(value: object) -> None
 def test_missing_runtime_query_uses_bundled_value_without_warning() -> None:
     resolved = resolve_commits_default_query({})
 
-    assert to_query_string(resolved.values) == BUNDLED_COMMITS_DEFAULT_QUERY
-    assert resolved.values.limit == 0
+    assert to_query_string(resolved.values) == (
+        f"{BUNDLED_COMMITS_DEFAULT_QUERY} limit:100"
+    )
+    assert resolved.values.limit == 100
+    assert resolved.diagnostic is None
+
+
+def test_configured_explicit_limit_is_left_alone() -> None:
+    resolved = resolve_commits_default_query(
+        {"artifacts": {"stitches": {"default_query": "sidecar:false limit:40"}}}
+    )
+
+    assert resolved.values.limit == 40
+    assert "limit:40" in to_query_string(resolved.values)
     assert resolved.diagnostic is None
 
 
@@ -226,7 +248,7 @@ async def test_known_startup_project_is_displayed_before_first_collection(
         editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
         assert (
             editor.text
-            == f"project:{project_display_case.project_label} sidecar:false merges:hide"
+            == f"project:{project_display_case.project_label} sidecar:false merges:hide limit:100"
         )
         await page.wait_for(lambda _state: bool(collection_calls))
 
@@ -292,7 +314,7 @@ async def test_inferred_current_project_scopes_stitches_after_async_inventory(
         )
         assert (
             editor.text
-            == f"project:{project_display_case.project_label} sidecar:false merges:hide"
+            == f"project:{project_display_case.project_label} sidecar:false merges:hide limit:100"
         )
         await page.wait_for(
             lambda _state: any(

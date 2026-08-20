@@ -206,7 +206,7 @@ class FilterBarCompletionMixin(_MixinBase):
         if not values:
             return []
         hint = self.VALUE_HINTS.get(kind, "")
-        return [
+        candidates = [
             _candidate(
                 display=value,
                 insertion=value,
@@ -222,6 +222,9 @@ class FilterBarCompletionMixin(_MixinBase):
             for value in values
             if value.casefold().startswith(folded_prefix)
         ]
+        if len(candidates) == 1 and candidates[0].name.casefold() == folded_prefix:
+            return []
+        return candidates
 
     def _completion_context(
         self,
@@ -239,10 +242,13 @@ class FilterBarCompletionMixin(_MixinBase):
         """
         if self._profile is None:
             raise NotImplementedError
+        keys = self._profile.filterable_fields()
+        if "limit" not in keys:
+            keys = (*keys, "limit")
         return _token_completion_context(
             text,
             cursor,
-            keys=self._profile.filterable_fields(),
+            keys=keys,
             repeatable_keys=self._profile.repeatable_fields(),
             negatable_keys=self._profile.negatable_fields(),
         )

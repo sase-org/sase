@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from ....patch import Patch
 from ....query import QueryParseError, parse_query_for_profile, to_canonical_string
+from ....query.limit_token import LimitTokenError, extract_limit, replace_limit
+from ....query.types import StringMatch
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
@@ -44,7 +46,23 @@ class PatchFilterSessionActionsMixin:
 
     def _parse_patch_query(self, source: str) -> QueryExpr:
         profile = self._patch_profile()  # type: ignore[attr-defined]
-        return parse_query_for_profile(source, profile)
+        try:
+            remainder, _cap = extract_limit(source)
+        except LimitTokenError as exc:
+            raise QueryParseError(exc.message, exc.start) from exc
+        if not remainder.strip():
+            return StringMatch("")
+        return parse_query_for_profile(remainder, profile)
+
+    def _canonical_patch_query(self, source: str, parsed: QueryExpr) -> str:
+        try:
+            remainder, cap = extract_limit(source)
+        except LimitTokenError:
+            remainder, cap = source, None
+        body = to_canonical_string(parsed) if remainder.strip() else ""
+        if cap is None:
+            return body
+        return replace_limit(body, cap)
 
     def _display_patch_query(self) -> str:
         live = getattr(self, "_live_patch_query", None)
@@ -84,7 +102,7 @@ class PatchFilterSessionActionsMixin:
         from ....query_record import QueryRecord
 
         new_parsed = self._parse_patch_query(source)
-        new_canonical = to_canonical_string(new_parsed)
+        new_canonical = self._canonical_patch_query(source, new_parsed)
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
         self._live_patch_query = None
         if new_canonical == current_canonical:
@@ -144,7 +162,7 @@ class PatchFilterSessionActionsMixin:
 
         try:
             parsed = self._parse_patch_query(query_part)
-            canonical = to_canonical_string(parsed)
+            canonical = self._canonical_patch_query(query_part, parsed)
         except (QueryParseError, ValueError) as exc:
             self.notify(f"Invalid query: {exc}", severity="error")  # type: ignore[attr-defined]
             return

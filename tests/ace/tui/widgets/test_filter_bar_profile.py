@@ -36,6 +36,8 @@ def test_configure_from_profile_derives_dialect_without_class_declarations() -> 
     bar = FilterBar(profile=_BEADS_PROFILE)
     assert dict(bar.KEY_COMPLETIONS)["type"] == ", ".join(BEAD_FILTER_TYPE_VALUES)
     assert "id" not in dict(bar.KEY_COMPLETIONS)  # search-only field: not filterable
+    assert dict(bar.KEY_COMPLETIONS)["limit"] == "row cap; all removes it"
+    assert bar.STATIC_VALUE_COMPLETIONS["limit"] == ("40", "100", "200", "all")
     assert set(bar.STATIC_VALUE_COMPLETIONS["type"]) == set(BEAD_FILTER_TYPE_VALUES)
     assert "assignee" not in bar.STATIC_VALUE_COMPLETIONS  # plain string field
     assert bar.NEGATABLE_KEYS == frozenset(_BEADS_PROFILE.negatable_fields())

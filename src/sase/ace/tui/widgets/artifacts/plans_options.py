@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.query.limit_token import apply_limit
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plan_search.filter_query import PlanFilterQueryError, PlanFilterValues
@@ -198,8 +199,13 @@ class PlansOptionsMixin(_MixinBase):
         match_count: int | None = None
         matched_ids: frozenset[str] = frozenset()
         pending_query = False
+        limit_truncated = False
         filter_index = self._ensure_filter_index(
-            needed=self._filter_session_open or not values.is_empty
+            needed=(
+                self._filter_session_open
+                or not values.is_empty
+                or values.limit is not None
+            )
         )
         if filter_index is not None:
             query_index = self._query_index
@@ -214,9 +220,16 @@ class PlansOptionsMixin(_MixinBase):
                 matching_records = tuple(
                     record for record in filter_index if record.option_id in matched_ids
                 )
+                matching_records, limit_truncated = apply_limit(
+                    matching_records, values.limit
+                )
+                matched_ids = frozenset(record.option_id for record in matching_records)
                 match_count = len(matching_records)
             elif values.is_empty:
                 matching_records = tuple(filter_index)
+                matching_records, limit_truncated = apply_limit(
+                    matching_records, values.limit
+                )
                 matched_ids = frozenset(record.option_id for record in matching_records)
                 match_count = len(matching_records)
             else:
@@ -259,6 +272,11 @@ class PlansOptionsMixin(_MixinBase):
                     preview_archive,
                     deep_archive,
                 )
+                if values.limit is not None:
+                    remaining = max(0, values.limit - len(non_archive_records))
+                    if len(archive_entries) > remaining:
+                        archive_entries = archive_entries[:remaining]
+                        limit_truncated = True
                 match_count = len(non_archive_records) + len(archive_entries)
                 self._display_archive_total = max(
                     deep_result.scanned_count,
@@ -372,11 +390,19 @@ class PlansOptionsMixin(_MixinBase):
         self._update_status()
         self._update_static("#plans-info", self._scope_text())
         exact, coverage_label = self._filter_coverage(values)
+        if limit_truncated:
+            exact = False
+            coverage_label = "capped"
         self._sync_query_bar(
             match_count,
             exact=exact and match_count is not None,
             coverage_label=coverage_label,
-            blank=not self._filter_session_open and values.is_empty,
+            blank=(
+                not self._filter_session_open
+                and values.is_empty
+                and values.limit is None
+            ),
+            lower_bound=limit_truncated,
         )
         if update_detail:
             if self._detail_debouncer is None or (
@@ -394,6 +420,7 @@ class PlansOptionsMixin(_MixinBase):
         exact: bool,
         coverage_label: str | None = None,
         blank: bool = False,
+        lower_bound: bool = False,
     ) -> None:
         """Keep the persistent Plans bar's text and status lane truthful.
 
@@ -417,6 +444,7 @@ class PlansOptionsMixin(_MixinBase):
                 exact=exact,
                 error=None,
                 coverage_label=coverage_label,
+                lower_bound=lower_bound,
             )
 
     def _accent(self) -> str:

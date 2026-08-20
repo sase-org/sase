@@ -97,7 +97,7 @@ async def test_patch_inline_filter_apply() -> None:
         make_patch(name="other_b"),
     ]
     async with AcePage(query='"feature"', patches=patches) as page:
-        assert page.state["query"] == '"feature"'
+        assert page.state["query"] == '"feature" limit:100'
         await page.press("2")
 
         bar = await _open_patch_filter_bar(page)

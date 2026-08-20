@@ -372,6 +372,19 @@ def test_stitches_profile_search_only_field_is_subject() -> None:
     assert profile.field("subject").searchable is True
 
 
+def test_host_owned_limit_is_not_a_row_field_except_on_stitches() -> None:
+    assert compile_query_profile(stitches_query_schema()).field("limit") is not None
+    for schema in (
+        beads_query_schema(),
+        plans_query_schema(),
+        files_query_schema(),
+        patches_query_schema(),
+    ):
+        profile = compile_query_profile(schema)
+        assert profile.field("limit") is None
+        assert "limit" not in profile.filterable_fields()
+
+
 # --- Beads: every key repeatable and negatable, several closed enums --------
 
 
