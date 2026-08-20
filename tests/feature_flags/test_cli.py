@@ -367,6 +367,26 @@ def test_flag_new_scaffold_prints_registry_entry_and_checklist(
     assert "scope=" not in out
 
 
+def test_flag_new_parser_has_no_scope_option() -> None:
+    parser = create_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "flag",
+                "new",
+                "demo_key",
+                "--when-enabled",
+                "on",
+                "--when-disabled",
+                "off",
+                "--remove-when",
+                "soaked",
+                "--scope",
+                "project",
+            ]
+        )
+
+
 def test_flag_new_description_defaults_to_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

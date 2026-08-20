@@ -7,6 +7,7 @@ from sase.bead._flag_gate_preview import (
     render_flag_triage_preview,
 )
 from sase.bead.flag_fields import FlagFields
+from sase.feature_flags.references import FlagCallSite
 
 _FLAG = FlagFields(
     key="prettier_enabled",
@@ -40,6 +41,24 @@ def test_registered_definition_renders_kind_and_description() -> None:
     assert "**Kind:** `sunset`" in preview
     assert "## What this flag does" in preview
     assert "Routes prettier formatting." in preview
+    assert "## Call sites" in preview
+    assert "_No call sites were found when this gate was created._" in preview
+
+
+def test_populated_call_sites_render_deterministically() -> None:
+    preview = _render(
+        call_sites=(
+            FlagCallSite(path="b.py", line=2, text="enabled('demo')"),
+            FlagCallSite(path="a.py", line=10, text="FeatureFlag.demo"),
+        )
+    )
+
+    call_sites_block = preview.split("## Call sites", 1)[1].split("## Description", 1)[
+        0
+    ]
+    assert "`a.py:10`" in call_sites_block
+    assert "`b.py:2`" in call_sites_block
+    assert "_No call sites were found when this gate was created._" not in preview
 
 
 def test_unregistered_definition_renders_warning_callout() -> None:

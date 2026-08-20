@@ -261,6 +261,40 @@ def test_create_rejects_agent_uncreatable_type() -> None:
     assert "reserved for the providing plugin" not in str(exc_info.value)
 
 
+def test_create_uses_explicit_create_refusal_before_when_to_use() -> None:
+    record = TaskTypeRecord(
+        task_type="feature",
+        spec={
+            "schema_version": 1,
+            "task_type": "feature",
+            "label": "Feature",
+            "summary": "An out-of-scope product idea.",
+            "when_to_use": "File one when you discovered a product idea.",
+            "create_refusal": "Agents never create this type outside SASE.",
+            "agent_creatable": False,
+            "fields": [],
+        },
+        digest="a" * 64,
+        provenance=TaskTypeProvenance(
+            source="builtin",
+            name="sase",
+            package="sase",
+            version="1.0.0",
+            builtin=True,
+        ),
+    )
+    registry = TaskTypeRegistry(records=(record,), diagnostics=())
+
+    with pytest.raises(
+        TaskTypeCreateError, match="cannot be created by agents"
+    ) as exc_info:
+        resolve_created_task_type("feature", {}, registry=registry)
+
+    message = str(exc_info.value)
+    assert "Agents never create this type outside SASE." in message
+    assert "File one when you discovered a product idea." not in message
+
+
 def test_show_appends_rendered_body_below_description(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

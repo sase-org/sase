@@ -9,11 +9,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
+from sase.bead.flag_fields import FlagFields
 from sase.bead.flag_gate import (
     FLAG_TRIAGE_PREVIEW_PATH,
     create_flag_triage_gate,
 )
-from sase.bead.flag_fields import FlagFields
+from sase.feature_flags.references import FlagCallSite
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -54,6 +57,13 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
             "remove_by_date": "2026-08-01",
             "remove_by_release": "0.16.0",
         },
+        call_sites=(
+            FlagCallSite(
+                path="feature_flags/cli.py",
+                line=12,
+                text="current_flags().enabled(FeatureFlag.prettier_enabled)",
+            ),
+        ),
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -69,6 +79,13 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
         "remove_by_release": "0.16.0",
     }
     assert request["payload"]["due_state"] == "due"
+    assert request["payload"]["call_sites"] == [
+        {
+            "path": "feature_flags/cli.py",
+            "line": 12,
+            "text": "current_flags().enabled(FeatureFlag.prettier_enabled)",
+        }
+    ]
     assert request["payload"]["task_type"] == "flag"
     assert request["payload"]["task_type_display"]["glyph"] == "⚑"
     assert request["payload"]["task_type_display"]["name"] == "Feature flag"
@@ -114,6 +131,8 @@ def test_flag_triage_gate_builds_canonical_spec_preview_and_pending_action(
     assert "**Task type:** ⚑ `flag`" in preview
     assert "## What this flag does" in preview
     assert "Routes prettier formatting." in preview
+    assert "## Call sites" in preview
+    assert "`feature_flags/cli.py:12`" in preview
     assert "## Description" in preview
     assert "Roll out the new formatter by default." in preview
     assert "## Notes" in preview
@@ -159,6 +178,7 @@ def test_flag_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
         due_as_of="2026-08-16",
         release="0.16.0",
         created_by="  ",
+        call_sites=(),
     )
 
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -167,6 +187,44 @@ def test_flag_triage_gate_omits_blank_origin_agent(gate_home: Path) -> None:
     assert "Filed by" not in preview
     [notification] = load_notifications()
     assert "origin_agent" not in notification.action_data
+
+
+def test_create_flag_triage_gate_scans_call_sites_once(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del gate_home
+    scans: list[str] = []
+
+    def fake_scan(key: str, *, root: Path | None = None) -> tuple[FlagCallSite, ...]:
+        del root
+        scans.append(key)
+        return (FlagCallSite(path="demo.py", line=3, text="FeatureFlag.demo_flag"),)
+
+    monkeypatch.setattr("sase.bead.flag_gate.find_flag_call_sites", fake_scan)
+    gate = create_flag_triage_gate(
+        request_id="flag-triage-scan-once",
+        bead_id="sase-flag.1",
+        project="sase",
+        title="Remove the demo_flag flag",
+        flag=FlagFields(
+            key="demo_flag",
+            kind="beta",
+            remove_by_date="2026-08-01",
+            remove_by_release="0.16.0",
+        ),
+        due_state="due",
+        due_as_of="2026-08-16",
+        release="0.16.0",
+    )
+
+    assert scans == ["demo_flag"]
+    request = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request["payload"]["call_sites"] == [
+        {"path": "demo.py", "line": 3, "text": "FeatureFlag.demo_flag"}
+    ]
+    preview = (gate.bundle_path / FLAG_TRIAGE_PREVIEW_PATH).read_text(encoding="utf-8")
+    assert "## Call sites" in preview
+    assert "`demo.py:3`" in preview
 
 
 def _run_command(gate_bundle_path: Path, command_path: Path, stdin: bytes) -> Any:

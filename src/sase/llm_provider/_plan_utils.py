@@ -26,6 +26,7 @@ class PlanApprovalResult:
     coder_model: str | None = None
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
+    saved_plan_path: str | None = None
 
 
 def add_create_time_frontmatter(
@@ -276,6 +277,10 @@ def handle_plan_approval(
         if action == "commit":
             action = "approve"
             run_coder = False
+        raw_saved = response_data.get("saved_plan_path")
+        saved_plan_path = (
+            raw_saved.strip() or None if isinstance(raw_saved, str) else None
+        )
         return PlanApprovalResult(
             action=action,
             plan_file=str(reviewed_plan),
@@ -285,6 +290,7 @@ def handle_plan_approval(
             coder_model=coder_model,
             auto_approved=auto_resolved,
             epic_launch_owner=epic_launch_owner,
+            saved_plan_path=saved_plan_path,
         )
     feedback = response_data.get("feedback")
     if isinstance(feedback, str) and feedback:

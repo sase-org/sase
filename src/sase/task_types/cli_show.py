@@ -58,6 +58,11 @@ def _render_show(record: TaskTypeRecord, *, console: Console) -> None:
     console.print()
     console.print("[bold]WHEN TO USE[/bold]")
     console.print(f"  {record.spec.get('when_to_use') or ''}")
+    create_refusal = str(record.spec.get("create_refusal") or "").strip()
+    if create_refusal:
+        console.print()
+        console.print("[bold]CREATE REFUSAL[/bold]")
+        console.print(f"  {create_refusal}")
     console.print()
     console.print("[bold]FIELDS[/bold]")
     fields = _spec_fields(record.spec)
@@ -91,7 +96,7 @@ def _render_show(record: TaskTypeRecord, *, console: Console) -> None:
 
 
 def _show_json(record: TaskTypeRecord) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "accent_color": record.resolved_accent_color,
         "agent_creatable": record.agent_creatable,
         "body_template": record.spec.get("body_template") or "",
@@ -111,6 +116,10 @@ def _show_json(record: TaskTypeRecord) -> dict[str, Any]:
         "triage": {"min_plus_ones": record.min_plus_ones},
         "when_to_use": record.spec.get("when_to_use") or "",
     }
+    create_refusal = str(record.spec.get("create_refusal") or "").strip()
+    if create_refusal:
+        payload["create_refusal"] = create_refusal
+    return payload
 
 
 def _spec_fields(spec: Mapping[str, Any]) -> list[Mapping[str, Any]]:

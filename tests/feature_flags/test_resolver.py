@@ -99,6 +99,37 @@ def test_local_layer_always_violates_scope() -> None:
     ]
 
 
+def test_project_scope_cannot_be_registered_or_locally_resolved() -> None:
+    """sase-o2's project-scope premise is inapplicable: flags are global-only.
+
+    Definitions have no scope field, local config is always a scope violation,
+    and the inherited SASE_FEATURE_FLAGS snapshot still pins child processes.
+    """
+    from dataclasses import fields
+
+    from sase.feature_flags.models import FeatureFlagDefinition
+
+    assert "scope" not in {item.name for item in fields(FeatureFlagDefinition)}
+    with pytest.raises(TypeError, match="scope"):
+        FeatureFlagDefinition(
+            key=demo_flag().key,
+            kind="beta",
+            description="x",
+            bead="sase-x",
+            scope="project",  # type: ignore[call-arg]
+        )
+
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag()),
+        layers=[layer("local", {"demo_flag": True}, detail="project.yml")],
+    )
+    assert snapshot.enabled("demo_flag") is False
+    assert snapshot.decision("demo_flag").source == "default"
+    assert [diagnostic.code for diagnostic in snapshot.diagnostics] == [
+        "scope_violation"
+    ]
+
+
 def test_unknown_and_non_boolean_file_values_warn_and_leave_prior_decision() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(demo_flag()),

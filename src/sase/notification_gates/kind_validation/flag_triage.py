@@ -200,6 +200,7 @@ def _validate_flag_triage_preview(
             task_type=payload.task_type,
             task_type_fields=payload.task_type_fields,
             task_type_display=payload.task_type_display,
+            call_sites=payload.call_sites,
         )
 
     matches = preview_matches_renderer(

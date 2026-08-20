@@ -62,17 +62,29 @@ def resolve_created_task_type(
     if record is None:
         raise TaskTypeCreateError(_unknown_task_type_message(slug, resolved))
     if not record.agent_creatable:
-        when_to_use = str(record.spec.get("when_to_use") or "").strip()
-        if when_to_use:
-            raise TaskTypeCreateError(
-                f"task type '{slug}' cannot be created by agents.\n{when_to_use}"
-            )
-        raise TaskTypeCreateError(f"task type '{slug}' cannot be created by agents")
+        raise TaskTypeCreateError(_agent_create_refusal_message(slug, record.spec))
     problems = task_type_field_problems(record.spec, stored_fields)
     if problems:
         details = "\n".join(f"  {name}: {message}" for name, message in problems)
         raise TaskTypeCreateError(f"invalid task type fields:\n{details}")
     return record.task_type, stored_fields
+
+
+def _agent_create_refusal_message(slug: str, spec: Mapping[str, Any]) -> str:
+    """Return the create-refusal text for a non-agent-creatable type.
+
+    Explicit ``create_refusal`` copy wins. Specs that omit it keep the
+    historical ``when_to_use`` fallback so existing types do not break.
+    """
+
+    prefix = f"task type '{slug}' cannot be created by agents"
+    create_refusal = str(spec.get("create_refusal") or "").strip()
+    if create_refusal:
+        return f"{prefix}.\n{create_refusal}"
+    when_to_use = str(spec.get("when_to_use") or "").strip()
+    if when_to_use:
+        return f"{prefix}.\n{when_to_use}"
+    return prefix
 
 
 def issue_task_type_slug(task_type: str) -> str:

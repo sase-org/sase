@@ -103,6 +103,7 @@
       "label": "Feature",
       "summary": "An out-of-scope product idea that should not become a wish list.",
       "when_to_use": "File one when you discovered a product or capability idea that is outside the current task or epic. State the proposal and why it is out of scope for the work you were doing. Do not file one for in-scope follow-up that belongs on the current epic.",
+      "create_refusal": "Agents never create this type with `sase bead create` or `/sase_new_task` when it is not agent-creatable. That is the machine-global override outside the SASE project. File a feature bead only in SASE, or use an in-scope type here.",
       "glyph": "✦",
       "accent_color": "#5FD75F",
       "agent_creatable": true,
@@ -134,7 +135,7 @@
       },
       "source": "project",
       "package": "project",
-      "digest": "3169592d767ec44de72a46f2ba3dd1e1ab88e120a07275bfacf1991e187058b7"
+      "digest": "9445f9171caf31b5c39e2cf460db3ca9097dd147d74e14907a156a40fa340b44"
     },
     {
       "task_type": "flag",

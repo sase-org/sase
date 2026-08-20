@@ -155,6 +155,12 @@ def _feature_spec() -> dict[str, Any]:
             "it is out of scope for the work you were doing. Do not file one "
             "for in-scope follow-up that belongs on the current epic."
         ),
+        "create_refusal": (
+            "Agents never create this type with `sase bead create` or "
+            "`/sase_new_task` when it is not agent-creatable. That is the "
+            "machine-global override outside the SASE project. File a feature "
+            "bead only in SASE, or use an in-scope type here."
+        ),
         "glyph": "✦",
         "accent_color": "#5FD75F",
         "fields": [

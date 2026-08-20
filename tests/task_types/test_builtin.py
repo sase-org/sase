@@ -105,3 +105,15 @@ def test_memory_when_to_use_names_the_close_ritual() -> None:
     when_to_use = _by_slug()["memory"]["when_to_use"]
     assert "explicit user permission" in when_to_use
     assert "sase memory init" in when_to_use
+
+
+def test_feature_create_refusal_is_not_the_when_to_use_invitation() -> None:
+    spec = _by_slug()["feature"]
+    create_refusal = spec["create_refusal"]
+    assert len(create_refusal) <= 400
+    assert create_refusal == create_refusal.strip()
+    lowered = create_refusal.lower()
+    assert "never create" in lowered
+    assert "cannot be created" in lowered or "not agent-creatable" in lowered
+    assert "File one when you discovered" not in create_refusal
+    assert spec["when_to_use"].startswith("File one when you discovered")

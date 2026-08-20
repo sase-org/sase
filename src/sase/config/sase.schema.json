@@ -531,6 +531,12 @@
           "maxLength": 400,
           "description": "Agent-facing guidance on when to file this task type, inlined into every agent's Tier 1 context."
         },
+        "create_refusal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "description": "Optional copy shown after 'cannot be created by agents' when agent_creatable is false. Specs that omit it keep the when_to_use fallback."
+        },
         "glyph": {
           "type": "string",
           "description": "Optional single-terminal-cell glyph shown in chips and CLI cells."

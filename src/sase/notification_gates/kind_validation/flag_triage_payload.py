@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import TYPE_CHECKING, Any, cast
 
+from sase.feature_flags.references import FlagCallSite
 from sase.notification_gates.models import GateError
 from sase.task_type_gate_presentation import (
     TaskTypeGateDisplay,
@@ -31,6 +32,7 @@ _FLAG_TRIAGE_REQUIRED_PAYLOAD_FIELDS = frozenset(
         "definition",
         "task_type",
         "task_type_fields",
+        "call_sites",
     }
 )
 _FLAG_TRIAGE_OPTIONAL_PAYLOAD_FIELDS = frozenset({"task_type_display"})
@@ -40,6 +42,7 @@ _FLAG_TRIAGE_FLAG_FIELDS = frozenset(
 _FLAG_TRIAGE_DEFINITION_FIELDS = frozenset({"kind", "description"})
 _FLAG_TRIAGE_DUE_STATES = frozenset({"live", "soon", "due"})
 _FLAG_TRIAGE_KINDS = frozenset({"", "beta", "sunset"})
+_FLAG_TRIAGE_CALL_SITE_FIELDS = frozenset({"path", "line", "text"})
 
 
 @dataclass(frozen=True)
@@ -61,6 +64,7 @@ class FlagTriagePayload:
     task_type: str = ""
     task_type_fields: Mapping[str, str] = dataclass_field(default_factory=dict)
     task_type_display: TaskTypeGateDisplay | None = None
+    call_sites: tuple[FlagCallSite, ...] = ()
 
 
 def parse_flag_triage_payload(payload: Mapping[str, Any]) -> FlagTriagePayload:
@@ -135,6 +139,7 @@ def parse_flag_triage_payload(payload: Mapping[str, Any]) -> FlagTriagePayload:
     definition = _parse_definition(payload.get("definition"))
     task_type, task_type_fields = _parse_flag_task_type(payload)
     task_type_display = _parse_flag_task_type_display(payload, task_type)
+    call_sites = _parse_call_sites(payload.get("call_sites"))
     return FlagTriagePayload(
         bead_id=cast(str, payload["bead_id"]),
         project=project,
@@ -151,6 +156,7 @@ def parse_flag_triage_payload(payload: Mapping[str, Any]) -> FlagTriagePayload:
         task_type=task_type,
         task_type_fields=task_type_fields,
         task_type_display=task_type_display,
+        call_sites=call_sites,
     )
 
 
@@ -235,6 +241,46 @@ def _parse_flag_task_type_display(
             "payload.task_type_display",
             str(exc),
         ) from exc
+
+
+def _parse_call_sites(value: object) -> tuple[FlagCallSite, ...]:
+    if not isinstance(value, list):
+        raise GateError(
+            "invalid_flag_triage_payload",
+            "payload.call_sites",
+            "flag triage payload call_sites must be a list",
+        )
+    sites: list[FlagCallSite] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, Mapping) or set(item) != _FLAG_TRIAGE_CALL_SITE_FIELDS:
+            raise GateError(
+                "invalid_flag_triage_payload",
+                f"payload.call_sites.{index}",
+                "flag triage call site must be {path, line, text}",
+            )
+        path = item.get("path")
+        line = item.get("line")
+        text = item.get("text")
+        if not isinstance(path, str) or not path.strip():
+            raise GateError(
+                "invalid_flag_triage_payload",
+                f"payload.call_sites.{index}.path",
+                "flag triage call site path must be a nonempty string",
+            )
+        if type(line) is not int or line < 1:
+            raise GateError(
+                "invalid_flag_triage_payload",
+                f"payload.call_sites.{index}.line",
+                "flag triage call site line must be a positive integer",
+            )
+        if not isinstance(text, str):
+            raise GateError(
+                "invalid_flag_triage_payload",
+                f"payload.call_sites.{index}.text",
+                "flag triage call site text must be a string",
+            )
+        sites.append(FlagCallSite(path=path, line=line, text=text))
+    return tuple(sites)
 
 
 def _parse_definition(value: object) -> Mapping[str, str] | None:

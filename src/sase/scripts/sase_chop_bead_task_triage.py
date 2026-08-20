@@ -73,7 +73,7 @@ _LOCK_FILENAME = "bead_task_triage.lock"
 
 # Bumped whenever a gate preview or notification-note renderer changes shape, so
 # the reconciler replaces pending gates still advertising the superseded one.
-_PRESENTATION_FORMAT_VERSION = 5
+_PRESENTATION_FORMAT_VERSION = 6
 
 # Bumped whenever the trusted TaskTriage, BeadSnooze, or FlagTriage interaction
 # contract changes shape, so pending gates still exposing old option inputs are

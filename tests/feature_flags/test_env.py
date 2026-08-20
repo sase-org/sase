@@ -51,6 +51,11 @@ def test_env_round_trips_all_registered_keys_stably() -> None:
 
 
 def test_applied_env_pins_child_process_resolution() -> None:
+    """Global snapshots still pin child processes; local values cannot override.
+
+    This is why the old sase-o2 reproduction — a scope:"project" flag resolving
+    against the wrong project — cannot happen on the current architecture.
+    """
     definitions_by_key = definitions(demo_flag())
     parent = resolve_feature_flags(
         definitions=definitions_by_key,

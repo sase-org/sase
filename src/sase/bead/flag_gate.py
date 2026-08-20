@@ -64,6 +64,7 @@ from sase.bead._flag_gate_spec import (
 )
 from sase.bead.flag_fields import FLAG_TASK_TYPE
 from sase.bead.flag_fields import FlagFields
+from sase.feature_flags.references import FlagCallSite, find_flag_call_sites
 
 
 def create_flag_triage_gate(
@@ -87,10 +88,14 @@ def create_flag_triage_gate(
     task_type: str = FLAG_TASK_TYPE,
     task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
+    call_sites: Sequence[FlagCallSite] | None = None,
 ) -> Any:
     """Create one human-only removal-triage gate for a due flag bead."""
     from sase.notification_gates.service import create_gate
 
+    frozen_call_sites = (
+        tuple(call_sites) if call_sites is not None else find_flag_call_sites(flag.key)
+    )
     return create_gate(
         build_flag_triage_gate_spec(
             request_id=request_id,
@@ -112,6 +117,7 @@ def create_flag_triage_gate(
             task_type=task_type,
             task_type_fields=task_type_fields,
             producer=producer,
+            call_sites=frozen_call_sites,
         )
     )
 

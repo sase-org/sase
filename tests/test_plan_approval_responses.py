@@ -71,6 +71,34 @@ def test_handle_plan_approval_commit(
     )
 
 
+def test_handle_plan_approval_threads_saved_plan_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    desktop, bell, prefix = _ui_patches()
+    saved = str(tmp_path / "sdd" / "plans" / "202608" / "plan.md")
+    from sase.plan_gate import translate_plan_gate_response as real_translate
+
+    def translate(bundle_path: Path, payload: Any) -> dict[str, Any]:
+        data = real_translate(bundle_path, payload)
+        data["saved_plan_path"] = saved
+        return data
+
+    with (
+        _respond_after_gate_creation("commit"),
+        desktop,
+        bell,
+        prefix,
+        patch("sase.plan_gate.translate_plan_gate_response", side_effect=translate),
+    ):
+        result = handle_plan_approval(str(plan), "saved-path-session")
+
+    assert result is not None
+    assert result.saved_plan_path == saved
+
+
 def test_handle_plan_approval_reads_host_epic_launch_owner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

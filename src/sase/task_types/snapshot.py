@@ -23,7 +23,7 @@ def task_type_snapshot_entry(record: TaskTypeRecord) -> dict[str, Any]:
     """Return one ``TaskTypeSnapshotEntryWire``-shaped dict for *record*."""
 
     spec = record.spec
-    return {
+    entry = {
         "task_type": record.task_type,
         "label": spec.get("label", record.task_type),
         "summary": spec.get("summary", ""),
@@ -39,6 +39,10 @@ def task_type_snapshot_entry(record: TaskTypeRecord) -> dict[str, Any]:
         "package": record.provenance.package,
         "digest": record.digest,
     }
+    create_refusal = spec.get("create_refusal")
+    if isinstance(create_refusal, str) and create_refusal:
+        entry["create_refusal"] = create_refusal
+    return entry
 
 
 def build_task_type_snapshot_entries(

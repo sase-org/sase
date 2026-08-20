@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import sase
 
@@ -79,7 +81,21 @@ def find_flag_call_sites(
                     text=text,
                 )
             )
-    return tuple(sites)
+    return tuple(_normalized_call_sites(sites))
+
+
+def flag_call_sites_payload(
+    sites: Sequence[FlagCallSite],
+) -> list[dict[str, Any]]:
+    """Return a strictly ordered payload list for persisted call-site evidence."""
+    return [
+        {"path": site.path, "line": site.line, "text": site.text}
+        for site in _normalized_call_sites(sites)
+    ]
+
+
+def _normalized_call_sites(sites: Sequence[FlagCallSite]) -> tuple[FlagCallSite, ...]:
+    return tuple(sorted(sites, key=lambda site: (site.path, site.line, site.text)))
 
 
 def _iter_python_files(root: Path) -> list[Path]:
@@ -143,4 +159,5 @@ def _node_references_key(node: ast.AST, key: str) -> bool:
 __all__ = [
     "FlagCallSite",
     "find_flag_call_sites",
+    "flag_call_sites_payload",
 ]

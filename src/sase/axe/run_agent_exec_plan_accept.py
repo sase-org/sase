@@ -157,6 +157,12 @@ def handle_accepted_plan(
     from sase.sdd.store import materialize_sdd_store
 
     is_epic = plan_result.action == "epic"
+    raw_saved_plan = getattr(plan_result, "saved_plan_path", None)
+    published_plan_path = (
+        Path(raw_saved_plan)
+        if isinstance(raw_saved_plan, str) and raw_saved_plan.strip()
+        else None
+    )
     sdd_store: Any | None = None
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
@@ -209,6 +215,10 @@ def handle_accepted_plan(
                 prompt_path=sdd_prompt_path_obj,
                 yyyymm=archive_month,
             )
+        elif published_plan_path is not None:
+            # Approval already published the canonical tale plan. Consume that
+            # path instead of writing and committing a second copy.
+            sdd_plan_path = published_plan_path
         else:
             plan_tier = plan_tier_for_action(plan_result.action)
             sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
@@ -263,10 +273,17 @@ def handle_accepted_plan(
         store_unusable_error = None
 
     # Planner prompts are committed by the agents-sidecar archive publisher.
+    # Tale plans already published at approval time must not get a second
+    # "Add SDD files" commit from this runner.
     should_commit = plan_result.commit_plan if not is_epic else True
     required_sdd_commit_succeeded = True
     try:
-        if should_commit and sdd_plan_name and not is_epic:
+        if (
+            should_commit
+            and sdd_plan_name
+            and not is_epic
+            and published_plan_path is None
+        ):
             if sdd_in_tree:
                 required_sdd_commit_succeeded = _commit_sdd_files(
                     ctx.workspace_dir,
@@ -288,7 +305,7 @@ def handle_accepted_plan(
                 )
             else:
                 required_sdd_commit_succeeded = False
-        elif should_commit and not is_epic:
+        elif should_commit and not is_epic and published_plan_path is None:
             required_sdd_commit_succeeded = False
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError
@@ -311,10 +328,12 @@ def handle_accepted_plan(
         store_unusable_error = None
     plan_committed = bool(
         not is_epic
-        and should_commit
         and sdd_plan_path is not None
         and sdd_plan_path.exists()
-        and required_sdd_commit_succeeded
+        and (
+            published_plan_path is not None
+            or (should_commit and required_sdd_commit_succeeded)
+        )
     )
     if not is_epic:
         update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)

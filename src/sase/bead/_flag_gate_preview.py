@@ -10,10 +10,11 @@ rendered with a placeholder.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date
 
 from sase.bead.flag_fields import FlagFields
+from sase.feature_flags.references import FlagCallSite
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead_flag_presentation import flag_due_presentation
 from sase.bead_time_presentation import bead_created_label
@@ -54,6 +55,7 @@ def render_flag_triage_preview(
     task_type: str = "",
     task_type_fields: Mapping[str, str] | None = None,
     task_type_display: TaskTypeGateDisplay | None = None,
+    call_sites: Sequence[FlagCallSite] = (),
 ) -> str:
     """Render the reviewed Markdown detail shown by ACE and mobile clients.
 
@@ -91,6 +93,7 @@ def render_flag_triage_preview(
         f"{created}"
         f"{metadata}"
         f"{_flag_triage_definition_section(definition)}"
+        f"{_flag_triage_call_sites_section(call_sites)}"
         f"## Description\n\n{description_text}"
         f"{notes_section}\n"
         f"{type_section}"
@@ -160,6 +163,23 @@ def _flag_triage_definition_section(definition: Mapping[str, str] | None) -> str
     if definition is None:
         return _UNREGISTERED_DEFINITION_CALLOUT
     return f"## What this flag does\n\n{definition['description']}\n\n"
+
+
+def _flag_triage_call_sites_section(call_sites: Sequence[FlagCallSite]) -> str:
+    """Render frozen call-site evidence, including an explicit empty state."""
+    lines = ["## Call sites", ""]
+    ordered = tuple(
+        sorted(call_sites, key=lambda site: (site.path, site.line, site.text))
+    )
+    if not ordered:
+        lines.append("_No call sites were found when this gate was created._")
+    else:
+        for site in ordered:
+            lines.append(
+                f"- `{_markdown_code(site.path)}:{site.line}` "
+                f"`{_markdown_code(site.text)}`"
+            )
+    return "\n".join(lines) + "\n\n"
 
 
 def _markdown_code(value: str) -> str:

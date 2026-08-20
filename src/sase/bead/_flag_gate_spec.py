@@ -25,6 +25,7 @@ from sase.bead.flag_gate_input import (
 )
 from sase.bead.snooze_time import SnoozeTimeError
 from sase.bead.task_gate import apply_task_type_gate_presentation, bounded_gate_title
+from sase.feature_flags.references import FlagCallSite, flag_call_sites_payload
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.task_type_gate_presentation import (
     TaskTypeGateDisplay,
@@ -144,6 +145,7 @@ def build_flag_triage_gate_spec(
     task_type: str = FLAG_TASK_TYPE,
     task_type_fields: Mapping[str, str] | None = None,
     producer: Mapping[str, Any] | None = None,
+    call_sites: Sequence[FlagCallSite] = (),
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the FlagTriage adapter."""
     stored_fields = dict(task_type_fields or {})
@@ -176,6 +178,7 @@ def build_flag_triage_gate_spec(
         "definition": dict(definition) if definition is not None else None,
         "task_type": task_type,
         "task_type_fields": stored_fields,
+        "call_sites": flag_call_sites_payload(call_sites),
     }
     if display is not None:
         payload["task_type_display"] = task_type_gate_display_payload(display)
@@ -220,6 +223,7 @@ def build_flag_triage_gate_spec(
                     task_type=task_type,
                     task_type_fields=stored_fields,
                     task_type_display=display,
+                    call_sites=call_sites,
                 ),
             },
         ],

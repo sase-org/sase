@@ -45,6 +45,22 @@ def test_validate_task_type_spec_returns_stable_digest() -> None:
     assert len(first) == 64
 
 
+def test_omitted_create_refusal_does_not_change_digest() -> None:
+    without = _spec()
+    with_none = _spec(create_refusal=None)
+    assert validate_task_type_spec(without) == validate_task_type_spec(
+        {key: value for key, value in with_none.items() if key != "create_refusal"}
+    )
+
+
+def test_explicit_create_refusal_changes_digest() -> None:
+    without = validate_task_type_spec(_spec())
+    with_refusal = validate_task_type_spec(
+        _spec(create_refusal="Agents never create this type.")
+    )
+    assert without != with_refusal
+
+
 def test_validate_task_type_spec_rejects_reserved_slug() -> None:
     with pytest.raises(Exception, match="reserved"):
         validate_task_type_spec(_spec(task_type="task"))

@@ -463,3 +463,112 @@ class TestPlanFollowupApprovals:
             "relationships"
         ]
         assert relationships["plan_committed"] is True
+
+    def test_saved_plan_path_skips_runner_write_and_commit(self, tmp_path) -> None:
+        """Approval archive is the only canonical tale-plan writer."""
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
+        published = tmp_path / "sdd" / "plans" / "202608" / "plan.md"
+        published.parent.mkdir(parents=True)
+        published.write_text(VALID_TALE_PLAN, encoding="utf-8")
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=True,
+            saved_plan_path=str(published),
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch("sase.sdd.files.write_sdd_files") as write_plan,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
+            patch("sase.sdd.files.commit_sdd_store_files") as store_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert outcome == "plan_committed"
+        write_plan.assert_not_called()
+        mock_commit.assert_not_called()
+        store_commit.assert_not_called()
+        accept_mod._publish_planner_prompt_archive.assert_called_once()
+        assert call(state.current_artifacts_dir, "plan_committed", True) in (
+            accept_mod.update_meta_field.call_args_list
+        )
+
+    def test_saved_plan_path_recovery_is_idempotent(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        published = tmp_path / "sdd" / "plans" / "202608" / "plan.md"
+        published.parent.mkdir(parents=True)
+        published.write_text(VALID_TALE_PLAN, encoding="utf-8")
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=str(tmp_path / "plan.md"),
+            run_coder=False,
+            commit_plan=True,
+            saved_plan_path=str(published),
+        )
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
+
+        def _run() -> object:
+            state = make_state(tmp_path)
+            with (
+                patch(
+                    "sase.llm_provider._plan_utils.handle_plan_approval",
+                    return_value=approval,
+                ),
+                patch("sase.sdd.files.write_sdd_files") as write_plan,
+                patch(
+                    "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+                ) as mock_commit,
+            ):
+                outcome = handle_plan_marker(
+                    {"plan_file": str(tmp_path / "plan.md")}, ctx, state
+                )
+            return outcome, write_plan, mock_commit
+
+        first_outcome, first_write, first_commit = _run()
+        second_outcome, second_write, second_commit = _run()
+        assert first_outcome == second_outcome == "plan_committed"
+        first_write.assert_not_called()
+        second_write.assert_not_called()
+        first_commit.assert_not_called()
+        second_commit.assert_not_called()
+
+    def test_legacy_approval_without_saved_path_still_writes_plan(
+        self, tmp_path
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            run_coder=False,
+            commit_plan=True,
+        )
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_files",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ) as write_plan,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
+            ) as mock_commit,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert outcome == "plan_committed"
+        write_plan.assert_called_once()
+        mock_commit.assert_called_once()
