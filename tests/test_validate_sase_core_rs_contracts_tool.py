@@ -264,6 +264,79 @@ def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
+    validator = load_validate_sase_core_rs()
+
+    class FinalizerModule(SimpleNamespace):
+        def finalizer_wire_schema_version(self) -> int:
+            return 1
+
+        def validate_finalizer_provider_spec(self, _spec: dict[str, object]) -> None:
+            return None
+
+        def validate_finalizer_instance_spec(self, _spec: dict[str, object]) -> None:
+            return None
+
+        def resolve_finalizer_plan(
+            self, _plan_input: dict[str, object]
+        ) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "instance_id": "commit",
+                        "provider_ref": "builtin@commit",
+                        "after": [],
+                        "policy": {"max_attempts": 2, "refusal": "fail"},
+                        "selector_index": 0,
+                        "resolved_index": 0,
+                    }
+                ],
+                "required": [],
+                "selectors": [],
+                "plan_digest": "sha256:plan",
+            }
+
+        def finalizer_plan_digest(self, _plan: dict[str, object]) -> str:
+            return "sha256:plan"
+
+        def validate_finalizer_context(
+            self, _plan: dict[str, object], _context: dict[str, object]
+        ) -> str:
+            return "sha256:context"
+
+        def finalizer_json_digest(self, _payload: dict[str, object]) -> str:
+            return "sha256:payload"
+
+        def validate_finalizer_submission(
+            self,
+            _plan: dict[str, object],
+            _context: dict[str, object],
+            _submission: dict[str, object],
+        ) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "submission_digest": "sha256:submission",
+                "accepted_instances": ["commit"],
+            }
+
+        def aggregate_finalizer_outcomes(
+            self, _results: list[dict[str, object]]
+        ) -> dict[str, object]:
+            return {
+                "schema_version": 1,
+                "status": "success",
+                "instances": [{"instance_id": "commit", "status": "success"}],
+                "diagnostics": [],
+            }
+
+    assert validator._validate_finalizer_contract(FinalizerModule())
+
+    stale = FinalizerModule()
+    stale.finalizer_wire_schema_version = lambda: 2
+    assert not validator._validate_finalizer_contract(stale)
+
+
 def _skill_layout_payload(
     *,
     schema_version: int = 5,

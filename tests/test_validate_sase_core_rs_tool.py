@@ -207,3 +207,27 @@ def test_validate_sase_core_rs_requires_snippet_session_binding() -> None:
             missing={"apply_snippet_session_event"},
         )
     )
+
+
+def test_validate_sase_core_rs_requires_finalizer_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "finalizer_wire_schema_version",
+        "validate_finalizer_provider_spec",
+        "finalizer_provider_spec_digest",
+        "validate_finalizer_instance_spec",
+        "finalizer_instance_spec_digest",
+        "resolve_finalizer_plan",
+        "finalizer_plan_digest",
+        "finalizer_context_digest",
+        "validate_finalizer_context",
+        "validate_finalizer_submission",
+        "finalizer_json_digest",
+        "aggregate_finalizer_outcomes",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )

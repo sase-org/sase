@@ -168,6 +168,18 @@ REQUIRED_BINDINGS = (
     "provider_disable_try_set_relative",
     "provider_disable_try_set_until",
     "provider_disable_clear",
+    "finalizer_wire_schema_version",
+    "validate_finalizer_provider_spec",
+    "finalizer_provider_spec_digest",
+    "validate_finalizer_instance_spec",
+    "finalizer_instance_spec_digest",
+    "resolve_finalizer_plan",
+    "finalizer_plan_digest",
+    "finalizer_context_digest",
+    "validate_finalizer_context",
+    "validate_finalizer_submission",
+    "finalizer_json_digest",
+    "aggregate_finalizer_outcomes",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -254,6 +266,117 @@ def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:
             )
             valid = False
     return valid
+
+
+def _validate_finalizer_contract(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.finalizer_wire_schema_version())
+    except Exception as exc:
+        _error(f"finalizer_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 1:
+        _error(
+            "finalizer_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+
+    instance = {
+        "schema_version": 1,
+        "instance_id": "commit",
+        "provider_ref": "builtin@commit",
+        "policy": {"max_attempts": 2, "refusal": "fail"},
+    }
+    plan_input = {
+        "schema_version": 1,
+        "instances": [instance],
+        "defaults": ["commit"],
+        "required": [],
+        "selectors": [],
+    }
+    try:
+        module.validate_finalizer_provider_spec(
+            {
+                "schema_version": 1,
+                "provider_ref": "builtin@commit",
+                "capabilities": ["requires_submission", "mutates_repository"],
+            }
+        )
+        module.validate_finalizer_instance_spec(instance)
+        plan = module.resolve_finalizer_plan(plan_input)
+        plan_digest = module.finalizer_plan_digest(plan)
+    except Exception as exc:
+        _error(f"finalizer plan probe failed: {exc}")
+        return False
+
+    if not isinstance(plan, dict) or plan.get("schema_version") != 1:
+        _error(f"finalizer plan probe returned stale payload: {plan!r}")
+        return False
+    if plan.get("plan_digest") != plan_digest:
+        _error("finalizer plan digest probe did not match resolved plan")
+        return False
+
+    context = {
+        "schema_version": 1,
+        "run_id": "validator-run",
+        "agent_id": "validator-agent",
+        "turn_nonce": "validator-nonce",
+        "plan_digest": plan_digest,
+        "requirements": [
+            {
+                "instance_id": "commit",
+                "trigger": "dirty_repository",
+                "submission_required": True,
+            }
+        ],
+        "obligations": [
+            {
+                "obligation_id": "repo:primary",
+                "kind": "repository",
+                "display_name": "primary",
+                "paths": ["."],
+            }
+        ],
+    }
+    try:
+        context_digest = module.validate_finalizer_context(plan, context)
+        payload = {"decision": "commit", "message": "validator"}
+        payload_digest = module.finalizer_json_digest(payload)
+        validation = module.validate_finalizer_submission(
+            plan,
+            context,
+            {
+                "schema_version": 1,
+                "run_id": "validator-run",
+                "agent_id": "validator-agent",
+                "turn_nonce": "validator-nonce",
+                "plan_digest": plan_digest,
+                "context_digest": context_digest,
+                "payloads": [
+                    {
+                        "instance_id": "commit",
+                        "payload": payload,
+                        "payload_digest": payload_digest,
+                    }
+                ],
+            },
+        )
+        aggregate = module.aggregate_finalizer_outcomes(
+            [{"instance_id": "commit", "status": "success"}]
+        )
+    except Exception as exc:
+        _error(f"finalizer submission/outcome probe failed: {exc}")
+        return False
+
+    if not isinstance(validation, dict) or validation.get("accepted_instances") != [
+        "commit"
+    ]:
+        _error(f"finalizer submission probe returned stale payload: {validation!r}")
+        return False
+    if not isinstance(aggregate, dict) or aggregate.get("status") != "success":
+        _error(f"finalizer aggregate probe returned stale payload: {aggregate!r}")
+        return False
+    return True
 
 
 def _validate_skill_reference_contract(module: ModuleType) -> bool:
@@ -1374,6 +1497,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_artifact_link_schema(module):
         return 1
     if not _validate_vcs_log_wire_schema(module):
+        return 1
+    if not _validate_finalizer_contract(module):
         return 1
     if not _validate_skill_reference_contract(module):
         return 1
