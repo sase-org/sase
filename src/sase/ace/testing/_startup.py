@@ -9,6 +9,7 @@ import sase.notifications as _notifications
 from sase.ace.tui import AceApp
 from sase.ace.tui.actions.agents import _loading as _agent_loading
 from sase.ace.tui.actions.lifecycle import NotificationStartupState
+from sase.ace.tui.actions import artifacts as _artifacts_actions
 from sase.ace.tui.modals import plugins_browser_pane as _plugins_browser_pane
 from sase.ace.tui.modals import project_inventory_panes as _project_inventory_panes
 from sase.ace.tui.util import stall_watchdog as _stall_watchdog
@@ -34,6 +35,9 @@ _ORIGINAL_LOAD_PLUGINS_CATALOG = _plugins_browser_pane._load_plugins_catalog
 _ORIGINAL_COLLECT_REPO_INVENTORY = _project_inventory_panes.collect_repo_inventory
 _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
     _project_inventory_panes.collect_workspace_inventory
+)
+_ORIGINAL_COLLECT_ARTIFACTS_PROJECT_CHOICES = (
+    _artifacts_actions._collect_artifacts_project_choices
 )
 
 
@@ -189,6 +193,15 @@ def _empty_workspace_inventory(
     return WorkspaceInventory((), ())
 
 
+def _empty_artifacts_project_choices() -> Any:
+    """Return an inert project-scope snapshot for default AcePage mounts."""
+    return _artifacts_actions._ArtifactsProjectChoices(
+        choices=(),
+        enabled_projects=(),
+        display_names={},
+    )
+
+
 def _patch_method_if_unchanged(
     stack: AsyncExitStack,
     name: str,
@@ -309,5 +322,16 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
                 _project_inventory_panes,
                 "collect_workspace_inventory",
                 _empty_workspace_inventory,
+            )
+        )
+    if (
+        _artifacts_actions._collect_artifacts_project_choices
+        is _ORIGINAL_COLLECT_ARTIFACTS_PROJECT_CHOICES
+    ):
+        stack.enter_context(
+            patch.object(
+                _artifacts_actions,
+                "_collect_artifacts_project_choices",
+                _empty_artifacts_project_choices,
             )
         )

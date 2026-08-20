@@ -20,6 +20,7 @@ from sase.ace.testing import (
     make_changespec as make_patch,  # legacy ACE test helper name
 )
 from sase.ace.tui import AceApp
+from sase.ace.tui.actions import artifacts as artifacts_actions
 from sase.ace.tui.proc_observer import PROC_OBSERVER_THREAD_NAME
 
 
@@ -161,6 +162,10 @@ async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
         assert app._agents_refresh_pending_callbacks == []
         assert app._agents_with_children == []
         assert page.state["total"] == 3
+        assert not any(
+            task.get_name() == "sase-artifacts-project-choices" and not task.done()
+            for task in app._pump_free_async_tasks
+        )
 
     assert app._fs_watcher is None
     assert app._prompt_source_watcher is None
@@ -264,6 +269,7 @@ async def test_ace_page_restores_fast_startup_overrides_after_success() -> None:
         AceApp._run_agent_index_startup_prepare_and_refresh,
         AceApp._start_artifact_watcher,
         testing_module._stall_watchdog.start_event_loop_stall_watchdog,
+        artifacts_actions._collect_artifacts_project_choices,
     )
 
     async with AcePage():
@@ -274,12 +280,14 @@ async def test_ace_page_restores_fast_startup_overrides_after_success() -> None:
             testing_module._stall_watchdog.start_event_loop_stall_watchdog
             is not originals[3]
         )
+        assert artifacts_actions._collect_artifacts_project_choices is not originals[4]
 
     assert (
         AceApp._run_mount_state_loads,
         AceApp._run_agent_index_startup_prepare_and_refresh,
         AceApp._start_artifact_watcher,
         testing_module._stall_watchdog.start_event_loop_stall_watchdog,
+        artifacts_actions._collect_artifacts_project_choices,
     ) == originals
 
 
@@ -301,6 +309,14 @@ async def test_ace_page_preserves_caller_supplied_startup_fixtures(
         calls.add("plugins")
         return object()
 
+    def collect_project_choices() -> object:
+        calls.add("project-choices")
+        return artifacts_actions._ArtifactsProjectChoices(
+            choices=(),
+            enabled_projects=(),
+            display_names={},
+        )
+
     monkeypatch.setattr(
         AceApp,
         "_run_agent_index_startup_prepare_and_refresh",
@@ -312,14 +328,23 @@ async def test_ace_page_preserves_caller_supplied_startup_fixtures(
         "_load_plugins_catalog",
         plugins_catalog,
     )
+    monkeypatch.setattr(
+        artifacts_actions,
+        "_collect_artifacts_project_choices",
+        collect_project_choices,
+    )
 
     async with AcePage():
         assert (
             testing_module._plugins_browser_pane._load_plugins_catalog
             is plugins_catalog
         )
+        assert (
+            artifacts_actions._collect_artifacts_project_choices
+            is collect_project_choices
+        )
 
-    assert calls >= {"agents", "axe"}
+    assert calls >= {"agents", "axe", "project-choices"}
 
 
 async def test_ace_page_fast_stylesheet_cache_skips_second_parse(

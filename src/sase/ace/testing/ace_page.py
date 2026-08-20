@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
+from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 
 from ._startup import _install_fast_startup_overrides
 from ._stylesheet_cache import (
@@ -114,6 +115,22 @@ def _stop_ace_app_proc_observer(app: AceApp | None) -> None:
         stop()
     except Exception:
         pass
+
+
+async def _drain_pump_free_tasks(app: AceApp) -> None:
+    """Cancel leftover pump-free work and wait until it leaves the registry.
+
+    ``on_unmount`` only requests cancellation. A task blocked in
+    ``asyncio.to_thread`` stays in ``_pump_free_async_tasks`` until the
+    thread returns and the done callback discards it; AcePage must await
+    that before the test loop is torn down.
+    """
+    cancel_pump_free_tasks(app)
+    tasks: set[asyncio.Task[Any]] = set()
+    for registry_name in tuple(getattr(app, "_pump_free_task_registry_attrs", ())):
+        tasks.update(getattr(app, registry_name, ()))
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _resolve_key(data: dict[str, Any], key: str) -> Any:
@@ -233,6 +250,8 @@ class AcePage:
             return self
         except BaseException:
             app = self._app
+            if app is not None:
+                await _drain_pump_free_tasks(app)
             await stack.aclose()
             self._stack = None
             _stop_ace_app_proc_observer(app)
@@ -246,11 +265,14 @@ class AcePage:
     ) -> None:
         stack = self._stack
         self._stack = None
+        app = self._app
         try:
+            if app is not None:
+                await _drain_pump_free_tasks(app)
             if stack is not None:
                 await stack.__aexit__(exc_type, exc_val, exc_tb)
         finally:
-            _stop_ace_app_proc_observer(self._app)
+            _stop_ace_app_proc_observer(app)
 
     async def press(self, *keys: str) -> None:
         """Press one or more keys via the pilot."""

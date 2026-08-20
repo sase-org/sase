@@ -168,3 +168,27 @@ tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process
 # a tree at 17592d904 or 2633d3c2b, both ancestors of the fix; the node passes
 # 3/3 serially at 0e36971e0.
 # fixed-at: 2026-08-19T03:02:02Z tests/ace/tui/test_plugins_browser_pane_detail.py::test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on
+#
+# sase-oe: PluginActionConfirmModal 5s expect_modal timeout under the full
+# parallel lane; passes in isolation. Ready task, +2.
+tests/ace/tui/test_plugins_browser_pane_comprehensive_update_confirmation.py::test_comprehensive_confirmation_stays_open_when_submit_collides
+# sase-p9: probe_zsh_comps' 5s interactive-zsh timeout returns None so
+# registered is None instead of True; isolated re-run passes. Ready task, +4.
+tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration
+# sase-lk: supervisor pipe does not EOF promptly under the full parallel lane.
+# This is the still-live sibling of the idle-timeout node sase-nd already
+# retired. Ready task, +6, reopened 2026-08-19.
+tests/monitor/test_monitor_supervise.py::test_run_supervisor_times_out_after_partial_line
+# sase-j7: the leak-detector unit test this epic added (sase-j7.2) itself
+# flakes under the full parallel lane — a dummy sase-config-token-refresh
+# thread is not observed within 1s. Eight eligible full-run records across
+# workspaces sase_13/14/15/18 on 2026-08-17 and 2026-08-19; this run's
+# test-cost lane passed. No dedicated flake task; phase sase-qy.4 cannot
+# file one. File a flake task (or extend sase-j7) before deleting this.
+tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_token_refresh_threads
+# sase-r4: the three nodes call prepare_linked_repo_workspaces_if_needed
+# against the real occupancy guard with workspace_num=0, so they fail on
+# ambient host state and pass serially. Ready flake task, +1.
+tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_failure_names_workspace
+tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_prepares_retained_sidecar
+tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_uses_default_revision_sentinel

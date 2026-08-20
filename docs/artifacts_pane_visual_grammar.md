@@ -9,11 +9,17 @@ in `src/sase/ace/tui/widgets/artifacts/shell.py`.
 
 The vertical order is invariant for every pane:
 
-1. **Filter slot** — the pane's inline filter editor, collapsed when that pane's current
-   query UX does not expose one.
+1. **Query bar** — always present on every pane whose contract has
+   `PaneCapability.FILTER_SESSION`. Absent only on degraded panes and on providers that
+   declare no fields. The bar is a permanent layout slot: pressing `/` never inserts or
+   removes rows. See [Query bar states](#query-bar-states). Patch's bar lives in its
+   detail column rather than this pane-top slot; that is the single documented exception
+   to this order (see
+   [Patch's contract-in/spec-out asymmetry](#patchs-contract-inspec-out-asymmetry)).
 2. **Identity/scope header** — built from the active `ArtifactsPaneContract`: the
-   contract's icon/label on the contract's accent, project scope, and any active filter
-   chips. Built with `shell.build_shell_scope`.
+   contract's icon/label on the contract's accent and the project scope. Built with
+   `shell.build_shell_scope`. The committed query is **not** echoed here; it lives only
+   in the query bar.
 3. **State/count lane** — a compact line combining the pane's own counts
    (task/epic/phase totals, file-kind chips, commit position, and so on) with the shared
    state badge from `shell.build_state_badge` when the pane is loading or stale.
@@ -27,6 +33,22 @@ The vertical order is invariant for every pane:
 Bespoke information (Patch fold levels, Stitch repository presence, Bead triage counts,
 File origin counts) belongs in the state/count lane or the pane's own rows — never in a
 second identity header.
+
+### Query bar states
+
+A persistent `FilterBar` has two states. The idle presentation is the universal closed
+rendering (`DISPLAY_ID` plus `PERSISTENT`); `open()` / `close()` swap between them
+without changing the bar's height.
+
+| State     | What you see                                                                                                                                                                                                                            | Status lane                                                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `idle`    | Highlighted committed query, or the profile's `free_text_hint` as dim italic placeholder text. Editor hidden, unfocusable, and read-only. No vim chrome. Click posts `FilterBar.Clicked`, mapped to the same `show_filters()` `/` uses. | Empty query: blank. Non-empty: `{N} matches  ·  {coverage}` (`exact`, `preview`, or a pane label such as `capped` or Plan's deep-archive coverage). |
+| `editing` | Vim editor focused in INSERT, plus the completion overlay. A parse error is reachable only here — an idle bar always holds a committed, valid query.                                                                                    | Parse error in the existing error style; otherwise the same match/coverage text as idle.                                                            |
+
+`CommitFilterBar.set_status` still overrides the count away because the Stitches legend
+owns that position; callers are uniform even though that renderer stays pane-specific.
+The saved-slot chip on Patch's idle display is a Patch-only decoration: only Patches
+applies a loaded slot today.
 
 ### Relation panel slot
 
@@ -148,9 +170,17 @@ never touches the filesystem, invokes provider code, or resolves providers.
   of these properties, plus that installing or removing an unrelated `ref_kind` cannot
   repaint an existing tab (the hash is a pure function of the kind string alone) and
   that provider discovery never mutates `ARTIFACTS_ACCENTS`.
-- Filter bars carry their own `ACCENT` (used for match-count highlighting); `FilterBar`
-  accepts an optional `accent` constructor kwarg so a document-provider pane's filter
-  bar uses its contract accent instead of a pinned default.
+- Filter bars resolve border, sigil, completion-highlight, and match-count colors from
+  their own `ACCENT`, which is the pane's `ArtifactsPaneContract.accent`. `FilterBar`
+  accepts an optional `accent` constructor kwarg so a document-provider pane's bar uses
+  that contract accent instead of a pinned default (this is what stops a `ref:research`
+  pane from drawing Plans-purple).
+- Query highlighting is presentation only: `highlight_query` in
+  `src/sase/ace/query/profile_highlighting.py` maps the same lexer the parser uses —
+  `tokenize_query_for_display` for the boolean dialect, `sase.filter_tokens.tokenize`
+  for flat dialects — onto `QUERY_TOKEN_STYLES`. It never re-lexes with a private regex,
+  so the highlight cannot disagree with the parse, and it never raises on malformed
+  input.
 
 ## Accessibility constraints
 
@@ -196,7 +226,13 @@ Adding a new built-in pane or generalizing an existing one to use more of the sh
    `tests/ace/tui/artifacts_contract/harness.py` (already automatic for every resolved
    sub-tab) and, for a genuinely new fixture shape, exercise `PANE_CONFORMANCE_CHECKS`
    directly the way `test_degraded_descriptor_satisfies_every_conformance_check` does.
-7. Add or update the PNG snapshot for the new surface, inspecting
+7. If the pane earns `FILTER_SESSION`, declare `PERSISTENT = True` and a pane-specific
+   `DISPLAY_ID` on its `FilterBar` subclass, pass `accent=contract.accent`, and call
+   `_sync_query_bar()` from the pane's `_refresh_options()` funnel so the idle bar's
+   text and status stay truthful when committed filters change without opening a
+   session. The always-on invariant is enforced by
+   `tests/ace/tui/test_artifacts_query_bar_invariant.py`.
+8. Add or update the PNG snapshot for the new surface, inspecting
    `.pytest_cache/sase-visual/` actual/expected/diff artifacts before accepting a
    golden.
 
@@ -212,10 +248,15 @@ bar filters the loaded Patch snapshot live; commit, rollback, completion, histor
 saved-slot behavior remain Patch-owned. Patch's existing empty state already routes
 through `TabQuickStart` (`_actions/patch/_onboarding.py` shows/hides
 `#patch-quickstart-panel`); this phase treats that established mechanism as Patch's
-canonical empty surface rather than introducing a second one. A literal shared
-identity-header _row_ was deliberately not added to Patch's layout in this phase: Patch
-is covered by a very large number of PNG snapshots across otherwise-unrelated test
-suites (agents, axe, config center, and more all screenshot the default view), and
-inserting a new row would shift every one of them for no behavioral benefit —
-`PatchInfoPanel` already carries Patch's identity and state/count information. That
-migration is left as explicit follow-up work, tracked separately from this phase's bead.
+canonical empty surface rather than introducing a second one.
+
+The single documented exception to the [layout order](#layout-order) is **where**
+Patch's query bar lives: it sits at the top of the _detail_ column, not the top of the
+pane, because `ArtifactsPatchesPane` is a `Horizontal`. Relocating it to the shared
+pane-top slot would shift a very large number of PNG goldens across otherwise-unrelated
+suites (agents, axe, config center all screenshot the default Patch view) for no
+behavioral gain. Relocating the bar is separate work.
+
+A literal shared identity-header _row_ was deliberately not added to Patch's layout for
+the same golden-churn reason: `PatchInfoPanel` already carries Patch's identity and
+state/count information. That migration is also left as explicit follow-up work.
