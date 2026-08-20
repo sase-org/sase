@@ -66,6 +66,7 @@ _RESOLVER_SPAN_SUFFIXES = (
     "skill_uses",
     "memory_reads",
     "artifact_file_paths",
+    "artifact_reads",
     "plan_enrichment",
     "slow_tool_sources",
     "delta_entries",

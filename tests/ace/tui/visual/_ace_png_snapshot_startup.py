@@ -14,6 +14,7 @@ from sase.ace.tui import AceApp
 from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from sase.config.loading import load_default_config
@@ -78,12 +79,14 @@ def patch_startup_loaders(
     use_real_agent_loader: bool = False,
     axe_data: AxeCollectedData | None = None,
     memory_reads: Sequence[MemoryReadEvent] | None = None,
+    artifact_reads: Sequence[ArtifactReadDisplayEvent] | None = None,
     skill_uses: Sequence[SkillUseEvent] | None = None,
     opened_workspaces: Sequence[OpenedWorkspaceDisplayEvent] | None = None,
 ) -> None:
     """Replace background startup data sources with deterministic fixtures."""
     import sase.notifications as notifications
     from sase.ace import grouping_strategy
+    from sase.ace.tui import artifact_reads as artifact_reads_module
     from sase.ace.tui import memory_reads as memory_reads_module
     from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
@@ -114,6 +117,7 @@ def patch_startup_loaders(
         )
 
     memory_read_events = tuple(memory_reads or ())
+    artifact_read_events = tuple(artifact_reads or ())
     skill_use_events = tuple(skill_uses or ())
     opened_workspace_events = tuple(opened_workspaces or ())
 
@@ -121,6 +125,11 @@ def patch_startup_loaders(
         *_args: Any, limit: int = len(memory_read_events), **_kwargs: Any
     ) -> tuple[MemoryReadEvent, ...]:
         return memory_read_events[:limit]
+
+    def _fake_load_artifact_reads_for_agent_context(
+        *_args: Any, limit: int = len(artifact_read_events), **_kwargs: Any
+    ) -> tuple[ArtifactReadDisplayEvent, ...]:
+        return artifact_read_events[:limit]
 
     def _fake_load_skill_uses_for_agent(
         *_args: Any, limit: int = len(skill_use_events), **_kwargs: Any
@@ -204,6 +213,11 @@ def patch_startup_loaders(
         memory_reads_module,
         "_load_memory_reads_for_agent",
         _fake_load_memory_reads_for_agent,
+    )
+    monkeypatch.setattr(
+        artifact_reads_module,
+        "load_artifact_reads_for_agent_context",
+        _fake_load_artifact_reads_for_agent_context,
     )
     monkeypatch.setattr(
         skill_uses_module,

@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -102,6 +103,16 @@ def aggregate_clan_context_lanes(
                 artifact.display_path,
                 member_label,
                 artifact,
+            )
+        for artifact_display in summary.artifact_reads:
+            artifact_event = cast(ArtifactReadDisplayEvent, artifact_display).event
+            _add_context(
+                accumulators,
+                "ARTIFACTS",
+                artifact_event.ref,
+                artifact_event.ref,
+                member_label,
+                artifact_display,
             )
         for delta in summary.delta_entries or ():
             _add_context(

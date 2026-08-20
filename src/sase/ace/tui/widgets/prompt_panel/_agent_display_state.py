@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -121,6 +122,7 @@ class DetailHeaderSummary:
     delta_entries: list[DeltaEntry] | None = None
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     artifact_file_paths: list[ArtifactFilePath] | None = None
+    artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()

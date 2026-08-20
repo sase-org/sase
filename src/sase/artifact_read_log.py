@@ -39,6 +39,7 @@ class ArtifactReadEvent:
     agent_source: str
     artifacts_dir: str | None
     recorded_link: bool
+    resolved_path: str | None = None
 
 
 def _normalize_read_reason(reason: str) -> str:
@@ -72,6 +73,7 @@ def build_artifact_read_event(
     read_id: str | None = None,
     agent: AgentIdentity | None = None,
     env: Mapping[str, str] | None = None,
+    resolved_path: str | Path | None = None,
 ) -> ArtifactReadEvent:
     """Build one attributable artifact-read event.
 
@@ -111,6 +113,9 @@ def build_artifact_read_event(
         agent_source=agent_source,
         artifacts_dir=artifacts_dir,
         recorded_link=recorded_link,
+        resolved_path=_optional_text(
+            None if resolved_path is None else str(resolved_path)
+        ),
     )
 
 
@@ -198,6 +203,9 @@ def _event_from_mapping(data: Mapping[str, Any]) -> ArtifactReadEvent | None:
     artifacts_dir = data.get("artifacts_dir")
     if artifacts_dir is not None and not isinstance(artifacts_dir, str):
         return None
+    resolved_path = data.get("resolved_path")
+    if resolved_path is not None and not isinstance(resolved_path, str):
+        return None
     return ArtifactReadEvent(
         schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
         id=data["id"],
@@ -210,6 +218,7 @@ def _event_from_mapping(data: Mapping[str, Any]) -> ArtifactReadEvent | None:
         agent_source=data["agent_source"],
         artifacts_dir=artifacts_dir,
         recorded_link=recorded_link,
+        resolved_path=_optional_text(resolved_path),
     )
 
 

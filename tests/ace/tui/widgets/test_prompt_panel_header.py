@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
+from sase.ace.tui import artifact_reads as artifact_reads_module
 from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui import opened_workspaces as opened_workspaces_module
 from sase.ace.tui import skill_uses as skill_uses_module
@@ -51,6 +52,9 @@ def _setup(
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
     memory_reads_module._memory_reads_snapshot_cache.clear()
+    artifact_reads_module._artifact_reads_cache.clear()
+    artifact_reads_module._artifact_reads_context_cache.clear()
+    artifact_reads_module._artifact_reads_snapshot_cache.clear()
     opened_workspaces_module._opened_workspaces_cache.clear()
     opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
@@ -61,6 +65,11 @@ def _setup(
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: sase_home))
     monkeypatch.setattr(
         memory_reads_module,
+        "project_memory_name",
+        lambda _root: "header-test",
+    )
+    monkeypatch.setattr(
+        artifact_reads_module,
         "project_memory_name",
         lambda _root: "header-test",
     )
@@ -78,6 +87,9 @@ def _setup(
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
     memory_reads_module._memory_reads_snapshot_cache.clear()
+    artifact_reads_module._artifact_reads_cache.clear()
+    artifact_reads_module._artifact_reads_context_cache.clear()
+    artifact_reads_module._artifact_reads_snapshot_cache.clear()
     opened_workspaces_module._opened_workspaces_cache.clear()
     opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()

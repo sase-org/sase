@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
+from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header_summary
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     ALL_DETAIL_CONTEXT_LANES,
@@ -31,6 +33,22 @@ from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
+_ARTIFACT_EVENT = ArtifactReadDisplayEvent(
+    event=ArtifactReadEvent(
+        schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+        id="artifact-read-1",
+        timestamp="2026-08-13T10:00:00+00:00",
+        project="demo",
+        cwd="/tmp",
+        ref="plan:202608/design.md",
+        reason="compare constraints",
+        agent_name="agent-1",
+        agent_source="test",
+        artifacts_dir="/tmp/artifacts",
+        recorded_link=False,
+        resolved_path="/tmp/design.md",
+    )
+)
 _MEMORY_EVENT = MemoryReadDisplayEvent(
     event=MemoryReadEvent(
         schema_version=READ_LOG_SCHEMA_VERSION,
@@ -103,6 +121,10 @@ def _stub_non_memory_resolvers(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.ace.tui.widgets.prompt_panel._agent_deltas.agent_delta_entries",
         lambda agent: [],
     )
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_reads.load_artifact_reads_for_agent_context",
+        lambda agent: (),
+    )
 
 
 def test_partial_lane_request_resolves_only_the_requested_lane(
@@ -145,6 +167,50 @@ def test_resolved_empty_lane_is_distinguishable_from_unresolved_lane(
     assert resolved.memory_reads == unresolved.memory_reads == ()
     assert "memory" in resolved.ready_lanes
     assert "memory" not in unresolved.ready_lanes
+
+
+def test_artifacts_lane_resolves_artifact_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_memory_resolvers(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_reads.load_artifact_reads_for_agent_context",
+        lambda agent: (_ARTIFACT_EVENT,),
+    )
+    agent = make_agent(agent_name=None)
+
+    summary = build_detail_header_summary(agent, lanes=frozenset({"artifacts"}))
+
+    assert summary.ready_lanes == frozenset({"artifacts"})
+    assert summary.artifact_reads == (_ARTIFACT_EVENT,)
+    assert summary.memory_reads == ()
+
+
+def test_cache_merge_does_not_erase_artifact_reads_when_other_lane_rebuilds() -> None:
+    widget = _Widget()
+    agent = make_agent()
+    cache_detail_header_summary(
+        widget,
+        agent,
+        DetailHeaderSummary(
+            artifact_reads=(_ARTIFACT_EVENT,),
+            memory_reads=(_MEMORY_EVENT,),
+        ),
+    )
+
+    cache_detail_header_summary(
+        widget,
+        agent,
+        DetailHeaderSummary(
+            skill_uses=(),
+            ready_lanes=frozenset({"skills"}),
+        ),
+    )
+
+    merged = get_cached_detail_header_summary(widget, agent)
+    assert merged is not None
+    assert merged.artifact_reads == (_ARTIFACT_EVENT,)
+    assert merged.memory_reads == (_MEMORY_EVENT,)
 
 
 def test_cache_merge_does_not_blank_a_lane_the_rebuild_did_not_touch() -> None:

@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -89,6 +90,7 @@ def append_agent_context_section(
     delta_entries: list[DeltaEntry] | None = None,
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     artifact_file_paths: list[ArtifactFilePath] | None = None,
+    artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
     hint_state: HeaderHintState | None = None,
     responsive_ranges: dict[str, tuple[int, int]] | None = None,
     fold_level: FoldLevel | None = None,
@@ -158,6 +160,7 @@ def append_agent_context_section(
             delta_entries=delta_entries,
             linked_delta_groups=linked_delta_groups,
             artifact_file_paths=artifact_file_paths,
+            artifact_reads=artifact_reads,
             hint_state=hint_state,
         ),
     }

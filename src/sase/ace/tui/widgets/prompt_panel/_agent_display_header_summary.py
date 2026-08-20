@@ -59,6 +59,7 @@ from ._agent_display_state import (
 from ._helpers import load_xprompts_used
 
 if TYPE_CHECKING:
+    from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
     from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
     from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
     from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -103,7 +104,12 @@ _LANE_REFRESH_INTERVAL_SECONDS: dict[DetailContextLane, float] = {
 # incoming value.
 _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "plan-bead": ("associated_plan", "phase_bead"),
-    "artifacts": ("artifact_file_paths", "delta_entries", "linked_delta_groups"),
+    "artifacts": (
+        "artifact_file_paths",
+        "delta_entries",
+        "linked_delta_groups",
+        "artifact_reads",
+    ),
     "memory": ("memory_reads",),
     "glossary": ("glossary_reads",),
     "skills": ("skill_uses",),
@@ -432,6 +438,7 @@ def _build_detail_header_summary_impl(
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     resolved_artifact_file_paths = None
     delta_entries = None
+    artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
     if "artifacts" in lanes:
         from ..file_panel._linked_deltas import get_cached_linked_delta_groups
         from ._artifact_files import (
@@ -463,6 +470,11 @@ def _build_detail_header_summary_impl(
 
         with tui_trace(f"{_TRACE_SPAN_PREFIX}.delta_entries"):
             delta_entries = agent_delta_entries(agent)
+
+        from sase.ace.tui.artifact_reads import load_artifact_reads_for_agent_context
+
+        with tui_trace(f"{_TRACE_SPAN_PREFIX}.artifact_reads"):
+            artifact_reads = load_artifact_reads_for_agent_context(agent)
 
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     if "memory" in lanes:
@@ -508,6 +520,7 @@ def _build_detail_header_summary_impl(
         delta_entries=delta_entries,
         linked_delta_groups=linked_delta_groups,
         artifact_file_paths=resolved_artifact_file_paths,
+        artifact_reads=artifact_reads,
         memory_reads=memory_reads,
         glossary_reads=glossary_reads,
         skill_uses=skill_uses,

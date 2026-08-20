@@ -1387,10 +1387,12 @@ even for a single artifact, so the label, kind, and path are visible before laun
 the terminal viewer.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent
-`SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Commits`, `Deltas`, and `Files` stay
-in that order when present. Paths are made workspace-relative when possible, and hint
-mode assigns numbers to those paths so they can be opened with the normal file-hint
-flow.
+`SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Reads`, `Commits`, `Deltas`, and
+`Files` stay in that order when present. `Reads` lists audited `sase artifact read`
+invocations (newest first, with reasons); prompt citations and silent `show` / `path` /
+`open` inspection do not appear. Paths are made workspace-relative when possible, and
+hint mode assigns numbers to filesystem-backed reads and output paths so they can be
+opened with the normal file-hint flow.
 
 Artifact panel controls:
 
@@ -4045,19 +4047,30 @@ pinned attempt view resets the cursor.
   the recorded `sase/sase.yml` source. Loading, attribution, and the mtime/size snapshot
   cache mirror `MEMORY`'s reference implementation; the lane is skipped rather than
   rendered empty when there are no reads to show.
-- **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
+- **SASE CONTEXT / ARTIFACTS**: The plan-adjacent lane groups `Reads`, `Commits`,
   `Deltas`, and `Files` as compact fields, preserves that internal order, and summarizes
-  only the present fields in its header. Commits persisted by the selected agent's
-  post-run steps are grouped by repository; primary workspace, linked-repo, sidecar, and
-  external-repo commits retain their repository identity. Deltas preserve their green
-  `+`, gold `~`, and red `-` change glyphs and group linked or external files by
-  repository. Artifact type remains visible through its icon shape, while every artifact
-  icon and path uses the shared blue output-lane/file-path palette. This lane starts
-  painting on the very first navigation frame: `Commits` is derived from the selected
-  agent's in-memory step metadata and needs no disk reads, so it renders immediately,
-  while `Deltas` and `Files` — which do need store reads — fill in when the debounced
-  enrichment resolves the lane. The immediate commit-only view is deliberately not
-  cached, so the full lane still resolves on its normal schedule.
+  only the present fields in its header. `Reads` is the input side of the lane: each
+  retained audited `sase artifact read` (including when artifact links are disabled)
+  appears newest-first with local time, the canonical reference, the recorded reason on
+  a wrapped continuation line, and — on a family row — the compact producer label. The
+  header counts every retained read event; the newest five rows render and a dim
+  `+ N more · HH:MM earliest` footer reports overflow. Repeated reads of the same
+  reference stay separate. Prompt citations and silent `show` / `path` / `open` commands
+  never appear. A read with a recorded resolved path participates in hint mode; a
+  pathless or legacy row still renders its reference and reason, consumes no hint
+  number, and never triggers live reference resolution. Commits persisted by the
+  selected agent's post-run steps are grouped by repository; primary workspace,
+  linked-repo, sidecar, and external-repo commits retain their repository identity.
+  Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and group linked
+  or external files by repository. Artifact type remains visible through its icon shape,
+  while every artifact icon, read row, and path uses the shared blue
+  output-lane/file-path palette. This lane starts painting on the very first navigation
+  frame: `Commits` is derived from the selected agent's in-memory step metadata and
+  needs no disk reads, so it renders immediately, while `Reads`, `Deltas`, and `Files` —
+  which do need store reads — fill in when the debounced enrichment resolves the lane.
+  The immediate commit-only view is deliberately not cached, so the full lane still
+  resolves on its normal schedule. An agent whose only artifact context is a read still
+  gets `SASE CONTEXT` and an `ARTIFACTS` lane.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
   longer, ordered by start time and capped at 8 rows (an overflow line points to the
   full [Tools panel](#agents-tab-tools-panel) timeline via `]`). Level 1 is a compact

@@ -80,7 +80,10 @@ def handle_read(args: argparse.Namespace) -> int:
     try:
         body, path, recorded_link = _prepare_body(result)
         _record_audit_and_consumption(
-            result, reason=str(args.reason), recorded_link=recorded_link
+            result,
+            reason=str(args.reason),
+            recorded_link=recorded_link,
+            resolved_path=path,
         )
         if recorded_link:
             try:
@@ -197,12 +200,14 @@ def _record_audit_and_consumption(
     *,
     reason: str,
     recorded_link: bool,
+    resolved_path: Path | None = None,
 ) -> None:
     canonical = render_artifact_ref(replace(result.parsed, fragment=None))
     event: ArtifactReadEvent = build_artifact_read_event(
         ref=canonical,
         reason=reason,
         recorded_link=recorded_link,
+        resolved_path=resolved_path,
     )
     append_artifact_read_event(event, log_path=artifact_read_log_path(event.project))
     if result.resolution.status not in _RESOLVED_STATUSES:

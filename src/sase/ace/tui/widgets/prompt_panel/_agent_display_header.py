@@ -316,6 +316,7 @@ def build_header_text(
             delta_entries=summary.delta_entries,
             linked_delta_groups=summary.linked_delta_groups,
             artifact_file_paths=summary.artifact_file_paths,
+            artifact_reads=summary.artifact_reads,
             hint_state=hint_state,
             responsive_ranges=responsive_ranges,
             fold_level=(resolved_lane_fold_level if family_fold_enabled else None),

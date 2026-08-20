@@ -6,8 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.ace.tui.models._agent_clan_sections import (
     ClanDiskMemberSnapshot,
     aggregate_clan_in_memory,
@@ -178,6 +180,20 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
     )
     container = project_clan_tree([second, first])[0]
     in_memory = aggregate_clan_in_memory(container)
+    artifact_event = ArtifactReadEvent(
+        schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+        id="artifact-read-1",
+        timestamp="2026-07-18T10:00:00+00:00",
+        project="demo",
+        cwd="/tmp",
+        ref="plan:202608/design.md",
+        reason="compare constraints",
+        agent_name="research.first",
+        agent_source="test",
+        artifacts_dir="/tmp/artifacts",
+        recorded_link=False,
+        resolved_path="/tmp/design.md",
+    )
     memory_event = MemoryReadEvent(
         schema_version=READ_LOG_SCHEMA_VERSION,
         id="read-1",
@@ -231,6 +247,7 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
                     actual_path="/tmp/report.md",
                 )
             ],
+            artifact_reads=(ArtifactReadDisplayEvent(event=artifact_event),),
             memory_reads=(MemoryReadDisplayEvent(event=memory_event),),
             glossary_reads=(GlossaryReadDisplayEvent(event=glossary_event),),
             skill_uses=(SkillUseDisplayEvent(event=skill_event),),
@@ -260,11 +277,19 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         "WORKSPACES",
     ]
     by_label = {lane.label: lane for lane in lanes}
-    assert len(by_label["ARTIFACTS"].entries) == 1
+    assert [entry.label for entry in by_label["ARTIFACTS"].entries] == [
+        "report.md",
+        "plan:202608/design.md",
+    ]
     assert by_label["ARTIFACTS"].entries[0].member_labels == (
         ".first",
         ".second",
     )
+    assert by_label["ARTIFACTS"].entries[1].member_labels == (
+        ".first",
+        ".second",
+    )
+    assert by_label["ARTIFACTS"].entries[1].count == 2
     assert by_label["MEMORY"].entries[0].count == 2
     assert by_label["GLOSSARY"].entries[0].label == "Agent Hood"
     assert by_label["GLOSSARY"].entries[0].count == 2

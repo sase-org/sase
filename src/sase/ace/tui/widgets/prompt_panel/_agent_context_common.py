@@ -38,6 +38,8 @@ COLOR_WORKSPACE_GLYPH = "bold #FF87D7"
 COLOR_WORKSPACE_NAME = "bold #FFAFD7"
 COLOR_WORKSPACE_PATH = "dim #D7AFD7"
 COLOR_ARTIFACTS_PRIMARY = "bold #87AFFF"
+COLOR_ARTIFACT_READ_GLYPH = "bold #5F87FF"
+COLOR_ARTIFACT_READ_PRIMARY = "#87AFFF"
 COLOR_ARTIFACT_FILE_PATH = "#87AFFF"
 COLOR_ARTIFACT_FILE_BASENAME = "bold #87AFFF"
 COLOR_EXTERNAL_REPO_GLYPH = "bold #FFAF00"
@@ -49,6 +51,7 @@ COLOR_EMPTY = "dim italic"
 COLOR_ROLE = "italic #AF87FF"
 
 MEMORY_GLYPH = "◇"
+ARTIFACT_READ_GLYPH = "←"
 GLOSSARY_GLYPH = "◈"
 SKILL_GLYPH = "◆"
 WORKSPACE_GLYPH = "▣"
@@ -146,8 +149,8 @@ def append_lane_row(
     hint_label: Text | None = None,
 ) -> int:
     # PLAN is a descriptive lane rather than an event log, so it deliberately
-    # bypasses this shared timestamp/actor row shape. MEMORY, SKILLS, and
-    # WORKSPACES keep using it so their event columns remain aligned.
+    # bypasses this shared timestamp/actor row shape. MEMORY, ARTIFACTS reads,
+    # SKILLS, and WORKSPACES keep using it so their event columns remain aligned.
     text.append(
         f"{_ROW_LEADING}{format_local_hhmmss(timestamp)}{_ROW_AFTER_TIMESTAMP}",
         style=COLOR_TIMESTAMP,

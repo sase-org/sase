@@ -29,6 +29,7 @@ _CHILD_SPAN_SUFFIXES = (
     "agent_page_url",
     "linked_delta_groups",
     "artifact_file_paths",
+    "artifact_reads",
     "memory_reads",
     "glossary_reads",
     "skill_uses",
@@ -117,6 +118,10 @@ def _stub_all_resolvers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._artifact_files.artifact_file_paths",
         lambda agent: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_reads.load_artifact_reads_for_agent_context",
+        lambda agent: (),
     )
     monkeypatch.setattr(
         "sase.ace.tui.memory_reads.load_memory_reads_for_agent_context",

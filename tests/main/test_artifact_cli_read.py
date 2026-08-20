@@ -71,6 +71,7 @@ def test_read_strips_frontmatter_and_managed_blocks_and_audits(
     assert logged[0].reason == "Need the design of record"
     assert logged[0].recorded_link is False
     assert logged[0].ref == "plan:doc.md"
+    assert logged[0].resolved_path == str(path)
 
 
 def test_read_refuses_to_print_when_audit_cannot_be_written(
@@ -97,6 +98,37 @@ def test_read_refuses_to_print_when_audit_cannot_be_written(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "could not record artifact read audit row" in captured.err
+
+
+def test_read_records_prepared_path_not_resolution_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    stored = tmp_path / "stored.md"
+    stored.write_text("# unused\n", encoding="utf-8")
+    prepared = tmp_path / "vcs-cache" / "materialized.md"
+    prepared.parent.mkdir()
+    prepared.write_text("# Heading\nbody line\n", encoding="utf-8")
+    result = resolved_reference(stored, reference="plan:doc.md", status="vcs_backed")
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolve_cli_reference",
+        lambda _value: result,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.read.resolved_file_path",
+        lambda _result: prepared,
+    )
+
+    with override_flags(artifact_links=False):
+        assert handle_read(_read_args()) == 0
+
+    from sase.core.paths import sase_projects_dir
+
+    candidates = list(sase_projects_dir().glob("*/artifact_reads.jsonl"))
+    logged = read_artifact_read_events(log_path=candidates[0])
+    assert logged[0].resolved_path == str(prepared)
+    assert logged[0].resolved_path != str(stored)
 
 
 def test_read_json_and_line_limit(

@@ -12,9 +12,11 @@ from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -228,6 +230,45 @@ def _waiting_tribe_agents() -> list[Agent]:
             model="gpt-5",
         ),
     ]
+
+
+def _context_artifact_reads() -> tuple[ArtifactReadDisplayEvent, ...]:
+    return (
+        ArtifactReadDisplayEvent(
+            event=ArtifactReadEvent(
+                schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+                id="visual-read-design",
+                timestamp="2026-06-14T14:22:08+00:00",
+                project="visual",
+                cwd="/workspace/sase",
+                ref="plan:202608/design.md",
+                reason="compare the approved constraints with this implementation",
+                agent_name="zoom.snapshot.agent",
+                agent_source="SASE_AGENT_NAME",
+                artifacts_dir="/workspace/sase/artifacts/visual-zoom",
+                recorded_link=False,
+                resolved_path="/workspace/sase/repos/plans/202608/design.md",
+            ),
+            agent_label="coder",
+        ),
+        ArtifactReadDisplayEvent(
+            event=ArtifactReadEvent(
+                schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+                id="visual-read-prior-art",
+                timestamp="2026-06-14T14:18:31+00:00",
+                project="visual",
+                cwd="/workspace/sase",
+                ref="research:202608/prior-art.md",
+                reason="reuse the established interaction language",
+                agent_name="zoom.snapshot.agent",
+                agent_source="SASE_AGENT_NAME",
+                artifacts_dir="/workspace/sase/artifacts/visual-zoom",
+                recorded_link=False,
+                resolved_path="/workspace/sase/repos/research/202608/prior-art.md",
+            ),
+            agent_label="plan",
+        ),
+    )
 
 
 def _context_memory_reads() -> list[MemoryReadEvent]:
@@ -505,6 +546,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
     patch_startup_loaders(
         monkeypatch,
         agents=[_zoom_agent(tmp_path, include_plan=True)],
+        artifact_reads=_context_artifact_reads(),
         memory_reads=_context_memory_reads(),
         skill_uses=_context_skill_uses(),
         opened_workspaces=_context_opened_workspaces(),
@@ -539,14 +581,20 @@ async def test_agents_context_zoom_modal_png_snapshot(
             "generated_skills.md",
             "sase_plan",
             "sase-core",
+            "plan:202608/design.md",
+            "research:202608/prior-art.md",
         ):
             assert expected in metadata
+        assert metadata.index("Reads:") < metadata.index("Deltas:")
+        assert "coder" in metadata
+        assert "plan" in metadata
 
         assert_page_svg_contains(page, "SASE CONTEXT")
         assert_page_svg_contains(page, "PLAN")
         assert_page_svg_contains(page, "tale")
         assert_page_svg_contains(page, "Unified agent context")
         assert_page_svg_contains(page, "ARTIFACTS")
+        assert_page_svg_contains(page, "Reads:")
         assert_page_svg_contains(page, "Deltas:")
         ace_png_visual.assert_page_png(
             page,

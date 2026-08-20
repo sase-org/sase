@@ -22,12 +22,14 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
     build_detail_header_summary,
     cache_detail_header_summary,
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -317,13 +319,25 @@ def test_update_header_only_commit_rows_do_no_disk_io() -> None:
         }
     )
 
-    with patch(
-        "sase.core.artifact_file_explicit.read_artifact_file_index"
-    ) as mock_read_index:
+    with (
+        patch(
+            "sase.core.artifact_file_explicit.read_artifact_file_index"
+        ) as mock_read_index,
+        patch(
+            "sase.ace.tui.artifact_reads.load_artifact_reads_for_agent_context"
+        ) as mock_artifact_reads,
+        patch("sase.artifact_read_log.read_artifact_read_events") as mock_read_log,
+    ):
         panel.update_header_only(agent)
 
     assert mock_read_index.call_count == 0, (
         "cheap header-only path must not read the artifact-file index"
+    )
+    assert mock_artifact_reads.call_count == 0, (
+        "cheap header-only path must not load the artifact-read log"
+    )
+    assert mock_read_log.call_count == 0, (
+        "cheap header-only path must not parse artifact_reads.jsonl"
     )
     plain = _plain_of(panel.captured[-1])
     assert "  Commits:\n" in plain
@@ -348,6 +362,24 @@ def test_update_header_only_renders_cached_lane_immediately() -> None:
                     actual_path="/tmp/notes.md",
                 )
             ],
+            artifact_reads=(
+                ArtifactReadDisplayEvent(
+                    event=ArtifactReadEvent(
+                        schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+                        id="cached-read",
+                        timestamp="2026-08-13T10:00:00+00:00",
+                        project="demo",
+                        cwd="/tmp",
+                        ref="plan:202608/design.md",
+                        reason="compare constraints",
+                        agent_name="demo",
+                        agent_source="test",
+                        artifacts_dir=None,
+                        recorded_link=False,
+                        resolved_path="/tmp/design.md",
+                    )
+                ),
+            ),
             ready_lanes=frozenset({"artifacts"}),
         ),
     )
@@ -357,6 +389,8 @@ def test_update_header_only_renders_cached_lane_immediately() -> None:
     plain = _plain_of(panel.captured[-1])
     assert "  Commits:\n" in plain
     assert "notes.md" in plain
+    assert "  Reads:\n" in plain
+    assert "plan:202608/design.md" in plain
 
 
 def test_update_header_only_starts_no_worker() -> None:

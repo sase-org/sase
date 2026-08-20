@@ -8,8 +8,10 @@ import pytest
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
+from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.ace.tui.models._agent_clan_sections import (
     ClanContextEntry,
     ClanContextLane,
@@ -38,6 +40,27 @@ from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
 # Split so the pyscripts path linter does not read the skill name as a
 # reference to a ``tools/`` directory, matching the clan display helpers.
 _SASE_BEADS_SKILL = "sase" + "_beads"
+
+
+def _artifact_read(
+    resolved_path: str | None, *, ref: str = "plan:202608/design.md"
+) -> ArtifactReadDisplayEvent:
+    return ArtifactReadDisplayEvent(
+        event=ArtifactReadEvent(
+            schema_version=ARTIFACT_READ_LOG_SCHEMA_VERSION,
+            id=ref,
+            timestamp="2026-08-01T12:00:00+00:00",
+            project="sase",
+            cwd="/tmp",
+            ref=ref,
+            reason="test",
+            agent_name="research.one",
+            agent_source="test",
+            artifacts_dir=None,
+            recorded_link=False,
+            resolved_path=resolved_path,
+        )
+    )
 
 
 def _memory_read(resolved_path: str) -> MemoryReadDisplayEvent:
@@ -133,6 +156,18 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
                     values=(ArtifactFilePath("report.md", str(artifact_path)),),
                 ),
                 ClanContextEntry(
+                    key="plan:202608/design.md",
+                    label="plan:202608/design.md",
+                    member_labels=(".one",),
+                    values=(_artifact_read(str(tmp_path / "plans" / "design.md")),),
+                ),
+                ClanContextEntry(
+                    key="bead:sase-1",
+                    label="bead:sase-1",
+                    member_labels=(".one",),
+                    values=(_artifact_read(None, ref="bead:sase-1"),),
+                ),
+                ClanContextEntry(
                     key="primary-delta",
                     label="src/main.py",
                     member_labels=(".one",),
@@ -221,16 +256,18 @@ def test_fully_expanded_context_uses_typed_exact_path_hints(
         1: str(tmp_path / "plans" / "epic.md"),
         2: str(tmp_path / "plans" / "bead.md"),
         3: str(tmp_path / "artifacts" / "report.md"),
-        4: str(tmp_path / "primary" / "src" / "main.py"),
-        5: str(tmp_path / "linked" / "src" / "lib.rs"),
-        6: str(tmp_path / "memory" / "tui_perf.md"),
-        7: report_path,
+        4: str(tmp_path / "plans" / "design.md"),
+        5: str(tmp_path / "primary" / "src" / "main.py"),
+        6: str(tmp_path / "linked" / "src" / "lib.rs"),
+        7: str(tmp_path / "memory" / "tui_perf.md"),
+        8: report_path,
     }
     assert str(tmp_path / "sase" / "sase.yml") not in state.hint_mappings.values()
     assert report_path in state.glossary_reports
-    assert text.plain.count("[") == 7
+    assert text.plain.count("[") == 8
     assert "• [1] plan:epic.md" in text.plain
-    assert "• [7] Agent Hood" in text.plain
+    assert "• [8] Agent Hood" in text.plain
+    assert "• bead:sase-1" in text.plain
     assert f"• {_SASE_BEADS_SKILL}" in text.plain
     assert "• sase-core" in text.plain
 

@@ -5,10 +5,11 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 
 from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
-from ._artifact_files import ArtifactFilePath, append_artifact_file_paths
+from ._agent_artifact_reads import append_agent_artifact_read_rows
 from ._agent_commits import (
     agent_commit_groups,
     append_agent_commit_groups,
@@ -26,6 +27,7 @@ from ._agent_deltas import (
     visible_agent_linked_delta_groups,
 )
 from ._agent_display_state import HeaderHintState
+from ._artifact_files import ArtifactFilePath, append_artifact_file_paths
 
 
 def append_agent_artifacts_lane(
@@ -35,15 +37,18 @@ def append_agent_artifacts_lane(
     delta_entries: list[DeltaEntry] | None = None,
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     artifact_file_paths: list[ArtifactFilePath] | None = None,
+    artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append commits, deltas, and artifact files as one ranked lane."""
+    """Append reads, commits, deltas, and artifact files as one ranked lane."""
     commit_groups = agent_commit_groups(agent) if agent is not None else ()
     deltas = visible_agent_delta_entries(delta_entries or ())
     linked_groups = visible_agent_linked_delta_groups(linked_delta_groups)
     artifact_files = artifact_file_paths or []
 
     details: list[str] = []
+    if artifact_reads:
+        details.append(count_phrase(len(artifact_reads), "read"))
     commit_count = count_agent_commit_groups(commit_groups)
     if commit_count:
         details.append(count_phrase(commit_count, "commit"))
@@ -61,6 +66,13 @@ def append_agent_artifacts_lane(
         label_style=COLOR_ARTIFACTS_SUBHEADER,
         details=" · ".join(details),
     )
+    if artifact_reads:
+        text.append("  Reads:\n", style=COLOR_SUMMARY)
+        append_agent_artifact_read_rows(
+            text,
+            events=artifact_reads,
+            hint_state=hint_state,
+        )
     if commit_groups:
         text.append("  Commits:\n", style=COLOR_SUMMARY)
         append_agent_commit_groups(

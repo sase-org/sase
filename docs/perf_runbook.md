@@ -222,6 +222,7 @@ widget.prompt_panel.build_detail_header_summary                 (parent)
   .linked_delta_groups
   .artifact_file_paths        the one resolver with no cache — usually the
                                most expensive lane before phase `stores` lands
+  .artifact_reads
   .memory_reads
   .skill_uses
   .opened_workspaces
