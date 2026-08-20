@@ -13,14 +13,8 @@ from ._agent_render_cache_helpers import (
     AgentListHarness as _Harness,
     agent as _agent,
     agent_row_index as _agent_row_index,
+    style_at as _style_at,
 )
-
-
-def _style_at(text: Text, position: int) -> str | None:
-    for span in reversed(text.spans):
-        if span.start <= position < span.end:
-            return str(span.style)
-    return str(text.style) if text.style else None
 
 
 @pytest.mark.asyncio

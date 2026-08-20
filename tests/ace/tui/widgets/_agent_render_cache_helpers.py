@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from rich.text import Text
 from textual.app import App
 
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -42,6 +43,13 @@ def bead_key(a: Agent) -> tuple[object, ...]:
         hint_char=None,
         now=None,
     )
+
+
+def style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 class AgentListHarness(App):
