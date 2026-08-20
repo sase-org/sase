@@ -71,6 +71,8 @@ def _expected_file_drift_detail(
     expected: MemoryExpectedFile, current: str | bytes
 ) -> str:
     """Return a digest-aware snapshot detail, else the generic expected-file note."""
+    if expected.path.name == "artifact_relations.json":
+        return "artifact relation registry snapshot changed; run `sase memory init`"
     if expected.path.name != "task_types.json":
         return expected.detail
     if not isinstance(current, str) or not isinstance(expected.content, str):

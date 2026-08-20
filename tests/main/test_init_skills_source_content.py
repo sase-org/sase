@@ -99,7 +99,10 @@ def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:
     assert "Do not `+1` or reopen them" in flat
     assert "Route the report to step 7 instead" in flat
     assert "node-specific task bead named for the failing node ID" in flat
-    assert 'sase bead note <new-task-id> "RELATED: <retired-task-id>' in flat
+    assert (
+        "sase artifact link add bead:<new-task-id> related "
+        'bead:<retired-task-id> "<how it bears on this task>"'
+    ) in flat
 
 
 def test_git_commit_skill_invokes_observable_wrapper() -> None:

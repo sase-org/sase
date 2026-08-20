@@ -674,8 +674,8 @@ Duplicate detection is not text search alone: the skill also sweeps
 duplicate filed hours ago by another agent often shares no term with your query. If the
 closest match is a closed task whose close reason declares it retired and forbids `+1`
 (a "retired umbrella"), the skill does not corroborate or reopen it — it routes the
-reporter to a new, node-specific task bead instead, with a
-`RELATED: <retired-task-id> — <why>` note linking back to the retired umbrella.
+reporter to a new, node-specific task bead instead, then records a typed `related`
+artifact link back to the retired umbrella.
 
 The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
@@ -776,6 +776,15 @@ reference may be valid even when this checkout does not have the sidecar, artifa
 or agent history needed to resolve it locally. `sase bead doctor` performs the
 resolution audit and reports references with unknown namespaces, missing targets, or
 ambiguous targets.
+
+Use typed artifact links, not free-text `RELATED:` notes, when one bead should carry
+relationship context to another:
+
+```bash
+sase artifact link add bead:<task-id> related bead:<other-bead-id> "<why>"
+```
+
+Use `sase bead dep add` only when the relationship blocks work scheduling.
 
 ### Creation Time Presentation
 

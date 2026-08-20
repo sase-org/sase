@@ -549,7 +549,7 @@ memory:
     assert plan.blockers == ()
     action_by_path = {action.path: action for action in plan.actions}
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert "### 1.1 Glossary Terms (glossary)" in agents
+    assert "### 1.2 Glossary Terms (glossary)" in agents
     assert "### 2.1 `sase/memory/aaa.md`" in agents
     assert "### 2.2 `sase/memory/bbb.md`" in agents
     assert "#### 2.1" not in agents

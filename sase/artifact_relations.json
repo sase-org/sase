@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "relations": [
+    {
+      "schema_version": 1,
+      "slug": "cites",
+      "inverse": "cited-by",
+      "directed": true,
+      "written_by": "prompt_ref"
+    },
+    {
+      "schema_version": 1,
+      "slug": "read",
+      "inverse": "read-by",
+      "directed": true,
+      "written_by": "read"
+    },
+    {
+      "schema_version": 1,
+      "slug": "related",
+      "inverse": "related",
+      "directed": false,
+      "written_by": "cli"
+    },
+    {
+      "schema_version": 1,
+      "slug": "supersedes",
+      "inverse": "superseded-by",
+      "directed": true,
+      "written_by": "cli"
+    },
+    {
+      "schema_version": 1,
+      "slug": "implements",
+      "inverse": "implemented-by",
+      "directed": true,
+      "written_by": "cli"
+    },
+    {
+      "schema_version": 1,
+      "slug": "derives-from",
+      "inverse": "derived-into",
+      "directed": true,
+      "written_by": "cli"
+    }
+  ],
+  "reserved": [
+    {
+      "slug": "blocks",
+      "pointer": "sase bead dep"
+    },
+    {
+      "slug": "depends-on",
+      "pointer": "sase bead dep"
+    }
+  ]
+}

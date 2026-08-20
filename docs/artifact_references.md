@@ -6,6 +6,10 @@ and command substitution, using the project context for that prompt segment. Eac
 successful reference expands to prompt text, records a per-agent use row, and can
 publish as a numbered Markdown reference link.
 
+References name artifacts. Typed [Artifact Links](artifact_links.md) record why two
+artifacts are related and render on the artifact markdown file; prompt references record
+that an agent consumed an artifact in launch context.
+
 ## Prompt Grammar
 
 Use the unquoted form when the argument contains no spaces:
@@ -259,3 +263,8 @@ the managed block is stripped when SASE hashes a clean Markdown input, adding a
 back-reference does not make the original citation appear to have changed. These commits
 use the non-user file-hook cause `referenced_by`, so ordinary file hooks ignore the
 managed write unless they explicitly opt in with `filters.causes`.
+
+With the `artifact_links` beta flag enabled, deliberate relationships render separately
+as a top `Links` table and prompt-reference rows use the unified link graph behind the
+same `Referenced By` projection. See [Artifact Links](artifact_links.md) for the
+relation registry and CLI.

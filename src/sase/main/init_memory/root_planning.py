@@ -40,6 +40,7 @@ from .root_rendering import (
     generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
+    render_generated_artifact_relations_memory_body,
     render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
@@ -250,6 +251,26 @@ def memory_root_context(
                 or "failed to render sase/memory/task_types.md template",
             ),
         )
+    generated_artifact_relations_body: str | None = None
+    if include_project_memory:
+        generated_artifact_relations_body, artifact_relations_render_error = (
+            render_generated_artifact_relations_memory_body()
+        )
+        if (
+            artifact_relations_render_error is not None
+            or generated_artifact_relations_body is None
+        ):
+            return _MemoryRootContext(
+                amd_sync=None,
+                expected_files=(),
+                shim_plan=ProviderShimPlan(writes=(), deletes=()),
+                additional_shim_plans=(),
+                source_memory_root=migration.source_memory_root,
+                blockers=(
+                    artifact_relations_render_error
+                    or "failed to render sase/memory/artifact_relations.md template",
+                ),
+            )
     generated_glossary_body: str | None = None
     if glossary_terms is not None and glossary_terms.terms:
         generated_glossary_body, glossary_render_error = (
@@ -288,6 +309,7 @@ def memory_root_context(
         generated_short_notes=generated_short_notes(
             generated_sase_body,
             generated_task_types_body,
+            generated_artifact_relations_body,
             generated_glossary_body,
         ),
         generated_long_notes=generated_long_notes(generated_project_long_contents),
@@ -300,6 +322,7 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
+        generated_artifact_relations_body=generated_artifact_relations_body,
         generated_task_types_body=generated_task_types_body,
         generated_glossary_body=generated_glossary_body,
         generated_project_long_contents=generated_project_long_contents,

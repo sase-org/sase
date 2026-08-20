@@ -28,6 +28,9 @@ from .glossary import (
     ProjectGlossaryTerms,
 )
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
+from .root_rendering_artifact_relations import (
+    generated_artifact_relations_memory_relative_path,
+)
 from .root_rendering_task_types import generated_task_types_memory_relative_path
 
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
@@ -151,8 +154,9 @@ def generated_memory_note_relative_paths(
 ) -> tuple[Path, ...]:
     """Return the generated memory-note paths for one memory root.
 
-    Shared notes are always included. Project-only notes (``glossary.md``,
-    ``sase_beads.md``, and ``sase_sizes.md``) are added when
+    Shared notes are always included. Project-only notes
+    (``artifact_relations.md``, ``glossary.md``, ``sase_beads.md``, and
+    ``sase_sizes.md``) are added when
     *include_project_memory* is true; ``glossary.md`` is reserved for the
     generated note whether or not this project declares glossary entries,
     because ``sase memory init`` either regenerates that path or blocks on an
@@ -166,6 +170,7 @@ def generated_memory_note_relative_paths(
     if include_project_memory:
         return (
             *paths,
+            generated_artifact_relations_memory_relative_path(),
             generated_glossary_memory_relative_path(),
             _generated_beads_memory_relative_path(),
             _generated_sizes_memory_relative_path(),
@@ -314,6 +319,7 @@ def generated_project_long_expected_files(
 def generated_short_notes(
     generated_sase_body: str,
     generated_task_types_body: str,
+    generated_artifact_relations_body: str | None = None,
     generated_glossary_body: str | None = None,
 ) -> dict[str, str]:
     """Return freshly generated short-note bodies keyed by relative path."""
@@ -323,6 +329,10 @@ def generated_short_notes(
             generated_task_types_body
         ),
     }
+    if generated_artifact_relations_body is not None:
+        notes[generated_artifact_relations_memory_relative_path().as_posix()] = (
+            generated_artifact_relations_body
+        )
     if generated_glossary_body is not None:
         notes[generated_glossary_memory_relative_path().as_posix()] = (
             generated_glossary_body

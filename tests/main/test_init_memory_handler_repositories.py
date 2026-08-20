@@ -116,6 +116,7 @@ sibling_repos:
         assert (
             "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
             or "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
+            or "### 1.2 SASE = Structured Agentic Software Engineering (sase)" in agents
         )
         assert "@sase/memory/sase.md" not in agents
         # Provider files are byte-for-byte copies of ``AGENTS.md``.

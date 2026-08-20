@@ -26,6 +26,7 @@ nav:
       - SDD Storage: sdd_storage.md
       - XPrompts: xprompt.md
       - Artifact References: artifact_references.md
+      - Artifact Links: artifact_links.md
       - Prompt History: prompt.md
   - Beyond the Basics:
       - Architecture: architecture.md

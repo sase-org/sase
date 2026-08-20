@@ -40,7 +40,7 @@ def _assert_derived_managed_agents(agents: str) -> None:
         "initialize sase memory in that case. "
         "## 1. Tier 1 (short-term) Memory "
         "The following memories contain core (always loaded) context: "
-        "### 1.1 SASE = Structured Agentic Software Engineering (sase)"
+        "### 1.1 Artifact Relation Registry (artifact_relations)"
     )
     assert " ".join(agents.split()).startswith(expected)
     assert "@sase/memory/sase.md" not in agents

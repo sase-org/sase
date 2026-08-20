@@ -60,6 +60,15 @@ memory:
         explicitly named agent, or `%clan(<clan>, tribe=<tribe>)` for a clan. Tribes can
         also be managed after launch with `sase agent tribe` and are displayed with an
         `@` prefix.
+    Artifact:
+      definition: >-
+        A SASE artifact is any durable record addressable by an artifact reference: a sidecar document such as a plan or a research report, a bead, a completed agent, a Patch, a stitch, or an indexed file. Every artifact has a canonical `<kind>:<argument>` identity and an artifact markdown file that carries its typed links.
+    Artifact Markdown File:
+      aliases:
+        - artifact md file
+        - artifact md
+      definition: >-
+        An artifact markdown file is the Markdown document that carries one artifact's typed links. A Markdown artifact is its own artifact md file. A non-Markdown file uses a sibling `<stem>.md`; beads, agents, and Patches use their generated page, which is a projection of the artifact's own store. A commit has none — links to a stitch render on the other artifact. The file is created the first time the artifact acquires a link. SASE renders those links as a table of hyperlinks near the top of the file. Agents write links with `sase artifact link` and read artifacts with `sase artifact read`; they never hand-edit a generated page.
     Artifact Reference:
       aliases:
         - ref

@@ -25,6 +25,13 @@ from sase.memory.paths import (
 
 from .formatting import format_generated_memory_markdown
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
+from .root_rendering_artifact_relations import (
+    generated_artifact_relation_snapshot_path,
+    generated_artifact_relations_memory_content,
+    generated_artifact_relations_memory_relative_path,
+    render_generated_artifact_relation_snapshot_json,
+    render_generated_artifact_relations_memory_body,
+)
 from .root_rendering_notes import (
     generated_glossary_memory_content,
     generated_glossary_memory_relative_path,
@@ -212,6 +219,7 @@ def render_expected_memory_files(
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
+    generated_artifact_relations_body: str | None = None,
     generated_task_types_body: str | None = None,
     generated_glossary_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
@@ -245,8 +253,26 @@ def render_expected_memory_files(
                 (),
                 render_error,
             )
+    if include_project_memory and generated_artifact_relations_body is None:
+        generated_artifact_relations_body, render_error = (
+            render_generated_artifact_relations_memory_body()
+        )
+        if render_error is not None or generated_artifact_relations_body is None:
+            return (
+                (),
+                render_error
+                or "failed to render sase/memory/artifact_relations.md template",
+            )
     generated_sase_path = root / generated_sase_memory_relative_path()
     generated_sase_content = generated_sase_memory_content(generated_sase_body)
+    generated_artifact_relations_path = (
+        root / generated_artifact_relations_memory_relative_path()
+    )
+    generated_artifact_relations_content = (
+        generated_artifact_relations_memory_content(generated_artifact_relations_body)
+        if generated_artifact_relations_body is not None
+        else None
+    )
     generated_task_types_path = root / generated_task_types_memory_relative_path()
     generated_task_types_content = generated_task_types_memory_content(
         generated_task_types_body
@@ -261,6 +287,10 @@ def render_expected_memory_files(
         generated_sase_path: generated_sase_content,
         generated_task_types_path: generated_task_types_content,
     }
+    if generated_artifact_relations_content is not None:
+        note_overlay[generated_artifact_relations_path] = (
+            generated_artifact_relations_content
+        )
     if generated_glossary_content is not None:
         note_overlay[generated_glossary_path] = generated_glossary_content
     if include_project_memory and generated_project_long_contents is not None:
@@ -290,6 +320,14 @@ def render_expected_memory_files(
             detail="generated task-type memory note",
         ),
     ]
+    if generated_artifact_relations_content is not None:
+        expected.append(
+            MemoryExpectedFile(
+                path=generated_artifact_relations_path,
+                content=generated_artifact_relations_content,
+                detail="generated artifact relation memory note",
+            )
+        )
     if generated_glossary_content is not None:
         expected.append(
             MemoryExpectedFile(
@@ -299,6 +337,22 @@ def render_expected_memory_files(
             )
         )
     if include_project_memory:
+        relation_snapshot_content, relation_snapshot_error = (
+            render_generated_artifact_relation_snapshot_json()
+        )
+        if relation_snapshot_error is not None or relation_snapshot_content is None:
+            return (
+                (),
+                relation_snapshot_error
+                or "failed to render sase/artifact_relations.json snapshot",
+            )
+        expected.append(
+            MemoryExpectedFile(
+                path=generated_artifact_relation_snapshot_path(root),
+                content=relation_snapshot_content,
+                detail="generated artifact relation registry snapshot",
+            )
+        )
         snapshot_content, snapshot_error = render_generated_task_type_snapshot_json()
         if snapshot_error is not None or snapshot_content is None:
             return (
