@@ -104,6 +104,19 @@ def test_patches_toggle_reverted_is_patches_only() -> None:
     )
 
 
+def test_artifacts_paging_chords_resolve_only_on_artifacts() -> None:
+    artifacts = _KeyResolutionApp(tab="artifacts", pane_key="beads")
+    patches = _KeyResolutionApp(tab="artifacts", pane_key="patches")
+    agents = _KeyResolutionApp(tab="agents")
+
+    assert _available_for_key(artifacts, "ctrl+j") == ("artifacts_load_more",)
+    assert _available_for_key(artifacts, "ctrl+k") == ("artifacts_unload",)
+    assert _available_for_key(patches, "ctrl+j") == ("artifacts_load_more",)
+    assert _available_for_key(patches, "ctrl+k") == ("artifacts_unload",)
+    assert _available_for_key(agents, "ctrl+j") == ("next_agent_metadata_section",)
+    assert _available_for_key(agents, "ctrl+k") == ("prev_agent_metadata_section",)
+
+
 def test_toggle_relation_panel_is_artifacts_only() -> None:
     artifacts = _KeyResolutionApp(tab="artifacts", pane_key="files")
     agents = SimpleNamespace(

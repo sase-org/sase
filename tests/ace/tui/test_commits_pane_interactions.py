@@ -62,7 +62,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert "Sidecars included" not in info
         assert "sidecar:" not in info
         assert footer.content.plain == (
-            "j/k navigate  ·  enter view  ·  y copy  ·  / filter  ·  d sidecars  ·  "
+            "j/k navigate  ·  enter view  ·  y copy  ·  / filter  ·  "
+            "Ctrl+J more  ·  Ctrl+K less  ·  d sidecars  ·  "
             "z merges  ·  a all  ·  F fetch  ·  R refresh  ·  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))

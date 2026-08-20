@@ -133,6 +133,8 @@ def build_plans_hints(
         (key_display_name(keymap.plans_prev), "prev"),
         (key_display_name(keymap.plans_view_selected), "view"),
         (key_display_name(keymap.edit_query), "filter"),
+        (key_display_name(keymap.artifacts_load_more), "more"),
+        (key_display_name(keymap.artifacts_unload), "less"),
         (key_display_name(keymap.plans_approve), "approve"),
         (key_display_name(keymap.plans_reject), "reject"),
         (key_display_name(keymap.refresh), "refresh"),

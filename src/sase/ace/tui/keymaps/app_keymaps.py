@@ -38,6 +38,8 @@ class AppKeymaps:
     files_next_version: str
     files_prev_version: str
     pick_artifacts_project: str
+    artifacts_load_more: str
+    artifacts_unload: str
     # Stitches sub-tab
     stitches_next: str
     stitches_prev: str

@@ -14,9 +14,11 @@ matches rows against the remainder, then slices the visible list. Completions of
 `40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>` (default 100)
 into each pane's default query when no `limit:` is present. An explicit token is left
 alone; deleting it leaves that pane uncapped. `limit:all` and Stitches `limit:0` mean
-unlimited. The token cannot be negated and may appear only once. Do not add `limit` as a
-filterable profile field on Beads, Plans, Files, Patches, or provider dialects; Stitches
-already treats it as a cap and strips it before row eval.
+unlimited. On the Artifacts tab, `Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K`
+lowers it, never dropping below one page; unloading an unlimited query introduces
+`limit:<ace.page_size>`. The token cannot be negated and may appear only once. Do not
+add `limit` as a filterable profile field on Beads, Plans, Files, Patches, or provider
+dialects; Stitches already treats it as a cap and strips it before row eval.
 
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent

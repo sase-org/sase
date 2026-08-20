@@ -43,6 +43,8 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.jump_to_entry_forward == "ctrl+shift+o"
     assert reg.app.next_agent_metadata_section == "ctrl+j"
     assert reg.app.prev_agent_metadata_section == "ctrl+k"
+    assert reg.app.artifacts_load_more == "ctrl+j"
+    assert reg.app.artifacts_unload == "ctrl+k"
     assert reg.app.search_forward == "slash"
     assert reg.app.edit_query == "slash"
     assert reg.app.search_reverse == "ctrl+r"

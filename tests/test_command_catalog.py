@@ -73,6 +73,8 @@ def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
     assert "ctrl+k" not in forward.aliases
     assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
     assert by_id["app.prev_agent_metadata_section"].tabs == ("agents",)
+    assert by_id["app.artifacts_load_more"].tabs == ("artifacts",)
+    assert by_id["app.artifacts_unload"].tabs == ("artifacts",)
     assert "app.prev_patch_history" not in by_id
     assert "app.next_patch_history" not in by_id
 

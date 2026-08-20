@@ -146,6 +146,7 @@ when a list is empty.
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
 | `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
+| `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)      |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately
 for each non-Patches pane, and stale origins disappear automatically after filtering,
@@ -319,11 +320,13 @@ rows the list shows. It is not a row property: ACE extracts it before dialect pa
 Rust eval, matches against the remainder, then slices. Startup writes
 `limit:<ace.page_size>` into each pane's default query when no `limit:` is present; a
 user-authored `limit:40` or `limit:all` is left alone, and deleting the token leaves
-that pane uncapped. When the cap clips the result, the filter row says `capped` and
-Stitches uses a lower-bound total such as `[1/40+]`. `limit:all` (and Stitches
-`limit:0`) remains an accepted synonym for the unlimited state, but canonical query text
-omits it. Provider or aggregate truncation metadata can still mark a count as capped
-without inventing an active query limit.
+that pane uncapped. `Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K` lowers it,
+never dropping below one page; unload of an unlimited query (`limit:all` or a deleted
+token) introduces `limit:<ace.page_size>`. When the cap clips the result, the filter row
+says `capped` and Stitches uses a lower-bound total such as `[1/40+]`. `limit:all` (and
+Stitches `limit:0`) remains an accepted synonym for the unlimited state, but canonical
+query text omits it. Provider or aggregate truncation metadata can still mark a count as
+capped without inventing an active query limit.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, `until:`, and `limit:`
 plus free text matched across plan-document metadata and content. `kind:` accepts
@@ -369,25 +372,26 @@ filter is active.
 
 The pane supports the full bead workflow:
 
-| Key       | Action                                                                                |
-| --------- | ------------------------------------------------------------------------------------- |
-| `j` / `k` | Select the next / previous bead                                                       |
-| `Enter`   | Open the complete bead detail in the preview reader                                   |
-| `f`       | Edit the bead filter query                                                            |
-| `l` / `h` | Expand / collapse the selected epic                                                   |
-| `s`       | Cycle the selected bead's status using the type-aware sequence below                  |
-| `z`       | Snooze the selected task bead (or edit/cancel an existing snooze)                     |
-| `e`       | Edit the bead's valid fields                                                          |
-| `N`       | Append a note without replacing prior notes                                           |
-| `n`       | Create a task bead in the selected project                                            |
-| `c`       | Close with a required reason and optional note, or reopen a closed bead               |
-| `w`       | Launch an epic or launchable task; phase work launches with its epic                  |
-| `E`       | Open a linked external issue                                                          |
-| `y`       | Copy the bead's `@bead:` reference                                                    |
-| `% u`     | Copy a linked issue reference (copy mode)                                             |
-| `b`       | Enter issue-action prefix mode                                                        |
-| `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
-| `R`       | Refresh beads                                                                         |
+| Key                 | Action                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `j` / `k`           | Select the next / previous bead                                                       |
+| `Enter`             | Open the complete bead detail in the preview reader                                   |
+| `f`                 | Edit the bead filter query                                                            |
+| `Ctrl+J` / `Ctrl+K` | Load more matching beads / unload one page (rewrites `limit:`)                        |
+| `l` / `h`           | Expand / collapse the selected epic                                                   |
+| `s`                 | Cycle the selected bead's status using the type-aware sequence below                  |
+| `z`                 | Snooze the selected task bead (or edit/cancel an existing snooze)                     |
+| `e`                 | Edit the bead's valid fields                                                          |
+| `N`                 | Append a note without replacing prior notes                                           |
+| `n`                 | Create a task bead in the selected project                                            |
+| `c`                 | Close with a required reason and optional note, or reopen a closed bead               |
+| `w`                 | Launch an epic or launchable task; phase work launches with its epic                  |
+| `E`                 | Open a linked external issue                                                          |
+| `y`                 | Copy the bead's `@bead:` reference                                                    |
+| `% u`               | Copy a linked issue reference (copy mode)                                             |
+| `b`                 | Enter issue-action prefix mode                                                        |
+| `L`                 | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
+| `R`                 | Refresh beads                                                                         |
 
 When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
@@ -568,31 +572,33 @@ bounded preview. `(`/`)` cycle the selected row's versions without moving to ano
 logical file; repeated captures with the same SHA-256 share one version and accumulate
 provenance.
 
-| Key       | Action                                                                          |
-| --------- | ------------------------------------------------------------------------------- |
-| `j` / `k` | Select the next / previous file, skipping day headings                          |
-| `Enter`   | View the file: preview reader for Markdown and text, rich viewer for media      |
-| `Z`       | Hand the marked visible rows — or the selection — to the rich terminal viewer   |
-| `E`       | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
-| `a`       | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
-| `f`       | Edit the pane's filter query                                                    |
-| `z`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
-| `(` / `)` | Select previous / next version for the current logical file                     |
-| `y`       | Copy the row's `@file:<id>` reference                                           |
-| `Y`       | Copy the row's anchored stored path                                             |
-| `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
-| `%`       | Open the Files **Copy as…** palette                                             |
-| `R`       | Refresh the index                                                               |
-| `p`       | Change the shared Artifacts project scope (first-open seeds current project)    |
+| Key                 | Action                                                                          |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `j` / `k`           | Select the next / previous file, skipping day headings                          |
+| `Enter`             | View the file: preview reader for Markdown and text, rich viewer for media      |
+| `Z`                 | Hand the marked visible rows — or the selection — to the rich terminal viewer   |
+| `E`                 | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
+| `a`                 | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
+| `f`                 | Edit the pane's filter query                                                    |
+| `Ctrl+J` / `Ctrl+K` | Load more matching files / unload one page (rewrites `limit:`)                  |
+| `z`                 | Cycle the kind filter through All and the stored kinds present in the snapshot  |
+| `(` / `)`           | Select previous / next version for the current logical file                     |
+| `y`                 | Copy the row's `@file:<id>` reference                                           |
+| `Y`                 | Copy the row's anchored stored path                                             |
+| `m` / `u`           | Mark / unmark the selected file · clear this pane's marks                       |
+| `%`                 | Open the Files **Copy as…** palette                                             |
+| `R`                 | Refresh the index                                                               |
+| `p`                 | Change the shared Artifacts project scope (first-open seeds current project)    |
 
 These are the default keymap values; the Files-pane actions retain their `files_*`
 configuration names and are remappable under
 [`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`,
 `files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
 `files_filters`, `files_cycle_kind`, and `files_copy_path`. `y`/`R` are the shared
-`artifacts_copy_reference`/`refresh` actions every Artifacts pane binds. Version cycling
-uses the old nested-files sub-tab keys. The pane also shares the navigation and jump
-keys described in
+`artifacts_copy_reference`/`refresh` actions every Artifacts pane binds. `Ctrl+J` /
+`Ctrl+K` are the shared `artifacts_load_more`/`artifacts_unload` actions. Version
+cycling uses the old nested-files sub-tab keys. The pane also shares the navigation and
+jump keys described in
 [Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
@@ -664,6 +670,7 @@ launch routing uses the same `@small` fallback.
 | `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
 | `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
 | `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
+| `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)           |
 
 > **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
 > on every Artifacts pane that has a grouping mode (each surface keeps its own

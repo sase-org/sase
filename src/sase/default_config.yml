@@ -421,6 +421,9 @@ ace:
       files_next_version: "right_parenthesis"
       files_prev_version: "left_parenthesis"
       pick_artifacts_project: "p"
+      # Artifacts paging (host-owned limit: cap)
+      artifacts_load_more: "ctrl+j"
+      artifacts_unload: "ctrl+k"
       # Stitches sub-tab
       stitches_next: "j"
       stitches_prev: "k"

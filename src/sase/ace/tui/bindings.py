@@ -74,6 +74,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Previous Metadata Section",
         show=False,
     ),
+    Binding("ctrl+j", "artifacts_load_more", "Load More", show=False),
+    Binding("ctrl+k", "artifacts_unload", "Unload", show=False),
     # Tab switching
     Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),

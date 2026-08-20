@@ -43,6 +43,20 @@ def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None
         )
         assert not is_command_available(section_command, CommandContext(tab="axe"))
 
+    load_more = catalog["app.artifacts_load_more"]
+    unload = catalog["app.artifacts_unload"]
+    for paging_command in (load_more, unload):
+        assert is_command_available(
+            paging_command,
+            CommandContext(tab="artifacts", artifacts_subtab="beads"),
+        )
+        assert is_command_available(
+            paging_command,
+            CommandContext(tab="artifacts", artifacts_subtab="patches"),
+        )
+        assert not is_command_available(paging_command, CommandContext(tab="agents"))
+        assert not is_command_available(paging_command, CommandContext(tab="axe"))
+
     for tab in ("changespecs", "agents", "axe"):  # legacy tab id
         assert is_command_available(jump_forward, CommandContext(tab=tab))
 

@@ -186,12 +186,21 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
         "jump_to_entry_forward"
     ]
     assert [b.action for b in bindings if b.key == "ctrl+k"] == [
-        "prev_agent_metadata_section"
+        "prev_agent_metadata_section",
+        "artifacts_unload",
+    ]
+    assert [b.action for b in bindings if b.key == "ctrl+j"] == [
+        "next_agent_metadata_section",
+        "artifacts_load_more",
     ]
     assert by_action["next_agent_metadata_section"].key == "ctrl+j"
+    assert by_action["artifacts_load_more"].key == "ctrl+j"
+    assert by_action["artifacts_unload"].key == "ctrl+k"
     assert fallback_by_action["jump_to_entry_fast"].key == "ctrl+o"
     assert fallback_by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
     assert fallback_by_action["prev_agent_metadata_section"].key == "ctrl+k"
+    assert fallback_by_action["artifacts_load_more"].key == "ctrl+j"
+    assert fallback_by_action["artifacts_unload"].key == "ctrl+k"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

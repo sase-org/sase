@@ -490,5 +490,32 @@ class CommitsFilteringMixin(_MixinBase):
         self._pending_filter_values = None
         self._filter_query_error = None
 
+    def host_limit_query(self) -> str:
+        """Return the live or committed Stitches query used for ``limit:`` paging."""
+
+        values = (
+            self._live_filter_values
+            if self._filter_session_open and self._live_filter_values is not None
+            else self.filters
+        )
+        return to_query_string(values)
+
+    def apply_host_limit_query(self, query: str) -> None:
+        """Commit a rewritten host-limit query through the collection path."""
+
+        from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
+
+        try:
+            values = parse_commit_filter_query(query)
+        except CommitFilterQueryError:
+            return
+        preferred = None
+        selected = getattr(self, "selected_entry_target", None)
+        if callable(selected):
+            preferred = selected()
+        self._commit_filter_values(values, close_session=False)
+        if preferred is not None:
+            restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
+
 
 __all__ = ["CommitsFilteringMixin", "FILTER_DEBOUNCE_S"]

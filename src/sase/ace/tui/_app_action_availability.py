@@ -219,6 +219,16 @@ def check_app_action(
     }:
         if app.current_tab != "agents":
             return False
+    if action in {"artifacts_load_more", "artifacts_unload"}:
+        if app.current_tab != ARTIFACTS_TAB:
+            return False
+        prompt_active = getattr(app, "_prompt_input_active", None)
+        if callable(prompt_active) and prompt_active():
+            return False
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(app, "screen", None), ModalScreen):
+            return False
     if action in {
         "change_status",
         "bulk_change_status",

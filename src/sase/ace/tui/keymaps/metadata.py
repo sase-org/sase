@@ -63,6 +63,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("files_next_version", "Next File Version", False),
     ("files_prev_version", "Previous File Version", False),
     ("pick_artifacts_project", "Project Scope", False),
+    ("artifacts_load_more", "Load More", False),
+    ("artifacts_unload", "Unload", False),
     ("stitches_next", "Next Commit", False),
     ("stitches_prev", "Previous Commit", False),
     ("stitches_view_selected", "View Commit", False),

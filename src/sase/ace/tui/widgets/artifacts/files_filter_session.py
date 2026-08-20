@@ -182,5 +182,43 @@ class FilesFilterSessionMixin(_MixinBase):
         if callable(cancel):
             cancel("files")
 
+    def host_limit_query(self) -> str:
+        """Return the live or committed Files query used for ``limit:`` paging."""
+
+        return to_query_string(self._display_filter_values())
+
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        """Commit a rewritten host-limit query and grow the snapshot if needed."""
+
+        from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
+
+        try:
+            values = parse_files_filter_query(query)
+        except FilesFilterQueryError:
+            return
+        preferred = self.selected_entry_target()
+        self.filters = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self._live_filter_values = values
+            self.query_one(FileFilterBar).set_query(query)
+        self._cancel_jump_mode_for_filter_change()
+        if grow:
+            self._maybe_grow_files_snapshot(values.limit)
+        self._refresh_options(preferred_target=preferred)
+        restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
+
+    def _maybe_grow_files_snapshot(self, cap: int | None) -> None:
+        """Request the full index when the cap outruns the loaded first page."""
+
+        snapshot = getattr(self, "_snapshot", None)
+        request_load = getattr(self, "_request_load", None)
+        if snapshot is None or not callable(request_load):
+            return
+        if snapshot.complete or snapshot.load_error:
+            return
+        if cap is None or cap > len(snapshot.rows):
+            request_load(force=False, full=True)
+
 
 __all__ = ["FilesFilterSessionMixin"]

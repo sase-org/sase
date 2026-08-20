@@ -38,6 +38,18 @@ class _FilterBarInput(SingleLineVimTextArea):
     """Single-line editor that keeps completion keys inside its owning bar."""
 
     async def _on_key(self, event: Key) -> None:
+        if event.key in {"ctrl+j", "ctrl+k"}:
+            action_name = (
+                "action_artifacts_load_more"
+                if event.key == "ctrl+j"
+                else "action_artifacts_unload"
+            )
+            handler = getattr(self.app, action_name, None)
+            if callable(handler):
+                handler()
+            event.stop()
+            event.prevent_default()
+            return
         if event.key not in {
             "escape",
             "tab",

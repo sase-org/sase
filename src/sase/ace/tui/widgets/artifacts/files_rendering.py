@@ -173,6 +173,8 @@ def build_files_hints(
         (key_display_name(keymap.files_prev), "prev"),
         (key_display_name(keymap.files_view_selected), "view"),
         (key_display_name(keymap.files_filters), "filter"),
+        (key_display_name(keymap.artifacts_load_more), "more"),
+        (key_display_name(keymap.artifacts_unload), "less"),
         (key_display_name(keymap.files_cycle_kind), "kind"),
         (key_display_name(keymap.files_prev_version), "prev version"),
         (key_display_name(keymap.files_next_version), "next version"),

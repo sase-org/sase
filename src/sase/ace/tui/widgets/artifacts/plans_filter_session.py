@@ -29,6 +29,8 @@ from .plans_filtering import PlanFilterIndex
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+
+    from .entry_navigation import ArtifactEntryTarget
 else:
     _MixinBase = object
 
@@ -52,6 +54,7 @@ class PlansFilterSessionMixin(_MixinBase):
     _deep_archive_in_flight: DeepArchiveRequest | None
     _deep_archive_pending: DeepArchiveRequest | None
     _deep_archive_cache: dict[DeepArchiveRequest, DeepArchiveResult]
+    _host_limit_archive_extended: bool
     _display_archive_total: int | None
     _display_archive_coverage_label: str | None
     _query_profile: Any
@@ -70,6 +73,8 @@ class PlansFilterSessionMixin(_MixinBase):
         ) -> None: ...
 
         def _selected_option_id(self) -> str | None: ...
+
+        def selected_entry_target(self) -> ArtifactEntryTarget | None: ...
 
         def focus_list(self) -> None: ...
 
@@ -91,6 +96,7 @@ class PlansFilterSessionMixin(_MixinBase):
         self._deep_archive_in_flight = None
         self._deep_archive_pending = None
         self._deep_archive_cache = {}
+        self._host_limit_archive_extended = False
 
     def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
         event.stop()
@@ -247,6 +253,8 @@ class PlansFilterSessionMixin(_MixinBase):
     def _deep_archive_request_for(
         self,
         values: PlanFilterValues,
+        *,
+        force: bool | None = None,
     ) -> DeepArchiveRequest | None:
         return make_deep_archive_request(
             self._snapshot,
@@ -254,6 +262,7 @@ class PlansFilterSessionMixin(_MixinBase):
             filter_session_open=self._filter_session_open,
             values=values,
             generation=-(self._load_generation + 1),
+            force=self._host_limit_archive_extended if force is None else force,
         )
 
     def _deep_archive_result_for(
@@ -377,6 +386,7 @@ class PlansFilterSessionMixin(_MixinBase):
         self._deep_archive_cache.clear()
         self._display_archive_total = None
         self._display_archive_coverage_label = None
+        self._host_limit_archive_extended = False
 
     def _cancel_jump_mode_for_filter_change(self) -> None:
         cancel_jump = getattr(
@@ -386,6 +396,34 @@ class PlansFilterSessionMixin(_MixinBase):
         )
         if callable(cancel_jump):
             cancel_jump(getattr(self, "pane_key", "ref:plan"))
+
+    def host_limit_query(self) -> str:
+        """Return the live or committed Plans query used for ``limit:`` paging."""
+
+        return to_query_string(self._display_filter_values())
+
+    def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
+        """Commit a rewritten host-limit query and extend the archive if needed."""
+
+        from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
+
+        try:
+            values = parse_plan_filter_query(query)
+        except PlanFilterQueryError:
+            return
+        preferred = self.selected_entry_target()
+        preferred_id = self._selected_option_id()
+        self.filters = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self._live_filter_values = values
+            self.query_one(PlanFilterBar).set_query(query)
+        self._cancel_jump_mode_for_filter_change()
+        if grow:
+            self._host_limit_archive_extended = True
+        self._refresh_options(preferred_id=preferred_id)
+        self._schedule_deep_archive(values)
+        restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
 
 __all__ = ["PlansFilterSessionMixin"]

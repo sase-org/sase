@@ -105,6 +105,8 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.dismiss_toasts",
         "app.refresh",
         "app.artifacts_copy_reference",
+        "app.artifacts_load_more",
+        "app.artifacts_unload",
         "projects",
         "logs",
         "tasks",

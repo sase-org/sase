@@ -35,6 +35,10 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             "Move down / up 10 entries",
         ),
         (d(a.jump_to_entry), "Hint jump (' first / back)"),
+        (
+            f"{d(a.artifacts_load_more)} / {d(a.artifacts_unload)}",
+            "Load more / unload one page",
+        ),
     ]
 
     return [

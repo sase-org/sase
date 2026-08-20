@@ -19,6 +19,8 @@ from .beads_filtering import BeadFilterIndex, build_bead_filter_index
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+
+    from .entry_navigation import ArtifactEntryTarget
 else:
     _MixinBase = object
 
@@ -47,6 +49,8 @@ class BeadsFilterSessionMixin(_MixinBase):
         ) -> None: ...
 
         def _selected_option_id(self) -> str | None: ...
+
+        def selected_entry_target(self) -> ArtifactEntryTarget | None: ...
 
         def focus_list(self) -> None: ...
 
@@ -184,6 +188,31 @@ class BeadsFilterSessionMixin(_MixinBase):
         )
         if callable(cancel):
             cancel("beads")
+
+    def host_limit_query(self) -> str:
+        """Return the live or committed Beads query used for ``limit:`` paging."""
+
+        return to_query_string(self._display_filter_values())
+
+    def apply_host_limit_query(self, query: str) -> None:
+        """Commit a rewritten host-limit query without closing the editor."""
+
+        from sase.ace.tui.actions.artifacts_limit import restore_selection_after_limit
+
+        try:
+            values = parse_bead_filter_query(query)
+        except BeadFilterQueryError:
+            return
+        preferred = self.selected_entry_target()
+        preferred_id = self._selected_option_id()
+        self.filters = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self._live_filter_values = values
+            self.query_one(BeadFilterBar).set_query(query)
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=preferred_id)
+        restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
 
 __all__ = ["BeadsFilterSessionMixin"]

@@ -107,6 +107,20 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("project scope", "filter project", "current project", "seeded"),
     ),
+    (
+        "artifacts_load_more",
+        "Artifacts: load more rows",
+        "Navigation",
+        CL_ONLY,
+        ("load more", "page size", "limit", "ctrl+j"),
+    ),
+    (
+        "artifacts_unload",
+        "Artifacts: unload a page of rows",
+        "Navigation",
+        CL_ONLY,
+        ("unload", "page size", "limit", "ctrl+k"),
+    ),
     # Stitches sub-tab
     (
         "stitches_next",

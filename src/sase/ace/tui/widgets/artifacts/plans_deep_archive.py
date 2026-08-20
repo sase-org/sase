@@ -72,6 +72,7 @@ def make_deep_archive_request(
     filter_session_open: bool,
     values: PlanFilterValues,
     generation: int,
+    force: bool = False,
 ) -> DeepArchiveRequest | None:
     """Build a request token when the snapshot has a reachable coverage gap."""
     if (
@@ -79,7 +80,7 @@ def make_deep_archive_request(
         or snapshot.project != project_scope
         or not snapshot.archive_truncated
         or not _query_can_reach_archive(values)
-        or (not filter_session_open and values.is_empty)
+        or (not force and not filter_session_open and values.is_empty)
     ):
         return None
     project_roots = tuple(
