@@ -7,8 +7,10 @@ from typing import Any
 
 import yaml
 from textual.app import App, ComposeResult
+from textual.css.query import NoMatches
 from textual.widgets import Input, OptionList, Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
     SnippetNameResult,
@@ -65,17 +67,51 @@ def _target(
     )
 
 
-async def _open_modal(
-    modal: SnippetNameModal,
-    *,
-    size: tuple[int, int] = (100, 28),
-) -> tuple[_ModalApp, Any]:
-    app = _ModalApp()
-    pilot_cm = app.run_test(size=size)
-    pilot = await pilot_cm.__aenter__()
-    app.push_screen(modal)
-    await pilot.pause(0.25)
-    return app, (pilot_cm, pilot)
+def _static_plain(modal: SnippetNameModal, selector: str) -> str | None:
+    try:
+        return modal.query_one(selector, Static).render().plain
+    except NoMatches:
+        return None
+
+
+def _verdict_plain(modal: SnippetNameModal) -> str | None:
+    return _static_plain(modal, "#snippet-name-verdict")
+
+
+def _destination_plain(modal: SnippetNameModal) -> str | None:
+    return _static_plain(modal, "#snippet-name-destination")
+
+
+def _matches_plain(modal: SnippetNameModal) -> str | None:
+    try:
+        matches = modal.query_one("#snippet-name-matches", OptionList)
+    except NoMatches:
+        return None
+    return "\n".join(
+        getattr(option.prompt, "plain", str(option.prompt))
+        for option in matches.options
+    )
+
+
+def _contains(text: str | None, needle: str) -> bool:
+    return text is not None and needle in text
+
+
+async def _wait_for_modal(pilot: Any, app: _ModalApp) -> SnippetNameModal:
+    def _ready() -> bool:
+        screen = app.screen
+        if not isinstance(screen, SnippetNameModal):
+            return False
+        try:
+            screen.query_one("#snippet-name-verdict", Static)
+        except NoMatches:
+            return False
+        return True
+
+    await wait_for(pilot, _ready)
+    modal = app.screen
+    assert isinstance(modal, SnippetNameModal)
+    return modal
 
 
 async def test_invalid_trigger_enter_is_inert(tmp_path: Path) -> None:
@@ -93,14 +129,13 @@ async def test_invalid_trigger_enter_is_inert(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot, lambda: _contains(_verdict_plain(modal), "Invalid trigger")
+        )
         await pilot.press("enter")
-        await pilot.pause()
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        assert (
-            "Invalid trigger"
-            in modal.query_one("#snippet-name-verdict", Static).render().plain
+        await wait_for(
+            pilot, lambda: _contains(_verdict_plain(modal), "Invalid trigger")
         )
         assert results == []
 
@@ -118,15 +153,10 @@ async def test_new_trigger_returns_empty_starting_body(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        assert (
-            "Create ⇥ todo"
-            in modal.query_one("#snippet-name-verdict", Static).render().plain
-        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ todo"))
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
     assert result is not None
@@ -177,9 +207,10 @@ async def test_destination_collision_loads_own_template_off_thread(
             ),
             results.append,
         )
-        await pilot.pause(0.25)
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "exists here"))
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
     assert result is not None
@@ -207,13 +238,13 @@ async def test_elsewhere_collision_loads_other_template_but_keeps_destination(
             ),
             results.append,
         )
-        await pilot.pause(0.25)
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        verdict = modal.query_one("#snippet-name-verdict", Static).render().plain
-        assert "saving here will shadow it" in verdict
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot,
+            lambda: _contains(_verdict_plain(modal), "saving here will shadow it"),
+        )
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
     assert result is not None
@@ -239,15 +270,13 @@ async def test_derived_only_collision_returns_composed_template(tmp_path: Path) 
             ),
             results.append,
         )
-        await pilot.pause(0.25)
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        assert (
-            "comes from #project/todo"
-            in modal.query_one("#snippet-name-verdict", Static).render().plain
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot,
+            lambda: _contains(_verdict_plain(modal), "comes from #project/todo"),
         )
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
     assert result is not None
@@ -272,20 +301,18 @@ async def test_matches_filter_order_and_tab_completion(tmp_path: Path) -> None:
         app.push_screen(
             SnippetNameModal(_target(config), [_location(config)], initial_trigger="to")
         )
-        await pilot.pause(0.25)
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        matches = modal.query_one("#snippet-name-matches", OptionList)
-        rendered = "\n".join(
-            getattr(option.prompt, "plain", str(option.prompt))
-            for option in matches.options
-        )
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(pilot, lambda: _contains(_matches_plain(modal), "todo"))
+        rendered = _matches_plain(modal)
+        assert rendered is not None
         assert "todo" in rendered
         assert "todos" in rendered
         assert "later" not in rendered
         await pilot.press("tab")
-        await pilot.pause()
-        assert modal.query_one("#snippet-name-trigger", Input).value == "todo"
+        await wait_for(
+            pilot,
+            lambda: modal.query_one("#snippet-name-trigger", Input).value == "todo",
+        )
 
 
 async def test_destination_line_renders_fallback_and_cycles_selectable_only(
@@ -315,23 +342,23 @@ async def test_destination_line_renders_fallback_and_cycles_selectable_only(
             ),
             results.append,
         )
-        await pilot.pause(0.25)
-        modal = app.screen
-        assert isinstance(modal, SnippetNameModal)
-        line = modal.query_one("#snippet-name-destination", Static).render().plain
-        assert "configured path unusable: read-only" in line
+        modal = await _wait_for_modal(pilot, app)
+        await wait_for(
+            pilot,
+            lambda: _contains(
+                _destination_plain(modal), "configured path unusable: read-only"
+            ),
+        )
+        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ todo"))
         await pilot.press("down")
-        await pilot.pause(0.25)
-        assert (
-            "override.yml"
-            in modal.query_one("#snippet-name-destination", Static).render().plain
+        await wait_for(
+            pilot,
+            lambda: _contains(_destination_plain(modal), "override.yml"),
         )
-        assert (
-            "disabled.yml"
-            not in modal.query_one("#snippet-name-destination", Static).render().plain
-        )
+        assert not _contains(_destination_plain(modal), "disabled.yml")
+        await wait_for(pilot, lambda: _contains(_verdict_plain(modal), "Create ⇥ todo"))
         await pilot.press("enter")
-        await pilot.pause()
+        await wait_for(pilot, lambda: bool(results))
 
     result = results[0]
     assert result is not None
@@ -351,8 +378,6 @@ async def test_escape_returns_none(tmp_path: Path) -> None:
             ),
             results.append,
         )
-        await pilot.pause(0.25)
+        await _wait_for_modal(pilot, app)
         await pilot.press("escape")
-        await pilot.pause()
-
-    assert results == [None]
+        await wait_for(pilot, lambda: results == [None])

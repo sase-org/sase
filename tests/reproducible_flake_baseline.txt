@@ -103,8 +103,15 @@
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
 tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
-# sase-ke
-tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
+# sase-rm.9 (sase-ke, sase-og, sase-r7, sase-rf): snippet-name modal tests
+# wait for the settled verdict or matches instead of pause(0.25) after
+# the 150ms-debounced off-thread collision analysis. Retires the two
+# live baseline nodes and the two sibling nodes that shared the same
+# mechanism.
+# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
+# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_new_trigger_returns_empty_starting_body
+# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_derived_only_collision_returns_composed_template
+# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_elsewhere_collision_loads_other_template_but_keeps_destination
 # sase-le
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_family_header_renders_followup_role_attribution
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_header_renders_skill_uses_without_memory_reads
@@ -136,12 +143,6 @@ tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wal
 # sase-pr
 tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
 tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
-# sase-og: a second node in the same module with the same defect this bead
-# already describes -- a fixed `pause(0.25)` read of an async verdict, which a
-# loaded lane does not settle in time. Corroborated 2026-08-19 (+2) by the
-# sase-pv land agent, which confirmed the mechanism at line 121 rather than
-# inferring it. One bounded-wait fix retires this entry and that node together.
-tests/ace/tui/modals/test_snippet_name_modal.py::test_new_trigger_returns_empty_starting_body
 # sase-qm: baselined per the bead's own instruction, on evidence from three
 # distinct workspaces and heads (2026-08-16, -17, -18). Corroborated 2026-08-19.
 tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
