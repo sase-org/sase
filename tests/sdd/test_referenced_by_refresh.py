@@ -114,3 +114,49 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert second.changed_files == ()
     assert not second.committed
     assert len(committed) == 1
+
+
+def test_refresh_referenced_by_skips_v2_link_indexes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    root = tmp_path / "plans"
+    store = _store(root)
+    document = root / "202608" / "example.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("# Example\n\nBody\n", encoding="utf-8")
+    index_path = root / "links" / "202608" / "example.md.json"
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "artifact_ref": "plan:202608/example.md",
+                "rows": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    before_index = index_path.read_text(encoding="utf-8")
+    before_doc = document.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: None,
+    )
+
+    report = refresh_referenced_by(
+        store,
+        role="plans",
+        requests=(_request(),),
+        write=True,
+    )
+
+    assert report.ok
+    assert report.actions == ()
+    assert index_path.read_text(encoding="utf-8") == before_index
+    assert document.read_text(encoding="utf-8") == before_doc

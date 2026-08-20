@@ -1,0 +1,18 @@
+{
+  "artifact_id": "research:202608/artifact_link_graph/artifact_link_graph.md",
+  "identity_value": null,
+  "repo_relpath": "202608/artifact_link_graph/artifact_link_graph.md",
+  "rows": [
+    {
+      "agent": "bbugyi200.athena.08f",
+      "agent_url": "https://github.com/sase-org/sase--agents/blob/main/families/bbugyi200.athena.08f.md",
+      "canonical_ref": "research:202608/artifact_link_graph/artifact_link_graph.md",
+      "destination": "https://github.com/sase-org/sase--research/blob/main/202608/artifact_link_graph/artifact_link_graph.md",
+      "project": "sase",
+      "published": "2026-08-18",
+      "use_ids": ["use-1"],
+      "uses": 3
+    }
+  ],
+  "schema_version": 1
+}

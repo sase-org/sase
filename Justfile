@@ -333,6 +333,15 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
+        --epic-symbol "sase-r8.4(ArtifactLinksDisabledError)" \
+        --epic-symbol "sase-r8.4(ArtifactReadError)" \
+        --epic-symbol "sase-r8.4(ArtifactReadEvent)" \
+        --epic-symbol "sase-r8.4(append_artifact_read_event)" \
+        --epic-symbol "sase-r8.4(artifact_read_log_path)" \
+        --epic-symbol "sase-r8.4(assembled_artifact_relations)" \
+        --epic-symbol "sase-r8.4(build_artifact_read_event)" \
+        --epic-symbol "sase-r8.4(migrate_links_tree)" \
+        --epic-symbol "sase-r8.4(read_artifact_read_events)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

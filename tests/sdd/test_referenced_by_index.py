@@ -9,6 +9,7 @@ from sase.sdd.referenced_by_index import (
     document_has_referenced_by_block,
     referenced_by_index_path,
     referenced_by_index_relpath,
+    referenced_by_index_schema_version,
 )
 
 _REAL_BLOCK = """# Example
@@ -78,3 +79,14 @@ def test_document_has_referenced_by_block_ignores_fenced_examples() -> None:
     assert document_has_referenced_by_block(_REAL_BLOCK)
     assert not document_has_referenced_by_block(_FENCED_EXAMPLE)
     assert not document_has_referenced_by_block("# No block\n")
+
+
+def test_referenced_by_index_schema_version_reads_v1_and_v2(tmp_path: Path) -> None:
+    v1 = tmp_path / "v1.json"
+    v2 = tmp_path / "v2.json"
+    v1.write_text('{"schema_version": 1, "rows": []}\n', encoding="utf-8")
+    v2.write_text('{"schema_version": 2, "rows": []}\n', encoding="utf-8")
+
+    assert referenced_by_index_schema_version(v1) == 1
+    assert referenced_by_index_schema_version(v2) == 2
+    assert referenced_by_index_schema_version(tmp_path / "missing.json") is None

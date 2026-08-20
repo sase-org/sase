@@ -17,10 +17,15 @@ from ._helpers import layer
 def test_registered_consumer_flags_have_expected_kinds() -> None:
     definitions = feature_flag_definitions()
 
+    artifact_links = definitions[FeatureFlag.artifact_links]
     coder = definitions[FeatureFlag.coder_inherits_planner_chat]
     refresh = definitions[FeatureFlag.completion_refresh_on_update]
     scoped = definitions[FeatureFlag.plugin_catalog_scoped_latest]
     prettier = definitions[FeatureFlag.prettier_enabled]
+
+    assert artifact_links.kind == "beta"
+    assert artifact_links.default is False
+    assert artifact_links.bead == "sase-rc"
 
     assert coder.kind == "beta"
     assert coder.default is False
@@ -43,6 +48,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     definitions = feature_flag_definitions()
 
     default = resolve_feature_flags(definitions=definitions, layers=[])
+    assert default.enabled(FeatureFlag.artifact_links) is False
     assert default.enabled(FeatureFlag.coder_inherits_planner_chat) is False
     assert default.enabled(FeatureFlag.prettier_enabled) is True
 
@@ -79,14 +85,17 @@ def test_consumer_flags_both_states_via_override(
     monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     with override_flags(
+        artifact_links=True,
         coder_inherits_planner_chat=True,
         prettier_enabled=False,
     ) as snapshot:
+        assert snapshot.enabled(FeatureFlag.artifact_links) is True
         assert snapshot.enabled(FeatureFlag.coder_inherits_planner_chat) is True
         assert snapshot.enabled(FeatureFlag.prettier_enabled) is False
         assert current_flags().enabled(FeatureFlag.prettier_enabled) is False
 
     restored = current_flags()
+    assert restored.enabled(FeatureFlag.artifact_links) is False
     assert restored.enabled(FeatureFlag.coder_inherits_planner_chat) is False
     assert restored.enabled(FeatureFlag.prettier_enabled) is True
 

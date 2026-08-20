@@ -223,6 +223,8 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "state.agent_index",
         "state.agent_publication_outbox",
         "project.beads",
+        "project.referenced_by_index",
+        "project.artifact_links_aggregate",
         "completion.install",
         "flags.registry",
         "flags.overrides",

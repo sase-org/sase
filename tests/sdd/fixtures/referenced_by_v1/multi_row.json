@@ -1,0 +1,28 @@
+{
+  "artifact_id": "plan:202608/reference_links_and_referenced_by.md",
+  "identity_value": null,
+  "repo_relpath": "202608/reference_links_and_referenced_by.md",
+  "rows": [
+    {
+      "agent": "alice.athena.worker",
+      "agent_url": "https://example.test/agents/worker",
+      "canonical_ref": "plan:202608/reference_links_and_referenced_by.md",
+      "destination": null,
+      "project": "sase",
+      "published": "2026-08-12",
+      "use_ids": ["a"],
+      "uses": 1
+    },
+    {
+      "agent": "bob.athena.reviewer",
+      "agent_url": "https://example.test/agents/reviewer",
+      "canonical_ref": "plan:202608/reference_links_and_referenced_by.md",
+      "destination": "https://example.test/prompts/review.md",
+      "project": "sase",
+      "published": "2026-08-14",
+      "use_ids": ["b", "c"],
+      "uses": 4
+    }
+  ],
+  "schema_version": 1
+}

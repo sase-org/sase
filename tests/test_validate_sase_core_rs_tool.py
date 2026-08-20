@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from tests._validate_sase_core_rs_tool_helpers import (
@@ -32,6 +34,39 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
         assert not validator._validate_bindings(
             module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "artifact_link_row_schema_version",
+        "artifact_link_canonicalize",
+        "artifact_link_validate_row",
+        "artifact_link_upsert_row",
+        "artifact_relations_builtins",
+        "artifact_relation_lookup",
+        "artifact_relation_label",
+        "links_block_parse",
+        "links_block_render",
+        "links_block_upsert",
+        "links_block_remove",
+        "links_block_strip",
+        "artifact_md_path",
+        "companion_md_path",
+        "artifact_link_frontmatter_inlet",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+    assert validator._validate_artifact_link_schema(
+        SimpleNamespace(artifact_link_row_schema_version=lambda: 2)
+    )
+    assert not validator._validate_artifact_link_schema(
+        SimpleNamespace(artifact_link_row_schema_version=lambda: 1)
+    )
 
 
 def test_validate_sase_core_rs_requires_inline_code_binding() -> None:

@@ -46,8 +46,27 @@ def document_has_referenced_by_block(text: str) -> bool:
     return False
 
 
+def referenced_by_index_schema_version(path: Path) -> int | None:
+    """Return the on-disk schema version, or ``None`` when it cannot be read."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    version = payload.get("schema_version")
+    return version if isinstance(version, int) else None
+
+
 def read_referenced_by_index(path: Path) -> dict[str, Any]:
-    """Read one structured referenced-by index, or return an empty document."""
+    """Read one structured referenced-by index, or return an empty document.
+
+    This is the v1 reader. v2 link-graph files are owned by
+    :mod:`sase.sdd.artifact_link_store`; callers that still merge v1
+    Referenced By rows must skip schema 2 (see
+    :func:`referenced_by_index_schema_version`).
+    """
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -125,4 +144,5 @@ __all__ = [
     "read_referenced_by_index",
     "referenced_by_index_path",
     "referenced_by_index_relpath",
+    "referenced_by_index_schema_version",
 ]

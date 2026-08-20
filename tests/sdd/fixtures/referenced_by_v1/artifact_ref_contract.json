@@ -1,0 +1,18 @@
+{
+  "artifact_id": "plan:202608/artifact_ref_contract.md",
+  "identity_value": null,
+  "repo_relpath": "202608/artifact_ref_contract.md",
+  "rows": [
+    {
+      "agent": "research.09.cld",
+      "agent_url": "https://github.com/sase-org/sase--agents/blob/main/research.09.cld.md",
+      "canonical_ref": "@research:202608/x.md",
+      "destination": null,
+      "project": "sase",
+      "published": "2026-08-11",
+      "use_ids": [],
+      "uses": 2
+    }
+  ],
+  "schema_version": 1
+}

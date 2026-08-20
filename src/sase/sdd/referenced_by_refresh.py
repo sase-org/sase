@@ -15,6 +15,7 @@ from sase.sdd.referenced_by_index import (
     merge_referenced_by_rows,
     read_referenced_by_index,
     referenced_by_index_path,
+    referenced_by_index_schema_version,
 )
 
 if TYPE_CHECKING:
@@ -153,6 +154,9 @@ def _refresh_locked(
             )
             continue
         index_path = referenced_by_index_path(repo_root, artifact_id)
+        if referenced_by_index_schema_version(index_path) == 2:
+            # v2 truth is owned by the artifact-link adapter; do not clobber it.
+            continue
         try:
             existing_index = read_referenced_by_index(index_path)
             merged_index = merge_referenced_by_rows(existing_index, group)

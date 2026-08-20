@@ -1,0 +1,18 @@
+{
+  "artifact_id": "plan:202608/monitor_followup_wait_release.md",
+  "identity_value": null,
+  "repo_relpath": "202608/monitor_followup_wait_release.md",
+  "rows": [
+    {
+      "agent": "bbugyi200.athena.002--1",
+      "agent_url": "https://github.com/sase-org/sase--agents/blob/main/families/bbugyi200.athena.002.md",
+      "canonical_ref": "plan:202608/monitor_followup_wait_release.md",
+      "destination": null,
+      "project": "sase",
+      "published": "2026-08-13",
+      "use_ids": [],
+      "uses": 1
+    }
+  ],
+  "schema_version": 1
+}

@@ -119,6 +119,21 @@ REQUIRED_BINDINGS = (
     "referenced_by_block_remove",
     "referenced_by_block_strip",
     "referenced_by_wire_schema_version",
+    "artifact_link_row_schema_version",
+    "artifact_link_canonicalize",
+    "artifact_link_validate_row",
+    "artifact_link_upsert_row",
+    "artifact_relations_builtins",
+    "artifact_relation_lookup",
+    "artifact_relation_label",
+    "links_block_parse",
+    "links_block_render",
+    "links_block_upsert",
+    "links_block_remove",
+    "links_block_strip",
+    "artifact_md_path",
+    "companion_md_path",
+    "artifact_link_frontmatter_inlet",
     "artifact_ref_file_index_parse",
     "artifact_ref_file_row_render",
     "artifact_ref_file_row_validate",
@@ -203,6 +218,21 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
             )
             valid = False
     return valid
+
+
+def _validate_artifact_link_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.artifact_link_row_schema_version())
+    except Exception as exc:
+        _error(f"artifact_link_row_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 2:
+        _error(
+            "artifact_link_row_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 2"
+        )
+        return False
+    return True
 
 
 def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:
@@ -1338,6 +1368,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_artifact_ref_schemas(module):
+        return 1
+    if not _validate_artifact_link_schema(module):
         return 1
     if not _validate_vcs_log_wire_schema(module):
         return 1
