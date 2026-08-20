@@ -129,6 +129,18 @@ class AgentDetailRenderMixin:
         )
         return False
 
+    def watch_theme(self, old: str | None = None, new: str | None = None) -> None:
+        """Rebuild authored-prompt caches so theme-derived colors cannot go stale."""
+        try:
+            parent = getattr(super(), "watch_theme", None)
+        except TypeError:
+            parent = None
+        if callable(parent):
+            parent(old, new)
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        self._refresh_agent_focus_detail(render_immediate=False)
+
     def _refresh_agent_focus_detail(self, *, render_immediate: bool = True) -> None:
         """Repaint info/detail after focus changes and debounce full documents.
 
@@ -136,17 +148,24 @@ class AgentDetailRenderMixin:
         prompt repaint: changing that document forces a layout before the
         selected-panel chrome can paint. Other focus transitions retain the
         immediate header path.
+
+        Runtime-state init assigns ``theme`` while ``current_tab`` is already
+        ``agents`` and before the detail debouncer exists; skip until then so
+        the first theme application cannot schedule a timer or crash.
         """
+        debouncer = getattr(self, "_agent_detail_debouncer", None)
+        if debouncer is None:
+            return
         if not render_immediate:
-            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            debouncer.schedule(self._fire_debounced_detail_update)
             return
         update_info = getattr(self, "_update_agents_info_panel", None)
         if callable(update_info):
             update_info()
         if self._apply_agent_detail_immediate():
-            self._agent_detail_debouncer.cancel()
+            debouncer.cancel()
             return
-        self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+        debouncer.schedule(self._fire_debounced_detail_update)
 
     def _refresh_tribe_summary_only(self) -> bool:
         """Rebuild only an active tribe after mark/unread state changes."""

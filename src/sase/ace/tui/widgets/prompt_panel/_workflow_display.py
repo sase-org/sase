@@ -2,16 +2,19 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.text import Text
 from textual.worker import Worker, WorkerState
+
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ...tools import build_slow_tool_sources, supports_slow_tool_sources
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...models._loaders._json_cache import load_json_cached
 from ...models.agent import Agent
+from ...util.lazy_syntax import lazy_renderable
 from ._workflow_data import (
     load_workflow_detail_snapshot as _load_workflow_detail_snapshot_impl,
 )
@@ -37,6 +40,23 @@ class _WorkflowDetailRenderRequest:
 class WorkflowDisplayMixin:
     """Mixin providing workflow-specific display methods for AgentPromptPanel."""
 
+    def _workflow_prompt_renderer(
+        self, agent: Agent
+    ) -> Callable[[str], RenderableType]:
+        """Return an authored-prompt renderer bound to *agent*'s catalogs."""
+        render_prompt = getattr(self, "_render_agent_prompt", None)
+        if not callable(render_prompt):
+
+            def _fallback(content: str) -> RenderableType:
+                return lazy_renderable(humanize_vcs_refs_in_text(content), "markdown")
+
+            return _fallback
+
+        def _render(content: str) -> RenderableType:
+            return cast(RenderableType, render_prompt(agent, content))
+
+        return _render
+
     def _update_workflow_display(self, agent: Agent) -> None:
         """Update display for a workflow agent.
 
@@ -56,6 +76,7 @@ class WorkflowDisplayMixin:
                 snapshot,
                 slow_tool_sources=slow_tool_sources,
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
+                render_prompt=self._workflow_prompt_renderer(agent),
             )
         )
 
@@ -87,6 +108,8 @@ class WorkflowDisplayMixin:
         self._workflow_detail_request = request  # type: ignore[attr-defined]
         slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_widget(self)
 
+        render_prompt = self._workflow_prompt_renderer(agent)
+
         def render_task() -> Group:
             snapshot = _load_workflow_detail_snapshot(agent)
             slow_tool_sources = (
@@ -99,6 +122,7 @@ class WorkflowDisplayMixin:
                 snapshot,
                 slow_tool_sources=slow_tool_sources,
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
+                render_prompt=render_prompt,
             )
 
         self._workflow_detail_worker = self.run_worker(  # type: ignore[attr-defined]

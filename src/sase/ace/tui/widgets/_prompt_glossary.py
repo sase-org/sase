@@ -7,7 +7,6 @@ import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
@@ -15,6 +14,11 @@ from sase.ace.tui.modals.glossary_preview_render import (
     glossary_definition_position as _glossary_definition_position,
     glossary_source_path as _glossary_source_path,
 )
+from sase.ace.tui.util.editor_offsets import (
+    editor_range_to_offsets as _editor_range_to_offsets,
+    utf16_character as _utf16_character,
+)
+from sase.ace.tui.util.semantic_styles import semantic_highlight_styles_from_theme
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
@@ -26,7 +30,6 @@ from sase.core.glossary_facade import (
     lookup_glossary_span,
     scan_glossary_spans,
 )
-from sase.xprompt.highlight_theme import derive_argument_color
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
@@ -346,17 +349,9 @@ class PromptGlossaryMixin(_MixinBase):
         active_name = theme_name or str(getattr(self, "theme", "css") or "css")
         base = self._resolve_glossary_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
-        app_theme = self.app.current_theme
-        background = app_theme.background or "#000000"
-        syntax_styles[_GLOSSARY_STYLE] = Style(
-            color=derive_argument_color(
-                app_theme.primary,
-                foreground=app_theme.foreground,
-                background=background,
-            ),
-            bold=True,
-            underline=True,
-        )
+        styles = semantic_highlight_styles_from_theme(self.app.current_theme)
+        if styles is not None:
+            syntax_styles[_GLOSSARY_STYLE] = styles.glossary
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -393,63 +388,6 @@ def _entry_for_span(
         if entry.index == span.entry_index:
             return entry
     return None
-
-
-def _editor_range_to_offsets(
-    text: str,
-    editor_range: Any,
-) -> tuple[int, int] | None:
-    if not isinstance(editor_range, dict):
-        return None
-    start = _editor_position_to_offset(text, editor_range.get("start"))
-    end = _editor_position_to_offset(text, editor_range.get("end"))
-    if start is None or end is None or end <= start:
-        return None
-    return start, end
-
-
-def _editor_position_to_offset(text: str, position: Any) -> int | None:
-    if not isinstance(position, dict):
-        return None
-    line = position.get("line")
-    character = position.get("character")
-    if not isinstance(line, int) or not isinstance(character, int):
-        return None
-    if line < 0 or character < 0:
-        return None
-
-    row = 0
-    line_start = 0
-    while row < line:
-        newline = text.find("\n", line_start)
-        if newline == -1:
-            return None
-        line_start = newline + 1
-        row += 1
-
-    line_end = text.find("\n", line_start)
-    if line_end == -1:
-        line_end = len(text)
-    column = _python_column_from_utf16(text[line_start:line_end], character)
-    if column is None:
-        return None
-    return line_start + column
-
-
-def _python_column_from_utf16(line: str, character: int) -> int | None:
-    remaining = character
-    for index, char in enumerate(line):
-        width = 2 if ord(char) > 0xFFFF else 1
-        if remaining == 0:
-            return index
-        if remaining < width:
-            return index
-        remaining -= width
-    return len(line) if remaining == 0 else None
-
-
-def _utf16_character(text: str) -> int:
-    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
 
 
 __all__ = [

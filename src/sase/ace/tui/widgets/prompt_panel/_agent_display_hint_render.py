@@ -14,7 +14,6 @@ from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
 from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
-from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
     prepare_clan_section_snapshot,
@@ -44,7 +43,10 @@ from ._agent_monitor_section import (
     build_monitor_section,
     monitor_phase_text,
 )
-from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._agent_xprompt_highlighting import (
+    agent_prompt_highlight_context,
+    apply_authored_prompt_overlays,
+)
 from ._file_path_hints import resolve_agent_workspace_dir
 from ._helpers import append_section_heading, format_output
 from ._hint_caps import append_bounded_text_with_file_hints
@@ -309,6 +311,11 @@ class AgentHintRenderMixin:
 
         # AGENT XPROMPT section (with file path hints)
         raw_xprompt = agent.get_raw_xprompt_content()
+        highlight_context = agent_prompt_highlight_context(
+            self,
+            agent,
+            raw_xprompt or "",
+        )
         if raw_xprompt:
             source_xprompt = raw_xprompt
             raw_xprompt = humanize_text(source_xprompt)
@@ -322,24 +329,17 @@ class AgentHintRenderMixin:
                 workspace_dir,
             )
             xprompt_source = header_text.plain[xprompt_start:]
-            hint_spans = [
+            hint_spans = tuple(
                 span for span in header_text.spans if span.end > xprompt_start
-            ]
-            try:
-                apply_xprompt_overlays(
-                    header_text,
-                    xprompt_source,
-                    region_start=xprompt_start,
-                    known_skills=known_xprompt_skill_names(
-                        self,
-                        agent,
-                        source_xprompt,
-                    ),
-                )
-                for span in hint_spans:
-                    header_text.stylize(span.style, span.start, span.end)
-            except Exception:
-                pass
+            )
+            apply_authored_prompt_overlays(
+                header_text,
+                xprompt_source,
+                highlight_context,
+                region_start=xprompt_start,
+                include_xprompt=True,
+                hint_spans=hint_spans,
+            )
             header_text.append("\n")
             header_text.append("\u2500" * 50 + "\n", style="dim")
             header_text.append("\n")
@@ -350,12 +350,24 @@ class AgentHintRenderMixin:
         prompt_content = get_prompt_content(agent)
         if prompt_content:
             prompt_content = humanize_text(prompt_content)
+            prompt_start = len(header_text.plain)
             hint_counter = append_bounded_text_with_file_hints(
                 header_text,
                 prompt_content + "\n",
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
+            )
+            prompt_source = header_text.plain[prompt_start:]
+            prompt_hint_spans = tuple(
+                span for span in header_text.spans if span.end > prompt_start
+            )
+            apply_authored_prompt_overlays(
+                header_text,
+                prompt_source,
+                highlight_context,
+                region_start=prompt_start,
+                hint_spans=prompt_hint_spans,
             )
 
             # Consolidated AGENT REPLY for agents with follow-ups (with hints)

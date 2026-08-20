@@ -26,7 +26,7 @@ from ._agent_display_content import get_prompt_content
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header_summary import detail_header_summary_cache_key
 from ._agent_display_state import AgentHintRender
-from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._agent_xprompt_highlighting import agent_prompt_highlight_context
 from ._hint_caps import HintContentBudget
 
 _AGENT_HINT_RENDER_CACHE_MAX_ENTRIES = 16
@@ -150,11 +150,14 @@ def _hint_context_digest(
         if lane_owner and callable(projection_resolver)
         else None
     )
-    known_skills = (
-        known_xprompt_skill_names(widget, agent, raw_xprompt)
-        if raw_xprompt
-        else frozenset()
-    )
+    highlight_fingerprint: tuple[object, ...] = ()
+    if raw_xprompt is not None or not agent.is_clan_container:
+        highlight_fingerprint = agent_prompt_highlight_context(
+            widget,
+            agent,
+            raw_xprompt or "",
+            schedule=False,
+        ).fingerprint
     return _digest_parts(
         getattr(app, "_unread_completed_agent_ids", set()),
         getattr(app, "_marked_agents", set()),
@@ -163,7 +166,7 @@ def _hint_context_digest(
         lane_neighbors,
         slow_tool_call_threshold_ms_from_widget(widget),
         project_display_name_map_signature(),
-        known_skills,
+        highlight_fingerprint,
     )
 
 

@@ -1,5 +1,6 @@
 """Rich renderable construction for workflow detail display."""
 
+from collections.abc import Callable
 from datetime import datetime as DateTime
 
 from rich.console import Group, RenderableType
@@ -37,6 +38,7 @@ def build_workflow_detail_renderable(
     *,
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    render_prompt: Callable[[str], RenderableType] | None = None,
 ) -> Group:
     """Build the rich workflow-detail renderable from an existing snapshot."""
     header_text = Text()
@@ -211,14 +213,17 @@ def build_workflow_detail_renderable(
     # AGENT PROMPT section - show the prompt that was attempted
     prompt_content = snapshot.prompt_content
     if prompt_content:
-        prompt_content = humanize_vcs_refs_in_text(prompt_content)
         prompt_header = Text()
         prompt_header.append("\n")
         prompt_header.append("─" * 50 + "\n", style="dim")
         prompt_header.append("\n")
         append_section_heading(prompt_header, "AGENT PROMPT")
         renderables.append(prompt_header)
-        renderables.append(lazy_renderable(prompt_content, "markdown"))
+        if render_prompt is not None:
+            renderables.append(render_prompt(prompt_content))
+        else:
+            prompt_content = humanize_vcs_refs_in_text(prompt_content)
+            renderables.append(lazy_renderable(prompt_content, "markdown"))
 
     return Group(*renderables)
 

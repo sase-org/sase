@@ -5,13 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from rich.console import Group
+from rich.console import Group, RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
-from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
     get_phase_label,
     get_prompt_content,
@@ -26,7 +25,11 @@ from ._agent_display_family import (
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
-from ._agent_xprompt_highlighting import known_xprompt_skill_names
+from ._agent_xprompt_highlighting import (
+    AgentPromptHighlightContext,
+    agent_prompt_highlight_context,
+    apply_authored_prompt_overlays,
+)
 from ._container_hint_text import container_text_with_file_hints
 from ._fold_language import fold_count_style
 from ._file_path_hints import (
@@ -56,7 +59,17 @@ class AgentFamilyDisplayMixin:
             agent: Agent,
             raw_xprompt: str,
             humanized_xprompt: str,
+            *,
+            context: AgentPromptHighlightContext | None = None,
         ) -> Text: ...
+
+        def _render_agent_prompt(
+            self,
+            agent: Agent,
+            content: str,
+            *,
+            context: AgentPromptHighlightContext | None = None,
+        ) -> RenderableType: ...
 
     def _update_family_display(
         self,
@@ -92,6 +105,11 @@ class AgentFamilyDisplayMixin:
 
         rendered_content_section = False
         raw_xprompt = agent.get_raw_xprompt_content()
+        highlight_context = agent_prompt_highlight_context(
+            self,
+            agent,
+            raw_xprompt or "",
+        )
         if raw_xprompt:
             append_section_heading(header_text, "AGENT XPROMPT")
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
@@ -100,6 +118,7 @@ class AgentFamilyDisplayMixin:
                     agent,
                     raw_xprompt,
                     humanized_xprompt,
+                    context=highlight_context,
                 )
                 if hint_state is None
                 else Text(humanized_xprompt)
@@ -115,6 +134,7 @@ class AgentFamilyDisplayMixin:
                         budget=hint_budget,
                         xprompt_agent=agent,
                         raw_xprompt=raw_xprompt,
+                        semantic_context=highlight_context,
                     )
                 )
             header_text.append("\n")
@@ -128,7 +148,13 @@ class AgentFamilyDisplayMixin:
                 header_text.append("\n")
             append_section_heading(header_text, "AGENT PROMPT")
             if hint_state is None:
-                renderables.append(self._render_markdown(prompt_content))
+                renderables.append(
+                    self._render_agent_prompt(
+                        agent,
+                        prompt_content,
+                        context=highlight_context,
+                    )
+                )
             else:
                 renderables.append(
                     self._family_text_with_hints(
@@ -136,6 +162,7 @@ class AgentFamilyDisplayMixin:
                         hint_state,
                         workspace_dir=hint_state.workspace_dir,
                         budget=hint_budget,
+                        semantic_context=highlight_context,
                     )
                 )
             rendered_content_section = True
@@ -218,6 +245,7 @@ class AgentFamilyDisplayMixin:
         budget: HintContentBudget | None,
         xprompt_agent: Agent | None = None,
         raw_xprompt: str | None = None,
+        semantic_context: AgentPromptHighlightContext | None = None,
     ) -> Text:
         """Return one visible family content fragment with numbered paths."""
         text = container_text_with_file_hints(
@@ -226,24 +254,25 @@ class AgentFamilyDisplayMixin:
             workspace_dir=workspace_dir,
             budget=budget,
         )
-        if xprompt_agent is None or raw_xprompt is None:
+        include_xprompt = xprompt_agent is not None and raw_xprompt is not None
+        context = semantic_context
+        if context is None and include_xprompt and xprompt_agent is not None:
+            context = agent_prompt_highlight_context(
+                self,
+                xprompt_agent,
+                raw_xprompt or "",
+            )
+        if context is None:
             return text
 
-        hint_spans = list(text.spans)
-        try:
-            apply_xprompt_overlays(
-                text,
-                text.plain,
-                known_skills=known_xprompt_skill_names(
-                    self,
-                    xprompt_agent,
-                    raw_xprompt,
-                ),
-            )
-            for span in hint_spans:
-                text.stylize(span.style, span.start, span.end)
-        except Exception:
-            pass
+        hint_spans = tuple(text.spans)
+        apply_authored_prompt_overlays(
+            text,
+            text.plain,
+            context,
+            include_xprompt=include_xprompt,
+            hint_spans=hint_spans,
+        )
         return text
 
     @staticmethod

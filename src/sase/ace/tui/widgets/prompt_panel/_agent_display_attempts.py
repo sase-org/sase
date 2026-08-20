@@ -103,7 +103,7 @@ class AgentAttemptDisplayMixin:
         prompt_content = get_prompt_content(agent)
         if prompt_content:
             renderables.append(
-                self._render_markdown(prompt_content)  # type: ignore[attr-defined]
+                self._render_agent_prompt(agent, prompt_content)  # type: ignore[attr-defined]
             )
         else:
             renderables.append(Text("No prompt file found.\n", style="dim italic"))

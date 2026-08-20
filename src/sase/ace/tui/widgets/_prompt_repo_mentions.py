@@ -7,17 +7,20 @@ import dataclasses
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.modals.repo_preview_render import repo_checkout_path
 from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
+from sase.ace.tui.util.editor_offsets import (
+    editor_range_to_offsets as _editor_range_to_offsets,
+    utf16_character as _utf16_character,
+)
+from sase.ace.tui.util.semantic_styles import semantic_highlight_styles_from_theme
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt.highlight_theme import derive_argument_color
 from sase.xprompt.repo_mention_catalog import (
     EditorRepoMentionCatalog,
     RepoMentionSpan,
@@ -348,17 +351,9 @@ class PromptRepoMentionMixin(_MixinBase):
         active_name = theme_name or str(getattr(self, "theme", "css") or "css")
         base = self._resolve_repo_mention_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
-        app_theme = self.app.current_theme
-        background = app_theme.background or "#000000"
-        syntax_styles[_REPO_MENTION_STYLE] = Style(
-            color=derive_argument_color(
-                app_theme.accent,
-                foreground=app_theme.foreground,
-                background=background,
-            ),
-            bold=True,
-            underline=True,
-        )
+        styles = semantic_highlight_styles_from_theme(self.app.current_theme)
+        if styles is not None:
+            syntax_styles[_REPO_MENTION_STYLE] = styles.repo
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -395,63 +390,6 @@ def _active_workspace_num(app: Any) -> int | None:
         return None
     workspace_num = getattr(ctx, "workspace_num", None)
     return workspace_num if isinstance(workspace_num, int) else None
-
-
-def _editor_range_to_offsets(
-    text: str,
-    editor_range: Any,
-) -> tuple[int, int] | None:
-    if not isinstance(editor_range, dict):
-        return None
-    start = _editor_position_to_offset(text, editor_range.get("start"))
-    end = _editor_position_to_offset(text, editor_range.get("end"))
-    if start is None or end is None or end <= start:
-        return None
-    return start, end
-
-
-def _editor_position_to_offset(text: str, position: Any) -> int | None:
-    if not isinstance(position, dict):
-        return None
-    line = position.get("line")
-    character = position.get("character")
-    if not isinstance(line, int) or not isinstance(character, int):
-        return None
-    if line < 0 or character < 0:
-        return None
-
-    row = 0
-    line_start = 0
-    while row < line:
-        newline = text.find("\n", line_start)
-        if newline == -1:
-            return None
-        line_start = newline + 1
-        row += 1
-
-    line_end = text.find("\n", line_start)
-    if line_end == -1:
-        line_end = len(text)
-    column = _python_column_from_utf16(text[line_start:line_end], character)
-    if column is None:
-        return None
-    return line_start + column
-
-
-def _python_column_from_utf16(line: str, character: int) -> int | None:
-    remaining = character
-    for index, char in enumerate(line):
-        width = 2 if ord(char) > 0xFFFF else 1
-        if remaining == 0:
-            return index
-        if remaining < width:
-            return index
-        remaining -= width
-    return len(line) if remaining == 0 else None
-
-
-def _utf16_character(text: str) -> int:
-    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
 
 
 __all__ = [

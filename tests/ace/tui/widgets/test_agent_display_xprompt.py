@@ -457,10 +457,11 @@ class TestAgentXPromptRendering:
             text: str,
             *,
             known_skills: frozenset[str] = frozenset(),
+            **kwargs: object,
         ) -> Text:
             nonlocal calls
             calls += 1
-            return original(text, known_skills=known_skills)
+            return original(text, known_skills=known_skills, **kwargs)
 
         monkeypatch.setattr(
             _agent_display_render,

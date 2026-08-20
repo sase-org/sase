@@ -219,7 +219,7 @@ class StartupPromptCatalogMixin:
             return
         self._prompt_glossary_catalogs_by_context[context] = result.catalog
         self._prompt_glossary_diagnostics_by_context[context] = result.diagnostics
-        self._refresh_visible_prompt_glossary_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces()
 
     def _invalidate_prompt_glossary_catalogs(self: Any, *, reason: str) -> None:
         """Drop warm glossary catalogs after config/project source changes."""
@@ -228,24 +228,11 @@ class StartupPromptCatalogMixin:
         self._prompt_glossary_catalogs_by_context = {}
         self._prompt_glossary_diagnostics_by_context = {}
         self._prompt_glossary_warming_contexts = set()
-        self._refresh_visible_prompt_glossary_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces()
 
     def _refresh_visible_prompt_glossary_surfaces(self: Any) -> None:
         """Refresh mounted prompt panes that may show glossary spans."""
-        try:
-            from ..widgets.prompt_text_area import PromptTextArea
-
-            text_areas = list(self.query(PromptTextArea))
-        except Exception:
-            return
-        for text_area in text_areas:
-            if not getattr(text_area, "is_mounted", False):
-                continue
-            try:
-                text_area._build_highlight_map()
-                text_area.refresh()
-            except Exception:
-                log.debug("Failed to refresh prompt glossary surface", exc_info=True)
+        self._refresh_visible_prompt_semantic_surfaces()
 
     def get_prompt_repo_mention_catalog(
         self: Any,
@@ -324,7 +311,7 @@ class StartupPromptCatalogMixin:
             return
         self._prompt_repo_mention_catalogs_by_context[context] = result.catalog
         self._prompt_repo_mention_diagnostics_by_context[context] = result.diagnostics
-        self._refresh_visible_prompt_repo_mention_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces()
 
     def _invalidate_prompt_repo_mention_catalogs(self: Any, *, reason: str) -> None:
         """Drop warm repo-mention catalogs after config/project source changes."""
@@ -333,16 +320,20 @@ class StartupPromptCatalogMixin:
         self._prompt_repo_mention_catalogs_by_context = {}
         self._prompt_repo_mention_diagnostics_by_context = {}
         self._prompt_repo_mention_warming_contexts = set()
-        self._refresh_visible_prompt_repo_mention_surfaces()
+        self._refresh_visible_prompt_semantic_surfaces()
 
     def _refresh_visible_prompt_repo_mention_surfaces(self: Any) -> None:
         """Refresh mounted prompt panes that may show repo-mention spans."""
+        self._refresh_visible_prompt_semantic_surfaces()
+
+    def _refresh_visible_prompt_semantic_surfaces(self: Any) -> None:
+        """Refresh prompt-input overlays and the selected Agents detail."""
         try:
             from ..widgets.prompt_text_area import PromptTextArea
 
             text_areas = list(self.query(PromptTextArea))
         except Exception:
-            return
+            text_areas = []
         for text_area in text_areas:
             if not getattr(text_area, "is_mounted", False):
                 continue
@@ -350,9 +341,16 @@ class StartupPromptCatalogMixin:
                 text_area._build_highlight_map()
                 text_area.refresh()
             except Exception:
-                log.debug(
-                    "Failed to refresh prompt repo-mention surface", exc_info=True
-                )
+                log.debug("Failed to refresh prompt semantic surface", exc_info=True)
+        self._schedule_selected_agent_semantic_refresh()
+
+    def _schedule_selected_agent_semantic_refresh(self: Any) -> None:
+        """Repaint the selected Agents detail through the shared debouncer."""
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        refresh = getattr(self, "_refresh_agent_focus_detail", None)
+        if callable(refresh):
+            refresh(render_immediate=False)
 
     def _ensure_prompt_catalog_project(self: Any, project: str | None) -> None:
         """Track requested project catalogs and expand watches when needed."""
@@ -514,7 +512,7 @@ class StartupPromptCatalogMixin:
 
             text_areas = list(self.query(PromptTextArea))
         except Exception:
-            return
+            text_areas = []
         for text_area in text_areas:
             if not getattr(text_area, "is_mounted", False):
                 continue
@@ -539,3 +537,4 @@ class StartupPromptCatalogMixin:
                 text_area._on_prompt_completion_context_changed()
             except Exception:
                 log.debug("Failed to refresh prompt catalog surface", exc_info=True)
+        self._schedule_selected_agent_semantic_refresh()

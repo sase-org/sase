@@ -11,8 +11,16 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.xprompt import alt_inspect, xprompt_inspect
+from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
+from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
 
-from .lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
+from .frontmatter_syntax import FRONTMATTER_MARKDOWN_LEXER
+from .lazy_syntax import (
+    MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+    MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+)
+from .semantic_overlay import apply_semantic_overlays
+from .semantic_styles import SemanticHighlightStyles
 
 XPROMPT_TOKEN_STYLES: dict[str, str] = {
     "invocation": "bold #87D787",
@@ -101,16 +109,18 @@ def highlight_prompt_text(
     text: str,
     *,
     known_skills: frozenset[str] = frozenset(),
+    glossary_catalog: EditorGlossaryCatalog | None = None,
+    repo_catalog: EditorRepoMentionCatalog | None = None,
+    semantic_styles: SemanticHighlightStyles | None = None,
 ) -> Text:
     """Return Markdown-highlighted prompt text with xprompt token overlays.
 
     Highlighting is presentation-only and deliberately fail-open: oversized or
-    malformed input always remains fully visible as plain text.
+    malformed input always remains fully visible as plain text. Glossary and
+    repo roles, when supplied, annotate natural-language text before structural
+    xprompt styles win.
     """
-    if (
-        len(text.encode("utf-8", errors="replace"))
-        > MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
-    ):
+    if _exceeds_prompt_highlight_cap(text):
         return Text(text)
     try:
         highlighted = Syntax(
@@ -118,8 +128,16 @@ def highlight_prompt_text(
             _XPROMPT_MARKDOWN_LEXER,
             theme="monokai",
         ).highlight(text)
-        if not text.endswith("\n") and highlighted.plain.endswith("\n"):
-            highlighted.right_crop(1)
+        _trim_syntax_trailing_newline(highlighted, text)
+        apply_semantic_overlays(
+            highlighted,
+            text,
+            glossary_catalog=glossary_catalog,
+            repo_catalog=repo_catalog,
+            styles=semantic_styles,
+            skip_xprompt=True,
+            known_skills=known_skills,
+        )
         apply_xprompt_overlays(
             highlighted,
             text,
@@ -130,8 +148,55 @@ def highlight_prompt_text(
         return Text(text)
 
 
+def highlight_markdown_text(
+    text: str,
+    *,
+    glossary_catalog: EditorGlossaryCatalog | None = None,
+    repo_catalog: EditorRepoMentionCatalog | None = None,
+    semantic_styles: SemanticHighlightStyles | None = None,
+) -> Text:
+    """Return ordinary Markdown-highlighted text with optional semantic roles.
+
+    Unlike :func:`highlight_prompt_text`, this path does not apply xprompt
+    token styles. Oversized or malformed input remains fully visible.
+    """
+    if _exceeds_prompt_highlight_cap(text):
+        return Text(text)
+    try:
+        highlighted = Syntax(
+            text,
+            FRONTMATTER_MARKDOWN_LEXER,
+            theme="monokai",
+        ).highlight(text)
+        _trim_syntax_trailing_newline(highlighted, text)
+        apply_semantic_overlays(
+            highlighted,
+            text,
+            glossary_catalog=glossary_catalog,
+            repo_catalog=repo_catalog,
+            styles=semantic_styles,
+        )
+        return highlighted
+    except Exception:
+        return Text(text)
+
+
+def _exceeds_prompt_highlight_cap(text: str) -> bool:
+    return (
+        len(text.encode("utf-8", errors="replace"))
+        > MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
+        or text.count("\n") > MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES
+    )
+
+
+def _trim_syntax_trailing_newline(highlighted: Text, source: str) -> None:
+    if not source.endswith("\n") and highlighted.plain.endswith("\n"):
+        highlighted.right_crop(1)
+
+
 __all__ = [
     "XPROMPT_TOKEN_STYLES",
     "apply_xprompt_overlays",
+    "highlight_markdown_text",
     "highlight_prompt_text",
 ]
