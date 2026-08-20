@@ -15,7 +15,7 @@ from textual.widgets import Input, Select, Static, TextArea
 from sase.ace.testing import wait_for
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.memory_panel_catalog import MemoryNoteDigest, MemoryScopeRef
-from sase.ace.tui.modals import memory_panel_actions as actions_mod
+from sase.ace.tui.modals import memory_panel_write as write_mod
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.memory_panel import MemoryPanel
 from sase.ace.tui.modals.memory_panel_add import (
@@ -164,17 +164,17 @@ def _install_write_fakes(
     delete: Any = None,
 ) -> None:
     monkeypatch.setattr(
-        actions_mod,
+        write_mod,
         "load_memory_scope_snapshot",
         lambda scope: snapshots[scope.key],
     )
-    monkeypatch.setattr(actions_mod, "invalidate_memory_scope", lambda _key: None)
+    monkeypatch.setattr(write_mod, "invalidate_memory_scope", lambda _key: None)
     if create is not None:
-        monkeypatch.setattr(actions_mod, "create_memory_note", create)
+        monkeypatch.setattr(write_mod, "create_memory_note", create)
     if update is not None:
-        monkeypatch.setattr(actions_mod, "update_memory_note", update)
+        monkeypatch.setattr(write_mod, "update_memory_note", update)
     if delete is not None:
-        monkeypatch.setattr(actions_mod, "delete_memory_note", delete)
+        monkeypatch.setattr(write_mod, "delete_memory_note", delete)
 
 
 async def _fill_form(
@@ -697,7 +697,7 @@ async def test_publish_runs_init_and_clears_unpublished(
         return subprocess.CompletedProcess(list(argv), 0, "", "")
 
     _install_write_fakes(monkeypatch, snapshots, create=fake_create)
-    monkeypatch.setattr(actions_mod, "run_noninteractive", fake_run)
+    monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
     panel = MemoryPanel()
     app = _ActionsApp(panel)
@@ -748,7 +748,7 @@ async def test_publish_only_and_home_scope_cwd(
         recorded.append((list(argv), str(cwd)))
         return subprocess.CompletedProcess(list(argv), 0, "", "")
 
-    monkeypatch.setattr(actions_mod, "run_noninteractive", fake_run)
+    monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
     panel = MemoryPanel()
     app = _ActionsApp(panel)
@@ -782,7 +782,7 @@ async def test_publish_failure_keeps_unpublished_and_surfaces_stderr(
             list(argv), 1, "", "fold failed\ncommit subject required\n"
         )
 
-    monkeypatch.setattr(actions_mod, "run_noninteractive", fake_run)
+    monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
     panel = MemoryPanel()
     app = _ActionsApp(panel)

@@ -6,8 +6,9 @@ behavior is split across sibling mixins -- snapshot and selection state in
 :mod:`sase.ace.tui.modals.memory_panel_state`, widget rendering in
 :mod:`sase.ace.tui.modals.memory_panel_view`, note/filter/scope movement in
 :mod:`sase.ace.tui.modals.memory_panel_navigation`, parent/child chip
-travel in :mod:`sase.ace.tui.modals.memory_panel_travel`, and
-add/edit/delete/publish in :mod:`sase.ace.tui.modals.memory_panel_actions`.
+travel in :mod:`sase.ace.tui.modals.memory_panel_travel`,
+add/edit/delete in :mod:`sase.ace.tui.modals.memory_panel_actions`, and
+publish in :mod:`sase.ace.tui.modals.memory_panel_publish_actions`.
 """
 
 from __future__ import annotations
