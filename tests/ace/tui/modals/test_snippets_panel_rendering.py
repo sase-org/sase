@@ -69,9 +69,10 @@ def test_panel_footer_lists_only_conditional_keys() -> None:
     assert "→ leaf" in footer
     assert "backspace / h back" in footer
     assert "y copy" in footer
-    assert "o edit" in footer
+    assert "o source" in footer
     assert "Z view" in footer
     assert "d delete" not in footer
+    assert "e edit" not in footer
     assert "a add" not in footer
     assert "filter" not in footer
     assert "help" not in footer
@@ -155,7 +156,21 @@ def test_snippet_call_diagnostics_skip_resolved_calls() -> None:
     )
 
 
-def test_help_modal_lists_browsing_keys_not_crud() -> None:
+def test_panel_footer_lists_edit_and_delete_when_mutable() -> None:
+    keymaps = SnippetPanelKeymaps()
+    footer = build_panel_footer(
+        keymaps,
+        has_entries=True,
+        has_source_path=True,
+        ring_size=1,
+        can_mutate=True,
+    )
+    assert "e edit" in footer
+    assert "d delete" in footer
+    assert "o source" in footer
+
+
+def test_help_modal_lists_browsing_and_crud_keys() -> None:
     modal = SnippetsPanelHelpModal(keymaps=SnippetPanelKeymaps())
     content = modal._content()
     from rich.console import Console
@@ -166,5 +181,6 @@ def test_help_modal_lists_browsing_keys_not_crud() -> None:
     text = capture.get()
     assert "Next Snippet" in text
     assert "Filter" in text
-    assert "Add Snippet" not in text
-    assert "Delete Snippet" not in text
+    assert "Add Snippet" in text
+    assert "Edit Snippet" in text
+    assert "Delete Snippet" in text

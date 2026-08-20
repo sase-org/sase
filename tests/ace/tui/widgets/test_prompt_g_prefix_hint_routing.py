@@ -85,6 +85,9 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             bar, "request_open_glossary_panel", lambda: calls.append("G")
         )
         monkeypatch.setattr(bar, "request_open_memory_panel", lambda: calls.append("m"))
+        monkeypatch.setattr(
+            bar, "request_open_snippets_panel", lambda: calls.append("T")
+        )
 
         for key in (
             "f",
@@ -100,6 +103,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "s",
             "S",
             "t",
+            "T",
             "x",
             "X",
         ):
@@ -131,6 +135,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "s",
             "S",
             "t",
+            "T",
             "x",
             "X",
             "ctrl+c",

@@ -1,15 +1,13 @@
-"""The Snippets panel -- browse one project's snippet catalog.
+"""The Snippets panel -- browse and edit one project's snippet catalog.
 
 This module is the modal shell: the widget tree, the worker-backed loads that
 fill it, and the passive source-file/copy actions. The panel's behavior is
 split across sibling mixins -- snapshot and selection state in
 :mod:`sase.ace.tui.modals.snippets_panel_state`, widget rendering in
 :mod:`sase.ace.tui.modals.snippets_panel_view`, trigger/filter/project
-movement in :mod:`sase.ace.tui.modals.snippets_panel_navigation`, and
-relation-chip travel in :mod:`sase.ace.tui.modals.snippets_panel_travel`.
-
-The panel is intentionally unregistered from prompt keymaps in this phase so
-partial browsing work is not user-reaching.
+movement in :mod:`sase.ace.tui.modals.snippets_panel_navigation`,
+relation-chip travel in :mod:`sase.ace.tui.modals.snippets_panel_travel`,
+and add/edit/delete in :mod:`sase.ace.tui.modals.snippets_panel_actions`.
 """
 
 from __future__ import annotations
@@ -39,6 +37,8 @@ from sase.snippet.models import SnippetEntry
 
 from .base import CopyModeForwardingMixin, FilterInput
 from ._source_file_actions import SourceFileActionsMixin
+from .snippets_panel_actions import SnippetsPanelActionsMixin
+from .snippets_panel_add import SnippetFormDraft
 from .snippets_panel_help_modal import SnippetsPanelHelpModal
 from .snippets_panel_load import (
     SnippetsPanelInitialLoad,
@@ -77,13 +77,14 @@ class _SnippetsFilterInput(FilterInput):
 class SnippetsPanel(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
+    SnippetsPanelActionsMixin,
     SnippetsPanelStateMixin,
     SnippetsPanelViewMixin,
     SnippetsPanelNavigationMixin,
     SnippetsPanelTravelMixin,
     ModalScreen[None],
 ):
-    """Browse one project's snippets, alphabetically, with a filter."""
+    """Browse and edit one project's snippets, alphabetically, with a filter."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -133,6 +134,10 @@ class SnippetsPanel(
         self._chip_outbound_count = 0
         self._chip_cursor: int | None = None
         self._trail: list[str] = []
+        self._write_busy = False
+        self._pending_delete_trigger: str | None = None
+        self._pending_delete_neighbor: str | None = None
+        self._pending_draft: SnippetFormDraft | None = None
 
     def compose(self) -> ComposeResult:
         self._accent = snippet_card_accent(self.app.current_theme)

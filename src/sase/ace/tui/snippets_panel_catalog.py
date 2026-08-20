@@ -22,6 +22,8 @@ from sase.xprompt.glossary_catalog import (
     enabled_project_records,
     glossary_project_record_for_workspace,
 )
+from sase.xprompt.snippet_config_yaml import snippet_config_digest
+from sase.xprompt.snippet_targets import load_snippet_config_locations
 
 _MAX_SNAPSHOT_CACHE_PROJECTS = 8
 _MIN_RESTAT_INTERVAL_S = 0.5
@@ -37,12 +39,25 @@ class SnippetProjectRef:
 
 
 @dataclass(frozen=True, slots=True)
+class SnippetDestination:
+    """One writable YAML destination the add/edit form can cycle through."""
+
+    label: str
+    path: str
+    display_path: str
+    digest: str = ""
+    selectable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class SnippetProjectSnapshot:
     """A loaded (or best-effort failed) snippet catalog for one project."""
 
     project: SnippetProjectRef
     catalog: SnippetCatalog | None
     diagnostics: tuple[str, ...]
+    destinations: tuple[SnippetDestination, ...] = ()
+    default_destination_path: str | None = None
 
 
 @dataclass
@@ -190,6 +205,7 @@ def _config_token() -> tuple[Any, ...]:
 
 
 def _load_snippet_project_snapshot(ref: SnippetProjectRef) -> SnippetProjectSnapshot:
+    destinations, default_destination_path = _snapshot_destinations(ref)
     try:
         catalog = load_snippet_catalog(
             ref.key,
@@ -200,15 +216,84 @@ def _load_snippet_project_snapshot(ref: SnippetProjectRef) -> SnippetProjectSnap
             project=ref,
             catalog=None,
             diagnostics=(f"{ref.display_name}: failed to load snippets: {exc}",),
+            destinations=destinations,
+            default_destination_path=default_destination_path,
         )
     diagnostics = tuple(
         _format_layer_diagnostic(item) for item in catalog.layer_diagnostics
     )
+    destinations = _merge_contribution_destinations(destinations, catalog)
     return SnippetProjectSnapshot(
         project=ref,
         catalog=catalog,
         diagnostics=diagnostics,
+        destinations=destinations,
+        default_destination_path=default_destination_path,
     )
+
+
+def _snapshot_destinations(
+    ref: SnippetProjectRef,
+) -> tuple[tuple[SnippetDestination, ...], str | None]:
+    """Discover writable YAML destinations and hash each selectable file."""
+    try:
+        locations = load_snippet_config_locations(
+            ref.key, launch_workspace=ref.workspace_dir or None
+        )
+    except Exception:
+        return (), None
+    destinations: list[SnippetDestination] = []
+    default_path: str | None = None
+    for location in locations:
+        digest = _path_digest(location.path) if location.is_selectable else ""
+        destinations.append(
+            SnippetDestination(
+                label=location.label,
+                path=location.path,
+                display_path=location.display_path,
+                digest=digest,
+                selectable=location.is_selectable,
+            )
+        )
+        if default_path is None and location.is_selectable:
+            default_path = location.path
+    return tuple(destinations), default_path
+
+
+def _merge_contribution_destinations(
+    destinations: tuple[SnippetDestination, ...],
+    catalog: SnippetCatalog,
+) -> tuple[SnippetDestination, ...]:
+    """Include writable contribution paths that discovery did not list."""
+    seen = {item.path for item in destinations}
+    extra: list[SnippetDestination] = []
+    for entry in catalog.entries:
+        for contribution in entry.contributions:
+            path = contribution.path
+            if not path or not contribution.writable or path in seen:
+                continue
+            extra.append(
+                SnippetDestination(
+                    label=contribution.kind,
+                    path=path,
+                    display_path=contribution.display_path or path,
+                    digest=_path_digest(path),
+                    selectable=True,
+                )
+            )
+            seen.add(path)
+    if not extra:
+        return destinations
+    return (*destinations, *extra)
+
+
+def _path_digest(path: str) -> str:
+    file_path = Path(path)
+    try:
+        data = file_path.read_bytes() if file_path.is_file() else b""
+    except OSError:
+        data = b""
+    return snippet_config_digest(data)
 
 
 def _format_layer_diagnostic(item: Any) -> str:
@@ -220,6 +305,7 @@ def _format_layer_diagnostic(item: Any) -> str:
 
 
 __all__ = [
+    "SnippetDestination",
     "SnippetProjectRef",
     "SnippetProjectSnapshot",
     "build_snippet_project_ring",

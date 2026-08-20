@@ -137,6 +137,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_snippet_target",
     ),
     _PromptGPrefixBinding(
+        "T",
+        "request_open_snippets_panel",
+        "_g_prefix_label_snippets",
+        "_g_prefix_available_snippets",
+    ),
+    _PromptGPrefixBinding(
         "w",
         "request_write_xprompt",
         "_g_prefix_label_write_xprompt",
@@ -285,6 +291,38 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             )
         )
 
+    def request_open_snippets_panel(self) -> None:
+        """Ask the app to open the snippets panel.
+
+        Presentation-only: the bar captures a bare snippet trigger or
+        ``#[trigger]`` under the cursor (if any) without I/O and posts
+        ``SnippetPanelRequested`` with that trigger and the bar's current
+        mode. The app opens the panel and restores prompt focus, vim mode,
+        selection, and cursor on dismiss (boundary rule D6).
+        """
+        self.post_message(
+            self.SnippetPanelRequested(  # type: ignore[attr-defined]
+                self._snippet_trigger_under_cursor(),
+                self._mode,
+            )
+        )
+
+    def _snippet_trigger_under_cursor(self) -> str | None:
+        """Return the snippet trigger at the cursor, if resolvable without I/O."""
+        try:
+            from sase.snippet.cursor import snippet_trigger_at_offset
+
+            text_area = self.active_text_area()
+            offset = text_area._absolute_offset(text_area.cursor_location)
+            known = getattr(self.app, "_snippets_cache", None)
+            if not isinstance(known, dict):
+                known = getattr(self.app, "_user_snippets", None)
+            if not isinstance(known, dict):
+                known = None
+            return snippet_trigger_at_offset(text_area.text, offset, known)
+        except Exception:
+            return None
+
     def request_open_memory_panel(self) -> None:
         """Ask the app to open the memory panel.
 
@@ -414,6 +452,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         """Whether ``gm`` / ``^Gm`` can open the memory panel."""
         return self._mode == "prompt"
 
+    def _g_prefix_available_snippets(self) -> bool:
+        """Whether ``gT`` / ``^GT`` can open the snippets panel."""
+        return self._mode == "prompt"
+
     def _g_prefix_available_cancel_all(self) -> bool:
         """Whether ``Ctrl+G Ctrl+C`` can cancel the whole prompt stack."""
         return self._mode == "prompt"
@@ -522,6 +564,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_memory(self) -> str:
         return "memory…"
+
+    def _g_prefix_label_snippets(self) -> str:
+        return "snippets…"
 
     def _g_prefix_label_cancel_all(self) -> str:
         """Return the ``Ctrl+G Ctrl+C`` label."""

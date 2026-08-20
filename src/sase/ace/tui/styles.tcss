@@ -5915,6 +5915,71 @@ GlossaryTermAddModal #glossary-add-hints {
     margin-top: 1;
 }
 
+/* ===== Snippets Add/Edit Form ===== */
+
+SnippetFormModal {
+    align: center middle;
+}
+
+SnippetFormModal #snippets-form-container {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+SnippetFormModal #snippets-form-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+SnippetFormModal .snippets-form-label {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+SnippetFormModal #snippets-form-trigger {
+    height: 3;
+    border: tall $secondary;
+}
+
+SnippetFormModal #snippets-form-template {
+    height: 10;
+    min-height: 6;
+    border: tall $secondary;
+}
+
+SnippetFormModal .snippets-form-error {
+    height: auto;
+    color: #ff5f5f;
+}
+
+SnippetFormModal .snippets-form-warning {
+    height: auto;
+    color: #ffaf00;
+}
+
+SnippetFormModal #snippets-form-destination {
+    height: auto;
+    color: $text-muted;
+}
+
+SnippetFormModal #snippets-form-preview {
+    height: auto;
+    margin-top: 1;
+}
+
+SnippetFormModal #snippets-form-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+}
+
 /* ===== Notification Report Modal Styling ===== */
 
 ReportModal {

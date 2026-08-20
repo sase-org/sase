@@ -137,6 +137,21 @@ class MemoryPanelRequested(Message, namespace="prompt_input_bar"):
         self.mode = mode
 
 
+class SnippetPanelRequested(Message, namespace="prompt_input_bar"):
+    """Message sent when the user asks to open the snippets panel.
+
+    Presentation-only (boundary rule D6): the bar captures a bare snippet
+    trigger or ``#[trigger]`` under the cursor (or ``None``) and its current
+    ``mode``. The app opens the panel with that seed and restores prompt
+    focus, vim mode, selection, and cursor on dismiss.
+    """
+
+    def __init__(self, trigger: str | None = None, mode: str = "prompt") -> None:
+        super().__init__()
+        self.trigger = trigger
+        self.mode = mode
+
+
 class UpdatePinnedRequested(Message, namespace="prompt_input_bar"):
     """Message sent when the user asks to update an existing pinned stash.
 

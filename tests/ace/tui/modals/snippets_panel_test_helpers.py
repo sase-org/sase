@@ -14,6 +14,7 @@ from sase.ace.tui.modals import snippets_panel as snippets_panel_module
 from sase.ace.tui.modals.snippets_panel import SnippetsPanel
 from sase.ace.tui.modals.snippets_panel_load import SnippetsPanelInitialLoad
 from sase.ace.tui.snippets_panel_catalog import (
+    SnippetDestination,
     SnippetProjectRef,
     SnippetProjectSnapshot,
 )
@@ -153,6 +154,8 @@ def project_snapshot(
     *,
     diagnostics: tuple[str, ...] = (),
     catalog: SnippetCatalog | None | object = ...,
+    destinations: tuple[SnippetDestination, ...] = (),
+    default_destination_path: str | None = None,
 ) -> SnippetProjectSnapshot:
     resolved: SnippetCatalog | None
     if catalog is ...:
@@ -163,6 +166,8 @@ def project_snapshot(
         project=ref,
         catalog=resolved,
         diagnostics=diagnostics,
+        destinations=destinations,
+        default_destination_path=default_destination_path,
     )
 
 

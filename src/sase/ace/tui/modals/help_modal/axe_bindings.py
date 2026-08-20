@@ -10,6 +10,7 @@ from .binding_common import (
     glossary_panel_section,
     key_sequence_display,
     memory_panel_section,
+    snippets_panel_section,
     sk,
 )
 
@@ -146,6 +147,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
     sections.append(PROMPT_INPUT_SECTION)
     sections.append(glossary_panel_section(km))
     sections.append(memory_panel_section(km))
+    sections.append(snippets_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)
     sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(

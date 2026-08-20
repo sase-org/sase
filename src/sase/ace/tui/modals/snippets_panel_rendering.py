@@ -397,6 +397,7 @@ def build_panel_footer(
     has_relations: bool = False,
     has_trail: bool = False,
     focused_relation_trigger: str | None = None,
+    can_mutate: bool = False,
 ) -> str:
     """Build the footer strip, showing only currently-conditional keymaps."""
     parts: list[str] = []
@@ -412,10 +413,13 @@ def build_panel_footer(
             parts.append(f"→ {focused_relation_trigger}")
     if has_trail:
         parts.append(f"{key_display_name(keymaps.travel_back)} back")
+    if can_mutate:
+        parts.append(f"{key_display_name(keymaps.edit_snippet)} edit")
+        parts.append(f"{key_display_name(keymaps.delete_snippet)} delete")
     if has_entries:
         parts.append(f"{key_display_name(keymaps.copy_template)} copy")
     if has_source_path:
-        parts.append(f"{key_display_name(keymaps.open_source)} edit")
+        parts.append(f"{key_display_name(keymaps.open_source)} source")
         parts.append(f"{key_display_name(keymaps.open_viewer)} view")
     return "  ·  ".join(parts)
 

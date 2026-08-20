@@ -282,6 +282,8 @@ xprompt body, while snippet mode saves only the active pane. When you already kn
 you're authoring a snippet trigger, `gt`/`Ctrl+G t` opens a faster, dedicated snippet
 pane instead of this general save panel — see
 [Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
+To browse or edit the composed catalog, `gT`/`Ctrl+G T` opens the
+[Snippets panel](ace.md#snippets-panel); the lowercase and uppercase chords coexist.
 
 ### Export a prompt to a file
 

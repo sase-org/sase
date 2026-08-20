@@ -15,6 +15,7 @@ from textual.containers import Horizontal
 from textual.css.query import NoMatches
 from textual.widgets import Static
 
+from .snippets_panel_delete import snippet_entry_is_mutable
 from .snippets_panel_rendering import (
     build_composed_section,
     build_diagnostics_message,
@@ -119,6 +120,7 @@ class SnippetsPanelViewMixin(_MixinBase):
             has_relations=bool(self._chip_entries),
             has_trail=bool(self._trail),
             focused_relation_trigger=focused_relation_trigger,
+            can_mutate=snippet_entry_is_mutable(entry),
         )
         footer_widget = self.query_one("#snippets-panel-footer", Static)
         footer_widget.update(footer)

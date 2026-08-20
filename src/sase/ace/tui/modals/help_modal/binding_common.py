@@ -45,6 +45,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("gf / Ctrl+G f", "Format current prompt"),
         ("gG / Ctrl+G G", "Glossary panel"),
         ("gm / Ctrl+G m", "Memory panel"),
+        ("gT / Ctrl+G T", "Snippets panel"),
         ("g=", "Frontmatter panel"),
         ("q/Esc (panel)", "Return to originating pane"),
         ("gj/gk (panel)", "Top / bottom prompt pane"),
@@ -187,6 +188,36 @@ def memory_panel_section(
             (d(m.open_source), "Open source in editor"),
             (d(m.copy_body), "Copy note body"),
             (d(m.help), "Panel-scoped help"),
+            ("Esc", "Close and restore prompt"),
+        ],
+    )
+
+
+def snippets_panel_section(
+    km: KeymapRegistry,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build the Snippets panel keybinding section from configured keys."""
+    d = key_display_name
+    s = km.snippets
+    return (
+        "Snippets Panel",
+        [
+            ("gT / Ctrl+G T", "Open from prompt"),
+            (f"{d(s.next_snippet)} / {d(s.prev_snippet)}", "Move through snippets"),
+            (f"{d(s.first_snippet)} / {d(s.last_snippet)}", "First / last snippet"),
+            (d(s.filter_snippets), "Filter triggers / sources"),
+            (d(s.toggle_body_filter), "Match template bodies"),
+            (f"{d(s.next_relation)} / {d(s.prev_relation)}", "Move relation chip"),
+            (d(s.follow_relation), "Follow relation"),
+            ("1-9", "Follow numbered chip"),
+            (d(s.travel_back), "Walk back along trail"),
+            (f"{d(s.next_project)} / {d(s.prev_project)}", "Cycle visible project"),
+            (d(s.add_snippet), "Add a snippet"),
+            (d(s.edit_snippet), "Edit selected snippet"),
+            (d(s.delete_snippet), "Delete selected snippet"),
+            (d(s.open_source), "Open source in editor"),
+            (d(s.copy_template), "Copy raw template"),
+            (d(s.help), "Panel-scoped help"),
             ("Esc", "Close and restore prompt"),
         ],
     )

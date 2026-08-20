@@ -330,3 +330,29 @@ async def test_initial_trigger_alias_selects_canonical_entry(
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
         assert panel._current_trigger == "helper"
+
+
+async def test_jk_navigation_does_not_stat_or_parse_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = project_ref("sase", "sase")
+    entries = tuple(snippet_entry(f"item_{index:03d}") for index in range(80))
+    install_fixed_load(monkeypatch, (ref,), {"sase": project_snapshot(ref, entries)})
+
+    panel = SnippetsPanel()
+    app = SnippetsPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+
+        def fail_io(*_a: object, **_k: object) -> object:
+            raise AssertionError("snippet j/k must not touch disk")
+
+        monkeypatch.setattr("pathlib.Path.stat", fail_io)
+        monkeypatch.setattr("pathlib.Path.read_text", fail_io)
+        monkeypatch.setattr("pathlib.Path.read_bytes", fail_io)
+        monkeypatch.setattr("pathlib.Path.glob", fail_io)
+        first = panel._current_trigger
+        await pilot.press("j")
+        await wait_for(pilot, lambda: panel._current_trigger != first)
+        await pilot.press("k")
+        await wait_for(pilot, lambda: panel._current_trigger == first)

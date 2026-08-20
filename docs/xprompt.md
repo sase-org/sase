@@ -1031,7 +1031,8 @@ printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 ```
 
 See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input
-widget and editor completion.
+widget and editor completion, and [docs/ace.md — Snippets panel](ace.md#snippets-panel)
+for the ACE browse-and-edit panel (`gT` / `Ctrl+G T`).
 
 ### Snippet CLI
 

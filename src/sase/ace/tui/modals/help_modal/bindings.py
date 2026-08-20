@@ -15,6 +15,7 @@ from .binding_common import (
     _sk,
     glossary_panel_section,
     memory_panel_section,
+    snippets_panel_section,
 )
 from .patches_bindings import cls_bindings
 
@@ -34,4 +35,5 @@ __all__ = [
     "cls_bindings",
     "glossary_panel_section",
     "memory_panel_section",
+    "snippets_panel_section",
 ]

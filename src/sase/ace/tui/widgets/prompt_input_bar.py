@@ -32,6 +32,7 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     GlossaryPanelRequested as _GlossaryPanelRequested,
     HistoryRequested as _HistoryRequested,
     MemoryPanelRequested as _MemoryPanelRequested,
+    SnippetPanelRequested as _SnippetPanelRequested,
     RestoreRequested as _RestoreRequested,
     SaveAsXpromptRequested as _SaveAsXpromptRequested,
     SnippetPaneSaveRequested as _SnippetPaneSaveRequested,
@@ -125,6 +126,7 @@ class PromptInputBar(
     RestoreRequested = _RestoreRequested
     GlossaryPanelRequested = _GlossaryPanelRequested
     MemoryPanelRequested = _MemoryPanelRequested
+    SnippetPanelRequested = _SnippetPanelRequested
     UpdatePinnedRequested = _UpdatePinnedRequested
     SaveAsXpromptRequested = _SaveAsXpromptRequested
     EditorRequested = _EditorRequested

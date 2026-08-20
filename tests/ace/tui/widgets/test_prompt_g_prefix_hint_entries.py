@@ -41,6 +41,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
         ]
@@ -60,6 +61,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
         ]
@@ -80,6 +82,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
             ("p", "stashed prompts…"),
@@ -112,6 +115,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
         ]
@@ -125,6 +129,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("=", "toggle frontmatter"),
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
             ("p", "stashed prompts…"),
@@ -165,6 +170,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("s", "stash all panes"),
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
+            ("T", "snippets…"),
             ("x", "save as xprompt"),
             ("X", "save as local xprompt"),
         ]
@@ -197,6 +203,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
             "=",
             "s",
             "t",
+            "T",
             "x",
             "X",
         ]

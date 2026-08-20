@@ -4545,6 +4545,27 @@ ace:
 These bindings dispatch only while the panel is open. The full action list and defaults
 are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
 
+### Remapping Snippets Panel Keys
+
+Override [Snippets panel](#snippets-panel) bindings under `ace.keymaps.snippets`. A
+value may list more than one key, separated by commas:
+
+```yaml
+ace:
+  keymaps:
+    snippets:
+      follow_relation: "enter,l"
+      travel_back: "backspace,h"
+      filter_snippets: "slash"
+      toggle_body_filter: "full_stop"
+      add_snippet: "a"
+      edit_snippet: "e"
+      delete_snippet: "d"
+```
+
+These bindings dispatch only while the panel is open. The full action list and defaults
+are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
+
 ### Custom Modes
 
 Define user-defined prefix-key modes under `ace.keymaps.modes`. Each custom mode has a
@@ -4842,6 +4863,7 @@ prefix actions currently available.
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
 | `gG`        | Open the Glossary panel; seeds from the glossary term under the cursor when there is one                                                 |
 | `gm`        | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
+| `gT`        | Open the Snippets panel; seeds from a bare trigger or `#[trigger]` under the cursor when one can be resolved without I/O                 |
 | `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                |
 | `gS`        | Overwrite a pinned stashed prompt with the current stack, leaving the bar open                                                           |
@@ -5425,6 +5447,72 @@ Most keys named above are remappable under
 are not part of that scope: `Esc` and `q` (close), the `1`–`9` link-chip shortcuts, and
 the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying list widget
 supplies alongside the configurable `j`/`k`/`g`/`G`.
+
+<a id="snippets-panel"></a>
+
+#### Snippets panel
+
+The **Snippets panel** is the browse-and-edit surface for one project's composed snippet
+catalog — the same catalog `sase snippet`, prompt expansion, and the editor helper use
+(see [Snippets](#snippets)). From a prompt pane, press `gT` in NORMAL mode or `Ctrl+G T`
+in INSERT or NORMAL. Lowercase `gt` / `Ctrl+G t` still opens the snippet target pane.
+The which-key hint row lists `snippets…` on both prefixes. If the cursor sits on a
+`#[trigger]` call or a bare trigger that is already in the in-memory catalog, that entry
+is selected; otherwise the panel opens on the first visible entry. Closing with `Esc` or
+`q` restores the prompt pane, vim mode, selection, and cursor.
+
+The header reads `SNIPPETS · <project> · N snippets · project i/N` and always uses the
+configured `PROJECT_NAME:`, never a `ProjectSpec` key. Generated initial-capital aliases
+are metadata on their source entry, not extra rail rows. Xprompt-derived entries are
+viewable and linkable but source-edited: `e` opens the real xprompt definition instead
+of converting a generated template back into Jinja.
+
+Two navigation axes stay synchronized:
+
+- **Alphabetical.** `j`/`k` move the trigger-list cursor; the card follows. `g`/`G` jump
+  to the first and last trigger. `/` filters triggers and source labels; `.` extends the
+  match into raw and composed bodies. An empty result reads
+  `no snippets matched: <pattern>`.
+- **Relational.** The card keeps the authored template and composed expansion distinct,
+  highlights `$0`/`$N` tabstops and `#[...]` call sites, and carries numbered `CALLS`
+  chips (outbound) and `CALLED BY` chips (inbound). Alias calls land on the canonical
+  explicit trigger. Missing targets and cycles stay visible as non-followable
+  diagnostics. `Tab` / `Shift+Tab` move a chip cursor, `l` follows, and `1`–`9` jump
+  straight to a numbered chip. Following a hidden match clears the filter with a toast.
+  `h` or `Backspace` walks a trail bounded at 32 entries.
+
+`p` and `P` cycle the enabled-project ring. Order is by display name. Switching projects
+clears the trail and the filter and restores that project's last-selected trigger for
+the life of the panel.
+
+`a` opens a trigger/template form with live trigger and link diagnostics, destination
+cycling (`Ctrl+N` / `Ctrl+P`), a composed preview, and explicit collision wording
+(replace vs shadow). `e` preloads an authored config template and its source
+fingerprint; on an xprompt entry it opens the real source. `d` confirms a delete naming
+backlinks, the exact file being changed, and any lower-priority definition that will
+become effective. Writes use the same engine as `sase snippet add` / `delete`, run as
+tracked procs with one exclusive scope per project and destination, refresh the panel,
+publish the change to every mounted prompt immediately (including removing a pending
+session overlay on delete), and offer the usual commit/push and scoped chezmoi-apply
+follow-ups. A stale-write conflict keeps the draft and offers reload. A failed write
+leaves the panel open and unchanged.
+
+A project with no snippets shows a centered empty state. A project whose catalog failed
+to load shows the diagnostics. `?` opens a panel-scoped help overlay. `y` copies the raw
+template, `Y` copies the source path, `o` opens the source in `$EDITOR`, `Z` hands the
+file to the artifact viewer, and `r` re-reads the current project.
+
+The panel footer lists only conditional keys: `e`/`d` when the selected definition is
+writable config, relation keys when chips exist, `p`/`P` when the ring has more than one
+project, and back when a trail exists. Always-available keys live in `?` and in this
+guide.
+
+Most keys named above are remappable under
+[`ace.keymaps.snippets`](configuration.md#acekeymaps); see
+[Remapping Snippets Panel Keys](#remapping-snippets-panel-keys). Three sets are fixed
+and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
+shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
+list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 #### Repo names
 
@@ -6094,7 +6182,8 @@ import, status, and recovery behavior.
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
 to template strings. Inspect or edit the same catalog from the shell with
-[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`).
+[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from ACE
+with the [Snippets panel](#snippets-panel) (`gT` / `Ctrl+G T`).
 
 ```yaml
 ace:

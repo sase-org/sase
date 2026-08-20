@@ -1113,6 +1113,40 @@ list more than one key, separated by commas:
 Like gate, statistics, and glossary keys, memory keys are scoped to the panel and may
 overlap app-level bindings.
 
+**`snippets`** — Bindings active only inside the
+[Snippets panel](ace.md#snippets-panel), the browse-and-edit surface opened from a
+prompt pane with `gT` or `Ctrl+G T`. A value may list more than one key, separated by
+commas:
+
+| Field                  | Default         | Description                                                         |
+| ---------------------- | --------------- | ------------------------------------------------------------------- |
+| `next_snippet`         | `j`             | Move the trigger-list cursor to the next snippet.                   |
+| `prev_snippet`         | `k`             | Move the trigger-list cursor to the previous snippet.               |
+| `first_snippet`        | `g`             | Jump to the first snippet.                                          |
+| `last_snippet`         | `G`             | Jump to the last snippet.                                           |
+| `scroll_template_down` | `ctrl+d`        | Scroll the template card down by half a page.                       |
+| `scroll_template_up`   | `ctrl+u`        | Scroll the template card up by half a page.                         |
+| `filter_snippets`      | `slash`         | Filter triggers and source labels.                                  |
+| `toggle_body_filter`   | `full_stop`     | Extend the active filter into raw and composed bodies.              |
+| `next_relation`        | `tab`           | Focus the next `CALLS` / `CALLED BY` chip.                          |
+| `prev_relation`        | `shift+tab`     | Focus the previous relation chip.                                   |
+| `follow_relation`      | `enter,l`       | Travel to the focused chip's trigger (or chip ① when none focused). |
+| `travel_back`          | `backspace,h`   | Walk back one step along the travel trail.                          |
+| `next_project`         | `p`             | Cycle forward through the enabled-project ring.                     |
+| `prev_project`         | `P`             | Cycle backward through the enabled-project ring.                    |
+| `add_snippet`          | `a`             | Open the add-snippet form.                                          |
+| `edit_snippet`         | `e`             | Edit the selected config snippet, or open xprompt source.           |
+| `delete_snippet`       | `d`             | Confirm and delete the selected writable snippet.                   |
+| `open_source`          | `o`             | Open the source in `$EDITOR`.                                       |
+| `open_viewer`          | `Z`             | Hand the source file to the artifact viewer.                        |
+| `copy_template`        | `y`             | Copy the raw template to the clipboard.                             |
+| `copy_source_path`     | `Y`             | Copy the source path to the clipboard.                              |
+| `refresh`              | `r`             | Re-read the current project's snippets.                             |
+| `help`                 | `question_mark` | Open the panel-scoped help overlay.                                 |
+
+Like gate, statistics, glossary, and memory keys, snippets keys are scoped to the panel
+and may overlap app-level bindings.
+
 **`projects`** — Bindings active on all three Admin Center
 [Projects-tab](ace.md#projects-tab) sub-tabs (Projects, Repos, Workspaces), so
 `focus_filter`, `jump_to_entry`, `reload`, and the sub-tab cycle keys stay identical
@@ -1230,8 +1264,9 @@ Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
 #### `ace.snippet_config_path`
 
 Names the config file that receives new `ace.snippets` entries written from the prompt
-bar — both the `gt` / `Ctrl+G t` snippet target pane and the `gx` / `Ctrl+G x` save
-panel's snippet mode default to it.
+bar — the `gt` / `Ctrl+G t` snippet target pane, the `gx` / `Ctrl+G x` save panel's
+snippet mode, and the [Snippets panel](ace.md#snippets-panel) add form all default to
+it.
 
 An empty string (the default) resolves to the user's `sase.yml` — the chezmoi source
 file under `dot_config/sase/` when [`use_chezmoi`](#use_chezmoi) is enabled, otherwise
