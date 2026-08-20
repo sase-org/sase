@@ -131,7 +131,7 @@ def test_clean_tracked_file_is_vcs_backed_but_dirty_file_is_pooled(
     assert len(list((repo / ".sase/artifacts/pool").iterdir())) == 1
 
 
-def test_clean_markdown_vcs_digest_ignores_referenced_by_block_but_dirty_hashes_raw(
+def test_clean_markdown_vcs_digest_ignores_managed_blocks_but_dirty_hashes_raw(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -148,8 +148,32 @@ def test_clean_markdown_vcs_digest_ignores_referenced_by_block_but_dirty_hashes_
         ],
         "omitted": 0,
     }
+    links_table = {
+        "schema_version": sase_core_rs.referenced_by_wire_schema_version(),
+        "columns": [
+            {"key": "relation", "label": "Relation", "numeric": False},
+            {"key": "artifact", "label": "Artifact", "numeric": False},
+            {"key": "why", "label": "Why", "numeric": False},
+        ],
+        "rows": [
+            {
+                "values": {
+                    "relation": "related",
+                    "artifact": "plan:202608/other.md",
+                    "why": "shares context",
+                },
+                "link_targets": {},
+            }
+        ],
+        "omitted": 0,
+    }
     source = repo / "tracked.md"
-    clean_text = str(sase_core_rs.referenced_by_block_upsert("# Doc\n\nBody\n", table))
+    clean_text = str(
+        sase_core_rs.referenced_by_block_upsert(
+            sase_core_rs.links_block_upsert("# Doc\n\nBody\n", links_table),
+            table,
+        )
+    )
     source.write_text(clean_text, encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
     subprocess.run(["git", "-C", str(repo), "add", "tracked.md"], check=True)
@@ -189,9 +213,9 @@ def test_clean_markdown_vcs_digest_ignores_referenced_by_block_but_dirty_hashes_
     source.write_text(dirty_text, encoding="utf-8")
     dirty = _stage_file(repo, artifacts_dir, source, raw_ref="@dirty")
 
-    clean_digest = hashlib.sha256(
-        str(sase_core_rs.referenced_by_block_strip(clean_text)).encode("utf-8")
-    ).hexdigest()
+    stripped = str(sase_core_rs.referenced_by_block_strip(clean_text))
+    stripped = str(sase_core_rs.links_block_strip(stripped))
+    clean_digest = hashlib.sha256(stripped.encode("utf-8")).hexdigest()
     assert clean["sha256"] == clean_digest
     assert clean["sha256"] != hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
     assert clean["vcs_repo"] == "primary"

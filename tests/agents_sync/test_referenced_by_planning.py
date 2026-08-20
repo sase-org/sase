@@ -92,3 +92,6 @@ def test_plan_referenced_by_requests_for_document_sidecar_refs(
     assert request.canonical_ref == "plan:202608/example.md"
     assert request.destination == "https://target"
     assert request.uses == 2
+    assert request.relation == "cites"
+    assert request.origin == "prompt_ref"
+    assert request.description == "prompt reference @plan:202608/example.md"

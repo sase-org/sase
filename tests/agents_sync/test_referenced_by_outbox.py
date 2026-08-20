@@ -52,6 +52,8 @@ def test_referenced_by_outbox_is_idempotent_updates_and_acknowledges(
     assert len(queued) == 1
     assert queued[0].uses == 3
     assert queued[0].destination == "https://example.test/prompts/updated"
+    assert queued[0].relation == "cites"
+    assert queued[0].origin == "prompt_ref"
 
     updated = update_referenced_by_requests(
         "proj",

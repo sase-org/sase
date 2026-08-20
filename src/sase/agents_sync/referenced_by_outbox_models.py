@@ -7,7 +7,7 @@ import hashlib
 
 REFERENCED_BY_OUTBOX_SCHEMA_VERSION = 1
 
-ReferencedByLogicalKey = tuple[str, str, str, str]
+ReferencedByLogicalKey = tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +28,9 @@ class ReferencedByOutboxItem:
     destination: str | None
     uses: int
     published_date: str
+    relation: str = "cites"
+    origin: str = "prompt_ref"
+    description: str = ""
     attempts: int = 0
     last_error: str | None = None
     quarantined: bool = False
@@ -44,6 +47,8 @@ class ReferencedByOutboxItem:
             self.primary_revision,
             self.sidecar_role,
             self.artifact_id,
+            self.relation,
+            self.origin,
         )
 
     @property
@@ -68,6 +73,9 @@ class ReferencedByOutboxItem:
             "destination": self.destination,
             "uses": self.uses,
             "published_date": self.published_date,
+            "relation": self.relation,
+            "origin": self.origin,
+            "description": self.description,
             "attempts": self.attempts,
             "last_error": self.last_error,
             "quarantined": self.quarantined,
@@ -104,6 +112,10 @@ def validate_referenced_by_item(
         raise RuntimeError("referenced-by outbox item is incomplete")
     if item.uses < 1:
         raise RuntimeError("referenced-by outbox item uses must be positive")
+    if not item.relation.strip():
+        raise RuntimeError("referenced-by outbox item relation is incomplete")
+    if not item.origin.strip():
+        raise RuntimeError("referenced-by outbox item origin is incomplete")
 
 
 def referenced_by_sort_key(

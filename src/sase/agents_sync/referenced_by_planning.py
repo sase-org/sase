@@ -11,7 +11,10 @@ from pathlib import Path
 from sase._linked_repo_config import resolution_config
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.render import RenderedPromptArchive
-from sase.agents_sync.referenced_by_outbox_models import ReferencedByOutboxItem
+from sase.agents_sync.referenced_by_outbox_models import (
+    ReferencedByLogicalKey,
+    ReferencedByOutboxItem,
+)
 from sase.core.artifact_ref_uses import (
     ARTIFACT_REF_USE_MANIFEST_NAME,
     ArtifactRefUseRecord,
@@ -47,7 +50,7 @@ def plan_referenced_by_requests(
     use_counts = _use_counts(agent_artifacts_dir)
     destinations = _reference_destinations(rendered)
     published_date = (now or datetime.now(tz=UTC)).date().isoformat()
-    by_key: dict[tuple[str, str, str, str], ReferencedByOutboxItem] = {}
+    by_key: dict[ReferencedByLogicalKey, ReferencedByOutboxItem] = {}
     for record in rendered.linked_records:
         uses = max(1, use_counts.get(record["raw_ref"], 1))
         document_path = _record_document_path(record, repository_roots)
@@ -76,6 +79,9 @@ def plan_referenced_by_requests(
                 destination=destinations.get(record["raw_ref"]),
                 uses=uses,
                 published_date=published_date,
+                relation="cites",
+                origin="prompt_ref",
+                description=_prompt_ref_description(record["raw_ref"], artifact_id),
             )
             key = item.logical_key
             existing = by_key.get(key)
@@ -158,6 +164,14 @@ def _reference_destinations(
             destination = row.get("destination")
             result[raw_ref] = destination if isinstance(destination, str) else None
     return result
+
+
+def _prompt_ref_description(raw_ref: str, artifact_id: str) -> str:
+    cleaned = " ".join(raw_ref.split())
+    if not cleaned:
+        cleaned = artifact_id
+    description = f"prompt reference {cleaned}"
+    return description[:240]
 
 
 def _record_document_path(

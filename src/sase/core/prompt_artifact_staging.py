@@ -422,6 +422,7 @@ def _clean_vcs_prompt_artifact_digest(source: Path) -> str:
     except UnicodeDecodeError:
         return hash_file(source)
     stripped = str(require_rust_binding("referenced_by_block_strip")(text))
+    stripped = str(require_rust_binding("links_block_strip")(stripped))
     return hashlib.sha256(stripped.encode("utf-8")).hexdigest()
 
 

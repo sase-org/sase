@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import time
 
 from sase.telemetry.metrics import LLM_PROVIDER_AUTO_DISABLES
 
@@ -69,7 +70,8 @@ def _handle_possible_usage_limit(
     model: str | None,
     artifacts_dir: str | None,
 ) -> UsageLimitDetection | None:
-    detection = detect_usage_limit(provider, error_text)
+    now = time.time()
+    detection = detect_usage_limit(provider, error_text, now=now)
     if detection is None:
         return None
 
@@ -78,12 +80,14 @@ def _handle_possible_usage_limit(
             provider,
             detection.expires_at,
             source=USAGE_LIMIT_DISABLE_SOURCE,
+            now=now,
         )
     else:
         outcome = try_disable_provider(
             provider,
             detection.disable_seconds,
             source=USAGE_LIMIT_DISABLE_SOURCE,
+            now=now,
         )
 
     if not outcome.inserted:

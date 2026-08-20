@@ -45,7 +45,10 @@ def drain_referenced_by_requests(
     by_role: dict[str, list[ReferencedByOutboxItem]] = defaultdict(list)
     for item in requests:
         by_role[item.sidecar_role].append(item)
-    for role, role_requests in sorted(by_role.items()):
+    for role, role_requests in sorted(
+        by_role.items(),
+        key=lambda item: (item[0] == "agents", item[0]),
+    ):
         report = refresh_referenced_by(
             store,
             role=role,

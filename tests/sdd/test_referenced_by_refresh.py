@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 
 from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
+from sase.feature_flags import override_flags
+from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
+from sase.sdd.plan_header_block import PlanHeaderSection, PlanHeaderSectionKind
+from sase.sdd.plan_header_block import render_plan_header_block
 from sase.sdd.referenced_by_refresh import refresh_referenced_by
 from sase.sdd.store import SddStore
 
@@ -35,6 +39,7 @@ def _request() -> ReferencedByOutboxItem:
         destination="https://example.test/prompts/example.md",
         uses=2,
         published_date="2026-08-12",
+        description="prompt reference @plan:202608/example.md",
     )
 
 
@@ -160,3 +165,157 @@ def test_refresh_referenced_by_skips_v2_link_indexes(
     assert report.actions == ()
     assert index_path.read_text(encoding="utf-8") == before_index
     assert document.read_text(encoding="utf-8") == before_doc
+
+
+def test_refresh_artifact_links_writes_v2_tables_after_plan_header(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    root = tmp_path / "plans"
+    store = _store(root)
+    document = root / "202608" / "example.md"
+    document.parent.mkdir(parents=True)
+    header = render_plan_header_block(
+        (
+            PlanHeaderSection(
+                PlanHeaderSectionKind.PARENT,
+                label="plan:202608/root.md",
+                target="root.md",
+            ),
+        )
+    )
+    document.write_text(
+        f"---\ntitle: Example\n---\n\n{header}\n\n# Example\n\nBody\n",
+        encoding="utf-8",
+    )
+    index_path = root / "links" / "202608" / "example.md.json"
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text(
+        json.dumps(
+            {
+                "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                "artifact_ref": "plan:202608/example.md",
+                "rows": [
+                    {
+                        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+                        "source_ref": "plan:202608/example.md",
+                        "relation": "related",
+                        "target_ref": "plan:202608/other.md",
+                        "description": "shares context",
+                        "origin": "manual",
+                        "created_by": "alice.athena.worker",
+                        "created_at": "2026-08-12T00:00:00Z",
+                        "uses": 1,
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    committed: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: None,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+
+    def commit(*_args: object, **kwargs: object) -> bool:
+        committed.append(kwargs)
+        return True
+
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
+
+    with override_flags(artifact_links=True):
+        report = refresh_referenced_by(
+            store,
+            role="plans",
+            requests=(_request(),),
+            write=True,
+        )
+
+    assert report.ok and report.committed
+    assert committed[0]["cause"] == "artifact_links"
+    assert report.changed_files == (
+        "links/202608/example.md.json",
+        "202608/example.md",
+    )
+    content = document.read_text(encoding="utf-8")
+    assert content.index("<!-- sase:links:start -->") > content.index("**PARENT:**")
+    assert content.index("<!-- sase:links:start -->") < content.index("# Example")
+    assert "| related | plan:202608/other.md | shares context |" in content
+    assert "Plus 1 automatic references" in content
+    assert "## Referenced By" in content
+    assert (
+        "| cited-by | agent:alice.athena.worker | "
+        "prompt reference @plan:202608/example.md | 2 |"
+    ) in content
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == ARTIFACT_LINK_ROW_SCHEMA_VERSION
+    assert {row["origin"] for row in payload["rows"]} == {"manual", "prompt_ref"}
+
+
+def test_refresh_artifact_links_creates_binary_companion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    root = tmp_path / "plans"
+    store = _store(root)
+    image = root / "202608" / "diagram.png"
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b"not really a png")
+    request = ReferencedByOutboxItem(
+        project_key="proj",
+        project="Project",
+        global_agent="alice.athena.worker",
+        agent_url=None,
+        primary_revision="a" * 40,
+        sidecar_role="plans",
+        provider="plan",
+        artifact_id="plan:202608/diagram.png",
+        repo_relpath="202608/diagram.png",
+        identity_value=None,
+        canonical_ref="plan:202608/diagram.png",
+        destination=None,
+        uses=1,
+        published_date="2026-08-12",
+        description="prompt reference @plan:202608/diagram.png",
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: None,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", lambda *_a, **_k: True)
+
+    with override_flags(artifact_links=True):
+        report = refresh_referenced_by(
+            store,
+            role="plans",
+            requests=(request,),
+            write=True,
+        )
+
+    companion = root / "202608" / "diagram.md"
+    assert report.ok
+    assert companion.is_file()
+    content = companion.read_text(encoding="utf-8")
+    assert content.startswith("# diagram.png\n\n![diagram.png](./diagram.png)")
+    assert "This file is generated; do not hand-edit." in content
+    assert "## Referenced By" in content

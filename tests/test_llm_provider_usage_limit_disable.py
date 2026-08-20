@@ -135,7 +135,7 @@ class TestHandlePossibleUsageLimit:
         tz = ZoneInfo("UTC")
         fixed_now = datetime(2026, 8, 17, 6, 38, 0, tzinfo=tz).timestamp()
         monkeypatch.setattr(
-            "sase.llm_provider.usage_limit_config.time.time", lambda: fixed_now
+            "sase.llm_provider.usage_limit_disable.time.time", lambda: fixed_now
         )
         monkeypatch.setattr("sase.core.time.get_timezone", lambda: tz)
 
@@ -162,7 +162,7 @@ class TestHandlePossibleUsageLimit:
         tz = ZoneInfo("America/New_York")
         fixed_now = datetime(2026, 8, 19, 15, 43, 56, tzinfo=tz).timestamp()
         monkeypatch.setattr(
-            "sase.llm_provider.usage_limit_config.time.time", lambda: fixed_now
+            "sase.llm_provider.usage_limit_disable.time.time", lambda: fixed_now
         )
         monkeypatch.setattr(
             "sase.llm_provider.usage_limit_config.load_merged_config",
@@ -198,10 +198,9 @@ class TestHandlePossibleUsageLimit:
         # instant, so this must exercise the flat try_disable_provider
         # branch at the plan's 48h duration — not the reset-hint-derived
         # try_disable_provider_until branch the codex test above exercises.
-        # try_disable_provider's expiry is computed store-side against real
-        # wall-clock time (the caller passes no explicit ``now``), so the
-        # duration is asserted from the stored created_at/expires_at pair
-        # rather than a pinned Python-side clock.
+        # try_disable_provider's expiry is computed store-side against the
+        # caller's sampled clock, so the duration is asserted from the stored
+        # created_at/expires_at pair rather than a pinned Python-side clock.
         result = handle_possible_usage_limit(
             provider="grok", error_text=_GROK_USAGE_BALANCE_EXHAUSTED
         )
