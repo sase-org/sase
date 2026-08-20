@@ -39,6 +39,11 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.commit_finalizer_prompting import append_response, merge_usage
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.memory.locks import locked_file
+from sase.telemetry.metrics import (
+    FINALIZER_RECOVERIES,
+    FINALIZER_SELECTED,
+    FINALIZER_SUBMISSIONS,
+)
 from sase.workflows.commit.message_validation import (
     check_commit_message,
     load_commit_message_policy,
@@ -128,6 +133,7 @@ def publish_final_context(
     context_digest = validate_finalizer_context(plan, context)
     context = replace(context, context_digest=context_digest)
     payload = _context_payload(plan, context)
+    _record_selected_metrics(payload)
 
     path = root / FINAL_CONTEXT_FILENAME
     with locked_file(root / f"{FINAL_CONTEXT_FILENAME}.lock", fcntl.LOCK_EX):
@@ -278,12 +284,14 @@ def ensure_final_declaration_or_recover(
     """Run one declaration-recovery turn when required submission is absent."""
 
     if has_pending_handoff(artifacts_dir):
+        FINALIZER_RECOVERIES.labels(kind="declaration", result="handoff").inc()
         return invoke_result
 
     context = publish_final_context(artifacts_dir=artifacts_dir)
     if not context.submission_required or final_submission_is_current(
         artifacts_dir=artifacts_dir
     ):
+        FINALIZER_RECOVERIES.labels(kind="declaration", result="not_required").inc()
         return invoke_result
 
     previous_nonce = os.environ.get(SASE_FINAL_TURN_NONCE_ENV)
@@ -320,7 +328,11 @@ def ensure_final_declaration_or_recover(
                 "Finalizer declaration recovery failed: required declaration "
                 "is still missing or invalid"
             )
+        FINALIZER_RECOVERIES.labels(kind="declaration", result="success").inc()
         return accumulated
+    except Exception:
+        FINALIZER_RECOVERIES.labels(kind="declaration", result="failed").inc()
+        raise
     finally:
         if previous_nonce is None:
             os.environ.pop(SASE_FINAL_TURN_NONCE_ENV, None)
@@ -598,6 +610,29 @@ def _context_payload(
         "submission_required": _context_requires_submission(context),
         "manifest_template": _manifest_template(context),
     }
+
+
+def _record_selected_metrics(payload: Mapping[str, Any]) -> None:
+    selected = payload.get("selected_instances")
+    if not isinstance(selected, list):
+        return
+    for item in selected:
+        if not isinstance(item, Mapping):
+            continue
+        instance_id = item.get("instance_id")
+        provider_ref = item.get("provider_ref")
+        trigger = item.get("trigger")
+        if not (
+            isinstance(instance_id, str)
+            and isinstance(provider_ref, str)
+            and isinstance(trigger, str)
+        ):
+            continue
+        FINALIZER_SELECTED.labels(
+            provider=provider_ref,
+            instance=instance_id,
+            trigger=trigger,
+        ).inc()
 
 
 def _manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
@@ -896,6 +931,10 @@ def _append_attempt_record_locked(
     submission_digest: str | None = None,
     accepted_instances: Sequence[str] = (),
 ) -> None:
+    FINALIZER_SUBMISSIONS.labels(
+        result="accepted" if accepted else "rejected",
+        code=code,
+    ).inc()
     record = {
         "schema_version": 1,
         "recorded_at": _now_iso(),

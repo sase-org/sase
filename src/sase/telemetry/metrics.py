@@ -61,6 +61,16 @@ ZOMBIE_DETECTIONS: StubCounter = StubCounter()
 VCS_OPERATIONS: StubCounter = StubCounter()
 WORKSPACE_ACTIVE: StubGauge = StubGauge()
 
+# ---------------------------------------------------------------------------
+# Finalizers
+# ---------------------------------------------------------------------------
+FINALIZER_SELECTED: StubCounter = StubCounter()
+FINALIZER_ATTEMPTS: StubCounter = StubCounter()
+FINALIZER_DURATION: StubHistogram = StubHistogram()
+FINALIZER_RECOVERIES: StubCounter = StubCounter()
+FINALIZER_SUBMISSIONS: StubCounter = StubCounter()
+FINALIZER_PARITY_BRANCH: StubCounter = StubCounter()
+
 
 # ---------------------------------------------------------------------------
 # Metric definitions used by _registry.init_telemetry() to create real
@@ -295,6 +305,55 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_workspace_active",
         "Currently active workspaces",
         ["project"],
+        {},
+    ),
+    # -- Finalizers --
+    (
+        "FINALIZER_SELECTED",
+        "counter",
+        "sase_finalizer_selected_total",
+        "Total selected finalizer instances by provider, instance, and trigger",
+        ["provider", "instance", "trigger"],
+        {},
+    ),
+    (
+        "FINALIZER_ATTEMPTS",
+        "counter",
+        "sase_finalizer_attempts_total",
+        "Total finalizer executor attempts by provider, instance, and result",
+        ["provider", "instance", "result"],
+        {},
+    ),
+    (
+        "FINALIZER_DURATION",
+        "histogram",
+        "sase_finalizer_duration_seconds",
+        "Finalizer instance execution duration",
+        ["provider", "instance", "result"],
+        {"buckets": [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600]},
+    ),
+    (
+        "FINALIZER_RECOVERIES",
+        "counter",
+        "sase_finalizer_recoveries_total",
+        "Total finalizer recovery turns by recovery kind and result",
+        ["kind", "result"],
+        {},
+    ),
+    (
+        "FINALIZER_SUBMISSIONS",
+        "counter",
+        "sase_finalizer_submissions_total",
+        "Total finalizer declaration submissions by result and diagnostic code",
+        ["result", "code"],
+        {},
+    ),
+    (
+        "FINALIZER_PARITY_BRANCH",
+        "counter",
+        "sase_finalizer_parity_branch_total",
+        "Total finalizer branch selections at the invocation seam",
+        ["branch", "result"],
         {},
     ),
 ]

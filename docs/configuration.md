@@ -1896,6 +1896,15 @@ commit:
 | `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
+When the `pluggable_finalizers` beta is enabled, these legacy fields are treated as a
+compatibility input only when no non-default config layer defines `finalizers`. In that
+case `commit.finalizer.enabled: false` maps to `finalizers.defaults: []`, `true` maps to
+`[commit]`, and `commit.finalizer.max_passes` maps to
+`finalizers.instances.commit.max_attempts`. If both legacy and new settings are present,
+the `finalizers` block wins and `sase final doctor` reports the ignored legacy path and
+source layer. `SASE_DISABLE_COMMIT_STOP_HOOK=1` remains a beta escape hatch for
+legacy-only policy; it is ignored when `finalizers` is explicitly configured.
+
 When enabled, the finalizer checks the main workspace through the active VCS provider
 and configured `repos.linked` Git worktrees at their resolved paths. Repositories opened
 through `/sase_repo`, including external repos, are recorded in
@@ -1911,6 +1920,43 @@ final outcome is recorded in `commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable
 name is historical; it now disables the provider-neutral finalizer.
+
+### finalizers
+
+Configures beta host-owned completion finalizers. The bundled default selects the
+built-in commit instance, preserving ordinary commit enforcement when
+`pluggable_finalizers` is enabled.
+
+```yaml
+finalizers:
+  defaults: [commit]
+  required: []
+  instances:
+    commit:
+      use: builtin@commit
+      after: []
+      max_attempts: 2
+      refusal: fail
+```
+
+`defaults` is the ordered selection used when a prompt omits `%final`. `required`
+instances cannot be removed by `%final:none` or `%final:!name`. `instances` is keyed by
+lowercase slug; each instance names a trusted provider with `use`, optional dependency
+edges in `after`, bounded attempts, and provider-specific `config`.
+
+Only trusted configuration can define providers, commands, cwd policy, environment
+allowlists, timeouts, or retry policy. Prompt text can only select configured instances:
+`%final:lint` adds `lint`, `%final:none` clears defaults unless blocked by `required`,
+and repeated/comma-separated `%final` operations replay left to right before dependency
+ordering. Plugin packages may advertise providers through the `sase_finalizers`
+entry-point group, but installation alone is inert; a trusted config layer must declare
+and select an instance. Plugin-contributed config layers cannot activate finalizers.
+
+Use `sase final list`, `sase final show <instance>`, and `sase final doctor` to inspect
+effective policy, provider provenance, diagnostics, and legacy-setting migration. During
+an active beta agent turn, `/sase_final` uses `sase final context -f json` and
+`sase final submit` to publish the one turn-bound declaration required by selected
+finalizers. The host still executes and verifies finalizers after the model returns.
 
 #### commit.message
 

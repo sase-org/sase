@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from sase.core.finalizer_wire import (
@@ -26,6 +27,7 @@ from sase.finalizers.plan import load_persisted_finalizer_plan
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
 from sase.feature_flags import FeatureFlag, current_flags
 from sase.llm_provider.types import ModelTier
+from sase.telemetry.metrics import FINALIZER_ATTEMPTS, FINALIZER_DURATION
 
 
 def run_finalizers(
@@ -66,6 +68,9 @@ def run_finalizers(
     )
     current_result = invoke_result
     instance_results: list[FinalizerInstanceResultWire] = []
+    active_provider_ref: str | None = None
+    active_instance_id: str | None = None
+    active_started: float | None = None
     try:
         for entry in entries:
             instance_id = entry["instance_id"]
@@ -75,6 +80,10 @@ def run_finalizers(
                 raise RuntimeError(
                     f"selected finalizer instance {instance_id!r} is not configured"
                 )
+            active_provider_ref = provider_ref
+            active_instance_id = instance_id
+            started = time.monotonic()
+            active_started = started
             if provider_ref == BUILTIN_COMMIT_PROVIDER_REF:
                 execution = execute_commit_finalizer(
                     instance,
@@ -88,6 +97,13 @@ def run_finalizers(
                 )
                 current_result = execution.invoke_result
                 instance_results.append(execution.result)
+                _record_instance_metrics(
+                    provider_ref,
+                    instance_id,
+                    execution.result.status,
+                    len(execution.result.attempts),
+                    time.monotonic() - started,
+                )
                 if execution.result.status != "success":
                     _write_aggregate_result(artifacts_dir, instance_results, "failed")
                     raise RuntimeError(_result_failure_message(execution.result))
@@ -95,6 +111,13 @@ def run_finalizers(
 
             result = execute_non_commit_finalizer(instance, config, context)
             instance_results.append(result)
+            _record_instance_metrics(
+                provider_ref,
+                instance_id,
+                result.status,
+                len(result.attempts),
+                time.monotonic() - started,
+            )
             if result.status != "success":
                 _write_aggregate_result(artifacts_dir, instance_results, "failed")
                 message = _result_failure_message(result)
@@ -104,6 +127,14 @@ def run_finalizers(
             current_result = exc.invoke_result
         if not instance_results or instance_results[-1] is not exc.result:
             instance_results.append(exc.result)
+        if active_provider_ref is not None and active_instance_id is not None:
+            _record_instance_metrics(
+                active_provider_ref,
+                active_instance_id,
+                exc.result.status,
+                len(exc.result.attempts),
+                time.monotonic() - (active_started or time.monotonic()),
+            )
         _write_aggregate_result(artifacts_dir, instance_results, "failed")
         raise
     except Exception as exc:
@@ -216,6 +247,23 @@ def _write_aggregate_result(
         ],
     }
     write_finalizer_result(artifacts_dir, payload)
+
+
+def _record_instance_metrics(
+    provider_ref: str,
+    instance_id: str,
+    status: str,
+    attempts: int,
+    duration_seconds: float,
+) -> None:
+    labels = {
+        "provider": provider_ref,
+        "instance": instance_id,
+        "result": status,
+    }
+    FINALIZER_DURATION.labels(**labels).observe(duration_seconds)
+    for _ in range(max(1, attempts)):
+        FINALIZER_ATTEMPTS.labels(**labels).inc()
 
 
 def _result_failure_message(result: FinalizerInstanceResultWire) -> str:

@@ -14,6 +14,7 @@ from sase.core.time import generate_timestamp
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
+    FINALIZER_PARITY_BRANCH,
     LLM_CACHE_READ_TOKENS,
     LLM_ERRORS,
     LLM_INPUT_TOKENS,
@@ -337,6 +338,10 @@ def invoke_agent(
             options=invocation_options,
         )
         if use_pluggable_finalizers:
+            FINALIZER_PARITY_BRANCH.labels(
+                branch="pluggable",
+                result="selected",
+            ).inc()
             from sase.finalizers import run_finalizers
 
             invoke_result = run_finalizers(
@@ -350,6 +355,7 @@ def invoke_agent(
                 options=invocation_options,
             )
         else:
+            FINALIZER_PARITY_BRANCH.labels(branch="legacy", result="selected").inc()
             invoke_result = run_commit_finalizer(
                 provider=provider,
                 original_prompt=query,

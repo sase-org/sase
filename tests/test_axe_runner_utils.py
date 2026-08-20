@@ -15,7 +15,10 @@ from sase.axe.runner_artifacts import (
     detect_write_and_persist_review_agent_meta,
     write_done_marker,
 )
-from sase.axe.runner_reporting import finalize_axe_runner
+from sase.axe.runner_reporting import (
+    build_no_proposal_error_summary,
+    finalize_axe_runner,
+)
 from sase.axe.runner_signals import (
     _killed_state,
     install_sigterm_handler,
@@ -264,6 +267,41 @@ def test_finalize_axe_runner_success() -> None:
         # Check update_suffix was called
         assert len(update_suffix_calls) == 1
         assert update_suffix_calls[0] == (mock_cs, "/path/project.sase", "abc123", 0)
+
+
+def test_no_proposal_summary_prefers_generic_finalizer_result(tmp_path: Path) -> None:
+    (tmp_path / "commit_finalizer_result.json").write_text(
+        json.dumps(
+            {
+                "status": "clean",
+                "reason": "no_changes",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "finalizer_result.json").write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "instances": [
+                    {
+                        "instance_id": "lint",
+                        "status": "success",
+                    },
+                    {
+                        "instance_id": "commit",
+                        "status": "success",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert build_no_proposal_error_summary(str(tmp_path)) == (
+        "Agent completed but no proposal was created — "
+        "finalizers: success [lint=success, commit=success]"
+    )
 
 
 def test_finalize_axe_runner_no_matching_patch() -> None:

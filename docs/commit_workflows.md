@@ -659,6 +659,34 @@ When the only enforced dirty state is the exact SDD status closeout described ab
 finalizer creates the commit itself instead of running a follow-up provider invocation.
 The result artifact records `reason: "auto_committed_done_plan_status"`.
 
+### Pluggable finalizer beta
+
+When the `pluggable_finalizers` feature flag is enabled, the same invocation seam
+resolves a host-owned `finalizers` plan before the model turn and runs the generic
+controller after the provider returns. Omitting `%final` selects the bundled `commit`
+instance. `%final:none` clears defaults unless policy marks an instance required, and
+`%final:lint` adds a configured instance while retaining defaults.
+
+If dirty repository obligations require model input, the prompt asks the agent to use
+`/sase_final` as its last normal action. That skill reads `sase final context -f json`
+and submits one manifest with `sase final submit`. A commit payload must give each
+host-issued repo ID exactly one `commit` decision with a Conventional Commit message or
+one `refuse` decision with a nonblank reason. Refusal is retained in artifacts and fails
+completion while attributable dirt remains.
+
+The beta controller writes `finalizer_result.json` plus per-instance artifacts below
+`finalizers/<instance>/`. The built-in commit instance also writes the historical
+`commit_finalizer_result.json`, `commit_results.json`, and commit-finalizer prompt
+artifacts so existing reporting continues to work during migration. Error summaries
+prefer `finalizer_result.json` when present and fall back to the historical commit
+projection for older agents.
+
+`SASE_DISABLE_COMMIT_STOP_HOOK=1` still disables the default commit finalizer for
+legacy-only policy during the beta. If any non-default config layer explicitly defines
+`finalizers`, that new policy wins and `sase final doctor` reports the ignored legacy
+setting. The beta keeps the old branch available; removing the flag and legacy branch is
+owned by the dedicated flag-removal bead after soak criteria are met.
+
 The obsolete provider-native commit hook scripts are no longer shipped. Active
 SASE-launched runs rely on the provider-neutral finalizer instead of runtime-specific
 commit hook configuration.

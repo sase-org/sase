@@ -7,6 +7,36 @@ from collections.abc import Callable, Mapping
 from sase.ace.patch import Patch, parse_project_file
 
 
+def _finalizer_verdict(artifacts_dir: str) -> str | None:
+    result_path = os.path.join(artifacts_dir, "finalizer_result.json")
+    if not os.path.exists(result_path):
+        return None
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            result = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return "result unreadable"
+
+    if not isinstance(result, dict):
+        return "result unreadable"
+
+    status = str(result.get("status") or "unknown")
+    instances = result.get("instances")
+    if not isinstance(instances, list):
+        return status
+
+    labels: list[str] = []
+    for item in instances:
+        if not isinstance(item, dict):
+            continue
+        instance_id = str(item.get("instance_id") or "unknown")
+        instance_status = str(item.get("status") or "unknown")
+        labels.append(f"{instance_id}={instance_status}")
+    if labels:
+        return f"{status} [" + ", ".join(labels) + "]"
+    return status
+
+
 def _commit_finalizer_verdict(artifacts_dir: str) -> str:
     result_path = os.path.join(artifacts_dir, "commit_finalizer_result.json")
     try:
@@ -58,7 +88,11 @@ def build_no_proposal_error_summary(
     propose_result: Mapping[str, object] | None = None,
 ) -> str:
     """Explain why an otherwise-completed review run produced no proposal."""
-    details = [f"commit finalizer: {_commit_finalizer_verdict(artifacts_dir)}"]
+    generic = _finalizer_verdict(artifacts_dir)
+    if generic is None:
+        details = [f"commit finalizer: {_commit_finalizer_verdict(artifacts_dir)}"]
+    else:
+        details = [f"finalizers: {generic}"]
     if propose_result is not None:
         details.append(f"propose step: {_propose_step_verdict(propose_result)}")
     return "Agent completed but no proposal was created — " + "; ".join(details)

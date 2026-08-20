@@ -10,6 +10,7 @@ import pytest
 
 from sase.config.core import ConfigLayer
 from sase.feature_flags import override_flags
+from sase.finalizers.config import load_finalizer_config
 from sase.finalizers.plan import (
     FINALIZER_PLAN_FILENAME,
     FinalizerPlanError,
@@ -19,6 +20,29 @@ from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider.types import InvokeResult
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
+
+
+def _default_finalizer_layer() -> ConfigLayer:
+    return ConfigLayer(
+        name="default",
+        path=None,
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "finalizers": {
+                "defaults": ["commit"],
+                "required": [],
+                "instances": {
+                    "commit": {
+                        "use": "builtin@commit",
+                        "after": [],
+                        "max_attempts": 2,
+                        "refusal": "fail",
+                    }
+                },
+            }
+        },
+    )
 
 
 def test_explicit_final_requires_pluggable_finalizers_flag(tmp_path: Path) -> None:
@@ -32,6 +56,112 @@ def test_explicit_final_requires_pluggable_finalizers_flag(tmp_path: Path) -> No
             )
 
     assert not (tmp_path / FINALIZER_PLAN_FILENAME).exists()
+
+
+def test_legacy_commit_finalizer_config_maps_when_no_new_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [
+            _default_finalizer_layer(),
+            ConfigLayer(
+                name="user",
+                path="/home/user/.config/sase/sase.yml",
+                exists=True,
+                list_strategy="replace",
+                data={
+                    "commit": {
+                        "finalizer": {
+                            "enabled": False,
+                            "max_passes": 5,
+                        }
+                    }
+                },
+            ),
+        ],
+    )
+
+    config = load_finalizer_config()
+
+    assert config.defaults == ()
+    assert config.instances["commit"].max_attempts == 5
+    assert {(item.code, item.layer, item.path) for item in config.diagnostics} == {
+        ("legacy_commit_finalizer_mapped", "user", "commit.finalizer.enabled"),
+        ("legacy_commit_finalizer_mapped", "user", "commit.finalizer.max_passes"),
+    }
+
+
+def test_new_finalizer_policy_wins_over_legacy_commit_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [
+            _default_finalizer_layer(),
+            ConfigLayer(
+                name="project",
+                path="/repo/sase/sase.yml",
+                exists=True,
+                list_strategy="replace",
+                data={
+                    "commit": {"finalizer": {"enabled": False}},
+                    "finalizers": {
+                        "defaults": ["commit"],
+                        "instances": {"commit": {"max_attempts": 3}},
+                    },
+                },
+            ),
+        ],
+    )
+
+    config = load_finalizer_config()
+
+    assert config.defaults == ("commit",)
+    assert config.instances["commit"].max_attempts == 3
+    assert [(item.code, item.layer, item.path) for item in config.diagnostics] == [
+        ("legacy_commit_finalizer_ignored", "project", "commit.finalizer.enabled")
+    ]
+
+
+def test_disable_commit_stop_hook_env_maps_only_without_explicit_finalizers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_DISABLE_COMMIT_STOP_HOOK", "1")
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [_default_finalizer_layer()],
+    )
+
+    config = load_finalizer_config()
+
+    assert config.defaults == ()
+    assert config.diagnostics[-1].code == "legacy_commit_finalizer_env_mapped"
+
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [
+            _default_finalizer_layer(),
+            ConfigLayer(
+                name="project",
+                path="/repo/sase/sase.yml",
+                exists=True,
+                list_strategy="replace",
+                data={
+                    "finalizers": {
+                        "defaults": ["commit"],
+                        "instances": {"commit": {"max_attempts": 4}},
+                    }
+                },
+            ),
+        ],
+    )
+
+    explicit = load_finalizer_config()
+
+    assert explicit.defaults == ("commit",)
+    assert explicit.instances["commit"].max_attempts == 4
+    assert explicit.diagnostics[-1].code == "legacy_commit_finalizer_env_ignored"
 
 
 def test_default_commit_plan_is_persisted_when_flag_enabled(tmp_path: Path) -> None:
