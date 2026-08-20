@@ -170,6 +170,8 @@ class TestNotifyProviderUsageLimitDisabled:
         n = loaded[0]
         assert n.sender == "llm.usage_limit"
         assert n.icon == "⛔"
+        assert n.action == "OpenLaunchControl"
+        assert n.action_data == {"provider": "claude"}
         assert n.tags == ["llm", "usage-limit", "claude"]
         assert "Claude Code disabled for 1h 1m" in n.notes[0]
         assert "you've hit your weekly limit" in n.notes[0]

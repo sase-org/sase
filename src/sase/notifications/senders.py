@@ -372,6 +372,8 @@ def notify_provider_usage_limit_disabled(
         sender="llm.usage_limit",
         icon="⛔",
         notes=notes,
+        action="OpenLaunchControl",
+        action_data={"provider": provider},
         tags=normalize_notification_tags(["llm", "usage-limit", provider]),
     )
     append_notification(n)

@@ -150,6 +150,7 @@ class AgentNotificationModalMixin:
             handle_jump_to_mentor_review,
             handle_launch_approval,
             handle_memory_review,
+            handle_open_launch_control,
             handle_plan_approval,
             handle_tmux,
             handle_user_question,
@@ -203,6 +204,8 @@ class AgentNotificationModalMixin:
                 handle_view_report(self, result)
             elif result.action == "memory_review":
                 handle_memory_review(self, result)
+            elif result.action == "OpenLaunchControl":
+                handle_open_launch_control(self, result)
             elif result.action and result.action.strip():
                 self.notify(  # type: ignore[attr-defined]
                     f"Unsupported notification action: {result.action}",

@@ -18,8 +18,8 @@ class EntryBulkMixin:
     def _start_agents_from_marked(self) -> None:
         """Start agents for all marked Patches.
 
-        Shows a single prompt input bar. The prompt will be used for all
-        marked items.
+        Shows a single prompt input bar. Submit fans out one durable
+        ``sase run`` per marked Patch from :meth:`_submit_resolved_launch`.
         """
         if not self.marked_indices:
             self.notify("No marked Patches", severity="warning")  # type: ignore[attr-defined]

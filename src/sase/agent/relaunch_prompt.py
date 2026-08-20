@@ -321,12 +321,13 @@ def _verify_kill_and_edit_prompt(
 
     try:
         _, directives = extract_prompt_directives(rewritten)
-    except DirectiveError as exc:
-        raise KillAndEditPromptError(
-            f"rewrite is not a valid prompt identity ({exc})",
-            agent_name=agent_name,
-            produced=rewritten,
-        ) from exc
+    except DirectiveError:
+        # Named historical prompts can fail extraction (removed model
+        # aliases such as ``@medium_worker``) and still need to seed the
+        # prompt bar. Identity checks below require a successful parse;
+        # skip them rather than hard-refusing the reopen. Normal launch
+        # still validates the prompt before spawn.
+        return
 
     facing_agent = _facing_name(agent_name)
     facing_family = _facing_name(family_name)

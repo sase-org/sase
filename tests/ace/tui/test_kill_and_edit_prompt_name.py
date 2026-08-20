@@ -239,3 +239,14 @@ def test_prepare_kill_and_edit_prompt_keeps_fenced_only_id() -> None:
 def test_prepare_kill_and_edit_prompt_tolerates_unparseable_prompt_without_id() -> None:
     prompt = "%model:@no_such_alias\nDo work"
     assert prepare_kill_and_edit_prompt(prompt, "foo") == prompt
+
+
+def test_prepare_kill_and_edit_prompt_reopens_named_unparseable_prompt() -> None:
+    prompt = "%model:@no_such_alias\n%id:foo\nDo work"
+    rewritten = prepare_kill_and_edit_prompt(prompt, "foo")
+    assert rewritten == "%model:@no_such_alias\n%id:!foo\nDo work"
+
+    from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+
+    with pytest.raises(DirectiveError):
+        extract_prompt_directives(rewritten)

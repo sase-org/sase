@@ -19,6 +19,7 @@ ACTION_BADGES: dict[str | None, str] = {
     "ViewErrorReport": "[error]",
     "ViewReport": "[report]",
     "memory_review": "[memory]",
+    "OpenLaunchControl": "[models]",
 }
 
 # Gate actions intentionally have explicit defaults. A notification-provided
@@ -41,6 +42,7 @@ ACTION_ICONS: dict[str | None, str] = {
     "ViewErrorReport": "🚨",
     "ViewReport": "📊",
     "memory_review": "🧠",
+    "OpenLaunchControl": "🎛️",
 }
 
 

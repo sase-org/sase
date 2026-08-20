@@ -155,6 +155,29 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
         )
 
 
+def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
+    catalog = _catalog_by_id()
+    forward = catalog["app.cycle_grouping_mode"]
+    reverse = catalog["app.cycle_grouping_mode_reverse"]
+
+    agents = CommandContext(tab="agents")
+    patches = CommandContext(tab="artifacts", artifacts_subtab="patches")
+    stitches = CommandContext(tab="artifacts", artifacts_subtab="stitches")
+    files = CommandContext(tab="artifacts", artifacts_subtab="files")
+    beads = CommandContext(tab="artifacts", artifacts_subtab="beads")
+    plans = CommandContext(tab="artifacts", artifacts_subtab="ref:plan")
+    axe = CommandContext(tab="axe")
+
+    for spec in (forward, reverse):
+        assert is_command_available(spec, agents)
+        assert is_command_available(spec, patches)
+        assert is_command_available(spec, stitches)
+        assert is_command_available(spec, files)
+        assert not is_command_available(spec, beads)
+        assert not is_command_available(spec, plans)
+        assert not is_command_available(spec, axe)
+
+
 def test_bead_issue_palette_commands_are_scoped_to_beads_subtab() -> None:
     catalog = _catalog_by_id()
     command = catalog["bead_issue.view"]

@@ -296,6 +296,8 @@ def test_task_triage_loader_uses_generic_branch_modal_data(
     assert duration_field.required is True
     assert ACTION_BADGES["TaskTriage"] == "[task]"
     assert notification_icon("TaskTriage", None) == "✦"
+    assert ACTION_BADGES["OpenLaunchControl"] == "[models]"
+    assert notification_icon("OpenLaunchControl", None) == "🎛️"
 
 
 def test_task_triage_opening_reuses_pump_free_generic_gate_path(
@@ -563,6 +565,30 @@ def test_notification_flow_dispatches_view_report(
     assert dispatched == [notification]
     assert app.pending_reads == 0
     assert app.refresh_count == 1
+
+
+def test_notification_flow_dispatches_open_launch_control(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    notification.action = "OpenLaunchControl"
+    notification.action_data = {"provider": "claude"}
+    app = _NotificationFlowApp(notification)
+    dispatched: list[Any] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_open_launch_control",
+        lambda _app, selected: dispatched.append(selected),
+    )
+
+    app._show_notification_modal()
+
+    assert dispatched == [notification]
+    assert app.pending_reads == 0
+    assert app.refresh_count == 1
+    assert app.notices == []
 
 
 @pytest.mark.parametrize("action", [None, "", "   "])

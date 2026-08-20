@@ -254,6 +254,17 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
 
         return is_document_artifacts_pane(ctx.artifacts_subtab)
+    if spec.id in {
+        "app.cycle_grouping_mode",
+        "app.cycle_grouping_mode_reverse",
+    }:
+        from sase.ace.tui.artifact_tabs import (
+            PaneCapability,
+            artifacts_pane_contract,
+        )
+
+        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        return contract is not None and contract.has(PaneCapability.GROUPING)
     if spec.id == "app.patches_filters":
         return ctx.artifacts_subtab == "patches"
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:

@@ -1,6 +1,7 @@
 """Simple notification action handlers.
 
-Dispatches jump-to-agent, jump-to-patch, view-error-report, and tmux actions.
+Dispatches jump-to-agent, jump-to-patch, view-error-report, tmux, and
+Launch Control actions.
 """
 
 from __future__ import annotations
@@ -106,6 +107,27 @@ def handle_view_report(app: object, notification: Notification) -> bool:
         return False
 
     app.push_screen(ReportModal(report))  # type: ignore[attr-defined]
+    return True
+
+
+def handle_open_launch_control(app: object, notification: Notification) -> bool:
+    """Open Launch Control from a usage-limit notification.
+
+    Args:
+        app: The AceApp instance.
+        notification: The notification that requested Launch Control.
+
+    Returns:
+        True if Launch Control was opened.
+    """
+    del notification
+    opener = getattr(app, "action_open_models_panel", None)
+    if not callable(opener):
+        opener = getattr(app, "_open_models_panel", None)
+    if not callable(opener):
+        app.notify("Launch Control is unavailable", severity="warning")  # type: ignore[attr-defined]
+        return False
+    opener()
     return True
 
 

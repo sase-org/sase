@@ -486,13 +486,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         (),
     ),
-    # Grouping (agents tab)
-    ("cycle_grouping_mode", "Cycle grouping mode", "Grouping", AGENTS_ONLY, ()),
+    # Grouping (grouping-capable Artifacts panes + Agents)
+    ("cycle_grouping_mode", "Cycle grouping mode", "Grouping", CL_AGENTS, ()),
     (
         "cycle_grouping_mode_reverse",
         "Cycle grouping mode (reverse)",
         "Grouping",
-        AGENTS_ONLY,
+        CL_AGENTS,
         (),
     ),
     # Tools panel
