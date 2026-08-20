@@ -183,7 +183,11 @@ def test_workflow_step_has_no_kind_heading(step_type: str) -> None:
 
     assert not header.plain.startswith("AGENT SHELL")
     assert not header.plain.startswith("FAMILY")
-    assert "Step: do\n" in header.plain
+    # Cheap headers keep a Step: line only for bash/python workflow children.
+    if step_type in {"bash", "python"}:
+        assert "Step: do\n" in header.plain
+    else:
+        assert "Step:" not in header.plain
 
 
 def test_workflow_agent_step_opens_with_agent_shell() -> None:

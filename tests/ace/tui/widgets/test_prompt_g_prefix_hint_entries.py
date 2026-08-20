@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from textual.events import Key
 
-from sase.ace.tui.widgets._prompt_text_area_key_handling import (
+from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
     _resolve_g_prefix_second_key,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar

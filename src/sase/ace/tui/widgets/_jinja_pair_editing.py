@@ -2,7 +2,7 @@
 
 These planners give the Textual ``PromptTextArea`` the deletion counterpart to
 the Jinja insertion special-casing in
-:mod:`sase.ace.tui.widgets._prompt_text_area_key_handling`. When the user
+:mod:`sase.ace.tui.widgets._prompt_text_area_key_pairing`. When the user
 deletes one of the delimiter characters of a ``{{ ... }}`` variable tag, the
 symmetric character on the other side is removed too, so the auto-generated
 ``{{  }}`` pair stays reversible:

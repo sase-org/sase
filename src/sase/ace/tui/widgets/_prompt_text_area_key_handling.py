@@ -1,4 +1,13 @@
-"""PromptTextArea key dispatch."""
+"""PromptTextArea key dispatch.
+
+Composes the prompt pane's key-handling mixin chain and adds its top layer: the
+``_on_key`` interceptor, submit / cancel / history chords, mode routing, and
+INSERT-mode completion navigation. The lower layers live in
+:mod:`~sase.ace.tui.widgets._prompt_text_area_key_g_prefix` (the prompt-local
+``Ctrl+G`` prefix) and
+:mod:`~sase.ace.tui.widgets._prompt_text_area_key_pairing` (Jinja / bracket
+auto-pairs and planned text edits).
+"""
 
 from __future__ import annotations
 
@@ -6,24 +15,19 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
-from sase.ace.tui.widgets._alt_syntax_editing import (
-    plan_alt_brace_pair,
-    plan_alt_separator,
-)
-from sase.ace.tui.widgets._paired_text_editing import (
-    TextEdit,
-    plan_pair_close_skip,
-    plan_pair_insert,
-)
 from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
 from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
     plan_prompt_ordered_shift,
 )
 from sase.ace.tui.widgets._prompt_text_area_bar import prompt_bar_class
+from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
+    PromptTextAreaKeyGPrefixMixin,
+)
+from sase.ace.tui.widgets._prompt_text_area_key_pairing import (
+    PromptTextAreaKeyPairingMixin,
+)
 
 if TYPE_CHECKING:
-    from textual.widgets import TextArea as _MixinBase
-
     from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
     from sase.ace.tui.widgets.artifact_ref_completion import (
         ArtifactRefCompletionContext,
@@ -34,8 +38,6 @@ if TYPE_CHECKING:
         ActiveXPromptArgHint,
         PendingXPromptCompletionSpacer,
     )
-else:
-    _MixinBase = object
 
 
 def _is_auto_xprompt_menu_character(character: str | None) -> bool:
@@ -48,15 +50,10 @@ def _is_auto_xprompt_menu_character(character: str | None) -> bool:
     )
 
 
-def _resolve_g_prefix_second_key(event: Key) -> str:
-    """Return the canonical key used to dispatch a prompt ``g`` continuation."""
-    character = event.character
-    if character and len(character) == 1 and character.isprintable():
-        return character
-    return event.key
-
-
-class PromptTextAreaKeyHandlingMixin(_MixinBase):
+class PromptTextAreaKeyHandlingMixin(
+    PromptTextAreaKeyGPrefixMixin,
+    PromptTextAreaKeyPairingMixin,
+):
     """PromptTextArea key handling kept separate from widget construction."""
 
     if TYPE_CHECKING:
@@ -64,18 +61,12 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
         _completion_kind: str
         _completion_selection_moved: bool
-        _dot_insert_capture_offset: int | None
         _file_completion_active: bool
-        _count_prefix: str
-        _insert_g_prefix_pending: bool
-        _normal_g_prefix_pending: bool
         _pending_keys: str
-        _pending_operator: str
         _vcs_mru_index: int | None
         _vim_mode: str
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
-        def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _get_artifact_ref_completion_context(
             self,
         ) -> ArtifactRefCompletionContext | None: ...
@@ -126,23 +117,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _open_submit_choice_panel(self) -> None: ...
         def _refresh_file_completion_from_cursor(self) -> None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
-        def _replace_via_keyboard(
-            self,
-            insert: str,
-            start: tuple[int, int],
-            end: tuple[int, int],
-        ) -> None: ...
-        def _show_insert_g_prefix_hints(self) -> None: ...
-        def _show_normal_g_prefix_hints(self) -> None: ...
         def _try_advance_tabstop(self) -> bool: ...
         def _try_retreat_tabstop(self) -> bool: ...
         def _try_auto_placeholder_completion(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
-        def _try_auto_xprompt_completion(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
         def _try_vcs_project_completion(self) -> bool: ...
-        def action_open_editor(self) -> None: ...
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
 
@@ -284,25 +265,10 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self.action_open_prompt_history()
             return
 
-        # Prompt-stack pane focus and reorder migrated to the prompt ``g``
-        # prefix: ``gj`` / ``gk`` focus the next / previous pane and ``gJ`` /
-        # ``gK`` reorder the active pane (dispatched through the vim ``g``
-        # pending state in ``_handle_normal_pending_key``). Bare normal-mode
-        # ``J`` is therefore free again for vim's line join, and normal-mode
-        # ``K`` is handled by the vim dispatcher as a preview lookup command.
-        # Normal-mode ``Up`` / ``Down`` fall through to the TextArea's own cursor
-        # movement in both single- and multi-pane stacks.
-
-        # Prompt-stack add-pane and the xprompt properties panel toggle both
-        # migrated to the prompt ``g`` prefix: ``g-`` appends a new empty bottom
-        # pane (``add_bottom_pane``) and ``g=`` toggles the frontmatter panel
-        # (``toggle_frontmatter_panel``), dispatched through the vim ``g`` pending
-        # state in ``_handle_normal_pending_key``. The old insert-mode structural
-        # chords (``Ctrl+-`` / ``ctrl+underscore`` and ``Ctrl+Shift+=``) no
-        # longer fire here; insert-mode users reach the same prompt-local table
-        # through the ``Ctrl+G`` prefix. The structural actions still clear
-        # transient completion state internally, just as the old chord handlers
-        # did before mutating the stack.
+        # Stack pane focus/reorder, add-pane, and frontmatter toggle live on
+        # the prompt ``g`` prefix (see PromptTextAreaKeyGPrefixMixin). Bare
+        # ``J`` / ``K`` stay with vim; Up/Down fall through to TextArea
+        # cursor movement.
 
         if self._vim_mode in {"visual", "visual_line"}:
             if self._handle_visual_mode_key(event):
@@ -508,194 +474,3 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         ):
             self._try_vcs_project_completion()
         self._open_auto_reference_completion_after_change(event.character)
-
-    def _handle_insert_g_prefix_key(self, event: Key) -> bool:
-        """Handle the INSERT-mode ``Ctrl+G`` prompt-local prefix."""
-        if self._vim_mode != "insert":
-            self._clear_insert_g_prefix()
-            return False
-
-        if not self._insert_g_prefix_pending:
-            if event.key != "ctrl+g":
-                return False
-            self._insert_g_prefix_pending = True
-            self._show_insert_g_prefix_hints()
-            return True
-
-        if event.key == "escape":
-            self._clear_insert_g_prefix()
-            return True
-
-        key = _resolve_g_prefix_second_key(event)
-        if key == "g" or event.key == "ctrl+g":
-            self._clear_insert_g_prefix()
-            self.action_open_editor()
-            return True
-
-        self._clear_insert_g_prefix()
-        bar = self._find_prompt_bar()
-        dispatch = (
-            getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
-        )
-        if callable(dispatch):
-            dispatch(key, target_mode="insert", via_ctrl_g=True)
-        return True
-
-    def _handle_normal_g_prefix_key(self, event: Key) -> bool:
-        """Handle the NORMAL-mode ``Ctrl+G`` prompt-local prefix.
-
-        Mirrors :meth:`_handle_insert_g_prefix_key` so NORMAL-mode ``Ctrl+G``
-        opens the same prompt-local ``^G`` prefix (hint panel, editor entry, and
-        prompt-specific continuations) that INSERT-mode ``Ctrl+G`` does, while
-        still shadowing the app-level ``Ctrl+G`` binding. The only behavioral
-        difference is that continuations dispatch with ``target_mode="normal"``
-        so pane focus / reorder land in NORMAL mode, matching the vim ``g``
-        prefix. The vim ``g`` pending path is untouched; this is its own state.
-        """
-        if self._vim_mode != "normal":
-            self._clear_normal_g_prefix()
-            return False
-
-        if not self._normal_g_prefix_pending:
-            if event.key != "ctrl+g":
-                return False
-            self._normal_g_prefix_pending = True
-            self._show_normal_g_prefix_hints()
-            return True
-
-        if event.key == "escape":
-            self._clear_normal_g_prefix()
-            return True
-
-        key = _resolve_g_prefix_second_key(event)
-        if key == "g" or event.key == "ctrl+g":
-            self._clear_normal_g_prefix()
-            self.action_open_editor()
-            return True
-
-        self._clear_normal_g_prefix()
-        bar = self._find_prompt_bar()
-        dispatch = (
-            getattr(bar, "dispatch_g_prefix_key", None) if bar is not None else None
-        )
-        if callable(dispatch):
-            dispatch(key, target_mode="normal", via_ctrl_g=True)
-        return True
-
-    def _try_jinja_auto_pair(self, event: Key) -> bool:
-        """Auto-pair Jinja delimiters after the second opener character.
-
-        Generic ``{`` pairing already turned the first brace into ``{|}``, so
-        the common path consumes that auto-inserted ``}`` and rebuilds it as the
-        full Jinja pair. A literal first ``{`` followed by whitespace/EOF (a
-        manually-authored buffer or undo/redo state) is still handled so the
-        behavior matches whatever brace context the user is sitting in.
-        """
-        if event.character not in ("{", "%", "#"):
-            return False
-        start, end = self.selection
-        if start != end:
-            return False
-        row, col = self.cursor_location
-        if col <= 0:
-            return False
-        line = self.document.get_line(row)
-        if line[col - 1] != "{":
-            return False
-
-        # ``{|}``: generic pairing inserted the closing brace; consume it and
-        # rebuild the whole delimiter so the final cursor sits mid-pair.
-        if col < len(line) and line[col] == "}":
-            bodies = {"{": "{{  }}", "%": "{%  %}", "#": "{#  #}"}
-            body = bodies[event.character]
-            self._replace_via_keyboard(body, (row, col - 1), (row, col + 1))
-            self.cursor_location = (row, col - 1 + 3)
-            self._clear_soft_completion(cancel_timer=True)
-            self._clear_file_completion()
-            self._clear_xprompt_arg_hint()
-            self._on_prompt_completion_context_changed()
-            return True
-
-        # Literal first ``{`` with nothing (or whitespace) following it.
-        if col < len(line) and not line[col].isspace():
-            return False
-        pairs = {
-            "{": ("{  }}", 2),
-            "%": ("%  %}", 2),
-            "#": ("#  #}", 2),
-        }
-        insert, cursor_delta = pairs[event.character]
-        self._replace_via_keyboard(insert, (row, col), (row, col))
-        self.cursor_location = (row, col + cursor_delta)
-        self._clear_soft_completion(cancel_timer=True)
-        self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
-        self._on_prompt_completion_context_changed()
-        return True
-
-    def _try_prompt_text_pair_edit(self, event: Key) -> bool:
-        """Auto-pair brackets/quotes and normalize ``|`` separators.
-
-        Dispatch order for the typed character: ``|`` runs alternation separator
-        normalization inside a live ``%{...}`` span; a closer that already sits
-        under the cursor moves over instead of duplicating (close-skip); an
-        opener inserts its matching closer at a safe position. Returns False
-        (letting the default insertion path run) for every other key, when there
-        is an active selection, or when the cursor is not in an applicable
-        position.
-        """
-        char = event.character
-        if not char or len(char) != 1:
-            return False
-        start, end = self.selection
-        if start != end:
-            return False
-        text = self.text
-        offset = self._absolute_offset(self.cursor_location)
-        if char == "|":
-            plan = plan_alt_separator(text, offset)
-        else:
-            plan = plan_pair_close_skip(text, offset, char)
-            if plan is None and char == "{":
-                plan = plan_alt_brace_pair(text, offset)
-            if plan is None:
-                plan = plan_pair_insert(text, offset, char)
-        if plan is None:
-            return False
-        self._apply_planned_text_edit(plan)
-        if char == "(":
-            self._open_auto_reference_completion_after_change(char)
-        return True
-
-    def _apply_planned_text_edit(
-        self,
-        plan: TextEdit,
-        *,
-        remap_dot_capture: bool = False,
-    ) -> None:
-        """Apply a :class:`TextEdit` and clear transient completion state."""
-        if remap_dot_capture:
-            capture = self._dot_insert_capture_offset
-            if capture is not None and capture >= plan.start:
-                if capture <= plan.end:
-                    # The capture sits inside the rewritten span, so follow the
-                    # cursor: a list shift moves both by the same amount, and
-                    # the text between them survives the edit untouched.
-                    cursor_before = self._absolute_offset(self.cursor_location)
-                    capture = max(
-                        plan.start,
-                        plan.cursor - (cursor_before - capture),
-                    )
-                else:
-                    capture += len(plan.text) - (plan.end - plan.start)
-                self._dot_insert_capture_offset = max(0, capture)
-        self._replace_via_keyboard(
-            plan.text,
-            self._location_from_absolute(plan.start),
-            self._location_from_absolute(plan.end),
-        )
-        self.cursor_location = self._location_from_absolute(plan.cursor)
-        self._clear_soft_completion(cancel_timer=True)
-        self._clear_file_completion()
-        self._clear_xprompt_arg_hint()
-        self._on_prompt_completion_context_changed()
