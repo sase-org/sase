@@ -16,6 +16,15 @@ from sase.monitor_status import (
     clamp_monitor_status_or_default,
 )
 
+_BEAD_CATALOG_LIMIT = 500
+_BEAD_STATUS_RANK = {
+    "in_progress": 0,
+    "claimed": 1,
+    "ready": 2,
+    "open": 3,
+    "snoozed": 4,
+}
+
 
 @dataclass(frozen=True)
 class _CatalogMember:
@@ -73,12 +82,84 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
             # or unavailable group resolver must never hide real agents.
             pass
 
+    try:
+        beads = _bead_catalog_entries(request)
+    except Exception:
+        beads = []
+
     return {
         "schema_version": 1,
         "status": "ok",
         "message": "",
         "entries": entries,
+        **({"beads": beads} if beads else {}),
     }
+
+
+def _bead_catalog_entries(request: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return bounded open-bead rows, or an empty list on any store failure."""
+    try:
+        from sase.bead.store_locator import open_bead_candidates_for_project
+        from sase.project_display_names import project_display_name_for
+        from sase.xprompt.project_identity import get_known_project_workspaces
+    except Exception:
+        return []
+
+    projects: list[str] = []
+    requested = str(request.get("project") or "").strip()
+    if requested:
+        projects.append(requested)
+    try:
+        known = list(get_known_project_workspaces())
+    except Exception:
+        known = []
+    for project in known:
+        if project not in projects:
+            projects.append(project)
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for project in projects:
+        try:
+            issues = open_bead_candidates_for_project(project)
+        except Exception:
+            continue
+        if not issues:
+            continue
+        try:
+            display = project_display_name_for(project)
+        except Exception:
+            display = project
+        for issue in issues:
+            bead_id = (getattr(issue, "id", "") or "").strip()
+            if not bead_id or bead_id in seen:
+                continue
+            seen.add(bead_id)
+            status = getattr(issue.status, "value", issue.status)
+            type_label = getattr(issue.issue_type, "value", issue.issue_type)
+            rows.append(
+                {
+                    "id": bead_id,
+                    "title": getattr(issue, "title", "") or "",
+                    "status": str(status or ""),
+                    "type_label": str(type_label or ""),
+                    "created_at": getattr(issue, "created_at", "") or "",
+                    "updated_at": getattr(issue, "updated_at", "") or "",
+                    "task_type": getattr(issue, "task_type", "") or "",
+                    "project": display,
+                }
+            )
+            if len(rows) >= _BEAD_CATALOG_LIMIT:
+                break
+        if len(rows) >= _BEAD_CATALOG_LIMIT:
+            break
+
+    rows.sort(key=lambda row: row["id"])
+    rows.sort(key=lambda row: row["updated_at"], reverse=True)
+    rows.sort(
+        key=lambda row: _BEAD_STATUS_RANK.get(row["status"], len(_BEAD_STATUS_RANK))
+    )
+    return rows[:_BEAD_CATALOG_LIMIT]
 
 
 def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str, Any]]:
