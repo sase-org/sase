@@ -1,13 +1,12 @@
-"""Tests for the Models panel's persistent Edit/Reset interactions.
+"""Tests for the Models panel's persistent Edit entry points.
 
-Phase 3 (epic sase-5e): covers the ``e`` (Edit) / ``r`` (Reset) actions on
-:class:`ModelsPanel` and the model-picker / custom-input entry points.
+Phase 3 (epic sase-5e): covers the ``e`` (Edit) action on :class:`ModelsPanel`
+and the model-picker / selector-builder / effort-picker routing.
 """
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
 
 import sase.ace.tui.modals.models_panel_edit as models_panel_edit
 from sase.ace.tui.modals.custom_model_input_modal import CustomModelInputModal
@@ -26,13 +25,12 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
 from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderModal
 from sase.llm_provider import TemporaryProviderDisable
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
-from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
-from textual.widgets import OptionList
 from tests._models_panel_helpers import (
-    ModelsPanelTestApp as _TestApp,
-    make_alias_view as _view,
-    make_edit_plan as _make_plan,
-    patch_alias_views as _patch_views,
+    ModelsPanelTestApp,
+    highlight_row,
+    make_alias_view,
+    make_edit_plan,
+    patch_alias_views,
     wait_for,
 )
 
@@ -47,27 +45,16 @@ def _disable(provider: str) -> TemporaryProviderDisable:
     )
 
 
-def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
-    option_list = panel.query_one("#models-panel-list", OptionList)
-    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
-    panel._update_context()
-
-
-# ---------------------------------------------------------------------------
-# Panel — Edit entry points
-# ---------------------------------------------------------------------------
-
-
 async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await wait_for(pilot, lambda: "medium" in panel._row_by_id)
-        _highlight_row(panel, "medium")
+        highlight_row(panel, "medium")
         await pilot.press("e")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
@@ -75,15 +62,15 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
 
 async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> None:
     views = [
-        _view("medium", "role"),
-        _view(
+        make_alias_view("medium", "role"),
+        make_alias_view(
             "bucketed_a",
             "user",
             configured=True,
             configured_value="claude/opus",
             configured_source="custom",
         ),
-        _view(
+        make_alias_view(
             "bucketed_b",
             "user",
             configured=True,
@@ -93,15 +80,15 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
             configured_source="custom",
         ),
     ]
-    _patch_views(monkeypatch, views)
+    patch_alias_views(monkeypatch, views)
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
         disable = _disable("codex")
         panel._provider_disables = {"codex": disable}
-        _highlight_row(panel, "medium")
+        highlight_row(panel, "medium")
         await pilot.press("e")
         await pilot.pause()
 
@@ -115,13 +102,13 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
 
 
 async def test_action_edit_picker_offers_selector_builder_row(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        _highlight_row(panel, "medium")
+        highlight_row(panel, "medium")
         await pilot.press("e")
         await pilot.pause()
 
@@ -133,11 +120,11 @@ async def test_action_edit_picker_offers_selector_builder_row(monkeypatch: Any) 
 async def test_on_edit_model_picked_selector_sentinel_opens_builder(
     monkeypatch: Any,
 ) -> None:
-    target = _view("medium", "role")
-    other = _view("xlarge", "role")
-    _patch_views(monkeypatch, [target, other])
+    target = make_alias_view("medium", "role")
+    other = make_alias_view("xlarge", "role")
+    patch_alias_views(monkeypatch, [target, other])
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -155,13 +142,13 @@ async def test_on_edit_model_picked_selector_sentinel_opens_builder(
 
 
 async def test_on_selector_built_routes_to_preview(monkeypatch: Any) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
+    view = make_alias_view("medium", "role")
+    patch_alias_views(monkeypatch, [view])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -176,9 +163,9 @@ async def test_on_selector_built_routes_to_preview(monkeypatch: Any) -> None:
 
 
 async def test_on_selector_built_cancel_is_noop(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -188,13 +175,13 @@ async def test_on_selector_built_cancel_is_noop(monkeypatch: Any) -> None:
 
 
 async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
+    view = make_alias_view("medium", "role")
+    patch_alias_views(monkeypatch, [view])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -211,14 +198,14 @@ async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) 
 
 
 async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> None:
-    target = _view("large", "role")
-    medium = _view("medium", "role", provider="codex", model="o3")
-    _patch_views(monkeypatch, [target, medium])
+    target = make_alias_view("large", "role")
+    medium = make_alias_view("medium", "role", provider="codex", model="o3")
+    patch_alias_views(monkeypatch, [target, medium])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -238,13 +225,13 @@ async def test_on_edit_alias_picked_persists_raw_reference(monkeypatch: Any) -> 
 
 
 async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
+    view = make_alias_view("medium", "role")
+    patch_alias_views(monkeypatch, [view])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -262,309 +249,10 @@ async def test_on_edit_model_picked_custom_then_preview(monkeypatch: Any) -> Non
         assert screen._op.value == "@large@medium"
 
 
-async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
-    monkeypatch: Any,
-) -> None:
-    target = _view("medium", "role")
-    dependent = _view(
-        "dependent",
-        "user",
-        configured=True,
-        configured_value="@medium",
-    )
-    _patch_views(monkeypatch, [target, dependent])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = target
-        panel._pending_alias_selection = AliasSelectionContext(
-            (target, dependent), target.name, "persistent"
-        )
-
-        panel._on_edit_custom_picked("@missing")
-        panel._on_edit_custom_picked("@dependent@medium")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        assert panel.notify.call_count == 2
-        messages = [call.args[0] for call in panel.notify.call_args_list]
-        assert "unknown alias" in messages[0]
-        assert "would create a cycle" in messages[1]
-
-
-async def test_on_edit_custom_rejects_disabled_explicit_provider_before_preview(
-    monkeypatch: Any,
-) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = view
-        panel._provider_disables = {"claude": _disable("claude")}
-
-        panel._on_edit_custom_picked("claude/opus@medium")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        assert panel._pending_edit_raw_model == ""
-        panel.notify.assert_called_once()
-        message = panel.notify.call_args.args[0]
-        assert "Cannot set @medium to claude/opus@medium" in message
-        assert "CLAUDE is temporarily disabled until cleared" in message
-
-
-async def test_on_edit_custom_allows_soft_disabled_explicit_provider(
-    monkeypatch: Any,
-) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-    disable = TemporaryProviderDisable(
-        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
-        provider="claude",
-        created_at=100.0,
-        expires_at=None,
-        source="test",
-        mode="soft",
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = view
-        panel._provider_disables = {"claude": disable}
-
-        panel._on_edit_custom_picked("claude/opus@medium")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
-        assert panel._pending_edit_raw_model == "claude/opus@medium"
-        panel.notify.assert_called_once()
-        assert "CLAUDE is soft-disabled until cleared" in panel.notify.call_args.args[0]
-
-
-async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
-    monkeypatch: Any,
-) -> None:
-    view = _view("xlarge", "role")
-    _patch_views(monkeypatch, [view])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = view
-
-        panel._on_edit_custom_picked(
-            "claude/claude-fable-5@low || codex/gpt-5.6-sol@high"
-        )
-        await pilot.pause()
-        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
-        assert pilot.app.screen._op.value == (
-            "claude/claude-fable-5@low || codex/gpt-5.6-sol@high"
-        )
-
-        pilot.app.pop_screen()
-        await pilot.pause()
-        panel._on_edit_custom_picked("claude/opus | codex/o3 || claude/sonnet")
-        await pilot.pause()
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        assert "cannot mix" in panel.notify.call_args.args[0]
-
-        panel._on_edit_custom_picked("(claude/opus | codex/o3) || grok/grok-4.6@xhigh")
-        await pilot.pause()
-        assert isinstance(pilot.app.screen, AliasEditPreviewModal)
-        assert pilot.app.screen._op.value == (
-            "(claude/opus | codex/o3) || grok/grok-4.6@xhigh"
-        )
-
-
-async def test_on_edit_custom_preserves_alias_selector_member_efforts(
-    monkeypatch: Any,
-) -> None:
-    view = _view(
-        "blogger",
-        "user",
-        configured=True,
-        configured_source="custom",
-    )
-    _patch_views(monkeypatch, [view])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.models_panel_alias_edit."
-        "validate_model_alias_selector_value",
-        lambda *a, **k: (),
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel._pending_edit_view = view
-        value = "@large@low | @medium@high"
-        panel._on_edit_custom_picked(value)
-        await pilot.pause()
-
-        screen = pilot.app.screen
-        assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.value == value
-        assert panel._pending_edit_raw_model == value
-
-
-async def test_on_edit_custom_rejects_pool_member_unknown_alias_before_preview(
-    monkeypatch: Any,
-) -> None:
-    target = _view("medium", "role")
-    _patch_views(monkeypatch, [target])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = target
-        panel._pending_alias_selection = AliasSelectionContext(
-            (target,), target.name, "persistent"
-        )
-
-        panel._on_edit_custom_picked("@missing | claude/opus")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        panel.notify.assert_called_once()
-        assert "unknown alias" in panel.notify.call_args.args[0]
-
-
-async def test_on_edit_custom_rejects_disabled_selector_member_before_preview(
-    monkeypatch: Any,
-) -> None:
-    target = _view("medium", "role")
-    _patch_views(monkeypatch, [target])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = target
-        panel._provider_disables = {"codex": _disable("codex")}
-
-        panel._on_edit_custom_picked("claude/opus | codex/o3")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        assert panel._pending_edit_raw_model == ""
-        panel.notify.assert_called_once()
-        message = panel.notify.call_args.args[0]
-        assert "Cannot set @medium to codex/o3" in message
-        assert "CODEX is temporarily disabled until cleared" in message
-
-
-async def test_on_edit_custom_rejects_pool_member_cycle_before_preview(
-    monkeypatch: Any,
-) -> None:
-    target = _view("medium", "role")
-    dependent = _view(
-        "dependent",
-        "user",
-        configured=True,
-        configured_value="@medium",
-    )
-    _patch_views(monkeypatch, [target, dependent])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_view = target
-        panel._pending_alias_selection = AliasSelectionContext(
-            (target, dependent), target.name, "persistent"
-        )
-
-        panel._on_edit_custom_picked("@dependent | claude/opus")
-        await pilot.pause()
-
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        panel.notify.assert_called_once()
-        assert "would create a cycle" in panel.notify.call_args.args[0]
-
-
-async def test_on_edit_custom_opens_prefilled_with_configured_value(
-    monkeypatch: Any,
-) -> None:
-    view = _view(
-        "blogger",
-        "user",
-        configured=True,
-        configured_value="claude/opus | codex/o3",
-        configured_source="custom",
-    )
-    _patch_views(monkeypatch, [view])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel._pending_edit_view = view
-        panel._on_edit_model_picked(CUSTOM_SENTINEL)
-        await pilot.pause()
-
-        screen = pilot.app.screen
-        assert isinstance(screen, CustomModelInputModal)
-        input_widget = screen.query_one("#custom-model-input", SingleLineVimTextArea)
-        assert input_widget.text == "claude/opus | codex/o3"
-        assert input_widget.cursor_location == input_widget.document.end
-
-
-async def test_on_edit_custom_opens_empty_when_alias_has_no_value(
-    monkeypatch: Any,
-) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel._pending_edit_view = view
-        panel._on_edit_model_picked(CUSTOM_SENTINEL)
-        await pilot.pause()
-
-        screen = pilot.app.screen
-        assert isinstance(screen, CustomModelInputModal)
-        input_widget = screen.query_one("#custom-model-input", SingleLineVimTextArea)
-        assert input_widget.text == ""
-        assert input_widget.placeholder == "e.g. claude/fable || codex/gpt-5.6-sol"
-
-
 async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -573,35 +261,13 @@ async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:
         assert isinstance(pilot.app.screen, ModelsPanel)
 
 
-async def test_on_edit_custom_explicit_alias_effort_skips_effort_picker(
-    monkeypatch: Any,
-) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        panel._pending_edit_view = view
-        panel._on_edit_custom_picked("@large@medium")
-        await pilot.pause()
-
-        screen = pilot.app.screen
-        assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.value == "@large@medium"
-
-
 async def test_on_edit_effort_cancel_does_not_open_preview(
     monkeypatch: Any,
 ) -> None:
-    view = _view("medium", "role")
-    _patch_views(monkeypatch, [view])
+    view = make_alias_view("medium", "role")
+    patch_alias_views(monkeypatch, [view])
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -615,66 +281,22 @@ async def test_on_edit_effort_cancel_does_not_open_preview(
         assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
 
 
-# ---------------------------------------------------------------------------
-# Panel — Reset
-# ---------------------------------------------------------------------------
-
-
-async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> None:
-    _patch_views(monkeypatch, [_view("medium", "role", configured=False)])
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "medium")
-        panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel.action_reset()
-        await pilot.pause()
-        assert isinstance(pilot.app.screen, ModelsPanel)
-        panel.notify.assert_called_once()
-        assert panel.notify.call_args.kwargs.get("severity") == "warning"
-
-
-async def test_action_reset_configured_opens_preview_with_unset(
-    monkeypatch: Any,
-) -> None:
-    _patch_views(
-        monkeypatch,
-        [_view("medium", "role", configured=True, configured_value="opus")],
-    )
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan(op="unset")
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "medium")
-        panel.action_reset()
-        await pilot.pause()
-        screen = pilot.app.screen
-        assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._op.kind == "unset"
-
-
 async def test_action_edit_custom_alias_routes_to_custom_model_path(
     monkeypatch: Any,
 ) -> None:
-    view = _view(
+    view = make_alias_view(
         "blogger",
         "user",
         configured=True,
         configured_value="claude/haiku",
         configured_source="custom",
     )
-    _patch_views(monkeypatch, [view])
+    patch_alias_views(monkeypatch, [view])
     monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: make_edit_plan()
     )
 
-    async with _TestApp().run_test() as pilot:
+    async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
@@ -687,35 +309,3 @@ async def test_action_edit_custom_alias_routes_to_custom_model_path(
         screen = pilot.app.screen
         assert isinstance(screen, AliasEditPreviewModal)
         assert screen._path == "llm_provider.model_aliases.custom.blogger.model"
-
-
-async def test_action_reset_custom_alias_deletes_custom_entry(
-    monkeypatch: Any,
-) -> None:
-    _patch_views(
-        monkeypatch,
-        [
-            _view(
-                "blogger",
-                "user",
-                configured=True,
-                configured_value="claude/opus",
-                configured_source="custom",
-            )
-        ],
-    )
-    monkeypatch.setattr(
-        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan(op="unset")
-    )
-
-    async with _TestApp().run_test() as pilot:
-        panel = ModelsPanel()
-        pilot.app.push_screen(panel)
-        await pilot.pause()
-        _highlight_row(panel, "blogger")
-        panel.action_reset()
-        await pilot.pause()
-        screen = pilot.app.screen
-        assert isinstance(screen, AliasEditPreviewModal)
-        assert screen._path == "llm_provider.model_aliases.custom.blogger"
-        assert screen._reset_deletes_alias is True
