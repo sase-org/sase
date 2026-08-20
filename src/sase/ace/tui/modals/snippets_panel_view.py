@@ -31,7 +31,7 @@ from .snippets_panel_rendering import (
 )
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
     from sase.ace.tui.keymaps import SnippetPanelKeymaps

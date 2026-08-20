@@ -18,7 +18,7 @@ from sase.ace.tui.snippets_panel_catalog import invalidate_snippet_project
 from .snippets_panel_state import _FILTER_INPUT_ID
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
     from sase.ace.tui.snippets_panel_catalog import (
@@ -54,6 +54,10 @@ class SnippetsPanelNavigationMixin(_MixinBase):
         ) -> None: ...
 
         def _filter_input(self) -> Input: ...
+
+        def _record_session_project(self, project_key: str | None) -> None: ...
+
+        def _record_session_selection(self) -> None: ...
 
         def _start_project_load(self) -> None: ...
 
@@ -124,7 +128,9 @@ class SnippetsPanelNavigationMixin(_MixinBase):
             self._project_selection_memory[self._snapshot.project.key] = (
                 self._current_trigger
             )
+            self._record_session_selection()
         self._project_index = (self._project_index + delta) % len(self._ring)
+        self._record_session_project(self._ring[self._project_index].key)
         self._filter_input().value = ""
         self._filter_input().display = False
         self._trail = []

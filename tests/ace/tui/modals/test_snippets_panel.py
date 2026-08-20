@@ -10,9 +10,14 @@ from textual.worker import WorkerState
 from sase.ace.testing import wait_for
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
 from sase.ace.tui.modals import snippets_panel as snippets_panel_module
-from sase.ace.tui.modals.snippets_panel import SnippetsPanel
+from sase.ace.tui.modals.snippets_panel import (
+    SnippetsPane,
+    SnippetsPaneSessionState,
+    SnippetsPanel,
+)
 from sase.ace.tui.modals.snippets_panel_load import SnippetsPanelInitialLoad
 from tests.ace.tui.modals.snippets_panel_test_helpers import (
+    SnippetsPaneTestApp,
     SnippetsPanelTestApp,
     install_fixed_load,
     panel_static_text,
@@ -20,6 +25,98 @@ from tests.ace.tui.modals.snippets_panel_test_helpers import (
     project_snapshot,
     snippet_entry,
 )
+
+
+async def test_pane_mounts_directly_and_records_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha = project_ref("alpha", "Alpha")
+    beta = project_ref("beta", "Beta")
+    session = SnippetsPaneSessionState(active_project_key="beta")
+    install_fixed_load(
+        monkeypatch,
+        (alpha, beta),
+        {
+            "alpha": project_snapshot(alpha, (snippet_entry("alpha_trigger"),)),
+            "beta": project_snapshot(beta, (snippet_entry("beta_trigger"),)),
+        },
+    )
+
+    pane = SnippetsPane(session_state=session)
+    app = SnippetsPaneTestApp(pane)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not pane._loading)
+
+    assert pane._project_index == 1
+    assert pane._current_trigger == "beta_trigger"
+    assert session.active_project_key == "beta"
+    assert session.selected_trigger == "beta_trigger"
+    assert session.project_triggers["beta"] == "beta_trigger"
+
+
+async def test_pane_direct_trigger_ignores_stale_session_project_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alpha = project_ref("alpha", "Alpha")
+    beta = project_ref("beta", "Beta")
+    session = SnippetsPaneSessionState(
+        active_project_key="beta",
+        selected_trigger="beta_trigger",
+        project_triggers={"beta": "beta_trigger"},
+    )
+    install_fixed_load(
+        monkeypatch,
+        (alpha, beta),
+        {
+            "alpha": project_snapshot(alpha, (snippet_entry("alpha_trigger"),)),
+            "beta": project_snapshot(beta, (snippet_entry("beta_trigger"),)),
+        },
+    )
+
+    pane = SnippetsPane(initial_trigger="alpha_trigger", session_state=session)
+    app = SnippetsPaneTestApp(pane)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not pane._loading)
+
+    assert pane._project_index == 0
+    assert pane._current_trigger == "alpha_trigger"
+    assert session.active_project_key == "alpha"
+    assert session.project_triggers["beta"] == "beta_trigger"
+
+
+async def test_pane_close_uses_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    ref = project_ref("sase", "sase")
+    install_fixed_load(
+        monkeypatch, (ref,), {"sase": project_snapshot(ref, (snippet_entry("agent"),))}
+    )
+    closed: list[str] = []
+
+    class Host:
+        def close_snippets_pane(self) -> None:
+            closed.append("close")
+
+    pane = SnippetsPane(host=Host())
+    app = SnippetsPaneTestApp(pane)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not pane._loading)
+        await pilot.press("q")
+        await wait_for(pilot, lambda: closed == ["close"])
+
+
+async def test_panel_adapter_dismisses_from_pane_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = project_ref("sase", "sase")
+    install_fixed_load(
+        monkeypatch, (ref,), {"sase": project_snapshot(ref, (snippet_entry("agent"),))}
+    )
+
+    panel = SnippetsPanel()
+    app = SnippetsPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        panel.pane.action_close()
+        await wait_for(pilot, lambda: not isinstance(app.screen, SnippetsPanel))
 
 
 async def test_panel_mounts_and_selects_first_trigger(

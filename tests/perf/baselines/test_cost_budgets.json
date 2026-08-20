@@ -1,7 +1,7 @@
 {
   "causes": {
     "ace_page_enter": {
-      "limit": 490.0
+      "limit": 540.0
     },
     "ace_settle_pilot": {
       "limit": 340.0
@@ -10,13 +10,13 @@
       "limit": 52.0
     },
     "pilot_pause_delay": {
-      "limit": 210.0
+      "limit": 230.0
     },
     "subprocess_run": {
       "limit": 540.0
     },
     "textual_app_run_test_enter": {
-      "limit": 430.0
+      "limit": 470.0
     },
     "yaml_load": {
       "limit": 20.0
@@ -24,7 +24,8 @@
   },
   "notes": [
     "Limits are derived as ceil(worst recorded value / (1 + local tolerance)), rounded up to a round number; run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
-    "Sample: 8 recordings from host athena, 2026-08-17 20:37Z-2026-08-18 01:34Z, 5-14 workers, 32,554-32,667 nodes. Existing keys only: raise a limit when --suggest exceeds the committed value; do not add new cause keys or lower a still-passing limit.",
+    "Sample: 8 recordings from host athena, 2026-08-19 23:00Z-2026-08-20 17:35Z, 4-14 workers, 34,551-35,266 nodes. Existing keys only: raise a limit when --suggest exceeds the committed value; do not add new cause keys or lower a still-passing limit.",
+    "Updated existing suggested limit increases from this sample: collection_cpu_seconds 25.0, ace_page_enter 540.0, pilot_pause_delay 230.0, textual_app_run_test_enter 470.0.",
     "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
     "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
     "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output \u2014 do not raise a limit to hide a one-off regression."
@@ -32,7 +33,7 @@
   "schema": 1,
   "summary": {
     "collection_cpu_seconds": {
-      "limit": 24.0,
+      "limit": 25.0,
       "per_worker": true
     },
     "collection_seconds": {

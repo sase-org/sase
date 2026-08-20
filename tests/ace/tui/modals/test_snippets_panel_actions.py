@@ -14,7 +14,7 @@ from sase.ace.testing import wait_for
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.modals import snippets_panel_write as write_mod
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.snippets_panel import SnippetsPanel
+from sase.ace.tui.modals.snippets_panel import SnippetsPane, SnippetsPanel
 from sase.ace.tui.modals.snippets_panel_add import SnippetFormModal
 from sase.ace.tui.modals.snippets_panel_delete import (
     build_snippet_delete_subject,
@@ -248,11 +248,11 @@ async def test_edit_on_xprompt_opens_source(
     )
     opened: list[str] = []
 
-    def fake_open(self: SnippetsPanel) -> None:
+    def fake_open(self: SnippetsPane) -> None:
         del self
         opened.append("source")
 
-    monkeypatch.setattr(SnippetsPanel, "action_open_source", fake_open)
+    monkeypatch.setattr(SnippetsPane, "action_open_source", fake_open)
     panel = SnippetsPanel()
     app = _ActionsApp(panel)
 

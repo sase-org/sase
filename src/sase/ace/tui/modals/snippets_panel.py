@@ -12,10 +12,13 @@ and add/edit/delete in :mod:`sase.ace.tui.modals.snippets_panel_actions`.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import OptionList, Static
 from textual.worker import Worker, WorkerState
@@ -54,6 +57,46 @@ from .snippets_panel_state import (
 from .snippets_panel_travel import SnippetsPanelTravelMixin
 from .snippets_panel_view import SnippetsPanelViewMixin
 
+_SESSION_TRIGGER_LIMIT = 64
+
+
+@dataclass
+class SnippetsPaneSessionState:
+    """Session-only cursor state for an embedded Snippets content pane."""
+
+    active_project_key: str | None = None
+    selected_trigger: str | None = None
+    project_triggers: dict[str, str] = field(default_factory=dict)
+
+    def trigger_for_project(self, project_key: str) -> str | None:
+        return self.project_triggers.get(project_key) or self.selected_trigger
+
+    def record_project(self, project_key: str | None) -> None:
+        self.active_project_key = project_key
+
+    def record_selection(self, project_key: str | None, trigger: str | None) -> None:
+        self.selected_trigger = trigger
+        if project_key is None:
+            return
+        if trigger:
+            self.project_triggers[project_key] = trigger
+            self._trim_project_triggers(project_key)
+        else:
+            self.project_triggers.pop(project_key, None)
+
+    def _trim_project_triggers(self, keep_key: str) -> None:
+        while len(self.project_triggers) > _SESSION_TRIGGER_LIMIT:
+            oldest = next(iter(self.project_triggers))
+            if oldest == keep_key and len(self.project_triggers) > 1:
+                oldest = next(key for key in self.project_triggers if key != keep_key)
+            self.project_triggers.pop(oldest, None)
+
+
+class SnippetsPaneHost(Protocol):
+    """Host callback required by :class:`SnippetsPane` for close requests."""
+
+    def close_snippets_pane(self) -> None: ...
+
 
 class _SnippetsFilterInput(FilterInput):
     """The panel's inline filter box; Escape closes it without cancelling."""
@@ -65,16 +108,16 @@ class _SnippetsFilterInput(FilterInput):
         if panel is not None:
             panel._close_filter()
 
-    def _panel(self) -> SnippetsPanel | None:
+    def _panel(self) -> SnippetsPane | None:
         node: object | None = self.parent
         while node is not None:
-            if isinstance(node, SnippetsPanel):
+            if isinstance(node, SnippetsPane):
                 return node
             node = getattr(node, "parent", None)
         return None
 
 
-class SnippetsPanel(
+class SnippetsPane(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
     SnippetsPanelActionsMixin,
@@ -82,9 +125,9 @@ class SnippetsPanel(
     SnippetsPanelViewMixin,
     SnippetsPanelNavigationMixin,
     SnippetsPanelTravelMixin,
-    ModalScreen[None],
+    Vertical,
 ):
-    """Browse and edit one project's snippets, alphabetically, with a filter."""
+    """Reusable Snippets content pane, alphabetically browsed with a filter."""
 
     BINDINGS = [
         ("escape", "close", "Close"),
@@ -106,8 +149,14 @@ class SnippetsPanel(
         launch_workspace: str | None = None,
         initial_project_key: str | None = None,
         initial_trigger: str | None = None,
+        session_state: SnippetsPaneSessionState | None = None,
+        host: SnippetsPaneHost | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
+        self._host = host
+        self._session_state = session_state or SnippetsPaneSessionState()
+        self._host_visible = True
         self._keymaps = keymaps or load_keymap_registry({}).snippets
         self._bindings = BindingsMap(
             [*build_snippet_bindings(self._keymaps), *self.BINDINGS]
@@ -129,7 +178,7 @@ class SnippetsPanel(
         self._project_worker: Worker[SnippetProjectSnapshot] | None = None
         self._selection_guard = ProgrammaticSelectionGuard()
         self._debouncer: DetailPanelDebouncer | None = None
-        self._project_selection_memory: dict[str, str] = {}
+        self._project_selection_memory = self._session_state.project_triggers
         self._chip_entries: tuple[SnippetEntry, ...] = ()
         self._chip_outbound_count = 0
         self._chip_cursor: int | None = None
@@ -171,6 +220,19 @@ class SnippetsPanel(
             if worker is not None and not worker.is_finished:
                 worker.cancel()
 
+    def focus_default(self) -> None:
+        """Focus the trigger rail when the Snippets pane becomes active."""
+        try:
+            self._trigger_list().focus()
+        except Exception:
+            pass
+
+    def on_center_tab_visibility_changed(self, active: bool) -> None:
+        """Receive visibility activation from an embedding Admin Center host."""
+        self._host_visible = active
+        if active:
+            self.focus_default()
+
     def on_resize(self, _event: events.Resize) -> None:
         """Re-fit the trigger rail when the terminal changes size."""
         self._resize_trigger_rail()
@@ -182,11 +244,17 @@ class SnippetsPanel(
         self._update_footer()
         settings = getattr(self.app, "_current_project_settings", None)
         seed_from_current_project = getattr(settings, "seed_filters", True)
+        session_project = (
+            None
+            if self._initial_project_key is not None or self._initial_trigger
+            else self._session_state.active_project_key
+        )
+        initial_project_key = self._initial_project_key or session_project
 
         def task() -> SnippetsPanelInitialLoad:
             return load_snippets_panel_initial_state(
                 launch_workspace=self._launch_workspace,
-                initial_project_key=self._initial_project_key,
+                initial_project_key=initial_project_key,
                 seed_from_current_project=seed_from_current_project,
             )
 
@@ -222,12 +290,16 @@ class SnippetsPanel(
             self._loading = False
             self._ring = result.ring
             self._project_index = result.project_index
-            self._apply_snapshot(
-                result.snapshot, preferred_trigger=self._initial_trigger
-            )
+            project_key = self._active_project_key_from_ring()
+            self._record_session_project(project_key)
+            preferred = self._initial_trigger
+            if preferred is None and project_key is not None:
+                preferred = self._session_state.trigger_for_project(project_key)
+            self._apply_snapshot(result.snapshot, preferred_trigger=preferred)
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._ring = ()
+            self._record_session_project(None)
             self._apply_snapshot(None, preferred_trigger=None)
 
     def _on_project_load_state_changed(self, event: Worker.StateChanged) -> None:
@@ -241,13 +313,30 @@ class SnippetsPanel(
             ):
                 return  # Stale: the user cycled again before this load landed.
             self._loading = False
-            preferred = self._project_selection_memory.get(result.project.key)
+            self._record_session_project(result.project.key)
+            preferred = self._session_state.trigger_for_project(result.project.key)
             self._apply_snapshot(result, preferred_trigger=preferred)
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._update_header()
             self._render_snippet_card()
             self._update_footer()
+
+    def _active_project_key_from_ring(self) -> str | None:
+        if not self._ring or not 0 <= self._project_index < len(self._ring):
+            return None
+        return self._ring[self._project_index].key
+
+    def _record_session_project(self, project_key: str | None) -> None:
+        self._session_state.record_project(project_key)
+
+    def _record_session_selection(self) -> None:
+        project_key = (
+            self._snapshot.project.key
+            if self._snapshot is not None
+            else self._active_project_key_from_ring()
+        )
+        self._session_state.record_selection(project_key, self._current_trigger)
 
     def _source_action_path(self) -> str | None:
         entry = self._selected_entry()
@@ -279,7 +368,73 @@ class SnippetsPanel(
         self.app.push_screen(SnippetsPanelHelpModal(keymaps=self._keymaps))
 
     def action_close(self) -> None:
+        if self._host is not None:
+            self._host.close_snippets_pane()
+
+
+class SnippetsPanel(CopyModeForwardingMixin, ModalScreen[None]):
+    """Standalone modal adapter for :class:`SnippetsPane`."""
+
+    def __init__(
+        self,
+        *,
+        keymaps: SnippetPanelKeymaps | None = None,
+        launch_workspace: str | None = None,
+        initial_project_key: str | None = None,
+        initial_trigger: str | None = None,
+        session_state: SnippetsPaneSessionState | None = None,
+    ) -> None:
+        super().__init__()
+        self._pane = SnippetsPane(
+            keymaps=keymaps,
+            launch_workspace=launch_workspace,
+            initial_project_key=initial_project_key,
+            initial_trigger=initial_trigger,
+            session_state=session_state,
+            host=self,
+            id="snippets-panel-pane",
+        )
+
+    @property
+    def pane(self) -> SnippetsPane:
+        return self._pane
+
+    def compose(self) -> ComposeResult:
+        yield self._pane
+
+    def focus_default(self) -> None:
+        self._pane.focus_default()
+
+    def on_center_tab_visibility_changed(self, active: bool) -> None:
+        self._pane.on_center_tab_visibility_changed(active)
+
+    def close_snippets_pane(self) -> None:
         self.dismiss(None)
 
+    def action_close(self) -> None:
+        self.close_snippets_pane()
 
-__all__ = ["SnippetsPanel"]
+    def __getattr__(self, name: str) -> Any:
+        pane = self.__dict__.get("_pane")
+        if pane is not None:
+            try:
+                return getattr(pane, name)
+            except AttributeError:
+                pass
+        raise AttributeError(
+            f"{type(self).__name__!s} object has no attribute {name!r}"
+        )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "_trail" and "_pane" in self.__dict__:
+            setattr(self.__dict__["_pane"], name, value)
+            return
+        super().__setattr__(name, value)
+
+
+__all__ = [
+    "SnippetsPane",
+    "SnippetsPaneHost",
+    "SnippetsPaneSessionState",
+    "SnippetsPanel",
+]

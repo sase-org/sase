@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.modals import snippets_panel as snippets_panel_module
-from sase.ace.tui.modals.snippets_panel import SnippetsPanel
+from sase.ace.tui.modals.snippets_panel import SnippetsPane, SnippetsPanel
 from sase.ace.tui.modals.snippets_panel_load import SnippetsPanelInitialLoad
 from sase.ace.tui.snippets_panel_catalog import (
     SnippetDestination,
@@ -33,6 +33,9 @@ from sase.snippet.models import (
 )
 
 
+type SnippetsPanelSubject = SnippetsPane | SnippetsPanel
+
+
 class SnippetsPanelTestApp(App[None]):
     def __init__(self, panel: SnippetsPanel) -> None:
         super().__init__()
@@ -45,6 +48,15 @@ class SnippetsPanelTestApp(App[None]):
         self.push_screen(self.panel)
 
 
+class SnippetsPaneTestApp(App[None]):
+    def __init__(self, pane: SnippetsPane) -> None:
+        super().__init__()
+        self.pane = pane
+
+    def compose(self) -> ComposeResult:
+        yield self.pane
+
+
 def _plain(renderable: RenderableType) -> str:
     console = Console(width=200, no_color=True, legacy_windows=False)
     with console.capture() as capture:
@@ -52,7 +64,7 @@ def _plain(renderable: RenderableType) -> str:
     return capture.get()
 
 
-def panel_static_text(panel: SnippetsPanel, widget_id: str) -> str:
+def panel_static_text(panel: SnippetsPanelSubject, widget_id: str) -> str:
     return _plain(panel.query_one(f"#{widget_id}", Static).content)
 
 

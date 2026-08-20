@@ -33,7 +33,7 @@ from .snippets_panel_write import (
 )
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.worker import Worker
 
     from sase.snippet.models import SnippetCatalog, SnippetEntry

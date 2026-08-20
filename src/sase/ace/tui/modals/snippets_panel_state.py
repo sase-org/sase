@@ -23,7 +23,7 @@ from .snippets_panel_rendering import (
 )
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
 
     from sase.ace.tui.snippets_panel_catalog import SnippetProjectSnapshot
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
@@ -52,6 +52,8 @@ class SnippetsPanelStateMixin(_MixinBase):
         def _refresh_relations_for_current_entry(self) -> None: ...
 
         def _render_snippet_card(self) -> None: ...
+
+        def _record_session_selection(self) -> None: ...
 
         def _resize_trigger_rail(self) -> None: ...
 
@@ -121,6 +123,7 @@ class SnippetsPanelStateMixin(_MixinBase):
         else:
             self._current_trigger = None
         self._refresh_relations_for_current_entry()
+        self._record_session_selection()
         self._render_snippet_card()
 
     def _trigger_list(self) -> OptionList:
@@ -162,6 +165,7 @@ class SnippetsPanelStateMixin(_MixinBase):
             return
         self._current_trigger = identity
         self._refresh_relations_for_current_entry()
+        self._record_session_selection()
         self._update_footer()
         if self._debouncer is not None:
             self._debouncer.schedule(self._render_snippet_card)

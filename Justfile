@@ -333,6 +333,9 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
+        --epic-symbol "sase-ri.4(SnippetsPane)" \
+        --epic-symbol "sase-ri.4(SnippetsPaneHost)" \
+        --epic-symbol "sase-ri.4(SnippetsPaneSessionState)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
