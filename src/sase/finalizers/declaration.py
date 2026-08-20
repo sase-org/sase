@@ -611,7 +611,7 @@ def _manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
         if not requirement.submission_required:
             continue
         payload: Any
-        if requirement.instance_id == "commit":
+        if requirement.trigger == "dirty_repository":
             payload = {
                 "repositories": [
                     {

@@ -10,6 +10,11 @@ from sase.core.finalizer_wire import (
     FinalizerInstanceResultWire,
     finalizer_wire_to_json_dict,
 )
+from sase.core.finalizer_facade import aggregate_finalizer_outcomes
+from sase.finalizers.commit import (
+    BuiltinCommitFinalizerError,
+    execute_commit_finalizer,
+)
 from sase.finalizers.artifacts import write_finalizer_result
 from sase.finalizers.config import load_finalizer_config
 from sase.finalizers.executor import (
@@ -36,9 +41,8 @@ def run_finalizers(
 ) -> Any:
     """Run the beta finalizer plan.
 
-    This extension-runtime phase can execute non-mutating selected providers.
-    The built-in commit instance still delegates to the legacy reconciler until
-    the later generic reconciliation phase replaces that compatibility branch.
+    The built-in commit instance consumes the accepted final declaration and
+    dispatches repository mutations through ``sase stitch create``.
     """
 
     entries, plan_digest = _selected_entries(artifacts_dir)
@@ -72,17 +76,21 @@ def run_finalizers(
                     f"selected finalizer instance {instance_id!r} is not configured"
                 )
             if provider_ref == BUILTIN_COMMIT_PROVIDER_REF:
-                current_result = _run_legacy_commit_finalizer(
+                execution = execute_commit_finalizer(
+                    instance,
+                    context,
                     provider=provider,
-                    original_prompt=original_prompt,
                     invoke_result=current_result,
                     model_tier=model_tier,
                     suppress_output=suppress_output,
                     model_override=model_override,
-                    artifacts_dir=artifacts_dir,
                     options=options,
                 )
-                instance_results.append(_success_result(instance_id))
+                current_result = execution.invoke_result
+                instance_results.append(execution.result)
+                if execution.result.status != "success":
+                    _write_aggregate_result(artifacts_dir, instance_results, "failed")
+                    raise RuntimeError(_result_failure_message(execution.result))
                 continue
 
             result = execute_non_commit_finalizer(instance, config, context)
@@ -91,6 +99,13 @@ def run_finalizers(
                 _write_aggregate_result(artifacts_dir, instance_results, "failed")
                 message = _result_failure_message(result)
                 raise RuntimeError(message)
+    except BuiltinCommitFinalizerError as exc:
+        if exc.invoke_result is not None:
+            current_result = exc.invoke_result
+        if not instance_results or instance_results[-1] is not exc.result:
+            instance_results.append(exc.result)
+        _write_aggregate_result(artifacts_dir, instance_results, "failed")
+        raise
     except Exception as exc:
         if not instance_results or instance_results[-1].status == "success":
             instance_results.append(
@@ -153,20 +168,6 @@ def _selected_entries(
     return tuple(selected), plan_digest if isinstance(plan_digest, str) else None
 
 
-def _run_legacy_commit_finalizer(**kwargs: Any) -> Any:
-    from sase.llm_provider.commit_finalizer import run_commit_finalizer
-
-    return run_commit_finalizer(**kwargs)
-
-
-def _success_result(instance_id: str) -> FinalizerInstanceResultWire:
-    return FinalizerInstanceResultWire(
-        instance_id=instance_id,
-        status="success",
-        attempts=[FinalizerAttemptWire(attempt=1, status="success")],
-    )
-
-
 def _failed_result(instance_id: str, message: str) -> FinalizerInstanceResultWire:
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
@@ -194,6 +195,16 @@ def _write_aggregate_result(
     instance_results: list[FinalizerInstanceResultWire],
     status: str,
 ) -> None:
+    try:
+        aggregate = aggregate_finalizer_outcomes(instance_results)
+        status = aggregate.status
+        diagnostics = aggregate.diagnostics
+    except Exception:
+        diagnostics = [
+            diagnostic
+            for result in instance_results
+            for diagnostic in result.diagnostics
+        ]
     payload = {
         "schema_version": 1,
         "status": status,
@@ -201,9 +212,7 @@ def _write_aggregate_result(
             finalizer_wire_to_json_dict(result) for result in instance_results
         ],
         "diagnostics": [
-            finalizer_wire_to_json_dict(diagnostic)
-            for result in instance_results
-            for diagnostic in result.diagnostics
+            finalizer_wire_to_json_dict(diagnostic) for diagnostic in diagnostics
         ],
     }
     write_finalizer_result(artifacts_dir, payload)
