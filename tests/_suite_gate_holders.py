@@ -181,6 +181,7 @@ def reclaim_wedged_holders(
     holders: Mapping[Path, str],
     signaled_leases: dict[str, int],
     *,
+    now: float | None = None,
     stale: float,
     max_hold: float,
 ) -> None:
@@ -199,7 +200,9 @@ def reclaim_wedged_holders(
         if lease_id in seen:
             continue
         seen.add(lease_id)
-        reason = reclaim_reason_from_state(state, stale=stale, max_hold=max_hold)
+        reason = reclaim_reason_from_state(
+            state, now=now, stale=stale, max_hold=max_hold
+        )
         if reason is None:
             continue
         pid = int(state["pid"])

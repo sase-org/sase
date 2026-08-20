@@ -118,13 +118,19 @@ def test_process_group_kill_reaps_grandchildren_and_resistant_children(
             sys.executable,
             "-c",
             (
-                "import os, signal, time, pathlib, sys\n"
+                "import os, signal, subprocess, sys, time, pathlib\n"
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
-                "child = os.fork()\n"
-                "if child == 0:\n"
-                "    time.sleep(30)\n"
-                "    raise SystemExit(0)\n"
-                f"pathlib.Path({str(grandchild_pid)!r}).write_text(str(child))\n"
+                "child = subprocess.Popen([\n"
+                "    sys.executable,\n"
+                "    '-c',\n"
+                "    'import signal, time; '\n"
+                "    'signal.signal(signal.SIGTERM, signal.SIG_IGN); '\n"
+                "    'time.sleep(30)',\n"
+                "])\n"
+                f"path = pathlib.Path({str(grandchild_pid)!r})\n"
+                "tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')\n"
+                "tmp.write_text(str(child.pid), encoding='utf-8')\n"
+                "os.replace(tmp, path)\n"
                 "time.sleep(30)\n"
             ),
         ],
@@ -136,6 +142,7 @@ def test_process_group_kill_reaps_grandchildren_and_resistant_children(
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline and not grandchild_pid.exists():
         time.sleep(0.05)  # sase-test-wait: poll grandchild pid file
+    assert grandchild_pid.exists(), "grandchild pid file was never published"
     gpid = int(grandchild_pid.read_text(encoding="utf-8"))
     assert is_process_running(gpid)
 

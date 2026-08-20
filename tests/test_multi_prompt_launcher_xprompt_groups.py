@@ -88,13 +88,11 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
 ) -> None:
     """Template names from one xprompt swarm invocation share a namespace."""
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.agent.names import _registry
+    from sase.agent.names import reset_name_registry_caches_for_tests
 
     del mock_project, mock_history, mock_timestamp
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    _registry._CACHE_PATH = None
-    _registry._CACHE_SIGNATURE = None
-    _registry._CACHE_DATA = None
+    reset_name_registry_caches_for_tests()
     marker = tmp_path / ".sase" / "agent_name_auto_migration.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
@@ -319,13 +317,11 @@ def test_launcher_qualifies_research_swarm_per_dispatch(
 ) -> None:
     """A later keyed swarm gets a new hood without changing prior prompt text."""
     from sase.agent.launcher import launch_agents_from_cwd
-    from sase.agent.names import _registry
+    from sase.agent.names import reset_name_registry_caches_for_tests
 
     del mock_project, mock_history
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    _registry._CACHE_PATH = None
-    _registry._CACHE_SIGNATURE = None
-    _registry._CACHE_DATA = None
+    reset_name_registry_caches_for_tests()
     marker = tmp_path / ".sase" / "agent_name_auto_migration.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(
@@ -371,9 +367,7 @@ def test_launcher_qualifies_research_swarm_per_dispatch(
         first_segments = list(launch_multi.call_args.kwargs["segments"])
 
         make_agent(tmp_path, "proj", "first", "research.0.cdx", done=True)
-        _registry._CACHE_PATH = None
-        _registry._CACHE_SIGNATURE = None
-        _registry._CACHE_DATA = None
+        reset_name_registry_caches_for_tests()
 
         launch_agents_from_cwd("#!research_swarm")
         second_segments = list(launch_multi.call_args.kwargs["segments"])

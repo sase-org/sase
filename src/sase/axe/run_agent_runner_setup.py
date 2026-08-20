@@ -212,6 +212,11 @@ def prepare_linked_repo_workspaces_if_needed(
             continue
         # Linked-repo checkouts share their parent workspace's claim and
         # occupant record — there is no separate per-repo claim to check.
+        if not primary_workspace_dir.strip():
+            raise ValueError(
+                "primary_workspace_dir is required before preparing retained "
+                f"linked repo {name!r}"
+            )
         _guard_workspace_not_occupied(
             checkout_dir=primary_workspace_dir,
             project_file=project_file,

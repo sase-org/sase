@@ -140,6 +140,7 @@ tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_whe
 tests/test_ace_testing.py::test_ace_page_fast_startup_is_structurally_quiet
 # sase-pg
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
+tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[monitor]
 # sase-pr
 tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
 tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
@@ -176,10 +177,14 @@ tests/ace/tui/test_plugins_browser_pane_comprehensive_update_confirmation.py::te
 # sase-p9: probe_zsh_comps' 5s interactive-zsh timeout returns None so
 # registered is None instead of True; isolated re-run passes. Ready task, +4.
 tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration
-# sase-lk: supervisor pipe does not EOF promptly under the full parallel lane.
-# This is the still-live sibling of the idle-timeout node sase-nd already
-# retired. Ready task, +6, reopened 2026-08-19.
-tests/monitor/test_monitor_supervise.py::test_run_supervisor_times_out_after_partial_line
+# sase-lk: retired by sase-rm.11 after the subprocess-driven supervisor rows
+# moved the liveness verdict into the child boundary and added a wedged-driver
+# proof that still fails through that child-owned deadline.
+# fixed-at: 2026-08-20T19:42:44Z tests/monitor/test_monitor_supervise.py::test_run_supervisor_times_out_after_partial_line
+# sase-qp: retired by sase-rm.11. The suite-gate lease now uses an injected
+# deterministic clock for reclaim decisions, and the test records a fresh
+# heartbeat without depending on a starved subprocess heartbeat loop.
+# fixed-at: 2026-08-20T19:59:23Z tests/test_suite_gate_reclaim.py::test_fresh_heartbeat_is_not_reclaimed
 # sase-j7: the leak-detector unit test this epic added (sase-j7.2) itself
 # flakes under the full parallel lane — a dummy sase-config-token-refresh
 # thread is not observed within 1s. Eight eligible full-run records across
@@ -187,9 +192,9 @@ tests/monitor/test_monitor_supervise.py::test_run_supervisor_times_out_after_par
 # test-cost lane passed. No dedicated flake task; phase sase-qy.4 cannot
 # file one. File a flake task (or extend sase-j7) before deleting this.
 tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_token_refresh_threads
-# sase-r4: the three nodes call prepare_linked_repo_workspaces_if_needed
-# against the real occupancy guard with workspace_num=0, so they fail on
-# ambient host state and pass serially. Ready flake task, +1.
-tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_failure_names_workspace
-tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_prepares_retained_sidecar
-tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_uses_default_revision_sentinel
+# sase-r4: retired by sase-rm.11. Retained linked-repo preparation now rejects
+# an empty primary workspace identity, and tests pass explicit scratch primary
+# workspaces instead of reading the launching agent's ambient occupancy marker.
+# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_failure_names_workspace
+# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_prepares_retained_sidecar
+# fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_uses_default_revision_sentinel

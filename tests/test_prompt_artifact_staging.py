@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import multiprocessing
 from pathlib import Path
 import subprocess
+import threading
 from types import SimpleNamespace
 
 import sase_core_rs
@@ -249,19 +249,30 @@ def test_concurrent_staging_keeps_manifest_well_formed(tmp_path: Path) -> None:
     source = tmp_path / "source.txt"
     source.write_text("shared", encoding="utf-8")
     artifacts_dir = tmp_path / "run"
-    context = multiprocessing.get_context("fork")
-    processes = [
-        context.Process(
-            target=_stage_in_process,
-            args=(str(tmp_path), str(artifacts_dir), f"@ref-{index}"),
+    barrier = threading.Barrier(6)
+    errors: list[BaseException] = []
+
+    def stage(raw_ref: str) -> None:
+        try:
+            barrier.wait(timeout=10)
+            _stage_in_process(str(tmp_path), str(artifacts_dir), raw_ref)
+        except BaseException as exc:  # noqa: BLE001 - re-raised in the test thread
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(
+            target=stage,
+            args=(f"@ref-{index}",),
+            name=f"stage-{index}",
         )
         for index in range(6)
     ]
-    for process in processes:
-        process.start()
-    for process in processes:
-        process.join(timeout=10)
-        assert process.exitcode == 0
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive(), f"{thread.name} did not finish"
+    assert not errors
 
     rows = _rows(tmp_path)
     assert len(rows) == 6

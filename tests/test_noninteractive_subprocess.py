@@ -9,11 +9,11 @@ import time
 
 import pytest
 
-from sase.noninteractive_subprocess import run_noninteractive
+import sase.noninteractive_subprocess as noninteractive_subprocess
 
 
 def test_run_noninteractive_child_stdin_is_not_a_tty() -> None:
-    result = run_noninteractive(
+    result = noninteractive_subprocess.run_noninteractive(
         [sys.executable, "-c", "import sys; print(sys.stdin.isatty())"]
     )
 
@@ -24,7 +24,9 @@ def test_run_noninteractive_child_stdin_is_not_a_tty() -> None:
 def test_run_noninteractive_input_gets_eof_instead_of_blocking() -> None:
     started = time.monotonic()
 
-    result = run_noninteractive([sys.executable, "-c", "input()"], timeout=2.0)
+    result = noninteractive_subprocess.run_noninteractive(
+        [sys.executable, "-c", "input()"], timeout=2.0
+    )
 
     assert time.monotonic() - started < 1.0
     assert result.returncode != 0
@@ -32,7 +34,7 @@ def test_run_noninteractive_input_gets_eof_instead_of_blocking() -> None:
 
 
 def test_run_noninteractive_child_gets_new_process_group() -> None:
-    result = run_noninteractive(
+    result = noninteractive_subprocess.run_noninteractive(
         [sys.executable, "-c", "import os; print(os.getpgrp())"]
     )
 
@@ -40,15 +42,38 @@ def test_run_noninteractive_child_gets_new_process_group() -> None:
     assert int(result.stdout.strip()) != os.getpgrp()
 
 
-def test_run_noninteractive_timeout_kills_process_group() -> None:
+def test_run_noninteractive_timeout_kills_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     code = "import os, time; print(os.getpgrp(), flush=True); time.sleep(30)"
+    child_pgid: int | None = None
+    real_start = noninteractive_subprocess._start_noninteractive_process
+
+    def start_and_wait_for_pgid(
+        args: list[str],
+        *,
+        cwd: str | os.PathLike[str] | None,
+        env: dict[str, str] | None,
+    ) -> subprocess.Popen[str]:
+        nonlocal child_pgid
+        process = real_start(args, cwd=cwd, env=env)
+        assert process.stdout is not None
+        child_pgid = int(process.stdout.readline().strip())
+        return process
+
+    monkeypatch.setattr(
+        noninteractive_subprocess,
+        "_start_noninteractive_process",
+        start_and_wait_for_pgid,
+    )
 
     with pytest.raises(subprocess.TimeoutExpired) as exc_info:
-        run_noninteractive([sys.executable, "-c", code], timeout=0.2)
+        noninteractive_subprocess.run_noninteractive(
+            [sys.executable, "-c", code], timeout=0.2
+        )
 
-    output = exc_info.value.output
-    assert isinstance(output, str)
-    child_pgid = int(output.strip().splitlines()[0])
+    assert isinstance(exc_info.value.output, str)
+    assert child_pgid is not None
 
     for _ in range(20):
         try:

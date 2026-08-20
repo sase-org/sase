@@ -9,6 +9,7 @@ belongs to.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import fcntl
 import os
 import sys
@@ -72,6 +73,7 @@ class WorkerTokenLease:
         stale_timeout: float | None = None,
         max_hold: float | None = None,
         watchdog_interval: float | None = None,
+        now: Callable[[], float] | None = None,
     ) -> None:
         if budget < 1:
             raise ValueError("budget must be positive")
@@ -84,6 +86,7 @@ class WorkerTokenLease:
         self._stale_timeout = stale_timeout
         self._max_hold = max_hold
         self._watchdog_interval = watchdog_interval
+        self._now = now or time.time
         self._token_files: list[IO[str]] = []
         self._previous_environment: dict[str, str | None] = {}
         self._effective_budget: int | None = None
@@ -220,6 +223,7 @@ class WorkerTokenLease:
             reclaim_wedged_holders(
                 holders,
                 self._signaled_leases,
+                now=self._now(),
                 stale=self._effective_stale_timeout(),
                 max_hold=self._effective_max_hold(),
             )
@@ -323,6 +327,7 @@ class WorkerTokenLease:
         heartbeat = float(sidecar["heartbeat"]) if sidecar is not None else started
         return reclaim_reason_from_state(
             {"started": started, "heartbeat": heartbeat},
+            now=self._now(),
             stale=self._effective_stale_timeout(),
             max_hold=self._effective_max_hold(),
         )

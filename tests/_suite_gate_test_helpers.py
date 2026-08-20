@@ -7,6 +7,7 @@ construction helpers for them.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from tests._suite_gate_lease import WorkerTokenLease
@@ -24,6 +25,7 @@ def make_lease(
     stale_timeout: float = 0.0,
     max_hold: float = 0.0,
     watchdog_interval: float = 0.0,
+    now: Callable[[], float] | None = None,
 ) -> WorkerTokenLease:
     """Return a fast-polling lease against ``directory``'s token pool."""
     return WorkerTokenLease(
@@ -36,4 +38,5 @@ def make_lease(
         stale_timeout=stale_timeout,
         max_hold=max_hold,
         watchdog_interval=watchdog_interval,
+        now=now,
     )

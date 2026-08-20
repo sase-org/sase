@@ -1,18 +1,16 @@
 """Tests for sase.logs.run_log."""
 
 import json
-import multiprocessing
 import os
 from pathlib import Path
+import threading
 from unittest.mock import patch
 
 from sase.logs import run_log
 from sase.logs.run_log import log_agent_run, log_event
 
 
-def _write_run_records(path: str, writer: int, count: int) -> None:
-    run_log.RUNS_FILE = path
-    os.environ[run_log.ENV_MAX_BYTES] = "0"
+def _write_run_records(writer: int, count: int) -> None:
     for index in range(count):
         log_agent_run(
             workflow=f"writer-{writer}-{index}",
@@ -105,21 +103,34 @@ class TestLogAgentRun:
     ) -> None:
         runs_file = tmp_path / "runs.jsonl"
         count_per_writer = 100
-        context = multiprocessing.get_context("fork")
+        barrier = threading.Barrier(2)
+        errors: list[BaseException] = []
+
+        def write_records(writer: int) -> None:
+            try:
+                barrier.wait(timeout=10)
+                _write_run_records(writer, count_per_writer)
+            except BaseException as exc:  # noqa: BLE001 - re-raised in test thread
+                errors.append(exc)
+
         writers = [
-            context.Process(
-                target=_write_run_records,
-                args=(str(runs_file), writer, count_per_writer),
+            threading.Thread(
+                target=write_records, args=(writer,), name=f"writer-{writer}"
             )
             for writer in range(2)
         ]
 
-        for writer in writers:
-            writer.start()
-        for writer in writers:
-            writer.join(timeout=20)
+        with (
+            patch("sase.logs.run_log.RUNS_FILE", str(runs_file)),
+            patch.dict(os.environ, {run_log.ENV_MAX_BYTES: "0"}),
+        ):
+            for writer in writers:
+                writer.start()
+            for writer in writers:
+                writer.join(timeout=20)
+                assert not writer.is_alive(), f"{writer.name} did not finish"
 
-        assert [writer.exitcode for writer in writers] == [0, 0]
+        assert not errors
         lines = runs_file.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2 * count_per_writer
         records = [json.loads(line) for line in lines]

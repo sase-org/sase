@@ -97,6 +97,12 @@ def source_signature_paths() -> list[Path]:
     return paths
 
 
+def reset_registry_scan_caches() -> None:
+    """Clear derived source enumeration caches after test home isolation changes."""
+    _directory_entries_for_signature.cache_clear()
+    _artifact_dirs_for_signature.cache_clear()
+
+
 def _artifact_dirs_for_workflow(
     project_name: str,
     workflow_name: str,

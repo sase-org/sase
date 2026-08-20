@@ -197,9 +197,13 @@ def test_empty_fresh_linked_repo_resolution_does_not_prepare_stale_meta(
     prepare.assert_not_called()
 
 
-def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None:
+def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel(
+    tmp_path: Path,
+) -> None:
     from sase.vcs_provider import VCS_DEFAULT_REVISION
 
+    primary = tmp_path / "primary-workspace"
+    primary.mkdir()
     calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     with (
@@ -211,12 +215,18 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None
             "sase.axe.run_agent_runner_setup.prepare_workspace",
             side_effect=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
         ),
+        patch("sase.axe.run_agent_runner_setup._guard_workspace_not_occupied") as guard,
     ):
         prepare_linked_repo_workspaces_if_needed(
             resolution=_resolution(),
             cl_name="feature",
+            primary_workspace_dir=str(primary),
+            workspace_num=7,
         )
 
+    guard.assert_called_once()
+    assert guard.call_args.kwargs["checkout_dir"] == str(primary)
+    assert guard.call_args.kwargs["workspace_num"] == 7
     assert calls == [
         (
             ("/repos/sase-core_7", "feature", VCS_DEFAULT_REVISION),
@@ -320,6 +330,8 @@ def test_prepare_linked_repo_workspaces_prepares_retained_sidecar(
         prepare_linked_repo_workspaces_if_needed(
             resolution=resolution,
             cl_name="feature",
+            primary_workspace_dir=str(tmp_path / "primary-workspace"),
+            workspace_num=7,
         )
 
     prepare.assert_called_once()
@@ -336,6 +348,25 @@ def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:
         )
 
     materialize.assert_not_called()
+    prepare.assert_not_called()
+
+
+def test_prepare_linked_repo_workspaces_rejects_empty_primary_for_retained_repo() -> (
+    None
+):
+    with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            return_value="/repos/sase-core_7",
+        ),
+        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        pytest.raises(ValueError, match="primary_workspace_dir is required"),
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=_resolution(),
+            cl_name="feature",
+        )
+
     prepare.assert_not_called()
 
 
@@ -428,7 +459,9 @@ def test_prepare_linked_repo_workspaces_skips_primary_paths() -> None:
     prepare.assert_not_called()
 
 
-def test_prepare_linked_repo_workspaces_failure_names_workspace() -> None:
+def test_prepare_linked_repo_workspaces_failure_names_workspace(tmp_path: Path) -> None:
+    primary = tmp_path / "primary-workspace"
+    primary.mkdir()
     with (
         patch(
             "sase.linked_repos.materialize_linked_repo_workspace",
@@ -440,6 +473,8 @@ def test_prepare_linked_repo_workspaces_failure_names_workspace() -> None:
         prepare_linked_repo_workspaces_if_needed(
             resolution=_resolution(),
             cl_name="feature",
+            primary_workspace_dir=str(primary),
+            workspace_num=7,
         )
 
     assert "Failed to prepare linked repo 'core' workspace: /repos/sase-core_7" in str(

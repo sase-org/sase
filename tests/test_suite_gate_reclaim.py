@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import tests._suite_gate_holders as holder_reclaim
 from tests._suite_gate import record_lease_progress
 from tests._suite_gate_holders import holder_reclaim_reason
 from tests._suite_gate_test_helpers import ROOT, make_lease
@@ -197,42 +198,35 @@ def test_fresh_heartbeat_is_not_reclaimed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv("SASE_TEST_GATE_DISABLED", raising=False)
-    script = "\n".join(
-        (
-            "import os, sys, time",
-            "from pathlib import Path",
-            "from tests._suite_gate import record_lease_progress",
-            "from tests._suite_gate_lease import WorkerTokenLease",
-            "os.environ.pop('PYTEST_XDIST_WORKER', None)",
-            "os.environ['SASE_TEST_GATE_DIR'] = sys.argv[1]",
-            "lease = WorkerTokenLease(Path(sys.argv[1]), 1, 5, "
-            "capacity_is_explicit=True, watchdog_interval=0.0)",
-            "lease.acquire(1, 1, exact=True)",
-            "print('ready', flush=True)",
-            "deadline = time.monotonic() + 2",
-            "while time.monotonic() < deadline:",
-            "    record_lease_progress('session')",
-            "    time.sleep(0.02)",
-        )
-    )
-    process = subprocess.Popen(
-        [sys.executable, "-c", script, str(tmp_path)],
-        cwd=ROOT,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    holder = make_lease(tmp_path, budget=1)
+    assert holder.acquire(1, 1, exact=True) == 1
+    signaled: list[tuple[int, int]] = []
+
+    def record_signal(pid: int, _starttime: object, signum: int) -> bool:
+        signaled.append((pid, signum))
+        return True
+
+    monkeypatch.setattr(holder_reclaim, "_signal_holder", record_signal)
     try:
-        assert process.stdout is not None
-        assert process.stdout.readline().strip() == "ready"
+        token_path = next(tmp_path.glob("token-*.lock"))
+        metadata = json.loads(token_path.read_text(encoding="utf-8"))
+        metadata["started"] = 0.0
+        metadata["heartbeat"] = 90.0
+        token_path.write_text(json.dumps(metadata) + "\n", encoding="utf-8")
+
         with pytest.raises(pytest.UsageError, match="heartbeat"):
-            make_lease(tmp_path, budget=1, timeout=0.35, stale_timeout=0.2).acquire(
-                1, 1, exact=True
-            )
+            make_lease(
+                tmp_path,
+                budget=1,
+                timeout=0.03,
+                stale_timeout=30.0,
+                now=lambda: 100.0,
+            ).acquire(1, 1, exact=True)
+
+        assert signaled == []
+        assert holder.granted == 1
     finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait(timeout=5)
+        holder.release()
 
 
 def test_max_hold_reclaims_even_with_fresh_heartbeat(

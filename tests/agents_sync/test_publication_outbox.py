@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-import multiprocessing
-import os
+import threading
 
 import pytest
 from sase.agents_sync.publication_outbox import (
@@ -20,8 +19,7 @@ from sase.agents_sync.publication_outbox import (
 )
 
 
-def _concurrent_enqueue(state_path: str, index: int) -> None:
-    os.environ["SASE_HOME"] = state_path
+def _concurrent_enqueue(index: int) -> None:
     enqueue_agent_publication(_item(revision="f" * 40))
     enqueue_agent_publication(
         _item(
@@ -490,23 +488,33 @@ def test_schema_v4_drops_non_agent_requests_with_a_visible_diagnostic(
     assert snapshot_publication_document_from_path(path, "proj").notices == ()
 
 
-def test_two_processes_enqueue_without_lost_or_duplicate_requests(
+def test_two_workers_enqueue_without_lost_or_duplicate_requests(
     tmp_path,
     monkeypatch,
 ) -> None:
     state_path = str(tmp_path / "state")
-    context = multiprocessing.get_context("fork")
-    processes = tuple(
-        context.Process(target=_concurrent_enqueue, args=(state_path, index))
+    monkeypatch.setenv("SASE_HOME", state_path)
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def enqueue(index: int) -> None:
+        try:
+            barrier.wait(timeout=10)
+            _concurrent_enqueue(index)
+        except BaseException as exc:  # noqa: BLE001 - re-raised in test thread
+            errors.append(exc)
+
+    threads = tuple(
+        threading.Thread(target=enqueue, args=(index,), name=f"enqueue-{index}")
         for index in range(2)
     )
-    for process in processes:
-        process.start()
-    for process in processes:
-        process.join(timeout=10)
-        assert process.exitcode == 0
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+        assert not thread.is_alive(), f"{thread.name} did not finish"
 
-    monkeypatch.setenv("SASE_HOME", state_path)
+    assert not errors
     queued = list_agent_publications("proj")
     assert len(queued) == 3
     assert len({item.logical_key for item in queued}) == 3

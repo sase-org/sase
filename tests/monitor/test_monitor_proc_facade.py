@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.hooks.processes import is_process_running
 from sase.monitor.models import MonitorRecord
 from sase.monitor.proc_adapter import compile_monitor_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
@@ -194,13 +195,22 @@ def test_background_grandchild_and_resistant_group_are_stopped(
     record = _start(
         tmp_path,
         monkeypatch,
-        command=_python_command(
-            "import os, signal, time, pathlib;"
-            f"path = pathlib.Path({str(grandchild)!r});"
-            "signal.signal(signal.SIGTERM, signal.SIG_IGN);"
-            "child = os.fork();"
-            "path.write_text(str(child if child else os.getpid()));"
-            "time.sleep(30)"
+        command=(
+            "trap '' TERM; "
+            + _python_command(
+                "import os, signal, subprocess, sys, time, pathlib;"
+                f"path = pathlib.Path({str(grandchild)!r});"
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+                "child = subprocess.Popen(["
+                "sys.executable, '-c', "
+                "'import signal, time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "time.sleep(30)']);"
+                "tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp');"
+                "tmp.write_text(str(child.pid), encoding='utf-8');"
+                "os.replace(tmp, path);"
+                "time.sleep(30)"
+            )
         ),
         timeout_seconds=60.0,
     )
@@ -208,9 +218,15 @@ def test_background_grandchild_and_resistant_group_are_stopped(
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and not grandchild.exists():
             time.sleep(0.05)  # sase-test-wait: poll grandchild pid file
+        assert grandchild.exists(), "grandchild pid file was never published"
+        grandchild_pid = int(grandchild.read_text(encoding="utf-8"))
         stopped = stop_monitor(record)
         assert stopped.monitor_state == "stopped"
         wait_for_done(record.artifacts_dir, timeout=10.0)
+        deadline = time.monotonic() + 5
+        while is_process_running(grandchild_pid) and time.monotonic() < deadline:
+            time.sleep(0.05)  # sase-test-wait: poll monitor group cleanup
+        assert not is_process_running(grandchild_pid)
     finally:
         if record.pid is not None:
             try:

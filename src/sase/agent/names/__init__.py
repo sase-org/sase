@@ -100,6 +100,7 @@ from sase.agent.names._registry import (
     reserve_registered_clan_name,
     reserve_registered_template_name,
     reserve_registered_template_names,
+    reset_name_registry_caches_for_tests,
 )
 from sase.agent.names._retry import allocate_retry_name, retry_agent_name_template
 from sase.agent.names._resume import (
@@ -347,6 +348,7 @@ __all__ = [
     "release_planned_registered_clan_name",
     "reserve_registered_template_name",
     "reserve_registered_template_names",
+    "reset_name_registry_caches_for_tests",
     "resolve_agent_patch",
     "resolve_resume_agent_name",
     "resolve_wait_dependency",

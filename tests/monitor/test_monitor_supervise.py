@@ -123,6 +123,7 @@ def _run_supervisor_subprocess(
     artifacts_dir: str,
     *,
     overrides: Mapping[str, float] | None = None,
+    liveness_timeout: float = _NO_HANG_TIMEOUT,
 ) -> subprocess.CompletedProcess[str]:
     if overrides is None:
         argv = [
@@ -146,12 +147,12 @@ def _run_supervisor_subprocess(
             env=os.environ.copy(),
             capture_output=True,
             text=True,
-            timeout=_NO_HANG_TIMEOUT,
+            timeout=liveness_timeout,
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
         pytest.fail(
-            f"supervisor subprocess did not exit within {_NO_HANG_TIMEOUT:g}s; "
+            f"supervisor subprocess did not exit within {liveness_timeout:g}s; "
             f"stdout={exc.stdout!r}; stderr={exc.stderr!r}"
         )
     if completed.returncode == _SUPERVISOR_DRIVER_SETUP_FAILURE:
@@ -437,6 +438,23 @@ def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").read_text() == "partial"
+
+
+def test_supervisor_subprocess_liveness_verdict_catches_a_wedged_driver(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sleep 0.2",
+        timeout_seconds=30.0,
+    )
+
+    with pytest.raises(pytest.fail.Exception, match="did not exit within 0.5s"):
+        _run_supervisor_subprocess(
+            artifacts_dir,
+            overrides={"_POLL_SECONDS": 60.0},
+            liveness_timeout=0.5,
+        )
 
 
 def test_run_supervisor_completes_when_grandchild_holds_stdout(

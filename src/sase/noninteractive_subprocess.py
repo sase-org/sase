@@ -21,15 +21,10 @@ def run_noninteractive(
 ) -> subprocess.CompletedProcess[str]:
     """Run a captured command that cannot read from the caller's terminal."""
     args = list(argv)
-    process = subprocess.Popen(
+    process = _start_noninteractive_process(
         args,
-        cwd=str(cwd) if cwd is not None else None,
-        env=dict(env) if env is not None else None,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
+        cwd=cwd,
+        env=env,
     )
     try:
         stdout, stderr = process.communicate(timeout=timeout)
@@ -52,6 +47,25 @@ def run_noninteractive(
         process.returncode,
         stdout=stdout,
         stderr=stderr,
+    )
+
+
+def _start_noninteractive_process(
+    args: Sequence[str],
+    *,
+    cwd: str | Path | None,
+    env: Mapping[str, str] | None,
+) -> subprocess.Popen[str]:
+    """Start the captured subprocess with the production isolation contract."""
+    return subprocess.Popen(
+        list(args),
+        cwd=str(cwd) if cwd is not None else None,
+        env=dict(env) if env is not None else None,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
     )
 
 

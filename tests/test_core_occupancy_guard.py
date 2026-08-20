@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -50,13 +52,14 @@ def _caller(pid: int, workspace_num: int = 17) -> OccupancyCaller:
 
 def _dead_pid() -> int:
     """Return a pid that is guaranteed not to be alive right now."""
-    proc = os.fork() if hasattr(os, "fork") else None
-    if proc is None:
-        pytest.skip("os.fork unavailable on this platform")
-    if proc == 0:  # pragma: no cover - child branch
-        os._exit(0)
-    os.waitpid(proc, 0)
-    return proc
+    for _attempt in range(10):
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])
+        proc.wait(timeout=5)
+        try:
+            os.kill(proc.pid, 0)
+        except ProcessLookupError:
+            return proc.pid
+    pytest.fail("could not produce a completed subprocess pid")
 
 
 class TestEnsureWorkspaceNotOccupied:

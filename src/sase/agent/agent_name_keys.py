@@ -3,18 +3,13 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 from sase.agent.names import (
     AgentNameNamespaceReservationIndex,
-    agent_name_allocation_lock,
-    get_reserved_agent_names,
-    get_reserved_clan_names,
     iter_agent_name_key_markers,
-    iter_agent_name_template_tokens,
-    render_agent_name_template,
-    render_agent_name_template_namespace,
 )
 from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
@@ -47,6 +42,42 @@ class _ProtectedSegment:
     def restore(self, text: str) -> str:
         text = unprotect_disabled_regions(text, self.disabled_regions)
         return unprotect_fenced_blocks(text, self.fenced_blocks)
+
+
+def agent_name_allocation_lock() -> AbstractContextManager[None]:
+    from sase.agent.names import agent_name_allocation_lock as impl
+
+    return impl()
+
+
+def get_reserved_agent_names() -> set[str]:
+    from sase.agent.names import get_reserved_agent_names as impl
+
+    return impl()
+
+
+def get_reserved_clan_names() -> set[str]:
+    from sase.agent.names import get_reserved_clan_names as impl
+
+    return impl()
+
+
+def iter_agent_name_template_tokens() -> Iterator[str]:
+    from sase.agent.names import iter_agent_name_template_tokens as impl
+
+    return impl()
+
+
+def render_agent_name_template(template: str, token: str) -> str:
+    from sase.agent.names import render_agent_name_template as impl
+
+    return impl(template, token)
+
+
+def render_agent_name_template_namespace(template: str, token: str) -> str:
+    from sase.agent.names import render_agent_name_template_namespace as impl
+
+    return impl(template, token)
 
 
 def resolve_agent_name_key_markers(segments: Sequence[str]) -> list[str]:

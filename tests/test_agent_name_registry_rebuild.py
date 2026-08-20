@@ -16,6 +16,7 @@ from sase.agent.names import (
     lookup_registered_name,
     lowest_name_suggestion,
     rebuild_name_registry,
+    reset_name_registry_caches_for_tests,
 )
 from sase.agent.names import _registry, _registry_scan, _registry_store
 from sase.core.agent_identity_facade import (
@@ -345,9 +346,7 @@ def test_registry_rebuild_stays_under_sase_home(monkeypatch, tmp_path: Path) -> 
 
     monkeypatch.setenv("HOME", str(real_home))
     monkeypatch.setenv("SASE_HOME", str(isolated_sase_home))
-    _registry._CACHE_PATH = None
-    _registry._CACHE_SIGNATURE = None
-    _registry._CACHE_DATA = None
+    reset_name_registry_caches_for_tests()
 
     assert _registry._registry_path() == isolated_sase_home / (
         "agent_name_registry.json"

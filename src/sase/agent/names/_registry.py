@@ -34,6 +34,7 @@ from sase.agent.names._registry_scan import (
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
     collect_owner_namespace_entries as _collect_owner_namespace_entries,
     collect_planned_reservation_entries as _collect_planned_reservation_entries,
+    reset_registry_scan_caches as _reset_registry_scan_caches,
 )
 from sase.agent.names._registry_store import (
     INDEX_FILENAME,
@@ -420,6 +421,19 @@ def rebuild_name_registry() -> dict[str, Any]:
         _set_cache(_registry_path(), data)
         invalidate_agent_name_registry_freshness()
         return data
+
+
+def reset_name_registry_caches_for_tests() -> None:
+    """Clear process-local registry state after tests switch ``SASE_HOME``."""
+    global _CACHE_DATA, _CACHE_PATH, _CACHE_SIGNATURE
+    _CACHE_PATH = None
+    _CACHE_SIGNATURE = None
+    _CACHE_DATA = None
+    _reset_registry_scan_caches()
+    invalidate_agent_name_registry_freshness()
+    from sase.config.core import clear_config_cache
+
+    clear_config_cache()
 
 
 def _registry_mutation_lock() -> AbstractContextManager[None]:

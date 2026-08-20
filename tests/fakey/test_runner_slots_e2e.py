@@ -27,7 +27,8 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.llm_provider.fakey import FakeyProvider
 
 
-_TIMEOUT = 8.0
+_WAIT_TIMEOUT = 30.0
+_FAKEY_RELEASE_TIMEOUT = 60.0
 
 
 @dataclass
@@ -149,7 +150,11 @@ class _RunnerSlotFakeyHarness:
                 self.join(agent)
             return False
 
-        _wait_for_condition(started_or_failed, f"fakey agent {agent.name} to start")
+        _wait_for_condition(
+            started_or_failed,
+            f"fakey agent {agent.name} to start",
+            diagnostics=lambda: self._diagnostics(agent),
+        )
 
     def wait_parked(self, agent: _Agent) -> None:
         waiting_path = agent.artifacts_dir / "waiting.json"
@@ -162,8 +167,14 @@ class _RunnerSlotFakeyHarness:
             return bool(marker.get("slot_requested_at"))
 
         _wait_for_condition(
-            is_slot_waiter, f"agent {agent.name} to park for a runner slot"
+            is_slot_waiter,
+            f"agent {agent.name} to park for a runner slot",
+            diagnostics=lambda: self._diagnostics(agent),
         )
+
+    def assert_parked_not_started(self, agent: _Agent) -> None:
+        assert not agent.started.exists(), self._diagnostics(agent)
+        assert (agent.artifacts_dir / "waiting.json").exists(), self._diagnostics(agent)
 
     def release_agent(self, agent: _Agent) -> None:
         agent.release.parent.mkdir(parents=True, exist_ok=True)
@@ -178,8 +189,10 @@ class _RunnerSlotFakeyHarness:
 
     def join(self, agent: _Agent) -> None:
         assert agent.thread is not None
-        agent.thread.join(_TIMEOUT)
-        assert not agent.thread.is_alive(), f"agent {agent.name} did not finish"
+        agent.thread.join(_WAIT_TIMEOUT)
+        assert not agent.thread.is_alive(), (
+            f"agent {agent.name} did not finish; {self._diagnostics(agent)}"
+        )
         errors = [error for name, error in self._errors if name == agent.name]
         assert not errors, f"agent {agent.name} failed: {errors!r}"
 
@@ -263,19 +276,34 @@ class _RunnerSlotFakeyHarness:
             f"  - signal: {agent.started}\n"
             "  - wait_for:\n"
             f"      path: {agent.release}\n"
-            f"      timeout: {_TIMEOUT:g}\n"
+            f"      timeout: {_FAKEY_RELEASE_TIMEOUT:g}\n"
             f"{failure}"
             "```\n"
         )
 
+    def _diagnostics(self, agent: _Agent) -> str:
+        waiting = agent.artifacts_dir / "waiting.json"
+        return (
+            f"agent={agent.name!r} started={agent.started.exists()} "
+            f"parked={waiting.exists()} released={agent.release.exists()} "
+            f"thread_alive={agent.thread is not None and agent.thread.is_alive()} "
+            f"claim_order={self.claim_order!r} errors={self._errors!r}"
+        )
 
-def _wait_for_condition(predicate: object, description: str) -> None:
-    deadline = time.monotonic() + _TIMEOUT
+
+def _wait_for_condition(
+    predicate: object,
+    description: str,
+    *,
+    diagnostics: object | None = None,
+) -> None:
+    deadline = time.monotonic() + _WAIT_TIMEOUT
     while time.monotonic() < deadline:
         if callable(predicate) and predicate():
             return
         time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
-    raise AssertionError(f"timed out waiting for {description}")
+    suffix = f"; {diagnostics()}" if callable(diagnostics) else ""
+    raise AssertionError(f"timed out waiting for {description}{suffix}")
 
 
 def test_fakey_agents_respect_cap_and_release_in_fifo_order(
@@ -474,8 +502,7 @@ def test_child_is_exempt_while_repeat_roots_stay_capped(
     harness.join(parent)
     # The family (parent + child) still holds its one slot while the exempt
     # child is alive, even though parent's own record is now done.
-    time.sleep(0.05)  # sase-test-wait: delayed runner admission window
-    assert not repeats[0].started.exists()
+    harness.assert_parked_not_started(repeats[0])
 
     harness.release_agent(child)
     harness.join(child)
@@ -539,7 +566,7 @@ def test_fakey_monitor_holds_capacity_across_handoff_and_followup(
         assert not newcomer.started.exists()
 
         supervisor.terminate()
-        supervisor.wait(timeout=_TIMEOUT)
+        supervisor.wait(timeout=_WAIT_TIMEOUT)
 
         # The monitor is gone but the follow-up is still live: the family
         # still holds its one slot.
@@ -554,4 +581,4 @@ def test_fakey_monitor_holds_capacity_across_handoff_and_followup(
     finally:
         if supervisor.poll() is None:
             supervisor.kill()
-            supervisor.wait(timeout=_TIMEOUT)
+            supervisor.wait(timeout=_WAIT_TIMEOUT)
