@@ -236,14 +236,14 @@ def test_optional_plugin_types_do_not_change_generated_note(
     ) == render_task_type_snapshot_json(without_entries)
 
     monkeypatch.setattr(
-        "sase.main.init_memory.root_rendering.get_task_type_registry",
+        "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: with_optional,
     )
     with_note, with_error = render_generated_task_types_memory_body(
         include_project_memory=True
     )
     monkeypatch.setattr(
-        "sase.main.init_memory.root_rendering.get_task_type_registry",
+        "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: without_optional,
     )
     without_note, without_error = render_generated_task_types_memory_body(
