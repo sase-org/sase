@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -203,20 +204,34 @@ class TestAwareWaitUntilRendering:
 
 
 class TestMissingWaitTargetIndicator:
-    def test_waiting_row_renders_one_amber_bold_marker(self) -> None:
+    def test_waiting_row_renders_known_status_counts_with_styles(self) -> None:
+        agent = make_agent(status="WAITING", waiting_for=["coder", "reviewer"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(running=2, done=1),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ▶2 ✓1)")
+        assert "bold #FFD700" in _styles_covering(left, "▶2")
+        assert "bold #5FD75F" in _styles_covering(left, "✓1")
+
+    def test_waiting_row_renders_one_amber_bold_count(self) -> None:
         agent = make_agent(status="WAITING", waiting_for=["ghost_deploy"])
 
         left, _, _ = format_agent_option(
             agent,
             0,
             is_selected=False,
-            has_missing_wait_target=True,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ?)")
+        assert left.plain.endswith("test_cl (WAITING ?1)")
         assert "bold #FFAF5F" in _styles_covering(left, "?")
 
-    def test_waiting_row_keeps_marker_singular_for_multiple_missing_targets(
+    def test_waiting_row_counts_multiple_missing_targets(
         self,
     ) -> None:
         agent = make_agent(
@@ -228,11 +243,11 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            has_missing_wait_target=True,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=2),
         )
 
         assert left.plain.count("?") == 1
-        assert left.plain.endswith("test_cl (WAITING ?)")
+        assert left.plain.endswith("test_cl (WAITING ?2)")
 
     @pytest.mark.parametrize(
         "agent",
@@ -251,7 +266,7 @@ class TestMissingWaitTargetIndicator:
             make_agent(status="RUNNING", waiting_for=["ghost_deploy"]),
         ],
     )
-    def test_marker_is_absent_for_non_agent_waits_and_non_waiting_rows(
+    def test_marker_is_absent_for_waits_without_counts(
         self,
         agent: Agent,
     ) -> None:
@@ -259,7 +274,18 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            has_missing_wait_target=True,
+        )
+
+        assert "?" not in left.plain
+
+    def test_counts_do_not_render_on_non_waiting_rows(self) -> None:
+        agent = make_agent(status="RUNNING", waiting_for=["ghost_deploy"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
         )
 
         assert "?" not in left.plain
@@ -274,10 +300,10 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            has_missing_wait_target=True,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ?)")
+        assert left.plain.endswith("test_cl (WAITING ?1)")
 
     def test_marker_precedes_relative_duration_annotation(self) -> None:
         agent = make_agent(
@@ -290,10 +316,10 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            has_missing_wait_target=True,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ? +5m)")
+        assert left.plain.endswith("test_cl (WAITING ?1 +5m)")
 
     def test_marker_precedes_absolute_time_annotation(self) -> None:
         now = datetime(2026, 4, 11, 14, 13, 31, tzinfo=UTC)
@@ -310,10 +336,10 @@ class TestMissingWaitTargetIndicator:
             is_selected=False,
             now=now,
             wait_deps_satisfied=False,
-            has_missing_wait_target=True,
+            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ? (until 14:15, 1m29s))")
+        assert left.plain.endswith("test_cl (WAITING ?1 (until 14:15, 1m29s))")
 
 
 class TestRelativeWaitDurationRendering:

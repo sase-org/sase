@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
+from ..agent_completion import WaitDependencyStatusCounts
 from ..models.agent import Agent, AgentType, AttemptRecord
 from ..models.agent_groups import (
     GroupingMode,
@@ -437,6 +438,7 @@ class AgentList(OptionList, inherit_bindings=False):
         unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
         is_selected: bool | None = None,
         now: datetime | None = None,
+        wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     ) -> bool:
         """Replace one agent's Option in place when nothing structural changed.
 
@@ -454,6 +456,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 unread_agents=unread_agents,
                 is_selected=is_selected,
                 now=now,
+                wait_dependency_counts=wait_dependency_counts,
             )
 
     def patch_active_runtime_rows(self, now: datetime) -> int:

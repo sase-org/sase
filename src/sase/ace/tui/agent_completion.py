@@ -22,12 +22,15 @@ from sase.ace.tui._agent_completion_visibility import (
 )
 from sase.ace.tui._agent_completion_wait import (
     AgentWaitStatusMaps,
+    WaitDependencyStatusCounts,
+    ZERO_WAIT_DEPENDENCY_STATUS_COUNTS,
     agent_status_buckets_for_app,
     agent_wait_status_maps_for_app,
     collect_agent_status_buckets,
     collect_agent_wait_status_maps,
     has_unresolvable_wait_target,
     missing_wait_dependency_names,
+    wait_dependency_status_counts,
     wait_dependencies_satisfied,
 )
 
@@ -39,6 +42,8 @@ __all__ = [
     "AgentCompletionCandidate",
     "AgentVcsWorkflow",
     "AgentWaitStatusMaps",
+    "WaitDependencyStatusCounts",
+    "ZERO_WAIT_DEPENDENCY_STATUS_COUNTS",
     "_collect_agent_status_buckets",
     "_collect_agent_wait_status_maps",
     "agent_prompt_name",
@@ -52,5 +57,6 @@ __all__ = [
     "neutral_vcs_workflow",
     "status_style",
     "visible_agent_completion_agents",
+    "wait_dependency_status_counts",
     "wait_dependencies_satisfied",
 ]

@@ -9,6 +9,7 @@ from datetime import datetime
 
 import pytest
 
+from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
 from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
 from ._agent_render_cache_helpers import agent as _agent
@@ -442,7 +443,7 @@ def test_render_key_changes_when_wait_deps_satisfied_flips() -> None:
     assert pending_key != satisfied_key
 
 
-def test_render_key_changes_when_missing_wait_target_flag_flips() -> None:
+def test_render_key_changes_when_wait_dependency_counts_change() -> None:
     agent = _agent(status="WAITING")
     agent.waiting_for = ["ghost_deploy"]
 
@@ -455,7 +456,7 @@ def test_render_key_changes_when_missing_wait_target_flag_flips() -> None:
         is_marked=False,
         hint_char=None,
         now=None,
-        has_missing_wait_target=False,
+        wait_dependency_counts=WaitDependencyStatusCounts(),
     )
     missing_key = agent_render_key(
         agent,
@@ -466,7 +467,7 @@ def test_render_key_changes_when_missing_wait_target_flag_flips() -> None:
         is_marked=False,
         hint_char=None,
         now=None,
-        has_missing_wait_target=True,
+        wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
     )
 
     assert known_key != missing_key

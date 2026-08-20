@@ -21,7 +21,12 @@ import pytest
 from textual.app import App
 from textual.message import Message
 
-from sase.ace.tui.actions.agents._loading_bead_warmup import AgentBeadWarmupMixin
+from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.actions.agents._loading_bead_warmup import (
+    AgentBeadWarmupMixin,
+    _AgentBeadWarmupCandidates,
+    _AgentBeadWarmupResults,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_bead import (
     _BEAD_DISPLAY_CACHE,
@@ -29,6 +34,7 @@ from sase.ace.tui.models.agent_bead import (
     agent_has_confirmed_bead,
     warm_confirmed_bead_displays,
 )
+from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.bead.model import Issue
 
@@ -36,8 +42,10 @@ from sase.bead.model import Issue
 @pytest.fixture(autouse=True)
 def _clear_bead_display_cache() -> Iterator[None]:
     _BEAD_DISPLAY_CACHE.clear()
+    _WAIT_BEAD_STATUS_CACHE.clear()
     yield
     _BEAD_DISPLAY_CACHE.clear()
+    _WAIT_BEAD_STATUS_CACHE.clear()
 
 
 class _FakeApp(AgentBeadWarmupMixin):
@@ -54,6 +62,9 @@ class _FakeApp(AgentBeadWarmupMixin):
         self._scheduled: list[Any] = []
         self._timer_calls: list[tuple[float, Any]] = []
         self._patched: list[Agent] = []
+        self._patch_kwargs: list[dict[str, object]] = []
+        self._refresh_calls: list[dict[str, object]] = []
+        self._patch_success = True
 
     def call_later(self, callback: Any) -> None:
         self._scheduled.append(callback)
@@ -61,9 +72,13 @@ class _FakeApp(AgentBeadWarmupMixin):
     def set_timer(self, delay: float, callback: Any) -> None:
         self._timer_calls.append((delay, callback))
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **kwargs: object) -> bool:
         self._patched.append(agent)
-        return True
+        self._patch_kwargs.append(kwargs)
+        return self._patch_success
+
+    def _refresh_agents_display(self, **kwargs: object) -> None:
+        self._refresh_calls.append(kwargs)
 
 
 def _agent(
@@ -71,22 +86,25 @@ def _agent(
     agent_name: str | None = "sase-x.3",
     cl_name: str = "feat",
     raw_suffix: str = "20260615190000",
+    status: str = "RUNNING",
     project_file: str = "/tmp/proj/proj.sase",
     workspace_dir: str | None = "/tmp/ws",
     epic_bead_id: str | None = None,
     phase_bead_id: str | None = None,
+    waiting_for_beads: list[str] | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file=project_file,
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 6, 15, 19, 0, 0),
         raw_suffix=raw_suffix,
         agent_name=agent_name,
         workspace_dir=workspace_dir,
         epic_bead_id=epic_bead_id,
         phase_bead_id=phase_bead_id,
+        waiting_for_beads=waiting_for_beads or [],
     )
 
 
@@ -167,7 +185,9 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     # ``cold`` and ``ordinary`` are left uncached; only ``cold`` has a candidate.
     app._agents = [confirmed, missing, cold, ordinary, modern_phase]
 
-    assert app._bead_warmup_candidates() == [cold]
+    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
+        bead_display_agents=(cold,)
+    )
 
 
 def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
@@ -193,7 +213,25 @@ def test_warmup_candidates_include_expired_cached_bead_candidates() -> None:
     _BEAD_DISPLAY_CACHE.set(fresh_key, "sase-c.3 - desc")
     app._agents = [expired_confirmed, expired_missing, fresh_confirmed]
 
-    assert app._bead_warmup_candidates() == [expired_confirmed, expired_missing]
+    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
+        bead_display_agents=(expired_confirmed, expired_missing)
+    )
+
+
+def test_warmup_candidates_include_stale_wait_bead_statuses() -> None:
+    app = _FakeApp()
+    waiter = _agent(
+        agent_name="waiter",
+        status="WAITING",
+        waiting_for_beads=["sase-1"],
+        cl_name="waiter",
+        raw_suffix="waiter",
+    )
+    app._agents = [waiter]
+
+    assert app._bead_warmup_candidates() == _AgentBeadWarmupCandidates(
+        wait_bead_status_agents=(waiter,)
+    )
 
 
 # --- compute (off-thread body) -----------------------------------------------
@@ -331,7 +369,9 @@ def test_apply_patches_only_result_rows() -> None:
     app._agents = [confirmed, other]
     app._agents_with_children = [confirmed, other]
 
-    app._apply_bead_warmup_results({confirmed.identity: True})
+    app._apply_bead_warmup_results(
+        _AgentBeadWarmupResults({confirmed.identity: True}, set())
+    )
 
     assert app._patched == [confirmed]
 
@@ -343,7 +383,9 @@ def test_apply_patches_rows_losing_confirmed_bead() -> None:
     app._agents = [removed, other]
     app._agents_with_children = [removed, other]
 
-    app._apply_bead_warmup_results({removed.identity: False})
+    app._apply_bead_warmup_results(
+        _AgentBeadWarmupResults({removed.identity: False}, set())
+    )
 
     assert app._patched == [removed]
 
@@ -356,7 +398,9 @@ def test_apply_rematches_current_object_by_identity() -> None:
     app._agents = [rebuilt]
     app._agents_with_children = [rebuilt]
 
-    app._apply_bead_warmup_results({snapshot.identity: True})
+    app._apply_bead_warmup_results(
+        _AgentBeadWarmupResults({snapshot.identity: True}, set())
+    )
 
     assert app._patched == [rebuilt]
 
@@ -365,9 +409,57 @@ def test_apply_noop_without_results() -> None:
     app = _FakeApp()
     app._agents = [_agent()]
 
-    app._apply_bead_warmup_results({})
+    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, set()))
 
     assert app._patched == []
+
+
+def test_apply_wait_bead_status_results_passes_fresh_count_override() -> None:
+    app = _FakeApp()
+    waiter = _agent(
+        status="WAITING",
+        waiting_for_beads=["sase-1"],
+        cl_name="waiter",
+        raw_suffix="waiter",
+    )
+    _WAIT_BEAD_STATUS_CACHE.set(("proj", "sase-1"), "closed")
+    app._agents = [waiter]
+    app._agents_with_children = [waiter]
+
+    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, {waiter.identity}))
+
+    assert app._patched == [waiter]
+    assert app._patch_kwargs == [
+        {"wait_dependency_counts": WaitDependencyStatusCounts(done=1)}
+    ]
+
+
+def test_apply_wait_bead_status_results_rebuilds_once_on_patch_failure() -> None:
+    app = _FakeApp()
+    app._patch_success = False
+    first = _agent(
+        status="WAITING",
+        waiting_for_beads=["a"],
+        cl_name="first",
+        raw_suffix="first",
+    )
+    second = _agent(
+        status="WAITING",
+        waiting_for_beads=["b"],
+        cl_name="second",
+        raw_suffix="second",
+    )
+    _WAIT_BEAD_STATUS_CACHE.set(("proj", "a"), "closed")
+    _WAIT_BEAD_STATUS_CACHE.set(("proj", "b"), "open")
+    app._agents = [first, second]
+    app._agents_with_children = [first, second]
+
+    app._apply_bead_warmup_results(
+        _AgentBeadWarmupResults({}, {first.identity, second.identity})
+    )
+
+    assert app._patched == [first, second]
+    assert app._refresh_calls == [{"list_changed": True, "defer_detail": True}]
 
 
 # --- full async worker -------------------------------------------------------
@@ -474,7 +566,7 @@ class _PumpResponsiveApp(AgentBeadWarmupMixin, App[None]):
         self._nav_gate = NavigationGate(window_s=0.25)
         self.probe_processed = asyncio.Event()
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(self, agent: Agent, **_: object) -> bool:
         del agent
         return True
 

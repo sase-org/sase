@@ -20,6 +20,7 @@ from ._refresh_trace import (
 )
 
 if TYPE_CHECKING:
+    from ...agent_completion import WaitDependencyStatusCounts
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_panels import AgentPanelGroup
@@ -214,7 +215,12 @@ class PanelPatchMixin:
                 patched += widget.patch_active_runtime_rows(now)
         return patched
 
-    def _try_patch_agent_row(self, agent: Agent) -> bool:
+    def _try_patch_agent_row(
+        self,
+        agent: Agent,
+        *,
+        wait_dependency_counts: WaitDependencyStatusCounts | None = None,
+    ) -> bool:
         """Patch a single agent's row in place when no group membership changed."""
         from textual.css.query import NoMatches
 
@@ -322,6 +328,7 @@ class PanelPatchMixin:
             unread_agents=getattr(self, "_unread_completed_agent_ids", set()),
             is_selected=is_selected,
             now=None,
+            wait_dependency_counts=wait_dependency_counts,
         )
         if not ok:
             self._record_display_patch_trace(

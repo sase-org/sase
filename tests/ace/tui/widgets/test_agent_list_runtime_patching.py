@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pytest
 
+from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -62,8 +63,10 @@ async def test_normal_refresh_removes_missing_wait_marker_when_target_appears() 
 
         row = agent_row_index(widget, 0)
         missing_prompt = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
-        assert "(WAITING ?)" in missing_prompt
-        assert widget._row_render_ctx[0]["has_missing_wait_target"] is True
+        assert "(WAITING ?1)" in missing_prompt
+        assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
+            WaitDependencyStatusCounts(unknown=1)
+        )
 
         target = agent(
             status="RUNNING",
@@ -77,9 +80,11 @@ async def test_normal_refresh_removes_missing_wait_marker_when_target_appears() 
         await pilot.pause()
 
         refreshed_prompt = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
-        assert "(WAITING ?)" not in refreshed_prompt
-        assert "(WAITING)" in refreshed_prompt
-        assert widget._row_render_ctx[0]["has_missing_wait_target"] is False
+        assert "(WAITING ?1)" not in refreshed_prompt
+        assert "(WAITING ▶1)" in refreshed_prompt
+        assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
+            WaitDependencyStatusCounts(running=1)
+        )
 
 
 @pytest.mark.asyncio

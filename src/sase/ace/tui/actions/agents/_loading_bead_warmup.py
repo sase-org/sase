@@ -19,11 +19,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ...agent_completion import (
+    collect_agent_wait_status_maps,
+    wait_dependency_status_counts,
+)
 from ...models.agent_bead import (
     should_resolve_bead_display,
     warm_confirmed_bead_displays,
+)
+from ...models.agent_wait_beads import (
+    cached_wait_bead_status_snapshot,
+    should_resolve_wait_bead_statuses,
+    warm_wait_bead_statuses,
 )
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
@@ -34,6 +44,53 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentBeadWarmupCandidates:
+    """Visible-row bead cache work to perform in one coalesced pass."""
+
+    bead_display_agents: tuple[Agent, ...] = ()
+    wait_bead_status_agents: tuple[Agent, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.bead_display_agents or self.wait_bead_status_agents)
+
+    @property
+    def total_count(self) -> int:
+        """Return total candidate rows across both bead warmup lanes."""
+        return len(self.bead_display_agents) + len(self.wait_bead_status_agents)
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentBeadWarmupResults:
+    """Cache-visible row changes produced by one bead warmup pass."""
+
+    bead_display_results: dict[tuple[AgentType, str, str | None], bool]
+    wait_bead_status_identities: set[tuple[AgentType, str, str | None]]
+
+    def __bool__(self) -> bool:
+        return bool(self.bead_display_results or self.wait_bead_status_identities)
+
+
+def _warm_agent_bead_caches(
+    candidates: _AgentBeadWarmupCandidates,
+) -> _AgentBeadWarmupResults:
+    """Warm both bead display caches off the Textual event loop."""
+    bead_display_results = (
+        warm_confirmed_bead_displays(candidates.bead_display_agents)
+        if candidates.bead_display_agents
+        else {}
+    )
+    wait_bead_status_identities = (
+        warm_wait_bead_statuses(candidates.wait_bead_status_agents)
+        if candidates.wait_bead_status_agents
+        else set()
+    )
+    return _AgentBeadWarmupResults(
+        bead_display_results=bead_display_results,
+        wait_bead_status_identities=wait_bead_status_identities,
+    )
 
 
 class AgentBeadWarmupMixin(AgentLoadingStateMixin):
@@ -105,12 +162,12 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         try:
             with tui_trace(
                 "agents.bead_confirmation_warmup",
-                candidates=len(candidates),
+                candidates=candidates.total_count,
+                bead_display_candidates=len(candidates.bead_display_agents),
+                wait_bead_status_candidates=len(candidates.wait_bead_status_agents),
                 source=self._bead_warmup_scan_source,
             ):
-                results = await asyncio.to_thread(
-                    warm_confirmed_bead_displays, candidates
-                )
+                results = await asyncio.to_thread(_warm_agent_bead_caches, candidates)
             self._apply_bead_warmup_results(results)
         except Exception:
             log.exception("Bead confirmation warmup failed")
@@ -120,23 +177,29 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 self._bead_warmup_scan_pending = False
                 self._schedule_bead_confirmation_warmup(source="bead_warmup_followup")
 
-    def _bead_warmup_candidates(self) -> list[Agent]:
-        """Snapshot visible rows with a bead candidate that needs resolution.
+    def _bead_warmup_candidates(self) -> _AgentBeadWarmupCandidates:
+        """Snapshot visible rows with bead cache work that needs resolution.
 
         Bounded to the currently visible agents and to candidates whose cache
         entry is missing or expired (``should_resolve_bead_display``). Fresh
         known-missing and already-confirmed candidates are skipped, so rapid
         refreshes do not repeatedly re-resolve them until the cache TTL expires.
         """
-        candidates: list[Agent] = []
+        bead_display_agents: list[Agent] = []
+        wait_bead_status_agents: list[Agent] = []
         for agent in self._agents:
             if should_resolve_bead_display(agent):
-                candidates.append(agent)
-        return candidates
+                bead_display_agents.append(agent)
+            if agent.status == "WAITING" and should_resolve_wait_bead_statuses(agent):
+                wait_bead_status_agents.append(agent)
+        return _AgentBeadWarmupCandidates(
+            bead_display_agents=tuple(bead_display_agents),
+            wait_bead_status_agents=tuple(wait_bead_status_agents),
+        )
 
     def _apply_bead_warmup_results(
         self,
-        results: dict[tuple[AgentType, str, str | None], bool],
+        results: _AgentBeadWarmupResults,
     ) -> None:
         """Patch rows whose confirmed bead state changed on the UI thread.
 
@@ -156,8 +219,37 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         for agent in self._agents:
             current_by_identity[agent.identity] = agent
 
-        for identity in results:
+        wait_status_maps = None
+        needs_rebuild = False
+        changed_identities = {
+            *results.bead_display_results,
+            *results.wait_bead_status_identities,
+        }
+        for identity in current_by_identity:
+            if identity not in changed_identities:
+                continue
             target = current_by_identity.get(identity)
             if target is None:
                 continue
-            self._try_patch_agent_row(target)  # type: ignore[attr-defined]
+            wait_counts = None
+            if identity in results.wait_bead_status_identities:
+                if wait_status_maps is None:
+                    wait_status_maps = collect_agent_wait_status_maps(
+                        self._agents_with_children or self._agents
+                    )
+                wait_counts = wait_dependency_status_counts(
+                    target,
+                    wait_status_maps,
+                    cached_wait_bead_status_snapshot(target),
+                )
+            patched = self._try_patch_agent_row(  # type: ignore[attr-defined]
+                target,
+                wait_dependency_counts=wait_counts,
+            )
+            if not patched:
+                needs_rebuild = True
+
+        if needs_rebuild:
+            refresh = getattr(self, "_refresh_agents_display", None)
+            if callable(refresh):
+                refresh(list_changed=True, defer_detail=True)

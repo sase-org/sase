@@ -152,19 +152,20 @@ def _waiting_unknown_agents() -> list[Agent]:
     return [
         Agent(
             agent_type=AgentType.RUNNING,
-            cl_name="visual-wait-unknown",
+            cl_name="wait-unknown",
             project_file="/workspace/sase/visual_project.sase",
             status="WAITING",
             start_time=datetime(2026, 5, 9, 10, 30, 0),
             raw_suffix="20260509-103000-wait",
             agent_name="waiter",
-            waiting_for=["coder", "builder", "reviewer", "ghost_deploy"],
+            waiting_for=["coder", "builder", "reviewer", "ghost"],
+            waiting_for_beads=["run-bead", "done-bead", "open-bead"],
             llm_provider="codex",
             model="gpt-5",
         ),
         Agent(
             agent_type=AgentType.RUNNING,
-            cl_name="visual-known-coder",
+            cl_name="coder",
             project_file="/workspace/sase/visual_project.sase",
             status="DONE",
             start_time=datetime(2026, 5, 9, 10, 20, 0),
@@ -176,7 +177,7 @@ def _waiting_unknown_agents() -> list[Agent]:
         ),
         Agent(
             agent_type=AgentType.RUNNING,
-            cl_name="visual-running-builder",
+            cl_name="builder",
             project_file="/workspace/sase/visual_project.sase",
             status="RUNNING",
             start_time=datetime(2026, 5, 9, 10, 29, 0),
@@ -187,7 +188,7 @@ def _waiting_unknown_agents() -> list[Agent]:
         ),
         Agent(
             agent_type=AgentType.RUNNING,
-            cl_name="visual-failed-reviewer",
+            cl_name="reviewer",
             project_file="/workspace/sase/visual_project.sase",
             status="FAILED",
             start_time=datetime(2026, 5, 9, 10, 22, 0),
@@ -253,35 +254,49 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    patch_startup_loaders(
-        monkeypatch,
-        agents=_waiting_unknown_agents(),
-    )
+    from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 
-    async with AcePage(query='"wait-unknown"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 4)
-        await wait_for_svg_contains(page, "ghost_deploy")
-        await wait_for_visual_idle(page)
-
-        assert_page_svg_styled_text_contains(page, "WAITING ?")
-        assert_page_svg_contains(page, "Wait:")
-        assert_page_svg_contains(page, "[agents]")
-        assert_page_svg_contains(page, "coder")
-        assert_page_svg_contains(page, "builder")
-        assert_page_svg_contains(page, "reviewer")
-        assert_page_svg_contains(page, "ghost_deploy")
-        assert_page_svg_contains(page, "✓")
-        assert_page_svg_contains(page, "▶")
-        assert_page_svg_contains(page, "✗")
-        assert_page_svg_contains(page, "?")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_waiting_missing_target_row_120x40",
-            title="ACE agents missing wait target row and detail",
+    _WAIT_BEAD_STATUS_CACHE.clear()
+    _WAIT_BEAD_STATUS_CACHE.set(("sase", "run-bead"), "in_progress")
+    _WAIT_BEAD_STATUS_CACHE.set(("sase", "done-bead"), "closed")
+    _WAIT_BEAD_STATUS_CACHE.set(("sase", "open-bead"), "open")
+    try:
+        patch_startup_loaders(
+            monkeypatch,
+            agents=_waiting_unknown_agents(),
         )
+
+        async with AcePage(query='"wait-unknown"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("shift+tab")
+            await page.expect_state("tab", "agents")
+            await page.expect_state("agent_count", 4)
+            await wait_for_svg_contains(page, "ghost")
+            await wait_for_visual_idle(page)
+
+            assert_page_svg_styled_text_contains(page, "WAITING ✗1 ▶2 ⏳1 ✓2 ?1")
+            assert_page_svg_contains(page, "Wait:")
+            assert_page_svg_contains(page, "[agents]")
+            assert_page_svg_contains(page, "[beads]")
+            assert_page_svg_contains(page, "coder")
+            assert_page_svg_contains(page, "builder")
+            assert_page_svg_contains(page, "reviewer")
+            assert_page_svg_contains(page, "ghost")
+            assert_page_svg_contains(page, "run-bead")
+            assert_page_svg_contains(page, "done-bead")
+            assert_page_svg_contains(page, "open-bead")
+            assert_page_svg_contains(page, "✓")
+            assert_page_svg_contains(page, "▶")
+            assert_page_svg_contains(page, "⏳")
+            assert_page_svg_contains(page, "✗")
+            assert_page_svg_contains(page, "?")
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_waiting_missing_target_row_120x40",
+                title="ACE agents missing wait target row and detail",
+            )
+    finally:
+        _WAIT_BEAD_STATUS_CACHE.clear()
 
 
 async def test_agents_waiting_tribe_target_png_snapshot(

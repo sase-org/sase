@@ -8,6 +8,7 @@ from datetime import datetime
 
 from rich.text import Text
 
+from ..agent_completion import WaitDependencyStatusCounts
 from sase.agent.status_buckets import (
     FEEDBACK_STATUS,
     PENDING_EPIC_STATUS,
@@ -79,8 +80,6 @@ from ._agent_list_styling import (
     _FOLD_RESTORE_GLYPH,
     _FOLD_RESTORE_GLYPH_STYLE,
     _HIDDEN_ICON,
-    _MISSING_WAIT_TARGET_GLYPH,
-    _MISSING_WAIT_TARGET_GLYPH_STYLE,
     _MONITOR_COUNT_GLYPH_STYLE,
     _MONITOR_FOLLOWUP_DEGRADED_OUTCOME,
     _MONITOR_FOLLOWUP_ERROR_GLYPH,
@@ -102,6 +101,7 @@ from ._agent_list_styling import (
     _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
     monitor_status_presentation,
 )
+from ..wait_status_presentation import format_wait_dependency_status_counts
 
 
 def _should_render_provider_badge(agent: Agent) -> bool:
@@ -169,7 +169,7 @@ def format_agent_option(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
-    has_missing_wait_target: bool = False,
+    wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
@@ -368,12 +368,10 @@ def format_agent_option(
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)
-        if has_missing_wait_target and wait_agent.waiting_for:
+        count_text = format_wait_dependency_status_counts(wait_dependency_counts)
+        if count_text.cell_len:
             text.append(" ")
-            text.append(
-                _MISSING_WAIT_TARGET_GLYPH,
-                style=_MISSING_WAIT_TARGET_GLYPH_STYLE,
-            )
+            text.append_text(count_text)
         if has_unresolvable_wait_target and wait_agent.waiting_for:
             text.append(" ")
             text.append(
@@ -602,7 +600,7 @@ def cached_format_agent_option(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
-    has_missing_wait_target: bool = False,
+    wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
@@ -640,7 +638,7 @@ def cached_format_agent_option(
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
-        has_missing_wait_target=has_missing_wait_target,
+        wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
@@ -665,7 +663,7 @@ def cached_format_agent_option(
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
-        has_missing_wait_target=has_missing_wait_target,
+        wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,

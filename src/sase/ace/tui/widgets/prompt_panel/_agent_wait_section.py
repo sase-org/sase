@@ -10,10 +10,7 @@ from rich.console import Console, ConsoleOptions, RenderResult
 from rich.table import Table
 from rich.text import Text
 
-from sase.agent.status_buckets import (
-    AGENT_STATUS_BUCKET_GLYPHS,
-    QUEUED_STATUS_COLOR,
-)
+from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 
@@ -23,11 +20,11 @@ from ...models.tribe_display import (
     compose_tribe_identity_style,
     named_tribe_identity_colors,
 )
-from .._agent_list_styling import (
-    _MISSING_WAIT_TARGET_GLYPH,
-    _MISSING_WAIT_TARGET_GLYPH_STYLE,
-    _UNRESOLVABLE_WAIT_TARGET_GLYPH,
-    _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+from ...wait_status_presentation import (
+    WAIT_UNRESOLVABLE_GLYPH,
+    WAIT_UNRESOLVABLE_GLYPH_STYLE,
+    append_wait_bead_status_badge as _append_wait_bead_status_badge,
+    append_wait_status_badge as _append_wait_status_badge,
 )
 
 WAIT_SECTION_ID = "wait"
@@ -41,63 +38,14 @@ _WAIT_TAG_STYLES: dict[str, str] = {
     "time": "dim #87D7FF",
     "runners": f"dim {QUEUED_STATUS_COLOR}",
 }
-# Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
-# accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
-_WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
-    "Running": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
-    "Queued": (
-        AGENT_STATUS_BUCKET_GLYPHS["Queued"],
-        f"bold {QUEUED_STATUS_COLOR}",
-    ),
-    "Waiting": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
-    "Starting": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
-    "Done": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
-    "Failed": (AGENT_STATUS_BUCKET_GLYPHS["Failed"], "bold #FF5F5F"),
-    "Stopped": (AGENT_STATUS_BUCKET_GLYPHS["Stopped"], "bold #8787AF"),
-}
-_WAIT_BEAD_STATUS_BADGES: dict[str, tuple[str, str]] = {
-    "closed": (AGENT_STATUS_BUCKET_GLYPHS["Done"], "bold #5FD75F"),
-    "in_progress": (AGENT_STATUS_BUCKET_GLYPHS["Running"], "bold #FFD700"),
-    "claimed": (AGENT_STATUS_BUCKET_GLYPHS["Starting"], "bold #87D7FF"),
-    "open": (AGENT_STATUS_BUCKET_GLYPHS["Waiting"], "bold #AF87FF"),
-}
-
 type WaitLane = tuple[str, Text]
-
-
-def _append_wait_status_badge(text: Text, bucket: str | None) -> None:
-    """Append the standard badge for a known or unknown wait target."""
-    badge = _WAIT_STATUS_BADGES.get(bucket) if bucket is not None else None
-    if badge is None:
-        glyph, style = (
-            _MISSING_WAIT_TARGET_GLYPH,
-            _MISSING_WAIT_TARGET_GLYPH_STYLE,
-        )
-    else:
-        glyph, style = badge
-    text.append(" ")
-    text.append(glyph, style=style)
-
-
-def _append_wait_bead_status_badge(text: Text, status: str | None) -> None:
-    """Append the standard badge for a known or unknown bead status."""
-    badge = _WAIT_BEAD_STATUS_BADGES.get(status) if status is not None else None
-    if badge is None:
-        glyph, style = (
-            _MISSING_WAIT_TARGET_GLYPH,
-            _MISSING_WAIT_TARGET_GLYPH_STYLE,
-        )
-    else:
-        glyph, style = badge
-    text.append(" ")
-    text.append(glyph, style=style)
 
 
 def _append_unresolvable_wait_marker(text: Text) -> None:
     text.append(" ")
     text.append(
-        _UNRESOLVABLE_WAIT_TARGET_GLYPH,
-        style=_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+        WAIT_UNRESOLVABLE_GLYPH,
+        style=WAIT_UNRESOLVABLE_GLYPH_STYLE,
     )
     text.append(" (reserved - never resolves)", style="dim #FF5F5F")
 

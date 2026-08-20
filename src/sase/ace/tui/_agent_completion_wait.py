@@ -11,9 +11,11 @@ from sase.ace.tui._agent_completion_candidates import (
     visible_clan_completion_groups,
 )
 from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKETS,
     agent_status_bucket,
     aggregate_agent_group_bucket,
 )
+from sase.ace.tui.wait_status_presentation import wait_bead_status_bucket
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.wait_dependency_resolution import (
     TribeMemberRow,
@@ -23,6 +25,7 @@ from sase.core.wait_dependency_resolution import (
 
 if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
+    from sase.ace.tui.models.agent_wait_beads import WaitBeadStatusSnapshot
 
 # When a family wait resolves to multiple agents, active work takes precedence
 # over terminal states, and a successful terminal attempt satisfies the family.
@@ -47,6 +50,49 @@ class AgentWaitStatusMaps:
     buckets: dict[str, str]
     clan_member_statuses: dict[str, tuple[tuple[str, str], ...]]
     tribe_bindings: dict[tuple[object, str], TribeWaitBinding]
+
+
+@dataclass(frozen=True, slots=True)
+class WaitDependencyStatusCounts:
+    """Compact status counts for one WAITING row's agent and bead dependencies."""
+
+    stopped: int = 0
+    failed: int = 0
+    starting: int = 0
+    running: int = 0
+    queued: int = 0
+    waiting: int = 0
+    done: int = 0
+    unknown: int = 0
+
+    @property
+    def has_any(self) -> bool:
+        """Return whether any dependency has a countable visible status."""
+        return any(
+            (
+                self.stopped,
+                self.failed,
+                self.starting,
+                self.running,
+                self.queued,
+                self.waiting,
+                self.done,
+                self.unknown,
+            )
+        )
+
+    def count_for_bucket(self, bucket: str) -> int:
+        """Return this row's count for a normalized agent status bucket."""
+        field_name = _WAIT_COUNT_FIELDS.get(bucket)
+        if field_name is None:
+            return 0
+        return getattr(self, field_name)
+
+
+ZERO_WAIT_DEPENDENCY_STATUS_COUNTS = WaitDependencyStatusCounts()
+_WAIT_COUNT_FIELDS: dict[str, str] = {
+    bucket: bucket.lower() for bucket in AGENT_STATUS_BUCKETS
+}
 
 
 def _preferred_wait_dependency_bucket(current: str | None, candidate: str) -> str:
@@ -307,13 +353,75 @@ def missing_wait_dependency_names(
     )
 
 
+def wait_dependency_status_counts(
+    agent: Agent,
+    status_maps: AgentWaitStatusMaps,
+    wait_bead_statuses: WaitBeadStatusSnapshot | None = None,
+) -> WaitDependencyStatusCounts:
+    """Return compact agent/bead dependency status counts for one row.
+
+    The projection is memory-only: it uses the caller-supplied agent status
+    maps and optional cached bead-status snapshot. Cold bead-cache misses are
+    omitted because they are not yet evidence for an unknown target.
+    """
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    wait_agent = wait_display_agent(agent)
+    if not wait_agent.waiting_for and not wait_agent.waiting_for_beads:
+        return ZERO_WAIT_DEPENDENCY_STATUS_COUNTS
+
+    tally = dict.fromkeys((*AGENT_STATUS_BUCKETS, "unknown"), 0)
+
+    for name in wait_agent.waiting_for:
+        if _parse_tribe_target(name) is not None:
+            continue
+        clan_members = status_maps.clan_member_statuses.get(name)
+        if clan_members is not None:
+            for _label, bucket in clan_members:
+                _increment_wait_count(tally, bucket)
+            continue
+        _increment_wait_count(tally, status_maps.buckets.get(name))
+
+    if wait_bead_statuses is not None:
+        for bead_id in wait_agent.waiting_for_beads:
+            entry = wait_bead_statuses.entry_for(bead_id)
+            if entry is None or entry.is_cold:
+                continue
+            _increment_wait_count(tally, wait_bead_status_bucket(entry.status))
+
+    return _wait_counts_from_tally(tally)
+
+
+def _increment_wait_count(tally: dict[str, int], bucket: str | None) -> None:
+    if bucket in _WAIT_COUNT_FIELDS:
+        tally[bucket] += 1
+    else:
+        tally["unknown"] += 1
+
+
+def _wait_counts_from_tally(tally: Mapping[str, int]) -> WaitDependencyStatusCounts:
+    return WaitDependencyStatusCounts(
+        stopped=tally.get("Stopped", 0),
+        failed=tally.get("Failed", 0),
+        starting=tally.get("Starting", 0),
+        running=tally.get("Running", 0),
+        queued=tally.get("Queued", 0),
+        waiting=tally.get("Waiting", 0),
+        done=tally.get("Done", 0),
+        unknown=tally.get("unknown", 0),
+    )
+
+
 __all__ = [
     "AgentWaitStatusMaps",
+    "WaitDependencyStatusCounts",
+    "ZERO_WAIT_DEPENDENCY_STATUS_COUNTS",
     "agent_status_buckets_for_app",
     "agent_wait_status_maps_for_app",
     "collect_agent_status_buckets",
     "collect_agent_wait_status_maps",
     "has_unresolvable_wait_target",
     "missing_wait_dependency_names",
+    "wait_dependency_status_counts",
     "wait_dependencies_satisfied",
 ]

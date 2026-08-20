@@ -14,6 +14,7 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from ..agent_completion import WaitDependencyStatusCounts
 from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
@@ -154,7 +155,7 @@ def agent_render_key(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
-    has_missing_wait_target: bool = False,
+    wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
@@ -237,7 +238,7 @@ def agent_render_key(
         tuple(wait_agent.waiting_for),
         tuple(wait_agent.waiting_for_beads),
         wait_deps_satisfied,
-        has_missing_wait_target,
+        wait_dependency_counts,
         has_unresolvable_wait_target,
         wait_agent.wait_runners,
         wait_agent.wait_runners_explicit,

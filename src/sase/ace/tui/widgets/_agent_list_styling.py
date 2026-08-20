@@ -18,6 +18,12 @@ from sase.monitor_status import (
 
 from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ..models.agent import AgentType
+from ..wait_status_presentation import (
+    WAIT_UNKNOWN_GLYPH as _MISSING_WAIT_TARGET_GLYPH,
+    WAIT_UNKNOWN_GLYPH_STYLE as _MISSING_WAIT_TARGET_GLYPH_STYLE,
+    WAIT_UNRESOLVABLE_GLYPH as _UNRESOLVABLE_WAIT_TARGET_GLYPH,
+    WAIT_UNRESOLVABLE_GLYPH_STYLE as _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
+)
 
 # Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
 _BANNER_ROW = -1
@@ -160,16 +166,6 @@ _BEAD_GLYPH_STYLE = "bold #5FD7AF"
 # Plan/prompt bookkeeping-only diffs are classified at load time and omitted.
 _FILE_CHANGE_GLYPH = "✏️"
 _FILE_CHANGE_GLYPH_STYLE = "bold #FFD75F"
-
-# Missing named agent wait target. Shared by the compact WAITING row marker
-# and the per-target metadata badge so both surfaces use one visual contract.
-_MISSING_WAIT_TARGET_GLYPH = "?"
-_MISSING_WAIT_TARGET_GLYPH_STYLE = "bold #FFAF5F"
-
-# Reserved tribe wait target. This means the wait cannot ever resolve, unlike a
-# missing agent name that may be a typo or stale reference.
-_UNRESOLVABLE_WAIT_TARGET_GLYPH = "!"
-_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE = "bold #FF5F5F"
 
 # Reverted badge for agents whose commits were intentionally undone via `,r`.
 _REVERTED_GLYPH = "↺"

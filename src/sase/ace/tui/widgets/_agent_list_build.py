@@ -17,10 +17,11 @@ from textual.widgets.option_list import Option
 
 from ..agent_completion import (
     AgentWaitStatusMaps,
+    WaitDependencyStatusCounts,
     agent_wait_status_maps_for_app,
     collect_agent_wait_status_maps,
     has_unresolvable_wait_target,
-    missing_wait_dependency_names,
+    wait_dependency_status_counts,
     wait_dependencies_satisfied,
 )
 from ..models.agent import Agent, AgentType
@@ -30,6 +31,7 @@ from ..models._agent_tree import (
     agent_parent_fold_key,
 )
 from ..models.agent_nodes import is_agents_tab_agent_node
+from ..models.agent_wait_beads import cached_wait_bead_status_snapshot
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
@@ -308,8 +310,10 @@ def build_list(
             status_buckets,
             wait_status_maps.tribe_bindings,
         )
-        has_missing_wait_target = bool(
-            missing_wait_dependency_names(agent, status_buckets)
+        wait_counts = wait_dependency_status_counts(
+            agent,
+            wait_status_maps,
+            cached_wait_bead_status_snapshot(agent),
         )
         has_unresolvable_wait = has_unresolvable_wait_target(
             agent,
@@ -332,7 +336,7 @@ def build_list(
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
-            has_missing_wait_target=has_missing_wait_target,
+            wait_dependency_counts=wait_counts,
             has_unresolvable_wait_target=has_unresolvable_wait,
             unread_agent_ids=unread,
         )
@@ -349,7 +353,7 @@ def build_list(
             "tribe_colors": tribe_colors,
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
-            "has_missing_wait_target": has_missing_wait_target,
+            "wait_dependency_counts": wait_counts,
             "has_unresolvable_wait_target": has_unresolvable_wait,
         }
         widget._row_tier_styles[i] = tier_styles
@@ -587,6 +591,7 @@ def patch_row(
     unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
     is_selected: bool | None = None,
     now: datetime | None = None,
+    wait_dependency_counts: WaitDependencyStatusCounts | None = None,
 ) -> bool:
     """Replace one agent row's Option in place; return ``True`` on success.
 
@@ -617,6 +622,11 @@ def patch_row(
         widget._unread_agents = set(unread_agents)
     is_unread = agent.identity in effective_unread and is_agents_tab_agent_node(agent)
     sel = ctx["is_selected"] if is_selected is None else is_selected
+    counts = (
+        ctx.get("wait_dependency_counts")
+        if wait_dependency_counts is None
+        else wait_dependency_counts
+    )
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of
     # mid-list mutations and must not return a stale cache hit.
@@ -639,7 +649,7 @@ def patch_row(
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
-        has_missing_wait_target=ctx.get("has_missing_wait_target", False),
+        wait_dependency_counts=counts,
         has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
         unread_agent_ids=effective_unread,
     )
@@ -655,6 +665,7 @@ def patch_row(
     ctx["is_marked"] = is_marked
     ctx["is_unread"] = is_unread
     ctx["is_selected"] = sel
+    ctx["wait_dependency_counts"] = counts
 
     widget._programmatic_update = True
     try:

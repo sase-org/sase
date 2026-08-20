@@ -431,8 +431,9 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Waiting Badges",
             [
-                ("▶ ◐ ⏳ ✓ ✗ ▲", "Dependency status (see Grouping)"),
-                ("?", "Waited-for name not found"),
+                ("▶2 ✓1 ?1", "Dependency state counts"),
+                ("▶ ◐ … ⏳ ✓ ✗ ▲", "Dependency states (see Grouping)"),
+                ("?", "Unknown or unresolved dependency"),
                 ("!", "Reserved tribe never resolves"),
                 ("[tribes] @t → name ✓", "Bound tribe entity/status"),
                 ("[tribes] @t (next launch)", "Pending tribe wait"),
