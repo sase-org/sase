@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-import time
 from typing import TYPE_CHECKING, Any
 
-from sase.ace.tui.widgets._file_completion_workers import FileCompletionWorkerMixin
+from sase.ace.tui.widgets._file_completion_artifact_candidates import (
+    FileCompletionArtifactCandidatesMixin,
+)
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     AtReferenceFileCompletionMetadata,
-    ArtifactRefBugCandidate,
-    ArtifactRefCommitCandidate,
-    ArtifactRefCompletionCatalog,
-    ArtifactRefCompletionResult,
     ArtifactRefKindCompletionMetadata,
-    ArtifactRefPayloadCompletionMetadata,
-    build_artifact_ref_completion_result,
 )
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -34,13 +28,16 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_title,
 )
-from sase.history.prompt_word_index import PromptWordIndex
 from sase.xprompt.model_completion import build_model_completion_catalog
 from sase.xprompt.vcs_project_completion import build_vcs_project_completion_entries
 
 if TYPE_CHECKING:
     from sase.artifact_refs import ArtifactRefContext
     from sase.ace.tui.agent_completion import AgentCompletionCandidate
+    from sase.ace.tui.widgets.artifact_ref_completion import (
+        ArtifactRefBugCandidate,
+        ArtifactRefCompletionCatalog,
+    )
     from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
     from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
     from sase.ace.tui.widgets.xprompt_arg_assist import (
@@ -55,7 +52,7 @@ if TYPE_CHECKING:
     from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult, VcsRepoTrigger
 
 
-class FileCompletionBaseMixin(FileCompletionWorkerMixin):
+class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
     """Mixin providing shared completion state helpers."""
 
     if TYPE_CHECKING:
@@ -403,235 +400,6 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             self._wait_bead_project = None
             return
         self._schedule_wait_bead_inventory_load(project)
-
-    def _artifact_ref_completion_result(
-        self,
-    ) -> ArtifactRefCompletionResult | None:
-        """Build artifact candidates solely from warm immutable snapshots."""
-        context = self._get_artifact_ref_completion_context()
-        if context is None:
-            return None
-        catalog = self._get_warm_artifact_ref_completion_catalog()
-        if catalog is None:
-            if context.stage == "payload":
-                return None
-            catalog = ArtifactRefCompletionCatalog(
-                project=None,
-                kinds=tuple(self._get_warm_artifact_ref_known_kinds() or ()),
-            )
-        path_snapshot = None
-        if context.stage == "kind" and context.path_directory is not None:
-            directory_key = self._prompt_path_directory_key(context.path_directory)
-            path_snapshot = self._get_warm_prompt_path_snapshot(directory_key)
-        commit_rows: tuple[ArtifactRefCommitCandidate, ...] = ()
-        commits_loading = False
-        commits_truncated_payloads = 0
-        if context.stage == "payload" and (context.kind or "").casefold() == "commit":
-            project = self._xprompt_arg_assist_project_from_text()
-            commit_snapshot = self._prompt_commit_snapshots.get(project)
-            artifact_context = self._get_warm_artifact_ref_context()
-            if artifact_context is not None:
-                self._schedule_prompt_commit_inventory_load(
-                    project,
-                    artifact_context,
-                    commit_snapshot,
-                )
-            commits_loading = project in self._prompt_commit_inflight
-            if commit_snapshot is not None:
-                commit_rows = commit_snapshot.rows
-                commits_truncated_payloads = commit_snapshot.truncated_payloads
-        result = build_artifact_ref_completion_result(
-            context,
-            catalog,
-            include_files=self._artifact_ref_files_revealed,
-            commits=commit_rows,
-            commits_loading=commits_loading,
-            commits_truncated_payloads=commits_truncated_payloads,
-            bugs=self._snapshot_artifact_ref_bug_candidates(),
-            paths=() if path_snapshot is None else path_snapshot.rows,
-            paths_loading=context.stage == "kind" and path_snapshot is None,
-        )
-        if context.stage == "payload" and context.kind:
-            project = self._xprompt_arg_assist_project_from_text()
-            new_payloads = self._artifact_ref_sync_new_payloads(project, context.kind)
-            if new_payloads:
-                for candidate in result.candidates:
-                    metadata = candidate.metadata
-                    if (
-                        isinstance(metadata, ArtifactRefPayloadCompletionMetadata)
-                        and metadata.payload in new_payloads
-                    ):
-                        candidate.metadata = replace(metadata, is_new=True)
-            sync_row = self._artifact_ref_sync_row(project, context.kind)
-            if sync_row is not None:
-                result.candidates.insert(0, sync_row)
-        return result
-
-    def _snapshot_artifact_ref_bug_candidates(
-        self,
-    ) -> tuple[ArtifactRefBugCandidate, ...]:
-        """Project the mounted Beads pane's external-issue tracker caches."""
-        try:
-            pane = self.app.query_one("#artifacts-beads-pane")
-        except Exception:
-            return ()
-        snapshot = getattr(pane, "snapshot", None)
-        if snapshot is None:
-            return ()
-        target_project = self._xprompt_arg_assist_project_from_text()
-        cached = getattr(self, "_artifact_ref_bug_projection", None)
-        if cached is not None and cached[0] is snapshot and cached[1] == target_project:
-            return cached[2]
-        rows: list[ArtifactRefBugCandidate] = []
-        for cache in getattr(snapshot, "external_projects", {}).values():
-            project = str(
-                getattr(cache, "display_name", "")
-                or getattr(cache, "project", "")
-                or ""
-            )
-            if not project:
-                continue
-            if target_project is not None:
-                accepted = {
-                    project.casefold(),
-                    str(getattr(cache, "project", "") or "").casefold(),
-                }
-                if target_project.casefold() not in accepted:
-                    continue
-            for issue in getattr(cache, "issues", ()):
-                number = getattr(issue, "number", None)
-                if not isinstance(number, int):
-                    continue
-                rows.append(
-                    ArtifactRefBugCandidate(
-                        project=project,
-                        number=number,
-                        title=str(getattr(issue, "title", "") or ""),
-                        updated_at=str(
-                            getattr(issue, "updated_at", "")
-                            or getattr(issue, "created_at", "")
-                            or ""
-                        ),
-                    )
-                )
-        projected = tuple(rows)
-        self._artifact_ref_bug_projection = (
-            snapshot,
-            target_project,
-            projected,
-        )
-        return projected
-
-    def _history_prompt_words(self) -> list[str] | None:
-        """Return the app's warm history-word list without touching disk."""
-        provider = getattr(self.app, "history_prompt_words", None)
-        if not callable(provider):
-            return None
-        try:
-            words = provider()
-        except Exception:
-            return []
-        return words if isinstance(words, list) else None
-
-    def _history_prompt_word_index(self) -> PromptWordIndex | None:
-        """Return the app's warm prompt-word index without touching disk."""
-        provider = getattr(self.app, "history_prompt_word_index", None)
-        if not callable(provider):
-            return None
-        try:
-            index = provider()
-        except Exception:
-            return None
-        return index if isinstance(index, PromptWordIndex) else None
-
-    def _history_prompt_word_deletions(self) -> frozenset[str]:
-        """Return the app's warm suppressed-history-word set without disk I/O."""
-        provider = getattr(self.app, "history_prompt_word_deletions", None)
-        if not callable(provider):
-            return frozenset()
-        try:
-            deletions = provider()
-        except Exception:
-            return frozenset()
-        return deletions if isinstance(deletions, frozenset) else frozenset()
-
-    def _history_word_ranking_mode(self) -> str:
-        """Return the configured ``word_ranking`` mode for history words."""
-        return self._prompt_completion_settings().word_ranking
-
-    def _history_word_index_available(self) -> bool:
-        """Return whether the app exposes a warm prompt-word index provider."""
-        return callable(getattr(self.app, "history_prompt_word_index", None))
-
-    def _history_word_source_ready(self) -> bool:
-        """Return whether some warm-cache provider exists for history words."""
-        if self._history_word_index_available():
-            return True
-        return callable(getattr(self.app, "history_prompt_words", None))
-
-    def _history_word_cache_is_cold(self) -> bool:
-        """Return whether the active warm-cache source has not landed yet."""
-        if self._history_word_index_available():
-            return self._history_prompt_word_index() is None
-        return self._history_prompt_words() is None
-
-    def _build_history_word_result(
-        self,
-        cursor_offset: int,
-        *,
-        words: list[str] | None = None,
-    ) -> WordCompletionResult | None:
-        """Build the active ranking mode's history-word result.
-
-        Prefers the warm :class:`PromptWordIndex` when the app provides one
-        (both ``smart`` and ``recent`` ranking read through it, so every row
-        is the same shape), and falls back to the plain MRU word-list
-        overload for callers and test harnesses without an index. The caller
-        is responsible for handling the cold-cache case (see
-        :meth:`_history_word_cache_is_cold`) before calling this.
-        """
-        from sase.ace.tui.widgets.history_word_completion import (
-            build_history_word_completion_result,
-            build_indexed_history_word_completion_result,
-        )
-
-        if self._history_word_index_available():
-            index = self._history_prompt_word_index()
-            if index is None:
-                return None
-            return build_indexed_history_word_completion_result(
-                self.text,
-                cursor_offset,
-                index,
-                deleted=self._history_prompt_word_deletions(),
-                now=time.time(),
-                smart=self._history_word_ranking_mode() == "smart",
-            )
-
-        if words is None:
-            words = self._history_prompt_words()
-        if words is None:
-            return None
-        return build_history_word_completion_result(self.text, cursor_offset, words)
-
-    def _schedule_history_word_completion_load(self) -> None:
-        """Ask the app cache to warm for an active cold history menu."""
-        warmer = getattr(self.app, "warm_history_prompt_words", None)
-        if callable(warmer):
-            warmer()
-
-    def _apply_history_word_completion_result(self, words: list[str]) -> None:
-        """Apply a completed app-cache load to the active history menu."""
-        from sase.ace.tui.widgets.history_word_completion import (
-            HISTORY_WORD_COMPLETION_KIND,
-        )
-
-        if (
-            not self._file_completion_active
-            or self._completion_kind != HISTORY_WORD_COMPLETION_KIND
-        ):
-            return
-        self._refresh_history_word_completion(words)
 
     def _placeholder_completion_includes_common_at_empty_prefix(self) -> bool:
         """Return the empty-prefix rule for the placeholder menu that is open.

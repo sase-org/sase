@@ -40,7 +40,7 @@ async def test_smart_ranking_prefers_related_word_over_more_recent_unrelated_wor
     """Mirrors the ranking-engine scenario, wired end to end through Ctrl+T."""
     now = _parse_sase_timestamp_epoch("260801_000000")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets._file_completion_base.time.time",
+        "sase.ace.tui.widgets._file_completion_history.time.time",
         lambda: now,
     )
     index = seeded_index(
