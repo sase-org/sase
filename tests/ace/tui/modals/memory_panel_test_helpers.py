@@ -16,8 +16,8 @@ from sase.ace.tui.memory_panel_catalog import (
     MemoryScopeRef,
     MemoryScopeSnapshot,
 )
-from sase.ace.tui.modals import memory_panel as memory_panel_module
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals import memory_pane as memory_pane_module
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_load import (
     MemoryPanelInitialLoad,
     MemoryScopeChoice,
@@ -33,15 +33,12 @@ class MemoryPanelTestApp(App[None]):
     # ``ctrl+p`` (pick scope) binding in tests.
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, panel: MemoryPanel) -> None:
+    def __init__(self, panel: MemoryPane) -> None:
         super().__init__()
         self.panel = panel
 
     def compose(self) -> ComposeResult:
-        yield Static("host")
-
-    def on_mount(self) -> None:
-        self.push_screen(self.panel)
+        yield self.panel
 
 
 def _plain(renderable: RenderableType) -> str:
@@ -51,11 +48,11 @@ def _plain(renderable: RenderableType) -> str:
     return capture.get()
 
 
-def panel_static_text(panel: MemoryPanel, widget_id: str) -> str:
+def panel_static_text(panel: MemoryPane, widget_id: str) -> str:
     return _plain(panel.query_one(f"#{widget_id}", Static).content)
 
 
-def note_row_text(panel: MemoryPanel, index: int) -> str:
+def note_row_text(panel: MemoryPane, index: int) -> str:
     option = panel._note_list().get_option_at_index(index)
     return _plain(option.prompt)
 
@@ -143,17 +140,24 @@ def install_fixed_load(
         *,
         launch_workspace: str | None = None,
         initial_scope_key: str | None = None,
+        session_scope_key: str | None = None,
         seed_from_current_project: bool = True,
     ) -> MemoryPanelInitialLoad:
+        del launch_workspace, seed_from_current_project
         off_main_thread.append(
             threading.current_thread() is not threading.main_thread()
         )
         index = scope_index
-        if initial_scope_key is not None:
-            for i, candidate in enumerate(ring):
-                if candidate.key == initial_scope_key:
-                    index = i
-                    break
+        for key in (initial_scope_key, session_scope_key):
+            if key is None:
+                continue
+            matched = next(
+                (i for i, candidate in enumerate(ring) if candidate.key == key),
+                None,
+            )
+            if matched is not None:
+                index = matched
+                break
         if not ring:
             return MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None)
         return MemoryPanelInitialLoad(
@@ -167,10 +171,10 @@ def install_fixed_load(
         return snapshots[ref.key]
 
     monkeypatch.setattr(
-        memory_panel_module, "load_memory_panel_initial_state", fake_initial_load
+        memory_pane_module, "load_memory_panel_initial_state", fake_initial_load
     )
     monkeypatch.setattr(
-        memory_panel_module, "load_memory_scope_snapshot", fake_scope_load
+        memory_pane_module, "load_memory_scope_snapshot", fake_scope_load
     )
     return off_main_thread
 
@@ -190,7 +194,7 @@ def install_fixed_scope_choices(
         )
         return choices
 
-    monkeypatch.setattr(memory_panel_module, "load_memory_scope_choices", fake_choices)
+    monkeypatch.setattr(memory_pane_module, "load_memory_scope_choices", fake_choices)
     return off_main_thread
 
 

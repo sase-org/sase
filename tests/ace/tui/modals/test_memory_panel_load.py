@@ -88,6 +88,50 @@ def test_initial_scope_key_wins_over_current_project(
     assert result.scope_index == 0
 
 
+def test_session_scope_key_wins_over_current_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ring = (_scope("alpha", "Alpha"), _scope("beta", "Beta"))
+    _install(monkeypatch, ring=ring, current_project=_current("beta"))
+
+    result = mpl.load_memory_panel_initial_state(
+        launch_workspace=None,
+        session_scope_key="alpha",
+    )
+
+    assert result.scope_index == 0
+
+
+def test_initial_scope_key_wins_over_session_scope_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ring = (_scope("alpha", "Alpha"), _scope("beta", "Beta"))
+    _install(monkeypatch, ring=ring, current_project=_current("beta"))
+
+    result = mpl.load_memory_panel_initial_state(
+        launch_workspace=None,
+        initial_scope_key="alpha",
+        session_scope_key="beta",
+    )
+
+    assert result.scope_index == 0
+
+
+def test_vanished_initial_scope_key_falls_back_to_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ring = (_scope("alpha", "Alpha"), _scope("beta", "Beta"))
+    _install(monkeypatch, ring=ring, current_project=None)
+
+    result = mpl.load_memory_panel_initial_state(
+        launch_workspace=None,
+        initial_scope_key="gone",
+        session_scope_key="beta",
+    )
+
+    assert result.scope_index == 1
+
+
 def test_seed_disabled_flag_keeps_default_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

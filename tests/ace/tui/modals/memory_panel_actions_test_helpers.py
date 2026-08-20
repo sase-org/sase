@@ -16,7 +16,7 @@ from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProc
 from sase.ace.tui.memory_panel_catalog import MemoryNoteDigest
 from sase.ace.tui.modals import memory_panel_write as write_mod
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_add import (
     MemoryNoteFormDraft,
     MemoryNoteFormModal,
@@ -48,7 +48,7 @@ class MemoryNoteFormApp(App[None]):
 
 
 class MemoryPanelActionsApp(MemoryPanelTestApp):
-    def __init__(self, panel: MemoryPanel) -> None:
+    def __init__(self, panel: MemoryPane) -> None:
         super().__init__(panel)
         self.session_calls: list[str] = []
         self.session_kwargs: list[dict[str, Any]] = []
@@ -182,12 +182,13 @@ async def skip_post_write_offers(pilot: Any, app: MemoryPanelActionsApp) -> None
         await wait_for(
             pilot,
             lambda: (
-                isinstance(app.screen, MemoryPublishModal) or app.screen is app.panel
+                isinstance(app.screen, MemoryPublishModal)
+                or not isinstance(app.screen, ConfirmActionModal)
             ),
         )
     if isinstance(app.screen, MemoryPublishModal):
         await pilot.press("escape")
-        await wait_for(pilot, lambda: app.screen is app.panel)
+        await wait_for(pilot, lambda: not isinstance(app.screen, MemoryPublishModal))
 
 
 __all__ = [

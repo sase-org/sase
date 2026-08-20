@@ -16,7 +16,7 @@ from textual.containers import VerticalScroll
 from sase.ace.tui.memory_panel_catalog import memory_note_relations
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import Input, OptionList
 
     from sase.ace.tui.memory_panel_catalog import MemoryRailNode, MemoryScopeSnapshot

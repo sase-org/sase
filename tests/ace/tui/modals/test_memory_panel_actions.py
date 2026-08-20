@@ -10,7 +10,7 @@ import pytest
 from sase.ace.testing import wait_for
 from sase.ace.tui.memory_panel_catalog import MemoryScopeRef
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_add import MemoryNoteFormModal
 from sase.ace.tui.proc_producer_sites import PRODUCTION_PRODUCERS
 from sase.memory.mutation import MemoryConflictError, MemoryMutationOutcome
@@ -54,7 +54,7 @@ async def test_valid_add_writes_through_engine_and_selects_note(
 
     install_write_fakes(monkeypatch, snapshots, create=fake_create)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -100,7 +100,7 @@ async def test_edit_rewrites_frontmatter_and_reselects(
 
     install_write_fakes(monkeypatch, snapshots, update=fake_update)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -156,7 +156,7 @@ async def test_delete_selects_neighbor_and_names_backup(
 
     install_write_fakes(monkeypatch, snapshots, delete=fake_delete)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -190,7 +190,7 @@ async def test_short_note_delete_warns_about_always_loaded_context(
     }
     install_fixed_load(monkeypatch, (ref,), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -202,7 +202,7 @@ async def test_short_note_delete_warns_about_always_loaded_context(
         assert "Tier: 1 (short)" in confirm._subject
         assert "always-loaded agent context" in confirm._subject
         await pilot.press("escape")
-        await wait_for(pilot, lambda: app.screen is panel)
+        await wait_for(pilot, lambda: not isinstance(app.screen, ConfirmActionModal))
 
     assert app.session_calls == []
 
@@ -225,7 +225,7 @@ async def test_child_blocked_delete_explains_and_writes_nothing(
 
     install_write_fakes(monkeypatch, snapshots, delete=fake_delete)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -237,7 +237,7 @@ async def test_child_blocked_delete_explains_and_writes_nothing(
         assert "reparented" in confirm._message
         assert "sase/memory/child.md" in (confirm._subject or "")
         await pilot.press("escape")
-        await wait_for(pilot, lambda: app.screen is panel)
+        await wait_for(pilot, lambda: not isinstance(app.screen, ConfirmActionModal))
 
     assert called == []
     assert app.session_calls == []
@@ -255,7 +255,7 @@ async def test_generated_note_refuses_edit_and_delete(
     }
     install_fixed_load(monkeypatch, (ref,), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -267,7 +267,7 @@ async def test_generated_note_refuses_edit_and_delete(
             pilot,
             lambda: any("read-only" in msg for msg, _sev in app.notifications),
         )
-        assert isinstance(app.screen, MemoryPanel)
+        assert not isinstance(app.screen, MemoryNoteFormModal)
         await pilot.press("d")
         await wait_for(pilot, lambda: len(app.notifications) >= 2)
 
@@ -298,11 +298,11 @@ async def test_conflict_toasts_and_refreshes(
 
     install_write_fakes(monkeypatch, snapshots, delete=fake_delete)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.memory_panel.load_memory_scope_snapshot",
+        "sase.ace.tui.modals.memory_pane.load_memory_scope_snapshot",
         fake_scope_load,
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -331,7 +331,7 @@ async def test_footer_shows_edit_delete_for_writable_note(
     install_fixed_load(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, (memory_note("alpha"),))}
     )
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

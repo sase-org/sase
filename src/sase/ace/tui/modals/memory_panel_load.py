@@ -44,21 +44,26 @@ def load_memory_panel_initial_state(
     *,
     launch_workspace: str | None,
     initial_scope_key: str | None = None,
+    session_scope_key: str | None = None,
     seed_from_current_project: bool = True,
 ) -> MemoryPanelInitialLoad:
     """Build the scope ring and load the initially selected snapshot.
 
-    *initial_scope_key* selects a ring entry by key when present. Otherwise,
+    *initial_scope_key* selects a ring entry by key when present. Otherwise
+    *session_scope_key* is used when it still exists in the ring. Otherwise,
     when *seed_from_current_project* is set, the current project's ring entry
-    is used. Failing both, the ring's first scope is used (alphabetically
+    is used. Failing those, the ring's first scope is used (alphabetically
     first project display name; Home is last, so it is first only when it
-    is the only scope).
+    is the only scope). Vanished explicit or session keys fall through the
+    same chain rather than failing the load.
     """
     ring = build_memory_scope_ring(launch_workspace)
     if not ring:
         return MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None)
 
     scope_index = _ring_index_for_key(ring, initial_scope_key)
+    if scope_index is None:
+        scope_index = _ring_index_for_key(ring, session_scope_key)
     if scope_index is None and seed_from_current_project:
         try:
             current_project = resolve_current_project()

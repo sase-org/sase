@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.memory.notes import MemoryNote
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     MemoryPanelTestApp,
@@ -37,7 +37,7 @@ async def test_root_note_chips_are_children_only(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -62,7 +62,7 @@ async def test_child_note_chips_are_parent_only(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -86,7 +86,7 @@ async def test_note_with_both_edges_numbers_continuously(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -111,7 +111,7 @@ async def test_agents_parent_root_without_children_has_no_chips(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -132,7 +132,7 @@ async def test_tab_moves_chip_cursor_and_wraps(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -156,7 +156,7 @@ async def test_follow_moves_note_cursor_and_pushes_trail(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -179,7 +179,7 @@ async def test_digit_follows_child_chip(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -199,7 +199,7 @@ async def test_follow_through_active_filter_clears_it_and_lands(
         monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -235,7 +235,7 @@ async def test_scope_switch_clears_chips_and_does_not_leave_stale_links(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

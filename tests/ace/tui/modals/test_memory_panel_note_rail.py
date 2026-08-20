@@ -6,7 +6,7 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     MemoryPanelTestApp,
     install_fixed_load,
@@ -30,7 +30,7 @@ async def test_filter_matches_stem_and_description(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -58,7 +58,7 @@ async def test_filter_extends_into_bodies_only_when_toggled(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -84,7 +84,7 @@ async def test_empty_filter_shows_no_match_message(
     notes = (memory_note("agent_hood"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -108,7 +108,7 @@ async def test_note_rail_width_matches_widest_row_after_initial_load(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -128,7 +128,7 @@ async def test_filtering_to_short_notes_does_not_jitter_the_rail(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -159,7 +159,7 @@ async def test_cycling_to_a_scope_with_short_notes_shrinks_the_rail(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -180,7 +180,7 @@ async def test_note_list_option_list_widget_exists(
     notes = (memory_note("agent_hood"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

@@ -5618,6 +5618,12 @@ MemoryPanel {
     align: center middle;
 }
 
+MemoryPane {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
 MemoryPanel #memory-panel-container {
     width: 90%;
     max-width: 150;

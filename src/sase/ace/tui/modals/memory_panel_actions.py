@@ -58,6 +58,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         _snapshot: MemoryScopeSnapshot | None
         _unpublished_scopes: set[str]
         _write_busy: bool
+        _closed: bool
         is_mounted: bool
         app: Any
 
@@ -286,7 +287,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             severity="information" if completion.success else "error",
         )
         if payload is not None and payload.error == "conflict":
-            if self.is_mounted and self._ring:
+            if self.is_mounted and not self._closed and self._ring:
                 invalidate_memory_scope(self._ring[self._scope_index].key)
                 self._start_scope_load()
             return
@@ -294,7 +295,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             return
         self._refresh_prompt_memory_catalogs()
         self._mark_scope_unpublished(payload.scope_key)
-        if not self.is_mounted or payload.snapshot is None:
+        if not self.is_mounted or self._closed or payload.snapshot is None:
             return
         if (
             not self._ring

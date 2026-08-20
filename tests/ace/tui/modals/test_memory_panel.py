@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from textual.app import ComposeResult
+from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.modals import memory_panel as memory_panel_module
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals import memory_pane as memory_pane_module
+from sase.ace.tui.modals.memory_pane import MemoryPane, MemoryPaneSession
 from sase.ace.tui.modals.memory_panel_load import (
     MemoryPanelInitialLoad,
     MemoryScopeChoice,
@@ -34,7 +36,7 @@ async def test_panel_mounts_and_selects_first_note(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -57,7 +59,7 @@ async def test_tree_ordering_nests_children_under_their_parent(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -79,16 +81,18 @@ async def test_seed_filters_setting_reaches_initial_load(
         *,
         launch_workspace: str | None = None,
         initial_scope_key: str | None = None,
+        session_scope_key: str | None = None,
         seed_from_current_project: bool = True,
     ) -> MemoryPanelInitialLoad:
+        del launch_workspace, initial_scope_key, session_scope_key
         captured.append(seed_from_current_project)
         return MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None)
 
     monkeypatch.setattr(
-        memory_panel_module, "load_memory_panel_initial_state", fake_initial_load
+        memory_pane_module, "load_memory_panel_initial_state", fake_initial_load
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     app._current_project_settings = CurrentProjectSettings(seed_filters=False)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -108,7 +112,7 @@ async def test_scope_cycling_orders_by_display_name_and_scopes_notes(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -135,7 +139,7 @@ async def test_scope_selection_is_remembered_per_scope(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -166,7 +170,7 @@ async def test_scope_picker_switches_scope(monkeypatch: pytest.MonkeyPatch) -> N
         ),
     )
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -186,7 +190,7 @@ async def test_no_memory_root_shows_creation_message(
     ref = scope_ref("sase", "sase", has_memory=False, memory_read_root=None)
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, ())})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -202,7 +206,7 @@ async def test_empty_scope_with_root_shows_add_invitation(
     ref = scope_ref("sase", "sase")
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, ())})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -217,7 +221,7 @@ async def test_diagnostics_scope_shows_error(monkeypatch: pytest.MonkeyPatch) ->
     snapshot = scope_snapshot(ref, (), diagnostics=("sase/memory: bad layout",))
     install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -235,7 +239,7 @@ async def test_initial_and_scope_switch_loads_run_off_event_loop(
     }
     off_main_thread = install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -252,7 +256,7 @@ async def test_refresh_invalidates_and_reloads_scope(
     snapshots = {"sase": scope_snapshot(ref, (memory_note("alpha"),))}
     install_fixed_load(monkeypatch, (ref,), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -263,3 +267,119 @@ async def test_refresh_invalidates_and_reloads_scope(
         await pilot.press("r")
         await wait_for(pilot, lambda: not panel._loading and len(panel._rows) == 2)
         assert [row.note.path.stem for row in panel._rows] == ["alpha", "beta"]
+
+
+async def test_session_records_scope_and_selected_note(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    snapshots = {
+        "sase": scope_snapshot(ref, (memory_note("aaa"), memory_note("bbb"))),
+    }
+    install_fixed_load(monkeypatch, (ref,), snapshots)
+    session = MemoryPaneSession()
+    panel = MemoryPane(session=session)
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert session.scope_key == "sase"
+        assert session.note == "sase/memory/aaa.md"
+        await pilot.press("j")
+        await wait_for(pilot, lambda: panel._current_note == "sase/memory/bbb.md")
+        assert session.note == "sase/memory/bbb.md"
+
+
+async def test_explicit_note_seed_overrides_session_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    snapshots = {
+        "sase": scope_snapshot(ref, (memory_note("aaa"), memory_note("bbb"))),
+    }
+    install_fixed_load(monkeypatch, (ref,), snapshots)
+    session = MemoryPaneSession(note="sase/memory/aaa.md")
+    panel = MemoryPane(initial_note="sase/memory/bbb.md", session=session)
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_note == "sase/memory/bbb.md"
+
+
+async def test_missing_note_seed_falls_back_to_session_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    snapshots = {
+        "sase": scope_snapshot(ref, (memory_note("aaa"), memory_note("bbb"))),
+    }
+    install_fixed_load(monkeypatch, (ref,), snapshots)
+    session = MemoryPaneSession(note="sase/memory/bbb.md")
+    panel = MemoryPane(initial_note="sase/memory/gone.md", session=session)
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_note == "sase/memory/bbb.md"
+
+
+async def test_session_scope_is_used_when_no_explicit_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref_a = scope_ref("proj-a", "Alpha")
+    ref_b = scope_ref("proj-b", "Beta")
+    snapshots = {
+        "proj-a": scope_snapshot(ref_a, (memory_note("only_in_alpha"),)),
+        "proj-b": scope_snapshot(ref_b, (memory_note("only_in_beta"),)),
+    }
+    install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
+    session = MemoryPaneSession(scope_key="proj-b")
+    panel = MemoryPane(session=session)
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._scope_index == 1
+        assert [row.note.path.stem for row in panel._rows] == ["only_in_beta"]
+
+
+async def test_vanished_explicit_scope_falls_back_to_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref_a = scope_ref("proj-a", "Alpha")
+    ref_b = scope_ref("proj-b", "Beta")
+    snapshots = {
+        "proj-a": scope_snapshot(ref_a, (memory_note("only_in_alpha"),)),
+        "proj-b": scope_snapshot(ref_b, (memory_note("only_in_beta"),)),
+    }
+    install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
+    session = MemoryPaneSession(scope_key="proj-b")
+    panel = MemoryPane(initial_scope_key="gone", session=session)
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._scope_index == 1
+
+
+async def test_hidden_pane_focus_default_does_not_steal_focus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    install_fixed_load(
+        monkeypatch, (ref,), {"sase": scope_snapshot(ref, (memory_note("alpha"),))}
+    )
+    panel = MemoryPane()
+
+    class _HostApp(MemoryPanelTestApp):
+        def compose(self) -> ComposeResult:
+            yield panel
+            yield Input(id="other-focus")
+
+    app = _HostApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        other = app.query_one("#other-focus", Input)
+        other.focus()
+        await wait_for(pilot, lambda: other.has_focus)
+        panel.on_center_tab_visibility_changed(False)
+        panel.focus_default()
+        assert other.has_focus
+        panel.on_center_tab_visibility_changed(True)
+        await wait_for(pilot, lambda: panel._note_list().has_focus)

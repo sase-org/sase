@@ -18,7 +18,7 @@ from sase.ace.tui.memory_panel_catalog import invalidate_memory_scope
 from .memory_panel_state import _FILTER_INPUT_ID
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
     from textual.widgets import OptionList
 
     from sase.ace.tui.memory_panel_catalog import (
@@ -64,6 +64,8 @@ class MemoryPanelNavigationMixin(_MixinBase):
         def _start_scope_load(self) -> None: ...
 
         def _start_scope_picker_load(self) -> None: ...
+
+        def _record_session_selection(self) -> None: ...
 
     # --- note navigation ------------------------------------------------
 
@@ -142,6 +144,7 @@ class MemoryPanelNavigationMixin(_MixinBase):
                 self._current_note or ""
             )
         self._scope_index = (self._scope_index + delta) % len(self._ring)
+        self._record_session_selection()
         self._filter_input().value = ""
         self._filter_input().display = False
         self._trail = []

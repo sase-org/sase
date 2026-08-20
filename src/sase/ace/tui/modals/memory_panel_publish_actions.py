@@ -19,7 +19,7 @@ from .memory_panel_publish import (
 from .memory_panel_write import MemoryPublishPayload, run_memory_panel_publish
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
 
     from sase.ace.tui.memory_panel_catalog import MemoryScopeSnapshot
 else:
@@ -36,6 +36,7 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
         _scope_index: int
         _snapshot: MemoryScopeSnapshot | None
         _write_busy: bool
+        _closed: bool
         is_mounted: bool
         app: Any
 
@@ -68,9 +69,9 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
         note_path: str,
     ) -> None:
         def after_editor(confirmed: bool | None) -> None:
-            if confirmed and self.is_mounted:
+            if confirmed and self.is_mounted and not self._closed:
                 self.action_open_source()
-            if self.is_mounted:
+            if self.is_mounted and not self._closed:
                 self._offer_publish(scope, subject)
 
         self.app.push_screen(
@@ -87,7 +88,7 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
         )
 
     def _offer_publish(self, scope: MemoryScopeRef, subject: str) -> None:
-        if not self.is_mounted:
+        if not self.is_mounted or self._closed:
             return
         self.app.push_screen(
             MemoryPublishModal(
@@ -154,6 +155,7 @@ class MemoryPanelPublishActionsMixin(_MixinBase):
         self._clear_scope_unpublished(payload.scope_key)
         if (
             self.is_mounted
+            and not self._closed
             and self._ring
             and self._ring[self._scope_index].key == payload.scope_key
         ):

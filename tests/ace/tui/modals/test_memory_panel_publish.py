@@ -12,7 +12,7 @@ from textual.widgets import Input
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals import memory_panel_write as write_mod
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from sase.ace.tui.modals.memory_panel_add import MemoryNoteFormModal
 from sase.ace.tui.modals.memory_panel_publish import (
     MemoryPublishModal,
@@ -94,7 +94,7 @@ async def test_publish_runs_init_and_clears_unpublished(
     install_write_fakes(monkeypatch, snapshots, create=fake_create)
     monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -145,7 +145,7 @@ async def test_publish_only_and_home_scope_cwd(
 
     monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -179,7 +179,7 @@ async def test_publish_failure_keeps_unpublished_and_surfaces_stderr(
 
     monkeypatch.setattr(write_mod, "run_noninteractive", fake_run)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelActionsApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_pane import MemoryPane
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     MemoryPanelTestApp,
     install_fixed_load,
@@ -27,7 +27,7 @@ async def test_back_restores_previous_note_and_pops_one(
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -57,7 +57,7 @@ async def test_back_on_empty_trail_is_a_no_op(
     notes = (memory_note("hub"),)
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -73,7 +73,7 @@ async def test_trail_is_bounded_at_32(monkeypatch: pytest.MonkeyPatch) -> None:
     notes = tuple(memory_note(stem) for stem in stems)
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -100,7 +100,7 @@ async def test_scope_cycling_clears_the_trail(
     }
     install_fixed_load(monkeypatch, (ref_a, ref_b), snapshots)
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
@@ -120,7 +120,7 @@ async def test_back_skips_a_missing_trail_entry(
     notes = (memory_note("real"), memory_note("other"))
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
 
-    panel = MemoryPanel()
+    panel = MemoryPane()
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)

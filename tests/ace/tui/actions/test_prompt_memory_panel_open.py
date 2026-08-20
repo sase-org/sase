@@ -99,7 +99,7 @@ def _prompt_context(
 
 def _stub_panel_load(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.modals.memory_panel.load_memory_panel_initial_state",
+        "sase.ace.tui.modals.memory_pane.load_memory_panel_initial_state",
         lambda **_: MemoryPanelInitialLoad(ring=(), scope_index=0, snapshot=None),
     )
 

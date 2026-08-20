@@ -19,7 +19,7 @@ from sase.memory.text_filter import filter_memory_notes
 from .memory_panel_rendering import build_note_row_text
 
 if TYPE_CHECKING:
-    from textual.screen import ModalScreen as _MixinBase
+    from textual.widget import Widget as _MixinBase
 
     from sase.ace.tui.memory_panel_catalog import MemoryRailNode, MemoryScopeSnapshot
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
@@ -32,7 +32,7 @@ _FILTER_INPUT_ID = "memory-panel-filter"
 
 
 class MemoryPanelStateMixin(_MixinBase):
-    """Snapshot application, filtering, and selection for :class:`MemoryPanel`."""
+    """Snapshot application, filtering, and selection for :class:`MemoryPane`."""
 
     if TYPE_CHECKING:
         _all_rows: tuple[MemoryRailNode, ...]
@@ -56,6 +56,8 @@ class MemoryPanelStateMixin(_MixinBase):
         def _update_footer(self) -> None: ...
 
         def _update_header(self) -> None: ...
+
+        def _record_session_selection(self) -> None: ...
 
     def _apply_snapshot(
         self, snapshot: MemoryScopeSnapshot | None, *, preferred_note: str | None
@@ -127,6 +129,7 @@ class MemoryPanelStateMixin(_MixinBase):
             self._current_note = identity
         else:
             self._current_note = None
+        self._record_session_selection()
         self._refresh_links_for_current_note()
         self._render_note_card()
 
@@ -202,6 +205,7 @@ class MemoryPanelStateMixin(_MixinBase):
         ):
             return
         self._current_note = identity
+        self._record_session_selection()
         self._refresh_links_for_current_note()
         self._update_footer()
         if self._debouncer is not None:
