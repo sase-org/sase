@@ -13,6 +13,7 @@ from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
@@ -137,7 +138,12 @@ def create_followup_artifacts(
     Inherits metadata fields from the previous agent's meta and adds
     role_suffix and parent_timestamp.
     """
-    new_artifacts_dir = create_artifacts_directory("ace-run", project_name=project_name)
+    reserved_timestamp = reserve_launch_timestamp_batch(1)[0]
+    new_artifacts_dir = create_artifacts_directory(
+        "ace-run",
+        project_name=project_name,
+        timestamp=reserved_timestamp,
+    )
     canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix
 
     followup_meta: dict[str, Any] = {"pid": os.getpid()}

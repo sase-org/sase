@@ -235,6 +235,41 @@ def test_relationships_and_prompt_artifact_are_recorded(tmp_path: Path) -> None:
     )
 
 
+def test_before_create_callback_runs_after_suffix_and_before_artifacts(
+    tmp_path: Path,
+) -> None:
+    ctx = make_ctx(tmp_path)
+    state = make_state(tmp_path)
+    events: list[tuple[str, str, str] | str] = []
+
+    def before_create(suffix: str, successor_name: str) -> None:
+        events.append(("before", suffix, successor_name))
+        assert state.current_role_suffix == "--plan-0"
+        assert state.current_artifacts_dir == str(tmp_path / "artifacts")
+        assert state.current_prompt == "original prompt"
+
+    def create(*_args: object, **_kwargs: object) -> str:
+        events.append("create")
+        return "/tmp/followup"
+
+    continue_as_successor(
+        ctx,
+        state,
+        _request(
+            suffix=None,
+            suffix_template="--plan-@",
+            before_create=before_create,
+        ),
+        create_artifacts=create,
+        promote=Mock(),
+        store_prompt=Mock(),
+    )
+
+    assert events == [("before", "--plan-0", "test_agent--plan-0"), "create"]
+    assert state.current_artifacts_dir == "/tmp/followup"
+    assert state.current_prompt == "do the next step"
+
+
 @pytest.mark.parametrize(
     "suffix, suffix_template",
     [

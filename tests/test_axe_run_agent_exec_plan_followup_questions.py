@@ -1,5 +1,6 @@
 """Tests for question follow-up prompt reconstruction."""
 
+from dataclasses import replace
 import json
 from unittest.mock import patch
 
@@ -137,6 +138,78 @@ class TestPlanFollowupQuestions:
         assert outcome is None
         assert state.current_role_suffix == "--plan-1"
         assert plan_mod.create_followup_artifacts.call_args.args[2] == "--plan-1"
+
+    def test_feedback_followup_unnamed_agent_uses_round_index_fallback(
+        self, tmp_path
+    ) -> None:
+        ctx = replace(make_ctx(tmp_path), agent_name=None)
+        state = make_state(tmp_path)
+        plan_file = write_plan_file(tmp_path)
+        approval = PlanApprovalResult(
+            action="feedback",
+            plan_file=plan_file,
+            feedback="Tighten the test",
+        )
+
+        _, state, outcome = run_plan_approval(
+            tmp_path,
+            approval=approval,
+            ctx=ctx,
+            state=state,
+        )
+
+        assert outcome is None
+        assert state.current_role_suffix == "--plan-0"
+        assert plan_mod.create_followup_artifacts.call_args.args[2] == "--plan-0"
+        assert (
+            plan_mod.create_followup_artifacts.call_args.kwargs["agent_name_override"]
+            is None
+        )
+        assert (
+            plan_mod.create_followup_artifacts.call_args.kwargs["workflow_name"] is None
+        )
+        plan_mod.promote_to_workflow.assert_not_called()
+
+    def test_feedback_followup_records_metadata_before_artifact_creation(
+        self, tmp_path
+    ) -> None:
+        order: list[str] = []
+
+        def record_meta(_artifacts_dir, key, _value):
+            if key in {"feedback_submitted_at", "followup_agent_name", "plan_path"}:
+                order.append(f"meta:{key}")
+
+        def create(*args, **_kwargs):
+            order.append(f"create:{args[2]}")
+            return "/tmp/followup"
+
+        plan_mod.update_meta_field.side_effect = record_meta
+        plan_mod.create_followup_artifacts.side_effect = create
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = write_plan_file(tmp_path)
+        approval = PlanApprovalResult(
+            action="feedback",
+            plan_file=plan_file,
+            feedback="Tighten the test",
+        )
+
+        _, state, outcome = run_plan_approval(
+            tmp_path,
+            approval=approval,
+            ctx=ctx,
+            state=state,
+        )
+
+        assert outcome is None
+        assert state.current_artifacts_dir == "/tmp/followup"
+        assert "create:--plan-0" in order
+        create_index = order.index("create:--plan-0")
+        assert any(
+            item == "meta:feedback_submitted_at" for item in order[:create_index]
+        )
+        assert any(item == "meta:followup_agent_name" for item in order[:create_index])
+        assert any(item == "meta:plan_path" for item in order[:create_index])
 
     def test_plan_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
         """Plan-phase questions continue in the first feedback-number slot."""

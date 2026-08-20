@@ -256,13 +256,9 @@ def _prepare_publications(
                 error=error,
                 increment_attempts=True,
                 quarantine_threshold=hooks.configured_max_attempts(),
-                terminal_reason=(
-                    error
-                    if isinstance(exc, AgentsSyncFormatError)
-                    and str(exc)
-                    == f"hood {request.local_hood!r} has no publishable runs"
-                    else None
-                ),
+                terminal_reason=error
+                if isinstance(exc, AgentsSyncFormatError)
+                else None,
             )
             errors.append(error)
 

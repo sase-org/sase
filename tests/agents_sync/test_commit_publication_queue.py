@@ -36,6 +36,12 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.project_lifecycle_wire import (
+    PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+    ProjectRecordWire,
+)
+from sase.doctor.checks_agent_publication import _check_agent_publication_outbox
+from sase.doctor.runner import DoctorContext
 from tests.agents_sync.commit_publication_fixtures import git, setup_target
 
 
@@ -468,3 +474,116 @@ def test_no_publishable_runs_retries_once_then_retires(
     assert still_retired.terminal
     assert still_retired.terminal_reason == retired.terminal_reason
     assert still_retired.attempts == retired.attempts
+
+
+def test_repeated_format_publication_failure_retires_and_doctor_says_drop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_home = tmp_path / "state"
+    monkeypatch.setenv("SASE_HOME", str(state_home))
+    target, _remote = setup_target(tmp_path)
+    owner = AgentOwnerIdentity("alice", "athena")
+    old_now = 1_000.0
+    doctor_now = old_now + 3 * 24 * 60 * 60
+    error_detail = (
+        "invalid hood relationships: duplicate or inconsistent container global name"
+    )
+    full_error = f"could not publish agent hood 'research': {error_detail}"
+    item = AgentPublicationOutboxItem(
+        project_key="proj",
+        project="Project",
+        local_agent="research.cdx",
+        global_agent="alice.athena.research.cdx",
+        primary_revision="a" * 40,
+        local_hood="research",
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_outbox_operations.time.time",
+        lambda: old_now,
+    )
+    [queued] = (enqueue_agent_publication(item),)
+    assert queued.attempts == 0
+    assert queued.created_at == old_now
+
+    monkeypatch.setattr(
+        commit_publication,
+        "integrate_agent_imports_with_receipts",
+        lambda *_args, **_kwargs: IntegrationCounts(),
+    )
+    monkeypatch.setattr(
+        commit_publication,
+        "build_project_hood_inventory",
+        lambda *_args, **_kwargs: ProjectHoodInventory(owner, "proj", ()),
+    )
+
+    def invalid_relationships(*_args: object, **_kwargs: object) -> None:
+        raise AgentsSyncFormatError(error_detail)
+
+    monkeypatch.setattr(
+        commit_publication,
+        "publish_agent_hood",
+        invalid_relationships,
+    )
+    monkeypatch.setattr(
+        "sase.agents_sync.publication_outbox_operations.time.time",
+        lambda: doctor_now,
+    )
+
+    first = _publish_queued_locked(target, owner, run_git)
+    [pending] = list_agent_publications("proj")
+    assert first.drained == 0
+    assert first.item_errors == (full_error,)
+    assert pending.attempts == 1
+    assert pending.last_error == full_error
+    assert not pending.terminal
+    assert not pending.quarantined
+    assert list_agent_publications("proj", include_quarantined=False) == (pending,)
+
+    second = _publish_queued_locked(target, owner, run_git)
+    [retired] = list_agent_publications("proj")
+    assert second.drained == 0
+    assert second.item_errors == (full_error,)
+    assert retired.attempts == 2
+    assert retired.terminal
+    assert retired.terminal_reason == full_error
+    assert not retired.quarantined
+    assert list_agent_publications("proj", include_quarantined=False) == ()
+
+    project_dir = state_home / "projects" / "proj"
+    record = ProjectRecordWire(
+        schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+        project_name="proj",
+        project_dir=str(project_dir),
+        project_file=str(project_dir / "proj.sase"),
+        archive_file=None,
+        workspace_dir=str(tmp_path / "primary"),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_agent_publication.require_agent_owner_identity",
+        lambda: (_ for _ in ()).throw(RuntimeError("owner unavailable")),
+    )
+    check = _check_agent_publication_outbox(
+        DoctorContext(cwd=tmp_path, project=None, sase_home=state_home),
+        now=doctor_now,
+        stalled_attempts=3,
+    )
+
+    assert check.status == "WARN"
+    assert "1 retired" in check.summary
+    assert "sase agent sync --drop-retired" in check.summary
+    assert "sase agent sync --retry-quarantined" not in check.summary
+    assert "retired as unpublishable" in check.details[0]
+    assert error_detail in check.details[0]
+    assert check.next_steps == (
+        "Run `sase agent sync --drop-retired` to drop retired requests that can never be published.",
+    )

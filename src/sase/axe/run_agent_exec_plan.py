@@ -6,7 +6,6 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.axe.run_agent_runtime import format_agent_run_runtime
 from sase.axe.run_agent_exec_plan_artifacts import (
     store_followup_prompt_artifact,
@@ -22,10 +21,10 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
+from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.runner_signals import reset_killed, was_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    allocate_agent_family_child_suffix,
     plan_chain_agent_name,
 )
 
@@ -68,6 +67,7 @@ def record_workflow_metadata(
         "question_request_path",
         "question_response_path",
         "question_session_id",
+        "followup_agent_name",
     }
     for key, value in relationships.items():
         if key in retained_fields and value is not None and value != "":
@@ -183,64 +183,47 @@ def handle_plan_marker(
             feedback_submitted_at,
         )
 
-        if state.agent_step == 1 and ctx.agent_name:
-            promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
-        suffix = (
-            allocate_agent_family_child_suffix(
-                ctx.agent_name,
-                f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
-                extra_reserved_suffixes=_state_reserved_suffixes(state),
-            )
-            if ctx.agent_name
-            else f"{PLAN_CHAIN_PLAN_SUFFIX}-{state.feedback_round - 1}"
-        )
-        feedback_agent_name = agent_name_for_suffix(ctx, suffix)
-        record_workflow_metadata(
-            state.current_artifacts_dir,
-            {
-                "feedback_submitted_at": feedback_submitted_at,
-                "followup_agent_name": feedback_agent_name,
-                "plan_path": plan_result.plan_file,
-            },
-        )
-        state.current_role_suffix = suffix
-        state.agent_step += 1
-        state.current_artifacts_dir = create_followup_artifacts(
-            ctx.project_name,
-            ctx.agent_meta,
-            state.current_role_suffix,
-            convert_timestamp_to_artifacts_format(ctx.timestamp),
-            workspace_num=ctx.workspace_num,
-            agent_name_override=plan_chain_agent_name(
-                ctx.agent_name,
-                state.current_role_suffix,
-            )
-            if ctx.agent_name
-            else None,
-            workflow_name=ctx.agent_name,
-            relationships={
-                "plan_path": plan_result.plan_file,
-                "feedback_submitted_at": feedback_submitted_at,
-                "patch_name": ctx.cl_name,
-                "changespec_name": ctx.cl_name,
-                "source_plan_agent_name": planner_agent,
-            },
-        )
-
         # Reconstruct prompt: original + merged Q&A + requirements.
-        state.current_prompt = assemble_feedback_replan_prompt(
+        feedback_prompt = assemble_feedback_replan_prompt(
             state.original_prompt,
             state.feedback_bullets,
             state.qa_rounds,
         )
+        continue_as_successor(
+            ctx,
+            state,
+            SuccessorRequest(
+                base_meta=ctx.agent_meta,
+                prompt=feedback_prompt,
+                suffix_template=f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
+                extra_reserved_suffixes=_state_reserved_suffixes(state),
+                relationships={
+                    "plan_path": plan_result.plan_file,
+                    "feedback_submitted_at": feedback_submitted_at,
+                    "patch_name": ctx.cl_name,
+                    "changespec_name": ctx.cl_name,
+                    "source_plan_agent_name": planner_agent,
+                },
+                prompt_artifact_label="Full feedback prompt",
+                fallback_token=str(state.feedback_round - 1),
+                before_create=lambda _suffix, successor_name: record_workflow_metadata(
+                    state.current_artifacts_dir,
+                    {
+                        "feedback_submitted_at": feedback_submitted_at,
+                        "followup_agent_name": successor_name
+                        if ctx.agent_name
+                        else None,
+                        "plan_path": plan_result.plan_file,
+                    },
+                ),
+            ),
+            create_artifacts=create_followup_artifacts,
+            promote=promote_to_workflow,
+            store_prompt=_store_followup_prompt_artifact,
+        )
         # A ``/sase_questions`` interruption from the replan phase rebuilds from
         # this feedback prompt rather than the bare planner prompt.
         state.question_base_prompt = state.current_prompt
-        _store_followup_prompt_artifact(
-            state.current_artifacts_dir,
-            state.current_prompt,
-            label="Full feedback prompt",
-        )
         return None  # continue loop
 
     from sase.axe.run_agent_exec_plan_accept import handle_accepted_plan

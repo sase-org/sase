@@ -93,6 +93,7 @@ class SuccessorRequest:
     model: FollowupModel | None = None
     promote_role_suffix: str | None = None
     fallback_token: str = "0"
+    before_create: Callable[[str, str], None] | None = None
 
     def __post_init__(self) -> None:
         if (self.suffix is None) == (self.suffix_template is None):
@@ -229,6 +230,8 @@ def continue_as_successor(
     successor_name = (
         plan_chain_agent_name(ctx.agent_name, suffix) if ctx.agent_name else suffix
     )
+    if request.before_create is not None:
+        request.before_create(suffix, successor_name)
     create_kwargs: dict[str, Any] = {
         "workspace_num": ctx.workspace_num,
         "agent_name_override": successor_name if ctx.agent_name else None,

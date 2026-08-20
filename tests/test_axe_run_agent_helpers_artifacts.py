@@ -312,3 +312,65 @@ def test_create_followup_artifacts_updates_artifact_index(tmp_path) -> None:
     assert calls == [str(followup)]
     assert (followup / "agent_meta.json").is_file()
     assert (followup / "workflow_state.json").is_file()
+
+
+def test_create_followup_artifacts_reserves_unique_timestamped_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.core.time.generate_timestamp",
+        lambda: "260820_161407",
+    )
+    base_meta = {
+        "name": "root--plan",
+        "model": "opus",
+        "workspace_dir": "/managed/ws/proj_7",
+    }
+
+    first = create_followup_artifacts(
+        "test_proj",
+        base_meta,
+        "--plan-0",
+        "20260820161400",
+        workspace_num=7,
+        agent_name_override="root--plan-0",
+        workflow_name="root",
+        relationships={
+            "source_plan_agent_name": "root--plan",
+            "feedback_submitted_at": "2026-08-20T16:14:07+00:00",
+        },
+    )
+    second = create_followup_artifacts(
+        "test_proj",
+        base_meta,
+        "--plan-1",
+        "20260820161400",
+        workspace_num=7,
+        agent_name_override="root--plan-1",
+        workflow_name="root",
+        relationships={
+            "source_plan_agent_name": "root--plan-0",
+            "feedback_submitted_at": "2026-08-20T16:15:07+00:00",
+        },
+    )
+
+    assert first != second
+    assert Path(first).name == "20260820161407"
+    assert Path(second).name == "20260820161408"
+
+    first_meta = json.loads((Path(first) / "agent_meta.json").read_text())
+    second_meta = json.loads((Path(second) / "agent_meta.json").read_text())
+
+    assert first_meta["name"] == "root--plan-0"
+    assert first_meta["role_suffix"] == "--plan-0"
+    assert first_meta["source_plan_agent_name"] == "root--plan"
+    assert first_meta["workspace_dir"] == "/managed/ws/proj_7"
+    assert first_meta["workspace_num"] == 7
+
+    assert second_meta["name"] == "root--plan-1"
+    assert second_meta["role_suffix"] == "--plan-1"
+    assert second_meta["source_plan_agent_name"] == "root--plan-0"
+    assert second_meta["workspace_dir"] == first_meta["workspace_dir"]
+    assert second_meta["workspace_num"] == first_meta["workspace_num"]
