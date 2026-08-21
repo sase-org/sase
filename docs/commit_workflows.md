@@ -731,12 +731,9 @@ machine-managed store state, or `kind == "external"` — a repo merely opened vi
   is reported separately through
   [Publication Verification](beads.md#publication-verification) instead of this guard.
 
-This relaxation lives behind the `commit_finalizer_shared_clone_exempt` feature flag
-(default on). Disabling it restores the strict, pre-flag classification: only
-`kind == "sdd"` state not ahead of its upstream is exempt, and a foreign agent's footer
-alone is never a reason to exempt a repo. `kind == "main"` and `kind == "sibling"` repos
-— this agent's own workspace — are never exempt under either classification; nobody else
-should be committing there, so an unattributed change there is always a discard.
+`kind == "main"` and `kind == "sibling"` repos — this agent's own workspace — are never
+exempt; nobody else should be committing there, so an unattributed change there is
+always a discard.
 
 Each classification emits a path-free structured event (`event_id`, repository kind,
 before/after `HEAD`, upstream-ahead count, attribution class, and final classification)

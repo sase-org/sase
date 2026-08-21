@@ -6,10 +6,8 @@ store state (``kind == "sdd"``) or a repo merely opened via ``/sase_repo``
 reasons that have nothing to do with this agent discarding anything: a
 managed sync rebase absorbed the content into a commit some other agent
 already published, the commit is queued for a push that has not landed yet,
-or a concurrent agent committed it first. The
-``commit_finalizer_shared_clone_exempt`` flag (default on) exempts all of
-these; disabling it restores the strict, pre-flag classification that only
-exempted ``kind == "sdd"`` state not ahead of its upstream.
+or a concurrent agent committed it first. Those transitions are races or
+published state, not discards.
 """
 
 from __future__ import annotations
@@ -20,7 +18,6 @@ from typing import Literal
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_git_progress import (
     discarded_dirty_work_evidence,
@@ -159,30 +156,6 @@ def test_sdd_state_ahead_of_upstream_is_pending_publication_not_a_discard(
     assert evidence == ()
 
 
-def test_sdd_state_ahead_of_upstream_still_fails_with_flag_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = _init_repo_with_upstream(tmp_path, "research")
-    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
-    before = _dirty_state(repo, ("README.md",))
-    fingerprint_before = progress_fingerprint(before)
-    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
-
-    _run_git(repo, "add", "-A")
-    _run_git(repo, "commit", "-q", "-m", "local unattributed commit")
-
-    assert _run_git(repo, "rev-list", "--count", "@{upstream}..HEAD").strip() == "1"
-    with override_flags(commit_finalizer_shared_clone_exempt=False):
-        evidence = discarded_dirty_work_evidence(
-            before,
-            _clean_state(repo),
-            fingerprint_before=fingerprint_before,
-        )
-
-    assert [item.reason for item in evidence] == ["missing_agent_provenance"]
-
-
 def test_sdd_state_without_upstream_and_foreign_agent_is_a_race_not_a_discard(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -208,32 +181,6 @@ def test_sdd_state_without_upstream_and_foreign_agent_is_a_race_not_a_discard(
     assert evidence == ()
 
 
-def test_sdd_state_without_upstream_still_fails_with_flag_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "research"
-    init_git_repo(repo)
-    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
-    before = _dirty_state(repo, ("README.md",))
-    fingerprint_before = progress_fingerprint(before)
-    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
-
-    _run_git(repo, "add", "-A")
-    _run_git(
-        repo, "commit", "-q", "-m", "commit dirty payload\n\nSASE_AGENT=other-agent"
-    )
-
-    with override_flags(commit_finalizer_shared_clone_exempt=False):
-        evidence = discarded_dirty_work_evidence(
-            before,
-            _clean_state(repo),
-            fingerprint_before=fingerprint_before,
-        )
-
-    assert [item.reason for item in evidence] == ["missing_agent_provenance"]
-
-
 def test_external_kind_sync_absorbed_state_is_not_discarded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -257,28 +204,3 @@ def test_external_kind_sync_absorbed_state_is_not_discarded(
     )
 
     assert evidence == ()
-
-
-def test_external_kind_still_requires_ahead_zero_with_flag_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = _init_repo_with_upstream(tmp_path, "widget")
-    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
-    before = _dirty_state(repo, ("README.md",), kind="external")
-    fingerprint_before = progress_fingerprint(before)
-    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
-
-    _push_foreign_commit(repo, tmp_path)
-    branch = _current_branch(repo)
-    _run_git(repo, "fetch", "-q", "origin")
-    _run_git(repo, "reset", "-q", "--hard", f"origin/{branch}")
-
-    with override_flags(commit_finalizer_shared_clone_exempt=False):
-        evidence = discarded_dirty_work_evidence(
-            before,
-            _clean_state(repo),
-            fingerprint_before=fingerprint_before,
-        )
-
-    assert [item.reason for item in evidence] == ["missing_agent_provenance"]

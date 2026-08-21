@@ -164,9 +164,6 @@ def _published_store_state_is_exempt(
     if repo.kind not in ("sdd", "external"):
         exempt = False
         classification = "discard"
-    elif not _shared_clone_exemption_enabled():
-        exempt = _legacy_published_store_state_is_exempt(repo, ahead)
-        classification = "published" if exempt else "discard"
     elif foreign_agent:
         exempt = True
         classification = "race"
@@ -183,20 +180,6 @@ def _published_store_state_is_exempt(
         artifacts_dir=artifacts_dir,
     )
     return exempt
-
-
-def _legacy_published_store_state_is_exempt(
-    repo: DirtyRepo,
-    ahead: int | None,
-) -> bool:
-    """Strict, pre-``commit_finalizer_shared_clone_exempt`` classification.
-
-    Kept as the flag's kill-switch fallback: only machine-managed
-    (``kind == "sdd"``) state that is not ahead of its configured upstream is
-    exempt, and a foreign agent's footer is never on its own a reason to
-    exempt a repo.
-    """
-    return repo.kind == "sdd" and ahead == 0
 
 
 def _new_shared_clone_event_id() -> str:
@@ -284,15 +267,6 @@ def _append_shared_clone_event(
             handle.write(json.dumps(payload, sort_keys=True) + "\n")
     except OSError:
         return
-
-
-def _shared_clone_exemption_enabled() -> bool:
-    try:
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        return current_flags().enabled(FeatureFlag.commit_finalizer_shared_clone_exempt)
-    except Exception:
-        return True
 
 
 def _foreign_agent_of_new_commits(

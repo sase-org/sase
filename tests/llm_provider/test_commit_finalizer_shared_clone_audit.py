@@ -18,7 +18,6 @@ from typing import Any, Literal
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_git_progress import (
     SHARED_CLONE_CLASSIFICATION_EVENT,
@@ -432,38 +431,6 @@ def test_current_agent_commit_emits_no_classification_event(
     assert evidence == ()
     assert _read_events(artifacts_dir) == []
     assert _head_blob(repo, _DIRTY_RELPATH) == dirty_blob
-
-
-def test_flag_off_keeps_external_foreign_agent_fail_closed(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "widget"
-    init_git_repo(repo)
-    before, fingerprint_before, _dirty_blob, _before_head = _snapshot_dirty(
-        repo, kind="external", monkeypatch=monkeypatch
-    )
-    _run_git(repo, "add", "-A")
-    _run_git(
-        repo,
-        "commit",
-        "-q",
-        "-m",
-        "commit dirty payload\n\nSASE_AGENT=other-agent",
-    )
-    artifacts_dir = tmp_path / "artifacts"
-    with override_flags(commit_finalizer_shared_clone_exempt=False):
-        evidence = discarded_dirty_work_evidence(
-            before,
-            _clean_state(repo),
-            fingerprint_before=fingerprint_before,
-            artifacts_dir=str(artifacts_dir),
-        )
-    events = _read_events(artifacts_dir)
-    assert [item.reason for item in evidence] == ["missing_agent_provenance"]
-    assert events[-1]["classification"] == "discard"
-    assert events[-1]["repo_kind"] == "external"
-    assert events[-1]["attribution_class"] == "foreign_agent"
 
 
 def test_shared_clone_counter_increments_for_race(

@@ -9,7 +9,6 @@ from types import SimpleNamespace
 import pytest
 
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
-from sase.feature_flags import override_flags
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_git_progress import (
     discarded_dirty_work_evidence,
@@ -245,26 +244,3 @@ def test_foreign_agent_commit_in_shared_sidecar_is_a_race_not_a_discard(
     )
 
     assert evidence == ()
-
-
-def test_foreign_agent_commit_in_shared_sidecar_still_fails_with_flag_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "agents"
-    init_git_repo(repo)
-    (repo / "README.md").write_text("dirty payload\n", encoding="utf-8")
-    before = _dirty_state(repo, ("README.md",))
-    fingerprint_before = progress_fingerprint(before)
-    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
-
-    commit_all(repo, "commit dirty payload\n\nSASE_AGENT=other-agent")
-
-    with override_flags(commit_finalizer_shared_clone_exempt=False):
-        evidence = discarded_dirty_work_evidence(
-            before,
-            _clean_state(repo),
-            fingerprint_before=fingerprint_before,
-        )
-
-    assert [item.reason for item in evidence] == ["missing_agent_provenance"]

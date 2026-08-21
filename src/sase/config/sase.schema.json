@@ -3733,12 +3733,6 @@
           "description": "Opt-in beta: the follow-up coder inherits the planner's chat via #fork instead of starting from the approved plan file alone.",
           "default": false
         },
-        "commit_finalizer_shared_clone_exempt": {
-          "type": "boolean",
-          "description": "Classify foreign-agent commits and already-published/pending-publication transitions in machine-wide shared clones (opened-external and sdd-kind repos) as races rather than discards in the commit finalizer's dirty-work guard. Disable to fall back to strict single-owner classification.",
-          "default": true,
-          "deprecated": true
-        },
         "completion_refresh_on_update": {
           "type": "boolean",
           "description": "After a successful sase update, regenerate, zcompile, and restamp installed shell completion scripts. Off by default while the generator soaks.",
