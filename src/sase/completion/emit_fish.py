@@ -38,6 +38,86 @@ function __sase_candidates
     __sase_run completion candidates $argv[1] 2>/dev/null
 end
 
+function __sase_run_prompt_fragment
+    set -g __sase_prompt_kind
+    set -g __sase_prompt_marker
+    set -g __sase_prompt_fragment
+    set -g __sase_prompt_base
+    set -l text $argv[1]
+    set -l marker
+    set -l kind
+    set -l length (string length -- $text)
+    set -l i $length
+    while test $i -ge 1
+        set -l char (string sub -s $i -l 1 -- $text)
+        switch $char
+            case '#'
+                set marker '#'
+                set kind xprompt
+                break
+            case '%'
+                set marker '%'
+                set kind directive
+                break
+            case '@'
+                set marker '@'
+                set kind artifact_ref
+                break
+        end
+        set i (math $i - 1)
+    end
+    test -n "$marker"; or return 1
+    if test $i -gt 1
+        set -l before (string sub -s (math $i - 1) -l 1 -- $text)
+        switch $before
+            case ' ' \\t '(' '[' '{' '"' "'"
+            case '*'
+                return 1
+        end
+    end
+    set -l fragment (string sub -s (math $i + 1) -- $text)
+    if string match -rq '\\s' -- $fragment
+        return 1
+    end
+    set -l base
+    if test $i -gt 1
+        set base (string sub -s 1 -l (math $i - 1) -- $text)
+    end
+    set -g __sase_prompt_kind $kind
+    set -g __sase_prompt_marker $marker
+    set -g __sase_prompt_fragment $fragment
+    set -g __sase_prompt_base $base
+end
+
+function __sase_run_prompt_candidates
+    set -l token (commandline -ct)
+    if __sase_run_prompt_fragment "$token"
+        set -l kind $__sase_prompt_kind
+        set -l marker $__sase_prompt_marker
+        set -l fragment $__sase_prompt_fragment
+        set -l base $__sase_prompt_base
+        __sase_run completion candidates $kind 2>/dev/null | while read -l line
+            set -l parts (string split -m 1 \\t -- $line)
+            set -l value $parts[1]
+            if string match -q -- "$fragment*" $value
+                set -l candidate "$base$marker$value"
+                switch (string sub -s 1 -l 1 -- "$candidate")
+                    case '"' "'"
+                        set candidate (string sub -s 2 -- "$candidate")
+                end
+                set -l escaped (string escape -- "$candidate")
+                if test (count $parts) -gt 1
+                    printf '%s\\t%s\\n' "$escaped" $parts[2]
+                else
+                    printf '%s\\n' "$escaped"
+                end
+            end
+        end
+        return
+    end
+    __sase_candidates xprompt
+end
+
 function __sase_cmd
     set -l current (__sase_path)
     test "$current" = "$argv[1]"
@@ -186,8 +266,8 @@ def _positional_complete(
 ) -> str:
     if (command_path, positional.dest) == RUN_PROMPT_SLOT:
         # Force files (like the default, kind-less positional) *and* offer
-        # stored xprompt names -- `-x` would suppress file completion.
-        args = "-rFa '(__sase_candidates xprompt)'"
+        # stored xprompt names or embedded #/%/@ prompt-reference fragments.
+        args = "-rFa '(__sase_run_prompt_candidates)'"
     else:
         args = _value_args(positional.choices, positional.kind)
     if not args:

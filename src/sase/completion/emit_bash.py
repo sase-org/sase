@@ -54,15 +54,56 @@ __sase_candidates() {
   while IFS= read -r line; do
     [[ -n ${line} ]] && values+=("${line%%$'\\t'*}")
   done <<< "${__sase_candidates_cache[${kind}]}"
-  COMPREPLY=($(compgen -P "${prefix}" -W "${values[*]}" -- "${cur}"))
+  mapfile -t COMPREPLY < <(compgen -P "${prefix}" -W "${values[*]}" -- "${cur}")
+}
+
+# Detect an embedded run-prompt reference in the current word. The marker
+# contract is intentionally small: # completes xprompts, % completes prompt
+# directives, and @ completes canonical artifact references.
+__sase_run_prompt_fragment() {
+  local text=$1
+  local i ch before
+  __sase_prompt_kind=
+  __sase_prompt_marker=
+  __sase_prompt_fragment=
+  __sase_prompt_base=
+
+  for (( i=${#text} - 1; i >= 0; i-- )); do
+    ch=${text:i:1}
+    case "${ch}" in
+      '#') __sase_prompt_marker='#'; __sase_prompt_kind=xprompt; break ;;
+      '%') __sase_prompt_marker='%'; __sase_prompt_kind=directive; break ;;
+      '@') __sase_prompt_marker='@'; __sase_prompt_kind=artifact_ref; break ;;
+    esac
+  done
+  [[ -n ${__sase_prompt_marker} ]] || return 1
+  if (( i > 0 )); then
+    before=${text:i-1:1}
+    case "${before}" in
+      ' '|$'\t'|'('|'"'|"'") ;;
+      *) return 1 ;;
+    esac
+  fi
+  __sase_prompt_fragment=${text:i+1}
+  case "${__sase_prompt_fragment}" in
+    *' '*|*$'\t'*) return 1 ;;
+  esac
+  __sase_prompt_base=${text:0:i}
 }
 
 # `sase run`'s PROMPT positional: native filenames plus stored xprompt
 # names, since `sase run` accepts either a free-form prompt or a `#name`
-# xprompt reference. `#`, `%`, and `@` completion inside the prompt text
-# itself is deferred.
+# xprompt reference. Inside prompt text, #, %, and @ complete the active
+# embedded xprompt, directive, or artifact-reference fragment.
 __sase_run_prompt() {
   local cur=$1 prefix=$2
+  if __sase_run_prompt_fragment "${cur}"; then
+    __sase_candidates \
+      "${__sase_prompt_kind}" \
+      "${__sase_prompt_fragment}" \
+      "${prefix}${__sase_prompt_base}${__sase_prompt_marker}"
+    return
+  fi
   __sase_candidates xprompt "${cur}" "${prefix}"
   local -a files
   files=($(compgen -f -- "${cur}"))

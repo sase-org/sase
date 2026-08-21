@@ -36,6 +36,17 @@ def test_artifact_relation_candidates_include_cli_slugs() -> None:
     assert {"related", "implements", "supersedes", "derives-from"} <= values
 
 
+def test_directive_candidates_use_shared_contract_and_hide_final() -> None:
+    result = candidates_for("directive", "", project=None, limit=200)
+
+    values = {candidate.value for candidate in result}
+    assert {"model", "effort", "id", "wait", "auto"} <= values
+    assert "final" not in values
+    model = next(candidate for candidate in result if candidate.value == "model")
+    assert "Override the LLM model" in model.description
+    assert "alias %m" in model.description
+
+
 def test_candidates_for_unknown_kind_returns_empty_list() -> None:
     assert candidates_for("bogus", "", project=None, limit=200) == []
 
@@ -558,6 +569,35 @@ def test_artifact_candidates_use_indexed_ids(
     result = candidates_for("artifact", "", project=None, limit=200)
 
     assert result == [Candidate("explicit:0123456789abcdef01234567", "screenshot.png")]
+
+
+def test_artifact_ref_candidates_emit_canonical_file_refs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.core.rust as rust
+
+    monkeypatch.setattr(
+        rust,
+        "require_rust_binding",
+        lambda name: (
+            lambda _path, _filters: (
+                [
+                    {
+                        "id": "explicit:0123456789abcdef01234567",
+                        "label": "screenshot.png",
+                    }
+                ]
+                if name == "artifact_files_query"
+                else (_ for _ in ()).throw(AssertionError(name))
+            )
+        ),
+    )
+
+    result = candidates_for("artifact_ref", "", project=None, limit=200)
+
+    assert result == [
+        Candidate("file:explicit:0123456789abcdef01234567", "screenshot.png")
+    ]
 
 
 def test_patch_candidates_use_rust_parse_and_display_names(

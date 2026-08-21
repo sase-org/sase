@@ -99,9 +99,42 @@ def _plus_one_spec() -> CompletionSpec:
     return CompletionSpec(prog="sase", version="0.0-test", root=root)
 
 
+def _run_prompt_spec() -> CompletionSpec:
+    run = _command(
+        name="run",
+        path=("run",),
+        summary="Launch an agent",
+        positionals=(
+            PositionalSpec(
+                metavar="PROMPT",
+                dest="prompt",
+                summary="Prompt text",
+                nargs="?",
+                choices=None,
+                kind=None,
+                is_remainder=False,
+            ),
+        ),
+    )
+    root = _command(
+        name="sase",
+        path=(),
+        summary="",
+        options=(_option(),),
+        subcommands=(run,),
+    )
+    return CompletionSpec(prog="sase", version="0.0-test", root=root)
+
+
 def _write_script(directory: Path) -> Path:
     path = directory / "_sase"
     path.write_text(emit_zsh(_plus_one_spec()), encoding="utf-8")
+    return path
+
+
+def _write_run_prompt_script(directory: Path) -> Path:
+    path = directory / "_sase"
+    path.write_text(emit_zsh(_run_prompt_spec()), encoding="utf-8")
     return path
 
 
@@ -194,6 +227,34 @@ def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> N
     assert call_count.read_text().strip() == "1"
 
 
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ('sase run "ask #zz', '"ask #zzz-fixture-xprompt"'),
+        ('sase run "ask %mo', '"ask %model"'),
+        ('sase run "ask @file:e', '"ask @file:explicit:abc123"'),
+    ],
+)
+def test_run_prompt_completes_embedded_markers_in_spaced_prompt(
+    tmp_path: Path,
+    typed: str,
+    expected: str,
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_run_prompt_script(fpath_dir)
+    bin_dir, _call_count = _write_fixture_sase(
+        tmp_path,
+        "zzz-fixture-xprompt\tA fixture xprompt",
+        "model\tOverride the LLM model",
+        "file:explicit:abc123\tScreenshot",
+    )
+
+    completed = _pty_run_prompt_complete(tmp_path, fpath_dir, bin_dir, typed)
+
+    assert expected in completed, completed
+
+
 def _write_fixture_sase(tmp_path: Path, *candidate_lines: str) -> tuple[Path, Path]:
     """Write a fake ``sase`` that records its call count and answers
     ``completion candidates`` with fixed lines, for a bin dir put ahead of
@@ -213,7 +274,12 @@ def _write_fixture_sase(tmp_path: Path, *candidate_lines: str) -> tuple[Path, Pa
         f"count=$(cat {shlex.quote(str(call_count))})\n"
         f"echo $((count + 1)) > {shlex.quote(str(call_count))}\n"
         'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
-        f"{prints}\n"
+        '  case "$3" in\n'
+        f"    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
+        f"    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
+        f"    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
+        f"    *) {prints} ;;\n"
+        "  esac\n"
         "fi\n",
         encoding="utf-8",
     )
@@ -259,6 +325,50 @@ def _pty_dynamic_complete(
         os.write(fd, typed.encode() + b"\t" * taps)
         buf = _read_for(fd, 3.0)
         return buf.decode("utf-8", errors="replace")
+    finally:
+        os.close(fd)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+
+
+def _pty_run_prompt_complete(
+    tmp_path: Path, fpath_dir: Path, bin_dir: Path, typed: str
+) -> str:
+    """Drive interactive zsh through TAB on a quoted ``sase run`` prompt."""
+    zdot = tmp_path / "zdot-run"
+    zdot.mkdir()
+    (zdot / ".zshrc").write_text(
+        "unsetopt zle_bracketed_paste beep\n"
+        "PS1='READY>'\n"
+        "PS2=\n"
+        "RPS1=\n"
+        f"fpath=({fpath_dir} $fpath)\n"
+        "autoload -Uz compinit\n"
+        "compinit -u -D\n"
+        "zstyle ':completion:*' insert-tab false\n"
+        "zstyle ':completion:*' menu false\n"
+        "zstyle ':completion:*' list-colors ''\n"
+        "zstyle ':completion:*' use-cache on\n",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "ZDOTDIR": str(zdot),
+        "TERM": "dumb",
+        "NO_COLOR": "1",
+    }
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execvpe("zsh", ["zsh", "-i"], env)
+    try:
+        _read_until(fd, b"READY>", timeout=8.0)
+        os.write(fd, typed.encode() + b"\t")
+        completed = _read_for(fd, 3.0)
+        os.write(fd, b"\n")
+        return completed.decode("utf-8", errors="replace")
     finally:
         os.close(fd)
         try:

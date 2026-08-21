@@ -265,8 +265,11 @@ def test_run_prompt_positional_combines_files_and_xprompts() -> None:
     script = emit_zsh(_spec(_command(name="run", path=("run",), positionals=(prompt,))))
     assert "'1::PROMPT:__sase_run_prompt'" in script
     assert "__sase_run_prompt() {" in script
+    assert "__sase_run_prompt_fragment() {" in script
     assert "'xprompts:xprompt name:__sase_candidates xprompt'" in script
     assert "'files:file:_files'" in script
+    assert "kind='directive'" in script
+    assert "kind='artifact_ref'" in script
 
 
 @pytest.fixture(scope="module")
@@ -307,3 +310,4 @@ def test_live_script_plus_one_command_is_present(live_script: str) -> None:
 
 def test_live_script_run_prompt_combines_files_and_xprompts(live_script: str) -> None:
     assert "'1::PROMPT:__sase_run_prompt'" in live_script
+    assert "__sase_run_prompt_embedded" in live_script

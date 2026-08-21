@@ -13,8 +13,10 @@ from pathlib import Path
 import sase
 from sase.completion.install_stamp import (
     InstallStamp,
+    OWNER_LOCAL,
     list_stamps,
     read_stamp,
+    stamp_is_chezmoi,
     stamp_owns_path,
     write_stamp,
 )
@@ -84,6 +86,7 @@ class ShellInstallStatus:
     path: str | None
     zwc: str
     stamp_version: str | None
+    owner: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,6 +284,24 @@ def install_completion(
         ),
     ]
 
+    if stamp_is_chezmoi(previous) and not force:
+        steps.append(
+            InstallStep(
+                "ownership",
+                "fail",
+                "target is managed by chezmoi; pass --force to convert to a local install",
+            )
+        )
+        return _result(
+            detected,
+            choice,
+            script,
+            steps,
+            ok=False,
+            exit_code=1,
+            fpath_hint=_hint(detected.name, choice.directory, home_path),
+        )
+
     try:
         _require_writable_or_creatable(script, shell=detected.name, force=force)
     except CompletionInstallError as exc:
@@ -337,6 +358,7 @@ def install_completion(
         digest=digest,
         target=str(script),
         timestamp=_utc_timestamp() if timestamp is None else timestamp,
+        owner=OWNER_LOCAL,
     )
     try:
         write_stamp(stamp)
@@ -401,6 +423,16 @@ def _refresh_stamped_completions(
     installer = install_fn or install_completion
     outcomes: list[RefreshShellOutcome] = []
     for stamp in stamps:
+        if stamp_is_chezmoi(stamp):
+            outcomes.append(
+                RefreshShellOutcome(
+                    shell=stamp.shell,
+                    ok=True,
+                    detail=f"skipped chezmoi-managed {stamp.target}",
+                    target=stamp.target,
+                )
+            )
+            continue
         target_dir = Path(stamp.target).expanduser().parent
         try:
             result = installer(
@@ -465,6 +497,7 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
             path=None,
             zwc="n/a",
             stamp_version=None,
+            owner=None,
         )
     script = Path(stamp.target)
     present = script.is_file()
@@ -484,6 +517,7 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
         path=str(script),
         zwc=freshness,
         stamp_version=stamp.version,
+        owner=stamp.owner,
     )
 
 

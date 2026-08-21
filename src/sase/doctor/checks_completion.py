@@ -169,7 +169,7 @@ def _install_detail(row: ShellInstallStatus) -> str:
         extra = f" zwc={zwc_path(Path(row.path))}"
     return (
         f"{row.shell}: {row.status} path={path} zwc={row.zwc} "
-        f"stamp={row.stamp_version}{extra}"
+        f"stamp={row.stamp_version} owner={row.owner or '—'}{extra}"
     )
 
 
@@ -178,6 +178,7 @@ def _status_data(rows: Sequence[ShellInstallStatus]) -> Mapping[str, object]:
         "shells": [
             {
                 "path": row.path,
+                "owner": row.owner,
                 "shell": row.shell,
                 "stamp_version": row.stamp_version,
                 "status": row.status,

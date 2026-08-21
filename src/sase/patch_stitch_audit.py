@@ -67,8 +67,10 @@ _RETAINED_SERIALIZED_MARKERS = (
 
 _RETAINED_PUBLIC_MARKERS = (
     "sase.ace.changespec",
+    "sase.core.changespec",
     "sase changespec",
     "--changespec",
+    "get_workspace_directory_for_changespec",
     "sase_changespecs",
     "/sase_changespecs",
     "docs/change_spec.md",
@@ -270,6 +272,12 @@ def _is_generated_provider_copy(
     }:
         return True
     if repo == "chezmoi" and "/skills/" in path:
+        return True
+    if repo == "chezmoi" and path in {
+        "home/dot_config/fish/completions/sase.fish",
+        "home/dot_local/share/bash-completion/completions/sase",
+        "home/dot_zfunc/_sase",
+    }:
         return True
     return False
 

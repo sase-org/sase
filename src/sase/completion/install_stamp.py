@@ -14,6 +14,9 @@ from sase.core.paths import sase_subdir
 
 
 STAMP_SCHEMA_VERSION = 1
+OWNER_LOCAL = "local"
+OWNER_CHEZMOI = "chezmoi"
+STAMP_OWNERS = frozenset({OWNER_LOCAL, OWNER_CHEZMOI})
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,11 +28,13 @@ class InstallStamp:
     digest: str
     target: str
     timestamp: str
+    owner: str = OWNER_LOCAL
     schema_version: int = STAMP_SCHEMA_VERSION
 
     def to_json(self) -> dict[str, Any]:
         return {
             "digest": self.digest,
+            "owner": self.owner,
             "schema_version": self.schema_version,
             "shell": self.shell,
             "target": self.target,
@@ -39,12 +44,16 @@ class InstallStamp:
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> InstallStamp:
+        owner = str(data.get("owner", OWNER_LOCAL))
+        if owner not in STAMP_OWNERS:
+            raise ValueError(f"unsupported completion stamp owner: {owner}")
         return cls(
             shell=str(data["shell"]),
             version=str(data["version"]),
             digest=str(data["digest"]),
             target=str(data["target"]),
             timestamp=str(data["timestamp"]),
+            owner=owner,
             schema_version=int(data.get("schema_version", STAMP_SCHEMA_VERSION)),
         )
 
@@ -108,11 +117,19 @@ def stamp_owns_path(shell: str, path: Path) -> bool:
         return Path(stamp.target) == path
 
 
+def stamp_is_chezmoi(stamp: InstallStamp | None) -> bool:
+    """Return whether *stamp* records a chezmoi-managed completion script."""
+    return stamp is not None and stamp.owner == OWNER_CHEZMOI
+
+
 __all__ = [
     "InstallStamp",
+    "OWNER_CHEZMOI",
+    "OWNER_LOCAL",
     "STAMP_SCHEMA_VERSION",
     "list_stamps",
     "read_stamp",
+    "stamp_is_chezmoi",
     "stamp_owns_path",
     "write_stamp",
 ]

@@ -167,7 +167,11 @@ def test_run_prompt_positional_combines_files_and_xprompts() -> None:
     script = emit_fish(
         _spec(_command(name="run", path=("run",), positionals=(prompt,)))
     )
-    assert "-rFa '(__sase_candidates xprompt)'" in script
+    assert "function __sase_run_prompt_fragment" in script
+    assert "function __sase_run_prompt_candidates" in script
+    assert "-rFa '(__sase_run_prompt_candidates)'" in script
+    assert "set kind directive" in script
+    assert "set kind artifact_ref" in script
 
 
 def test_aliases_are_matched_but_not_offered() -> None:
@@ -257,3 +261,52 @@ def test_fish_sources_generated_script(tmp_path: Path, live_script: str) -> None
         text=True,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.skipif(_FISH is None, reason="fish is not on PATH")
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ('sase run "ask #zz', "ask #zzz-fixture-xprompt"),
+        ('sase run "ask %mo', "ask %model"),
+        ('sase run "ask @file:e', "ask @file:explicit:abc123"),
+    ],
+)
+def test_fish_completes_run_prompt_embedded_markers(
+    tmp_path: Path,
+    live_script: str,
+    typed: str,
+    expected: str,
+) -> None:
+    fish = _FISH
+    assert fish is not None
+    script = tmp_path / "sase.fish"
+    script.write_text(live_script, encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fixture = bin_dir / "sase"
+    fixture.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        '  case "$3" in\n'
+        "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
+        "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
+        "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
+        "  esac\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fixture.chmod(0o755)
+    snippet = (
+        f"set -gx PATH {shlex.quote(str(bin_dir))} $PATH; "
+        f"source {shlex.quote(str(script))}; "
+        f"complete -C {shlex.quote(typed)}"
+    )
+    result = subprocess.run(
+        [fish, "-c", snippet],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert expected in result.stdout, result.stdout

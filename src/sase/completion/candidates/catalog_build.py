@@ -18,6 +18,7 @@ _BUILTIN_MODEL_ALIASES: tuple[str, ...] = (
     "large",
     "xlarge",
 )
+_HIDDEN_SURFACE_DIRECTIVES: frozenset[str] = frozenset({"final"})
 
 
 def flag_source_path(_project: str | None) -> Path | None:
@@ -53,6 +54,38 @@ def artifact_relation_candidates(_project: str | None) -> list[Candidate]:
         written_by = str(row.get("written_by") or "")
         description = f"inverse {inverse}" if inverse else written_by
         candidates.append(Candidate(slug, description))
+    return candidates
+
+
+def directive_source_path(_project: str | None) -> Path | None:
+    """Return no cache-invalidation path: directives are compiled in."""
+    return None
+
+
+def directive_candidates(_project: str | None) -> list[Candidate]:
+    """Return canonical prompt directive names from the shared Rust contract."""
+    try:
+        import sase_core_rs  # type: ignore[import-untyped]
+
+        rows = sase_core_rs.directive_contract()
+    except Exception:  # noqa: BLE001 - completion must not traceback
+        return []
+    if not isinstance(rows, list):
+        return []
+    candidates: list[Candidate] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "")
+        if not name or name in _HIDDEN_SURFACE_DIRECTIVES:
+            continue
+        description = str(row.get("description") or "")
+        alias = row.get("alias")
+        if isinstance(alias, str) and alias:
+            description = (
+                f"{description} (alias %{alias})" if description else f"%{alias}"
+            )
+        candidates.append(Candidate(name, description))
     return candidates
 
 
@@ -104,6 +137,8 @@ def model_candidates(_project: str | None) -> list[Candidate]:
 __all__ = [
     "artifact_relation_candidates",
     "artifact_relation_source_path",
+    "directive_candidates",
+    "directive_source_path",
     "flag_candidates",
     "flag_source_path",
     "model_candidates",

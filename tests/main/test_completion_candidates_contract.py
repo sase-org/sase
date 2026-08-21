@@ -1,10 +1,10 @@
-"""Import-set and latency contracts for the completion candidates fast path.
+"""Import-set and CPU contracts for the completion candidates fast path.
 
 The durable contract is the import set: after the fast path runs, the
 process must never have paid for ``sase.main.parser``, ``sase.ace.*``,
-``textual``, or ``rich``. The wall-clock check is soft -- timing tests are
-inherently flaky -- so it uses a generous budget and CI multiplier; the
-import-set assertion below is what actually prevents a future change from
+``textual``, or ``rich``. The CPU check accounts for child-process user+system
+time rather than host scheduling time; the import-set assertion below is what
+actually prevents a future change from
 routing this path through something like ``sase agent list`` (6.4-6.9s) or
 another accidental heavy import.
 """
@@ -12,10 +12,10 @@ another accidental heavy import.
 from __future__ import annotations
 
 import os
+import resource
 import subprocess
 import sys
 import textwrap
-import time
 from pathlib import Path
 
 import pytest
@@ -36,6 +36,9 @@ _SHIPPED_KINDS = (
     "proc",
     "monitor",
     "artifact",
+    "artifact_ref",
+    "artifact_relation",
+    "directive",
     "tag",
     "agent",
     "model",
@@ -90,22 +93,29 @@ def test_candidates_fast_path_avoids_heavy_imports(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-# The budget is calibrated for a cold subprocess probe after the package
-# facades were made lazy. Local best-of-two timings are comfortably below this
-# per kind, while the import-set assertion above remains the durable contract.
-_LATENCY_BUDGET_MS = 150.0
-_CI_MULTIPLIER = 3.0 if os.environ.get("CI") else 1.0
+def _run_probe_with_cpu_seconds(
+    cwd: Path, kinds: tuple[str, ...]
+) -> tuple[subprocess.CompletedProcess[str], float]:
+    before = resource.getrusage(resource.RUSAGE_CHILDREN)
+    result = _run_probe(cwd, kinds=kinds)
+    after = resource.getrusage(resource.RUSAGE_CHILDREN)
+    before_cpu = before.ru_utime + before.ru_stime
+    after_cpu = after.ru_utime + after.ru_stime
+    return result, after_cpu - before_cpu
+
+
+# The budget is calibrated for child-process CPU after the package facades were
+# made lazy. It intentionally ignores scheduler wait and parallel host load.
+_CPU_BUDGET_MS = 250.0
 
 
 @pytest.mark.parametrize("kind", _SHIPPED_KINDS)
-def test_candidates_fast_path_wall_clock_budget(tmp_path: Path, kind: str) -> None:
+def test_candidates_fast_path_child_cpu_budget(tmp_path: Path, kind: str) -> None:
     timings_seconds: list[float] = []
     for _ in range(2):
-        start = time.perf_counter()
-        result = _run_probe(tmp_path, kinds=(kind,))
-        timings_seconds.append(time.perf_counter() - start)
+        result, cpu_seconds = _run_probe_with_cpu_seconds(tmp_path, kinds=(kind,))
+        timings_seconds.append(cpu_seconds)
         assert result.returncode == 0, result.stderr + result.stdout
 
     best_ms = min(timings_seconds) * 1000
-    budget_ms = _LATENCY_BUDGET_MS * _CI_MULTIPLIER
-    assert best_ms < budget_ms, (kind, timings_seconds, budget_ms)
+    assert best_ms < _CPU_BUDGET_MS, (kind, timings_seconds, _CPU_BUDGET_MS)

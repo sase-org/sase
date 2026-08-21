@@ -21,8 +21,9 @@ def _row(
     path: str | None = "/tmp/_sase",
     zwc: str = "fresh",
     stamp: str | None = "0.16.0",
+    owner: str | None = "local",
 ) -> ShellInstallStatus:
-    return ShellInstallStatus(shell, True, status, path, zwc, stamp)
+    return ShellInstallStatus(shell, True, status, path, zwc, stamp, owner)
 
 
 def test_completion_check_specs_register_default_and_deep() -> None:

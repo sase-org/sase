@@ -108,6 +108,30 @@ def test_classifier_accepts_sase_core_stable_mobile_wire_name() -> None:
     assert rule == "external_legacy_boundary"
 
 
+def test_classifier_accepts_core_lazy_facade_legacy_public_export() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "main",
+        "src/sase/core/__init__.py",
+        '"get_workspace_directory_for_changespec": (',
+        "changespec",
+    )
+
+    assert classification == "stable-public-path"
+    assert rule == "stable_public_path"
+
+
+def test_classifier_accepts_chezmoi_generated_completion_copy() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "chezmoi",
+        "home/dot_zfunc/_sase",
+        "(patch|changespec) _sase_patch && ret=0 ;;",
+        "changespec",
+    )
+
+    assert classification == "generated-provider-copy"
+    assert rule == "generated_provider_copy"
+
+
 def test_classifier_accepts_stable_public_path() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",

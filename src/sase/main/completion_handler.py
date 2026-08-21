@@ -32,6 +32,8 @@ def handle_completion_command(args: argparse.Namespace) -> int:
         return _handle_completion_bash(args)
     if sub == "candidates":
         return _handle_completion_candidates(args)
+    if sub == "deploy-chezmoi":
+        return _handle_completion_deploy_chezmoi(args)
     if sub == "fish":
         return _handle_completion_fish(args)
     if sub == "install":
@@ -43,7 +45,8 @@ def handle_completion_command(args: argparse.Namespace) -> int:
     if sub == "zsh":
         return _handle_completion_zsh(args)
     print(
-        "Usage: sase completion {bash,candidates,fish,install,list,spec,zsh}",
+        "Usage: sase completion "
+        "{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}",
         file=sys.stderr,
     )
     return 2
@@ -113,6 +116,27 @@ def _handle_completion_install(
     return result.exit_code
 
 
+def _handle_completion_deploy_chezmoi(args: argparse.Namespace) -> int:
+    """Run ``sase completion deploy-chezmoi``."""
+    from sase.completion.deploy_chezmoi import deploy_chezmoi_completion
+    from sase.config.core import CHEZMOI_HOME
+
+    source = getattr(args, "source", None)
+    source_root = Path(source).expanduser() if source else CHEZMOI_HOME
+    result = deploy_chezmoi_completion(
+        dry_run=bool(getattr(args, "dry_run", False)),
+        no_apply=bool(getattr(args, "no_apply", False)),
+        no_commit=bool(getattr(args, "no_commit", False)),
+        no_push=bool(getattr(args, "no_push", False)),
+        source_root=source_root,
+    )
+    verb = "Would write" if getattr(args, "dry_run", False) else "Wrote"
+    print(f"{verb} {len(result.plan.paths)} chezmoi completion source file(s):")
+    for path in result.plan.paths:
+        print(f"  {path}")
+    return result.exit_code
+
+
 def _handle_completion_spec(args: argparse.Namespace) -> int:
     """Run ``sase completion spec``."""
     from sase.completion.snapshot import current_structural_view
@@ -159,6 +183,7 @@ def _list_json(rows: Sequence[ShellInstallStatus]) -> dict[str, object]:
                 "path": row.path,
                 "shell": row.shell,
                 "stamp_version": row.stamp_version,
+                "owner": row.owner,
                 "status": row.status,
                 "zwc": row.zwc,
             }
@@ -181,6 +206,7 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
     table.add_column("PATH", overflow="fold")
     table.add_column("ZWC", no_wrap=True)
     table.add_column("STAMP", no_wrap=True)
+    table.add_column("OWNER", no_wrap=True)
     for row in rows:
         table.add_row(
             Text(row.shell, style="bold"),
@@ -192,6 +218,7 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
                 row.stamp_version or "—",
                 style="dim" if row.stamp_version is None else "",
             ),
+            Text(row.owner or "—", style="dim" if row.owner is None else ""),
         )
     console.print(table)
 

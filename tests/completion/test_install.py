@@ -14,7 +14,7 @@ from sase.completion.install import (
     _refresh_stamped_completions,
     zwc_path,
 )
-from sase.completion.install_stamp import read_stamp
+from sase.completion.install_stamp import InstallStamp, read_stamp, write_stamp
 from sase.feature_flags import FeatureFlag, current_flags, override_flags
 
 
@@ -71,6 +71,7 @@ def test_install_writes_zcompiles_stamps_and_verifies(tmp_path: Path) -> None:
     assert stamp.version == "0.16.0"
     assert stamp.digest == "digest-zsh"
     assert stamp.target == str(script)
+    assert stamp.owner == "local"
     assert result.registered is True
 
 
@@ -173,7 +174,9 @@ def test_list_status_resolves_installed_stale_missing_and_zwc(
     assert rows["zsh"].status == "installed"
     assert rows["zsh"].zwc == "fresh"
     assert rows["zsh"].stamp_version == "0.16.0"
+    assert rows["zsh"].owner == "local"
     assert rows["bash"].status == "not installed"
+    assert rows["bash"].owner is None
 
     stale = {row.shell: row for row in list_shell_statuses(version="0.17.0")}
     assert stale["zsh"].status == "stale"
@@ -214,6 +217,71 @@ def test_refresh_rewrites_every_stamped_shell(tmp_path: Path) -> None:
     assert {outcome.shell for outcome in report.outcomes} == {"bash", "zsh"}
     assert all(outcome.ok for outcome in report.outcomes)
     assert set(seen) == {"bash", "zsh"}
+
+
+def test_chezmoi_owned_stamp_refuses_local_takeover_without_force(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "zfunc"
+    script = target / "_sase"
+    target.mkdir()
+    script.write_text("# managed\n", encoding="utf-8")
+    write_stamp(
+        InstallStamp(
+            shell="zsh",
+            version="0.16.0",
+            digest="digest-zsh",
+            target=str(script),
+            timestamp="2026-08-17T12:00:00Z",
+            owner="chezmoi",
+        )
+    )
+
+    result = _install(tmp_path, target=target)
+
+    assert result.exit_code == 1
+    assert any(
+        step.name == "ownership" and step.status == "fail" for step in result.steps
+    )
+    assert script.read_text(encoding="utf-8") == "# managed\n"
+
+    forced = _install(tmp_path, target=target, force=True)
+    assert forced.ok
+    stamp = read_stamp("zsh")
+    assert stamp is not None
+    assert stamp.owner == "local"
+
+
+def test_refresh_skips_chezmoi_owned_stamps(tmp_path: Path) -> None:
+    target = tmp_path / "zfunc"
+    script = target / "_sase"
+    target.mkdir()
+    script.write_text("# managed\n", encoding="utf-8")
+    write_stamp(
+        InstallStamp(
+            shell="zsh",
+            version="0.16.0",
+            digest="digest-zsh",
+            target=str(script),
+            timestamp="2026-08-17T12:00:00Z",
+            owner="chezmoi",
+        )
+    )
+
+    seen: list[str] = []
+
+    def _installer(**kwargs: object):
+        seen.append(str(kwargs["requested"]))
+        return _install(tmp_path, target=kwargs["target"], force=True)
+
+    report = _refresh_stamped_completions(install_fn=_installer)
+
+    assert report.outcomes == (
+        RefreshShellOutcome(
+            "zsh", True, f"skipped chezmoi-managed {script}", str(script)
+        ),
+    )
+    assert seen == []
 
 
 def test_maybe_refresh_respects_both_flag_states() -> None:

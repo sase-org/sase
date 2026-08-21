@@ -30,10 +30,19 @@ def test_completion_group_defaults_to_list() -> None:
 
 def test_completion_help_lists_sorted_subcommands() -> None:
     help_text = parser_for(("sase", "completion")).format_help()
-    expected = {"bash", "candidates", "fish", "install", "list", "spec", "zsh"}
+    expected = {
+        "bash",
+        "candidates",
+        "deploy-chezmoi",
+        "fish",
+        "install",
+        "list",
+        "spec",
+        "zsh",
+    }
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
-    assert "{bash,candidates,fish,install,list,spec,zsh}" in help_text
+    assert "{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}" in help_text
     assert "defaults to `sase completion list`" in help_text
     assert 'eval "$(sase completion zsh)"' in help_text
 

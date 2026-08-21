@@ -33,6 +33,7 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase completion bash                    # print a bash script\n"
             "  sase completion bash -o "
             "~/.local/share/bash-completion/completions/sase\n"
+            "  sase completion deploy-chezmoi -d       # plan managed source files\n"
             "  sase completion fish                    # print fish complete directives\n"
             "  sase completion fish -o ~/.config/fish/completions/sase.fish\n"
             "  sase completion install                 # detect the shell and install\n"
@@ -48,11 +49,12 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{bash,candidates,fish,install,list,spec,zsh}",
+        metavar="{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}",
     )
 
     _register_bash_parser(completion_sub)
     _register_candidates_parser(completion_sub)
+    _register_deploy_chezmoi_parser(completion_sub)
     _register_fish_parser(completion_sub)
     _register_install_parser(completion_sub)
     _register_list_parser(completion_sub)
@@ -127,6 +129,56 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Emit machine-readable JSON",
+    )
+
+
+def _register_deploy_chezmoi_parser(subparsers: argparse._SubParsersAction) -> None:
+    deploy_parser = subparsers.add_parser(
+        "deploy-chezmoi",
+        help="Render completion scripts into a chezmoi source tree",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Render bash, fish, and zsh completion scripts plus managed "
+            "ownership stamp metadata into the configured chezmoi source "
+            "tree, then optionally commit, push, and apply those changes."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion deploy-chezmoi -d\n"
+            "  sase completion deploy-chezmoi -n\n"
+            "  sase completion deploy-chezmoi -s ~/.local/share/chezmoi/home"
+        ),
+    )
+    deploy_parser.add_argument(
+        "-a",
+        "--no-apply",
+        action="store_true",
+        help="Commit and push source changes but skip 'chezmoi apply'",
+    )
+    deploy_parser.add_argument(
+        "-c",
+        "--no-commit",
+        action="store_true",
+        help="Write source files but skip the git commit, push, and apply sequence",
+    )
+    deploy_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Print planned source files without touching the filesystem",
+    )
+    deploy_parser.add_argument(
+        "-n",
+        "--no-push",
+        action="store_true",
+        help="Commit source changes but skip pull, push, and apply",
+    )
+    deploy_parser.add_argument(
+        "-s",
+        "--source",
+        metavar="DIR",
+        default=None,
+        help="Chezmoi source home to write (default: ~/.local/share/chezmoi/home)",
     )
 
 

@@ -31,6 +31,13 @@ sase completion bash  -o ~/.local/share/bash-completion/completions/sase
 sase completion fish  -o ~/.config/fish/completions/sase.fish
 ```
 
+SASE-managed machines can write the same scripts through chezmoi instead:
+
+```bash
+sase completion deploy-chezmoi -d  # preview source files
+sase completion deploy-chezmoi     # write source, apply, commit, and push
+```
+
 **Never** `eval "$(sase completion zsh)"` in an rc file. That pays a full `sase` startup
 (300–640 ms) on every new shell; write the script to a file instead.
 
@@ -81,15 +88,15 @@ only the completion script itself.
    never scanned is a silent no-op — `install` catches that and tells you exactly what
    to fix.
 6. **Stamps** `~/.sase/completion/stamp/<shell>.json` with the sase version, the spec's
-   structural digest, and the target path, so `sase completion list` and `sase doctor`
-   can tell a real install from a stray file.
+   structural digest, the target path, and an ownership marker (`local`), so
+   `sase completion list` and `sase doctor` can tell a real install from a stray file.
 7. **Reports** every step's outcome and prints the recommended `zstyle` snippet below.
 
 `sase completion list` shows every shell's generator availability, install status,
-target path, `.zwc` freshness, and stamp version in one table. `sase doctor` includes
-the same checks as a non-blocking advisory group: `completion.install` runs by default,
-and `completion.registration` — which spawns a real shell — runs only under `-D/--deep`.
-File presence alone is never treated as evidence of a working install.
+owner, target path, `.zwc` freshness, and stamp version in one table. `sase doctor`
+includes the same checks as a non-blocking advisory group: `completion.install` runs by
+default, and `completion.registration` — which spawns a real shell — runs only under
+`-D/--deep`. File presence alone is never treated as evidence of a working install.
 
 ## The Recommended `zstyle` Snippet
 
@@ -118,10 +125,11 @@ names, repo names, plan references, and more) complete through
 that never imports the full CLI, ACE, or Rust extension surface it doesn't need, and
 answers in well under its latency budget for a warm process. `KIND` completes to the
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
-authoritative list; today that is `agent`, `artifact`, `bead`, `flag`, `glossary`,
-`memory`, `model`, `monitor`, `patch`, `plan`, `plugin`, `proc`, `project`, `repo`,
-`skill`, `snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are
-deliberately not kinds — the shell completes those natively.
+authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
+`artifact_relation`, `bead`, `directive`, `flag`, `glossary`, `memory`, `model`,
+`monitor`, `patch`, `plan`, `plugin`, `proc`, `project`, `repo`, `skill`, `snippet`,
+`tag`, `workspace`, and `xprompt`. Path and directory slots are deliberately not kinds —
+the shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
@@ -154,8 +162,10 @@ typed prefix, so one cached fetch serves the whole word, not just one keystroke.
 
 `sase run`'s `PROMPT` argument is a special case: rather than a single value kind, it
 completes native file paths (for editor-drafted prompt files) _and_ stored xprompt names
-together. `#`, `%`, and `@` reference completion inside the prompt text itself is
-deferred — see [Deferred](#deferred) below.
+together. Inside quoted or spaced prompt text, `#` completes xprompt names, `%`
+completes prompt directive names, and `@` completes canonical artifact references such
+as `file:explicit:...`; the inserted value keeps the marker and only replaces the active
+embedded fragment.
 
 ### Environment Variables
 
@@ -179,7 +189,11 @@ sase flag list completion_refresh_on_update   # inspect
 sase -f completion_refresh_on_update update   # try once, without changing the default
 ```
 
-Refresh failures are reported but never fail `sase update` itself.
+Refresh skips any stamp whose owner is `chezmoi`, because those files are regenerated
+from the chezmoi source tree instead of being locally owned. An explicit local install
+refuses to take over a chezmoi-owned target unless you pass `--force`, making the
+ownership transition deliberate. Refresh failures are reported but never fail
+`sase update` itself.
 
 ## Troubleshooting
 
@@ -215,29 +229,27 @@ Common issues:
 Approximate, measured on this repo's live command tree (331 parsers / 809 options / 140
 positionals):
 
-| Stage                                           | zsh                                                    | bash                                         | fish                       |
-| ----------------------------------------------- | ------------------------------------------------------ | -------------------------------------------- | -------------------------- |
-| Parse/load the generated script (per new shell) | 0.4–12 ms (`.zwc`) / 79–84 ms (uncompiled)             | ~4–5 ms (uncompiled; no zcompile equivalent) | not independently measured |
-| Warm `<TAB>` (cached value kind)                | 0.4–12 ms                                              | ~9–10 ms                                     | not independently measured |
-| Cold `<TAB>` (first fetch of a value kind)      | one `sase completion candidates` subprocess, ~65–90 ms | ~65–90 ms                                    | not independently measured |
+| Stage                                           | zsh                                                    | bash                                         | fish      |
+| ----------------------------------------------- | ------------------------------------------------------ | -------------------------------------------- | --------- |
+| Parse/load the generated script (per new shell) | 0.4–12 ms (`.zwc`) / 79–84 ms (uncompiled)             | ~4–5 ms (uncompiled; no zcompile equivalent) | 27.59 ms  |
+| Warm `<TAB>` (cached value kind)                | 0.4–12 ms                                              | ~9–10 ms                                     | 179.81 ms |
+| Cold `<TAB>` (first fetch of a value kind)      | one `sase completion candidates` subprocess, ~65–90 ms | ~65–90 ms                                    | 185.53 ms |
 
 zsh and bash numbers above are directly measured (zsh via the real-shell smoke tests
 under `tests/completion/`; bash via sourcing the generated script and timing `_sase`
-before and after its in-shell cache is populated). Fish was not available in the
-environment this phase was implemented in, so its numbers are not independently
-confirmed; expect figures close to bash's, since fish's `__sase_candidates` helper calls
-the same fast path and fish has no script-compilation step either.
+before and after its in-shell cache is populated). Fish was measured on `athena` with
+Debian `fish, version 4.0.2` from package `fish=4.0.2-1`. The method generated the live
+fish script from this checkout, placed a temporary `sase` shim first on `PATH`, and used
+fish's `time` builtin for 30 samples of `source sase.fish`, cold
+`complete -C 'sase run %mo'` with a fresh `SASE_HOME`, and warm
+`complete -C 'sase run %mo'` after priming the on-disk candidate cache. Values in the
+table are medians; fish has no persistent in-shell cache, so warm still pays one `sase`
+candidate subprocess.
 
 ## Deferred
 
-Recorded here rather than shipped in this epic — each is cheap to add later once the
-spec model exists, and none blocks the core experience:
+Recorded here rather than shipped in this epic — cheap to add later once the spec model
+exists, and not blocking the core experience:
 
-- **`#`/`%`/`@` reference completion inside `sase run`'s prompt text.** Today the
-  `PROMPT` argument completes as a whole word (files or an xprompt name); completing an
-  xprompt reference, directive, or artifact reference _embedded inside_ a longer prompt
-  string is future work.
 - **A `carapace-spec` emitter** from the same `CompletionSpec` model, for nushell,
   elvish, and PowerShell. SASE targets POSIX hosts today.
-- **Chezmoi deployment** of the generated scripts on SASE-managed machines, through
-  `src/sase/main/_init_chezmoi_deploy.py`.

@@ -96,7 +96,15 @@ def test_candidates_helper_caches_by_kind_and_never_forwards_prefix() -> None:
     assert "SASE_COMPLETION_CACHE_TTL" in script
     assert "/sase_[0-9]*/.venv/bin/sase" in script
     assert '__sase_run completion candidates "${kind}"' in script
-    assert 'compgen -P "${prefix}" -W "${values[*]}" -- "${cur}"' in script
+    assert 'mapfile -t COMPREPLY < <(compgen -P "${prefix}"' in script
+
+
+def test_run_prompt_helper_detects_embedded_markers() -> None:
+    script = emit_bash(_spec())
+    assert "__sase_run_prompt_fragment()" in script
+    assert "__sase_prompt_kind=xprompt" in script
+    assert "__sase_prompt_kind=directive" in script
+    assert "__sase_prompt_kind=artifact_ref" in script
 
 
 def test_kinded_call_site_passes_current_word_and_prefix() -> None:

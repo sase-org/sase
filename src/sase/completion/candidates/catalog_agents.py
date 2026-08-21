@@ -175,10 +175,25 @@ def artifact_candidates(project: str | None) -> list[Candidate]:
     return dedupe(candidates)
 
 
+def artifact_ref_source_path(project: str | None) -> Path | None:
+    """Return the artifact index whose mtime invalidates artifact references."""
+    return artifact_source_path(project)
+
+
+def artifact_ref_candidates(project: str | None) -> list[Candidate]:
+    """Return the most recent artifact files as canonical ``file:`` refs."""
+    return [
+        Candidate(f"file:{candidate.value}", candidate.description)
+        for candidate in artifact_candidates(project)
+    ]
+
+
 __all__ = [
     "agent_candidates",
     "agent_source_path",
     "artifact_candidates",
+    "artifact_ref_candidates",
+    "artifact_ref_source_path",
     "artifact_source_path",
     "monitor_candidates",
     "monitor_source_path",

@@ -312,3 +312,102 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
     replies = [line for line in result.stdout.splitlines() if line]
     assert "zzz-fixture-xprompt" in replies, replies
     assert "zzz-fixture-notes.md" in replies, replies
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("ask #zz", "ask #zzz-fixture-xprompt"),
+        ("ask %mo", "ask %model"),
+        ("ask @file:e", "ask @file:explicit:abc123"),
+    ],
+)
+def test_run_prompt_completes_embedded_markers_in_spaced_prompt(
+    tmp_path: Path,
+    typed: str,
+    expected: str,
+) -> None:
+    script = tmp_path / "sase.bash"
+    script.write_text(emit_bash(_run_prompt_spec()), encoding="utf-8")
+    bin_dir = _write_marker_fixture_sase(tmp_path)
+
+    quoted_words = " ".join(shlex.quote(word) for word in ("sase", "run", typed))
+    comp_line = f'sase run "{typed}'
+    snippet = f"""
+set +e
+export PATH={shlex.quote(str(bin_dir))}:$PATH
+source {shlex.quote(str(script))}
+COMP_WORDS=({quoted_words})
+COMP_CWORD=2
+COMP_LINE={shlex.quote(comp_line)}
+COMP_POINT=${{#COMP_LINE}}
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+"""
+    result = subprocess.run(
+        [bash, "--norc", "--noprofile", "-c", snippet],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    replies = [line for line in result.stdout.splitlines() if line]
+    assert expected in replies, replies
+
+
+def test_run_prompt_embedded_marker_uses_bash_cache(tmp_path: Path) -> None:
+    script = tmp_path / "sase.bash"
+    script.write_text(emit_bash(_run_prompt_spec()), encoding="utf-8")
+    bin_dir = _write_marker_fixture_sase(tmp_path)
+    call_count = tmp_path / "call_count"
+    call_count.write_text("0", encoding="utf-8")
+
+    comp_line = 'sase run "ask %mo'
+    snippet = f"""
+set +e
+export PATH={shlex.quote(str(bin_dir))}:$PATH
+export SASE_MARKER_CALL_COUNT={shlex.quote(str(call_count))}
+source {shlex.quote(str(script))}
+COMP_WORDS=(sase run "ask %mo")
+COMP_CWORD=2
+COMP_LINE={shlex.quote(comp_line)}
+COMP_POINT=${{#COMP_LINE}}
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+printf '===\\n'
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+"""
+    result = subprocess.run(
+        [bash, "--norc", "--noprofile", "-c", snippet],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ask %model" in result.stdout
+    assert call_count.read_text().strip() == "1"
+
+
+def _write_marker_fixture_sase(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "marker-bin"
+    bin_dir.mkdir()
+    fixture = bin_dir / "sase"
+    fixture.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ -n "${SASE_MARKER_CALL_COUNT:-}" ]]; then\n'
+        "  count=0\n"
+        '  [[ -f "${SASE_MARKER_CALL_COUNT}" ]] && count=$(cat "${SASE_MARKER_CALL_COUNT}")\n'
+        '  echo $((count + 1)) > "${SASE_MARKER_CALL_COUNT}"\n'
+        "fi\n"
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        '  case "$3" in\n'
+        "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
+        "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
+        "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
+        "  esac\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fixture.chmod(0o755)
+    return bin_dir

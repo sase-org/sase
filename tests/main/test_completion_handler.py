@@ -60,6 +60,7 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     expected = {
         "generator": True,
         "path": None,
+        "owner": None,
         "stamp_version": None,
         "status": "not installed",
         "zwc": "n/a",
@@ -72,8 +73,12 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
 def test_list_accepts_injected_rows_for_later_columns() -> None:
     console, buf = _console()
     rows = (
-        ShellInstallStatus("zsh", True, "installed", "/tmp/_sase", "fresh", "0.16.0"),
-        ShellInstallStatus("bash", True, "stale", "/tmp/sase", "n/a", "0.15.0"),
+        ShellInstallStatus(
+            "zsh", True, "installed", "/tmp/_sase", "fresh", "0.16.0", "local"
+        ),
+        ShellInstallStatus(
+            "bash", True, "stale", "/tmp/sase", "n/a", "0.15.0", "chezmoi"
+        ),
     )
     args = create_parser().parse_args(["completion", "list"])
 
@@ -83,6 +88,7 @@ def test_list_accepts_injected_rows_for_later_columns() -> None:
     assert "fresh" in text
     assert "bash" in text
     assert "0.15.0" in text
+    assert "chezmoi" in text
 
 
 def test_spec_prints_structural_snapshot(

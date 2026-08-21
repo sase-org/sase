@@ -8168,8 +8168,10 @@
                 "choices": [
                   "agent",
                   "artifact",
+                  "artifact_ref",
                   "artifact_relation",
                   "bead",
+                  "directive",
                   "flag",
                   "glossary",
                   "memory",
@@ -8202,6 +8204,94 @@
                 "nargs": "?"
               }
             ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "e4f99796b84403fc",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "deploy-chezmoi",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_apply",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--no-apply"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_commit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--no-commit"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_push",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--no-push"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "source",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-s",
+                  "--source"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "deploy-chezmoi"
+            ],
+            "positionals": [],
             "subcommands": []
           },
           {
