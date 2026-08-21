@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from sase.feature_flags import FeatureFlag, current_flags, override_flags
 from sase.feature_flags.registry import feature_flag_definitions
 from sase.feature_flags.resolver import resolve_feature_flags
-from sase.file_references import format_with_prettier
 
 from ._helpers import layer
 
@@ -19,8 +16,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
 
     coder = definitions[FeatureFlag.coder_inherits_planner_chat]
     refresh = definitions[FeatureFlag.completion_refresh_on_update]
-    scoped = definitions[FeatureFlag.plugin_catalog_scoped_latest]
-    prettier = definitions[FeatureFlag.prettier_enabled]
+    ref_sync = definitions[FeatureFlag.ref_sync_gesture]
 
     assert coder.kind == "beta"
     assert coder.default is False
@@ -30,13 +26,9 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert refresh.default is False
     assert refresh.bead == "sase-qg"
 
-    assert scoped.kind == "beta"
-    assert scoped.default is False
-    assert scoped.bead == "sase-qq"
-
-    assert prettier.kind == "sunset"
-    assert prettier.default is True
-    assert prettier.bead == "sase-qf"
+    assert ref_sync.kind == "sunset"
+    assert ref_sync.default is True
+    assert ref_sync.bead == "sase-qu"
 
 
 def test_consumer_flags_resolve_from_every_layer() -> None:
@@ -44,7 +36,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
 
     default = resolve_feature_flags(definitions=definitions, layers=[])
     assert default.enabled(FeatureFlag.coder_inherits_planner_chat) is False
-    assert default.enabled(FeatureFlag.prettier_enabled) is True
+    assert default.enabled(FeatureFlag.ref_sync_gesture) is True
 
     user = resolve_feature_flags(
         definitions=definitions,
@@ -53,59 +45,38 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                 "user",
                 {
                     "coder_inherits_planner_chat": True,
-                    "prettier_enabled": False,
+                    "ref_sync_gesture": False,
                 },
                 detail="user.yml",
             )
         ],
     )
     assert user.enabled(FeatureFlag.coder_inherits_planner_chat) is True
-    assert user.enabled(FeatureFlag.prettier_enabled) is False
+    assert user.enabled(FeatureFlag.ref_sync_gesture) is False
     assert user.decision(FeatureFlag.coder_inherits_planner_chat).source == "user"
 
     env = resolve_feature_flags(
         definitions=definitions,
         layers=[],
-        env_value='{"coder_inherits_planner_chat":true,"prettier_enabled":false}',
+        env_value='{"coder_inherits_planner_chat":true,"ref_sync_gesture":false}',
     )
     assert env.enabled(FeatureFlag.coder_inherits_planner_chat) is True
-    assert env.enabled(FeatureFlag.prettier_enabled) is False
-    assert env.decision(FeatureFlag.prettier_enabled).source == "env"
+    assert env.enabled(FeatureFlag.ref_sync_gesture) is False
+    assert env.decision(FeatureFlag.ref_sync_gesture).source == "env"
 
 
 def test_consumer_flags_both_states_via_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     with override_flags(
         coder_inherits_planner_chat=True,
-        prettier_enabled=False,
+        ref_sync_gesture=False,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.coder_inherits_planner_chat) is True
-        assert snapshot.enabled(FeatureFlag.prettier_enabled) is False
-        assert current_flags().enabled(FeatureFlag.prettier_enabled) is False
+        assert snapshot.enabled(FeatureFlag.ref_sync_gesture) is False
+        assert current_flags().enabled(FeatureFlag.ref_sync_gesture) is False
 
     restored = current_flags()
     assert restored.enabled(FeatureFlag.coder_inherits_planner_chat) is False
-    assert restored.enabled(FeatureFlag.prettier_enabled) is True
-
-
-def test_prettier_flag_both_states_reach_the_call_site() -> None:
-    with (
-        override_flags(prettier_enabled=True),
-        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
-        patch("sase.file_references.subprocess.run") as run,
-    ):
-        run.return_value.stdout = "formatted\n"
-        run.return_value.returncode = 0
-        assert format_with_prettier("text") == "formatted\n"
-        run.assert_called_once()
-
-    with (
-        override_flags(prettier_enabled=False),
-        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
-        patch("sase.file_references.subprocess.run") as run,
-    ):
-        assert format_with_prettier("text") == "text"
-        run.assert_not_called()
+    assert restored.enabled(FeatureFlag.ref_sync_gesture) is True

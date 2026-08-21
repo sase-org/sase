@@ -135,19 +135,25 @@ def test_layer_projection_warns_when_feature_flags_is_not_mapping(
 def test_legacy_env_is_mapped_when_building_the_process_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.feature_flags import env as env_mod
+    from sase.feature_flags.env import _LegacyEnvMapping
+
+    monkeypatch.setattr(
+        env_mod,
+        "_LEGACY_ENV_MAPPINGS",
+        (_LegacyEnvMapping(name="SASE_DISABLE_DEMO", key="demo_flag", invert=True),),
+    )
     _install_snapshot_inputs(
         monkeypatch,
-        defs=definitions(demo_flag("prettier_enabled", kind="sunset")),
+        defs=definitions(demo_flag(kind="sunset")),
     )
-    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
+    monkeypatch.setenv("SASE_DISABLE_DEMO", "1")
     reset_process_feature_flags()
 
     resolved = snapshot_mod.current_flags()
 
-    assert resolved.enabled("prettier_enabled") is False
-    assert (
-        resolved.decision("prettier_enabled").source_detail == "SASE_DISABLE_PRETTIER"
-    )
+    assert resolved.enabled("demo_flag") is False
+    assert resolved.decision("demo_flag").source_detail == "SASE_DISABLE_DEMO"
     assert [diagnostic.code for diagnostic in resolved.diagnostics] == [
         "deprecated_env"
     ]

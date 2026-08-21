@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from sase.feature_flags import FeatureFlagEnvError
+from sase.feature_flags import env as env_mod
 from sase.feature_flags.env import (
     SASE_FEATURE_FLAGS_ENV,
+    _LegacyEnvMapping,
     apply_feature_flags_env,
     collect_legacy_env_values,
     merge_feature_flags_env,
@@ -16,15 +18,31 @@ from sase.feature_flags.resolver import resolve_feature_flags
 
 from ._helpers import definitions, demo_flag, layer
 
+_DEMO_DISABLE = _LegacyEnvMapping(
+    name="SASE_DISABLE_DEMO",
+    key="demo_flag",
+    invert=True,
+)
 
-def test_collect_legacy_env_values_inverts_disable_prettier() -> None:
+
+def test_collect_legacy_env_values_is_empty_without_mappings() -> None:
     assert collect_legacy_env_values({}) == {}
-    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": ""}) == {}
-    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": "1"}) == {
-        "prettier_enabled": (False, "SASE_DISABLE_PRETTIER")
+    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": "1"}) == {}
+    assert collect_legacy_env_values({"SASE_DISABLE_DEMO": "1"}) == {}
+
+
+def test_collect_legacy_env_values_inverts_disable_style_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(env_mod, "_LEGACY_ENV_MAPPINGS", (_DEMO_DISABLE,))
+
+    assert collect_legacy_env_values({}) == {}
+    assert collect_legacy_env_values({"SASE_DISABLE_DEMO": ""}) == {}
+    assert collect_legacy_env_values({"SASE_DISABLE_DEMO": "1"}) == {
+        "demo_flag": (False, "SASE_DISABLE_DEMO")
     }
-    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": "0"}) == {
-        "prettier_enabled": (False, "SASE_DISABLE_PRETTIER")
+    assert collect_legacy_env_values({"SASE_DISABLE_DEMO": "0"}) == {
+        "demo_flag": (False, "SASE_DISABLE_DEMO")
     }
 
 

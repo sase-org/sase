@@ -601,3 +601,34 @@ def test_all_latest_flag_is_threaded_to_enricher() -> None:
     )
 
     assert seen_scope == ["all"]
+
+
+def test_list_default_does_not_force_all_scope() -> None:
+    seen_scope: list[str | None] = []
+
+    def _enrich(
+        catalog: PluginCatalog,
+        *,
+        offline: bool,
+        refresh: bool,
+        scope: str | None = None,
+    ) -> PluginCatalog:
+        seen_scope.append(scope)
+        return catalog
+
+    args = argparse.Namespace(
+        plugin_subcommand="list",
+        json=True,
+        offline=False,
+        refresh=False,
+        verbose=False,
+        all_latest=False,
+    )
+    handle_plugin_list_command(
+        args,
+        load_fn=lambda *, refresh, offline: _sample_catalog(),
+        enrich_fn=_enrich,
+        now=1000.0,
+    )
+
+    assert seen_scope == [None]

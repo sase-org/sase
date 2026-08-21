@@ -3720,17 +3720,6 @@
           "description": "After a successful sase update, regenerate, zcompile, and restamp installed shell completion scripts. Off by default while the generator soaks.",
           "default": false
         },
-        "plugin_catalog_scoped_latest": {
-          "type": "boolean",
-          "description": "Eager PyPI latest-version enrichment is limited to installed plugins. The Updates > Plugins highlighted row lazily fetches latest for the current uninstalled entry through the detail debouncer. sase plugin show still fetches the requested plugin. sase plugin list stays installed-only unless -A|--all-latest.",
-          "default": false
-        },
-        "prettier_enabled": {
-          "type": "boolean",
-          "description": "Format markdown with prettier when it is installed. SASE_DISABLE_PRETTIER remains a deprecated alias.",
-          "default": true,
-          "deprecated": true
-        },
         "ref_sync_gesture": {
           "type": "boolean",
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",

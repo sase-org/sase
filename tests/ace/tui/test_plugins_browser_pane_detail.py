@@ -10,7 +10,6 @@ from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.feature_flags import override_flags
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.latest import LatestInfo
 from sase.updates.incoming_commits import CommitSummary, IncomingCommits
@@ -187,7 +186,7 @@ async def test_plugins_pane_detail_shows_lazy_incoming_commits(
         assert "+1 more" in text
 
 
-async def test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on(
+async def test_plugins_pane_lazy_fetches_highlighted_latest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -218,18 +217,17 @@ async def test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on(
         )
 
     monkeypatch.setattr(pbp, "_enrich_entry_latest", _fake_enrich)
-    with override_flags(plugin_catalog_scoped_latest=True):
-        async with AcePage() as page:
-            pane = await _open_plugins_pane(page)
-            await page.wait_for(lambda _s: bool(calls))
-            entry = pane._entry_by_name("nvim")
-            assert entry is not None
-            assert entry.latest.version == "2.0.0"
-            text = _render(pane._detail_renderable(entry))
-            assert "2.0.0" in text
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        await page.wait_for(lambda _s: bool(calls))
+        entry = pane._entry_by_name("nvim")
+        assert entry is not None
+        assert entry.latest.version == "2.0.0"
+        text = _render(pane._detail_renderable(entry))
+        assert "2.0.0" in text
 
 
-async def test_plugins_pane_skips_lazy_latest_when_flag_off(
+async def test_plugins_pane_skips_lazy_latest_when_already_checked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -241,7 +239,7 @@ async def test_plugins_pane_skips_lazy_latest_when_flag_off(
                 "nvim",
                 owner="sase-org",
                 description="Neovim editor integration.",
-                latest=LatestInfo.unknown(),
+                latest=LatestInfo(checked=True, version="1.2.3", source="index"),
             ),
         ),
         from_cache=True,
@@ -252,17 +250,17 @@ async def test_plugins_pane_skips_lazy_latest_when_flag_off(
         pbp,
         "_enrich_entry_latest",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("flag off must not lazy-fetch latest")
+            AssertionError("already-checked latest must not refetch")
         ),
     )
-    with override_flags(plugin_catalog_scoped_latest=False):
-        async with AcePage() as page:
-            pane = await _open_plugins_pane(page)
-            await page.wait_for(lambda _s: pane._detail_name == "nvim")
-            entry = pane._entry_by_name("nvim")
-            assert entry is not None
-            assert entry.latest.checked is False
-            assert pane._plugin_latest_workers == {}
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        await page.wait_for(lambda _s: pane._detail_name == "nvim")
+        entry = pane._entry_by_name("nvim")
+        assert entry is not None
+        assert entry.latest.checked is True
+        assert entry.latest.version == "1.2.3"
+        assert pane._plugin_latest_workers == {}
 
 
 async def test_plugins_pane_detail_shows_community_warning(

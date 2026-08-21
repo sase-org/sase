@@ -25,6 +25,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.llm_provider.retry_config import RetryState
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
+from tests._prettier_fakes import hide_prettier_from_path
 
 
 _CONTROL_ENV = (
@@ -150,7 +151,7 @@ class FakeyRetryHarness:
         monkeypatch.setenv("SASE_HOME", str(self.home))
         monkeypatch.setenv("SASE_TMPDIR", str(tmp_path / "tmp"))
         monkeypatch.setenv("SASE_FAKEY_PATH", str(fakey_binary))
-        monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
+        hide_prettier_from_path(monkeypatch, stub_dir=tmp_path / "hide-prettier")
         monkeypatch.setenv("FAKEY_STATE_DIR", str(self.state_dir))
         monkeypatch.chdir(self.workspace)
         self.configure_retry(

@@ -23,13 +23,7 @@ class _LegacyEnvMapping:
     invert: bool = False
 
 
-_LEGACY_ENV_MAPPINGS: tuple[_LegacyEnvMapping, ...] = (
-    _LegacyEnvMapping(
-        name="SASE_DISABLE_PRETTIER",
-        key="prettier_enabled",
-        invert=True,
-    ),
-)
+_LEGACY_ENV_MAPPINGS: tuple[_LegacyEnvMapping, ...] = ()
 
 
 def collect_legacy_env_values(
@@ -37,8 +31,9 @@ def collect_legacy_env_values(
 ) -> dict[str, tuple[bool, str]]:
     """Return ``{flag_key: (enabled, env_name)}`` for set legacy env vars.
 
-    A non-empty value is treated as set, matching the historical
-    ``os.environ.get(name)`` truthiness of ``SASE_DISABLE_PRETTIER``.
+    A non-empty value is treated as set. Invert mappings report the flag
+    as disabled when the variable is present, matching historical
+    ``os.environ.get(name)`` truthiness of disable-style aliases.
     """
     values: dict[str, tuple[bool, str]] = {}
     for mapping in _LEGACY_ENV_MAPPINGS:

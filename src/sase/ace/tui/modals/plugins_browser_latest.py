@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from textual.worker import WorkerState
 
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.latest import LatestInfo, latest_cache_key
 
@@ -37,8 +36,6 @@ class PluginsBrowserLatestMixin:
         ) -> str: ...
 
     def _ensure_plugin_latest(self, entry: PluginCatalogEntry) -> None:
-        if not current_flags().enabled(FeatureFlag.plugin_catalog_scoped_latest):
-            return
         if self._offline or entry.latest.checked:
             return
         key = latest_cache_key(entry)

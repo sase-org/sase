@@ -371,7 +371,6 @@ def test_format_with_prettier_follows_configuration(monkeypatch) -> None:
     monkeypatch.setattr(
         config_core, "load_merged_config", lambda: {"markdown": {"print_width": 60}}
     )
-    monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
     captured: list[list[str]] = []
 
     class _Result:

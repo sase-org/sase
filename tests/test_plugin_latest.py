@@ -10,7 +10,6 @@ from typing import Any, Literal
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.dev_update.models import DevLatest
 from sase.plugins.installed import InstalledInfo
-from sase.feature_flags import override_flags
 from sase.plugins.latest import (
     LatestInfo,
     enrich_entry_latest,
@@ -412,29 +411,47 @@ def test_enrich_installed_scope_skips_uninstalled_fetches() -> None:
     assert latest_cache_key(by_name["github"]) == "sase-github"
 
 
-def test_scoped_latest_flag_both_states_change_eager_fetches() -> None:
+def test_enrich_default_scope_is_installed_only() -> None:
+    calls: list[str] = []
     catalog = _catalog(
         _entry("github", installed=True, version="0.4.0"),
         _entry("telegram"),
     )
 
-    def _run(*, enabled: bool) -> list[str]:
-        calls: list[str] = []
-        with override_flags(plugin_catalog_scoped_latest=enabled):
-            enrich_with_latest(
-                catalog,
-                fetch_fn=lambda dist: calls.append(dist) or "1.0.0",
-                read_cache_fn=lambda: {},
-                write_cache_fn=lambda _entries: None,
-                clock=lambda: 1000.0,
-                installed_source_fn=lambda _dist: "index",
-                version_records_fn=lambda: (),
-                max_workers=1,
-            )
-        return calls
+    enrich_with_latest(
+        catalog,
+        fetch_fn=lambda dist: calls.append(dist) or "1.0.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+    )
 
-    assert _run(enabled=False) == ["sase-github", "sase-telegram"]
-    assert _run(enabled=True) == ["sase-github"]
+    assert calls == ["sase-github"]
+
+
+def test_enrich_all_scope_fetches_uninstalled() -> None:
+    calls: list[str] = []
+    catalog = _catalog(
+        _entry("github", installed=True, version="0.4.0"),
+        _entry("telegram"),
+    )
+
+    enrich_with_latest(
+        catalog,
+        fetch_fn=lambda dist: calls.append(dist) or "1.0.0",
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        clock=lambda: 1000.0,
+        installed_source_fn=lambda _dist: "index",
+        version_records_fn=lambda: (),
+        max_workers=1,
+        scope="all",
+    )
+
+    assert calls == ["sase-github", "sase-telegram"]
 
 
 def test_enrich_refresh_keeps_out_of_scope_cache_rows() -> None:

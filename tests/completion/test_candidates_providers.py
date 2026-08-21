@@ -208,11 +208,11 @@ def test_flag_candidates_come_from_the_in_process_registry() -> None:
 
     keys = {candidate.value for candidate in result}
     assert "coder_inherits_planner_chat" in keys
-    assert "prettier_enabled" in keys
-    prettier = next(
-        candidate for candidate in result if candidate.value == "prettier_enabled"
+    assert "ref_sync_gesture" in keys
+    ref_sync = next(
+        candidate for candidate in result if candidate.value == "ref_sync_gesture"
     )
-    assert prettier.description.startswith("sunset:")
+    assert ref_sync.description.startswith("sunset:")
 
 
 def test_model_candidates_are_the_builtin_size_aliases() -> None:

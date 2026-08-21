@@ -9,6 +9,7 @@ import time
 
 import pytest
 
+from tests._prettier_fakes import fake_prettier_missing, hide_prettier_from_path
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.ace.tui.visual.renderer_env import assert_renderer_environment
 
@@ -26,6 +27,7 @@ def _require_pinned_renderer_environment(request: pytest.FixtureRequest) -> None
 @pytest.fixture(autouse=True)
 def _force_color_for_visual_snapshots(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> Iterator[None]:
     # Rich derives syntax line-number colors from the terminal color system.
     # Pin its truecolor path so neither the caller's terminal nor CI changes
@@ -51,7 +53,8 @@ def _force_color_for_visual_snapshots(
             time.tzset()
 
             # Prompt rendering must not depend on whether the host has prettier on PATH.
-            visual_env.setenv("SASE_DISABLE_PRETTIER", "1")
+            hide_prettier_from_path(visual_env, stub_dir=tmp_path / "hide-prettier")
+            fake_prettier_missing(visual_env)
             # Pin the app version so the "sase ace (v…)" header title is byte-stable
             # across runs and install shapes. AceApp seeds the title from
             # ``initial_app_version()`` in ``__init__`` and refines it off-thread from

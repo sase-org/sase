@@ -7,18 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.file_references import (
     format_agent_prompt_markdown,
     format_markdown_files_with_prettier,
     format_with_prettier,
 )
 from sase.markdown_width import markdown_print_width
-
-
-@pytest.fixture(autouse=True)
-def _prettier_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SASE_DISABLE_PRETTIER", raising=False)
 
 
 def _fake_run_capturing(captured: list[list[str]]) -> Any:
@@ -93,30 +87,22 @@ def test_format_with_prettier_missing_prettier_returns_text() -> None:
         assert format_with_prettier("untouched", print_width=80) == "untouched"
 
 
-def test_format_with_prettier_disabled_returns_text(
+def test_format_with_prettier_ignores_retired_disable_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The deprecated environment switch still bypasses prettier."""
+    """The retired ``SASE_DISABLE_PRETTIER`` alias is no longer an escape hatch."""
     monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
-    with patch(
-        "sase.file_references.shutil.which", return_value="/usr/bin/prettier"
-    ) as mock_which:
-        assert format_with_prettier("untouched", print_width=80) == "untouched"
-
-    mock_which.assert_not_called()
-
-
-def test_format_with_prettier_flag_off_returns_text() -> None:
-    """prettier_enabled=false bypasses prettier even when it is installed."""
+    captured: list[list[str]] = []
     with (
-        override_flags(prettier_enabled=False),
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
         patch(
-            "sase.file_references.shutil.which", return_value="/usr/bin/prettier"
-        ) as mock_which,
+            "sase.file_references.subprocess.run",
+            side_effect=_fake_run_capturing(captured),
+        ),
     ):
-        assert format_with_prettier("untouched", print_width=80) == "untouched"
+        format_with_prettier("some prose")
 
-    mock_which.assert_not_called()
+    assert captured, "retired disable env must not skip prettier"
 
 
 def test_format_with_prettier_failure_returns_text() -> None:

@@ -3696,7 +3696,7 @@ only overrides registered keys.
 ```yaml
 feature_flags:
   coder_inherits_planner_chat: false
-  prettier_enabled: true
+  ref_sync_gesture: true
 ```
 
 The generated JSON Schema exposes one boolean property per registered flag with its

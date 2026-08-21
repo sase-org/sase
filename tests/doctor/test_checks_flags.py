@@ -161,23 +161,23 @@ def test_flags_overrides_warns_on_inherited_env(tmp_path: Path) -> None:
 
 
 def test_flags_overrides_warns_on_deprecated_env(tmp_path: Path) -> None:
-    flag = demo_flag("prettier_enabled", kind="sunset")
+    flag = demo_flag("demo_flag", kind="sunset")
     check = _check_flags_overrides(
         _context(tmp_path),
         snapshot=snapshot_for(
             flag,
-            enabled={"prettier_enabled": False},
+            enabled={"demo_flag": False},
             source="env",
-            source_detail="SASE_DISABLE_PRETTIER",
+            source_detail="SASE_DISABLE_DEMO",
             diagnostics=(
                 FeatureFlagDiagnostic(
                     severity="warning",
                     code="deprecated_env",
                     message=(
-                        "SASE_DISABLE_PRETTIER is deprecated; set feature flag "
-                        "'prettier_enabled' via SASE_FEATURE_FLAGS or config instead"
+                        "SASE_DISABLE_DEMO is deprecated; set feature flag "
+                        "'demo_flag' via SASE_FEATURE_FLAGS or config instead"
                     ),
-                    source="SASE_DISABLE_PRETTIER",
+                    source="SASE_DISABLE_DEMO",
                 ),
             ),
         ),

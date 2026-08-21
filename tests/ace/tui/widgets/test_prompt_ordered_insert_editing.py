@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 
 import pytest
@@ -12,8 +11,8 @@ from sase.ace.testing import PromptPage
 from sase.file_references import format_agent_prompt_markdown
 
 _requires_prettier = pytest.mark.skipif(
-    bool(os.environ.get("SASE_DISABLE_PRETTIER")) or shutil.which("prettier") is None,
-    reason="prettier is unavailable or disabled",
+    shutil.which("prettier") is None,
+    reason="prettier is unavailable",
 )
 
 

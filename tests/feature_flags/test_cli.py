@@ -163,7 +163,7 @@ def test_flag_list_row_includes_env_provenance_and_countdown() -> None:
 
 def test_flag_list_surfaces_deprecated_env_diagnostic() -> None:
     console, buf = _console()
-    flag = demo_flag("prettier_enabled", kind="sunset")
+    flag = demo_flag("demo_flag", kind="sunset")
     args = create_parser().parse_args(["flag", "list"])
 
     exit_code = handle_flag_list(
@@ -172,31 +172,31 @@ def test_flag_list_surfaces_deprecated_env_diagnostic() -> None:
         definitions={str(flag.key): flag},
         snapshot=snapshot_for(
             flag,
-            enabled={"prettier_enabled": False},
+            enabled={"demo_flag": False},
             source="env",
-            source_detail="SASE_DISABLE_PRETTIER",
+            source_detail="SASE_DISABLE_DEMO",
             diagnostics=(
                 FeatureFlagDiagnostic(
                     severity="warning",
                     code="deprecated_env",
                     message=(
-                        "SASE_DISABLE_PRETTIER is deprecated; set feature flag "
-                        "'prettier_enabled' via SASE_FEATURE_FLAGS or config instead"
+                        "SASE_DISABLE_DEMO is deprecated; set feature flag "
+                        "'demo_flag' via SASE_FEATURE_FLAGS or config instead"
                     ),
-                    source="SASE_DISABLE_PRETTIER",
+                    source="SASE_DISABLE_DEMO",
                 ),
             ),
         ),
-        beads=(flag_bead("prettier_enabled"),),
+        beads=(flag_bead("demo_flag"),),
         today=date(2026, 8, 16),
         release="0.16.0",
     )
 
     assert exit_code == 0
     out = buf.getvalue()
-    assert "ENV:SASE_DISABLE_PRETTIER" in out
+    assert "ENV:SASE_DISABLE_DEMO" in out
     assert "deprecated" in out
-    assert "SASE_DISABLE_PRETTIER" in out
+    assert "SASE_DISABLE_DEMO" in out
 
 
 def test_flag_list_row_includes_cli_provenance() -> None:

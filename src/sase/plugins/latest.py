@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from sase.dev_update.detect import detect_dev_latest
 from sase.dev_update.models import DevLatest
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.plugins.latest_cache import (
     CachedLatest,
     is_fresh,
@@ -160,7 +159,7 @@ def enrich_entry_latest(
     """Return *entry* with latest-version metadata attached.
 
     Used by the Updates pane's lazy highlighted-row fetch. Always eager for
-    this single entry, independent of :class:`FeatureFlag.plugin_catalog_scoped_latest`.
+    this single entry, independent of the catalog-wide eager scope.
     """
     from sase.plugins.catalog import PluginCatalog
 
@@ -209,12 +208,12 @@ def enrich_with_latest(
 ) -> PluginCatalog:
     """Return *catalog* with latest-version metadata attached to entries.
 
-    When *scope* is ``None``, :class:`FeatureFlag.plugin_catalog_scoped_latest`
-    chooses between eager enrichment of every entry (``"all"``, the pre-scale
-    default) and installed entries only (``"installed"``). *include_keys*
-    always join the eager set so ``sase plugin show`` can fetch one uninstalled
-    plugin without a catalog-wide network storm. Refresh force-expires entries
-    in that eager set instead of discarding the whole cache.
+    When *scope* is ``None``, eager enrichment is limited to installed
+    entries. Pass ``scope="all"`` (or ``sase plugin list -A|--all-latest``)
+    for a full-catalog probe. *include_keys* always join the eager set so
+    ``sase plugin show`` can fetch one uninstalled plugin without a
+    catalog-wide network storm. Refresh force-expires entries in that eager
+    set instead of discarding the whole cache.
     """
     now = clock()
     installed_source_fn = (
@@ -315,9 +314,7 @@ def enrich_with_latest(
 def _resolve_eager_scope(scope: EagerScope | None) -> EagerScope:
     if scope is not None:
         return scope
-    if current_flags().enabled(FeatureFlag.plugin_catalog_scoped_latest):
-        return "installed"
-    return "all"
+    return "installed"
 
 
 def _is_eager_entry(

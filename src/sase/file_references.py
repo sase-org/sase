@@ -510,21 +510,13 @@ def process_command_substitution(prompt: str) -> str:
     return prompt
 
 
-def _prettier_is_enabled() -> bool:
-    """Return whether markdown prettier formatting is enabled."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.prettier_enabled)
-
-
 def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
     """Format text with prettier if available.
 
     Uses the shared ``prettier_markdown_argv()`` policy to format the text as
     markdown with always-on prose wrapping, wrapping prose at *print_width*
-    columns. Falls back to returning the original text if prettier is disabled
-    (``prettier_enabled`` flag, or the deprecated ``SASE_DISABLE_PRETTIER``
-    alias), is not installed, or fails.
+    columns. Falls back to returning the original text if prettier is not
+    installed, returns an error, times out, or cannot produce usable output.
 
     Args:
         text: The markdown text to format.
@@ -534,7 +526,7 @@ def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
             passed straight through to ``prettier_markdown_argv()`` so there is
             exactly one resolution point.
     """
-    if not _prettier_is_enabled() or shutil.which("prettier") is None:
+    if shutil.which("prettier") is None:
         return text
 
     try:
@@ -567,14 +559,14 @@ def format_markdown_files_with_prettier(
 ) -> bool:
     """Format many Markdown files in one prettier process.
 
-    Returns whether prettier ran successfully. Missing, disabled, failed, or
-    timed-out prettier leaves the supplied files as-is.
+    Returns whether prettier ran successfully. Missing, failed, or timed-out
+    prettier leaves the supplied files as-is.
     """
 
     selected = tuple(dict.fromkeys(Path(path) for path in paths))
     if not selected:
         return True
-    if not _prettier_is_enabled() or shutil.which("prettier") is None:
+    if shutil.which("prettier") is None:
         return False
     try:
         subprocess.run(

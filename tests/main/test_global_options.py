@@ -22,7 +22,7 @@ from tests._conftest_runtime import reset_process_feature_flags
 
 
 REGISTERED_ENABLE_KEY = "coder_inherits_planner_chat"
-REGISTERED_DISABLE_KEY = "prettier_enabled"
+REGISTERED_DISABLE_KEY = "ref_sync_gesture"
 
 
 @pytest.mark.parametrize(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 
 import pytest
@@ -280,8 +279,8 @@ def test_plan_prompt_ordered_shift_declines_hyphen_marker() -> None:
     ],
 )
 @pytest.mark.skipif(
-    bool(os.environ.get("SASE_DISABLE_PRETTIER")) or shutil.which("prettier") is None,
-    reason="prettier is unavailable or disabled",
+    shutil.which("prettier") is None,
+    reason="prettier is unavailable",
 )
 def test_nested_result_is_a_formatter_fixed_point(
     text: str,

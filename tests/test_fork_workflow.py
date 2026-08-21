@@ -17,6 +17,7 @@ from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_loader import _load_workflow_from_file
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 from sase.xprompt.workflow_validator import validate_workflow
+from tests._prettier_fakes import fake_prettier_missing
 
 
 def _load_fork_workflow() -> Workflow:
@@ -369,7 +370,7 @@ def test_inline_deferred_fork_survives_workspace_removal_and_late_preprocessing(
     # `final_prompt` depend on the machine. What this test guards -- the
     # disabled-region marker landing on its own line -- is prettier
     # independent, so assert it without prettier's normalization.
-    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
+    fake_prettier_missing(monkeypatch)
     final_prompt = preprocess_prompt_late(without_workspace, file_ref_mode="skip")
 
     assert "%xprompts_enabled" not in final_prompt
