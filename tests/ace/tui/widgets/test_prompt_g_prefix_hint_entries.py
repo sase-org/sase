@@ -91,6 +91,14 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("p", "stashed prompts…"),
         ]
 
+        bare_mini_xprompt = next(
+            entry for entry in bar.g_prefix_hint_entries() if entry.key == "x"
+        )
+        ctrl_g_mini_xprompt = next(
+            entry
+            for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
+            if entry.key == "x"
+        )
         bare_unified_save = next(
             entry for entry in bar.g_prefix_hint_entries() if entry.key == "X"
         )
@@ -99,8 +107,10 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
             if entry.key == "X"
         )
+        assert bare_mini_xprompt.aliases == ()
+        assert ctrl_g_mini_xprompt.aliases == ("ctrl+x",)
         assert bare_unified_save.aliases == ()
-        assert ctrl_g_unified_save.aliases == ("ctrl+x",)
+        assert ctrl_g_unified_save.aliases == ()
 
 
 async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> None:

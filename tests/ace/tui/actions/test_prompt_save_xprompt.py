@@ -235,7 +235,7 @@ async def test_request_reuses_undeclared_jinja_name_without_duplicate_input() ->
     assert modal._frontmatter.inputs == []
 
 
-async def test_ctrl_g_ctrl_x_ctrl_x_opens_panel_in_snippet_mode(
+async def test_ctrl_g_x_then_panel_ctrl_x_switches_to_snippet_mode(
     tmp_path: Path,
 ) -> None:
     xprompt_directory = tmp_path / "xprompts"
@@ -272,7 +272,7 @@ async def test_ctrl_g_ctrl_x_ctrl_x_opens_panel_in_snippet_mode(
             bar = app.query_one(PromptInputBar)
             text_area = bar.active_text_area()
 
-            await pilot.press("ctrl+g", "ctrl+x")
+            await pilot.press("ctrl+g", "X")
             await wait_for(
                 pilot, lambda: isinstance(app.screen, UnifiedXPromptSaveModal)
             )

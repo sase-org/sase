@@ -99,7 +99,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^Gt   new snippet…" in plain
         assert "^GT   snippets…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
-        assert "^GX / ^G^X   save as xprompt/snippet" not in plain
+        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
         assert "... +4 more" in plain
         assert "^Gs" not in plain
@@ -138,12 +138,34 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^Gt   new snippet…" in plain
         assert "^GT   snippets…" in plain
         assert "^Gx   open mini-xprompt…" not in plain
-        assert "^GX / ^G^X   save as xprompt/snippet" not in plain
+        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
         assert "... +3 more" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"
         assert bar.active_text_area()._normal_g_prefix_pending is True
+
+
+@pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
+async def test_ctrl_g_hints_group_ctrl_x_with_mini_xprompt(
+    start_normal: bool,
+) -> None:
+    app = GPrefixHintApp("")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = hint_panel(bar)
+
+        if start_normal:
+            await pilot.press("escape")
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+
+        plain = panel.render().plain
+        assert "^Gx / ^G^X   open mini-xprompt…" in plain
+        assert "^GX / " + "^G" + "^X   save as xprompt/snippet" not in plain
+        assert "^GX   save as xprompt/snippet" not in plain
 
 
 async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
@@ -171,10 +193,8 @@ async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-@pytest.mark.parametrize("continuation", ["X", "ctrl+x"])
 @pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
 async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
-    continuation: str,
     start_normal: bool,
 ) -> None:
     app = GPrefixHintApp("reusable draft")
@@ -186,7 +206,7 @@ async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
 
         if start_normal:
             await pilot.press("escape")
-        await pilot.press("ctrl+g", continuation)
+        await pilot.press("ctrl+g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -200,8 +220,10 @@ async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
         assert text_area._vim_mode == ("normal" if start_normal else "insert")
 
 
+@pytest.mark.parametrize("continuation", ["x", "ctrl+x"])
 @pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
-async def test_ctrl_g_x_requests_mini_xprompt_target_and_clear_prefix(
+async def test_ctrl_g_x_continuations_request_mini_xprompt_target_and_clear_prefix(
+    continuation: str,
     start_normal: bool,
 ) -> None:
     app = GPrefixHintApp("mini draft")
@@ -213,7 +235,7 @@ async def test_ctrl_g_x_requests_mini_xprompt_target_and_clear_prefix(
 
         if start_normal:
             await pilot.press("escape")
-        await pilot.press("ctrl+g", "x")
+        await pilot.press("ctrl+g", continuation)
         await pilot.pause()
 
         assert len(app.mini_xprompt_requests) == 1

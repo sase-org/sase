@@ -840,9 +840,9 @@ collection and launch the tags unchanged; declared
 [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive
 `sase run` does not collect raw placeholders.
 
-When an ACE draft is saved through the whole-stack xprompt flow (`gX`, `Ctrl+G X`, or
-`Ctrl+G Ctrl+X` in xprompt mode), live raw placeholders are converted before the save
-preview into required `text` inputs:
+When an ACE draft is saved through the whole-stack xprompt flow (`gX` or `Ctrl+G X` in
+xprompt mode), live raw placeholders are converted before the save preview into required
+`text` inputs:
 
 ```text
 Deploy <service> to <target file>

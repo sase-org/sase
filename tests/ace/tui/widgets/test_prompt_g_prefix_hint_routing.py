@@ -116,6 +116,8 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         assert bar.dispatch_g_prefix_key("ctrl+c", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("ctrl+x") is False
         assert bar.dispatch_g_prefix_key("ctrl+x", via_ctrl_g=True) is True
+        assert app.mini_xprompt_requests == []
+        assert app.save_xprompt_requests == []
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is True
@@ -144,7 +146,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "X",
             "L",
             "ctrl+c",
-            "X",
+            "x",
             "p",
             "S",
         ]

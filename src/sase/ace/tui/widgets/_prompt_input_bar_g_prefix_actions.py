@@ -153,13 +153,13 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "request_mini_xprompt_target_pane",
         "_g_prefix_label_mini_xprompt_target",
         "_g_prefix_available_mini_xprompt_target",
+        ctrl_g_aliases=("ctrl+x",),
     ),
     _PromptGPrefixBinding(
         "X",
         "request_save_as_xprompt",
         "_g_prefix_label_save_xprompt",
         "_g_prefix_available_save_xprompt",
-        ctrl_g_aliases=("ctrl+x",),
     ),
     _PromptGPrefixBinding(
         "L",

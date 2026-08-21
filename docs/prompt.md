@@ -272,16 +272,15 @@ With no `--name`, `save` derives a deterministic slug from the prompt preview. I
 overwrites an existing xprompt file unless you pass `--force`.
 
 For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save
-directly to xprompt storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` or
-`Ctrl+G Ctrl+X` in INSERT or NORMAL mode. The unified save panel starts in xprompt mode;
-press `Ctrl+X` there to switch to snippet mode and choose which config file should hold
-the new `ace.snippets` entry. Thus `Ctrl+G Ctrl+X Ctrl+X` opens the panel and
-immediately selects snippet mode. Prompt-input `Ctrl+T` remains completion. If the
-prompt bar contains a stack, ACE saves the non-empty panes as one `---`-separated
-xprompt body, while snippet mode saves only the active pane. When you want to author or
-retarget exactly one simple xprompt in a focused prompt pane, use `gx`/`Ctrl+G x`. When
-you already know you're authoring a snippet trigger, `gt`/`Ctrl+G t` opens a faster,
-dedicated snippet pane instead of this general save panel — see
+directly to xprompt storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in INSERT
+or NORMAL mode. The unified save panel starts in xprompt mode; press `Ctrl+X` there to
+switch to snippet mode and choose which config file should hold the new `ace.snippets`
+entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar contains a stack, ACE
+saves the non-empty panes as one `---`-separated xprompt body, while snippet mode saves
+only the active pane. When you want to author or retarget exactly one simple xprompt in
+a focused prompt pane, use `gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X`. When you already know
+you're authoring a snippet trigger, `gt`/`Ctrl+G t` opens a faster, dedicated snippet
+pane instead of this general save panel — see
 [Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
 To browse or edit the composed catalog, `gT`/`Ctrl+G T` opens the
 [Snippets panel](ace.md#snippets-panel); the lowercase and uppercase chords coexist.
