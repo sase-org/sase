@@ -5,13 +5,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from textual.app import App, ComposeResult
 from textual.widgets import OptionList, Static
 from textual.worker import WorkerState
 
 import sase.ace.tui.modals.models_panel as models_panel_module
 import sase.ace.tui.modals.models_panel_provider_state as provider_state
 import sase.ace.tui.modals.models_panel_providers as providers
-from sase.ace.tui.modals.models_panel import ModelsPanel
+from sase.ace.tui.modals.models_panel import LaunchPane, ModelsPanel, ModelsPanelResult
 from sase.ace.tui.modals.models_panel_provider_modal import ProviderRoutingModal
 from sase.ace.tui.modals.models_panel_provider_state import (
     ProviderRoutingSnapshot,
@@ -30,6 +31,29 @@ from tests._models_panel_provider_routing_helpers import (
     snapshot as _snapshot,
     status as _status,
 )
+
+
+class _ProviderLaunchHost:
+    def __init__(self) -> None:
+        self.changed_results: list[ModelsPanelResult] = []
+        self.close_result: ModelsPanelResult | None = None
+
+    def on_launch_changed(self, result: ModelsPanelResult) -> None:
+        self.changed_results.append(result)
+
+    def request_launch_close(self, result: ModelsPanelResult) -> None:
+        self.close_result = result
+
+
+class _LaunchPaneWidgetApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, pane: LaunchPane) -> None:
+        super().__init__()
+        self.pane = pane
+
+    def compose(self) -> ComposeResult:
+        yield self.pane
 
 
 def test_panel_sync_row_build_uses_captured_rows_without_provider_read(
@@ -213,6 +237,65 @@ async def test_panel_provider_modal_snapshot_rebuilds_rows_and_keeps_cursor(
         assert panel._highlighted_row_id() == "medium"
         assert panel._changed is True
         assert panel._provider_routing_changed is True
+
+
+async def test_provider_modal_snapshot_then_dismiss_notifies_embedded_host_once(
+    monkeypatch,
+) -> None:
+    before_views = [
+        make_alias_view("large", "role"),
+        make_alias_view("medium", "role"),
+    ]
+    after_views = [
+        make_alias_view("large", "role", provider="codex", model="o3"),
+        make_alias_view("medium", "role", provider="codex", model="o3"),
+    ]
+    patch_alias_views(monkeypatch, before_views)
+    initial_snapshot = _snapshot(_status("codex"), alias_views=before_views)
+    snapshot = _snapshot(_status("codex"), alias_views=after_views)
+    monkeypatch.setattr(
+        LaunchPane,
+        "_load_provider_routing_snapshot",
+        lambda self: initial_snapshot,
+    )
+    host = _ProviderLaunchHost()
+    pane = LaunchPane(host=host)
+
+    async with _LaunchPaneWidgetApp(pane).run_test() as pilot:
+        await wait_for(pilot, lambda: pane._provider_snapshot_worker is None)
+        option_list = pane.query_one("#models-panel-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("medium")
+
+        pane._on_provider_modal_snapshot(snapshot, "codex")
+        pane._on_provider_modal_dismissed(True)
+        await pilot.pause()
+
+    assert host.changed_results == [
+        ModelsPanelResult(changed=True, provider_routing_changed=True)
+    ]
+    assert pane._result() == ModelsPanelResult(
+        changed=True,
+        provider_routing_changed=True,
+    )
+
+
+def test_provider_modal_dismissed_accumulates_standalone_result() -> None:
+    panel = ModelsPanel()
+
+    panel._on_provider_modal_dismissed(True)
+
+    assert panel._result() == ModelsPanelResult(
+        changed=True,
+        provider_routing_changed=True,
+    )
+
+
+def test_provider_modal_unchanged_dismiss_keeps_standalone_result_silent() -> None:
+    panel = ModelsPanel()
+
+    panel._on_provider_modal_dismissed(False)
+
+    assert panel._result() == ModelsPanelResult()
 
 
 async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> None:

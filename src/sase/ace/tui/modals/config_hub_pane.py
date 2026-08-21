@@ -99,9 +99,8 @@ class ConfigHubPane(Vertical):
         """Dismiss the enclosing Admin Center (Snippets host contract)."""
         self._close_admin_center()
 
-    def request_launch_close(self, result: object) -> None:
+    def request_launch_close(self, _result: object) -> None:
         """Dismiss the enclosing Admin Center (Launch host contract)."""
-        self.on_launch_changed(result)
         self._close_admin_center()
 
     def on_launch_changed(self, result: object) -> None:

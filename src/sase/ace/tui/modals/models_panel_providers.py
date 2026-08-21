@@ -256,7 +256,8 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
     def _on_provider_modal_dismissed(self, changed: bool | None) -> None:
         if changed:
-            self._mark_changed(provider_routing_changed=True)
+            self._changed = True
+            self._provider_routing_changed = True
 
 
 __all__ = ["ModelsPanelProvidersMixin"]

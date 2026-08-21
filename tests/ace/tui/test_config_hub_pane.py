@@ -11,8 +11,9 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
-from sase.ace.tui.modals.models_panel import ModelsPanelResult
+from sase.ace.tui.modals.models_panel import LaunchPane, ModelsPanelResult
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from tests._models_panel_helpers import make_alias_view, patch_alias_views
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 
 
@@ -364,3 +365,80 @@ async def test_launch_result_refreshes_app_indicators(
         hub.on_launch_changed(ModelsPanelResult(changed=False))
 
     assert calls == [True]
+
+
+async def test_embedded_launch_change_then_close_refreshes_indicators_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
+    calls: list[bool] = []
+    close_calls: list[bool] = []
+
+    async with _HostApp().run_test() as pilot:
+
+        def refresh_launch_indicators(
+            *, provider_routing_changed: bool = False
+        ) -> None:
+            calls.append(provider_routing_changed)
+
+        pilot.app._refresh_launch_indicators = refresh_launch_indicators  # type: ignore[attr-defined]
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="launch"),
+        )
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "launch" in hub._panes)
+        monkeypatch.setattr(
+            hub,
+            "_close_admin_center",
+            lambda: close_calls.append(True),
+        )
+        launch = hub._panes["launch"]
+        assert isinstance(launch, LaunchPane)
+        await wait_for(pilot, lambda: "large" in launch._row_by_id)
+
+        launch._mark_changed(provider_routing_changed=True)
+        launch.action_close()
+        await pilot.pause()
+
+    assert calls == [True]
+    assert close_calls == [True]
+
+
+async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
+    calls: list[bool] = []
+    close_calls: list[bool] = []
+
+    async with _HostApp().run_test() as pilot:
+        pilot.app._refresh_launch_indicators = (  # type: ignore[attr-defined]
+            lambda *, provider_routing_changed=False: calls.append(
+                provider_routing_changed
+            )
+        )
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            config_entry=ConfigHubEntry(subtab="launch"),
+        )
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "launch" in hub._panes)
+        monkeypatch.setattr(
+            hub,
+            "_close_admin_center",
+            lambda: close_calls.append(True),
+        )
+        launch = hub._panes["launch"]
+        assert isinstance(launch, LaunchPane)
+        await wait_for(pilot, lambda: "large" in launch._row_by_id)
+
+        launch.action_close()
+        await pilot.pause()
+
+    assert calls == []
+    assert close_calls == [True]
