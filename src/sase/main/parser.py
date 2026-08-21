@@ -309,7 +309,7 @@ _COMPACT_GLOBAL_OPTIONS: tuple[tuple[str, str], ...] = (
         "Disable a registered feature flag for this invocation",
     ),
 )
-_COMPACT_GLOBAL_OPTION_EXAMPLE = 'sase -f coder_inherits_planner_chat run "..."'
+_COMPACT_GLOBAL_OPTION_EXAMPLE = 'sase -f ref_sync_gesture run "..."'
 
 
 class _CompactRootHelpAction(argparse.Action):

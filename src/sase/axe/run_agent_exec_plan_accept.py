@@ -8,7 +8,6 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -60,7 +59,6 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    plan_chain_agent_name,
 )
 
 if TYPE_CHECKING:
@@ -397,15 +395,6 @@ def handle_accepted_plan(
     coder_extra = ""
     if plan_result.coder_prompt:
         coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
-    # By default the coder starts with a fresh context window; the plan file
-    # itself is the hand-off artifact. Enable coder_inherits_planner_chat to
-    # prepend #fork:<base>--plan so the coder inherits the planner's full chat.
-    resume_prefix = ""
-    if ctx.agent_name and current_flags().enabled(
-        FeatureFlag.coder_inherits_planner_chat
-    ):
-        planner_name = plan_chain_agent_name(ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX)
-        resume_prefix = f"#fork:{planner_name} "
 
     if plan_committed:
         coder_plan_ref = build_saved_plan_ref(
@@ -419,13 +408,15 @@ def handle_accepted_plan(
     else:
         coder_plan_ref = plan_result.plan_file
 
+    # The coder starts with a fresh context window; the approved plan file is
+    # the hand-off artifact. It does not inherit the planner's chat.
     continue_as_successor(
         ctx,
         state,
         SuccessorRequest(
             base_meta=followup_base_meta,
             prompt=(
-                f"{model_prefix}{resume_prefix}{vcs_prefix}"
+                f"{model_prefix}{vcs_prefix}"
                 f"@{coder_plan_ref}\n\n"
                 "The above plan has been reviewed and approved. "
                 f"Implement it now.{coder_extra}\n{embedded_refs}"

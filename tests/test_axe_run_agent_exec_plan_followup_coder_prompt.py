@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     patch_plan_deps,
@@ -21,7 +20,7 @@ pytestmark = pytest.mark.usefixtures(
 
 
 class TestPlanFollowupCoderPrompt:
-    """Verify approved plan coder prompt text and chat inheritance."""
+    """Verify approved plan coder prompt text and plan-file-only handoff."""
 
     def test_coder_prompt_model_override_skips_inherited(self, tmp_path) -> None:
         """Custom prompt with %m:sonnet overrides inherited model."""
@@ -70,23 +69,16 @@ class TestPlanFollowupCoderPrompt:
         assert "Additional instructions:" in state.current_prompt
         assert "#foo\ncustom" in state.current_prompt
 
-    def test_coder_prompt_excludes_resume_prefix_by_default(self, tmp_path) -> None:
-        """Coder prompt does NOT prepend #fork:<planner_name> by default."""
+    def test_coder_prompt_never_prepends_planner_fork(self, tmp_path) -> None:
+        """Coder prompt does not prepend #fork:<planner_name>."""
         state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert "#fork:" not in state.current_prompt
         plan_ref = "@plan.md"
         assert plan_ref in state.current_prompt
         assert state.current_prompt.startswith("%model:@small\n")
 
-    def test_coder_prompt_preserves_resume_when_flag_enabled(self, tmp_path) -> None:
-        """coder_inherits_planner_chat restores the old #fork behavior."""
-        with override_flags(coder_inherits_planner_chat=True):
-            state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
-        assert "#fork:test_agent--plan " in state.current_prompt
-        assert state.current_prompt.startswith("%model:@small\n#fork:test_agent--plan ")
-
-    def test_coder_prompt_qa_round_excludes_resume_by_default(self, tmp_path) -> None:
-        """Q&A round (agent_step > 2) also drops #fork by default."""
+    def test_coder_prompt_qa_round_never_prepends_planner_fork(self, tmp_path) -> None:
+        """Q&A round (agent_step > 2) also starts from the plan file alone."""
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         state.agent_step = 2
@@ -96,21 +88,6 @@ class TestPlanFollowupCoderPrompt:
         run_plan_approval(tmp_path, approval=approval, ctx=ctx, state=state)
         assert "#fork:" not in state.current_prompt
         assert "@plan.md" in state.current_prompt
-
-    def test_coder_prompt_qa_round_resume_flag_uses_planner(self, tmp_path) -> None:
-        """Chat inheritance after Q&A resumes the planner phase, not the Q&A retry."""
-        ctx = make_ctx(tmp_path, agent_model="opus")
-        state = make_state(tmp_path)
-        state.agent_step = 2
-        state.current_role_suffix = "-2"
-        plan_file = write_plan_file(tmp_path)
-        approval = PlanApprovalResult(action="approve", plan_file=plan_file)
-
-        with override_flags(coder_inherits_planner_chat=True):
-            run_plan_approval(tmp_path, approval=approval, ctx=ctx, state=state)
-
-        assert "#fork:test_agent--plan " in state.current_prompt
-        assert "#fork:test_agent--2 " not in state.current_prompt
 
     def test_coder_prompt_no_resume_without_agent_name(self, tmp_path) -> None:
         """No #fork prefix when ctx.agent_name is not set."""

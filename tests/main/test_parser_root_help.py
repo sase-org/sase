@@ -34,7 +34,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     assert "Global options:" in help_text
     assert "-f, --enable-feature <flag>" in help_text
     assert "-F, --disable-feature <flag>" in help_text
-    assert 'sase -f coder_inherits_planner_chat run "..."' in help_text
+    assert 'sase -f ref_sync_gesture run "..."' in help_text
     assert "Common commands:" in help_text
     assert "Examples:" in help_text
     assert (

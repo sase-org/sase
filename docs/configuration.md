@@ -3695,9 +3695,9 @@ only overrides registered keys.
 
 ```yaml
 feature_flags:
-  coder_inherits_planner_chat: false
   ref_sync_gesture: true
 ```
+
 
 The generated JSON Schema exposes one boolean property per registered flag with its
 description and default. Unknown keys are tolerated by the schema so downgraded installs
@@ -3713,12 +3713,12 @@ consistently across frontends.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
-(`sase -f coder_inherits_planner_chat run "..."`). They outrank every config layer and
+(`sase -f ref_sync_gesture run "..."`). They outrank every config layer and
 an inherited `SASE_FEATURE_FLAGS` value, and they merge into `SASE_FEATURE_FLAGS` so
 launched agents and other child processes inherit the same overrides.
 
 `SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
-`{"coder_inherits_planner_chat":true}`. Malformed JSON, a non-object payload, or a
+`{"ref_sync_gesture":false}`. Malformed JSON, a non-object payload, or a
 non-boolean value is a startup error for that process. SASE-launched children inherit a
 resolved snapshot through the same variable, so `sase flag list` marks env provenance
 prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /

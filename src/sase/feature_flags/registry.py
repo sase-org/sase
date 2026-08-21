@@ -21,20 +21,10 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    coder_inherits_planner_chat = "coder_inherits_planner_chat"
     ref_sync_gesture = "ref_sync_gesture"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.coder_inherits_planner_chat: FeatureFlagDefinition(
-        key=FeatureFlag.coder_inherits_planner_chat,
-        kind="beta",
-        description=(
-            "Opt-in beta: the follow-up coder inherits the planner's chat "
-            "via #fork instead of starting from the approved plan file alone."
-        ),
-        bead="sase-qe",
-    ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,
         kind="sunset",

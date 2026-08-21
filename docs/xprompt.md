@@ -2146,13 +2146,11 @@ Once the plan is approved, sase launches a follow-up **coder** agent using the s
 handoff body as the `#coder` built-in xprompt (see
 [sase/xprompts/coder.md](https://github.com/sase-org/sase/blob/main/src/sase/xprompts/coder.md)).
 `#coder` takes the approved plan file as its `plan_file` input, injects it with `@`, and
-instructs the agent to implement the plan. By default the coder does _not_ inherit the
-planner's chat transcript — the plan file is the hand-off artifact. Enable the
-`coder_inherits_planner_chat` feature flag to restore the old behavior, in which case a
-`#fork:<planner_name>` reference is prepended to the coder prompt so it resumes the
-planner's session. The coder prompt also carries a `%model:` directive. A model chosen
-at approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When
-no model is chosen, the follow-up validates the tale plan it will actually hand off and
+instructs the agent to implement the plan. The coder starts with a fresh context window;
+the plan file is the hand-off artifact and the coder does not inherit the planner's chat
+transcript. The coder prompt also carries a `%model:` directive. A model chosen at
+approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When no
+model is chosen, the follow-up validates the tale plan it will actually hand off and
 routes by that plan's size: `%model:@xsmall`, `%model:@small`, `%model:@medium`,
 `%model:@large`, or `%model:@xlarge`. Tale approvals validate the committed SDD tale
 path when the commit succeeds, otherwise the original archived plan path. Legacy tale

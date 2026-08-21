@@ -21,7 +21,7 @@ from sase.main.parser import create_parser, parser_only_hint
 from tests._conftest_runtime import reset_process_feature_flags
 
 
-REGISTERED_ENABLE_KEY = "coder_inherits_planner_chat"
+REGISTERED_ENABLE_KEY = "ref_sync_gesture"
 REGISTERED_DISABLE_KEY = "ref_sync_gesture"
 
 
@@ -136,8 +136,6 @@ def test_consume_rewrites_argv_and_records_values(
         "argv",
         [
             "sase",
-            "-f",
-            REGISTERED_ENABLE_KEY,
             "-F",
             REGISTERED_DISABLE_KEY,
             "flag",
@@ -151,11 +149,9 @@ def test_consume_rewrites_argv_and_records_values(
 
     assert sys.argv == ["sase", "flag", "list"]
     assert snapshot_mod._cli_values == {
-        REGISTERED_ENABLE_KEY: True,
         REGISTERED_DISABLE_KEY: False,
     }
     assert json.loads(os.environ[SASE_FEATURE_FLAGS_ENV]) == {
-        REGISTERED_ENABLE_KEY: True,
         REGISTERED_DISABLE_KEY: False,
     }
 

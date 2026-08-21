@@ -3710,11 +3710,6 @@
         "type": "boolean"
       },
       "properties": {
-        "coder_inherits_planner_chat": {
-          "type": "boolean",
-          "description": "Opt-in beta: the follow-up coder inherits the planner's chat via #fork instead of starting from the approved plan file alone.",
-          "default": false
-        },
         "ref_sync_gesture": {
           "type": "boolean",
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",
