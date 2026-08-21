@@ -18,7 +18,7 @@ REQUIRED_BINDINGS = (
 )
 WIRE_SCHEMA_VERSION = 1
 FIRST_FLAG = "prettier_enabled"
-SECOND_FLAG = "epic_resume_gate"
+SECOND_FLAG = "alpha_flag"
 
 
 def _require_bindings(module: ModuleType) -> None:

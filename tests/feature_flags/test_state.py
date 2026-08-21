@@ -174,9 +174,9 @@ def test_mutation_preserves_unrelated_keys_and_leaves_config_untouched(
     overlay = tmp_path / "overlay.yml"
     local = tmp_path / "project" / "sase.yml"
     local.parent.mkdir(parents=True, exist_ok=True)
-    user.write_text("feature_flags:\n  epic_resume_gate: false\n", encoding="utf-8")
+    user.write_text("feature_flags:\n  legacy_flag: false\n", encoding="utf-8")
     overlay.write_text("feature_flags:\n  prettier_enabled: true\n", encoding="utf-8")
-    local.write_text("feature_flags:\n  epic_resume_gate: true\n", encoding="utf-8")
+    local.write_text("feature_flags:\n  legacy_flag: true\n", encoding="utf-8")
     fingerprints = {
         path: _file_fingerprint(path) for path in (user, overlay, local, _state_file())
     }

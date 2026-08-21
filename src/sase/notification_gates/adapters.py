@@ -168,22 +168,6 @@ class GateAdapter:
             )
             apply_plugins_required_decision(plugins_required_decision)
             return
-        if self.kind == "epic_resume":
-            from sase.bead.epic_resume_gate import (
-                resume_stalled_epic,
-                translate_epic_resume_response,
-            )
-
-            epic_resume_decision = translate_epic_resume_response(bundle_path, response)
-            epic_resume = resume_stalled_epic(
-                epic_resume_decision, origin=epic_launch_origin
-            )
-            if isinstance(response, dict):
-                from sase.notification_gates.durability import atomic_write_json
-
-                response["epic_resume_task_id"] = epic_resume.proc_id
-                atomic_write_json(bundle_path / "response.json", response)
-            return
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
@@ -448,20 +432,6 @@ _ADAPTERS = (
         legacy_directory_key="bundle_path",
         auto_policy="forbidden",
         neutral_only=True,
-        generic_form=True,
-    ),
-    GateAdapter(
-        kind="epic_resume",
-        display_title="Epic Resume",
-        action="EpicResume",
-        pending_action_kind="epic_resume",
-        sender="bead",
-        request_filename="request.json",
-        response_filename="response.json",
-        legacy_directory_key="bundle_path",
-        auto_policy="forbidden",
-        neutral_only=True,
-        default_feedback="optional",
         generic_form=True,
     ),
     GateAdapter(

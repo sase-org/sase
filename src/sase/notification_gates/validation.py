@@ -10,7 +10,6 @@ from sase.notification_gates.kind_validation import (
     validate_bead_snooze_spec,
     validate_bead_stale_cleanup_spec,
     validate_custom_spec,
-    validate_epic_resume_spec,
     validate_flag_triage_spec,
     validate_launch_spec,
     validate_plan_spec,
@@ -239,8 +238,6 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_bead_stale_cleanup_spec(spec)
     if adapter.kind == "plugins_required":
         validate_plugins_required_spec(spec)
-    if adapter.kind == "epic_resume":
-        validate_epic_resume_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -254,7 +251,6 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "flag_triage": ("remove",),
         "bead_stale_cleanup": ("close",),
         "plugins_required": ("install",),
-        "epic_resume": ("resume",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(

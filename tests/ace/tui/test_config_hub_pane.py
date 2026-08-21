@@ -13,7 +13,7 @@ from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
 from sase.ace.tui.modals.config_hub_pane import (
     ConfigHubPane,
-    config_hub_strip_thresholds,
+    _config_hub_strip_thresholds,
 )
 from sase.ace.tui.modals.config_hub_session import (
     ConfigHubEntry,
@@ -116,7 +116,7 @@ def _patch_hub_children(
 )
 def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> None:
     tabs = config_panel_tabs()
-    compact_below, micro_below = config_hub_strip_thresholds(len(tabs))
+    compact_below, micro_below = _config_hub_strip_thresholds(len(tabs))
     strip = PanelTabStrip(
         tabs,
         "flags",
@@ -622,8 +622,8 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
 
 
 def test_config_hub_strip_thresholds_grow_for_seven_labels() -> None:
-    compact_six, micro_six = config_hub_strip_thresholds(6)
-    compact_seven, micro_seven = config_hub_strip_thresholds(7)
+    compact_six, micro_six = _config_hub_strip_thresholds(6)
+    compact_seven, micro_seven = _config_hub_strip_thresholds(7)
     assert compact_six == 86
     assert micro_six == 73
     assert compact_seven == 99

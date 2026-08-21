@@ -37,7 +37,7 @@ class ArtifactLinkPersistError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class ArtifactLinkCommitResult:
+class _ArtifactLinkCommitResult:
     """Outcome of :func:`commit_artifact_link_indexes`."""
 
     committed: bool
@@ -60,7 +60,7 @@ def commit_artifact_link_indexes(
     verify_publication: bool = False,
     extra_paths_by_root: dict[Path, list[Path]] | None = None,
     message: str = ARTIFACT_LINK_COMMIT_MESSAGE,
-) -> ArtifactLinkCommitResult:
+) -> _ArtifactLinkCommitResult:
     """Commit eligible link indexes, at most once per owning sidecar.
 
     Invalid indexes are skipped. Lock sentinels are never staged. A missing
@@ -73,7 +73,7 @@ def commit_artifact_link_indexes(
             resolved = root.expanduser().resolve(strict=False)
             grouped[resolved].extend(extra)
     if not grouped:
-        return ArtifactLinkCommitResult(committed=False)
+        return _ArtifactLinkCommitResult(committed=False)
 
     commit_paths: list[Path] = []
     committed_roots: list[Path] = []
@@ -88,7 +88,7 @@ def commit_artifact_link_indexes(
         committed_roots.append(root)
 
     if not commit_paths:
-        return ArtifactLinkCommitResult(committed=False)
+        return _ArtifactLinkCommitResult(committed=False)
 
     committed = _commit_paths(
         commit_paths,
@@ -103,7 +103,7 @@ def commit_artifact_link_indexes(
     publication_error = None
     if committed and verify_publication:
         publication_error = _publication_error_for_roots(committed_roots)
-    return ArtifactLinkCommitResult(
+    return _ArtifactLinkCommitResult(
         committed=committed,
         repo_roots=tuple(committed_roots),
         publication_error=publication_error,
@@ -136,7 +136,7 @@ def persist_artifact_link_graph_mutation(
         _commit_bead_link_events(link_store, artifacts_dir=artifacts_dir)
 
 
-def ensure_artifact_link_commit_published(
+def _ensure_artifact_link_commit_published(
     repo_root: Path, *, description: str | None = None
 ) -> str | None:
     """Publish a finalizer-created sidecar commit or return a diagnostic."""
@@ -294,7 +294,7 @@ def _commit_bead_link_events(
 def _publication_error_for_roots(repo_roots: Sequence[Path]) -> str | None:
     errors: list[str] = []
     for root in repo_roots:
-        error = ensure_artifact_link_commit_published(
+        error = _ensure_artifact_link_commit_published(
             root, description=ARTIFACT_LINK_COMMIT_MESSAGE
         )
         if error:
@@ -376,9 +376,7 @@ __all__ = [
     "ARTIFACT_LINK_COMMIT_TYPE",
     "ARTIFACT_LINK_FILE_HOOK_CAUSE",
     "BEAD_LINK_COMMIT_MESSAGE",
-    "ArtifactLinkCommitResult",
     "ArtifactLinkPersistError",
     "commit_artifact_link_indexes",
-    "ensure_artifact_link_commit_published",
     "persist_artifact_link_graph_mutation",
 ]

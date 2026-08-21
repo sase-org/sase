@@ -40,7 +40,7 @@ def test_installed_core_feature_flag_state_round_trip() -> None:
         "empty_flags": {},
         "first_changed": True,
         "loaded_flags": {
-            "epic_resume_gate": True,
+            "alpha_flag": True,
             "prettier_enabled": False,
         },
         "idempotent_changed": False,

@@ -336,9 +336,9 @@ def test_publication_failure_is_recoverable(
     )
 
     _run_git(plans, "remote", "set-url", "origin", str(bare))
-    from sase.sdd._artifact_link_commit import ensure_artifact_link_commit_published
+    from sase.sdd._artifact_link_commit import _ensure_artifact_link_commit_published
 
-    assert ensure_artifact_link_commit_published(plans) is None
+    assert _ensure_artifact_link_commit_published(plans) is None
     remote_log = subprocess.run(
         ["git", "log", "--format=%s", "main"],
         cwd=bare,

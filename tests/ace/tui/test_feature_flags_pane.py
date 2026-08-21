@@ -147,7 +147,7 @@ async def test_flags_pane_loads_rows_and_preserves_selection(
         _payload(
             (
                 _view("artifact_links", enabled=True, saved=True),
-                _view("epic_resume_gate", enabled=False),
+                _view("cleanup_gate", enabled=False),
             )
         ),
     )
@@ -155,12 +155,12 @@ async def test_flags_pane_loads_rows_and_preserves_selection(
         _modal, pane = await _open_flags_pane(page)
         assert [str(view.definition.key) for view in pane._views] == [
             "artifact_links",
-            "epic_resume_gate",
+            "cleanup_gate",
         ]
         assert pane._current_key == "artifact_links"
         pane.action_next_flag()
         await page.pause()
-        assert pane._current_key == "epic_resume_gate"
+        assert pane._current_key == "cleanup_gate"
         header = pane.query_one("#feature-flags-pane-header", Static).render()
         assert "2 registered" in getattr(header, "plain", str(header))
 
@@ -173,7 +173,7 @@ async def test_filter_focus_escape_clears_before_closing(
         _payload(
             (
                 _view("artifact_links", enabled=True),
-                _view("epic_resume_gate", enabled=False),
+                _view("cleanup_gate", enabled=False),
             )
         ),
     )
@@ -182,11 +182,9 @@ async def test_filter_focus_escape_clears_before_closing(
         pane.action_filter_flags()
         await page.wait_for(lambda _s: isinstance(page.app.focused, Input))
         filter_input = pane.query_one("#feature-flags-pane-filter", Input)
-        filter_input.value = "epic"
-        pane._apply_filter("epic")
-        assert [str(view.definition.key) for view in pane._views] == [
-            "epic_resume_gate"
-        ]
+        filter_input.value = "cleanup"
+        pane._apply_filter("cleanup")
+        assert [str(view.definition.key) for view in pane._views] == ["cleanup_gate"]
 
         pane.action_escape()
         await page.pause()
@@ -246,7 +244,7 @@ async def test_navigation_does_not_reread_state(
         _payload(
             (
                 _view("artifact_links", enabled=True),
-                _view("epic_resume_gate", enabled=False),
+                _view("cleanup_gate", enabled=False),
             )
         ),
         calls=calls,
@@ -272,7 +270,7 @@ async def test_navigation_does_not_reread_state(
         await page.pause()
         pane.action_prev_flag()
         await page.pause()
-        assert pane._current_key in {"artifact_links", "epic_resume_gate"}
+        assert pane._current_key in {"artifact_links", "cleanup_gate"}
         assert calls == [1]
         assert reads == {"saved": 0, "views": 0}
 

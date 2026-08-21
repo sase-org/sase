@@ -932,19 +932,6 @@ axe:
             touching projects that are only temporarily unreadable. A gateable bead is deferred while a detached
             launch is still in flight or a live agent is working the bead, and a pending gate is canceled when a
             live agent owns the bead.
-        - name: epic_resume
-          script: sase_chop_epic_resume
-          timeout: "2m"
-          description: |-
-            Raise one human gate per epic stalled by a failed phase agent
-
-            Scans enabled projects every five minutes for epic clans with a failed member, no live member, and a
-            failure old enough to have settled past bead.epic_resume.settle_seconds, then offers exactly one
-            EpicResume gate per stalled epic whose single option relaunches it via sase bead work <epic_id>
-            --yes-to-all as a detached leased proc. An epic with an in-flight resume launch is deferred instead of
-            re-gated. Once a stall's gate is answered or dismissed, that exact failed-member set never gates again;
-            only a new failure or a newer clan generation re-gates. The gate is canceled when the epic resumes or
-            closes, and lane state is pruned for epics that no longer exist.
         - name: plugins_required
           script: sase_chop_plugins_required
           timeout: "2m"
@@ -1296,13 +1283,6 @@ bead:
     # Stale beads required before bead_stale_cleanup raises its gate. Below
     # this count the chop does nothing.
     stale_cleanup_min_beads: 10
-  # Volume controls for the epic_resume chop, which raises an EpicResume gate
-  # when a failed phase agent stalls an epic.
-  epic_resume:
-    # Seconds the newest clan-member failure must sit before the epic_resume
-    # chop treats the epic as stalled. Guards against gating on a handoff
-    # race or a fast retry.
-    settle_seconds: 120
   # Controls the post-commit `git push` after `sase bead work` successfully
   # commits the sdd/beads bead-state mutation (canonical events plus
   # compatibility projections). Accepts:

@@ -1898,18 +1898,14 @@ Once an epic bead exists, the shared launch path:
    releasing dependents merely because its original agent finished; the child epic must
    land and close the parent phase first. A failed or killed phase keeps dependents and
    the land agent parked until its agent name is retried successfully and its bead
-   closes. A failed phase no longer requires the owner to notice the stall by eye and
-   retype the resume command by hand: the beta `epic_resume` chop can raise a one-option
-   `EpicResume` gate that resumes the epic for them; see
-   [Stalled Epic Notification](notifications.md#stalled-epic-notification). `xsmall`,
-   `small`, and `medium` phases implement directly with `%model:@xsmall`,
-   `%model:@small`, and `%model:@medium`, respectively. Only `large` and `xlarge` phases
-   append `#plan` after their work reference and use `%model:@large` and
-   `%model:@xlarge`. Each size alias resolves directly to its configured target — there
-   is no intermediate hop through a second alias. A stored phase `model` always wins
-   over the size-derived alias without changing whether the phase receives `#plan`, and
-   a missing legacy size behaves as `small`. The land agent emits `%model:<value>` when
-   the epic plan bead has a stored `model`. Without one, it emits the configured
+   closes. `xsmall`, `small`, and `medium` phases implement directly with
+   `%model:@xsmall`, `%model:@small`, and `%model:@medium`, respectively. Only `large`
+   and `xlarge` phases append `#plan` after their work reference and use `%model:@large`
+   and `%model:@xlarge`. Each size alias resolves directly to its configured target —
+   there is no intermediate hop through a second alias. A stored phase `model` always
+   wins over the size-derived alias without changing whether the phase receives `#plan`,
+   and a missing legacy size behaves as `small`. The land agent emits `%model:<value>`
+   when the epic plan bead has a stored `model`. Without one, it emits the configured
    `llm_provider.epic_lander_model` (shipped default `@large`) below
    `bead.big_epic_phase_threshold` and the configured
    `llm_provider.big_epic_lander_model` (shipped default `@xlarge`) at or above the

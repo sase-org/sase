@@ -43,7 +43,7 @@ _CONFIG_TABS_MICRO_BELOW_WIDTH = 73
 _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 99
 
 
-def config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
+def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
     """Return compact/micro breakpoints that keep numbered labels unclipped."""
     if tab_count >= 7:
         return (
@@ -77,7 +77,7 @@ class ConfigHubPane(Vertical):
         self._subtab_order = config_subtab_order()
         self._subtab_by_id = config_subtab_by_id()
         self._panel_tabs = config_panel_tabs()
-        self._compact_below, self._micro_below = config_hub_strip_thresholds(
+        self._compact_below, self._micro_below = _config_hub_strip_thresholds(
             len(self._panel_tabs)
         )
         requested = None if entry is None else validated_config_subtab(entry.subtab)
@@ -366,4 +366,4 @@ class ConfigHubPane(Vertical):
             self._schedule_switch(cast(ConfigSubTab, subtab))
 
 
-__all__ = ["ConfigHubPane", "config_hub_strip_thresholds"]
+__all__ = ["ConfigHubPane"]

@@ -22,7 +22,7 @@ def diagnostic_json(diagnostic: FeatureFlagDiagnostic) -> dict[str, Any]:
     }
 
 
-def decision_json(decision: FeatureFlagDecision) -> dict[str, Any]:
+def _decision_json(decision: FeatureFlagDecision) -> dict[str, Any]:
     """Serialize one resolved feature-flag decision."""
     return {
         "default": decision.default,
@@ -37,8 +37,8 @@ def decision_json(decision: FeatureFlagDecision) -> dict[str, Any]:
 def mutation_json(outcome: FeatureFlagMutationOutcome) -> dict[str, Any]:
     """Serialize the shared mutation facade outcome."""
     return {
-        "after": decision_json(outcome.after),
-        "before": decision_json(outcome.before),
+        "after": _decision_json(outcome.after),
+        "before": _decision_json(outcome.before),
         "changed": outcome.changed,
         "diagnostics": [diagnostic_json(item) for item in outcome.diagnostics],
         "enabled": outcome.enabled,
@@ -73,7 +73,6 @@ def flag_view_json(view: FlagView) -> dict[str, Any]:
 
 
 __all__ = [
-    "decision_json",
     "diagnostic_json",
     "flag_view_json",
     "mutation_json",

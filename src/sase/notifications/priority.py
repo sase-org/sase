@@ -19,7 +19,6 @@ _PRIORITY_ACTIONS = frozenset(
         "FlagTriage",
         "BeadStaleCleanup",
         "PluginsRequired",
-        "EpicResume",
         "JumpToMentorReview",
     }
 )

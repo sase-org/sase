@@ -63,7 +63,7 @@ _SOURCE_FILTER_LABELS: dict[FlagSource, tuple[str, ...]] = {
 
 
 @dataclass(frozen=True)
-class FlagToggleConfirmation:
+class _FlagToggleConfirmation:
     """Cancel-first confirmation copy for one Flags-pane toggle."""
 
     title: str
@@ -71,7 +71,7 @@ class FlagToggleConfirmation:
     subject: str
 
 
-def is_shadowed_decision(decision: FeatureFlagDecision, saved: bool | None) -> bool:
+def _is_shadowed_decision(decision: FeatureFlagDecision, saved: bool | None) -> bool:
     """Return whether a higher-precedence source currently wins over *saved*."""
     if decision.source in _PROCESS_PIN_SOURCES:
         return True
@@ -80,7 +80,7 @@ def is_shadowed_decision(decision: FeatureFlagDecision, saved: bool | None) -> b
     return False
 
 
-def flag_matches_filter(view: FlagView, pattern: str) -> bool:
+def _flag_matches_filter(view: FlagView, pattern: str) -> bool:
     """Return whether *view* matches the Flags-pane filter pattern."""
     needle = pattern.casefold().strip()
     if not needle:
@@ -109,7 +109,7 @@ def filter_flag_views(
     views: tuple[FlagView, ...], pattern: str
 ) -> tuple[FlagView, ...]:
     """Return views whose key/description/kind/state/provenance match *pattern*."""
-    return tuple(view for view in views if flag_matches_filter(view, pattern))
+    return tuple(view for view in views if _flag_matches_filter(view, pattern))
 
 
 def build_panel_header(
@@ -157,7 +157,7 @@ def build_flag_row_text(view: FlagView) -> Text:
     else:
         text.append(f"{_BETA_CHIP} ", style=_BETA_STYLE)
     text.append(str(view.definition.key))
-    if is_shadowed_decision(view.decision, view.saved):
+    if _is_shadowed_decision(view.decision, view.saved):
         text.append("  !", style=_SHADOW_STYLE)
     if view.due_state == "due":
         text.append("  due", style=_ERROR_STYLE)
@@ -211,7 +211,7 @@ def build_detail_meta(
 ) -> RenderableType:
     """Build the provenance, bead, and diagnostic block for one flag."""
     sections: list[RenderableType] = []
-    if is_shadowed_decision(view.decision, view.saved):
+    if _is_shadowed_decision(view.decision, view.saved):
         sections.append(_shadow_warning(view.decision))
     sections.append(
         _property_grid(view, state_path=state_path, today=today, release=release)
@@ -300,7 +300,7 @@ def build_toggle_confirmation(
     view: FlagView,
     *,
     state_path: str,
-) -> FlagToggleConfirmation:
+) -> _FlagToggleConfirmation:
     """Build cancel-first confirmation copy for toggling *view*."""
     target_enabled = not view.decision.enabled
     current = on_off(view.decision.enabled).upper()
@@ -311,7 +311,7 @@ def build_toggle_confirmation(
         f"Saved path: {state_path or '(machine state under SASE_HOME)'}",
         f"Description: {view.definition.description}",
     ]
-    if is_shadowed_decision(view.decision, view.saved):
+    if _is_shadowed_decision(view.decision, view.saved):
         lines.append("")
         lines.append(_shadow_plain(view.decision))
     if str(view.definition.key) == ROLLOUT_FLAG_KEY and not target_enabled:
@@ -320,7 +320,7 @@ def build_toggle_confirmation(
             "The Flags pane will disappear after restart. "
             f"Recover with: {ROLLOUT_RECOVERY_COMMAND}"
         )
-    return FlagToggleConfirmation(
+    return _FlagToggleConfirmation(
         title="Toggle feature flag",
         message="ACE and AXE restart after active procs finish.",
         subject="\n".join(lines),
@@ -456,7 +456,6 @@ def _diagnostics_block(diagnostics: tuple[FeatureFlagDiagnostic, ...]) -> Text:
 
 
 __all__ = [
-    "FlagToggleConfirmation",
     "FLAGS_PANE_ACCENT",
     "ROLLOUT_FLAG_KEY",
     "ROLLOUT_RECOVERY_COMMAND",
@@ -473,7 +472,5 @@ __all__ = [
     "build_panel_header",
     "build_toggle_confirmation",
     "filter_flag_views",
-    "flag_matches_filter",
     "flag_rail_width",
-    "is_shadowed_decision",
 ]

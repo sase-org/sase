@@ -65,7 +65,7 @@ def prepare_commit_dirty_state(
         artifacts,
     )
     dirty_state, links_auto_committed, link_publication_error = (
-        auto_commit_artifact_link_indexes_if_possible(
+        _auto_commit_artifact_link_indexes_if_possible(
             project_dir,
             dirty_state,
             artifacts,
@@ -82,7 +82,7 @@ def prepare_commit_dirty_state(
     )
 
 
-def auto_commit_artifact_link_indexes_if_possible(
+def _auto_commit_artifact_link_indexes_if_possible(
     project_dir: str,
     dirty_state: DirtyState,
     artifact_root: Path | None,
@@ -450,7 +450,6 @@ def _workspace_num_from_env() -> int | None:
 
 __all__ = [
     "PreparedCommitDirtyState",
-    "auto_commit_artifact_link_indexes_if_possible",
     "auto_commit_done_plan_status_if_possible",
     "auto_commit_external_sdd_prompt_qa_if_possible",
     "auto_commit_separate_sdd_store_if_possible",

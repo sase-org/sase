@@ -343,7 +343,6 @@ def _icon_for_action(action: str | None) -> str:
         "HITL": "✋",
         "FlagTriage": "⚑",
         "BeadStaleCleanup": "🧹",
-        "EpicResume": "🔁",
     }
     return icons.get(action, "🔔") if action is not None else "🔔"
 

@@ -21,7 +21,7 @@ from sase.ace.tui.modals.feature_flags_pane_rendering import (
     build_panel_header,
     build_toggle_confirmation,
     filter_flag_views,
-    is_shadowed_decision,
+    _is_shadowed_decision,
 )
 from sase.feature_flags.cli_views import FlagView
 from sase.feature_flags.models import (
@@ -86,7 +86,7 @@ def test_header_loading_and_error_states() -> None:
 
 def test_rows_encode_kind_effective_state_and_urgency() -> None:
     on_beta = build_flag_row_text(_view("artifact_links", enabled=True))
-    off_beta = build_flag_row_text(_view("epic_resume_gate", enabled=False))
+    off_beta = build_flag_row_text(_view("cleanup_gate", enabled=False))
     sunset = build_flag_row_text(_view("prettier_enabled", kind="sunset", enabled=True))
     shadowed = build_flag_row_text(
         _view("shadowed", enabled=True, source="cli", saved=False)
@@ -111,7 +111,7 @@ def test_filter_matches_key_description_kind_state_and_provenance() -> None:
             saved=True,
             description="typed artifact links",
         ),
-        _view("epic_resume_gate", kind="sunset", enabled=False, source="cli"),
+        _view("cleanup_gate", kind="sunset", enabled=False, source="cli"),
     )
     assert [str(v.definition.key) for v in filter_flag_views(views, "artifact")] == [
         "artifact_links"
@@ -120,16 +120,16 @@ def test_filter_matches_key_description_kind_state_and_provenance() -> None:
         "artifact_links"
     ]
     assert [str(v.definition.key) for v in filter_flag_views(views, "sunset")] == [
-        "epic_resume_gate"
+        "cleanup_gate"
     ]
     assert [str(v.definition.key) for v in filter_flag_views(views, "off")] == [
-        "epic_resume_gate"
+        "cleanup_gate"
     ]
     assert [str(v.definition.key) for v in filter_flag_views(views, "saved")] == [
         "artifact_links"
     ]
     assert [str(v.definition.key) for v in filter_flag_views(views, "cli")] == [
-        "epic_resume_gate"
+        "cleanup_gate"
     ]
 
 
@@ -201,7 +201,7 @@ def test_confirmation_copy_is_cancel_first_and_warns_on_shadowing() -> None:
     assert "/tmp/feature_flags.json" in copy.subject
     assert "Forced for this process" in copy.subject
     assert "--enable-feature" in copy.subject
-    assert is_shadowed_decision(view.decision, view.saved) is True
+    assert _is_shadowed_decision(view.decision, view.saved) is True
 
 
 def test_self_disable_confirmation_includes_cli_recovery() -> None:
