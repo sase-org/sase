@@ -49,6 +49,25 @@ _DEPENDENCY_LINE_RE = re.compile(
     r"(?P<suffix>(?:\s*;[^\"']*)?(?P=quote)\s*,?\s*(?:#.*)?(?:\r?\n)?)$"
 )
 _TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
+_CORE_REFRESH_FIELDS = frozenset({"version", "sdist", "wheels"})
+_TRANSITIVE_REFRESH_FIELDS = frozenset(
+    {
+        "version",
+        "sdist",
+        "wheels",
+        "dependencies",
+        "optional-dependencies",
+        "source",
+    }
+)
+_REFRESH_FIELD_ORDER = (
+    "version",
+    "sdist",
+    "wheels",
+    "dependencies",
+    "optional-dependencies",
+    "source",
+)
 
 UrlOpenFn = Callable[..., Any]
 SleepFn = Callable[[float], None]
@@ -101,6 +120,59 @@ class TransitiveLockRefresh:
 
 def _error(message: str) -> None:
     print(f"[ratchet_core_window] {message}", file=sys.stderr)
+
+
+def _describe_field_names(fields: frozenset[str]) -> str:
+    names = [name for name in _REFRESH_FIELD_ORDER if name in fields]
+    names.extend(sorted(fields.difference(_REFRESH_FIELD_ORDER)))
+    if not names:
+        return "no fields"
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} or {names[1]}"
+    return f"{', '.join(names[:-1])}, or {names[-1]}"
+
+
+def _static_package_fields(
+    package: dict[str, Any],
+    refresh_fields: frozenset[str],
+) -> dict[str, Any]:
+    return {key: value for key, value in package.items() if key not in refresh_fields}
+
+
+def _changed_static_field_names(
+    before_package: dict[str, Any],
+    after_package: dict[str, Any],
+    refresh_fields: frozenset[str],
+) -> tuple[str, ...]:
+    before_static = _static_package_fields(before_package, refresh_fields)
+    after_static = _static_package_fields(after_package, refresh_fields)
+    if before_static == after_static:
+        return ()
+    return tuple(
+        sorted(
+            name
+            for name in set(before_static) | set(after_static)
+            if before_static.get(name) != after_static.get(name)
+        )
+    )
+
+
+def _project_version_from_pyproject(text: str) -> str | None:
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        raise LockRefreshError(f"pyproject.toml is invalid TOML: {exc}") from exc
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return None
+    version = project.get("version")
+    if version is None:
+        return None
+    if not isinstance(version, str) or not version.strip():
+        raise LockRefreshError("pyproject.toml project version is not a string")
+    return version.strip()
 
 
 def parse_version(value: object, label: str = "version") -> ParsedVersion:
@@ -463,8 +535,12 @@ def _metadata_requires_dist(package: dict[str, Any]) -> list[dict[str, Any]]:
 def _expected_project_package_after(
     before_package: dict[str, Any],
     new_specifier: str,
+    *,
+    project_version: str | None = None,
 ) -> dict[str, Any]:
     expected = copy.deepcopy(before_package)
+    if project_version is not None:
+        expected["version"] = project_version
     matches = 0
     for requirement in _metadata_requires_dist(expected):
         name = requirement.get("name")
@@ -505,20 +581,16 @@ def _validate_core_package_after(
     after_package: dict[str, Any],
     target: ParsedVersion,
 ) -> None:
-    before_static = {
-        key: value
-        for key, value in before_package.items()
-        if key not in {"version", "sdist", "wheels"}
-    }
-    after_static = {
-        key: value
-        for key, value in after_package.items()
-        if key not in {"version", "sdist", "wheels"}
-    }
-    if before_static != after_static:
+    changed_fields = _changed_static_field_names(
+        before_package,
+        after_package,
+        _CORE_REFRESH_FIELDS,
+    )
+    if changed_fields:
         raise LockRefreshError(
             f"uv.lock {DEPENDENCY_NAME} package changed fields other than "
-            "version, sdist, or wheels"
+            f"{_describe_field_names(_CORE_REFRESH_FIELDS)}: "
+            f"{', '.join(changed_fields)}"
         )
     if after_package.get("version") != target.raw:
         raise LockRefreshError(
@@ -614,21 +686,16 @@ def _validate_transitive_lock_refresh(
     if normalized_name in direct_dependency_names:
         raise LockRefreshError(f"uv.lock changed direct dependency package {package_name}")
 
-    refresh_fields = {"version", "sdist", "wheels"}
-    before_static = {
-        key: value
-        for key, value in before_package.items()
-        if key not in refresh_fields
-    }
-    after_static = {
-        key: value
-        for key, value in after_package.items()
-        if key not in refresh_fields
-    }
-    if before_static != after_static:
+    changed_fields = _changed_static_field_names(
+        before_package,
+        after_package,
+        _TRANSITIVE_REFRESH_FIELDS,
+    )
+    if changed_fields:
         raise LockRefreshError(
-            f"uv.lock package {package_name} changed fields outside version, "
-            "sdist, or wheels"
+            f"uv.lock package {package_name} changed fields outside "
+            f"{_describe_field_names(_TRANSITIVE_REFRESH_FIELDS)}: "
+            f"{', '.join(changed_fields)}"
         )
 
     _validate_transitive_refresh_artifacts(before_package)
@@ -647,6 +714,7 @@ def _validate_uv_lock_diff(
     new_specifier: str,
     *,
     allow_transitive_lock_refresh: bool,
+    project_version: str | None = None,
 ) -> tuple[TransitiveLockRefresh, ...]:
     before_data, before_packages = _parse_uv_lock(before)
     after_data, after_packages = _parse_uv_lock(after)
@@ -680,7 +748,11 @@ def _validate_uv_lock_diff(
         normalized_name = _normalize_name(package_name)
         if normalized_name == PROJECT_PACKAGE_NAME:
             seen_project_package = True
-            expected = _expected_project_package_after(before_package, new_specifier)
+            expected = _expected_project_package_after(
+                before_package,
+                new_specifier,
+                project_version=project_version,
+            )
             if after_package != expected:
                 raise LockRefreshError(
                     f"uv.lock package {PROJECT_PACKAGE_NAME} changed outside the "
@@ -732,6 +804,7 @@ def _validate_expected_diffs(
         target,
         new_specifier,
         allow_transitive_lock_refresh=allow_transitive_lock_refresh,
+        project_version=_project_version_from_pyproject(after_pyproject),
     )
 
 
@@ -996,7 +1069,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "allow unchanged-package-set transitive PyPI packages to refresh "
-            "version, sdist, or wheel metadata."
+            "lock-format metadata (version, sdist, wheels, dependencies, "
+            "optional-dependencies, and source). Direct project.dependencies "
+            "packages stay refused."
         ),
     )
     mode = parser.add_mutually_exclusive_group()
