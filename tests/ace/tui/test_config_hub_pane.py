@@ -13,12 +13,15 @@ from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
 from sase.ace.tui.modals.config_hub_pane import (
     ConfigHubPane,
-    _CONFIG_TABS_COMPACT_BELOW_WIDTH,
-    _CONFIG_TABS_MICRO_BELOW_WIDTH,
+    config_hub_strip_thresholds,
 )
-from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
+from sase.ace.tui.modals.config_hub_session import (
+    ConfigHubEntry,
+    validated_config_subtab,
+)
 from sase.ace.tui.modals.models_panel import LaunchPane, ModelsPanelResult
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.feature_flags import override_flags
 from tests._models_panel_helpers import make_alias_view, patch_alias_views
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 
@@ -106,20 +109,22 @@ def _patch_hub_children(
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
-        (85, "full"),
+        (98, "full"),
         (73, "compact"),
         (70, "micro"),
     ),
 )
 def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> None:
+    tabs = config_panel_tabs()
+    compact_below, micro_below = config_hub_strip_thresholds(len(tabs))
     strip = PanelTabStrip(
-        config_panel_tabs(),
-        "glossary",
+        tabs,
+        "flags",
         show_numbers=True,
         uppercase_active=True,
-        compact_below=_CONFIG_TABS_COMPACT_BELOW_WIDTH,
+        compact_below=compact_below,
         compact_separator=" │ ",
-        micro_below=_CONFIG_TABS_MICRO_BELOW_WIDTH,
+        micro_below=micro_below,
         micro_separator="│",
     )
     strip._tier = tier  # type: ignore[assignment]
@@ -131,7 +136,7 @@ def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> N
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [f"{number:02d}" for number in range(1, 7)]
+    ] == [f"{number:02d}" for number in range(1, 8)]
 
 
 async def test_opening_config_constructs_only_the_active_child(
@@ -195,7 +200,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("0", "1")
+        await pilot.press("0", "2")
         await pilot.pause()
 
         assert hub._active_subtab == "xprompts"
@@ -308,8 +313,8 @@ async def test_filter_brackets_cycle_config_subtabs(
         await wait_for(pilot, lambda: isinstance(pilot.app.focused, Input))
 
         await pilot.press("right_square_bracket")
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
-        assert calls == ["xprompts", "glossary"]
+        await wait_for(pilot, lambda: hub._active_subtab == "flags")
+        assert calls == ["xprompts", "flags"]
 
 
 async def test_config_number_prefix_selects_alphabetic_subtabs(
@@ -324,16 +329,16 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
         await pilot.press("0", "1")
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+        await wait_for(pilot, lambda: hub._active_subtab == "flags")
         assert modal._active_tab == "config"
         assert hub._pending_subtab_select is False
 
-        await pilot.press("0", "3")
+        await pilot.press("0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
-        await pilot.press("0", "6")
+        await pilot.press("0", "7")
         await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
 
-        assert calls == ["xprompts", "glossary", "memory"]
+        assert calls == ["xprompts", "flags", "memory"]
         assert modal._session_state.config_hub.active_subtab == "xprompts"
 
 
@@ -348,11 +353,11 @@ async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("0", "0", "2")
+        await pilot.press("0", "0", "3")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert hub._pending_subtab_select is False
 
-        await pilot.press("0", "7")
+        await pilot.press("0", "8")
         await pilot.pause()
         assert hub._active_subtab == "launch"
         assert hub._pending_subtab_select is False
@@ -377,7 +382,7 @@ async def test_configured_config_prefix_selects_subtab(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("f4", "5")
+        await pilot.press("f4", "6")
         await wait_for(pilot, lambda: hub._active_subtab == "snippets")
 
         assert hub._pending_subtab_select is False
@@ -408,7 +413,7 @@ async def test_bare_child_digit_stays_local_until_config_prefix(
         assert created["xprompts"].digits == [1]
 
         await pilot.press("0", "1")
-        await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+        await wait_for(pilot, lambda: hub._active_subtab == "flags")
         assert created["xprompts"].digits == [1]
 
 
@@ -614,3 +619,53 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
 
     assert calls == []
     assert close_calls == [True]
+
+
+def test_config_hub_strip_thresholds_grow_for_seven_labels() -> None:
+    compact_six, micro_six = config_hub_strip_thresholds(6)
+    compact_seven, micro_seven = config_hub_strip_thresholds(7)
+    assert compact_six == 86
+    assert micro_six == 73
+    assert compact_seven == 99
+    assert micro_seven == 73
+
+
+async def test_flags_resume_falls_back_when_rollout_is_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    state = AdminCenterSessionState()
+    state.config_hub.active_subtab = "flags"
+    with override_flags(admin_center_flags=False):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(initial_tab="config", session_state=state)
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            await wait_for(pilot, lambda: "xprompts" in hub._panes)
+
+            assert calls == ["xprompts"]
+            assert hub._active_subtab == "xprompts"
+            assert "flags" not in hub._subtab_order
+            assert validated_config_subtab("flags") is None
+
+
+async def test_flags_off_prefix_keeps_six_child_numbering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_hub_children(monkeypatch)
+    with override_flags(admin_center_flags=False):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(initial_tab="config")
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            await wait_for(pilot, lambda: "xprompts" in hub._panes)
+
+            await pilot.press("0", "1")
+            await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+            await pilot.press("0", "6")
+            await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
+            await pilot.press("0", "7")
+            await pilot.pause()
+            assert hub._active_subtab == "xprompts"

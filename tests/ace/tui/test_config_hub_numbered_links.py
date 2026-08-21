@@ -97,13 +97,13 @@ async def test_embedded_glossary_bare_digit_selects_admin_tab_prefixed_follows(
         await wait_for(pilot, lambda: modal._active_tab == "config")
         assert hub._active_subtab == "glossary"
 
-        await pilot.press("0", "2")
+        await pilot.press("0", "3")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert modal._active_tab == "config"
         assert pane._current_term == "Alpha"
         assert pane._trail == []
 
-        await pilot.press("0", "1")
+        await pilot.press("0", "2")
         await wait_for(pilot, lambda: hub._active_subtab == "glossary")
 
         await pilot.press(".", "1")
@@ -146,13 +146,13 @@ async def test_embedded_memory_bare_digit_selects_admin_tab_prefixed_follows(
         await wait_for(pilot, lambda: modal._active_tab == "config")
         assert hub._active_subtab == "memory"
 
-        await pilot.press("0", "2")
+        await pilot.press("0", "3")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert modal._active_tab == "config"
         assert pane._current_note == "sase/memory/hub.md"
         assert pane._trail == []
 
-        await pilot.press("0", "3")
+        await pilot.press("0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press(".", "1")

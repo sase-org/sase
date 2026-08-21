@@ -29,6 +29,18 @@ class _ConfigSubTabSpec:
     factory: ConfigPaneFactory
 
 
+def _flags_factory(hub: ConfigHubPane) -> Widget:
+    from .feature_flags_pane import FeatureFlagsPane
+
+    pane = FeatureFlagsPane(
+        host=hub,
+        session=hub._session_state.config_hub.flags,
+        id="flags",
+    )
+    pane.add_class("-embedded")
+    return pane
+
+
 def _xprompts_factory(hub: ConfigHubPane) -> Widget:
     from .xprompt_browser_pane import XPromptBrowserPane
 
@@ -137,12 +149,13 @@ def _entry_trigger(entry: ConfigHubEntry | None) -> str | None:
 
 
 CONFIG_SUBTAB_SPECS: tuple[_ConfigSubTabSpec, ...] = (
-    _ConfigSubTabSpec("glossary", "Glossary", "Glossary", "Gloss", _glossary_factory),
+    _ConfigSubTabSpec("flags", "Flags", "Flags", "Flag", _flags_factory),
+    _ConfigSubTabSpec("glossary", "Glossary", "Gloss", "Gloss", _glossary_factory),
     _ConfigSubTabSpec("launch", "Launch", "Launch", "Run", _launch_factory),
     _ConfigSubTabSpec("memory", "Memory", "Memory", "Mem", _memory_factory),
     _ConfigSubTabSpec("misc", "Misc", "Misc", "Misc", _misc_factory),
-    _ConfigSubTabSpec("snippets", "Snippets", "Snippets", "Snip", _snippets_factory),
-    _ConfigSubTabSpec("xprompts", "XPrompts", "XPrompts", "XP", _xprompts_factory),
+    _ConfigSubTabSpec("snippets", "Snippets", "Snip", "Snip", _snippets_factory),
+    _ConfigSubTabSpec("xprompts", "XPrompts", "XP", "XP", _xprompts_factory),
 )
 CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, _ConfigSubTabSpec] = {
     spec.id: spec for spec in CONFIG_SUBTAB_SPECS

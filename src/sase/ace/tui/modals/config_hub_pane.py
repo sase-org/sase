@@ -35,8 +35,22 @@ from .config_hub_session import (
 )
 
 _EMPTY_ID = "config-hub-empty"
+# Six-child strip: full labels are 85 cells, so compact starts at 86.
 _CONFIG_TABS_COMPACT_BELOW_WIDTH = 86
 _CONFIG_TABS_MICRO_BELOW_WIDTH = 73
+# Seven-child strip (Flags on): full labels are 98 cells. Compact labels
+# (Flags/Gloss/Launch/Memory/Misc/Snip/XP) are 71 cells and still fit at 73.
+_CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 99
+
+
+def config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
+    """Return compact/micro breakpoints that keep numbered labels unclipped."""
+    if tab_count >= 7:
+        return (
+            _CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS,
+            _CONFIG_TABS_MICRO_BELOW_WIDTH,
+        )
+    return _CONFIG_TABS_COMPACT_BELOW_WIDTH, _CONFIG_TABS_MICRO_BELOW_WIDTH
 
 
 class ConfigHubPane(Vertical):
@@ -63,6 +77,9 @@ class ConfigHubPane(Vertical):
         self._subtab_order = config_subtab_order()
         self._subtab_by_id = config_subtab_by_id()
         self._panel_tabs = config_panel_tabs()
+        self._compact_below, self._micro_below = config_hub_strip_thresholds(
+            len(self._panel_tabs)
+        )
         requested = None if entry is None else validated_config_subtab(entry.subtab)
         remembered = validated_config_subtab(
             self._session_state.config_hub.active_subtab
@@ -81,9 +98,9 @@ class ConfigHubPane(Vertical):
             self._active_subtab,
             show_numbers=True,
             uppercase_active=True,
-            compact_below=_CONFIG_TABS_COMPACT_BELOW_WIDTH,
+            compact_below=self._compact_below,
             compact_separator=" │ ",
-            micro_below=_CONFIG_TABS_MICRO_BELOW_WIDTH,
+            micro_below=self._micro_below,
             micro_separator="│",
             id="config-hub-tabs",
         )
@@ -349,4 +366,4 @@ class ConfigHubPane(Vertical):
             self._schedule_switch(cast(ConfigSubTab, subtab))
 
 
-__all__ = ["ConfigHubPane"]
+__all__ = ["ConfigHubPane", "config_hub_strip_thresholds"]

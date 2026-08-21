@@ -10,14 +10,24 @@ _RESTART_WAIT_SECONDS = 60.0
 NotifyFn = Callable[..., None]
 
 
+_DEFAULT_RESTART_PURPOSE = "load new code"
+
+
 def restart_after_update(
     app: Any,
     message: str,
     *,
     notify: NotifyFn | None = None,
+    restart_purpose: str = _DEFAULT_RESTART_PURPOSE,
 ) -> None:
     """Notify briefly, then reuse the TUI + axe restart machinery."""
-    restart_after_update_when_ready(app, message, deferred=False, notify=notify)
+    restart_after_update_when_ready(
+        app,
+        message,
+        deferred=False,
+        notify=notify,
+        restart_purpose=restart_purpose,
+    )
 
 
 def restart_after_update_when_ready(
@@ -27,6 +37,7 @@ def restart_after_update_when_ready(
     deferred: bool,
     deadline: float | None = None,
     notify: NotifyFn | None = None,
+    restart_purpose: str = _DEFAULT_RESTART_PURPOSE,
 ) -> None:
     """Restart after tracked background procs have finished."""
     if deadline is None:
@@ -52,6 +63,7 @@ def restart_after_update_when_ready(
                     deferred=True,
                     deadline=deadline,
                     notify=notify,
+                    restart_purpose=restart_purpose,
                 ),
             )
         return
@@ -67,7 +79,7 @@ def restart_after_update_when_ready(
 
     _emit_restart_notice(
         app,
-        f"{message} — restarting ACE to load new code.",
+        f"{message} — restarting ACE to {restart_purpose}.",
         notify=notify,
     )
     restart = getattr(app, "_restart_tui", None)

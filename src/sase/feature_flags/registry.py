@@ -21,10 +21,20 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    admin_center_flags = "admin_center_flags"
     ref_sync_gesture = "ref_sync_gesture"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.admin_center_flags: FeatureFlagDefinition(
+        key=FeatureFlag.admin_center_flags,
+        kind="sunset",
+        description=(
+            "The Config catalog exposes the Flags pane for persistent "
+            "feature-flag control."
+        ),
+        bead="sase-rx",
+    ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,
         kind="sunset",

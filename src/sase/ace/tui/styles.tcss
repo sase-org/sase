@@ -5588,6 +5588,77 @@ GlossaryPane #glossary-panel-footer {
     text-overflow: ellipsis;
 }
 
+FeatureFlagsPane {
+    width: 100%;
+    height: 100%;
+    layout: vertical;
+}
+
+FeatureFlagsPane #feature-flags-pane-container {
+    width: 100%;
+    height: 100%;
+}
+
+FeatureFlagsPane #feature-flags-pane-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+FeatureFlagsPane #feature-flags-pane-body {
+    height: 1fr;
+}
+
+FeatureFlagsPane #feature-flags-pane-list {
+    width: 32;
+    min-width: 32;
+    max-width: 52;
+    height: 100%;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+FeatureFlagsPane #feature-flags-pane-detail {
+    width: 1fr;
+    height: 100%;
+    border: solid $secondary;
+    margin-left: 1;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+FeatureFlagsPane #feature-flags-pane-card-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+FeatureFlagsPane #feature-flags-pane-card-description {
+    width: 100%;
+    height: auto;
+}
+
+FeatureFlagsPane #feature-flags-pane-card-meta {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+}
+
+FeatureFlagsPane #feature-flags-pane-filter {
+    height: 3;
+    margin-top: 1;
+    border: tall $accent;
+}
+
+FeatureFlagsPane #feature-flags-pane-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 /* ===== Glossary Panel Help Modal Styling ===== */
 
 GlossaryPanelHelpModal {
@@ -7339,7 +7410,8 @@ ConfigHubPane ConfigPane.-embedded #config-pane-title {
 
 ConfigHubPane #glossary-panel-container,
 ConfigHubPane #memory-panel-container,
-ConfigHubPane #snippets-panel-container {
+ConfigHubPane #snippets-panel-container,
+ConfigHubPane #feature-flags-pane-container {
     width: 100%;
     height: 100%;
     max-width: 100%;

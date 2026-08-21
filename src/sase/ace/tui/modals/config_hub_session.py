@@ -7,8 +7,11 @@ from typing import Any, Literal
 
 from .catalog_pane_contract import CatalogPaneSession
 
-ConfigSubTab = Literal["glossary", "launch", "memory", "misc", "snippets", "xprompts"]
+ConfigSubTab = Literal[
+    "flags", "glossary", "launch", "memory", "misc", "snippets", "xprompts"
+]
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+    "flags",
     "glossary",
     "launch",
     "memory",
@@ -16,11 +19,24 @@ CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "snippets",
     "xprompts",
 )
+CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS: tuple[ConfigSubTab, ...] = CONFIG_SUBTAB_ORDER[1:]
 
 
 def config_subtab_order() -> tuple[ConfigSubTab, ...]:
-    """Return the active Config catalog order for this process."""
-    return CONFIG_SUBTAB_ORDER
+    """Return the active Config catalog order for this process.
+
+    Reads only the already-pinned feature-flag snapshot. Never called at
+    module import time.
+    """
+    if _admin_center_flags_enabled():
+        return CONFIG_SUBTAB_ORDER
+    return CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
+
+
+def _admin_center_flags_enabled() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.admin_center_flags)
 
 
 def validated_config_subtab(value: object) -> ConfigSubTab | None:
@@ -56,6 +72,7 @@ class ConfigHubSessionState:
     """
 
     active_subtab: ConfigSubTab = "xprompts"
+    flags: CatalogPaneSession = field(default_factory=CatalogPaneSession)
     glossary: CatalogPaneSession = field(default_factory=CatalogPaneSession)
     memory: Any = None
     launch: Any = None
@@ -91,6 +108,7 @@ __all__ = [
     "ConfigHubSessionState",
     "ConfigSubTab",
     "CONFIG_SUBTAB_ORDER",
+    "CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS",
     "config_subtab_order",
     "validated_config_subtab",
 ]
