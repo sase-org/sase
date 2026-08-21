@@ -14,6 +14,7 @@ from sase.ace.tui.logs import LogSource
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.logs_pane import LogsPane
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
@@ -80,7 +81,7 @@ _CASES = (
         "6",
         ("right_square_bracket", "right_square_bracket"),
     ),
-    _ResumeCase("xprompts", "7", move_key="ctrl+n"),
+    _ResumeCase("xprompts", "1", move_key="ctrl+n"),
 )
 
 
@@ -304,6 +305,8 @@ async def test_real_opener_resume_restores_visible_selection(
         assert isinstance(modal, ConfigCenterModal)
         await page.press(case.tab_key)
         await page.wait_for(lambda _s: modal._active_tab is not None)
+        if case.surface == "config":
+            await modal.query_one(ConfigHubPane)._switch_to("misc")
         if case.setup_keys:
             await page.press(*case.setup_keys)
         if case.surface == "procs":
@@ -329,6 +332,10 @@ async def test_real_opener_resume_restores_visible_selection(
         assert isinstance(resumed, ConfigCenterModal)
         await page.press("number_sign")
         await page.wait_for(lambda _s: resumed._active_tab is not None)
+        if case.surface == "config":
+            await page.wait_for(
+                lambda _s: resumed.query_one(ConfigHubPane)._active_subtab == "misc"
+            )
         if case.surface == "procs":
             _seed_proc_projection(page.app, tasks)
         await _wait_for_surface_ready(page, resumed, case.surface)

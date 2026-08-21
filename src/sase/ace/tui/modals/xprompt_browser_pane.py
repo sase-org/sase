@@ -1,9 +1,9 @@
 """Reusable XPrompt browser pane for the Config Center modal.
 
 This widget hosts the body of the former ``XPromptBrowserModal`` (filter input,
-grouped list, preview, and metadata) so it can live inside the **XPrompts** tab
-of the :class:`ConfigCenterModal` content switcher. All behavior of the old
-browser is preserved; the only structural change is that the surrounding
+grouped list, preview, and metadata) so it can live as the **XPrompts** child
+inside the Config catalog. All behavior of the old browser is preserved; the
+only structural change is that the surrounding
 ``ModalScreen`` chrome (centering container, escape handling, tab navigation)
 now belongs to the host modal.
 """
@@ -180,7 +180,7 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
         self._restore_highlight_and_preview(option_list, filter_text="")
 
     def focus_default(self) -> None:
-        """Focus the filter input when the XPrompts tab activates."""
+        """Focus the filter input when the XPrompts child activates."""
         try:
             self.query_one("#browser-filter-input", BrowserFilterInput).focus()
         except Exception:

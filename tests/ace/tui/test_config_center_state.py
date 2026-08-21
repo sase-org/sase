@@ -24,7 +24,7 @@ def _use_sase_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 @pytest.mark.parametrize(
     "tab",
-    ["config", "logs", "procs", "projects", "statistics", "updates", "xprompts"],
+    ["config", "logs", "procs", "projects", "statistics", "updates"],
 )
 def test_valid_single_tab_round_trips_with_exact_wire_value(
     monkeypatch: pytest.MonkeyPatch,
@@ -69,20 +69,15 @@ def test_legacy_tasks_current_migrates_to_procs_on_load(
     assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
 
 
-def test_hub_enabled_maps_persisted_xprompts_resume_to_config(
+def test_persisted_xprompts_resume_maps_to_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from sase.feature_flags import override_flags
-
     home = _use_sase_home(monkeypatch, tmp_path)
     home.mkdir(parents=True)
     (home / "ace_admin_center_last_tab.txt").write_bytes(b"xprompts\n")
 
-    with override_flags(admin_center_config_hub=True):
-        assert load_admin_center_tab_history() == AdminCenterTabHistory(
-            current="config"
-        )
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="config")
 
 
 def test_legacy_tasks_alternate_migrates_to_procs_on_load(

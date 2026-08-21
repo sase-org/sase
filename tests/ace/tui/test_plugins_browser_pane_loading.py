@@ -255,7 +255,7 @@ async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
 
         pane._switch_to_subtab("plugins")
         await page.press("tab")
-        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
         assert filter_input.value == ""
         assert page.app.current_tab == "artifacts"
 
@@ -423,7 +423,7 @@ async def test_updates_pane_offline_reload_does_not_retain_freshness(
         assert pane._reusable_fresh_editable_roots() == frozenset()
 
 
-async def test_config_center_cycles_seven_tabs(
+async def test_config_center_cycles_six_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -440,13 +440,12 @@ async def test_config_center_cycles_seven_tabs(
             "projects",
             "statistics",
             "updates",
-            "xprompts",
             "config",
         ):
             modal.action_next_center_tab()
             await page.wait_for(
                 lambda _state, expected=tab: modal._active_tab == expected
             )
-        # Wrapping backwards lands on the rightmost XPrompts tab.
+        # Wrapping backwards lands on the rightmost Updates tab.
         modal.action_prev_center_tab()
-        await page.wait_for(lambda _state: modal._active_tab == "xprompts")
+        await page.wait_for(lambda _state: modal._active_tab == "updates")

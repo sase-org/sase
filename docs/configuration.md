@@ -156,16 +156,13 @@ import/publication commands, and recovery.
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
-**Procs**, **Projects**, **Statistics**, **Updates**, and **XPrompts**—are introduced
-without loading their data. Enabling the `admin_center_config_hub`
-[feature flag](#feature_flags) folds XPrompts, Snippets, Glossary, Memory, and Misc into
-Config and drops the top-level XPrompts section so the home page lists six sections.
-While home is visible, press `#` again to resume the last section that was successfully
-active in this ACE process. Before the first section visit, the repeated key leaves home
-unchanged and constructs no pane. Press `1`–`7` (or `1`–`6` with
-`admin_center_config_hub`) or click the numbered tab strip to enter a section. From
-home, `Tab` enters Config and `Shift+Tab` enters the last section (XPrompts, or Updates
-when Config owns the catalog); within a working section they wrap across the same tabs.
+**Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
+their data. Config contains the nested **XPrompts**, **Snippets**, **Glossary**,
+**Memory**, and **Misc** catalog. While home is visible, press `#` again to resume the
+last section that was successfully active in this ACE process. Before the first section
+visit, the repeated key leaves home unchanged and constructs no pane. Press `1`–`6` or
+click the numbered tab strip to enter a section. From home, `Tab` enters Config and
+`Shift+Tab` enters Updates; within a working section they wrap across the same tabs.
 Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them,
 including Config's nested catalog.
 
@@ -183,10 +180,10 @@ still open their requested pane immediately and make that successfully mounted s
 the next resume target. Closing and reopening with one `#` still returns to home; only a
 second press while home is visible resumes. The top-level resume target and alternate
 are persisted machine-locally and survive across ACE processes. Entry bookmarks for
-Config, Logs, Projects, Procs, Updates, and XPrompts last only for the current ACE
-process and restore by stable identity, along with minimal scope or sub-tab context when
-needed. Filters, marks, scroll positions, loaded data, pane instances, Statistics
-controls, and other pane-local state are never carried between modal lifetimes.
+Config, Logs, Projects, Procs, and Updates last only for the current ACE process and
+restore by stable identity, along with minimal scope or sub-tab context when needed.
+Filters, marks, scroll positions, loaded data, pane instances, Statistics controls, and
+other pane-local state are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -416,7 +413,7 @@ context-sensitive keymaps are:
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches name / description / topics)                                                |
 | `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle      |
-| `Tab` / `Shift+Tab` | From home enter Config / XPrompts; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)          |
+| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`6` jump directly)           |
 | `Esc`               | Clear active plugin/agent-CLI marks first; close when no marks are active                                   |
 | `q`                 | Close SASE Admin Center                                                                                     |
 

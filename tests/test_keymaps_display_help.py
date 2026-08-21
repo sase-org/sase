@@ -125,7 +125,7 @@ def test_admin_center_help_summary_fits_and_documents_the_opener_toggle() -> Non
 
     for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
         labels = {label for _section, bindings in sections for _key, label in bindings}
-        assert "Admin Center: 1-7 jump, # back" in labels
+        assert "Admin Center: 1-6 jump, # back" in labels
 
 
 def test_leader_prefix_override_updates_repeat_last_help_display() -> None:

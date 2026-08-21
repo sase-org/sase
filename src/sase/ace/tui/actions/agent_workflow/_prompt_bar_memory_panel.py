@@ -47,7 +47,7 @@ class PromptBarMemoryPanelMixin:
 
     def on_prompt_input_bar_memory_panel_requested(self, event: object) -> None:
         """Open the memory panel seeded from the note under the cursor."""
-        from ...modals import MemoryPanel
+        from ...modals.config_hub_session import ConfigHubEntry
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.MemoryPanelRequested):
@@ -59,14 +59,8 @@ class PromptBarMemoryPanelMixin:
         def _on_dismissed(_result: object) -> None:
             self._restore_memory_prompt_focus(restore)
 
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        from ...modals.config_hub_session import ConfigHubEntry
-
         opener = getattr(self, "_open_config_center", None)
-        if current_flags().enabled(FeatureFlag.admin_center_config_hub) and callable(
-            opener
-        ):
+        if callable(opener):
             opener(
                 "config",
                 config_entry=ConfigHubEntry(
@@ -76,15 +70,6 @@ class PromptBarMemoryPanelMixin:
                 ),
                 on_dismissed=_on_dismissed,
             )
-            return
-
-        self.push_screen(  # type: ignore[attr-defined]
-            MemoryPanel(
-                launch_workspace=launch_workspace,
-                initial_note=_seed_note_from_reference(event.note_reference),
-            ),
-            _on_dismissed,
-        )
 
     def _memory_panel_launch_workspace(self) -> str | None:
         """Return the prompt's workspace so the panel can include it in the ring."""

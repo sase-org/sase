@@ -1,6 +1,6 @@
-"""Integration tests for the XPrompts tab ``Ctrl+I`` inline-load keymap.
+"""Integration tests for the Config XPrompts child ``Ctrl+I`` inline-load keymap.
 
-The Admin Center XPrompts tab loads a non-YAML xprompt into the main prompt
+The Config XPrompts child loads a non-YAML xprompt into the main prompt
 input bar when explicit ``Ctrl+I`` is pressed on a loadable row. YAML-backed
 rows -- workflow ``.yml`` files and config-backed xprompts -- are ineligible,
 so the keymap is a no-op and the Admin Center stays open. Bare ``Tab`` always
@@ -25,6 +25,7 @@ from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -52,7 +53,7 @@ def _md_xprompt(
 
 
 def _patch_panes(monkeypatch: pytest.MonkeyPatch, prompts: dict[str, Workflow]) -> None:
-    """Stub every Admin Center pane loader and seed the XPrompts tab."""
+    """Stub every Admin Center pane loader and seed the XPrompts child."""
     config_result = cp._LoadResult(view=None, error=None, token=("tok", 1))
     monkeypatch.setattr(cp, "_load_config_view", lambda **_kw: config_result)
     monkeypatch.setattr(
@@ -81,14 +82,17 @@ async def _open_xprompts_tab(
     *,
     session_state: AdminCenterSessionState | None = None,
 ) -> tuple[ConfigCenterModal, XPromptBrowserPane]:
-    """Open the Admin Center on the XPrompts tab with *prompts* seeded."""
+    """Open the Admin Center on the Config XPrompts child with *prompts* seeded."""
     _patch_panes(monkeypatch, prompts)
-    modal = ConfigCenterModal(initial_tab="xprompts", session_state=session_state)
+    modal = ConfigCenterModal(initial_tab="config", session_state=session_state)
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#xprompts")))
     pane = modal.query_one("#xprompts", XPromptBrowserPane)
-    await page.wait_for(lambda _s: pane._get_highlighted_item() is not None)
+    filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+    await page.wait_for(
+        lambda _s: pane._get_highlighted_item() is not None and filter_input.has_focus
+    )
     return modal, pane
 
 
@@ -125,6 +129,13 @@ async def test_xprompts_session_restores_row_by_name_around_headers(
             session_state=state,
         )
         option_list = pane.query_one("#browser-list", OptionList)
+        await page.wait_for(
+            lambda _s: (
+                option_list.highlighted is not None
+                and option_list.get_option_at_index(option_list.highlighted).id
+                == "item__beta"
+            )
+        )
         assert option_list.highlighted is not None
         highlighted = option_list.get_option_at_index(option_list.highlighted)
 
@@ -274,7 +285,7 @@ async def test_tab_switches_admin_center_tab_on_eligible_row(
         assert pane.highlighted_row_is_loadable() is True
 
         await page.press("tab")
-        await page.wait_for(lambda _s: modal._active_tab == "config")
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
@@ -300,7 +311,7 @@ async def test_shift_tab_switches_admin_center_tab_on_yaml_backed_row(
 async def test_empty_filter_reserves_numeric_tab_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Activating XPrompts via its numbered tab key focuses an empty filter; a
+    # Activating Config's XPrompts child focuses an empty filter; a
     # following digit must jump tabs rather than be typed into the filter.
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
@@ -309,14 +320,14 @@ async def test_empty_filter_reserves_numeric_tab_keys(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
 
-        await page.press("7")
-        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        await page.press("1")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
         pane = modal.query_one("#xprompts", XPromptBrowserPane)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
-        await page.press("1")
-        await page.wait_for(lambda _s: modal._active_tab == "config")
+        await page.press("2")
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert filter_input.value == ""
 
 
@@ -331,11 +342,11 @@ async def test_empty_filter_swallows_reserved_numeric_keys(
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
-        for digit in ("8", "9", "0"):
+        for digit in ("7", "8", "9", "0"):
             await page.press(digit)
             await page.pause()
 
-        assert modal._active_tab == "xprompts"
+        assert modal._active_tab == "config"
         assert filter_input.value == ""
 
 
@@ -352,10 +363,10 @@ async def test_digits_allowed_after_filter_text(
         await page.press("n")
         await page.press("1")
         await page.wait_for(lambda _s: filter_input.value == "n1")
-        assert modal._active_tab == "xprompts"
+        assert modal._active_tab == "config"
 
 
-async def test_brackets_are_ordinary_xprompt_filter_text(
+async def test_brackets_cycle_config_subtabs_from_xprompt_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
@@ -364,10 +375,14 @@ async def test_brackets_are_ordinary_xprompt_filter_text(
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
-        await page.press("left_square_bracket", "right_square_bracket")
-        await page.wait_for(lambda _s: filter_input.value == "[]")
+        await page.press("right_square_bracket")
+        hub = modal.query_one(ConfigHubPane)
+        await page.wait_for(lambda _s: hub._active_subtab == "snippets")
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: hub._active_subtab == "xprompts")
 
-        assert modal._active_tab == "xprompts"
+        assert modal._active_tab == "config"
+        assert filter_input.value == ""
 
 
 async def test_tab_switches_main_tab_after_typed_filter_text(
@@ -384,7 +399,7 @@ async def test_tab_switches_main_tab_after_typed_filter_text(
         await page.wait_for(lambda _s: filter_input.value == "n")
 
         await page.press("tab")
-        await page.wait_for(lambda _s: modal._active_tab == "config")
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")

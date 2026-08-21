@@ -29,7 +29,7 @@ class PromptBarSnippetsPanelMixin:
 
     def on_prompt_input_bar_snippet_panel_requested(self, event: object) -> None:
         """Open the snippets panel seeded from the trigger under the cursor."""
-        from ...modals import SnippetsPanel
+        from ...modals.config_hub_session import ConfigHubEntry
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.SnippetPanelRequested):
@@ -41,14 +41,8 @@ class PromptBarSnippetsPanelMixin:
         def _on_dismissed(_result: object) -> None:
             self._restore_snippet_prompt_focus(restore)
 
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        from ...modals.config_hub_session import ConfigHubEntry
-
         opener = getattr(self, "_open_config_center", None)
-        if current_flags().enabled(FeatureFlag.admin_center_config_hub) and callable(
-            opener
-        ):
+        if callable(opener):
             opener(
                 "config",
                 config_entry=ConfigHubEntry(
@@ -58,15 +52,6 @@ class PromptBarSnippetsPanelMixin:
                 ),
                 on_dismissed=_on_dismissed,
             )
-            return
-
-        self.push_screen(  # type: ignore[attr-defined]
-            SnippetsPanel(
-                launch_workspace=launch_workspace,
-                initial_trigger=event.trigger,
-            ),
-            _on_dismissed,
-        )
 
     def _snippet_panel_launch_workspace(self) -> str | None:
         """Return the prompt's workspace so the panel can include it in the ring."""

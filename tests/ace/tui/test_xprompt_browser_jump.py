@@ -1,6 +1,6 @@
-"""Apostrophe entry-jump coverage for the filter-first XPrompts tab.
+"""Apostrophe entry-jump coverage for the filter-first Config XPrompts child.
 
-The XPrompts tab is the one Admin Center surface where the filter input --
+The XPrompts child is the one Config surface where the filter input --
 not the row list -- always owns focus, so the jump reservation lives in
 ``BrowserFilterInput.on_key`` rather than the pane's own key handler. These
 tests exercise that reservation end to end: hint painting skips disabled
@@ -230,7 +230,7 @@ async def test_zero_items_apostrophe_is_a_silent_no_op(
 ) -> None:
     _patch_panes(monkeypatch, {})
     async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="xprompts")
+        modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
         await page.wait_for(lambda _s: bool(modal.query("#xprompts")))
@@ -265,6 +265,6 @@ async def test_jump_works_when_the_row_list_owns_focus(
         await page.press("2")
         await page.wait_for(lambda _s: not pane.jump_mode_active)
 
-        assert modal._active_tab == "xprompts"
+        assert modal._active_tab == "config"
         assert _highlighted_name(pane) == "zzz"
         assert pane.jump_back_stack == [0]

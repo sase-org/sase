@@ -374,7 +374,7 @@ class PromptBarMountMixin:
                 ` @`-marker editor-return remount path.
             frontmatter_inputs: Declared xprompt inputs to stage into the bar's
                 prompt frontmatter before mount, so the frontmatter panel
-                auto-shows on mount.  Used by the Admin Center XPrompts tab
+                auto-shows on mount.  Used by the Config XPrompts child
                 ``Ctrl+I`` load (parity with the Select XPrompt ``Ctrl+I`` path).
             initial_selected_pane: Optional zero-based pane to focus after
                 parsing *initial_text*. Used by prompt-stash restore.
@@ -428,7 +428,7 @@ class PromptBarMountMixin:
     ) -> None:
         """Close the Admin Center and load an inline-expanded xprompt into a bar.
 
-        Drives the Admin Center XPrompts tab ``Ctrl+I`` load: the selected row
+        Drives the Config XPrompts child ``Ctrl+I`` load: the selected row
         was already rendered via :func:`expand_inline_xprompt`, so this pops the
         Admin Center modal and opens a fresh home-mode prompt bar carrying the
         rendered *expanded_text* for editing/submission.  Declared *inputs* are

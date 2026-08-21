@@ -3440,11 +3440,11 @@ agents (no `agent_name`) keep the prior format.
 
 ## XPrompt Browser
 
-Press `#` on any tab to open **SASE Admin Center**, then press `7` or switch to the
-**XPrompts** tab with `Tab` / `Shift+Tab` or the tab strip. The XPrompts tab displays
-all discovered xprompts in a two-panel layout: a filterable list on the left and a
-syntax-highlighted preview on the right. Markdown xprompts with leading YAML frontmatter
-render the frontmatter and body with their respective syntax styles.
+Press `#` on any tab to open **SASE Admin Center**, then press `1` for **Config**. The
+default **XPrompts** child displays all discovered xprompts in a two-panel layout: a
+filterable list on the left and a syntax-highlighted preview on the right. Markdown
+xprompts with leading YAML frontmatter render the frontmatter and body with their
+respective syntax styles.
 
 Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`,
 project-specific home, config `sase.yml`, plugins, built-in, plus labeled legacy
@@ -4951,7 +4951,7 @@ state instead of a plain draft: the bar tracks the exact source file your edits 
 write to, and everything below applies whenever the bar shows a target. Every surface
 that loads an editable definition enters this state the same way:
 
-- The Admin Center XPrompts tab's `Enter` (see [Editing XPrompts](#editing-xprompts)).
+- The Config XPrompts child's `Enter` (see [Editing XPrompts](#editing-xprompts)).
 - The Select XPrompt `#` picker's `Ctrl+O` ("edit here"), alongside its existing
   `Ctrl+E` (open in `$EDITOR`) and `Ctrl+I` (inline-expand) keys.
 - The jump panel (`Ctrl+]`, `gd`) and `gd` under the cursor in the prompt bar.

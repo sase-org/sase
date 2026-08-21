@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import CenterTab, ConfigCenterModal
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.logs_pane import LogsPane
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
@@ -22,13 +24,21 @@ async def _open_modal(page: AcePage, initial_tab: CenterTab) -> ConfigCenterModa
     return modal
 
 
-async def _open_config_modal(page: AcePage) -> tuple[ConfigCenterModal, ConfigPane]:
-    modal = ConfigCenterModal(initial_tab="config")
+async def _open_config_modal(
+    page: AcePage,
+    *,
+    wait_for_loaded: bool = True,
+) -> tuple[ConfigCenterModal, ConfigPane]:
+    modal = ConfigCenterModal(config_entry=ConfigHubEntry(subtab="misc"))
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#config")))
-    pane = modal.query_one("#config", ConfigPane)
-    await page.wait_for(lambda _s: bool(pane._node_by_path))
+    hub = modal.query_one("#config", ConfigHubPane)
+    await page.wait_for(lambda _s: hub._active_subtab == "misc")
+    await page.wait_for(lambda _s: bool(modal.query("#misc")))
+    pane = modal.query_one("#misc", ConfigPane)
+    if wait_for_loaded:
+        await page.wait_for(lambda _s: bool(pane._node_by_path))
     await wait_for_visual_idle(page)
     return modal, pane
 

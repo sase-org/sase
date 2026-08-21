@@ -28,7 +28,7 @@ class PromptBarGlossaryPanelMixin:
 
     def on_prompt_input_bar_glossary_panel_requested(self, event: object) -> None:
         """Open the glossary panel seeded from the term under the cursor."""
-        from ...modals import GlossaryPanel
+        from ...modals.config_hub_session import ConfigHubEntry
         from ...widgets import PromptInputBar
 
         if not isinstance(event, PromptInputBar.GlossaryPanelRequested):
@@ -40,14 +40,8 @@ class PromptBarGlossaryPanelMixin:
         def _on_dismissed(_result: object) -> None:
             self._restore_glossary_prompt_focus(restore)
 
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        from ...modals.config_hub_session import ConfigHubEntry
-
         opener = getattr(self, "_open_config_center", None)
-        if current_flags().enabled(FeatureFlag.admin_center_config_hub) and callable(
-            opener
-        ):
+        if callable(opener):
             opener(
                 "config",
                 config_entry=ConfigHubEntry(
@@ -57,15 +51,6 @@ class PromptBarGlossaryPanelMixin:
                 ),
                 on_dismissed=_on_dismissed,
             )
-            return
-
-        self.push_screen(  # type: ignore[attr-defined]
-            GlossaryPanel(
-                launch_workspace=launch_workspace,
-                initial_term=event.term,
-            ),
-            _on_dismissed,
-        )
 
     def _glossary_panel_launch_workspace(self) -> str | None:
         """Return the prompt's workspace so the panel can include it in the ring."""

@@ -17,11 +17,11 @@ if TYPE_CHECKING:
 class BrowserFilterInput(Input):
     """Custom input for the XPrompt browser with navigation key bindings.
 
-    Since the filter input always has focus while the XPrompts tab is active,
+    Since the filter input always has focus while the XPrompts child is active,
     Ctrl-key combinations are used for navigation and actions to avoid conflicts
-    with text input. Brackets remain ordinary filter text, while the Admin
-    Center's priority ``Tab`` / ``Shift+Tab`` bindings handle main-tab
-    navigation. The apostrophe key is likewise reserved: while the filter is
+    with text input. When embedded in Config, brackets cycle Config sub-tabs,
+    while the Admin Center's priority ``Tab`` / ``Shift+Tab`` bindings handle
+    main-tab navigation. The apostrophe key is likewise reserved: while the filter is
     empty it arms the adaptive entry-jump hints instead of being typed, and
     while jump mode is active every key is routed to the jump state machine
     first. Once the filter holds text, apostrophe falls through to normal

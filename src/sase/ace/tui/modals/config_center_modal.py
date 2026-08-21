@@ -7,11 +7,10 @@ enters one with numbered keys, ``Tab`` / ``Shift+Tab``, or the clickable tab
 strip. Mounted panes are cached for the lifetime of the modal, so returning
 to a tab preserves its selection and other pane-local state.
 
-With ``admin_center_config_hub`` disabled there are seven working tabs,
-including a top-level XPrompts section. With the flag enabled there are six,
-and Config hosts the nested catalog. Direct-entry actions may still pass
-``initial_tab`` to open exactly one pane. Pane-local sub-tabs continue to
-use ``]`` / ``[`` where provided.
+The Config section hosts the nested XPrompts, Snippets, Glossary, Memory,
+and Misc catalog. Direct-entry actions may still pass ``initial_tab`` to
+open exactly one pane. Pane-local sub-tabs continue to use ``]`` / ``[``
+where provided.
 """
 
 from __future__ import annotations
@@ -44,13 +43,7 @@ from .config_center_catalog import (
     CenterTab as CenterTab,
     CenterTabSpec,
     PaneFactory as PaneFactory,
-    active_panel_tabs,
-    active_tab_by_id,
-    active_tab_by_number,
-    active_tab_order,
-    active_tab_specs,
     center_tab_accent as center_tab_accent,
-    config_hub_enabled,
     validated_center_tab as validated_center_tab,
 )
 from .config_hub_session import ConfigHubEntry
@@ -132,23 +125,18 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         self._project = project
         self._log_error_target = log_error_target
         self._session_state = session_state or AdminCenterSessionState()
-        self._hub_enabled = config_hub_enabled()
-        self._tab_specs = active_tab_specs(hub_enabled=self._hub_enabled)
-        self._tab_by_id = active_tab_by_id(hub_enabled=self._hub_enabled)
-        self._tab_by_number = active_tab_by_number(hub_enabled=self._hub_enabled)
-        self._tab_order = active_tab_order(hub_enabled=self._hub_enabled)
-        self._panel_tabs = active_panel_tabs(hub_enabled=self._hub_enabled)
+        self._tab_specs = _TAB_SPECS
+        self._tab_by_id = _TAB_BY_ID
+        self._tab_by_number = _TAB_BY_NUMBER
+        self._tab_order = _TAB_ORDER
+        self._panel_tabs = _PANEL_TABS
         self._config_entry = config_entry
         requested_tab = "config" if config_entry is not None else initial_tab
-        self._initial_tab = validated_center_tab(
-            requested_tab, hub_enabled=self._hub_enabled
-        )
-        self._resume_tab = validated_center_tab(
-            resume_tab, hub_enabled=self._hub_enabled
-        )
+        self._initial_tab = validated_center_tab(requested_tab)
+        self._resume_tab = validated_center_tab(resume_tab)
         self._history: AdminCenterTabHistory = validated_admin_center_tab_history(
             self._resume_tab,
-            validated_center_tab(alternate_tab, hub_enabled=self._hub_enabled),
+            validated_center_tab(alternate_tab),
         )
         self._on_tab_activated = on_tab_activated
         self._opener_binding = (
@@ -263,7 +251,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
 
     def _child_owns_tab_keys(self) -> bool:
         """Let Glossary/Memory/Snippets keep Tab for relationship travel."""
-        if not self._hub_enabled or self._active_tab != "config":
+        if self._active_tab != "config":
             return False
         pane = self._active_pane()
         owns = getattr(pane, "child_owns_tab_keys", None)

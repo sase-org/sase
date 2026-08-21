@@ -98,7 +98,6 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
         "projects",
         "statistics",
         "updates",
-        "xprompts",
     )
 
     labels = dict(_TAB_LABELS)

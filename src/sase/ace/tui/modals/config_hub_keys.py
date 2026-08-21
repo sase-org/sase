@@ -10,8 +10,8 @@ from textual.events import Key
 def handle_config_hub_bracket_key(widget: Any, event: Key) -> bool:
     """Cycle Config sub-tabs when ``[`` / ``]`` arrive in an embedded filter.
 
-    Returns True when the event was consumed. Standalone panes and the
-    disabled seven-tab Admin Center leave brackets as ordinary input.
+    Returns True when the event was consumed. Standalone panes leave
+    brackets as ordinary input.
     """
     if event.key not in ("left_square_bracket", "right_square_bracket"):
         return False

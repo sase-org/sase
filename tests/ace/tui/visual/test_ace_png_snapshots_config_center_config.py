@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Config Center Config/XPrompts tabs.
+"""ACE TUI PNG visual snapshots for Config Center Config surfaces.
 
 The Config tab is fed a deterministic fixture inventory by patching
 ``config_pane._load_config_view`` so no real config files are read.
@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_pane import ConfigPane
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
@@ -70,11 +69,7 @@ async def test_config_center_config_empty_png_snapshot(
         await wait_for_startup(page)
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
-        modal = ConfigCenterModal(initial_tab="config")
-        page.app.push_screen(modal)
-        await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: bool(modal.query("#config")))
-        pane = modal.query_one("#config", ConfigPane)
+        _, pane = await _open_config_modal(page, wait_for_loaded=False)
         await page.wait_for(lambda _s: pane._view is not None and not pane._loading)
         await wait_for_visual_idle(page)
 
@@ -99,7 +94,7 @@ async def test_config_center_config_loading_png_snapshot(
         await wait_for_startup(page)
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
-        await _open_modal(page, "config")
+        await _open_config_modal(page, wait_for_loaded=False)
 
         ace_png_visual.assert_page_png(
             page,
@@ -177,10 +172,10 @@ async def test_config_center_xprompts_tab_png_snapshot(
         await wait_for_startup(page)
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
-        await _open_modal(page, "xprompts")
+        await _open_modal(page, "config")
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_xprompts_tab_120x40",
-            title="ACE SASE Admin Center — XPrompts tab (migrated browser)",
+            title="ACE SASE Admin Center — Config XPrompts child",
         )

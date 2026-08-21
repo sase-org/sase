@@ -5,11 +5,14 @@ from __future__ import annotations
 import pytest
 from textual.app import App, ComposeResult
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow._prompt_bar_memory_panel import (
     PromptBarMemoryPanelMixin,
 )
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.memory_panel_load import MemoryPanelInitialLoad
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
@@ -52,10 +55,10 @@ class _MemoryOpenHarness(PromptBarMemoryPanelMixin):
     ) -> None:
         self._prompt_context = prompt_context
         self._bar = bar
-        self.pushed: list[tuple[object, object]] = []
+        self.opened: list[tuple[object, dict[str, object]]] = []
 
-    def push_screen(self, screen: object, callback: object = None) -> None:
-        self.pushed.append((screen, callback))
+    def _open_config_center(self, initial_tab: object, **kwargs: object) -> None:
+        self.opened.append((initial_tab, kwargs))
 
     def _mounted_prompt_bar(self) -> _FakeBar | None:  # type: ignore[override]
         return self._bar
@@ -76,6 +79,15 @@ class _MemoryOpenApp(PromptBarMemoryPanelMixin, App[None]):
             initial_value=self._initial_value,
             mode="prompt",
             id="prompt-input-bar",
+        )
+
+    def _open_config_center(self, initial_tab: object, **kwargs: object) -> None:
+        self.push_screen(
+            ConfigCenterModal(
+                initial_tab=initial_tab,  # type: ignore[arg-type]
+                config_entry=kwargs.get("config_entry"),  # type: ignore[arg-type]
+            ),
+            kwargs.get("on_dismissed"),  # type: ignore[arg-type]
         )
 
 
@@ -112,11 +124,14 @@ def test_handler_opens_panel_with_seeded_note() -> None:
         PromptInputBar.MemoryPanelRequested("#memory/sase_beads", "prompt")
     )
 
-    assert len(harness.pushed) == 1
-    panel, _callback = harness.pushed[0]
-    assert isinstance(panel, MemoryPanel)
-    assert panel._initial_note == "sase/memory/sase_beads.md"
-    assert panel._launch_workspace is None
+    assert len(harness.opened) == 1
+    tab, kwargs = harness.opened[0]
+    assert tab == "config"
+    entry = kwargs["config_entry"]
+    assert isinstance(entry, ConfigHubEntry)
+    assert entry.subtab == "memory"
+    assert entry.note == "sase/memory/sase_beads.md"
+    assert entry.launch_workspace is None
 
 
 def test_handler_passes_launch_workspace_from_prompt_context() -> None:
@@ -126,10 +141,11 @@ def test_handler_passes_launch_workspace_from_prompt_context() -> None:
         PromptInputBar.MemoryPanelRequested(None, "prompt")
     )
 
-    panel, _callback = harness.pushed[0]
-    assert isinstance(panel, MemoryPanel)
-    assert panel._launch_workspace == "/ws/sase"
-    assert panel._initial_note is None
+    _tab, kwargs = harness.opened[0]
+    entry = kwargs["config_entry"]
+    assert isinstance(entry, ConfigHubEntry)
+    assert entry.launch_workspace == "/ws/sase"
+    assert entry.note is None
 
 
 def test_handler_skips_home_workspace() -> None:
@@ -139,9 +155,10 @@ def test_handler_skips_home_workspace() -> None:
         PromptInputBar.MemoryPanelRequested(None, "prompt")
     )
 
-    panel, _callback = harness.pushed[0]
-    assert isinstance(panel, MemoryPanel)
-    assert panel._launch_workspace is None
+    _tab, kwargs = harness.opened[0]
+    entry = kwargs["config_entry"]
+    assert isinstance(entry, ConfigHubEntry)
+    assert entry.launch_workspace is None
 
 
 def test_dismiss_restores_insert_mode_and_cursor() -> None:
@@ -151,7 +168,8 @@ def test_dismiss_restores_insert_mode_and_cursor() -> None:
     harness.on_prompt_input_bar_memory_panel_requested(
         PromptInputBar.MemoryPanelRequested(None, "prompt")
     )
-    _panel, callback = harness.pushed[0]
+    _tab, kwargs = harness.opened[0]
+    callback = kwargs["on_dismissed"]
     assert callable(callback)
 
     text_area._vim_mode = "normal"
@@ -171,7 +189,8 @@ def test_dismiss_restores_normal_mode() -> None:
     harness.on_prompt_input_bar_memory_panel_requested(
         PromptInputBar.MemoryPanelRequested(None, "prompt")
     )
-    _panel, callback = harness.pushed[0]
+    _tab, kwargs = harness.opened[0]
+    callback = kwargs["on_dismissed"]
     assert callable(callback)
 
     text_area._vim_mode = "insert"
@@ -196,15 +215,15 @@ async def test_gm_opens_panel_and_escape_restores_normal_focus(
         assert text_area._vim_mode == "normal"
 
         await pilot.press("g", "m")
-        await pilot.pause()
 
-        assert isinstance(app.screen, MemoryPanel)
-        assert app.screen._initial_note is None
+        await wait_for(pilot, lambda: isinstance(app.screen, ConfigCenterModal))
+        hub = app.screen.query_one(ConfigHubPane)
+        await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press("escape")
         await pilot.pause()
 
-        assert not isinstance(app.screen, MemoryPanel)
+        assert not isinstance(app.screen, ConfigCenterModal)
         assert app.focused is text_area
         assert text_area._vim_mode == "normal"
         assert text_area.cursor_location == (0, 3)
@@ -224,9 +243,10 @@ async def test_ctrl_g_m_from_insert_restores_insert_mode(
         cursor = text_area.cursor_location
 
         await pilot.press("ctrl+g", "m")
-        await pilot.pause()
 
-        assert isinstance(app.screen, MemoryPanel)
+        await wait_for(pilot, lambda: isinstance(app.screen, ConfigCenterModal))
+        hub = app.screen.query_one(ConfigHubPane)
+        await wait_for(pilot, lambda: hub._active_subtab == "memory")
 
         await pilot.press("escape")
         await pilot.pause()

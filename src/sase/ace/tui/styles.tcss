@@ -8481,7 +8481,7 @@ PluginActionConfirmModal Button {
     margin: 0 1;
 }
 
-/* XPrompts tab (migrated XPrompt Browser body) */
+/* Config XPrompts child (migrated XPrompt Browser body) */
 XPromptBrowserPane #browser-title {
     text-style: bold;
     margin-bottom: 1;

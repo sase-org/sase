@@ -123,7 +123,7 @@ def home_hint_text(
     opener_binding: str,
     *,
     compact: bool,
-    tab_count: int = 7,
+    tab_count: int = len(_TAB_SPECS),
     specs: dict[CenterTab, CenterTabSpec] | None = None,
 ) -> Text:
     """Render the landing's one-row, catalog-derived resume affordance."""

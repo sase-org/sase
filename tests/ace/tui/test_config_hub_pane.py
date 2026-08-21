@@ -1,4 +1,4 @@
-"""Lazy nested Config catalog coverage for the enabled hub path."""
+"""Lazy nested Config catalog coverage."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
-from sase.feature_flags import override_flags
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 
 
@@ -68,15 +67,8 @@ def _patch_hub_children(
     return created, calls
 
 
-@pytest.fixture
-def _hub_on() -> None:
-    with override_flags(admin_center_config_hub=True):
-        yield
-
-
 async def test_opening_config_constructs_only_the_active_child(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     created, calls = _patch_hub_children(monkeypatch)
     async with AcePage(initial_tab="agents") as page:
@@ -100,7 +92,6 @@ async def test_opening_config_constructs_only_the_active_child(
 
 async def test_subtab_cycle_caches_children_and_does_not_reload(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     created, calls = _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
@@ -120,7 +111,6 @@ async def test_subtab_cycle_caches_children_and_does_not_reload(
 
 async def test_failed_child_mount_leaves_previous_child_visible(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     created, calls = _patch_hub_children(monkeypatch)
     original = ConfigHubPane._create_pane
@@ -149,7 +139,6 @@ async def test_failed_child_mount_leaves_previous_child_visible(
 
 async def test_direct_entry_opens_requested_child_once(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     state = AdminCenterSessionState()
@@ -174,7 +163,6 @@ async def test_direct_entry_opens_requested_child_once(
 
 async def test_legacy_xprompts_resume_opens_config_hub(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
@@ -188,9 +176,8 @@ async def test_legacy_xprompts_resume_opens_config_hub(
         assert "xprompts" not in {spec.id for spec in modal._tab_specs}
 
 
-async def test_home_digits_stop_at_six_when_hub_enabled(
+async def test_home_digits_stop_at_six(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     from tests.ace.tui._config_center_tabs_helpers import _patch_stub_panes
 
@@ -214,7 +201,6 @@ async def test_home_digits_stop_at_six_when_hub_enabled(
 
 async def test_filter_brackets_cycle_config_subtabs(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     calls: list[str] = []
 
@@ -238,7 +224,6 @@ async def test_filter_brackets_cycle_config_subtabs(
 
 async def test_relationship_children_own_tab_keys(
     monkeypatch: pytest.MonkeyPatch,
-    _hub_on: None,
 ) -> None:
     _patch_hub_children(monkeypatch)
     async with _HostApp().run_test() as pilot:
