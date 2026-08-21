@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +18,20 @@ from sase.attachments.markdown_pdf import (
     render_markdown_pdf,
     render_markdown_pdf_attachments,
 )
+
+
+def _resource_path(*paths: Path) -> str:
+    return os.pathsep.join(
+        dict.fromkeys(str(path.expanduser().resolve(strict=False)) for path in paths)
+    )
+
+
+def _write_pandoc_scratch(cwd: Path) -> None:
+    (cwd / "toPdfViaTempFile3479326-0.html").write_text(
+        "<html><head><title>launch_preview</title></head></html>\n",
+        encoding="utf-8",
+    )
+    (cwd / "toPdfViaTempFile3479326-1.pdf").write_bytes(b"")
 
 
 def test_render_markdown_pdf_uses_first_available_engine(tmp_path):
@@ -44,11 +60,13 @@ def test_render_markdown_pdf_uses_first_available_engine(tmp_path):
     assert result == dest
     assert dest.read_bytes() == b"%PDF"
     cmd = run.call_args.args[0]
-    assert cmd[:3] == ["/usr/bin/pandoc", str(source), "-o"]
+    assert cmd[:3] == ["/usr/bin/pandoc", str(source.resolve()), "-o"]
+    assert Path(cmd[3]).is_absolute()
     assert cmd[4:] == [
         "--pdf-engine=wkhtmltopdf",
         "--highlight-style=tango",
-        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}",
+        f"--resource-path={_resource_path(source.parent, Path.cwd())}",
+        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css').resolve()}",
         "--pdf-engine-opt=--page-width",
         "--pdf-engine-opt=4.25in",
         "--pdf-engine-opt=--page-height",
@@ -91,7 +109,10 @@ def test_render_markdown_pdf_uses_default_css_when_unspecified(tmp_path):
 
     assert result == dest
     cmd = run.call_args.args[0]
-    assert f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}" in cmd
+    assert (
+        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css').resolve()}"
+        in cmd
+    )
 
 
 def test_render_markdown_pdf_explicit_css_overrides_default(tmp_path):
@@ -121,9 +142,10 @@ def test_render_markdown_pdf_explicit_css_overrides_default(tmp_path):
 
     assert result == dest
     cmd = run.call_args.args[0]
-    assert f"--css={css}" in cmd
+    assert f"--css={css.resolve()}" in cmd
     assert (
-        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css')}" not in cmd
+        f"--css={Path(markdown_pdf.__file__).with_name('markdown_pdf.css').resolve()}"
+        not in cmd
     )
 
 
@@ -159,7 +181,7 @@ def test_render_markdown_pdf_accepts_syntax_definitions_and_no_auto_title(tmp_pa
 
     assert result == dest
     cmd = run.call_args.args[0]
-    assert f"--syntax-definition={syntax}" in cmd
+    assert f"--syntax-definition={syntax.resolve()}" in cmd
     assert "--metadata" not in cmd
     assert "title=notes" not in cmd
 
@@ -189,11 +211,14 @@ def test_render_launch_preview_pdf_uses_dedicated_assets(tmp_path):
 
     assert result == dest
     cmd = run.call_args.args[0]
-    assert f"--css={Path(markdown_pdf.__file__).with_name('launch_preview.css')}" in cmd
     assert (
-        f"--syntax-definition={Path(markdown_pdf.__file__).with_name('sase.xml')}"
+        f"--css={Path(markdown_pdf.__file__).with_name('launch_preview.css').resolve()}"
         in cmd
     )
+    assert (
+        f"--syntax-definition="
+        f"{Path(markdown_pdf.__file__).with_name('sase.xml').resolve()}"
+    ) in cmd
     assert "--metadata" not in cmd
 
 
@@ -315,7 +340,7 @@ def test_render_markdown_pdf_explicit_css_overrides_profile_css(tmp_path):
 
     assert result == dest
     cmd = run.call_args.args[0]
-    assert f"--css={css}" in cmd
+    assert f"--css={css.resolve()}" in cmd
     assert "--pdf-engine-opt=8.50in" in cmd
     assert not list(tmp_path.glob(".markdown-pdf-profile.*.css"))
 
@@ -526,6 +551,98 @@ def test_render_markdown_pdf_removes_failed_partial_output(tmp_path):
         "source_failed",
     ]
     assert events[-1].reason == "all PDF engines failed"
+
+
+def test_render_markdown_pdf_isolates_pandoc_scratch_on_success(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    docs = Path("docs")
+    docs.mkdir()
+    source = docs / "notes.md"
+    source.write_text("# Notes\n![diagram](images/diagram.png)\n")
+    dest = Path("out") / "notes.pdf"
+    captured_cwd: Path | None = None
+    captured_cmd: list[str] = []
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "wkhtmltopdf": "/usr/bin/wkhtmltopdf",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        nonlocal captured_cwd, captured_cmd
+        captured_cmd = cmd
+        cwd = Path(kwargs["cwd"])
+        captured_cwd = cwd
+        _write_pandoc_scratch(cwd)
+        Path(cmd[3]).write_bytes(b"%PDF")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch("sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run),
+    ):
+        result = render_markdown_pdf(source, dest)
+
+    assert result == dest
+    assert not result.is_absolute()
+    assert dest.read_bytes() == b"%PDF"
+    assert captured_cwd is not None
+    workdir = captured_cwd.resolve()
+    repo = tmp_path.resolve()
+    assert workdir.is_absolute()
+    assert workdir != repo
+    assert not workdir.is_relative_to(repo)
+    assert workdir.is_relative_to(Path(tempfile.gettempdir()).resolve())
+    assert not workdir.exists()
+    assert list(tmp_path.rglob("toPdfViaTempFile*")) == []
+    assert Path(captured_cmd[1]) == source.resolve()
+    assert Path(captured_cmd[3]).is_absolute()
+    assert not Path(captured_cmd[3]).is_relative_to(workdir)
+    css = Path(markdown_pdf.__file__).with_name("markdown_pdf.css").resolve()
+    assert f"--css={css}" in captured_cmd
+    assert (
+        f"--resource-path={_resource_path(source.parent, Path.cwd())}" in captured_cmd
+    )
+
+
+def test_render_markdown_pdf_isolates_pandoc_scratch_on_timeout(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    source = Path("notes.md")
+    source.write_text("# Notes\n")
+    dest = Path("notes.pdf")
+    captured_cwd: Path | None = None
+
+    def fake_which(name: str) -> str | None:
+        return {
+            "pandoc": "/usr/bin/pandoc",
+            "pdflatex": "/usr/bin/pdflatex",
+        }.get(name)
+
+    def fake_run(cmd, **kwargs):
+        nonlocal captured_cwd
+        cwd = Path(kwargs["cwd"])
+        captured_cwd = cwd
+        _write_pandoc_scratch(cwd)
+        Path(cmd[3]).write_bytes(b"partial")
+        raise subprocess.TimeoutExpired(cmd, timeout=kwargs["timeout"])
+
+    with (
+        patch("sase.attachments.markdown_pdf.shutil.which", side_effect=fake_which),
+        patch("sase.attachments.markdown_pdf.subprocess.run", side_effect=fake_run),
+    ):
+        result = render_markdown_pdf(source, dest, timeout=1)
+
+    assert result is None
+    assert not dest.exists()
+    assert captured_cwd is not None
+    workdir = captured_cwd.resolve()
+    repo = tmp_path.resolve()
+    assert workdir != repo
+    assert not workdir.is_relative_to(repo)
+    assert not workdir.exists()
+    assert list(tmp_path.rglob("toPdfViaTempFile*")) == []
+    assert list(tmp_path.glob("*.pdf")) == []
 
 
 def test_render_markdown_pdf_attachments_writes_artifacts_and_index(tmp_path):

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import shutil
 import tempfile
 
@@ -86,21 +87,26 @@ def pandoc_cmd(
     title: str,
     syntax_definitions: Iterable[Path] = (),
     include_auto_title: bool = True,
+    resource_paths: Iterable[Path] = (),
 ) -> list[str]:
     """Build a conservative pandoc command for Markdown-to-PDF conversion."""
     cmd = [
         pandoc,
-        str(source),
+        str(_absolute_path(source)),
         "-o",
-        str(dest),
+        str(_absolute_path(dest)),
         f"--pdf-engine={engine}",
         "--highlight-style=tango",
     ]
+    resource_path = _resource_path_argument(resource_paths)
+    if resource_path is not None:
+        cmd.append(f"--resource-path={resource_path}")
     for syntax_definition in syntax_definitions:
-        cmd.append(f"--syntax-definition={syntax_definition}")
+        cmd.append(f"--syntax-definition={_absolute_path(syntax_definition)}")
     if engine == "wkhtmltopdf":
-        if css_path is not None and css_path.is_file():
-            cmd.append(f"--css={css_path}")
+        css = _absolute_path(css_path) if css_path is not None else None
+        if css is not None and css.is_file():
+            cmd.append(f"--css={css}")
         cmd += [
             "--pdf-engine-opt=--page-width",
             f"--pdf-engine-opt={profile.page_width}",
@@ -192,3 +198,21 @@ def temporary_pdf_path(dest: Path) -> Path:
         delete=False,
     ) as tmp:
         return Path(tmp.name)
+
+
+def _absolute_path(path: Path) -> Path:
+    return path.expanduser().resolve(strict=False)
+
+
+def _resource_path_argument(resource_paths: Iterable[Path]) -> str | None:
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for path in resource_paths:
+        value = str(_absolute_path(path))
+        if value in seen:
+            continue
+        seen.add(value)
+        resolved.append(value)
+    if not resolved:
+        return None
+    return os.pathsep.join(resolved)

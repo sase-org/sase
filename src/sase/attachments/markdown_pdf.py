@@ -8,6 +8,7 @@ import logging
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
@@ -234,6 +235,7 @@ def render_markdown_pdf(
     document_title = source.stem
     preprocessed_source_path: Path | None = None
     last_error: BaseException | None = None
+    invocation_cwd = Path.cwd()
     try:
         try:
             (
@@ -264,6 +266,7 @@ def render_markdown_pdf(
                 title=document_title,
                 syntax_definitions=syntax_definition_paths,
                 include_auto_title=include_auto_title,
+                resource_paths=(source.parent, invocation_cwd),
             )
             _emit_progress(
                 progress,
@@ -275,7 +278,17 @@ def render_markdown_pdf(
                 ),
             )
             try:
-                subprocess.run(cmd, check=True, capture_output=True, timeout=timeout)
+                with tempfile.TemporaryDirectory(
+                    prefix="sase-pandoc-",
+                    ignore_cleanup_errors=True,
+                ) as pandoc_cwd:
+                    subprocess.run(
+                        cmd,
+                        check=True,
+                        capture_output=True,
+                        timeout=timeout,
+                        cwd=pandoc_cwd,
+                    )
                 tmp_path.replace(dest)
                 _emit_progress(
                     progress,
