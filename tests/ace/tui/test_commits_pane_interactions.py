@@ -23,6 +23,24 @@ from tests.ace.tui._commits_pane_helpers import (
 )
 
 
+async def _wait_for_commits_workers(page: AcePage, pane: CommitsPane) -> None:
+    for _ in range(10):
+        workers = [
+            worker
+            for worker in (pane._collection_worker, pane._diff_worker)
+            if worker is not None and not worker.is_finished
+        ]
+        if workers:
+            for worker in workers:
+                await worker.wait()
+            await page.pause()
+            continue
+        await page.pause()
+        if pane._collection_worker is None and pane._diff_worker is None:
+            return
+    raise AssertionError("commits workers did not settle")
+
+
 async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -55,6 +73,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
         await page.wait_for(lambda _state: bool(diff_calls))
+        await _wait_for_commits_workers(page, pane)
         detail = pane.query_one("#stitches-detail", Static)
         footer = pane.query_one("#stitches-footer", Static)
         info = pane._build_info().plain
@@ -81,7 +100,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)
         assert position.content.plain == "[2/2]  ·  "
         await page.press("y")
-        assert copied == [f"@commit:sase-core-foundation@{'b' * 40}"]
+        expected_copy = f"@commit:sase-core-foundation@{'b' * 40}"
+        await page.wait_for(lambda _state: copied == [expected_copy])
 
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -133,7 +153,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert editor.text == "sidecar:true merges:hide fix"
         assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
         reconciled_calls = len(calls)
-        await page.pause()
+        await _wait_for_commits_workers(page, pane)
         assert len(calls) == reconciled_calls
 
         # The legacy `f` action opens the same inline bar. Escape restores the
@@ -179,7 +199,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         # scope and leaves the visible all-project query unchanged.
         calls_before_unknown_toggle = len(calls)
         await page.press("a")
-        await page.pause()
+        await _wait_for_commits_workers(page, pane)
         assert len(calls) == calls_before_unknown_toggle
         assert pane.filters.project is None
 
@@ -218,7 +238,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.press("3")
         await page.expect_state("artifacts_subtab", "beads")
         await page.press("slash")
-        await page.pause()
+        await page.wait_for(lambda _state: page.app.focused is not editor)
         assert bar.display is True
         assert page.app.focused is not editor
         assert page.state["modal"] is None

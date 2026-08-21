@@ -134,7 +134,7 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
 
     def load_snapshot(self: ModelsPanel) -> ProviderRoutingSnapshot:
         started.set()
-        assert release.wait(timeout=5)
+        release.wait()
         return snapshot
 
     monkeypatch.setattr(ModelsPanel, "_load_provider_routing_snapshot", load_snapshot)
@@ -146,6 +146,9 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
         try:
             pilot.app.push_screen(panel)
             await wait_for(pilot, started.is_set)
+            await wait_for(pilot, lambda: panel._provider_snapshot_worker is not None)
+            worker = panel._provider_snapshot_worker
+            assert worker is not None
             await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
             assert "launch:default_model" in panel._row_by_id
             assert "setting:big_epic_phase_threshold" in panel._row_by_id
@@ -153,6 +156,7 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
             assert panel._highlighted_row_id() == "bucket:research"
 
             release.set()
+            await worker.wait()
             await wait_for(pilot, lambda: panel._provider_snapshot_worker is None)
             assert panel._highlighted_row_id() == "bucket:research"
             assert "launch:default_model" in panel._row_by_id
@@ -228,5 +232,5 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         assert panel._highlighted_row_id() == "phase_reviewer"
 
         await pilot.press("h")
-        await pilot.pause()
+        await wait_for(pilot, lambda: panel._provider_snapshot_worker is None)
         assert panel._highlighted_row_id() == "bucket:worker"

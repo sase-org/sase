@@ -61,6 +61,8 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        # Vim insert sessions end at explicit checkpoints, not Textual's timer.
+        self.history.checkpoint_timer = float("inf")
         self._vim_mode: str = "insert"
         self._pending_keys: str = ""
         self._count_prefix: str = ""

@@ -8,6 +8,7 @@ from typing import Any
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.widgets import Static
 from textual.worker import Worker
 
@@ -224,18 +225,23 @@ class CommitsPane(
 
     def _refresh_info(self) -> None:
         if self.is_mounted:
-            self.query_one("#stitches-info-header", Static).update(
-                self._build_info_header()
-            )
-            self.query_one("#stitches-legend", Static).update(self._build_legend())
+            try:
+                header = self.query_one("#stitches-info-header", Static)
+                legend = self.query_one("#stitches-legend", Static)
+            except NoMatches:
+                return
+            header.update(self._build_info_header())
+            legend.update(self._build_legend())
             self._refresh_position_badge()
 
     def _refresh_position_badge(self) -> None:
         """Refresh only the selection-dependent Stitches chrome."""
         if self.is_mounted:
-            self.query_one("#stitches-position", Static).update(
-                self._build_position_badge()
-            )
+            try:
+                position = self.query_one("#stitches-position", Static)
+            except NoMatches:
+                return
+            position.update(self._build_position_badge())
 
     def _active_limit(self) -> int | None:
         result = self.result

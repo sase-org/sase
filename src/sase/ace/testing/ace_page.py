@@ -9,6 +9,7 @@ from unittest.mock import patch
 from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
+from textual.worker import WorkerCancelled
 
 from ._startup import _install_fast_startup_overrides
 from ._stylesheet_cache import (
@@ -133,6 +134,35 @@ async def _drain_pump_free_tasks(app: AceApp) -> None:
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def _drain_textual_workers(app: AceApp) -> None:
+    """Cancel live Textual workers and surface real worker failures."""
+    workers = tuple(app.workers)
+    if not workers:
+        return
+    app.workers.cancel_all()
+    worker_results = await asyncio.gather(
+        *(worker.wait() for worker in workers),
+        return_exceptions=True,
+    )
+    for result in worker_results:
+        if isinstance(result, WorkerCancelled):
+            continue
+        if isinstance(result, Exception):
+            raise result
+
+
+async def _drain_app_work(app: AceApp) -> None:
+    """Drain every ACE-owned asynchronous work queue before app teardown returns."""
+    worker_error: Exception | None = None
+    try:
+        await _drain_textual_workers(app)
+    except Exception as error:
+        worker_error = error
+    await _drain_pump_free_tasks(app)
+    if worker_error is not None:
+        raise worker_error
+
+
 def _resolve_key(data: dict[str, Any], key: str) -> Any:
     """Resolve a dot-notation key like 'selected.name' into nested dicts."""
     parts = key.split(".")
@@ -251,7 +281,7 @@ class AcePage:
         except BaseException:
             app = self._app
             if app is not None:
-                await _drain_pump_free_tasks(app)
+                await _drain_app_work(app)
             await stack.aclose()
             self._stack = None
             _stop_ace_app_proc_observer(app)
@@ -268,7 +298,7 @@ class AcePage:
         app = self._app
         try:
             if app is not None:
-                await _drain_pump_free_tasks(app)
+                await _drain_app_work(app)
             if stack is not None:
                 await stack.__aexit__(exc_type, exc_val, exc_tb)
         finally:

@@ -229,7 +229,7 @@ async def test_cache_miss_shows_loading_then_worker_result() -> None:
 
     def fetch(_workflow: str, _namespace: str) -> VcsRepoFetchResult:
         started.set()
-        assert release.wait(1)
+        release.wait()
         return _RESULT
 
     app = CompletionTestApp()
@@ -240,15 +240,26 @@ async def test_cache_miss_shows_loading_then_worker_result() -> None:
             patch(_PEEK_PATH, return_value=None),
             patch(_FETCH_PATH, side_effect=fetch),
         ):
-            for key in "#gh:bbugyi200/":
-                await pilot.press(key)
-            assert started.wait(1)
-            assert ta._file_completion_active is True
-            assert ta._file_completion_candidates[0].display.startswith("fetching ")
-            release.set()
-            await wait_for(
-                pilot, lambda: ta._file_completion_candidates[0].name == "sase"
-            )
+            try:
+                for key in "#gh:bbugyi200/":
+                    await pilot.press(key)
+                await wait_for(pilot, started.is_set)
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        ta._file_completion_active
+                        and ta._file_completion_candidates
+                        and ta._file_completion_candidates[0].display.startswith(
+                            "fetching "
+                        )
+                    ),
+                )
+                release.set()
+                await wait_for(
+                    pilot, lambda: ta._file_completion_candidates[0].name == "sase"
+                )
+            finally:
+                release.set()
 
         assert [candidate.name for candidate in ta._file_completion_candidates][:2] == [
             "sase",
@@ -262,7 +273,7 @@ async def test_worker_result_dropped_when_menu_closed_before_fetch_finishes() ->
 
     def fetch(_workflow: str, _namespace: str) -> VcsRepoFetchResult:
         started.set()
-        assert release.wait(1)
+        release.wait()
         return _RESULT
 
     app = CompletionTestApp()
@@ -273,14 +284,29 @@ async def test_worker_result_dropped_when_menu_closed_before_fetch_finishes() ->
             patch(_PEEK_PATH, return_value=None),
             patch(_FETCH_PATH, side_effect=fetch),
         ):
-            for key in "#gh:bbugyi200/":
-                await pilot.press(key)
-            assert started.wait(1)
-            await pilot.press("space")
-            assert ta._file_completion_active is False
-            release.set()
-            for _ in range(20):
-                await pilot.pause(0.01)
+            try:
+                for key in "#gh:bbugyi200/":
+                    await pilot.press(key)
+                await wait_for(pilot, started.is_set)
+                await wait_for(
+                    pilot,
+                    lambda: (
+                        ta._file_completion_active
+                        and ta._file_completion_candidates
+                        and ta._file_completion_candidates[0].display.startswith(
+                            "fetching "
+                        )
+                    ),
+                )
+                await pilot.press("space")
+                await wait_for(pilot, lambda: not ta._file_completion_active)
+                release.set()
+                await wait_for(
+                    pilot,
+                    lambda: all(not worker.is_running for worker in app.workers),
+                )
+            finally:
+                release.set()
 
         assert ta.text == "#gh:bbugyi200/ "
         assert ta._file_completion_active is False

@@ -75,7 +75,18 @@ async def _mount_home_prompt(
     )
     await page.pause()
     bar = page.query_one_widget("#prompt-input-bar", PromptInputBar)
-    text_area = bar.active_text_area()
+    text_area: PromptTextArea | None = None
+
+    def active_text_area_mounted() -> bool:
+        nonlocal text_area
+        try:
+            text_area = bar.active_text_area()
+        except Exception:
+            return False
+        return True
+
+    await page.wait_for(lambda _state: active_text_area_mounted())
+    assert text_area is not None
     text_area.focus()
     await page.pause()
     await page.press("escape")

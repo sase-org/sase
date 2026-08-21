@@ -136,17 +136,18 @@ tests/test_core_vcs_log.py::test_parse_computes_origin_from_footer
 tests/ace/tui/test_xprompt_browser_load_keymap.py::test_enter_returns_while_xprompt_file_read_is_blocked
 # sase-oh
 tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_when_in_repo
-# sase-oz
-tests/test_ace_testing.py::test_ace_page_fast_startup_is_structurally_quiet
+# sase-rm.10 (sase-oz): AcePage now cancels and awaits Textual workers as well
+# as pump-free tasks during teardown; focused regression passed after the fix.
+# fixed-at: 2026-08-21T10:03:43Z tests/test_ace_testing.py::test_ace_page_fast_startup_is_structurally_quiet
 # sase-pg
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[monitor]
 # sase-pr
 tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
 tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
-# sase-qm: baselined per the bead's own instruction, on evidence from three
-# distinct workspaces and heads (2026-08-16, -17, -18). Corroborated 2026-08-19.
-tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
+# sase-rm.10 (sase-qm): the commits interaction test now waits for collection
+# and diff worker completion/callback delivery instead of a generic pause.
+# fixed-at: 2026-08-21T10:03:43Z tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
 # sase-qo: fixed by b6779c4d6 "fix(tui): keep the Projects highlight when a
 # current-project resolve lands" (committed 2026-08-19T01:29:14Z). One stale
 # pre-fix tree recorded a later failure after this instant; see the baseline
@@ -170,9 +171,10 @@ tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process
 # 3/3 serially at 0e36971e0.
 # fixed-at: 2026-08-19T03:02:02Z tests/ace/tui/test_plugins_browser_pane_detail.py::test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on
 #
-# sase-oe: PluginActionConfirmModal 5s expect_modal timeout under the full
-# parallel lane; passes in isolation. Ready task, +2.
-tests/ace/tui/test_plugins_browser_pane_comprehensive_update_confirmation.py::test_comprehensive_confirmation_stays_open_when_submit_collides
+# sase-oe: retired by f1914962c "feat(ace): retire Admin Center auto-update
+# plumbing" (committed 2026-08-19T21:03:49Z); the node no longer exists on this
+# tree.
+# fixed-at: 2026-08-19T21:03:49Z tests/ace/tui/test_plugins_browser_pane_comprehensive_update_confirmation.py::test_comprehensive_confirmation_stays_open_when_submit_collides
 # sase-p9: probe_zsh_comps' 5s interactive-zsh timeout returns None so
 # registered is None instead of True; isolated re-run passes. Ready task, +4.
 tests/completion/test_install_zsh.py::test_real_zsh_zcompile_and_registration

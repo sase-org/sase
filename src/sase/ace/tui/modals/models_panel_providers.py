@@ -61,6 +61,12 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
         def _moved_highlight_row_id(self) -> str | None: ...
 
+        def _sync_bucket_index(self) -> None: ...
+
+        def _current_rows(self) -> list[Any]: ...
+
+        def _row_id(self, row: Any) -> str: ...
+
         def _update_context(self) -> None: ...
 
         def _emit_custom_builtin_shadow_warning(self) -> None: ...
@@ -133,6 +139,22 @@ class ModelsPanelProvidersMixin(_MixinBase):
             self._provider_disables, now=self._models_panel_now()
         )
 
+    def _visible_snapshot_keep(
+        self,
+        keep: str | None,
+        current_highlight: str | None,
+    ) -> str | None:
+        """Prefer an explicit snapshot keep only if it belongs to the current view."""
+        if keep is None:
+            return self._moved_highlight_row_id()  # type: ignore[attr-defined]
+        self._sync_bucket_index()  # type: ignore[attr-defined]
+        visible_ids = {self._row_id(row) for row in self._current_rows()}  # type: ignore[attr-defined]
+        if keep in visible_ids:
+            return keep
+        if current_highlight in visible_ids:
+            return current_highlight
+        return None
+
     def _apply_provider_snapshot(
         self,
         snapshot: ProviderRoutingSnapshot,
@@ -144,6 +166,9 @@ class ModelsPanelProvidersMixin(_MixinBase):
         routing_changed = provider_disable_route_key(
             self._provider_disables
         ) != provider_disable_route_key(snapshot.provider_disables)
+        current_highlight = (
+            self._highlighted_row_id() if self.is_mounted else None  # type: ignore[attr-defined]
+        )
         self._provider_snapshot = snapshot
         self._provider_disables = dict(snapshot.provider_disables)
         self._provider_statuses = snapshot.visible_statuses
@@ -155,7 +180,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
             # Implicit snapshot completions omit keep. Preserve a user-moved
             # cursor; leave keep unset when the first-paint default is still
             # selected so launch-setting rows can become the new first row.
-            preferred = keep if keep is not None else self._moved_highlight_row_id()
+            preferred = self._visible_snapshot_keep(keep, current_highlight)
             self._replace_display(keep=preferred)
             self._emit_custom_builtin_shadow_warning()
         elif self.is_mounted:  # type: ignore[attr-defined]

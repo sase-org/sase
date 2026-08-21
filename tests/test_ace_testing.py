@@ -1,5 +1,6 @@
 """Tests for the ace testing DSL (AcePage, PromptPage)."""
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 import threading
@@ -172,6 +173,31 @@ async def test_ace_page_fast_startup_is_structurally_quiet() -> None:
     assert app._stall_watchdog is None
     assert not app._pump_free_async_tasks
     assert all(worker.is_finished for worker in app.workers)
+
+
+async def test_ace_page_teardown_cancels_textual_workers() -> None:
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+    never = asyncio.Event()
+
+    async def blocked_worker() -> None:
+        started.set()
+        try:
+            await never.wait()
+        finally:
+            cancelled.set()
+
+    async with AcePage() as page:
+        worker = page.app.run_worker(
+            blocked_worker(),
+            name="ace-page-blocked-worker",
+            exit_on_error=False,
+        )
+        await page.wait_for(lambda _state: started.is_set())
+        assert worker.is_running
+
+    assert worker.is_finished
+    assert cancelled.is_set()
 
 
 async def test_ace_page_real_startup_policy_invokes_production_boundaries(
@@ -499,6 +525,18 @@ async def test_ace_page_group_reports_reset_hook_leaks() -> None:
         with pytest.raises(AssertionError, match="idx"):
             async with group.checkout():
                 pass
+
+
+async def test_ace_page_group_clears_disabled_notifications_between_checkouts() -> None:
+    async with AcePageGroup(notifications=False) as group:
+        async with group.checkout() as page:
+            app = page.app
+            app.notify("late startup notification")
+            await page.wait_for(lambda _state: len(app._notifications) > 0)
+
+        async with group.checkout() as next_page:
+            assert next_page.app is app
+            assert not next_page.app._notifications
 
 
 async def test_ace_page_group_isolation_mode_creates_distinct_apps(

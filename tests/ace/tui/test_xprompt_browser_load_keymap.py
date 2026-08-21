@@ -228,6 +228,11 @@ async def test_enter_loads_raw_definition_and_binds_source(
         await page.expect_no_modal()
         await page.wait_for(lambda _s: bool(page.app.query("#prompt-input-bar")))
         bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+        await page.wait_for(
+            lambda _s: (
+                bar._stack.binding is not None and bool(bar.query("#frontmatter-raw"))
+            )
+        )
         assert bar._stack.binding is not None
         assert bar._stack.binding.path == str(source)
         assert bar._stack.frontmatter_model.description == "Review carefully"

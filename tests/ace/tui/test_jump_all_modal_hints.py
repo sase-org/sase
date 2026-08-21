@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from textual.containers import VerticalScroll
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from sase.ace.tui.modals.jump_all_modal import JumpAllModal, JumpAllResult
@@ -142,7 +143,7 @@ async def test_jump_all_modal_ctrl_d_scrolls_without_dismissing() -> None:
         assert scroll.max_scroll_y > 0
 
         await pilot.press("ctrl+d")
-        await pilot.pause()
+        await wait_for(pilot, lambda: scroll.scroll_y == visible_height // 2)
 
         assert scroll.scroll_y == visible_height // 2
         assert result == "pending"
@@ -174,7 +175,10 @@ async def test_jump_all_modal_ctrl_u_scrolls_up_without_dismissing() -> None:
         assert scroll.scroll_y == visible_height
 
         await pilot.press("ctrl+u")
-        await pilot.pause()
+        await wait_for(
+            pilot,
+            lambda: scroll.scroll_y == visible_height - (visible_height // 2),
+        )
 
         assert scroll.scroll_y == visible_height - (visible_height // 2)
         assert result == "pending"

@@ -11,11 +11,9 @@ from typing import Any, Literal
 
 from sase.ace.query import parse_query
 from sase.ace.patch import Patch
-from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
-from textual.worker import WorkerCancelled
 
-from .ace_page import AcePage, AceStartupPolicy
+from .ace_page import AcePage, AceStartupPolicy, _drain_app_work
 
 ACE_PAGE_GROUP_ISOLATION_ENV = "SASE_ACE_PAGE_GROUP_ISOLATION"
 
@@ -34,11 +32,16 @@ class _IsolationSnapshot:
     modal_depth: int
     prompt_bar: bool
     hint_bar: bool
-    notifications: int
+    notifications: int | None
     focus: tuple[str, str | None] | None
 
     @classmethod
-    def capture(cls, page: AcePage) -> _IsolationSnapshot:
+    def capture(
+        cls,
+        page: AcePage,
+        *,
+        track_notifications: bool = True,
+    ) -> _IsolationSnapshot:
         app = page.app
         return cls(
             tab=app.current_tab,
@@ -51,16 +54,20 @@ class _IsolationSnapshot:
             modal_depth=len(app.screen_stack),
             prompt_bar=_has_widget(app, "#prompt-input-bar"),
             hint_bar=_has_widget(app, "#hint-input-bar"),
-            notifications=len(app._notifications),
+            notifications=len(app._notifications) if track_notifications else None,
             focus=_focus_identity(app),
         )
 
     def diff(self, other: _IsolationSnapshot) -> dict[str, tuple[object, object]]:
-        return {
-            field.name: (getattr(self, field.name), getattr(other, field.name))
-            for field in fields(self)
-            if getattr(self, field.name) != getattr(other, field.name)
-        }
+        differences: dict[str, tuple[object, object]] = {}
+        for field in fields(self):
+            actual = getattr(self, field.name)
+            expected = getattr(other, field.name)
+            if field.name == "notifications" and (actual is None or expected is None):
+                continue
+            if actual != expected:
+                differences[field.name] = (actual, expected)
+        return differences
 
 
 class AcePageGroup:
@@ -106,7 +113,10 @@ class AcePageGroup:
         page = self._new_page()
         await page.__aenter__()
         self._page = page
-        self._baseline = _IsolationSnapshot.capture(page)
+        self._baseline = _IsolationSnapshot.capture(
+            page,
+            track_notifications=self._notifications,
+        )
         return self
 
     async def __aexit__(
@@ -162,7 +172,7 @@ class AcePageGroup:
             raise RuntimeError("AcePageGroup baseline is not available")
 
         app = page.app
-        await _cancel_app_work(app)
+        await _drain_app_work(app)
         await _close_extra_screens(page)
         _remove_prompt_surfaces(app)
         app._notifications.clear()
@@ -179,7 +189,10 @@ class AcePageGroup:
                 await result
             await page.pause()
 
-        after = _IsolationSnapshot.capture(page)
+        after = _IsolationSnapshot.capture(
+            page,
+            track_notifications=self._notifications,
+        )
         leaks = after.diff(baseline)
         if leaks:
             lines = [
@@ -202,26 +215,6 @@ class AcePageGroup:
             wait_for_startup_state=self._wait_for_startup_state,
             startup_policy=self._startup_policy,
         )
-
-
-async def _cancel_app_work(app: Any) -> None:
-    workers = tuple(app.workers)
-    app.workers.cancel_all()
-    worker_results = await asyncio.gather(
-        *(worker.wait() for worker in workers),
-        return_exceptions=True,
-    )
-    for result in worker_results:
-        if isinstance(result, WorkerCancelled):
-            continue
-        if isinstance(result, Exception):
-            raise result
-    cancel_pump_free_tasks(app)
-    tasks: set[asyncio.Task[Any]] = set()
-    for registry_name in tuple(getattr(app, "_pump_free_task_registry_attrs", ())):
-        tasks.update(getattr(app, registry_name, ()))
-    if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _close_extra_screens(page: AcePage) -> None:

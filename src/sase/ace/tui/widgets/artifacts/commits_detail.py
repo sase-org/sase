@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import RenderableType
+from textual.css.query import NoMatches
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
@@ -301,9 +302,12 @@ class CommitsDetailMixin(_MixinBase):
     ) -> None:
         if not self.is_mounted:
             return
-        self.query_one("#stitches-detail", Static).update(
-            self._build_detail(entry, diff_text, loading=loading)
-        )
+        try:
+            self.query_one("#stitches-detail", Static).update(
+                self._build_detail(entry, diff_text, loading=loading)
+            )
+        except NoMatches:
+            return
 
     def _build_detail(
         self,

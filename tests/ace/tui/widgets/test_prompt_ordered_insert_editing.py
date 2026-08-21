@@ -290,9 +290,21 @@ async def test_prompt_insert_ctrl_j_undoes_split_and_renumber_together() -> None
         assert page.text == text
 
 
-async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint() -> None:
+async def test_prompt_insert_ctrl_j_prefix_is_its_own_undo_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = 0.0
+
+    def current_time() -> float:
+        return clock
+
     async with PromptPage("1. item", cursor=(0, 7), mode="insert") as page:
-        await page.press("ctrl+j", "n", "e", "w", "escape")
+        monkeypatch.setattr(page.ta.history, "_get_time", current_time)
+        await page.press("ctrl+j")
+        for key in ("n", "e", "w"):
+            clock += 3.0
+            await page.press(key)
+        await page.press("escape")
         assert page.text == "1. item\n2. new"
 
         await page.press("u")

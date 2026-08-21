@@ -295,12 +295,28 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         background = _task("sync-feature-a", "sync")
         background.display_name = "sync feature_a"
         _set_projection(page.app, background)
+        submitted_workers: list[Any] = []
+        original_submit_session_worker = page.app._submit_session_worker
+
+        def _submit_session_worker(*args: Any, **kwargs: Any) -> object | None:
+            proc = original_submit_session_worker(*args, **kwargs)
+            if proc is not None:
+                submitted_workers.append(page.app._session_workers[proc.proc_id])
+            return proc
+
+        monkeypatch.setattr(
+            page.app,
+            "_submit_session_worker",
+            _submit_session_worker,
+        )
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
+        await page.wait_for(lambda _s: bool(submitted_workers))
+        await submitted_workers[0].wait()
         await page.wait_for(lambda _s: bool(executed) and bool(timer_callbacks))
         assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
