@@ -41,6 +41,7 @@ class _Shell:
     family: str | None = None
     parent: str | None = None
     parallel: bool = False
+    role: str | None = None
     monitor_id: str | None = None
     pid: int = 100
     appears_as_agent: bool = True
@@ -58,6 +59,7 @@ def _write_shell(projects: Path, shell: _Shell) -> None:
         "name": shell.name,
         "pid": shell.pid,
         "agent_family": shell.family,
+        "agent_family_role": shell.role,
         "agent_family_parallel": shell.parallel,
         "parent_timestamp": shell.parent,
         "monitor_id": shell.monitor_id,
@@ -91,7 +93,7 @@ def _write_shell(projects: Path, shell: _Shell) -> None:
 
 
 def _occupancy_start(shell: _Shell) -> int | None:
-    if shell.monitor_id:
+    if shell.role == "monitor" and shell.monitor_id:
         return shell.created
     return shell.start
 
@@ -116,6 +118,7 @@ def _record_as_of(shell: _Shell, instant: int) -> AgentArtifactRecordWire:
             pid=shell.pid,
             parent_timestamp=shell.parent,
             agent_family=shell.family,
+            agent_family_role=shell.role,
             agent_family_parallel=shell.parallel,
             monitor_id=shell.monitor_id,
             run_started_at=_iso(shell.start) if run_started else None,
@@ -208,6 +211,7 @@ def test_monitor_handoff_gap_stays_occupied(tmp_path: Path) -> None:
                 start=30,
                 end=80,
                 family="fam",
+                role="monitor",
                 monitor_id="mon-1",
             ),
             _Shell(
@@ -244,6 +248,23 @@ def test_parallel_members_add_their_own_slots(tmp_path: Path) -> None:
                 family="fam",
                 parent=_compact(0),
                 parallel=True,
+            ),
+        ),
+    )
+
+
+def test_inherited_monitor_id_matches_ordinary_start_semantics(tmp_path: Path) -> None:
+    _assert_parity(
+        tmp_path,
+        (
+            _Shell(name="baseline", created=0, start=0, end=60),
+            _Shell(
+                name="ordinary",
+                created=5,
+                start=70,
+                end=100,
+                role="code",
+                monitor_id="mon-1",
             ),
         ),
     )

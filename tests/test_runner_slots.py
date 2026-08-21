@@ -39,6 +39,7 @@ def _record(
     meta_wait_priority: int | None = None,
     parent_timestamp: str | None = None,
     agent_family: str | None = None,
+    agent_family_role: str | None = None,
     agent_family_parallel: bool = False,
     monitor_id: str | None = None,
     appears_as_agent: bool = True,
@@ -56,6 +57,7 @@ def _record(
             pid=pid,
             parent_timestamp=parent_timestamp,
             agent_family=agent_family,
+            agent_family_role=agent_family_role,
             agent_family_parallel=agent_family_parallel,
             monitor_id=monitor_id,
             wait_priority=meta_wait_priority,
@@ -264,7 +266,12 @@ def test_root_plus_live_serial_child_occupies_exactly_one_slot() -> None:
 def test_dead_root_with_live_monitor_member_still_occupies_one_slot() -> None:
     records = [
         _record("/root", agent_family="fam", run_started=True),
-        _record("/monitor", agent_family="fam", monitor_id="mon-1"),
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+        ),
     ]
 
     def is_live(record: AgentArtifactRecordWire) -> bool:
@@ -276,7 +283,13 @@ def test_dead_root_with_live_monitor_member_still_occupies_one_slot() -> None:
 def test_settled_monitor_with_live_followup_still_occupies_one_slot() -> None:
     records = [
         _record("/root", agent_family="fam", run_started=True, done=True),
-        _record("/monitor", agent_family="fam", monitor_id="mon-1", done=True),
+        _record(
+            "/monitor",
+            agent_family="fam",
+            agent_family_role="monitor",
+            monitor_id="mon-1",
+            done=True,
+        ),
         _record(
             "/followup",
             agent_family="fam",
@@ -354,9 +367,18 @@ def test_done_marker_and_dead_pid_members_do_not_occupy() -> None:
 
 
 def test_monitor_member_with_pid_but_no_run_started_at_occupies_one_slot() -> None:
-    records = [_record("/monitor", monitor_id="mon-1")]
+    records = [_record("/monitor", agent_family_role="monitor", monitor_id="mon-1")]
 
     assert running_agent_slot_count(records, _always_live) == 1
+
+
+def test_inherited_monitor_id_without_monitor_role_uses_run_started_at() -> None:
+    records = [
+        _record("/starter", agent_family_role="root", monitor_id="mon-1"),
+        _record("/followup", agent_family_role="code", monitor_id="mon-1"),
+    ]
+
+    assert running_agent_slot_count(records, _always_live) == 0
 
 
 def test_non_agent_workflow_step_record_does_not_occupy() -> None:

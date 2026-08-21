@@ -59,6 +59,24 @@ def is_monitor_member_role(
     return agent_family_role_for_suffix(role_suffix) == MONITOR_FAMILY_ROLE
 
 
+def is_real_monitor_member(
+    agent_family_role: str | None,
+    monitor_id: str | None,
+) -> bool:
+    """Return whether a row is the durable monitor member for its family.
+
+    ``monitor_id`` is inherited by the starter and later monitor-associated
+    follow-ups, so the durable monitor predicate requires the explicit monitor
+    role and a non-empty monitor id.
+    """
+    return (
+        isinstance(agent_family_role, str)
+        and agent_family_role.strip() == MONITOR_FAMILY_ROLE
+        and isinstance(monitor_id, str)
+        and bool(monitor_id.strip())
+    )
+
+
 __all__ = [
     "DEFAULT_MONITOR_STOP_STATUS",
     "MONITOR_FAMILY_ROLE",
@@ -69,6 +87,7 @@ __all__ = [
     "MONITOR_STATE_BUCKETS",
     "MONITOR_TIMEOUT_GLYPH",
     "is_monitor_member_role",
+    "is_real_monitor_member",
     "monitor_state_bucket",
     "monitor_state_is_terminal",
 ]

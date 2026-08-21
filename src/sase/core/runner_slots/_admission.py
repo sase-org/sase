@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.monitor_state import is_real_monitor_member
 
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
@@ -198,13 +199,15 @@ def is_runner_slot_occupying_record(
     reacquire capacity, and removed only by its successful locked claim.
 
     "Started" is monitor-aware. An ordinary agent shell needs
-    ``agent_meta.run_started_at``, as today. A monitor member
-    (``agent_meta.monitor_id`` set) only needs a recorded ``pid``: the
-    supervisor pid is written before the starter's runner group is killed,
-    while ``run_started_at`` is not written until the monitored command
-    itself launches -- requiring it here would open a window across the
-    handoff where the starter is already dead and the monitor does not yet
-    count, letting a queued agent slip in.
+    ``agent_meta.run_started_at``, as today. A real monitor member
+    (``agent_meta.agent_family_role == "monitor"`` plus a non-empty
+    ``agent_meta.monitor_id``) only needs a recorded ``pid``: the supervisor
+    pid is written before the starter's runner group is killed, while
+    ``run_started_at`` is not written until the monitored command itself
+    launches -- requiring it here would open a window across the handoff where
+    the starter is already dead and the monitor does not yet count, letting a
+    queued agent slip in. Agents that merely inherited ``monitor_id`` still
+    use ordinary started semantics.
     """
     if record.workflow_dir_name != "ace-run" or record.has_done_marker:
         return False
@@ -216,7 +219,8 @@ def is_runner_slot_occupying_record(
     meta = record.agent_meta
     if meta is None:
         return False
-    started = meta.pid is not None if meta.monitor_id else bool(meta.run_started_at)
+    monitor = is_real_monitor_member(meta.agent_family_role, meta.monitor_id)
+    started = meta.pid is not None if monitor else bool(meta.run_started_at)
     if not started:
         return False
     return is_live(record)
