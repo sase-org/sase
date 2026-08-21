@@ -6,13 +6,20 @@ from typing import Any
 
 import pytest
 from rich.console import Console
+from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
-from sase.ace.tui.modals.statistics_pane_data import StatisticsView, StatisticsViewData
+from sase.ace.tui.modals.statistics_pane_data import (
+    STATISTICS_VIEW_BY_ID,
+    StatisticsView,
+    StatisticsViewData,
+    statistics_view_description_text,
+)
+from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.project_display_names import ProjectDisplaySnapshot
 from sase.stats import PerfView, build_perf_view
 from sase.stats.perf_query import PerfGroupBy
@@ -422,6 +429,30 @@ async def _open_statistics(
 
 def _scope_plain(pane: StatisticsPane, name: str) -> str:
     return pane.query_one(f"#statistics-scope-{name}", Static).render().plain
+
+
+def _rail_widget(pane: StatisticsPane) -> Static:
+    return pane.query_one("#statistics-description", Static)
+
+
+def _rail_text(pane: StatisticsPane) -> Text:
+    content = _rail_widget(pane).content
+    assert isinstance(content, Text)
+    return content
+
+
+def _assert_statistics_chrome(pane: StatisticsPane) -> None:
+    spec = STATISTICS_VIEW_BY_ID[pane._view]
+    heading = pane.query_one("#statistics-title", Static).render().plain
+    assert heading == f"Statistics · {spec.label}"
+    strip = pane.query_one("#statistics-views", PanelTabStrip)
+    assert strip._active_tab == pane._view
+    rail = _rail_widget(pane)
+    expected = statistics_view_description_text(spec, width=int(rail.size.width))
+    content = _rail_text(pane)
+    assert content.plain == expected.plain
+    assert str(content.style) == str(expected.style)
+    assert rail.can_focus is False
 
 
 def _assert_range_scope_matches_selection(pane: StatisticsPane) -> None:

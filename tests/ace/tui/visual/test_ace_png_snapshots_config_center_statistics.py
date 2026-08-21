@@ -335,6 +335,72 @@ async def test_config_center_statistics_narrow_png_snapshot(
         )
 
 
+async def test_config_center_statistics_providers_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("providers")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_providers_120x40",
+            title="ACE SASE Admin Center — Statistics providers",
+        )
+
+
+async def test_config_center_statistics_activity_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("activity")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_activity_120x40",
+            title="ACE SASE Admin Center — Statistics activity",
+        )
+
+
+async def test_config_center_statistics_plans_questions_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("plans_questions")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_plans_questions_120x40",
+            title="ACE SASE Admin Center — Statistics plans and questions",
+        )
+
+
 async def test_config_center_statistics_projects_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

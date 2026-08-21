@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
+from textual.events import Resize
 from textual.widgets import Input, Static
 
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 from .statistics_pane_data import (
-    VIEW_COMPACT_LABELS,
-    VIEW_LABELS,
-    VIEW_MICRO_LABELS,
-    VIEW_ORDER,
+    STATISTICS_VIEW_BY_ID,
+    STATISTICS_VIEW_SPECS,
     StatisticsView,
+    StatisticsViewSpec,
+    statistics_view_description_text,
     statistics_view_supports_grouping,
 )
 from .statistics_pane_rendering import StatisticsPanePresentationBase
@@ -25,14 +28,14 @@ _VIEWS_COMPACT_BELOW_WIDTH = 131
 _VIEWS_MICRO_BELOW_WIDTH = 90
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
-        view,
-        VIEW_LABELS[view],
+        spec.id,
+        spec.label,
         _ACCENT,
-        compact_label=VIEW_COMPACT_LABELS[view],
-        micro_label=VIEW_MICRO_LABELS[view],
+        compact_label=spec.compact_label,
+        micro_label=spec.micro_label,
         shortcut=f"{index:02d}",
     )
-    for index, view in enumerate(VIEW_ORDER, start=1)
+    for index, spec in enumerate(STATISTICS_VIEW_SPECS, start=1)
 )
 OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
     ("Agents Run", "projects"),
@@ -41,6 +44,40 @@ OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
     ("Plans Proposed", "plans_questions"),
     ("Questions", "plans_questions"),
 )
+
+
+class _StatisticsDescription(Static):
+    """One-row, width-aware caption for the active Statistics view."""
+
+    can_focus = False
+
+    def __init__(self, spec: StatisticsViewSpec, **kwargs: Any) -> None:
+        self._spec = spec
+        self._variant = "full"
+        super().__init__(
+            statistics_view_description_text(spec, width=0),
+            markup=False,
+            **kwargs,
+        )
+        self.styles.width = "100%"
+
+    def set_spec(self, spec: StatisticsViewSpec) -> None:
+        """Swap the active view copy and repaint when the caption changes."""
+        changed = spec != self._spec
+        self._spec = spec
+        self._apply_width(int(self.size.width), force=changed)
+
+    def on_resize(self, event: Resize) -> None:
+        """Repaint only when the full/compact variant actually changes."""
+        self._apply_width(int(event.size.width), force=False)
+
+    def _apply_width(self, width: int, *, force: bool) -> None:
+        text = statistics_view_description_text(self._spec, width=width)
+        variant = "full" if text.plain == f"› {self._spec.description}" else "compact"
+        if not force and variant == self._variant:
+            return
+        self._variant = variant
+        self.update(text)
 
 
 class _StatTile(Static):
@@ -86,10 +123,9 @@ class StatisticsPaneLayoutMixin(StatisticsPanePresentationBase):
             micro_separator="│",
             id="statistics-views",
         )
-        yield Static(
-            self._description_text(),
+        yield _StatisticsDescription(
+            STATISTICS_VIEW_BY_ID[self._view],
             id="statistics-description",
-            markup=False,
         )
         with Horizontal(id="statistics-scope"):
             yield Static(
@@ -144,6 +180,20 @@ class StatisticsPaneLayoutMixin(StatisticsPanePresentationBase):
                 id="statistics-body",
             )
         yield Static(self._hints_text(), id="statistics-hints", markup=False)
+
+    def _update_heading(self) -> None:
+        super()._update_heading()
+        self._update_rail()
+
+    def _update_rail(self) -> None:
+        """Keep the description rail on the mounted ``_view`` catalog row."""
+        try:
+            self.query_one(
+                "#statistics-description",
+                _StatisticsDescription,
+            ).set_spec(STATISTICS_VIEW_BY_ID[self._view])
+        except Exception:
+            pass
 
     def _close_custom_range(self) -> None:
         try:

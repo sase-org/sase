@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
+from rich.text import Text
+
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     load_project_display_snapshot,
@@ -34,55 +36,122 @@ StatisticsView = Literal[
 ProjectsGroupBy = Literal["project", "patch", "drilldown"]
 XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
 _FIXED_RUNTIME_GROUP_BY: RuntimeGroupBy = "tribe"
+_STATISTICS_ACCENT = "#FF87D7"
 
-VIEW_ORDER: tuple[StatisticsView, ...] = (
-    "overview",
-    "runners",
-    "projects",
-    "providers",
-    "activity",
-    "xprompts",
-    "plans_questions",
-    "perf",
+
+@dataclass(frozen=True, slots=True)
+class StatisticsViewSpec:
+    """Navigation and caption metadata for one Statistics view."""
+
+    id: StatisticsView
+    label: str
+    compact_label: str
+    micro_label: str
+    description: str
+    compact_description: str
+
+
+STATISTICS_VIEW_SPECS: tuple[StatisticsViewSpec, ...] = (
+    StatisticsViewSpec(
+        "overview",
+        "Overview",
+        "Overview",
+        "Ovr",
+        (
+            "Scan run volume and outcomes, commits, plans, questions, "
+            "and trends at a glance."
+        ),
+        "Scan run outcomes, work totals, and trends.",
+    ),
+    StatisticsViewSpec(
+        "runners",
+        "Runners",
+        "Runners",
+        "Rnrs",
+        (
+            "Track runner concurrency, occupancy, idle time, peaks, "
+            "and today's global limit."
+        ),
+        "Track occupancy, peaks, idle time, and limits.",
+    ),
+    StatisticsViewSpec(
+        "projects",
+        "Projects",
+        "Projects",
+        "Proj",
+        ("Compare run outcomes, commits, Patches, and wall time across projects."),
+        "Compare outcomes, Patches, and wall time.",
+    ),
+    StatisticsViewSpec(
+        "providers",
+        "Providers",
+        "Providers",
+        "Prov",
+        (
+            "Compare provider, model, and effort usage, success rates, "
+            "and average runtime."
+        ),
+        "Compare model usage, success, and runtime.",
+    ),
+    StatisticsViewSpec(
+        "activity",
+        "Activity",
+        "Activity",
+        "Act",
+        "See which skills, memories, and workspaces agents use most.",
+        "See top skills, memories, and workspaces.",
+    ),
+    StatisticsViewSpec(
+        "xprompts",
+        "XPrompts",
+        "XPrompts",
+        "XP",
+        (
+            "Explore XPrompt adoption, model and project breakdowns, "
+            "pairings, and focused details."
+        ),
+        "Explore XPrompt usage, pairings, and focus.",
+    ),
+    StatisticsViewSpec(
+        "plans_questions",
+        "Plans & Questions",
+        "Plans/Q",
+        "P&Q",
+        (
+            "Review plan decisions, epic structure, and how agents ask "
+            "for clarification."
+        ),
+        "Review plan outcomes, epic shape, and questions.",
+    ),
+    StatisticsViewSpec(
+        "perf",
+        "Perf",
+        "Perf",
+        "Prf",
+        (
+            "Assess TUI responsiveness, launch and agent latency, stalls, "
+            "and data health."
+        ),
+        "Assess responsiveness, latency, stalls, and health.",
+    ),
+)
+STATISTICS_VIEW_BY_ID: dict[StatisticsView, StatisticsViewSpec] = {
+    spec.id: spec for spec in STATISTICS_VIEW_SPECS
+}
+VIEW_ORDER: tuple[StatisticsView, ...] = tuple(
+    spec.id for spec in STATISTICS_VIEW_SPECS
 )
 VIEW_LABELS: dict[StatisticsView, str] = {
-    "overview": "Overview",
-    "runners": "Runners",
-    "projects": "Projects",
-    "providers": "Providers",
-    "activity": "Activity",
-    "xprompts": "XPrompts",
-    "plans_questions": "Plans & Questions",
-    "perf": "Perf",
+    spec.id: spec.label for spec in STATISTICS_VIEW_SPECS
 }
 VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
-    **VIEW_LABELS,
-    "plans_questions": "Plans/Q",
+    spec.id: spec.compact_label for spec in STATISTICS_VIEW_SPECS
 }
 VIEW_MICRO_LABELS: dict[StatisticsView, str] = {
-    "overview": "Ovr",
-    "runners": "Rnrs",
-    "projects": "Proj",
-    "providers": "Prov",
-    "activity": "Act",
-    "xprompts": "XP",
-    "plans_questions": "P&Q",
-    "perf": "Prf",
+    spec.id: spec.micro_label for spec in STATISTICS_VIEW_SPECS
 }
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
-    "overview": "Totals and trends across runs, commits, plans, and questions.",
-    "runners": "Runner occupancy, concurrency trends, and current-limit context.",
-    "projects": "Run, Patch, commit, and runtime activity by project.",
-    "providers": "Provider, model, and effort usage with success and runtime measures.",
-    "activity": "Skill and memory usage across agents in the selected scope.",
-    "xprompts": (
-        "XPrompt usage across prompts, with model, project, and co-usage breakdowns."
-    ),
-    "plans_questions": "Plan decisions, epic structure, and agent question patterns.",
-    "perf": (
-        "TUI responsiveness, launch and agent latency, and the health of the "
-        "data behind these numbers."
-    ),
+    spec.id: spec.description for spec in STATISTICS_VIEW_SPECS
 }
 
 PERF_GROUP_ORDER: tuple[PerfGroupBy, ...] = (
@@ -106,6 +175,18 @@ XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
 def statistics_view_supports_grouping(view: StatisticsView) -> bool:
     """Return whether ``view`` exposes a configurable grouping strategy."""
     return view in ("projects", "xprompts", "perf")
+
+
+def statistics_view_description_text(
+    spec: StatisticsViewSpec,
+    *,
+    width: int,
+) -> Text:
+    """Render the Statistics caption that fits ``width`` terminal cells."""
+    full = Text(f"› {spec.description}", style=_STATISTICS_ACCENT)
+    if width <= 0 or full.cell_len <= width:
+        return full
+    return Text(f"› {spec.compact_description}", style=_STATISTICS_ACCENT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +312,8 @@ def _load_perf_view(
 __all__ = [
     "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",
+    "STATISTICS_VIEW_BY_ID",
+    "STATISTICS_VIEW_SPECS",
     "XPROMPTS_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",
     "VIEW_COMPACT_LABELS",
@@ -239,9 +322,11 @@ __all__ = [
     "VIEW_ORDER",
     "StatisticsView",
     "StatisticsViewData",
+    "StatisticsViewSpec",
     "ProjectsGroupBy",
     "PerfGroupBy",
     "XPromptsGroupBy",
     "load_statistics_view",
+    "statistics_view_description_text",
     "statistics_view_supports_grouping",
 ]

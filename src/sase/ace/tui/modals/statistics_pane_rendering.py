@@ -22,7 +22,6 @@ from .statistics_pane_data import (
     StatisticsView,
     StatisticsViewData,
     XPromptsGroupBy,
-    VIEW_DESCRIPTIONS,
     VIEW_LABELS,
     VIEW_ORDER,
     statistics_view_supports_grouping,
@@ -325,14 +324,6 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             status.append(f"updated {updated}", style="dim")
         return status
 
-    def _description_text(self) -> Text:
-        return Text(
-            f"› {VIEW_DESCRIPTIONS[self._view]}",
-            style=f"dim {_ACCENT}",
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-
     @staticmethod
     def _scope_text(key: str, label: str, *, accent: str) -> Text:
         scope = Text(no_wrap=True, overflow="ellipsis")
@@ -490,7 +481,6 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _update_heading(self) -> None:
         self._update_static("#statistics-title", self._heading_text())
         self._update_static("#statistics-status", self._status_text())
-        self._update_static("#statistics-description", self._description_text())
         self._update_scope()
 
     def _update_scope(self) -> None:

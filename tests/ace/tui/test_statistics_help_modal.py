@@ -6,6 +6,7 @@ from sase.ace.tui.keymaps import StatisticsPaneKeymaps
 from sase.ace.tui.keymaps.types import _STATISTICS_BINDING_META
 from sase.ace.tui.modals.statistics_help_modal import StatisticsHelpModal
 from sase.ace.tui.modals.statistics_pane_data import (
+    STATISTICS_VIEW_SPECS,
     StatisticsView,
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
@@ -40,6 +41,16 @@ def test_help_documents_every_statistics_view_and_legend() -> None:
         for legend in VIEW_LEGENDS[view]:
             assert legend.term in glossary
             assert legend.meaning in glossary
+
+
+def test_help_lists_canonical_full_descriptions_not_compact_variants() -> None:
+    modal = _modal("perf")
+    views = modal._views_text().plain
+    for spec in STATISTICS_VIEW_SPECS:
+        assert f" — {spec.description}" in views
+        assert spec.description == VIEW_DESCRIPTIONS[spec.id]
+        if spec.compact_description != spec.description:
+            assert f" — {spec.compact_description}" not in views
 
 
 def test_help_documents_every_statistics_binding_and_current_scope() -> None:
