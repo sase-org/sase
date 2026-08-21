@@ -12,8 +12,10 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from typing import Any
 
 from sase.config.core import current_config_token
+from sase.core.rust import require_rust_binding
 from sase.llm_provider.alias_view import AliasView, build_alias_views
 
 from sase.llm_provider.config import (
@@ -36,6 +38,34 @@ from sase.llm_provider.temporary_override import TemporaryLLMOverride
 #: additive under v1 so old readers ignore it and new readers can still load
 #: stale v1 catalogs that omit it.
 MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
+
+MODEL_COMPLETION_ENTRY_WIRE_FIELDS: tuple[str, ...] = (
+    "value",
+    "display",
+    "description",
+    "kind",
+    "provider",
+    "aliases",
+    "alias_kind",
+    "target_provider",
+    "target_model",
+    "target_effort",
+    "provenance",
+    "reference",
+    "reference_effort",
+    "selector_mode",
+    "pool_available",
+    "pool_total",
+    "config_source",
+    "bucket",
+    "advisory_label",
+    "advisory_severity",
+    "provider_model_count",
+)
+
+_MODEL_COMPLETION_INT_FIELDS = frozenset(
+    {"pool_available", "pool_total", "provider_model_count"}
+)
 
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
 
@@ -118,29 +148,7 @@ def model_completion_catalog_payload() -> dict[str, object]:
     return {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
-            {
-                "value": entry.value,
-                "display": entry.display,
-                "description": entry.description,
-                "kind": entry.kind,
-                "provider": entry.provider,
-                "aliases": list(entry.aliases),
-                "alias_kind": entry.alias_kind,
-                "target_provider": entry.target_provider,
-                "target_model": entry.target_model,
-                "target_effort": entry.target_effort,
-                "provenance": entry.provenance,
-                "reference": entry.reference,
-                "reference_effort": entry.reference_effort,
-                "selector_mode": entry.selector_mode,
-                "pool_available": entry.pool_available,
-                "pool_total": entry.pool_total,
-                "config_source": entry.config_source,
-                "bucket": entry.bucket,
-                "advisory_label": entry.advisory_label,
-                "advisory_severity": entry.advisory_severity,
-                "provider_model_count": entry.provider_model_count,
-            }
+            _model_completion_entry_to_wire(entry)
             for entry in build_model_completion_catalog(
                 overrides={},
                 provider_disables=provider_disables,
@@ -153,46 +161,44 @@ def filter_model_completion_entries(
     entries: list[_ModelCompletionEntry],
     partial: str,
 ) -> list[_ModelCompletionEntry]:
-    """Return entries whose value or alias hint prefix-matches ``partial``.
+    """Return entries whose value or alias hint prefix-matches ``partial``."""
+    binding = require_rust_binding("filter_model_completion_entries")
+    payload: Any = binding(
+        [_model_completion_entry_to_wire(entry) for entry in entries],
+        partial,
+    )
+    if not isinstance(payload, list):
+        raise TypeError("filter_model_completion_entries returned a non-list payload")
+    return [_model_completion_entry_from_wire(row) for row in payload]
 
-    A leading ``@`` is an explicit alias-only gate. Bare partials retain the
-    established behavior where alias hints match without ``@`` while catalog
-    order keeps concrete models before aliases.
-    """
-    needle = partial.lower()
-    if not needle:
-        return list(entries)
-    if needle.startswith("@"):
-        return [
-            entry
-            for entry in entries
-            if entry.kind in {"implicit_alias", "user_alias"}
-            and (
-                entry.value.lower().startswith(needle)
-                or any(
-                    f"@{alias.lstrip('@')}".lower().startswith(needle)
-                    for alias in entry.aliases
-                )
-            )
-        ]
-    if scope := _provider_scope(entries, needle):
-        provider, remainder = scope
-        return [
-            _qualified_entry(entry, provider)
-            for entry in entries
-            if entry.kind == "model"
-            and entry.provider.casefold() == provider.casefold()
-            and (
-                entry.value.lower().startswith(remainder)
-                or any(alias.lower().startswith(remainder) for alias in entry.aliases)
-            )
-        ]
-    return [
-        entry
-        for entry in entries
-        if entry.value.lower().startswith(needle)
-        or any(alias.lower().startswith(needle) for alias in entry.aliases)
-    ]
+
+def _model_completion_entry_to_wire(
+    entry: _ModelCompletionEntry,
+) -> dict[str, object]:
+    """Return the rectangular Rust/Python wire row for one entry."""
+    row: dict[str, object] = {}
+    for field_name in MODEL_COMPLETION_ENTRY_WIRE_FIELDS:
+        value = getattr(entry, field_name)
+        row[field_name] = list(value) if field_name == "aliases" else value
+    return row
+
+
+def _model_completion_entry_from_wire(
+    payload: object,
+) -> _ModelCompletionEntry:
+    """Rehydrate one Rust-returned wire row into the Python dataclass."""
+    if not isinstance(payload, Mapping):
+        raise TypeError("model completion filter row must be a mapping")
+    values: dict[str, object] = {}
+    for field_name in MODEL_COMPLETION_ENTRY_WIRE_FIELDS:
+        raw = payload.get(field_name)
+        if field_name == "aliases":
+            values[field_name] = tuple(item for item in _str_list(raw) if item)
+        elif field_name in _MODEL_COMPLETION_INT_FIELDS:
+            values[field_name] = raw if isinstance(raw, int) else 0
+        else:
+            values[field_name] = raw if isinstance(raw, str) else ""
+    return _ModelCompletionEntry(**values)  # type: ignore[arg-type]
 
 
 def _apply_alias_overrides(
@@ -399,38 +405,6 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
         )
 
     return entries
-
-
-def _provider_scope(
-    entries: list[_ModelCompletionEntry],
-    needle: str,
-) -> tuple[str, str] | None:
-    head, separator, remainder = needle.partition("/")
-    if not separator or not head:
-        return None
-    provider_entry = next(
-        (
-            entry
-            for entry in entries
-            if entry.kind == "provider" and entry.value.casefold() == f"{head}/"
-        ),
-        None,
-    )
-    if provider_entry is None:
-        return None
-    return provider_entry.provider or head, remainder
-
-
-def _qualified_entry(
-    entry: _ModelCompletionEntry,
-    provider: str,
-) -> _ModelCompletionEntry:
-    prefix = f"{provider}/"
-    return replace(
-        entry,
-        value=f"{prefix}{entry.value}",
-        display=f"{prefix}{entry.display}",
-    )
 
 
 def _append_implicit_alias_entries(
@@ -640,6 +614,7 @@ def _dict_list(value: object) -> list[dict[str, object]]:
 
 __all__ = [
     "MODEL_COMPLETION_CATALOG_SCHEMA_VERSION",
+    "MODEL_COMPLETION_ENTRY_WIRE_FIELDS",
     "build_model_completion_catalog",
     "filter_model_completion_entries",
     "model_completion_catalog_payload",

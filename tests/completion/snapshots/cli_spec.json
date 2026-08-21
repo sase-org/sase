@@ -8182,6 +8182,7 @@
                   "project",
                   "repo",
                   "skill",
+                  "snippet",
                   "tag",
                   "workspace",
                   "xprompt"
@@ -20064,7 +20065,7 @@
                 "choices": null,
                 "dest": "trigger",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "snippet",
                 "metavar": "TRIGGER",
                 "nargs": null
               }
@@ -20206,7 +20207,7 @@
                 "choices": null,
                 "dest": "trigger",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "snippet",
                 "metavar": "TRIGGER",
                 "nargs": null
               }

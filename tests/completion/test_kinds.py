@@ -88,6 +88,8 @@ def test_path_overrides_cover_shipped_catalog_slots() -> None:
     assert PATH_OVERRIDES[(("agent", "restart"), "name")] is ValueKind.AGENT
     assert PATH_OVERRIDES[(("xprompt", "show"), "name")] is ValueKind.XPROMPT
     assert PATH_OVERRIDES[(("skill", "use"), "name")] is ValueKind.SKILL
+    assert PATH_OVERRIDES[(("snippet", "show"), "trigger")] is ValueKind.SNIPPET
+    assert PATH_OVERRIDES[(("snippet", "delete"), "trigger")] is ValueKind.SNIPPET
     assert PATH_OVERRIDES[(("plan", "show"), "target")] is ValueKind.PLAN
     assert PATH_OVERRIDES[(("bead", "ref", "add"), "refs")] is ValueKind.ARTIFACT
     assert PATH_OVERRIDES[(("artifact", "show"), "reference")] is ValueKind.ARTIFACT

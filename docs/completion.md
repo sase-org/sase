@@ -120,11 +120,16 @@ answers in well under its latency budget for a warm process. `KIND` completes to
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
 authoritative list; today that is `agent`, `artifact`, `bead`, `flag`, `glossary`,
 `memory`, `model`, `monitor`, `patch`, `plan`, `plugin`, `proc`, `project`, `repo`,
-`skill`, `tag`, `workspace`, and `xprompt`. Path and directory slots are deliberately
-not kinds — the shell completes those natively.
+`skill`, `snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are
+deliberately not kinds — the shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
+
+Repo candidates come from SASE's read-only repo inventory, so they include primary,
+linked, sidecar, and external repository display names without cloning or resolving
+anything. Snippet candidates for `sase snippet show` and `sase snippet delete` come from
+the shared Rust editor snippet catalog and include generated aliases.
 
 Glossary terms are a worked example of how a kind is shaped for a shell rather than for
 a report: `sase glossary show <TAB>` and `sase glossary del <TAB>` offer slug-form

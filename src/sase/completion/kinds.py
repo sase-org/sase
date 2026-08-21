@@ -28,6 +28,7 @@ class ValueKind(StrEnum):
     MONITOR = "monitor"
     AGENT = "agent"
     MODEL = "model"
+    SNIPPET = "snippet"
     TAG = "tag"
     PATH = "path"
     DIR = "dir"
@@ -130,6 +131,8 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("restore",), "name"): ValueKind.PATCH,
         (("revert",), "name"): ValueKind.PATCH,
         (("skill", "use"), "name"): ValueKind.SKILL,
+        (("snippet", "delete"), "trigger"): ValueKind.SNIPPET,
+        (("snippet", "show"), "trigger"): ValueKind.SNIPPET,
         (("xprompt", "show"), "name"): ValueKind.XPROMPT,
     }
     for slot in _BEAD_ID_SLOTS:

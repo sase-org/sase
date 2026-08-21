@@ -39,6 +39,7 @@ _SHIPPED_KINDS = (
     "tag",
     "agent",
     "model",
+    "snippet",
 )
 
 _PROBE_SOURCE = """
@@ -89,13 +90,9 @@ def test_candidates_fast_path_avoids_heavy_imports(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
 
 
-# The epic plan's aspirational budget is a ~20ms interpreter floor plus a
-# ~1.6ms Rust-binding call. In practice `sase.core`'s package `__init__`
-# eagerly imports several unrelated facades (glossary, clipboard, shell) on
-# any `sase.core.*` import -- a pre-existing cost the `bead` fast path
-# already pays too -- which alone measures close to 20ms. The budget below is
-# calibrated off measured reality with headroom, not the plan's number; see
-# the PROPOSED FOLLOW-UP note on this bead.
+# The budget is calibrated for a cold subprocess probe after the package
+# facades were made lazy. Local best-of-two timings are comfortably below this
+# per kind, while the import-set assertion above remains the durable contract.
 _LATENCY_BUDGET_MS = 150.0
 _CI_MULTIPLIER = 3.0 if os.environ.get("CI") else 1.0
 

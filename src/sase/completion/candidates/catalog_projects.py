@@ -63,19 +63,14 @@ def repo_source_path(_project: str | None) -> Path | None:
 
 
 def repo_candidates(project: str | None) -> list[Candidate]:
-    """Return every known repo name, by display name and workspace directory."""
-    records, snapshot = project_records_and_snapshot(project)
-    candidates: list[Candidate] = []
-    for record in records:
-        if not record.is_project:
-            continue
-        label = snapshot.label_for(record.project_name)
-        names = [label]
-        workspace_dir = (record.workspace_dir or "").strip()
-        if workspace_dir:
-            names.append(Path(workspace_dir).name)
-        for name in names:
-            candidates.append(Candidate(name, f"primary · {label}"))
+    """Return known repo display names from the read-only inventory."""
+    from sase.repo_inventory import collect_repo_inventory, repo_display_name
+
+    inventory = collect_repo_inventory(project=project)
+    candidates = [
+        Candidate(repo_display_name(record), f"{record.kind} · {record.project}")
+        for record in inventory.records
+    ]
     return dedupe(candidates)
 
 

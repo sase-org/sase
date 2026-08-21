@@ -65,6 +65,10 @@ from sase.completion.candidates.catalog_sdd import (
     plan_candidates,
     plan_source_path,
 )
+from sase.completion.candidates.catalog_snippets import (
+    snippet_candidates,
+    snippet_source_path,
+)
 from sase.completion.candidates.protocol import Candidate
 from sase.completion.kinds import ValueKind
 
@@ -93,6 +97,7 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.TAG: (tag_candidates, tag_source_path),
     ValueKind.AGENT: (agent_candidates, agent_source_path),
     ValueKind.MODEL: (model_candidates, model_source_path),
+    ValueKind.SNIPPET: (snippet_candidates, snippet_source_path),
 }
 
 

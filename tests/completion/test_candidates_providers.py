@@ -216,6 +216,94 @@ def test_model_candidates_are_the_builtin_size_aliases() -> None:
     ]
 
 
+def test_snippet_candidates_use_rust_loader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.core.rust as rust
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sase").mkdir()
+    calls: list[tuple[str | None, str]] = []
+
+    def fake_loader(project: str | None, root_dir: str) -> dict[str, object]:
+        calls.append((project, root_dir))
+        return {
+            "entries": [
+                {
+                    "trigger": "todo",
+                    "source": "user_config",
+                    "source_path_display": "ace.snippets",
+                },
+                {
+                    "trigger": "Todo",
+                    "source": "user_config",
+                    "source_path_display": "ace.snippets",
+                },
+                {"trigger": "fixit", "source": "xprompt", "xprompt_name": "fix"},
+                {"trigger": "", "source": "ignored"},
+            ]
+        }
+
+    monkeypatch.setattr(
+        rust,
+        "require_rust_binding",
+        lambda name: (
+            fake_loader
+            if name == "load_editor_snippet_catalog"
+            else (_ for _ in ()).throw(AssertionError(name))
+        ),
+    )
+
+    result = candidates_for("snippet", "", project="demo", limit=200)
+
+    assert result == [
+        Candidate("todo", "user_config · ace.snippets"),
+        Candidate("Todo", "user_config · ace.snippets"),
+        Candidate("fixit", "xprompt · fix"),
+    ]
+    assert calls == [("demo", str(tmp_path))]
+
+
+@pytest.mark.parametrize("payload", [{"entries": "bad"}, ["bad"]])
+def test_snippet_candidates_degrade_on_malformed_payload(
+    payload: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.core.rust as rust
+
+    monkeypatch.setattr(
+        rust,
+        "require_rust_binding",
+        lambda name: (
+            (lambda _project, _root_dir: payload)
+            if name == "load_editor_snippet_catalog"
+            else (_ for _ in ()).throw(AssertionError(name))
+        ),
+    )
+
+    assert candidates_for("snippet", "", project=None, limit=200) == []
+
+
+def test_snippet_candidates_degrade_on_native_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.core.rust as rust
+
+    def raise_native_error(_project: str | None, _root_dir: str) -> object:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        rust,
+        "require_rust_binding",
+        lambda name: (
+            raise_native_error
+            if name == "load_editor_snippet_catalog"
+            else (_ for _ in ()).throw(AssertionError(name))
+        ),
+    )
+
+    assert candidates_for("snippet", "", project=None, limit=200) == []
+
+
 def test_tag_candidates_come_from_the_xprompt_tag_enum() -> None:
     result = candidates_for("tag", "", project=None, limit=200)
 
@@ -234,29 +322,94 @@ def test_xprompt_and_skill_candidates_include_packaged_names() -> None:
 def test_repo_candidates_use_display_name_and_kind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    record = ProjectRecordWire(
-        schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
-        project_name="gh_sase-org__sase",
-        project_dir="/tmp/sase",
-        project_file="/tmp/sase/sase.sase",
-        archive_file=None,
-        workspace_dir="/tmp/sase",
-        state="enabled",
-        state_explicit=True,
-        system_managed=False,
-        active_claim_count=0,
-        launchable=True,
-        display_name="sase",
-    )
+    from sase._repo_inventory_models import RepoInventory, RepoRecord
+    import sase.repo_inventory as repo_inventory
+
+    records = [
+        RepoRecord(
+            name="sase",
+            slug="sase",
+            kind="primary",
+            project="sase",
+            project_key="gh_sase-org__sase",
+            path="/tmp/sase",
+            exists=True,
+            auto_clone=False,
+            description=None,
+            source="project",
+            env_name=None,
+        ),
+        RepoRecord(
+            name="sase-core",
+            slug="sase-core",
+            kind="linked",
+            project="sase",
+            project_key="gh_sase-org__sase",
+            path="/tmp/sase-core",
+            exists=True,
+            auto_clone=True,
+            description=None,
+            source="config",
+            env_name=None,
+        ),
+        RepoRecord(
+            name="sase",
+            slug="sase",
+            kind="sidecar",
+            project="sase",
+            project_key="gh_sase-org__sase",
+            path="/tmp/sase-sidecar",
+            exists=True,
+            auto_clone=False,
+            description=None,
+            source="sdd",
+            env_name=None,
+        ),
+        RepoRecord(
+            name="other-core",
+            slug="other-core",
+            kind="linked",
+            project="Other",
+            project_key="other",
+            path="/tmp/other-core",
+            exists=True,
+            auto_clone=True,
+            description=None,
+            source="config",
+            env_name=None,
+        ),
+    ]
+
+    def fake_collect_repo_inventory(**kwargs: object) -> RepoInventory:
+        project = kwargs.get("project")
+        if project is None:
+            return RepoInventory(tuple(records))
+        return RepoInventory(
+            tuple(
+                record
+                for record in records
+                if project in {record.project, record.project_key}
+            )
+        )
+
     monkeypatch.setattr(
-        project_lifecycle_facade,
-        "list_project_records",
-        lambda *args, **kwargs: [record],
+        repo_inventory,
+        "collect_repo_inventory",
+        fake_collect_repo_inventory,
     )
 
     result = candidates_for("repo", "", project=None, limit=200)
+    scoped = candidates_for("repo", "", project="sase", limit=200)
 
-    assert result == [Candidate("sase", "primary · sase")]
+    assert result == [
+        Candidate("sase", "primary · sase"),
+        Candidate("sase-core", "linked · sase"),
+        Candidate("other-core", "linked · Other"),
+    ]
+    assert scoped == [
+        Candidate("sase", "primary · sase"),
+        Candidate("sase-core", "linked · sase"),
+    ]
 
 
 def test_workspace_candidates_use_display_project_and_number(

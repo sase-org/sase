@@ -27,6 +27,7 @@ def test_model_completion_catalog_payload_round_trips_entries(
     entries = payload["entries"]
     assert isinstance(entries, list)
     first = entries[0]
+    assert tuple(first) == model_completion.MODEL_COMPLETION_ENTRY_WIRE_FIELDS
     assert first == {
         "value": "claude-fable-5",
         "display": "claude-fable-5",
