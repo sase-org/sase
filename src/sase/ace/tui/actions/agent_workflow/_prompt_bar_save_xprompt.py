@@ -261,6 +261,10 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
                 severity="warning",
             )
             return
+        snapshot.bar.mark_mini_xprompt_changed_on_disk(
+            item_id=snapshot.item_id,
+            changed=disk_state.changed_on_disk,
+        )
 
         state = MiniXPromptSaveConfirmState(
             name=snapshot.target.name,

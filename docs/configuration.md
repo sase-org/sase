@@ -1270,7 +1270,7 @@ Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
 #### `ace.snippet_config_path`
 
 Names the config file that receives new `ace.snippets` entries written from the prompt
-bar — the `gt` / `Ctrl+G t` snippet target pane, the `gx` / `Ctrl+G x` save panel's
+bar — the `gt` / `Ctrl+G t` snippet target pane, the `gX` / `Ctrl+G X` save panel's
 snippet mode, and the [Snippets panel](ace.md#snippets-panel) add form all default to
 it.
 
@@ -1283,14 +1283,14 @@ parent directory must be writable.
 
 A configured value that is unusable — wrong suffix, unwritable parent, invalid YAML, or
 a project `sase/sase.yml` that still needs its legacy migration — falls back to the
-default and reports why: both the `gt` trigger-name panel and the `gx` save panel's
+default and reports why: both the `gt` trigger-name panel and the `gX` save panel's
 snippet mode append the reason to the destination line (e.g.
 `configured path unusable: read-only`) rather than silently writing somewhere else. The
-`gx` panel additionally always offers the resolved `ace.snippet_config_path` destination
-as a selectable, pre-highlighted row — even when it is a custom filename or path that
-falls outside the standard discovered locations (`sase.yml` / `sase_*.yml` under
-`~/.config/sase/` or the chezmoi equivalent, and the project's `sase/sase.yml`) — so a
-configured preference is never silently dropped from the picker.
+`gX` save panel additionally always offers the resolved `ace.snippet_config_path`
+destination as a selectable, pre-highlighted row — even when it is a custom filename or
+path that falls outside the standard discovered locations (`sase.yml` / `sase_*.yml`
+under `~/.config/sase/` or the chezmoi equivalent, and the project's `sase/sase.yml`) —
+so a configured preference is never silently dropped from the picker.
 
 ```yaml
 ace:
@@ -1493,7 +1493,7 @@ ace:
 | Field                      | Type | Default | Current behavior                                                                                                                                                                  |
 | -------------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `collect_raw_placeholders` | bool | `true`  | When true, submitting an ACE prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works. |
-| `xprompt_placeholder_args` | bool | `true`  | When false, `gx` and `gX` keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gX` is unaffected.                |
+| `xprompt_placeholder_args` | bool | `true`  | When false, `gx`, `gX`, and `gL` keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected.         |
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
 `%xprompts_enabled:false` regions are never collected. See

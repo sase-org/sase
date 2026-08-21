@@ -4675,9 +4675,10 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                             |
 | `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                           |
 | `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                 |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                     |
+| `Ctrl+G x`                   | Open or retarget one mini-xprompt pane                                                                                                   |
 | `Ctrl+G t`                   | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
-| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
+| `Ctrl+G X` / `Ctrl+G Ctrl+X` | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                     |
+| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                            |
 | `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                                           |
 | `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                            |
@@ -4819,8 +4820,8 @@ placeholder rows literal. A literal row counts as filled and leaves its original
 Set `ace.prompt_inputs.collect_raw_placeholders: false` to stop collecting raw tags on
 submit; declared frontmatter inputs are still collected. Set
 `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw tags literal when
-using `gx` or `gX` and mint no placeholder-derived `text` inputs; Jinja-variable
-inference for `gX` still runs. See
+using `gx`, `gX`, or `gL` and mint no placeholder-derived `text` inputs; Jinja-variable
+inference for `gL` still runs. See
 [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion
 and naming rules.
 
@@ -4883,9 +4884,10 @@ prefix actions currently available.
 | `gw`        | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
 | `gd`        | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
 | `gf`        | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
-| `gx`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                             |
+| `gx`        | Open or retarget one mini-xprompt pane                                                                                                   |
 | `gt`        | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
-| `gX`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
+| `gX`        | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>` and leaves the bar open                                             |
+| `gL`        | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane
 so local xprompts and metadata continue to resolve. Empty selected panes are dropped
@@ -4911,26 +4913,27 @@ flow for an existing pinned stash and overwrites the chosen row with the current
 non-empty panes. Manual and restart stashes remember the active pane and its cursor, and
 restore focuses that pane in INSERT mode at the same logical line and column. Legacy
 rows and failed-launch recovery rows have no saved position, so they still restore to
-the last pane at end of text. `gx`, `Ctrl+G x`, and `Ctrl+G Ctrl+X` open one save screen
+the last pane at end of text. `gX`, `Ctrl+G X`, and `Ctrl+G Ctrl+X` open one save screen
 containing the name, storage location, resolved path, and a live preview when the name
 collides. Inside that screen, `Ctrl+X` switches between xprompt and snippet mode, so
 `Ctrl+G Ctrl+X Ctrl+X` goes directly from a prompt draft to snippet mode. `Ctrl+T`
 remains manual completion in the prompt input and does not toggle this save screen. A
-successful save binds the prompt stack to that source. `gw` then performs atomic
-write-back, and if the source changed since load it offers overwrite, reload, or save-as
-instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same
-bound editing loop. `gX` instead converts the active pane through a prefilled
-frontmatter ghost row and rewrites the pane to invoke the committed helper. Before `gx`
-opens the save preview, its xprompt version converts live `<label>` tags into required
-Jinja `text` inputs; switching that screen to snippet mode shows and saves the original
-active-pane body instead. `gX` performs the same raw-placeholder conversion when it
-creates a frontmatter-local helper. Set
-`ace.prompt_inputs.xprompt_placeholder_args: false` to disable both conversions while
-preserving `gX` Jinja-variable inference. `gw` only writes the currently bound
-definition—it does not reinterpret newly typed raw placeholders. Tags in inline code,
-fenced code, and disabled xprompt regions stay literal throughout. See
-[Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact launch,
-conversion, and naming rules.
+successful whole-stack save binds the prompt stack to that source. `gw` then performs
+atomic write-back, and if the source changed since load it offers overwrite, reload, or
+save-as instead of clobbering it. `gd` loads the simple xprompt under the cursor for the
+same bound editing loop. `gx` opens or retargets one focused mini-xprompt pane; saving
+that pane publishes the definition without binding the surrounding prompt stack. `gL`
+converts the active pane through a prefilled frontmatter ghost row and rewrites the pane
+to invoke the committed helper. Before `gX` opens the save preview, its xprompt version
+converts live `<label>` tags into required Jinja `text` inputs; switching that screen to
+snippet mode shows and saves the original active-pane body instead. `gx` and `gL`
+perform the same raw-placeholder conversion when they save a mini-xprompt or create a
+frontmatter-local helper. Set `ace.prompt_inputs.xprompt_placeholder_args: false` to
+disable these conversions while preserving `gL` Jinja-variable inference. `gw` only
+writes the currently bound definition—it does not reinterpret newly typed raw
+placeholders. Tags in inline code, fenced code, and disabled xprompt regions stay
+literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders)
+for the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens
 the same picker from the main ACE tabs even when the prompt bar is not active. In the
@@ -6292,8 +6295,8 @@ already-pending trigger. The same pairs appear through ACE,
 `sase editor helper-bridge snippet-catalog`, normal LSP completion, and the native Rust
 fallback.
 
-You can also create a snippet on the fly from the prompt save panel, opened with `gx`,
-`Ctrl+G x`, or `Ctrl+G Ctrl+X`. Press `Ctrl+X` in that panel to switch to snippet mode
+You can also create a snippet on the fly from the prompt save panel, opened with `gX`,
+`Ctrl+G X`, or `Ctrl+G Ctrl+X`. Press `Ctrl+X` in that panel to switch to snippet mode
 and choose which config file should store the new `ace.snippets` entry;
 `Ctrl+G Ctrl+X Ctrl+X` performs that sequence directly from the draft. In snippet mode,
 rows are grouped by source and sorted alphabetically by trigger; snippet completions

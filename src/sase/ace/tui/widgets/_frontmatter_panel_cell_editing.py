@@ -148,7 +148,7 @@ class FrontmatterPanelCellEditingMixin(_MixinBase):
         *,
         on_commit: Callable[[XPrompt], None] | None = None,
     ) -> None:
-        """Public bridge used by ``gX`` to enter the same ghost-row flow."""
+        """Public bridge used by ``gL`` to enter the same ghost-row flow."""
         self._begin_cell_edit(field, ghost=True, prefill=xprompt, on_commit=on_commit)
 
     def _activate_cell(self) -> None:

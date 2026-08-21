@@ -1,4 +1,4 @@
-"""Unit tests for the pure local-xprompt conversion helpers (``gX``).
+"""Unit tests for the pure local-xprompt conversion helpers (``gL``).
 
 These cover the conversion *decisions* without a Textual app: name normalization
 and validation, Jinja input inference, and invocation skeleton generation.

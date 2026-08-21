@@ -54,8 +54,8 @@ class VimNormalPendingMixin(VimVisualModeMixin):
         # does not own (``gg``, ``ge``/``gE``, ``gu``/``gU``/``g~``) falls
         # through to the vim branches below. The pending state is already
         # cleared, so the trailing ``_update_count_display`` hides the ``g``
-        # hint panel either way and an unknown ``gX`` never leaves the hints
-        # stuck open.
+        # hint panel either way and an unknown prompt-local ``g`` sequence
+        # never leaves the hints stuck open.
         if pending == "g":
             if self._dispatch_host_g_prefix_key(key):
                 self._update_count_display()

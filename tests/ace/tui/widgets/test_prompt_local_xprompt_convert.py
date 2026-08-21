@@ -31,14 +31,14 @@ async def _open_ghost(
     app: _ConvertApp, pilot: object
 ) -> tuple[PromptInputBar, FrontmatterPanel]:
     bar = app.query_one(PromptInputBar)
-    await pilot.press("escape", "g", "X")  # type: ignore[attr-defined]
+    await pilot.press("escape", "g", "L")  # type: ignore[attr-defined]
     await pilot.pause()  # type: ignore[attr-defined]
     panel = app.query_one(FrontmatterPanel)
     assert panel._cell_edit is not None and panel._cell_edit.ghost
     return bar, panel
 
 
-async def test_gx_prefills_body_and_commits_invocation() -> None:
+async def test_gL_prefills_body_and_commits_invocation() -> None:
     app = _ConvertApp("Do the thing")
     async with app.run_test(size=(100, 32)) as pilot:
         bar, panel = await _open_ghost(app, pilot)
@@ -49,7 +49,7 @@ async def test_gx_prefills_body_and_commits_invocation() -> None:
         assert bar.active_text_area().text == "#_rules"
 
 
-async def test_gx_infers_jinja_inputs() -> None:
+async def test_gL_infers_jinja_inputs() -> None:
     app = _ConvertApp("Review {{ topic }} carefully")
     async with app.run_test(size=(100, 32)) as pilot:
         bar, panel = await _open_ghost(app, pilot)
@@ -59,7 +59,7 @@ async def test_gx_infers_jinja_inputs() -> None:
         assert "#_review(topic=" in bar.active_text_area().text
 
 
-async def test_gx_converts_placeholders_to_inputs_and_invocation_slots() -> None:
+async def test_gL_converts_placeholders_to_inputs_and_invocation_slots() -> None:
     app = _ConvertApp("Review <the plan> for <target-file>")
     async with app.run_test(size=(100, 32)) as pilot:
         bar, panel = await _open_ghost(app, pilot)
@@ -75,7 +75,7 @@ async def test_gx_converts_placeholders_to_inputs_and_invocation_slots() -> None
         assert bar.active_text_area().text == "#_review(the_plan=, target_file=)"
 
 
-async def test_gx_preserves_existing_helpers() -> None:
+async def test_gL_preserves_existing_helpers() -> None:
     markdown = "---\nxprompts:\n  _existing: old helper\n---\nBrand new body"
     app = _ConvertApp(initial_xprompt_markdown=markdown)
     async with app.run_test(size=(100, 32)) as pilot:
@@ -85,7 +85,7 @@ async def test_gx_preserves_existing_helpers() -> None:
         assert list(panel.model.xprompts) == ["_existing", "_new"]
 
 
-async def test_gx_cancel_leaves_body_unchanged() -> None:
+async def test_gL_cancel_leaves_body_unchanged() -> None:
     app = _ConvertApp("Do the thing")
     async with app.run_test(size=(100, 32)) as pilot:
         bar, panel = await _open_ghost(app, pilot)

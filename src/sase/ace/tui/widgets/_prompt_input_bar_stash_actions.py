@@ -247,15 +247,10 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         self.post_message(self.UpdatePinnedRequested(panes))
 
     def request_save_as_xprompt(self) -> None:
-        """Ask the app to save the current prompt draft as an xprompt."""
+        """Ask the app to open the unified whole-stack xprompt/snippet save panel."""
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_mini_xprompt_pane:
-            requester = getattr(self, "request_mini_xprompt_target_pane", None)
-            if callable(requester):
-                requester()
-            return
         # ``single_pane`` is captured before empty panes are filtered out and
         # kept only as context. Snippet mode is always available, with
         # ``snippet_body`` (the active pane only) as its source — so a multi-pane

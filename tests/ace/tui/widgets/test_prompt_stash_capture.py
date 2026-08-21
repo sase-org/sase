@@ -372,10 +372,10 @@ async def test_gS_empty_prompt_posts_empty_update_request() -> None:
         assert app.stashed == []
 
 
-# --- save as xprompt (gx / Ctrl+G x) --------------------------------------
+# --- save as xprompt/snippet (gX / Ctrl+G X) -------------------------------
 
 
-async def test_gx_captures_all_non_empty_panes_without_clearing_bar() -> None:
+async def test_g_upper_x_captures_all_non_empty_panes_without_clearing_bar() -> None:
     app = _CaptureApp("---\ndescription: reusable\n---\nalpha\n---\nbeta")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -383,7 +383,7 @@ async def test_gx_captures_all_non_empty_panes_without_clearing_bar() -> None:
         bar = app.query_one(PromptInputBar)
 
         await pilot.press("escape")
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -397,14 +397,14 @@ async def test_gx_captures_all_non_empty_panes_without_clearing_bar() -> None:
         assert app.stashed == []
 
 
-async def test_gx_single_pane_marks_event_single_pane() -> None:
+async def test_g_upper_x_single_pane_marks_event_single_pane() -> None:
     app = _CaptureApp("solo draft")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -415,21 +415,21 @@ async def test_gx_single_pane_marks_event_single_pane() -> None:
         assert event.snippet_body == "solo draft"
 
 
-async def test_gx_multi_pane_is_not_marked_single_pane() -> None:
+async def test_g_upper_x_multi_pane_is_not_marked_single_pane() -> None:
     app = _CaptureApp("alpha\n---\nbeta")
 
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
 
         await pilot.press("escape")
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
         assert app.save_xprompt_requests[0].single_pane is False
 
 
-async def test_gx_multi_pane_captures_active_pane_as_snippet_body() -> None:
+async def test_g_upper_x_multi_pane_captures_active_pane_as_snippet_body() -> None:
     app = _CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -442,7 +442,7 @@ async def test_gx_multi_pane_captures_active_pane_as_snippet_body() -> None:
         await pilot.pause()
         assert bar._stack.selected_index == 1
 
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -455,7 +455,7 @@ async def test_gx_multi_pane_captures_active_pane_as_snippet_body() -> None:
         assert event.snippet_body == "second"
 
 
-async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
+async def test_g_upper_x_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
     app = _CaptureApp("alpha")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -465,7 +465,7 @@ async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
         await pilot.press("g", "-")  # append an empty bottom pane (2-pane stack)
         await pilot.pause()
         await pilot.press("escape")  # the new pane lands in insert mode
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -478,7 +478,7 @@ async def test_gx_multi_pane_with_one_empty_pane_is_not_single_pane() -> None:
         assert event.snippet_body == ""
 
 
-async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
+async def test_ctrl_g_upper_x_captures_frontmatter_only_draft() -> None:
     app = _CaptureApp("")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -488,7 +488,7 @@ async def test_ctrl_gx_captures_frontmatter_only_draft() -> None:
             PromptFrontmatter(description="frontmatter only")
         )
 
-        await pilot.press("ctrl+g", "x")
+        await pilot.press("ctrl+g", "X")
         await pilot.pause()
 
         assert len(app.save_xprompt_requests) == 1
@@ -514,7 +514,7 @@ async def test_stash_is_noop_in_feedback_mode() -> None:
         await pilot.press("ctrl+s")
         await pilot.press("g", "s")
         await pilot.press("g", "S")
-        await pilot.press("g", "x")
+        await pilot.press("g", "X")
         await pilot.pause()
 
         # Feedback bars are not stashable: no message posted, text intact.

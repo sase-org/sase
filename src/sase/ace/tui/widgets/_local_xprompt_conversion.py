@@ -1,6 +1,6 @@
 """Pure decision helpers for converting a prompt pane into a local xprompt.
 
-The ``gX`` / ``Ctrl+G X`` prompt-local keymap turns the active prompt pane into
+The ``gL`` / ``Ctrl+G L`` prompt-local keymap turns the active prompt pane into
 a local ``xprompts:`` helper stored in the prompt bar's shared frontmatter and
 replaces the pane with an invocation of that helper.  Every decision the keymap
 makes -- normalizing and validating the helper name, inferring its inputs from
@@ -57,7 +57,7 @@ class _PlaceholderArgConversion:
 
 
 def _xprompt_placeholder_args_enabled() -> bool:
-    """Return whether gx/gX placeholder-to-input conversion is enabled.
+    """Return whether prompt-local xprompt placeholder-to-input conversion is enabled.
 
     Reads ``ace.prompt_inputs.xprompt_placeholder_args`` through the cached
     merged config. A missing, unreadable, or unparsable value falls back to

@@ -175,6 +175,7 @@ class MiniXPromptPaneTarget:
     clean_hash: str
     derived_from: str | None = None
     save_warning: str | None = None
+    changed_on_disk: bool = False
 
     def draft_hash(self, body: str) -> str:
         """Return the dirty-check hash for *body* under this target frontmatter."""

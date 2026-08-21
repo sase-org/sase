@@ -74,11 +74,14 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "request_snippet_target_pane", lambda: calls.append("t")
         )
-        monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("x"))
+        monkeypatch.setattr(
+            bar, "request_mini_xprompt_target_pane", lambda: calls.append("x")
+        )
+        monkeypatch.setattr(bar, "request_save_as_xprompt", lambda: calls.append("X"))
         monkeypatch.setattr(
             bar,
             "convert_active_pane_to_local_xprompt",
-            lambda **_: calls.append("X"),
+            lambda **_: calls.append("L"),
         )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
         monkeypatch.setattr(
@@ -106,6 +109,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "T",
             "x",
             "X",
+            "L",
         ):
             assert bar.dispatch_g_prefix_key(key) is True
         assert bar.dispatch_g_prefix_key("ctrl+c") is False
@@ -138,8 +142,9 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "T",
             "x",
             "X",
+            "L",
             "ctrl+c",
-            "x",
+            "X",
             "p",
             "S",
         ]
@@ -170,11 +175,11 @@ async def test_dispatch_g_prefix_key_can_target_insert_mode(
         monkeypatch.setattr(
             bar,
             "convert_active_pane_to_local_xprompt",
-            lambda *, target_mode="normal": calls.append(f"X:{target_mode}"),
+            lambda *, target_mode="normal": calls.append(f"L:{target_mode}"),
         )
 
         assert bar.dispatch_g_prefix_key("j", target_mode="insert") is True
         assert bar.dispatch_g_prefix_key("K", target_mode="insert") is True
-        assert bar.dispatch_g_prefix_key("X", target_mode="insert") is True
+        assert bar.dispatch_g_prefix_key("L", target_mode="insert") is True
 
-        assert calls == ["focus+1:insert", "move-1:insert", "X:insert"]
+        assert calls == ["focus+1:insert", "move-1:insert", "L:insert"]

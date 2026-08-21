@@ -36,7 +36,9 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
-        assert "gx   save as xprompt" in plain
+        assert "gx   open mini-xprompt…" in plain
+        assert "gX   save as xprompt/snippet" in plain
+        assert "gL   save as local xprompt" in plain
         assert "g^X" not in plain
         assert "... +" not in plain
         # Multi-pane and stash-open entries are absent on the bare g surface.
@@ -66,7 +68,7 @@ async def test_bound_height_g_prefix_hints_show_remainder() -> None:
         assert "g=   toggle frontmatter" in plain
         assert "gs   stash all panes" not in plain
         assert "gt   new snippet…" not in plain
-        assert "... +6 more" in plain
+        assert "... +7 more" in plain
 
 
 async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
@@ -96,9 +98,10 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt   new snippet…" in plain
         assert "^GT   snippets…" in plain
-        assert "^Gx / ^G^X   save as xprompt" not in plain
+        assert "^Gx   open mini-xprompt…" not in plain
+        assert "^GX / ^G^X   save as xprompt/snippet" not in plain
         assert "^Gp   stashed prompts…" not in plain
-        assert "... +3 more" in plain
+        assert "... +4 more" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert "^GP" not in plain
@@ -134,8 +137,9 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G=   toggle frontmatter" in plain
         assert "^Gt   new snippet…" in plain
         assert "^GT   snippets…" in plain
-        assert "^Gx / ^G^X   save as xprompt" not in plain
-        assert "... +2 more" in plain
+        assert "^Gx   open mini-xprompt…" not in plain
+        assert "^GX / ^G^X   save as xprompt/snippet" not in plain
+        assert "... +3 more" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"
@@ -167,7 +171,7 @@ async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
         assert bar.active_text_area()._vim_mode == "normal"
 
 
-@pytest.mark.parametrize("continuation", ["x", "ctrl+x"])
+@pytest.mark.parametrize("continuation", ["X", "ctrl+x"])
 @pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
 async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
     continuation: str,
@@ -190,6 +194,31 @@ async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
             "reusable draft"
         ]
         assert bar.all_prompt_texts() == ["reusable draft"]
+        assert text_area._insert_g_prefix_pending is False
+        assert text_area._normal_g_prefix_pending is False
+        assert bar._g_prefix_hints_visible is False
+        assert text_area._vim_mode == ("normal" if start_normal else "insert")
+
+
+@pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
+async def test_ctrl_g_x_requests_mini_xprompt_target_and_clear_prefix(
+    start_normal: bool,
+) -> None:
+    app = GPrefixHintApp("mini draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+
+        if start_normal:
+            await pilot.press("escape")
+        await pilot.press("ctrl+g", "x")
+        await pilot.pause()
+
+        assert len(app.mini_xprompt_requests) == 1
+        assert app.save_xprompt_requests == []
+        assert bar.all_prompt_texts() == ["mini draft"]
         assert text_area._insert_g_prefix_pending is False
         assert text_area._normal_g_prefix_pending is False
         assert bar._g_prefix_hints_visible is False

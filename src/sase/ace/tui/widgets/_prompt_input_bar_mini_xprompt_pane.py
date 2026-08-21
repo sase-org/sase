@@ -216,6 +216,7 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
             clean_hash=mini_xprompt_draft_hash(frontmatter, body),
             derived_from=None,
             save_warning=None,
+            changed_on_disk=False,
         )
         self._stack.selected_index = index
         self._clear_active_completion_state()
@@ -250,9 +251,33 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
             clean_hash=mini_xprompt_draft_hash(frontmatter, body),
             derived_from=None,
             save_warning=None,
+            changed_on_disk=False,
         )
         self._refresh_title()
         self.refresh_frontmatter_panel_from_stack()
+        self.refresh_cursor_readouts()
+        return True
+
+    def mark_mini_xprompt_changed_on_disk(
+        self,
+        *,
+        item_id: str,
+        changed: bool,
+    ) -> bool:
+        """Record whether the mounted mini target changed externally."""
+        if self._mode != "prompt" or not self.is_mounted:
+            return False
+        self._sync_state_from_widgets()
+        mini = self._stack.mini_xprompt_item
+        if mini is None or mini.item_id != item_id or mini.mini_xprompt_target is None:
+            return False
+        if mini.mini_xprompt_target.changed_on_disk == changed:
+            return True
+        mini.mini_xprompt_target = replace(
+            mini.mini_xprompt_target,
+            changed_on_disk=changed,
+        )
+        self._refresh_title()
         self.refresh_cursor_readouts()
         return True
 
@@ -308,6 +333,7 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
             clean_hash=clean_hash or mini_xprompt_draft_hash(frontmatter, body),
             derived_from=derived_from,
             save_warning=result.save_warning,
+            changed_on_disk=False,
         )
 
 

@@ -840,9 +840,9 @@ collection and launch the tags unchanged; declared
 [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive
 `sase run` does not collect raw placeholders.
 
-When an ACE draft is saved as an xprompt (`gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X` in
-xprompt mode), live raw placeholders are converted before the save preview into required
-`text` inputs:
+When an ACE draft is saved as an xprompt (`gX`, `Ctrl+G X`, or `Ctrl+G Ctrl+X` in
+xprompt mode, or the `gx` mini-xprompt save flow), live raw placeholders are converted
+before the save preview into required `text` inputs:
 
 ```text
 Deploy <service> to <target file>
@@ -860,20 +860,20 @@ input:
 Deploy {{ service }} to {{ target_file }}
 ```
 
-The `gX` active-pane conversion applies the same rewrite when it creates a
+The `gL` active-pane conversion applies the same rewrite when it creates a
 frontmatter-local xprompt. Generated names are Jinja-safe slugs allocated in document
-order; collisions receive `_2`, `_3`, and so on. During `gx`, a generated name that
-matches an authored input is reused instead of redeclared, preserving its type, default,
-and description. Both conversions reuse a matching undeclared Jinja variable. Repeated
-occurrences are substituted together, tags in literal zones remain untouched, and
-inserted values are not scanned again for more placeholders. Saving the same draft as a
-snippet keeps the original active-pane body rather than applying this xprompt-only
+order; collisions receive `_2`, `_3`, and so on. During xprompt saves, a generated name
+that matches an authored input is reused instead of redeclared, preserving its type,
+default, and description. Both conversions reuse a matching undeclared Jinja variable.
+Repeated occurrences are substituted together, tags in literal zones remain untouched,
+and inserted values are not scanned again for more placeholders. Saving the same draft
+as a snippet keeps the original active-pane body rather than applying this xprompt-only
 conversion. Writing an already bound xprompt with `gw` saves the body as edited and does
 not perform a new conversion pass.
 
 Set `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw placeholders
-literal during `gx` and `gX` and mint no placeholder-derived `text` inputs. Undeclared
-Jinja variables still become required `gX` inputs.
+literal during `gx`, `gX`, and `gL` and mint no placeholder-derived `text` inputs.
+Undeclared Jinja variables still become required `gL` inputs.
 
 ## Tags
 
@@ -2533,7 +2533,7 @@ frontmatter; `E` keeps the external-editor path, and YAML workflow graphs remain
 editor-only. A loaded definition is bound to its source: the prompt title shows the
 source and a dirty dot, `gw` writes it atomically, and an external-change conflict
 offers overwrite, reload, or save-as. `gd` on a `#name` reference loads that definition
-after stashing the current draft. `gx` is a one-screen save-as view with name, location,
+after stashing the current draft. `gX` is a one-screen save-as view with name, location,
 resolved path, and a live collision/overwrite preview.
 
 ### Frontmatter-Defined Local XPrompts

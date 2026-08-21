@@ -81,7 +81,7 @@ class _MiniXPromptSeparatorInfo:
 
     name: str
     destination: str
-    state: str  # "clean" | "dirty" | "new"
+    state: str  # "clean" | "dirty" | "new" | "stale"
 
 
 class _PromptStackSeparator(Static):
@@ -192,6 +192,11 @@ class _PromptStackSeparator(Static):
             return "new", f"bold {self._theme_color('success', 'green')}"
         if info.state == "dirty":
             return "●", f"bold {self._theme_color('warning', 'yellow')}"
+        if info.state == "stale":
+            return (
+                "⚠ changed on disk",
+                f"bold {self._theme_color('warning', 'yellow')}",
+            )
         return "✓", "dim"
 
     def _render_snippet(self, width: int) -> Text:
@@ -383,7 +388,7 @@ class PromptInputBarStackRenderingMixin(
                 elif item.is_mini_xprompt_pane:
                     classes += " mini-xprompt"
                     mini_xprompt_info = self._mini_xprompt_separator_info(item)
-                    if mini_xprompt_info.state == "dirty":
+                    if mini_xprompt_info.state in {"dirty", "stale"}:
                         classes += " mini-xprompt-dirty"
                 widgets.append(
                     _PromptStackSeparator(
@@ -447,6 +452,8 @@ class PromptInputBarStackRenderingMixin(
             state = "new"
         elif self._stack.mini_xprompt_is_dirty:
             state = "dirty"
+        elif target.changed_on_disk:
+            state = "stale"
         else:
             state = "clean"
         return _MiniXPromptSeparatorInfo(
@@ -602,11 +609,8 @@ class PromptInputBarStackRenderingMixin(
                 else "safe"
             )
         if item.is_mini_xprompt_pane and item.mini_xprompt_target is not None:
-            return (
-                "dirty"
-                if self._mini_xprompt_separator_info(item).state == "dirty"
-                else "safe"
-            )
+            state = self._mini_xprompt_separator_info(item).state
+            return "dirty" if state in {"dirty", "stale"} else "safe"
         return None
 
     def _refresh_snippet_frame_classes(self) -> None:
@@ -647,7 +651,10 @@ class PromptInputBarStackRenderingMixin(
             elif item.is_mini_xprompt_pane:
                 mini_info = self._mini_xprompt_separator_info(item)
                 separator.set_mini_xprompt_info(mini_info)
-                separator.set_class(mini_info.state == "dirty", "mini-xprompt-dirty")
+                separator.set_class(
+                    mini_info.state in {"dirty", "stale"},
+                    "mini-xprompt-dirty",
+                )
             if index == self._stack.selected_index:
                 separator.set_position(None)
                 continue

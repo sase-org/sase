@@ -8785,7 +8785,7 @@ XPromptLocationModal #location-hints {
     margin-top: 1;
 }
 
-/* Local xprompt name modal (gX / Ctrl+G X) styling */
+/* Local xprompt name modal (gL / Ctrl+G L) styling */
 LocalXPromptNameModal {
     align: center middle;
 }

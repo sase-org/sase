@@ -40,7 +40,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
     def convert_active_pane_to_local_xprompt(
         self, *, target_mode: str = "normal"
     ) -> None:
-        """Convert the active pane into a local xprompt (the ``gX`` keymap).
+        """Convert the active pane into a local xprompt (the ``gL`` keymap).
 
         Prompt mode only.  Captures the active pane's body, infers its inputs
         from undeclared Jinja variables, opens a prefilled ghost row, and on a
@@ -50,7 +50,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         notifies; cancelling or naming a duplicate is a no-op too.
 
         ``target_mode`` is the mode the rewritten pane should end in for a
-        no-argument invocation (``Ctrl+G X`` from INSERT keeps INSERT); an
+        no-argument invocation (``Ctrl+G L`` from INSERT keeps INSERT); an
         invocation with generated argument slots always lands in INSERT so the
         user can fill them straight away.
         """

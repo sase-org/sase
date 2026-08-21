@@ -42,8 +42,9 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
         ]
 
 
@@ -62,8 +63,9 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
         ]
 
 
@@ -83,21 +85,22 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("=", "toggle frontmatter"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
         ]
 
-        bare_save = next(
-            entry for entry in bar.g_prefix_hint_entries() if entry.key == "x"
+        bare_unified_save = next(
+            entry for entry in bar.g_prefix_hint_entries() if entry.key == "X"
         )
-        ctrl_g_save = next(
+        ctrl_g_unified_save = next(
             entry
             for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
-            if entry.key == "x"
+            if entry.key == "X"
         )
-        assert bare_save.aliases == ()
-        assert ctrl_g_save.aliases == ("ctrl+x",)
+        assert bare_unified_save.aliases == ()
+        assert ctrl_g_unified_save.aliases == ("ctrl+x",)
 
 
 async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> None:
@@ -116,8 +119,9 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
         ]
         assert entry_pairs(bar, via_ctrl_g=True) == [
             ("f", "format prompt"),
@@ -130,8 +134,9 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
             ("p", "stashed prompts…"),
         ]
 
@@ -171,8 +176,9 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
             ("S", "update pinned stash"),
             ("t", "new snippet…"),
             ("T", "snippets…"),
-            ("x", "save as xprompt"),
-            ("X", "save as local xprompt"),
+            ("x", "open mini-xprompt…"),
+            ("X", "save as xprompt/snippet"),
+            ("L", "save as local xprompt"),
         ]
 
         ctrl_g_entries = entry_pairs(bar, via_ctrl_g=True)
@@ -206,6 +212,7 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
             "T",
             "x",
             "X",
+            "L",
         ]
 
 

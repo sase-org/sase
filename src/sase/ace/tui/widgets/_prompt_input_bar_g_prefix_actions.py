@@ -150,13 +150,19 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
     ),
     _PromptGPrefixBinding(
         "x",
+        "request_mini_xprompt_target_pane",
+        "_g_prefix_label_mini_xprompt_target",
+        "_g_prefix_available_mini_xprompt_target",
+    ),
+    _PromptGPrefixBinding(
+        "X",
         "request_save_as_xprompt",
         "_g_prefix_label_save_xprompt",
         "_g_prefix_available_save_xprompt",
         ctrl_g_aliases=("ctrl+x",),
     ),
     _PromptGPrefixBinding(
-        "X",
+        "L",
         "convert_active_pane_to_local_xprompt",
         "_g_prefix_label_convert_local_xprompt",
         "_g_prefix_available_convert_local_xprompt",
@@ -504,13 +510,15 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         """Whether ``gt`` can open or retarget a snippet target pane."""
         return self._mode == "prompt"
 
+    def _g_prefix_available_mini_xprompt_target(self) -> bool:
+        """Whether ``gx`` can open or retarget a mini-xprompt target pane."""
+        return self._mode == "prompt"
+
     def _g_prefix_available_save_xprompt(self) -> bool:
-        """Whether ``gx`` can save the current prompt draft as an xprompt."""
+        """Whether ``gX`` can open the whole-stack save-as panel."""
         if self._mode != "prompt":
             return False
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_mini_xprompt_pane:
-            return True
         return any(item.text.strip() for item in self._stack.agent_items) or bool(
             self._stack.frontmatter.strip()
         )
@@ -523,7 +531,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         )
 
     def _g_prefix_available_convert_local_xprompt(self) -> bool:
-        """Whether ``gX`` can convert the active pane into a local xprompt.
+        """Whether ``gL`` can convert the active pane into a local xprompt.
 
         Prompt mode only, and only when the active pane has non-blank text —
         the conversion stores that pane body as a local ``xprompts:`` helper, so
@@ -604,11 +612,16 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             return f"rename ⇥ {snippet.snippet_target.trigger}…"
         return "new snippet…"
 
-    def _g_prefix_label_save_xprompt(self) -> str:
+    def _g_prefix_label_mini_xprompt_target(self) -> str:
         """Return the ``gx`` label."""
-        if self._stack.selected_item.is_mini_xprompt_pane:
-            return "retarget mini-xprompt"
-        return "save as xprompt"
+        mini = self._stack.mini_xprompt_item
+        if mini is not None and mini.mini_xprompt_target is not None:
+            return f"retarget #{mini.mini_xprompt_target.name}…"
+        return "open mini-xprompt…"
+
+    def _g_prefix_label_save_xprompt(self) -> str:
+        """Return the ``gX`` label."""
+        return "save as xprompt/snippet"
 
     def _g_prefix_label_write_xprompt(self) -> str:
         readonly = getattr(self, "_readonly_xprompt_target", None)
@@ -620,7 +633,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         return "save as xprompt"
 
     def _g_prefix_label_convert_local_xprompt(self) -> str:
-        """Return the ``gX`` label."""
+        """Return the ``gL`` label."""
         return "save as local xprompt"
 
     def _g_prefix_label_open_stash(self) -> str:

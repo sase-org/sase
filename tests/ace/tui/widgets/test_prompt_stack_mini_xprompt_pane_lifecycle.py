@@ -130,6 +130,42 @@ async def test_enter_in_mini_pane_requests_save_without_launch(tmp_path: Path) -
         assert app.mini_xprompt_pane_save_requested[0].origin_bar is bar
 
 
+async def test_mark_mini_changed_on_disk_renders_stale_marker(tmp_path: Path) -> None:
+    app = CaptureApp("agent prompt")
+
+    async with app.run_test(size=(100, 28)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini(
+            pilot,
+            bar,
+            _name_result(tmp_path, action="edit"),
+            body="loaded body",
+            destination_exists=True,
+        )
+        mini = bar._stack.mini_xprompt_item
+        assert mini is not None
+
+        assert bar.mark_mini_xprompt_changed_on_disk(
+            item_id=mini.item_id,
+            changed=True,
+        )
+        await pilot.pause()
+
+        separator = bar.query_one(f"#{bar._sep_id(mini)}")
+        assert "⚠ changed on disk" in separator.render().plain
+        assert bar.has_class("mini-xprompt-dirty")
+
+        assert bar.mark_mini_xprompt_changed_on_disk(
+            item_id=mini.item_id,
+            changed=False,
+        )
+        await pilot.pause()
+
+        assert "✓" in separator.render().plain
+        assert not bar.has_class("mini-xprompt-dirty")
+
+
 async def test_mini_pane_blocks_agent_editor_history_and_search(
     tmp_path: Path,
 ) -> None:

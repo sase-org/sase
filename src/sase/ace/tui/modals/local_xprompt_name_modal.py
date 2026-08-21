@@ -1,6 +1,6 @@
 """Name modal for converting a prompt pane into a local ``xprompts:`` helper.
 
-A small single-field modal for the ``gX`` / ``Ctrl+G X`` prompt-local keymap.
+A small single-field modal for the ``gL`` / ``Ctrl+G L`` prompt-local keymap.
 Unlike the unified file/config save panel, this one is purely about naming a
 helper stored inline in the prompt bar's shared frontmatter.
 
