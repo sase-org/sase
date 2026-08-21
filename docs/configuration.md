@@ -157,14 +157,15 @@ import/publication commands, and recovery.
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
-their data. Config contains the nested **XPrompts**, **Snippets**, **Glossary**,
-**Memory**, and **Misc** catalog. While home is visible, press `#` again to resume the
-last section that was successfully active in this ACE process. Before the first section
-visit, the repeated key leaves home unchanged and constructs no pane. Press `1`–`6` or
-click the numbered tab strip to enter a section. From home, `Tab` enters Config and
-`Shift+Tab` enters Updates; within a working section they wrap across the same tabs.
-Pane-local `[` / `]` keys switch sub-tabs or views where the active pane provides them,
-including Config's nested catalog.
+their data. Config contains the nested **Glossary**, **Launch**, **Memory**, **Misc**,
+**Snippets**, and **XPrompts** catalog, labeled `01` through `06` in that order. While
+home is visible, press `#` again to resume the last section that was successfully active
+in this ACE process. Before the first section visit, the repeated key leaves home
+unchanged and constructs no pane. Press `1`–`6` or click the numbered tab strip to enter
+a section. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a
+working section they wrap across the same tabs. Pane-local `[` / `]` keys switch
+sub-tabs or views where the active pane provides them, including Config's nested
+catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
@@ -189,6 +190,11 @@ other pane-local state are never carried between modal lifetimes.
 
 The Config tab answers four questions for every field — what value is effective, why
 (its provenance), where an edit will go, and whether it validates:
+
+The nested Config catalog is alphabetized as **01 Glossary**, **02 Launch**, **03
+Memory**, **04 Misc**, **05 Snippets**, and **06 XPrompts**. With the bundled prefix,
+press `0` and then `1`-`6` to open those children; remap the prefix with
+`ace.keymaps.config.select_subtab` without changing the visible default badges.
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with
   loaded/missing/invalid/read-only badges; the field tree is generated from the schema
@@ -280,35 +286,36 @@ and `R` refreshes the off-thread cached inventory.
 ### Statistics tab
 
 The Statistics tab aggregates durable agent run and activity records over a selectable
-time range. Its eight numbered views are **1 Overview**, **2 Runners**, **3 Projects**,
-**4 Providers**, **5 Activity**, **6 XPrompts**, **7 Plans & Questions**, and **8
-Perf**. The Runners view uses today's effective global limit—including a temporary
-override—as present-day context, never as historical configuration. The Projects view
-can group by project, by Patch, or as a project-to-Patch drilldown. XPrompts can group
-by usage, model, project, or co-usage. Perf combines TUI startup and responsiveness logs
-with telemetry latency and reliability; its grouping cycles through subsystem, provider,
-and workflow. A pane-wide project filter lets you apply the same scope to the run-backed
-views, but Perf is global and marks the project chip **not applied**.
+time range. Its eight numbered views are **01 Overview**, **02 Runners**, **03
+Projects**, **04 Providers**, **05 Activity**, **06 XPrompts**, **07 Plans &
+Questions**, and **08 Perf**. The Runners view uses today's effective global
+limit—including a temporary override—as present-day context, never as historical
+configuration. The Projects view can group by project, by Patch, or as a
+project-to-Patch drilldown. XPrompts can group by usage, model, project, or co-usage.
+Perf combines TUI startup and responsiveness logs with telemetry latency and
+reliability; its grouping cycles through subsystem, provider, and workflow. A pane-wide
+project filter lets you apply the same scope to the run-backed views, but Perf is global
+and marks the project chip **not applied**.
 
 The pane loads only while visible, refreshes every 30 seconds, and performs its queries
 off the UI thread. Use `[` / `]` to change views or press `0` followed by `1`–`8` to
-select one directly. Use `t`/`T` or `c` to choose a preset or custom range, `g` to
-change the Projects, XPrompts, or Perf grouping, `p`/`P` to cycle the project filter
-forward or backward, and `r` to refresh immediately. Keyed scope chips keep the
-effective range, grouping, and project visible; the **Group** chip appears only in those
-three groupable views and names the selected dimension there. Project scopes use
-configured display names while retaining canonical keys internally. First open seeds the
-current project when `ace.current_project.seed_filters` is on; `p` / `P` can always
-cycle away from that seed. The cycle order is **All projects**, followed by projects
-ranked by run count in the most recently loaded unfiltered result, and then wraps: `p`
-moves forward and `P` backward. Return to **All** after changing the range to rebuild
-that list for the new range. If a selected project produces an empty result, either
-project-cycle key clears directly to **All projects**. Every populated view includes a
-compact metric legend, `?` opens the complete glossary and current scope, and
-empty/error states show the effective keys for widening, clearing, or retrying. The
-Overview Agents Run, Success Rate, and Commits tiles open Projects, while Plans Proposed
-and Questions open Plans & Questions. The plan and question tiles remain all-project
-values even when a project is selected; see
+select the view displayed as `01` through `08`. Use `t`/`T` or `c` to choose a preset or
+custom range, `g` to change the Projects, XPrompts, or Perf grouping, `p`/`P` to cycle
+the project filter forward or backward, and `r` to refresh immediately. Keyed scope
+chips keep the effective range, grouping, and project visible; the **Group** chip
+appears only in those three groupable views and names the selected dimension there.
+Project scopes use configured display names while retaining canonical keys internally.
+First open seeds the current project when `ace.current_project.seed_filters` is on; `p`
+/ `P` can always cycle away from that seed. The cycle order is **All projects**,
+followed by projects ranked by run count in the most recently loaded unfiltered result,
+and then wraps: `p` moves forward and `P` backward. Return to **All** after changing the
+range to rebuild that list for the new range. If a selected project produces an empty
+result, either project-cycle key clears directly to **All projects**. Every populated
+view includes a compact metric legend, `?` opens the complete glossary and current
+scope, and empty/error states show the effective keys for widening, clearing, or
+retrying. The Overview Agents Run, Success Rate, and Commits tiles open Projects, while
+Plans Proposed and Questions open Plans & Questions. The plan and question tiles remain
+all-project values even when a project is selected; see
 [Telemetry: Admin Center Statistics tab](telemetry.md#admin-center-statistics-tab) for
 the view contents, range syntax, and project-filter caveats, and
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
@@ -704,10 +711,13 @@ ace:
     recompute_interval_minutes: 30 # minimum remote-fetching status cadence
     indicator: true # show ⇅ N only for cached, unapplied hoods from other owners
   keymaps:
+    config:
+      select_subtab: "0"
     statistics:
       prev_view: "left_square_bracket" # active only while Statistics is focused
       next_view: "right_square_bracket"
       select_view: "0"
+      jump_to_entry: "apostrophe"
       cycle_range: "t"
       cycle_range_reverse: "T"
       custom_range: "c"
@@ -1026,6 +1036,13 @@ would otherwise submit immediately, unless the option takes no input. `next_inpu
 `previous_input` dispatch only while that panel is open. `activate_control` remains
 accepted as a deprecated alias for `submit_primary`.
 
+**`config`** — Bindings active only while the Admin Center Config hub is focused. The
+available actions are:
+
+| Field           | Default | Description                                          |
+| --------------- | ------- | ---------------------------------------------------- |
+| `select_subtab` | `0`     | Arm `01`-`06` selection for a numbered Config child. |
+
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is
 focused. The available actions are:
 
@@ -1033,7 +1050,7 @@ focused. The available actions are:
 | ------------------------------ | ---------------------- | --------------------------------------------------------------------- |
 | `prev_view`                    | `left_square_bracket`  | Select the previous Statistics view.                                  |
 | `next_view`                    | `right_square_bracket` | Select the next Statistics view.                                      |
-| `select_view`                  | `0`                    | Arm `1`–`8` selection for a numbered Statistics view.                 |
+| `select_view`                  | `0`                    | Arm `01`–`08` selection for a numbered Statistics view.               |
 | `jump_to_entry`                | `apostrophe`           | Arm the same numbered-view selection used by `select_view`.           |
 | `cycle_range`                  | `t`                    | Cycle to the next statistics time range.                              |
 | `cycle_range_reverse`          | `T`                    | Cycle to the previous statistics time range.                          |

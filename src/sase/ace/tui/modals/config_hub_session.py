@@ -7,14 +7,14 @@ from typing import Any, Literal
 
 from .catalog_pane_contract import CatalogPaneSession
 
-ConfigSubTab = Literal["xprompts", "snippets", "glossary", "memory", "launch", "misc"]
+ConfigSubTab = Literal["glossary", "launch", "memory", "misc", "snippets", "xprompts"]
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
-    "xprompts",
-    "snippets",
     "glossary",
-    "memory",
     "launch",
+    "memory",
     "misc",
+    "snippets",
+    "xprompts",
 )
 
 

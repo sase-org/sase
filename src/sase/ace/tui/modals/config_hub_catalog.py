@@ -137,23 +137,18 @@ def _entry_trigger(entry: ConfigHubEntry | None) -> str | None:
 
 
 CONFIG_SUBTAB_SPECS: tuple[_ConfigSubTabSpec, ...] = (
-    _ConfigSubTabSpec("xprompts", "XPrompts", "XPrompts", "XP", _xprompts_factory),
-    _ConfigSubTabSpec("snippets", "Snippets", "Snippets", "Snip", _snippets_factory),
     _ConfigSubTabSpec("glossary", "Glossary", "Glossary", "Gloss", _glossary_factory),
-    _ConfigSubTabSpec("memory", "Memory", "Memory", "Mem", _memory_factory),
     _ConfigSubTabSpec("launch", "Launch", "Launch", "Run", _launch_factory),
+    _ConfigSubTabSpec("memory", "Memory", "Memory", "Mem", _memory_factory),
     _ConfigSubTabSpec("misc", "Misc", "Misc", "Misc", _misc_factory),
+    _ConfigSubTabSpec("snippets", "Snippets", "Snippets", "Snip", _snippets_factory),
+    _ConfigSubTabSpec("xprompts", "XPrompts", "XPrompts", "XP", _xprompts_factory),
 )
 CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, _ConfigSubTabSpec] = {
     spec.id: spec for spec in CONFIG_SUBTAB_SPECS
 }
-CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
-    "xprompts",
-    "snippets",
-    "glossary",
-    "memory",
-    "launch",
-    "misc",
+CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = tuple(
+    spec.id for spec in CONFIG_SUBTAB_SPECS
 )
 RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(
     ("snippets", "glossary", "memory")
@@ -180,8 +175,9 @@ def config_panel_tabs() -> tuple[PanelTab, ...]:
             _CONFIG_ACCENT,
             compact_label=spec.compact_label,
             micro_label=spec.micro_label,
+            shortcut=f"{index:02d}",
         )
-        for spec in config_subtab_specs()
+        for index, spec in enumerate(config_subtab_specs(), start=1)
     )
 
 
@@ -192,9 +188,9 @@ CONFIG_PANEL_TABS: tuple[PanelTab, ...] = tuple(
         _CONFIG_ACCENT,
         compact_label=spec.compact_label,
         micro_label=spec.micro_label,
+        shortcut=f"{index:02d}",
     )
-    for spec in CONFIG_SUBTAB_SPECS
-    if spec.id != "launch"
+    for index, spec in enumerate(CONFIG_SUBTAB_SPECS, start=1)
 )
 
 __all__ = [

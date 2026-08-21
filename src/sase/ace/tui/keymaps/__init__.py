@@ -7,6 +7,7 @@ system (``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays).
 
 from sase.ace.tui.keymaps.bindings import (
     build_app_bindings,
+    build_config_hub_bindings,
     build_gate_input_panel_bindings,
     build_gate_modal_bindings,
     build_gate_numbered_branch_bindings,
@@ -23,6 +24,7 @@ from sase.ace.tui.keymaps.bindings import (
 )
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
+    ConfigHubKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
@@ -32,6 +34,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
 )
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_app_defaults,
+    load_builtin_config_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
@@ -69,6 +72,7 @@ __all__ = [
     "BUILTIN_MODE_NAMES",
     "BangModeKeymaps",
     "BeadIssueModeKeymaps",
+    "ConfigHubKeymaps",
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",
@@ -82,6 +86,7 @@ __all__ = [
     "StatisticsPaneKeymaps",
     "_BINDING_META",
     "build_app_bindings",
+    "build_config_hub_bindings",
     "build_gate_input_panel_bindings",
     "build_gate_modal_bindings",
     "build_gate_numbered_branch_bindings",
@@ -99,6 +104,7 @@ __all__ = [
     "key_display_name",
     "leader_key_display",
     "load_builtin_app_defaults",
+    "load_builtin_config_defaults",
     "load_builtin_gate_defaults",
     "load_builtin_glossary_defaults",
     "load_builtin_memory_defaults",

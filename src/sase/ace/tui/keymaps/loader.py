@@ -6,6 +6,7 @@ The implementation is split by responsibility across ``defaults``,
 
 from sase.ace.tui.keymaps.bindings import (
     build_app_bindings,
+    build_config_hub_bindings,
     build_gate_input_panel_bindings,
     build_gate_modal_bindings,
     build_glossary_bindings,
@@ -17,6 +18,7 @@ from sase.ace.tui.keymaps.bindings import (
 )
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_app_defaults,
+    load_builtin_config_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
@@ -31,6 +33,7 @@ from sase.ace.tui.keymaps.registry import load_keymap_registry
 
 __all__ = [
     "build_app_bindings",
+    "build_config_hub_bindings",
     "build_gate_input_panel_bindings",
     "build_gate_modal_bindings",
     "build_glossary_bindings",
@@ -41,6 +44,7 @@ __all__ = [
     "key_display_name",
     "leader_key_display",
     "load_builtin_app_defaults",
+    "load_builtin_config_defaults",
     "load_builtin_gate_defaults",
     "load_builtin_glossary_defaults",
     "load_builtin_memory_defaults",

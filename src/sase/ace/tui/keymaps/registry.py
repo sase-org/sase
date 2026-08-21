@@ -5,6 +5,7 @@ from dataclasses import fields
 
 from sase.ace.tui.keymaps.defaults import load_builtin_app_defaults
 from sase.ace.tui.keymaps.scopes import (
+    load_config_keymaps,
     load_gate_keymaps,
     load_glossary_keymaps,
     load_memory_keymaps,
@@ -377,6 +378,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             app_kwargs[fname] = default_val
 
     app_km = AppKeymaps(**app_kwargs)
+    config_km = load_config_keymaps(keymaps_cfg)
     statistics_km = load_statistics_keymaps(keymaps_cfg)
     gate_km = load_gate_keymaps(keymaps_cfg)
     glossary_km = load_glossary_keymaps(keymaps_cfg)
@@ -480,6 +482,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     registry = KeymapRegistry(
         app=app_km,
+        config=config_km,
         statistics=statistics_km,
         gate=gate_km,
         glossary=glossary_km,

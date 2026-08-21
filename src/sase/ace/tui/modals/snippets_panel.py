@@ -193,6 +193,13 @@ class SnippetsPane(
         self._pending_delete_neighbor: str | None = None
         self._pending_draft: SnippetFormDraft | None = None
 
+    def on_key(self, event: events.Key) -> None:
+        from .config_hub_keys import handle_config_hub_subtab_select_key
+
+        if handle_config_hub_subtab_select_key(self, event):
+            return
+        super().on_key(event)
+
     def compose(self) -> ComposeResult:
         self._accent = snippet_card_accent(self.app.current_theme)
         with Container(id="snippets-panel-container"):

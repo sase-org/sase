@@ -136,7 +136,7 @@ class StatisticsHelpModal(ModalScreen[None]):
                 text.append("\n")
             marker = "●" if view == self._current_view else "○"
             marker_style = f"bold {_ACCENT}" if view == self._current_view else "dim"
-            text.append(f"{marker} {number} ", style=marker_style)
+            text.append(f"{marker} {number:02d} ", style=marker_style)
             text.append(VIEW_LABELS[view], style="bold")
             text.append(f" — {VIEW_DESCRIPTIONS[view]}", style="dim")
         return text
@@ -172,6 +172,7 @@ class StatisticsHelpModal(ModalScreen[None]):
             key = key_display_name(self._keymaps.select_view)
             return (
                 f"press {key} then 1-{len(VIEW_ORDER)}; "
+                f"default chords 01-{len(VIEW_ORDER):02d}; "
                 f"current view: {VIEW_LABELS[self._current_view]}"
             )
         if action == "jump_to_entry":

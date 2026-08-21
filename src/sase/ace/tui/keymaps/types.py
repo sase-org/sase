@@ -8,6 +8,7 @@ from dataclasses import dataclass, field, fields
 
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
+    ConfigHubKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
@@ -28,6 +29,7 @@ from sase.ace.tui.keymaps.key_validation import (
 )
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
+    _CONFIG_HUB_BINDING_META,
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
     _MODE_PREFIX_ACTIONS,
@@ -49,6 +51,7 @@ __all__ = [
     "BUILTIN_MODE_NAMES",
     "BangModeKeymaps",
     "BeadIssueModeKeymaps",
+    "ConfigHubKeymaps",
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",
@@ -62,6 +65,7 @@ __all__ = [
     "StatisticsPaneKeymaps",
     "_BINDING_META",
     "_BUILTIN_MODE_CLASSES",
+    "_CONFIG_HUB_BINDING_META",
     "_CTRL_SPACE_KEY",
     "_GATE_BINDING_META",
     "_GATE_INPUT_PANEL_BINDING_META",
@@ -98,6 +102,7 @@ class KeymapRegistry:
     """Top-level container for all keymap configuration."""
 
     app: AppKeymaps
+    config: ConfigHubKeymaps = field(default_factory=ConfigHubKeymaps)
     statistics: StatisticsPaneKeymaps = field(default_factory=StatisticsPaneKeymaps)
     gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
     glossary: GlossaryPanelKeymaps = field(default_factory=GlossaryPanelKeymaps)

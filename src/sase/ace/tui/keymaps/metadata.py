@@ -179,6 +179,13 @@ _STATISTICS_BINDING_META: tuple[tuple[str, str], ...] = (
     ("help", "Help"),
 )
 
+# Scoped bindings owned by the focused Admin Center Config hub. Bracket
+# cycling stays fixed and local to the hub; only the numeric-selection prefix
+# is configurable.
+_CONFIG_HUB_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("select_subtab", "Select Sub-tab by Number"),
+)
+
 # Scoped bindings owned by the focused Admin Center Projects pane. Each entry
 # is (dataclass field, Textual action name, description); the field and
 # action names diverge only for ``reload``, whose configured key drives

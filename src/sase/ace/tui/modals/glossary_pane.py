@@ -156,6 +156,13 @@ class GlossaryPane(
         self._pending_delete_term: str | None = None
         self._pending_delete_neighbor: str | None = None
 
+    def on_key(self, event: events.Key) -> None:
+        from .config_hub_keys import handle_config_hub_subtab_select_key
+
+        if handle_config_hub_subtab_select_key(self, event):
+            return
+        super().on_key(event)
+
     def compose(self) -> ComposeResult:
         self._accent = glossary_card_accent(self.app.current_theme)
         with Container(id="glossary-panel-container"):

@@ -19,10 +19,10 @@ from .statistics_pane_data import (
 from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
-# Full eight-tab line is 119 cells; compact is 82. Keep a few cells of slack
-# so 120- and 90-column Admin Center layouts never clip the strip.
-_VIEWS_COMPACT_BELOW_WIDTH = 123
-_VIEWS_MICRO_BELOW_WIDTH = 83
+# Full eight-tab line is 130 cells with 01-style shortcuts; compact is 90.
+# Use compact at 120 columns and keep the 90-column layout unclipped.
+_VIEWS_COMPACT_BELOW_WIDTH = 131
+_VIEWS_MICRO_BELOW_WIDTH = 90
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         view,
@@ -30,8 +30,9 @@ _VIEW_TABS: tuple[PanelTab, ...] = tuple(
         _ACCENT,
         compact_label=VIEW_COMPACT_LABELS[view],
         micro_label=VIEW_MICRO_LABELS[view],
+        shortcut=f"{index:02d}",
     )
-    for view in VIEW_ORDER
+    for index, view in enumerate(VIEW_ORDER, start=1)
 )
 OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
     ("Agents Run", "projects"),

@@ -7,10 +7,10 @@ enters one with numbered keys, ``Tab`` / ``Shift+Tab``, or the clickable tab
 strip. Mounted panes are cached for the lifetime of the modal, so returning
 to a tab preserves its selection and other pane-local state.
 
-The Config section hosts the nested XPrompts, Snippets, Glossary, Memory,
-Launch, and Misc catalog when the Launch beta is enabled. Direct-entry
-actions may still pass ``initial_tab`` to open exactly one pane. Pane-local
-sub-tabs continue to use ``]`` / ``[`` where provided.
+The Config section hosts the nested Glossary, Launch, Memory, Misc, Snippets,
+and XPrompts catalog. Direct-entry actions may still pass ``initial_tab`` to
+open exactly one pane. Pane-local sub-tabs continue to use ``]`` / ``[`` where
+provided.
 """
 
 from __future__ import annotations

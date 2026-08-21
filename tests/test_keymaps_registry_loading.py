@@ -3,6 +3,7 @@
 from sase.ace.tui.keymaps import (
     BangModeKeymaps,
     BeadIssueModeKeymaps,
+    ConfigHubKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
@@ -39,6 +40,8 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
     assert isinstance(reg.bang_mode, BangModeKeymaps)
     assert isinstance(reg.bead_issue_mode, BeadIssueModeKeymaps)
+    assert isinstance(reg.config, ConfigHubKeymaps)
+    assert reg.config.select_subtab == "0"
     assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
     assert isinstance(reg.glossary, GlossaryPanelKeymaps)
@@ -82,6 +85,26 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.memory.edit_note == "e"
     assert reg.memory.publish == "I"
     assert reg.memory.help == "question_mark"
+
+
+def test_config_hub_keymap_scope_loads_custom_prefix() -> None:
+    reg = load_keymap_registry({"keymaps": {"config": {"select_subtab": "f4"}}})
+
+    assert reg.config.select_subtab == "f4"
+
+
+def test_config_hub_keymap_scope_rejects_invalid_prefix() -> None:
+    reg = load_keymap_registry({"keymaps": {"config": {"select_subtab": "not a key"}}})
+
+    assert reg.config.select_subtab == "0"
+
+
+def test_config_hub_keymap_scope_ignores_unknown_actions() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"config": {"select_subtab": "f5", "missing": "f6"}}}
+    )
+
+    assert reg.config.select_subtab == "f5"
 
 
 def test_leader_repeat_last_default_binding() -> None:

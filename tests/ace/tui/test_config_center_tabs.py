@@ -51,7 +51,7 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
         key=lambda tab: dict(_TAB_LABELS)[tab].casefold(),
     )
     assert [spec.description for spec in _TAB_SPECS] == [
-        "Browse XPrompts, snippets, glossary, memory, launch, and settings.",
+        "Browse glossary, launch, memory, snippets, XPrompts, and settings.",
         "Inspect TUI activity, launch failures, and notification history.",
         "Follow procs, inspect live output, and manage running jobs.",
         "Manage projects and inspect their repositories and workspaces.",

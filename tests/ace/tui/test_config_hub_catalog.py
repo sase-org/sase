@@ -38,17 +38,26 @@ def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
 
 def test_config_subtab_order_matches_the_design() -> None:
     assert CONFIG_SUBTAB_ORDER == (
-        "xprompts",
-        "snippets",
         "glossary",
-        "memory",
         "launch",
+        "memory",
         "misc",
+        "snippets",
+        "xprompts",
     )
     assert config_subtab_order() == CONFIG_SUBTAB_ORDER
     assert tuple(spec.id for spec in config_subtab_specs()) == CONFIG_SUBTAB_ORDER
     specs = config_subtab_specs()
-    assert tuple(tab.id for tab in config_panel_tabs()) == CONFIG_SUBTAB_ORDER
+    tabs = config_panel_tabs()
+    assert tuple(tab.id for tab in tabs) == CONFIG_SUBTAB_ORDER
+    assert tuple(tab.shortcut for tab in tabs) == (
+        "01",
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+    )
     launch_spec = next(spec for spec in specs if spec.id == "launch")
     assert launch_spec.label == "Launch"
     assert launch_spec.micro_label == "Run"

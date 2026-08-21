@@ -1467,6 +1467,17 @@
                 }
               }
             },
+            "config": {
+              "type": "object",
+              "description": "Bindings active only while the Admin Center Config hub is focused",
+              "additionalProperties": false,
+              "properties": {
+                "select_subtab": {
+                  "type": "string",
+                  "description": "Arm numbered Config sub-tab selection"
+                }
+              }
+            },
             "statistics": {
               "type": "object",
               "description": "Bindings active only while the Admin Center Statistics pane is focused",

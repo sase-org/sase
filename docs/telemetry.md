@@ -187,14 +187,14 @@ The eight numbered views answer different questions:
 
 | #   | View                  | Contents                                                                                                                                                                                                       |
 | --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                 |
-| 2   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                               |
-| 3   | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings. A bounded Patch list closes with `N additional Patch rows not shown.` |
-| 4   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                      |
-| 5   | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                  |
-| 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                                                                           |
-| 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                            |
-| 8   | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                 |
+| 01  | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                 |
+| 02  | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                               |
+| 03  | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings. A bounded Patch list closes with `N additional Patch rows not shown.` |
+| 04  | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                      |
+| 05  | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                  |
+| 06  | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                                                                           |
+| 07  | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                            |
+| 08  | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                 |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
@@ -229,7 +229,7 @@ The default focused-pane keys are:
 | Key                 | Action                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | `[`/`]`             | Cycle statistic views.                                                                   |
-| `0`, then `1`–`8`   | Select the corresponding numbered Statistics view.                                       |
+| `0`, then `1`–`8`   | Select the corresponding `01`–`08` Statistics view.                                      |
 | `'`                 | Arm the same numbered-view selection as `0`.                                             |
 | `t`/`T`             | Cycle Today, 24h, 7d, 30d, 90d, and All forward / backward.                              |
 | `c`                 | Enter a custom absolute or relative time range.                                          |

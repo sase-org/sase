@@ -292,6 +292,10 @@ ace:
     collect_raw_placeholders: true
     xprompt_placeholder_args: true
   keymaps:
+    # Focused Admin Center Config-hub bindings. The prefix is inactive
+    # everywhere else and arms one numbered Config sub-tab selection.
+    config:
+      select_subtab: "0"
     # Shared branch-driven plan/custom gate modal bindings.
     gate:
       next_control: "j"

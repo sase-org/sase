@@ -345,9 +345,10 @@ def test_project_filter_cycle_is_inert_without_choices_and_handles_stale_selecti
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
-        (123, "full"),
-        (83, "compact"),
-        (60, "micro"),
+        (130, "full"),
+        (120, "compact"),
+        (90, "compact"),
+        (70, "micro"),
     ),
 )
 def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
@@ -374,7 +375,7 @@ def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [str(number) for number in range(1, 9)]
+    ] == [f"{number:02d}" for number in range(1, 9)]
 
 
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(

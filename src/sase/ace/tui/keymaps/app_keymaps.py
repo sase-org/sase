@@ -225,6 +225,13 @@ class AppKeymaps:
 
 
 @dataclass
+class ConfigHubKeymaps:
+    """Focused-pane actions for the Admin Center Config hub."""
+
+    select_subtab: str = "0"
+
+
+@dataclass
 class StatisticsPaneKeymaps:
     """Focused-pane actions for the Admin Center Statistics tab."""
 

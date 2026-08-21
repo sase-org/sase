@@ -2524,7 +2524,7 @@ takes on a second meaning: it jumps to the section you were in immediately befor
 current one, and pressing it again toggles back — exactly two sections remembered, like
 a two-slot alternate. A color-coded, clickable footer along the bottom of the working
 section names the jump target (or explains that none exists yet). The numbered strip
-remains clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each working
+remains clickable, `Tab` enters Config, and `Shift+Tab` enters Updates. Each working
 pane and its data are loaded only on first entry, then cached while the modal remains
 open. Command-palette actions such as **Open logs panel**, **Open procs panel**, and
 **Open statistics**, plus update shortcuts and indicators, enter their requested pane
@@ -2548,9 +2548,12 @@ a hint character moves the selection there, `'` again returns to the previous po
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
-`0` prefix already arms, using the visible strip numbers as hints. The Updates tab's
-Core sub-tab has no list at all, so `'` is a silent no-op there while Plugins and Agent
-CLIs jump normally.
+`0` prefix already arms, using the visible strip numbers as hints. Config's nested
+catalog is alphabetized as **01 Glossary · 02 Launch · 03 Memory · 04 Misc · 05 Snippets
+· 06 XPrompts**; `0` then `1`-`6` selects those children, while bare digits continue to
+belong to the active child or the Admin Center's top-level tabs. The Updates tab's Core
+sub-tab has no list at all, so `'` is a silent no-op there while Plugins and Agent CLIs
+jump normally.
 
 ### Quit / Restart Menu
 
@@ -2688,13 +2691,13 @@ system-managed projects such as `home` are excluded from the panel.
 Open the SASE Admin Center with `#`, then press `5` or switch to **Statistics**. Its
 eight sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
 usage, plan/question activity, and performance for the selected time range. The strip is
-numbered **1 Overview · 2 Runners · 3 Projects · 4 Providers · 5 Activity · 6 XPrompts ·
-7 Plans & Questions · 8 Perf**; press `0` and then that digit to jump straight to a
-view. The Admin Center-wide `'` entry-jump key arms this same numbered-view selection
-instead of painting row hints — Statistics has no row cursor, so the already visible
-strip numbers act as its jump hints; `Esc` or any non-digit cancels. Use `[` / `]` to
-move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project scope,
-and `r` to refresh. First open seeds the project filter from the
+numbered **01 Overview · 02 Runners · 03 Projects · 04 Providers · 05 Activity · 06
+XPrompts · 07 Plans & Questions · 08 Perf**; press `0` and then the second digit to jump
+straight to a view. The Admin Center-wide `'` entry-jump key arms this same
+numbered-view selection instead of painting row hints — Statistics has no row cursor, so
+the already visible strip numbers act as its jump hints; `Esc` or any non-digit cancels.
+Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle
+project scope, and `r` to refresh. First open seeds the project filter from the
 [current project](#current-project) when `ace.current_project.seed_filters` is on; `p` /
 `P` can always cycle away from that seed, including back to **All projects**. On
 Overview, Agents Run, Success Rate, and Commits open Projects; Plans Proposed and
@@ -4476,17 +4479,18 @@ want to change.
 These keys dispatch only while the Admin Center Statistics pane is focused. They may
 overlap app-level bindings without creating a global conflict, and the pane's hint bar
 always shows the effective keys. Press the configured `select_view` prefix and then
-`1`–`8` to select the matching numbered view; bare digits continue to switch the Admin
-Center's top-level tabs. `jump_to_entry` arms that same numbered-view selection, which
-is how the Admin Center-wide `'` behaves on a pane that has no row cursor to jump
-between — the visible strip numbers serve as its hints. The group control is visible and
-active only in Projects, XPrompts, and Perf. On the XPrompts view, the focus key opens a
-filterable picker and the clear-focus key restores **All xprompts**. Project filtering
-cycles through **All projects** and the latest cached unfiltered ranking: the configured
-forward key moves toward the first ranked project, the reverse key moves toward the
-last, and both wrap. First open seeds the current project when
-`ace.current_project.seed_filters` is on; either key can cycle away from that seed.
-Either key clears an active project filter directly when its loaded result is empty.
+`1`–`8` to select the matching view displayed as `01` through `08`; bare digits continue
+to switch the Admin Center's top-level tabs. `jump_to_entry` arms that same
+numbered-view selection, which is how the Admin Center-wide `'` behaves on a pane that
+has no row cursor to jump between — the visible strip numbers serve as its hints. The
+group control is visible and active only in Projects, XPrompts, and Perf. On the
+XPrompts view, the focus key opens a filterable picker and the clear-focus key restores
+**All xprompts**. Project filtering cycles through **All projects** and the latest
+cached unfiltered ranking: the configured forward key moves toward the first ranked
+project, the reverse key moves toward the last, and both wrap. First open seeds the
+current project when `ace.current_project.seed_filters` is on; either key can cycle away
+from that seed. Either key clears an active project filter directly when its loaded
+result is empty.
 
 ### Remapping Gate Modal Keys
 

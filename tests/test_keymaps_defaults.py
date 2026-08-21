@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps import (
     AppKeymaps,
     BangModeKeymaps,
     BeadIssueModeKeymaps,
+    ConfigHubKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
@@ -22,6 +23,7 @@ from sase.ace.tui.keymaps import (
     StatisticsPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
+    load_builtin_config_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
@@ -463,6 +465,15 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "refresh": "r",
         "help": "question_mark",
     }
+    assert field_names == set(defaults)
+
+
+def test_default_config_covers_all_config_hub_keymaps() -> None:
+    """The bundled config is the source of truth for Config-hub keys."""
+    defaults = load_builtin_config_defaults()
+    field_names = {field.name for field in fields(ConfigHubKeymaps)}
+
+    assert defaults == {"select_subtab": "0"}
     assert field_names == set(defaults)
 
 

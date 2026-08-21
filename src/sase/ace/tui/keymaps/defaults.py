@@ -56,6 +56,12 @@ def load_builtin_statistics_defaults() -> dict[str, str]:
     return dict(_builtin_scope_defaults("statistics"))
 
 
+def load_builtin_config_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Config-hub defaults."""
+
+    return dict(_builtin_scope_defaults("config"))
+
+
 def load_builtin_gate_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused gate-modal defaults."""
 

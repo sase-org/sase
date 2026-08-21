@@ -27,6 +27,19 @@ def handle_config_hub_bracket_key(widget: Any, event: Key) -> bool:
     return True
 
 
+def handle_config_hub_subtab_select_key(widget: Any, event: Key) -> bool:
+    """Resolve an armed Config sub-tab number from an embedded child pane.
+
+    Bare digits still belong to the child. This only consumes a key when the
+    enclosing Config hub already has a pending prefix selection.
+    """
+    hub = _nearest_config_hub(widget)
+    if hub is None:
+        return False
+    handle = getattr(hub, "handle_subtab_select_key", None)
+    return bool(callable(handle) and handle(event))
+
+
 def _nearest_config_hub(widget: Any) -> Any | None:
     """Return the enclosing Config hub, if this widget is mounted in one."""
     from .config_hub_pane import ConfigHubPane
@@ -39,4 +52,4 @@ def _nearest_config_hub(widget: Any) -> Any | None:
     return None
 
 
-__all__ = ["handle_config_hub_bracket_key"]
+__all__ = ["handle_config_hub_bracket_key", "handle_config_hub_subtab_select_key"]

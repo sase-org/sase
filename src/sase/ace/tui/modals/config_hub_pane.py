@@ -7,9 +7,18 @@ from typing import cast
 
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import BindingsMap
 from textual.containers import Vertical
+from textual.events import Key
 from textual.widget import Widget
 from textual.widgets import ContentSwitcher, Input
+
+from sase.ace.tui.keymaps import (
+    ConfigHubKeymaps,
+    build_config_hub_bindings,
+    load_keymap_registry,
+    split_key_alternatives,
+)
 
 from ..widgets.panel_tab_strip import PanelTabStrip
 from .config_center_session import AdminCenterSessionState
@@ -26,16 +35,15 @@ from .config_hub_session import (
 )
 
 _EMPTY_ID = "config-hub-empty"
+_CONFIG_TABS_COMPACT_BELOW_WIDTH = 86
+_CONFIG_TABS_MICRO_BELOW_WIDTH = 73
 
 
 class ConfigHubPane(Vertical):
     """Lazy, cached host for the Config catalog children."""
 
     can_focus = False
-    BINDINGS = [
-        ("right_square_bracket", "cycle_subtab", "Next Sub-tab"),
-        ("left_square_bracket", "cycle_subtab_reverse", "Previous Sub-tab"),
-    ]
+    BINDINGS = []
 
     def __init__(
         self,
@@ -43,12 +51,15 @@ class ConfigHubPane(Vertical):
         project: str | None = None,
         session_state: AdminCenterSessionState | None = None,
         entry: ConfigHubEntry | None = None,
+        keymaps: ConfigHubKeymaps | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._project = project
         self._session_state = session_state or AdminCenterSessionState()
         self._entry = entry
+        self._keymaps = keymaps or load_keymap_registry({}).config
+        self._bindings = BindingsMap(build_config_hub_bindings(self._keymaps))
         self._subtab_order = config_subtab_order()
         self._subtab_by_id = config_subtab_by_id()
         self._panel_tabs = config_panel_tabs()
@@ -62,15 +73,17 @@ class ConfigHubPane(Vertical):
         self._navigation_lock = asyncio.Lock()
         self._host_visible = True
         self._initial_navigation_pending = True
+        self._pending_subtab_select = False
 
     def compose(self) -> ComposeResult:
         yield PanelTabStrip(
             self._panel_tabs,
             self._active_subtab,
+            show_numbers=True,
             uppercase_active=True,
-            compact_below=72,
+            compact_below=_CONFIG_TABS_COMPACT_BELOW_WIDTH,
             compact_separator=" │ ",
-            micro_below=48,
+            micro_below=_CONFIG_TABS_MICRO_BELOW_WIDTH,
             micro_separator="│",
             id="config-hub-tabs",
         )
@@ -85,6 +98,7 @@ class ConfigHubPane(Vertical):
         )
 
     def on_unmount(self) -> None:
+        self._pending_subtab_select = False
         self._set_pane_active(self._active_child(), False)
 
     def request_close(self) -> None:
@@ -143,7 +157,45 @@ class ConfigHubPane(Vertical):
     def on_center_tab_visibility_changed(self, active: bool) -> None:
         """Forward Admin Center visibility to the active Config child."""
         self._host_visible = active
+        if not active:
+            self._pending_subtab_select = False
         self._set_pane_active(self._active_child(), active)
+
+    def on_key(self, event: Key) -> None:
+        """Resolve one armed numbered Config sub-tab selection before children."""
+        if self.handle_subtab_select_key(event):
+            return
+
+    def handle_subtab_select_key(self, event: Key) -> bool:
+        """Consume one key when a Config numeric sub-tab selection is armed."""
+        if self._filter_has_focus():
+            self._pending_subtab_select = False
+            return False
+        if not self._pending_subtab_select:
+            return False
+
+        if event.key in split_key_alternatives(self._keymaps.select_subtab):
+            event.prevent_default()
+            event.stop()
+            return True
+
+        character = getattr(event, "character", None)
+        selected_digit = (
+            character
+            if isinstance(character, str) and character.isdecimal()
+            else event.key
+        )
+        if isinstance(selected_digit, str) and selected_digit.isdecimal():
+            event.prevent_default()
+            event.stop()
+            self._pending_subtab_select = False
+            subtab_index = int(selected_digit) - 1
+            if 0 <= subtab_index < len(self._subtab_order):
+                self._schedule_switch(self._subtab_order[subtab_index])
+            return True
+
+        self._pending_subtab_select = False
+        return False
 
     def child_owns_tab_keys(self) -> bool:
         """True when Tab/Shift+Tab belong to relationship navigation."""
@@ -168,6 +220,7 @@ class ConfigHubPane(Vertical):
             visibility_changed(active)
 
     def _schedule_switch(self, subtab: ConfigSubTab) -> None:
+        self._pending_subtab_select = False
         self.run_worker(
             self._switch_to(subtab),
             name=f"config-hub-open-{subtab}",
@@ -179,6 +232,7 @@ class ConfigHubPane(Vertical):
             await self._switch_to(subtab)
         finally:
             self._initial_navigation_pending = False
+            self._pending_subtab_select = False
 
     async def _remove_failed_pane(self, pane: Widget) -> None:
         try:
@@ -207,6 +261,7 @@ class ConfigHubPane(Vertical):
 
     async def _switch_to(self, subtab: ConfigSubTab) -> bool:
         async with self._navigation_lock:
+            self._pending_subtab_select = False
             if subtab == self._active_subtab and subtab in self._panes:
                 if self._host_visible:
                     self.focus_default()
@@ -267,6 +322,12 @@ class ConfigHubPane(Vertical):
     def action_cycle_subtab_reverse(self) -> None:
         """Select the previous Config catalog child."""
         self._cycle_subtab(-1)
+
+    def action_select_subtab(self) -> None:
+        """Arm one-shot numbered Config sub-tab selection."""
+        if self._filter_has_focus():
+            return
+        self._pending_subtab_select = True
 
     def action_scroll_to_top(self) -> None:
         child = self._active_child()

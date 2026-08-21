@@ -6,6 +6,7 @@ from dataclasses import fields
 from typing import Any
 
 from sase.ace.tui.keymaps.defaults import (
+    load_builtin_config_defaults,
     load_builtin_gate_defaults,
     load_builtin_glossary_defaults,
     load_builtin_memory_defaults,
@@ -14,6 +15,7 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
+    ConfigHubKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
@@ -147,6 +149,17 @@ def load_statistics_keymaps(keymaps_cfg: dict[str, Any]) -> StatisticsPaneKeymap
         scope="statistics",
         dataclass_type=StatisticsPaneKeymaps,
         defaults=load_builtin_statistics_defaults(),
+    )
+
+
+def load_config_keymaps(keymaps_cfg: dict[str, Any]) -> ConfigHubKeymaps:
+    """Load and validate the focused Admin Center Config binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="config",
+        dataclass_type=ConfigHubKeymaps,
+        defaults=load_builtin_config_defaults(),
     )
 
 

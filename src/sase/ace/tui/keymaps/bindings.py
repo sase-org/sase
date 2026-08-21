@@ -6,6 +6,7 @@ from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
+    ConfigHubKeymaps,
     GateModalKeymaps,
     GlossaryPanelKeymaps,
     MemoryPanelKeymaps,
@@ -16,6 +17,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
+    _CONFIG_HUB_BINDING_META,
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
     _GLOSSARY_BINDING_META,
@@ -73,6 +75,35 @@ def build_statistics_bindings(keymaps: StatisticsPaneKeymaps) -> list[Binding]:
         )
         for action, description in _STATISTICS_BINDING_META
     ]
+
+
+def build_config_hub_bindings(keymaps: ConfigHubKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the focused Config hub."""
+
+    bindings = [
+        Binding(
+            "right_square_bracket",
+            "cycle_subtab",
+            "Next Sub-tab",
+            show=False,
+        ),
+        Binding(
+            "left_square_bracket",
+            "cycle_subtab_reverse",
+            "Previous Sub-tab",
+            show=False,
+        ),
+    ]
+    bindings.extend(
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+        )
+        for action, description in _CONFIG_HUB_BINDING_META
+    )
+    return bindings
 
 
 def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:

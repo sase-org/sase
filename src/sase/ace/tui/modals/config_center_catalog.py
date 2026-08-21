@@ -34,10 +34,13 @@ class CenterTabSpec:
 def _config_pane_factory(modal: ConfigCenterModal) -> Widget:
     from .config_hub_pane import ConfigHubPane
 
+    registry = getattr(modal.app, "_keymap_registry", None)
+    keymaps = getattr(registry, "config", None)
     return ConfigHubPane(
         project=modal._project,
         session_state=modal._session_state,
         entry=getattr(modal, "_config_entry", None),
+        keymaps=keymaps,
         id="config",
     )
 
@@ -93,7 +96,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         1,
         "Config",
         "#00D7AF",
-        "Browse XPrompts, snippets, glossary, memory, launch, and settings.",
+        "Browse glossary, launch, memory, snippets, XPrompts, and settings.",
         "ConfigHubPane",
         _config_pane_factory,
     ),
