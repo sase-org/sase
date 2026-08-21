@@ -24,7 +24,7 @@ import pytest
 from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import PromptBarStashMixin
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.logs import clear_registered_errors
 

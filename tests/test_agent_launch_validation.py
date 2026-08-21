@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.agent.launch_validation import (
     AgentNameForeignMachineError,
     AgentNameLaunchCollisionError,

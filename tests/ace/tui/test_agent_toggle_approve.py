@@ -18,7 +18,7 @@ from sase.ace.tui.actions.agents._approve import (
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.auto_approve_modal import AutoApproveModal
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
 
 def _make_agent(artifacts_dir: str, **overrides: object) -> Agent:

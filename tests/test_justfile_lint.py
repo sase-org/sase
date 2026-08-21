@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
-
 
 import pytest
 
@@ -35,6 +35,20 @@ def _dry_run(*args: str) -> str:
         text=True,
     )
     return result.stdout + result.stderr
+
+
+def _copy_justfile(root: Path) -> None:
+    shutil.copyfile(ROOT / "Justfile", root / "Justfile")
+
+
+def _install_spy_python(root: Path) -> None:
+    python = root / ".venv/bin/python"
+    python.parent.mkdir(parents=True)
+    python.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$JUST_SPY_FILE"\nexit 0\n',
+        encoding="utf-8",
+    )
+    python.chmod(0o755)
 
 
 def test_lint_includes_toobig_stage() -> None:
@@ -164,6 +178,81 @@ def test_setup_propagates_the_post_rebuild_bindings_check_exit_status() -> None:
 
     assert "tools/validate_sase_core_rs --sase-core-dir" in output
     assert "|| exit $?" in output
+
+
+def test_refresh_sase_core_checkout_skips_fetch_when_stale_core_is_allowed(
+    tmp_path: Path,
+) -> None:
+    _copy_justfile(tmp_path)
+    marker = tmp_path / "python-called"
+    _install_spy_python(tmp_path)
+
+    subprocess.run(
+        [
+            "just",
+            "--justfile",
+            str(tmp_path / "Justfile"),
+            "--set",
+            "venv_dir",
+            ".venv",
+            "--set",
+            "sase_core_dir",
+            str(tmp_path / "sase-core"),
+            "_refresh-sase-core-checkout",
+        ],
+        cwd=tmp_path,
+        env=_clean_sase_core_env()
+        | {
+            "JUST_SPY_FILE": str(marker),
+            "SASE_ALLOW_STALE_CORE": "1",
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert not marker.exists()
+
+
+def test_refresh_sase_core_checkout_fetches_when_stale_core_is_not_allowed(
+    tmp_path: Path,
+) -> None:
+    _copy_justfile(tmp_path)
+    marker = tmp_path / "python-called"
+    _install_spy_python(tmp_path)
+
+    subprocess.run(
+        [
+            "just",
+            "--justfile",
+            str(tmp_path / "Justfile"),
+            "--set",
+            "venv_dir",
+            ".venv",
+            "--set",
+            "sase_core_dir",
+            str(tmp_path / "sase-core"),
+            "_refresh-sase-core-checkout",
+        ],
+        cwd=tmp_path,
+        env=_clean_sase_core_env() | {"JUST_SPY_FILE": str(marker)},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "tools/refresh_linked_checkout" in marker.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("recipe", ["rust-install", "rust-dev-install"])
+def test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed(
+    recipe: str,
+) -> None:
+    output = _dry_run(recipe, "/tmp/fake-venv")
+
+    assert 'if [ "${SASE_ALLOW_STALE_CORE:-}" != "1" ]; then' in output
+    assert "_refresh-sase-core-checkout" in output
+    assert "maturin" in output
 
 
 def test_rust_install_is_fatal_on_a_behind_status() -> None:

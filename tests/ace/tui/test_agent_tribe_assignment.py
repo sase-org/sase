@@ -13,7 +13,7 @@ from sase.ace.tui.actions.agents._tribe_assignment import AgentTribeAssignmentMi
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.modals.agent_tribe_modal import AgentTribeModal, AgentTribeModalResult
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
 
 def _make_agent(suffix: str = "20240101120000", **overrides: object) -> Agent:

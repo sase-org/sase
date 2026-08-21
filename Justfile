@@ -808,11 +808,11 @@ dev-shell:
 _refresh-sase-core-checkout:
     @if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
         exit 0; \
-    fi
-    @if [ ! -x "{{ venv_bin }}/python" ]; then \
+    fi; \
+    if [ ! -x "{{ venv_bin }}/python" ]; then \
         exit 0; \
-    fi
-    @"{{ venv_bin }}/python" "{{ justfile_directory() }}/tools/refresh_linked_checkout" "{{ sase_core_dir }}" || true
+    fi; \
+    "{{ venv_bin }}/python" "{{ justfile_directory() }}/tools/refresh_linked_checkout" "{{ sase_core_dir }}" || true
 
 # --- Optional Rust backend (../sase-core) ---
 # Rust-only helper targets are no-ops when the configured sase-core
@@ -836,7 +836,9 @@ rust-install VENV=venv_dir_abs: _venv
         printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout
+    @if [ "${SASE_ALLOW_STALE_CORE:-}" != "1" ]; then \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout; \
+    fi
     @status=0; \
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \
@@ -897,7 +899,9 @@ rust-dev-install VENV=venv_dir_abs: _venv
         printf "[rust-dev-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout
+    @if [ "${SASE_ALLOW_STALE_CORE:-}" != "1" ]; then \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout; \
+    fi
     @status=0; \
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \

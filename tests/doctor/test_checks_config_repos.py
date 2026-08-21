@@ -2,21 +2,58 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from sase.artifact_providers import (
+    ArtifactProviderRegistry,
+    reset_artifact_provider_registry_cache,
+)
 from sase.doctor.checks_config_repos import check_config_repos
+
+
+def _empty_artifact_provider_registry(
+    *,
+    disabled_env: tuple[str, ...] = (),
+) -> ArtifactProviderRegistry:
+    return ArtifactProviderRegistry(
+        ref_providers=(),
+        file_hook_providers=(),
+        entry_kinds=(),
+        diagnostics=(),
+        disabled_env=disabled_env,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_artifact_provider_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    reset_artifact_provider_registry_cache()
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        lambda: _empty_artifact_provider_registry(),
+    )
+    yield
+    reset_artifact_provider_registry_cache()
 
 
 def _patch_config(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]) -> None:
     monkeypatch.setattr("sase.config.core.load_merged_config", lambda: config)
 
 
+@pytest.mark.parametrize("disable_plugins", [False, True])
 def test_repos_reports_ok_for_canonical_bucketed_config(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, disable_plugins: bool
 ) -> None:
     """The canonical mapping shape produces no problems."""
+    if disable_plugins:
+        monkeypatch.setenv("SASE_DISABLE_PLUGINS", "1")
+    else:
+        monkeypatch.delenv("SASE_DISABLE_PLUGINS", raising=False)
     _patch_config(
         monkeypatch,
         {
@@ -290,9 +327,50 @@ def test_repos_reports_sidecar_ref_use_missing_plugin_prefix(
     assert check.status == "WARN"
 
 
+@pytest.mark.parametrize("disable_plugins", [False, True])
 def test_repos_reports_ok_when_sidecar_is_unset(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, disable_plugins: bool
 ) -> None:
+    if disable_plugins:
+        monkeypatch.setenv("SASE_DISABLE_PLUGINS", "1")
+    else:
+        monkeypatch.delenv("SASE_DISABLE_PLUGINS", raising=False)
     _patch_config(monkeypatch, {})
 
     assert check_config_repos().status == "OK"
+
+
+def test_repos_reports_disabled_artifact_provider_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        lambda: _empty_artifact_provider_registry(
+            disabled_env=("SASE_DISABLE_PLUGINS",)
+        ),
+    )
+    _patch_config(monkeypatch, {})
+
+    check = check_config_repos()
+
+    assert check.status == "WARN"
+    assert check.data["problems"] == (
+        {
+            "key": "artifact_providers.disabled",
+            "message": (
+                "artifact provider plugin discovery is disabled by SASE_DISABLE_PLUGINS"
+            ),
+        },
+    )
+
+
+def test_only_config_repos_doctor_check_reads_artifact_provider_registry() -> None:
+    doctor_dir = Path(__file__).resolve().parents[2] / "src/sase/doctor"
+
+    offenders = sorted(
+        path.name
+        for path in doctor_dir.glob("*.py")
+        if path.name != "checks_config_repos.py"
+        and "get_artifact_provider_registry" in path.read_text(encoding="utf-8")
+    )
+    assert offenders == []

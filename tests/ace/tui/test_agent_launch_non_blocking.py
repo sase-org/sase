@@ -17,7 +17,7 @@ from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.actions.agent_workflow._launch_procs import (
     _launch_outcome_from_completion,
 )
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 
 

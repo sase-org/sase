@@ -326,3 +326,24 @@ def test_retired_artifact_file_skill_source_is_not_packaged() -> None:
 
     assert not (get_sase_package_skills_dir() / f"{skill_name}.md").exists()
     assert f"skill/{skill_name}" not in load_skills_from_package()
+
+
+def test_docs_xprompt_bundled_skills_table_matches_packaged_sources() -> None:
+    docs_path = Path(__file__).resolve().parents[2] / "docs/xprompt.md"
+    table_names: list[str] = []
+    in_table = False
+    for line in docs_path.read_text(encoding="utf-8").splitlines():
+        if line == "### Bundled Skills":
+            in_table = True
+            continue
+        if in_table and line.startswith("## "):
+            break
+        if in_table and line.startswith("| `"):
+            table_names.append(line.split("|", 2)[1].strip().strip("`"))
+
+    source_names = sorted(
+        path.stem
+        for path in get_sase_package_skills_dir().glob("*.md")
+        if path.name != "SKILL.frame.template.md"
+    )
+    assert table_names == source_names

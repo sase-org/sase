@@ -1225,10 +1225,13 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_agents_status` | Report on currently running SASE agents                                                       |
 | `sase_changespecs`   | Legacy compatibility shim that points agents to `sase_patches`                                |
 | `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
+| `sase_final`         | Submit the current turn's SASE finalizer declaration                                          |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
 | `sase_hg_commit`     | Commit through `sase commit` for the fig VCS workflow where deployed                          |
 | `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
+| `sase_monitor`       | Run a long command without blocking your turn                                                 |
+| `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
 | `sase_patches`       | Inspect and reason about Patches, stitches, hooks, comments, and mentors                      |
 | `sase_pipe`          | Hand this agent's turn to the next family member with `sase pipe`                             |
@@ -1507,8 +1510,8 @@ Directives use the same argument syntax as xprompt references:
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %m:agy/gemini-3.7-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
-%model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
-%model:grok/grok-4.6         # xAI Grok Build — explicit-only, never auto-detected
+%model:muse/muse-spark-1.2   # Meta Muse Code — never auto-detected from PATH
+%model:grok/grok-4.6         # xAI Grok Build — never auto-detected; also in alias pools
 %model:@fast                 # Configured/implicit model alias; Model shows ← @fast
 %model(opus, medium=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
 %model(medium=@large) # Leave this agent on its normal launch model; route medium follow-ups through @large

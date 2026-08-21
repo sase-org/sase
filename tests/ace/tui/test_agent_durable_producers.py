@@ -17,7 +17,7 @@ from sase.ace.tui.durable_ops import (
     agent_tribe_concurrency_key,
     launch_concurrency_key,
 )
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.ops.names import AGENT_CLEANUP, AGENT_PERSIST_DIRECTIVE, RUN_LAUNCH
 
 

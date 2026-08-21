@@ -8,7 +8,7 @@ from typing import Any
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
 
 def make_waiting_agent(**overrides: object) -> Agent:

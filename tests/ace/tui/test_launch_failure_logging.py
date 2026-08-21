@@ -99,7 +99,7 @@ def test_chop_failure_persists_record() -> None:
 def test_payloadless_launch_task_failure_persists_record() -> None:
     from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
     from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-    from sase.ace.tui.proc_queue import ProcInfo
+    from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
     class _TaskApp(LaunchProcMixin):
         def __init__(self) -> None:

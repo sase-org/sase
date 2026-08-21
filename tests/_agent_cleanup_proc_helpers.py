@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.ops.names import AGENT_CLEANUP
 
 

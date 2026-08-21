@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.notifications import Notification
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 

@@ -21,7 +21,8 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcResult,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
+from tests.ace.tui._compat_proc_queue import ProcQueue
 
 
 def _make_agent(**overrides: object) -> Agent:

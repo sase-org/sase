@@ -8,7 +8,7 @@ from typing import Any
 from sase.ace.tui.actions.patch_durable import submit_patch_operation
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.durable_ops import patch_concurrency_key
-from sase.ace.tui.proc_queue import ProcInfo
+from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 from sase.ops.names import PATCH_STATUS
 
 

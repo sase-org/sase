@@ -69,7 +69,7 @@ def test_notify_registered_error_names_configured_chord() -> None:
 def test_payloadless_launch_failure_registers_and_toasts_chord() -> None:
     from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
     from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-    from sase.ace.tui.proc_queue import ProcInfo
+    from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
     class _TaskApp(LaunchProcMixin):
         def __init__(self) -> None:
