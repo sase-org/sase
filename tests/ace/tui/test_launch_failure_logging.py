@@ -12,6 +12,7 @@ import asyncio
 import json
 from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -52,6 +53,38 @@ def _assert_persisted(kind: str) -> dict[str, Any]:
     # The human-readable sidecar log is always written too.
     assert launch_failures_log_path().exists()
     return record
+
+
+def _payloadless_completion(
+    *,
+    output: str = "",
+    log_path: Path | None = None,
+    error: str | None = "worker died",
+) -> Any:
+    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+    from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
+
+    return TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id="task-1",
+            proc_type="launch",
+            cl_name="cl",
+            project_file="",
+            status="error",
+            message="terminal proc message",
+            started_at=datetime.now(),
+            display_name="launch cl",
+            command=["sase", "run", "do work"],
+            phase="launch",
+            exit_code=1,
+            log_path="" if log_path is None else str(log_path),
+        ),
+        success=False,
+        message="worker died",
+        output=output,
+        payload=None,
+        error=error,
+    )
 
 
 def test_chop_failure_persists_record() -> None:
@@ -98,8 +131,6 @@ def test_chop_failure_persists_record() -> None:
 
 def test_payloadless_launch_task_failure_persists_record() -> None:
     from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
-    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-    from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
 
     class _TaskApp(LaunchProcMixin):
         def __init__(self) -> None:
@@ -109,25 +140,7 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
             self.notifications.append((msg, severity))
 
     app = _TaskApp()
-    app._on_launch_proc_complete(
-        TrackedProcCompletion(
-            proc_info=ProcInfo(
-                proc_id="task-1",
-                proc_type="launch",
-                cl_name="cl",
-                project_file="/tmp/proj.sase",
-                status="error",
-                message="launch cl started",
-                started_at=datetime.now(),
-                display_name="launch cl",
-            ),
-            success=False,
-            message="worker died",
-            output="captured output",
-            payload=None,
-            error="worker died",
-        )
-    )
+    app._on_launch_proc_complete(_payloadless_completion(output="captured output"))
 
     assert app.notifications == [
         ("Launch failed - press ,L for the log entry", "error")
@@ -137,6 +150,86 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
     assert record["stage"] == "launch_proc"
     assert record["proc_id"] == "task-1"
     assert record["output"] == "captured output"
+    assert record["status"] == "error"
+    assert record["phase"] == "launch"
+    assert record["exit_code"] == 1
+    assert record["command"] == "sase run 'do work'"
+    assert record["proc_message"] == "terminal proc message"
+    assert "project_file" not in record
+
+
+def test_payloadless_launch_failure_recovers_proc_log_tail_and_prompt(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.actions.agent_workflow._launch_procs import (
+        _log_payloadless_launch_failure,
+    )
+
+    log_path = tmp_path / "proc.log"
+    log_path.write_text(
+        "".join(f"line {idx}\n" for idx in range(80))
+        + "XPromptArgumentError: invalid priority\n"
+        + "".join(f"tail {idx}\n" for idx in range(80, 250)),
+        encoding="utf-8",
+    )
+    error_id = "err_260617_143000_7f3a9c"
+    prompt = "p" * 250
+
+    _log_payloadless_launch_failure(
+        _payloadless_completion(output="", log_path=log_path),
+        error_id=error_id,
+        submitted_prompt=prompt,
+    )
+
+    record = _assert_persisted("single")
+    assert record["error_id"] == error_id
+    assert record["exc_message"] == "worker died"
+    assert len(record["prompt_preview"]) == 200
+    assert record["log_path"] == str(log_path)
+    assert "XPromptArgumentError: invalid priority" in record["output"]
+    assert "tail 249" in record["output"]
+    assert "line 0" not in record["output"]
+    human = launch_failures_log_path().read_text()
+    assert "process output:" in human
+    assert "    XPromptArgumentError: invalid priority" in human
+
+
+def test_payloadless_launch_failure_prefers_preloaded_output() -> None:
+    from sase.ace.tui.actions.agent_workflow._launch_procs import (
+        _log_payloadless_launch_failure,
+    )
+
+    with patch("sase.procs.read_proc_log_tail") as read_tail:
+        _log_payloadless_launch_failure(
+            _payloadless_completion(output="already captured"),
+            error_id="err_260617_143000_7f3a9c",
+        )
+
+    read_tail.assert_not_called()
+    record = _assert_persisted("single")
+    assert record["output"] == "already captured"
+
+
+def test_payloadless_launch_output_is_char_bounded() -> None:
+    from sase.ace.tui.actions.agent_workflow import _launch_procs
+
+    large = (
+        "discarded-prefix"
+        + ("x" * _launch_procs._FAILED_LAUNCH_OUTPUT_CHAR_LIMIT)
+        + "new"
+    )
+    _launch_procs._log_payloadless_launch_failure(
+        _payloadless_completion(output=large),
+        error_id="err_260617_143000_7f3a9c",
+    )
+
+    record = _assert_persisted("single")
+    assert len(record["output"]) == _launch_procs._FAILED_LAUNCH_OUTPUT_CHAR_LIMIT
+    assert record["output"].startswith(
+        _launch_procs._FAILED_LAUNCH_OUTPUT_TRUNCATED_MARKER
+    )
+    assert record["output"].endswith("new")
+    assert "discarded-prefix" not in record["output"]
 
 
 def test_chop_missing_script_outcome_persists_record() -> None:

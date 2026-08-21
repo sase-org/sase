@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from contextlib import ExitStack
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, call, patch
 
@@ -182,6 +183,119 @@ def test_launch_query_does_not_record_mru_when_launch_fails(
 
     assert exc_info.value.code == 1
     record.assert_not_called()
+
+
+def test_launch_query_runtime_error_emits_failed_typed_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main.query_handler._launch import launch_query
+
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    _patch_git_and_gh_metadata(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    with (
+        patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
+        patch(
+            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            return_value=(),
+        ),
+        patch(
+            "sase.main.query_handler._launch.launch_agents_from_cwd",
+            side_effect=RuntimeError("workspace claim failed"),
+        ),
+        patch(
+            "sase.ops.commands.run.emit_run_launch_result",
+            side_effect=lambda **kwargs: captured.update(kwargs),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch_query("do work")
+
+    assert exc_info.value.code == 1
+    assert captured == {"success": False, "message": "workspace claim failed"}
+
+
+def test_launch_query_partial_multi_prompt_failure_emits_rollback_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
+    from sase.main.query_handler._launch import launch_query
+
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    _patch_git_and_gh_metadata(monkeypatch)
+    captured: dict[str, Any] = {}
+    error = MultiPromptPartialLaunchError(
+        [_launch_result()], RuntimeError("segment exploded")
+    )
+
+    with (
+        patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
+        patch(
+            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            return_value=(),
+        ),
+        patch(
+            "sase.main.query_handler._launch.launch_agents_from_cwd",
+            side_effect=error,
+        ),
+        patch(
+            "sase.agent.partial_launch.rollback_partial_launch_results",
+            return_value=SimpleNamespace(
+                terminated_pids=(1234,),
+                released_workspaces=(("/tmp/projects/proj/proj.sase", 7),),
+            ),
+        ),
+        patch(
+            "sase.ops.commands.run.emit_run_launch_result",
+            side_effect=lambda **kwargs: captured.update(kwargs),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch_query("one\n---\ntwo")
+
+    assert exc_info.value.code == 1
+    assert captured["success"] is False
+    assert captured["message"] == (
+        "partial multi-prompt launch failed after spawning 1 child agent(s); "
+        "terminated 1 and released 1 workspace claim(s). Cause: segment exploded"
+    )
+
+
+def test_launch_query_unexpected_exception_emits_typed_result_and_reraises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main.query_handler._launch import launch_query
+
+    class XPromptArgumentError(ValueError):
+        pass
+
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+    _patch_git_and_gh_metadata(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    with (
+        patch("sase.agent.prompt_inputs.missing_required_input_names", return_value=[]),
+        patch(
+            "sase.xprompt.unresolved.scan_query_for_unresolved_references",
+            return_value=(),
+        ),
+        patch(
+            "sase.main.query_handler._launch.launch_agents_from_cwd",
+            side_effect=XPromptArgumentError("invalid priority: urgent"),
+        ),
+        patch(
+            "sase.ops.commands.run.emit_run_launch_result",
+            side_effect=lambda **kwargs: captured.update(kwargs),
+        ),
+        pytest.raises(XPromptArgumentError),
+    ):
+        launch_query("do work")
+
+    assert captured == {
+        "success": False,
+        "message": "XPromptArgumentError: invalid priority: urgent",
+    }
 
 
 def test_launch_query_puts_unresolved_toast_on_result_payload(

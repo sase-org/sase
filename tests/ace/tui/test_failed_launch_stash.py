@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -141,9 +142,14 @@ async def test_payloadless_failure_with_metadata_stashes_and_refreshes_badge(
     app = _CompletionApp()
     lost = "#al:thing build the entire feature, this is a long prompt"
     app._launch_submitted_prompts = {"task-1": lost}
+    logged: list[dict[str, Any]] = []
 
-    app._on_launch_proc_complete(_completion(success=False, payload=None))
-    await _drain_async_tasks(app)
+    with patch(
+        "sase.logs.log_launch_failure",
+        side_effect=lambda **kwargs: logged.append(kwargs),
+    ):
+        app._on_launch_proc_complete(_completion(success=False, payload=None))
+        await _drain_async_tasks(app)
 
     entries = _entries(stash_path)
     assert [e.text for e in entries] == [lost]
@@ -152,6 +158,7 @@ async def test_payloadless_failure_with_metadata_stashes_and_refreshes_badge(
     assert app.applied_counts and app.applied_counts[-1] == 1
     # Recovery metadata is consumed exactly once.
     assert app._launch_submitted_prompts == {}
+    assert [item["prompt_preview"] for item in logged] == [lost]
 
 
 async def test_payloadless_failure_without_metadata_does_not_stash(

@@ -146,17 +146,20 @@ def launch_query(query: str) -> None:
             from sase.agent.partial_launch import rollback_partial_launch_results
 
             rollback = rollback_partial_launch_results(e.results)
-            print(
-                "Error: partial multi-prompt launch failed after spawning "
+            message = (
+                "partial multi-prompt launch failed after spawning "
                 f"{len(e.results)} child agent(s); terminated "
                 f"{len(rollback.terminated_pids)} and released "
                 f"{len(rollback.released_workspaces)} workspace claim(s). "
-                f"Cause: {e.cause}",
-                file=sys.stderr,
+                f"Cause: {e.cause}"
             )
+            _emit_failed_launch_result(message)
             sys.exit(1)
-        print(f"Error: {e}", file=sys.stderr)
+        _emit_failed_launch_result(str(e))
         sys.exit(1)
+    except Exception as e:
+        _emit_failed_launch_result(_exception_summary(e))
+        raise
 
     if not results:
         from sase.ops.commands.run import emit_run_launch_result
@@ -205,6 +208,22 @@ def _serialize_launch_result(result: object) -> dict[str, object]:
         "workspace_dir": getattr(result, "workspace_dir", ""),
         "workspace_num": getattr(result, "workspace_num", 0),
     }
+
+
+def _emit_failed_launch_result(message: str) -> None:
+    """Print and publish a typed failed ``sase run`` launch result."""
+    from sase.ops.commands.run import emit_run_launch_result
+
+    print(f"Error: {message}", file=sys.stderr)
+    emit_run_launch_result(success=False, message=message)
+
+
+def _exception_summary(exc: BaseException) -> str:
+    """Return a concise exception type and message for typed launch failures."""
+    detail = str(exc)
+    if detail:
+        return f"{type(exc).__name__}: {detail}"
+    return type(exc).__name__
 
 
 def _record_launched_vcs_xprompt_usage(query: str) -> None:

@@ -89,6 +89,27 @@ class TestLogLaunchFailure:
         assert "traceback:" in text
         assert "RuntimeError: nope" in text
 
+    def test_multiline_output_is_indented_in_human_log_and_stable_in_jsonl(
+        self,
+    ) -> None:
+        log_launch_failure(
+            kind="single",
+            display_name="cl",
+            exc=_boom("launch failed"),
+            output="first line\nsecond line\n",
+            details="alpha\nbeta",
+        )
+
+        record = json.loads(
+            launch_failures_jsonl_path().read_text().strip().splitlines()[-1]
+        )
+        assert record["output"] == "first line\nsecond line\n"
+        assert record["details"] == "alpha\nbeta"
+        text = launch_failures_log_path().read_text()
+        assert "  process output:\n    first line\n    second line\n" in text
+        assert "  details:\n    alpha\n    beta\n" in text
+        assert "  output: first line" not in text
+
     def test_omits_none_optionals(self) -> None:
         log_launch_failure(
             kind="bulk",

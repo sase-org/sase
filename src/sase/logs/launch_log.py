@@ -249,7 +249,7 @@ def _append_human_block(
     if workspace_num is not None:
         lines.append(f"  workspace: #{workspace_num}")
     for key, value in extra.items():
-        lines.append(f"  {key}: {value}")
+        _append_human_context(lines, key, value)
     if prompt_preview:
         lines.append(f"  prompt: {prompt_preview}")
     lines.append("")
@@ -259,3 +259,20 @@ def _append_human_block(
     )
     lines.append("")
     _append_locked(launch_failures_log_path(), "\n".join(lines) + "\n")
+
+
+def _append_human_context(lines: list[str], key: str, value: Any) -> None:
+    """Append one human-readable context field to *lines*."""
+    text = str(value)
+    if "\n" not in text:
+        lines.append(f"  {key}: {text}")
+        return
+    lines.append(f"  {_human_multiline_label(key)}:")
+    for payload_line in text.rstrip("\n").splitlines() or [""]:
+        lines.append(f"    {payload_line}")
+
+
+def _human_multiline_label(key: str) -> str:
+    if key == "output":
+        return "process output"
+    return key

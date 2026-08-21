@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+import shlex
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
@@ -17,6 +18,9 @@ if TYPE_CHECKING:
 
 
 _LaunchSeverity = Literal["warning", "error"]
+_FAILED_LAUNCH_DIAGNOSTIC_TAIL_LINES = 200
+_FAILED_LAUNCH_OUTPUT_CHAR_LIMIT = 64 * 1024
+_FAILED_LAUNCH_OUTPUT_TRUNCATED_MARKER = "[... older process output truncated ...]\n"
 
 
 @dataclass(frozen=True)
@@ -103,7 +107,10 @@ class LaunchProcMixin:
             if not completion.success:
                 error_id = new_error_id()
                 _schedule_payloadless_launch_failure_log(
-                    self, completion, error_id=error_id
+                    self,
+                    completion,
+                    error_id=error_id,
+                    submitted_prompt=submitted_prompt,
                 )
                 if submitted_prompt is not None:
                     # The worker died before recording the prompt; preserve it
@@ -172,6 +179,7 @@ def _schedule_payloadless_launch_failure_log(
     completion: TrackedProcCompletion[_LaunchProcOutcome],
     *,
     error_id: str,
+    submitted_prompt: str | None = None,
 ) -> None:
     """Write payloadless launch proc failures off the Textual event loop."""
     import asyncio
@@ -179,12 +187,19 @@ def _schedule_payloadless_launch_failure_log(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        _log_payloadless_launch_failure(completion, error_id=error_id)
+        _log_payloadless_launch_failure(
+            completion,
+            error_id=error_id,
+            submitted_prompt=submitted_prompt,
+        )
         return
 
     task = loop.create_task(
         asyncio.to_thread(
-            _log_payloadless_launch_failure, completion, error_id=error_id
+            _log_payloadless_launch_failure,
+            completion,
+            error_id=error_id,
+            submitted_prompt=submitted_prompt,
         )
     )
     tasks = getattr(app, "_launch_failure_log_tasks", None)
@@ -199,12 +214,14 @@ def _log_payloadless_launch_failure(
     completion: TrackedProcCompletion[_LaunchProcOutcome],
     *,
     error_id: str,
+    submitted_prompt: str | None = None,
 ) -> None:
     """Persist a launch proc failure when the worker produced no outcome."""
     from sase.logs import log_launch_failure
 
     proc = completion.proc_info
     message = completion.error or completion.message or "Launch task failed"
+    output = _failed_launch_diagnostic_output(completion)
     log_launch_failure(
         kind="single",
         display_name=proc.display_name or proc.cl_name or "launch task",
@@ -213,10 +230,64 @@ def _log_payloadless_launch_failure(
         stage="launch_proc",
         proc_id=proc.proc_id,
         proc_type=proc.proc_type,
-        project_file=proc.project_file,
-        output=completion.output or None,
+        project_file=_nonempty_str(proc.project_file),
+        prompt_preview=submitted_prompt,
+        output=output,
+        status=_nonempty_str(proc.status),
+        phase=_nonempty_str(proc.phase),
+        exit_code=proc.exit_code,
+        command=_format_proc_command(proc.command),
+        log_path=_nonempty_str(proc.log_path),
+        proc_message=_nonempty_str(proc.message),
         error_id=error_id,
     )
+
+
+def _failed_launch_diagnostic_output(
+    completion: TrackedProcCompletion[_LaunchProcOutcome],
+) -> str | None:
+    """Return bounded process output for a payloadless launch failure."""
+    if completion.output:
+        return _bound_failed_launch_output(completion.output)
+    proc = completion.proc_info
+    try:
+        from sase.procs import read_proc_log_tail
+
+        output = read_proc_log_tail(
+            proc.proc_id,
+            _FAILED_LAUNCH_DIAGNOSTIC_TAIL_LINES,
+            log_path=proc.log_path or None,
+        )
+    except (OSError, ValueError):
+        return None
+    return _bound_failed_launch_output(output)
+
+
+def _bound_failed_launch_output(output: str) -> str | None:
+    """Retain the newest diagnostic output within the failed-launch char limit."""
+    if not output:
+        return None
+    if len(output) <= _FAILED_LAUNCH_OUTPUT_CHAR_LIMIT:
+        return output
+    marker = _FAILED_LAUNCH_OUTPUT_TRUNCATED_MARKER
+    retained_chars = _FAILED_LAUNCH_OUTPUT_CHAR_LIMIT - len(marker)
+    if retained_chars <= 0:
+        return output[-_FAILED_LAUNCH_OUTPUT_CHAR_LIMIT:]
+    return marker + output[-retained_chars:]
+
+
+def _nonempty_str(value: object) -> str | None:
+    """Normalize blank context values so the launch logger omits them."""
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
+
+
+def _format_proc_command(command: Sequence[str] | None) -> str | None:
+    if not command:
+        return None
+    return shlex.join(str(part) for part in command) or None
 
 
 def _launch_outcome_from_completion(
