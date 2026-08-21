@@ -738,6 +738,12 @@ alone is never a reason to exempt a repo. `kind == "main"` and `kind == "sibling
 — this agent's own workspace — are never exempt under either classification; nobody else
 should be committing there, so an unattributed change there is always a discard.
 
+Each classification emits a path-free structured event (`event_id`, repository kind,
+before/after `HEAD`, upstream-ahead count, attribution class, and final classification)
+plus the `sase_finalizer_shared_clone_total` counter. When an artifacts directory is
+available, the same row is appended to `shared_clone_classification.jsonl`. The event
+never includes repository paths or changed file names.
+
 The failure message names the repo, whether `HEAD` advanced, the newly reachable commits
 found and who (if anyone) they were attributed to, whether a run-owned ledger entry was
 found, and the concrete next step — resolve any conflict and re-run

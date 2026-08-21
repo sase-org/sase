@@ -40,6 +40,7 @@ def test_list_shows_all_subsystems() -> None:
     assert "LLM Provider" in output
     assert "Axe Orchestrator" in output
     assert "VCS / Workspace" in output
+    assert "Finalizers" in output
 
 
 def test_list_shows_metric_names() -> None:

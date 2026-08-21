@@ -70,6 +70,7 @@ FINALIZER_DURATION: StubHistogram = StubHistogram()
 FINALIZER_RECOVERIES: StubCounter = StubCounter()
 FINALIZER_SUBMISSIONS: StubCounter = StubCounter()
 FINALIZER_PARITY_BRANCH: StubCounter = StubCounter()
+FINALIZER_SHARED_CLONE: StubCounter = StubCounter()
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +355,14 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_finalizer_parity_branch_total",
         "Total finalizer branch selections at the invocation seam",
         ["branch", "result"],
+        {},
+    ),
+    (
+        "FINALIZER_SHARED_CLONE",
+        "counter",
+        "sase_finalizer_shared_clone_total",
+        "Commit finalizer shared-clone dirty-work classifications",
+        ["repo_kind", "attribution_class", "classification", "upstream_ahead"],
         {},
     ),
 ]

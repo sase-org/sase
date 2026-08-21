@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
+import uuid
 
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
 
@@ -23,6 +24,9 @@ if TYPE_CHECKING:
     from .commit_finalizer_types import DirtyRepo, DirtyState
 
 _logger = logging.getLogger(__name__)
+
+SHARED_CLONE_CLASSIFICATION_EVENT = "commit_finalizer_shared_clone"
+SHARED_CLONE_CLASSIFICATION_FILENAME = "shared_clone_classification.jsonl"
 
 
 @dataclass(frozen=True)
@@ -110,7 +114,12 @@ def discarded_dirty_work_evidence(
             agent_name,
             ledger,
         ):
-            if _published_store_state_is_exempt(repo, before_head, after_head):
+            if _published_store_state_is_exempt(
+                repo,
+                before_head,
+                after_head,
+                artifacts_dir=artifacts_dir,
+            ):
                 continue
             evidence.append(
                 _DiscardedDirtyWorkEvidence(
@@ -135,6 +144,8 @@ def _published_store_state_is_exempt(
     repo: DirtyRepo,
     before_head: str,
     after_head: str,
+    *,
+    artifacts_dir: str | None = None,
 ) -> bool:
     """Whether *repo* is shared, machine-wide clone state a race absorbed.
 
@@ -147,45 +158,36 @@ def _published_store_state_is_exempt(
     should be committing there, so an unattributed change is still a
     discard.
     """
-    if repo.kind not in ("sdd", "external"):
-        return False
-    if not _shared_clone_exemption_enabled():
-        return _legacy_published_store_state_is_exempt(repo, before_head, after_head)
-
-    foreign_agent = _foreign_agent_of_new_commits(repo.path, before_head, after_head)
-    if foreign_agent:
-        _logger.warning(
-            "commit finalizer: treating %s (%s) as a concurrent-agent race "
-            "rather than a discard — HEAD moved %s -> %s under agent %r's "
-            "commit in this machine-wide clone; changed files: %s",
-            repo.name,
-            repo.path,
-            before_head,
-            after_head,
-            foreign_agent,
-            ", ".join(repo.changed_files),
-        )
-        return True
-
     ahead = git_upstream_ahead_count(repo.path)
-    _logger.warning(
-        "commit finalizer: treating %s (%s) as published rather than "
-        "discarded — HEAD moved %s -> %s with no locally-attributed commit "
-        "in a machine-wide clone (upstream-ahead=%s); changed files: %s",
-        repo.name,
-        repo.path,
-        before_head,
-        after_head,
-        ahead,
-        ", ".join(repo.changed_files),
+    foreign_agent = _foreign_agent_of_new_commits(repo.path, before_head, after_head)
+    attribution_class = "foreign_agent" if foreign_agent else "unattributed"
+    if repo.kind not in ("sdd", "external"):
+        exempt = False
+        classification = "discard"
+    elif not _shared_clone_exemption_enabled():
+        exempt = _legacy_published_store_state_is_exempt(repo, ahead)
+        classification = "published" if exempt else "discard"
+    elif foreign_agent:
+        exempt = True
+        classification = "race"
+    else:
+        exempt = True
+        classification = "published"
+    _record_shared_clone_classification(
+        repo_kind=repo.kind,
+        before_head=before_head,
+        after_head=after_head,
+        upstream_ahead=ahead,
+        attribution_class=attribution_class,
+        classification=classification,
+        artifacts_dir=artifacts_dir,
     )
-    return True
+    return exempt
 
 
 def _legacy_published_store_state_is_exempt(
     repo: DirtyRepo,
-    before_head: str,
-    after_head: str,
+    ahead: int | None,
 ) -> bool:
     """Strict, pre-``commit_finalizer_shared_clone_exempt`` classification.
 
@@ -194,22 +196,94 @@ def _legacy_published_store_state_is_exempt(
     exempt, and a foreign agent's footer is never on its own a reason to
     exempt a repo.
     """
-    if repo.kind != "sdd":
-        return False
-    ahead = git_upstream_ahead_count(repo.path)
-    if ahead != 0:
-        return False
+    return repo.kind == "sdd" and ahead == 0
+
+
+def _new_shared_clone_event_id() -> str:
+    return uuid.uuid4().hex
+
+
+def _upstream_ahead_label(ahead: int | None) -> str:
+    if ahead is None:
+        return "none"
+    if ahead == 0:
+        return "zero"
+    return "positive"
+
+
+def _record_shared_clone_classification(
+    *,
+    repo_kind: str,
+    before_head: str,
+    after_head: str,
+    upstream_ahead: int | None,
+    attribution_class: str,
+    classification: str,
+    artifacts_dir: str | None,
+) -> str:
+    """Emit a path-free structured event and counter for one classification."""
+
+    event_id = _new_shared_clone_event_id()
+    ahead_text = "none" if upstream_ahead is None else str(upstream_ahead)
+    extra = {
+        "sase_event": SHARED_CLONE_CLASSIFICATION_EVENT,
+        "shared_clone_event_id": event_id,
+        "shared_clone_repo_kind": repo_kind,
+        "shared_clone_before_head": before_head,
+        "shared_clone_after_head": after_head,
+        "shared_clone_upstream_ahead": upstream_ahead,
+        "shared_clone_attribution_class": attribution_class,
+        "shared_clone_classification": classification,
+    }
     _logger.warning(
-        "commit finalizer: treating %s (%s) as published rather than "
-        "discarded — HEAD moved %s -> %s with no locally-attributed commit, "
-        "but the clone is not ahead of its upstream; changed files: %s",
-        repo.name,
-        repo.path,
+        "commit finalizer shared-clone classification event_id=%s "
+        "repo_kind=%s before_head=%s after_head=%s upstream_ahead=%s "
+        "attribution_class=%s classification=%s",
+        event_id,
+        repo_kind,
         before_head,
         after_head,
-        ", ".join(repo.changed_files),
+        ahead_text,
+        attribution_class,
+        classification,
+        extra=extra,
     )
-    return True
+    from sase.telemetry.metrics import FINALIZER_SHARED_CLONE
+
+    FINALIZER_SHARED_CLONE.labels(
+        repo_kind=repo_kind,
+        attribution_class=attribution_class,
+        classification=classification,
+        upstream_ahead=_upstream_ahead_label(upstream_ahead),
+    ).inc()
+    if artifacts_dir:
+        _append_shared_clone_event(
+            artifacts_dir,
+            {
+                "event": SHARED_CLONE_CLASSIFICATION_EVENT,
+                "event_id": event_id,
+                "repo_kind": repo_kind,
+                "before_head": before_head,
+                "after_head": after_head,
+                "upstream_ahead": upstream_ahead,
+                "attribution_class": attribution_class,
+                "classification": classification,
+            },
+        )
+    return event_id
+
+
+def _append_shared_clone_event(
+    artifacts_dir: str,
+    payload: dict[str, object],
+) -> None:
+    try:
+        path = Path(artifacts_dir) / SHARED_CLONE_CLASSIFICATION_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    except OSError:
+        return
 
 
 def _shared_clone_exemption_enabled() -> bool:
