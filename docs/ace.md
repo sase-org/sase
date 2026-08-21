@@ -5070,9 +5070,19 @@ token under the cursor:
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
   `%m`), completion lists user-facing prompt directives and accepts aliases into their
   canonical forms. For example, `%m` completes to `%model` and `%w` completes to
-  `%wait`. Inside `%wait`, completion keeps `time=` and `runners=` first, followed by
-  matching tribes, clans, families, and agents. The panel shows each directive's aliases
-  and whether it takes an argument or is a flag.
+  `%wait`. The same shared directive matrix used by the xprompt LSP is documented in
+  [Directive Completion Matrix](xprompt.md#directive-completion-matrix): `%model`
+  completes live model catalog rows, aliases, provider drill-down rows, and
+  parenthesized alias keys; `%effort`, `%auto`, `%repeat`, and `%xprompts_enabled`
+  complete their fixed values; `%id`, `%clan`, and `%wait(...)` complete their supported
+  keyword names and keyword-value rows. `%wait:` never offers structured keywords, so
+  `time=`, `runners=`, `priority=`, and `bead=` appear only in parenthesized
+  `%wait(...)`. Keyword completion suppresses duplicates and mutually exclusive
+  keywords, and `%model(..., alias=...)` suppresses the alias's own `@alias` value,
+  while manually typed values still flow to launch-time validation. Dynamic agent and
+  bead rows come from ACE's warmed snapshots rather than synchronous prompt-bar
+  bead-store reads; if a dynamic refresh is unavailable, static directive names,
+  aliases, keyword rows, and fixed values remain available.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
   appears. Local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory stay hidden while the typed text prefix-matches an artifact kind; the panel

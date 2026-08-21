@@ -304,6 +304,15 @@ def _build_model_clause_candidates(
             selected_keywords=clause.selected_keywords,
         )
     models, shared = _build_model_arg_completion_candidates(clause.token)
+    if clause.active_keyword:
+        models = [
+            candidate
+            for candidate in models
+            if not _model_insertion_is_self_ref(
+                candidate.insertion,
+                clause.active_keyword,
+            )
+        ]
     if (
         clause.syntax_form == "parenthesized"
         and clause.clause_kind == "positional"
@@ -315,6 +324,10 @@ def _build_model_clause_candidates(
         )
         return [*models, *aliases], ""
     return models, shared
+
+
+def _model_insertion_is_self_ref(insertion: str, keyword: str) -> bool:
+    return insertion.lstrip("@").casefold() == keyword.lstrip("@").casefold()
 
 
 def _build_bead_clause_candidates(

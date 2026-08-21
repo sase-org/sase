@@ -67,7 +67,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS ref roots         | Completes `#gh:`, `#git:`, and other registered VCS workflow ref roots from project, Patch, and namespace catalog rows.                                                                                                                                                                                 |
 | VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                          |
 | Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                              |
-| Directive completion  | Completes SASE prompt directives and fixed directive values, including `%model:` values and provider-scoped `provider/model` drill-down from the live model catalog.                                                                                                                                    |
+| Directive completion  | Completes the shared [directive matrix](xprompt.md#directive-completion-matrix): directive names and aliases, fixed values, `%model:` catalog rows and provider drill-down, parenthesized `%model(..., alias=...)` keys, and `%id` / `%clan` / `%wait(...)` keyword rows and values.                    |
 | Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                       |
 | File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                |
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                           |
@@ -85,6 +85,15 @@ nested snippet sessions: expanding a trigger while another snippet's tabstops ar
 visits the inner tabstops first, then returns to the remaining outer tabstops. LSP
 clients receive ordinary editor snippets from the same catalog, so placeholder
 navigation in external editors is handled by the editor.
+
+Directive completion uses UTF-16 LSP ranges, so accepting a row replaces the correct
+token even after non-BMP characters earlier on the line. `%wait:` remains positional and
+never offers `bead=`, `priority=`, `runners=`, or `time=`; those keywords are only in
+parenthesized `%wait(...)`. Keyword menus omit duplicate and conflicting entries, and
+model keyword values omit a self-reference such as `@medium` while completing
+`%model(..., medium=...)`. Static directive names, aliases, keyword rows, and fixed
+values still complete if the helper bridge cannot refresh dynamic catalogs; model,
+agent, bead, repository, and artifact inventories degrade independently.
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
 file rows whenever the query prefix-matches an artifact kind (including bare `@`), and

@@ -1478,17 +1478,19 @@ are extracted and stripped from the prompt before further processing.
 
 ### Supported Directives
 
-| Directive | Alias | Description                                                            |
-| --------- | ----- | ---------------------------------------------------------------------- |
-| `%model`  | `%m`  | Override the LLM model for this prompt                                 |
-| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                  |
-| `%id`     | `%i`  | Assign an id, clan, family, or user-managed tribe                      |
-| `%clan`   | `%c`  | Declare a new named, rootless parallel agent clan                      |
-| `%wait`   | `%w`  | Wait for agents, closed beads, a time floor, and/or a runner threshold |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display                     |
-| `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned  |
-| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                      |
-| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)       |
+| Directive           | Alias | Description                                                            |
+| ------------------- | ----- | ---------------------------------------------------------------------- |
+| `%model`            | `%m`  | Override the LLM model for this prompt                                 |
+| `%effort`           | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                  |
+| `%id`               | `%i`  | Assign an id, clan, family, or user-managed tribe                      |
+| `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                      |
+| `%wait`             | `%w`  | Wait for agents, closed beads, a time floor, and/or a runner threshold |
+| `%final`            |       | Select configured finalizer instances for this launch                  |
+| `%hide`             | `%h`  | Hide the agent from the default Agents tab display                     |
+| `%auto`             | `%a`  | Request automatic gate resolution; an optional argument is gate-owned  |
+| `%repeat`           | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                      |
+| `%alt`              | `%{}` | Split prompt into variants with different text (brace shorthand)       |
+| `%xprompts_enabled` |       | Enable or disable xprompt expansion for a text region                  |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
@@ -1498,6 +1500,37 @@ migration error that points to `%id` / `%i` and, for clan membership, the
 The retired `%tribe` and `%t` directives also raise a migration error. Use
 `%id(<id>, tribe=<tribe>)`, `%id(tribe=<tribe>)` / `#tribe:<tribe>`, or
 `%clan(<clan>, tribe=<tribe>)` according to the identity being tagged.
+
+### Directive Completion Matrix
+
+ACE and the xprompt LSP use the same Rust directive contract for names, aliases,
+argument syntax, keyword names, fixed values, and replacement ranges. Name completion
+advertises every user-facing directive except `%final`, which is accepted by the parser
+but hidden from the ordinary directive-name menu because finalizer selection is owned by
+the launch finalization gate. Retired `%name` / `%n` and `%tribe` / `%t` forms are not
+completed.
+
+| Directive           | Completed forms                                                                    | Completed argument rows                                                                                                                                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `%model` / `%m`     | `%model:...`, `%model(...)`                                                        | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                           |
+| `%effort` / `%e`    | `%effort:...`                                                                      | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                            |
+| `%final`            | Hidden from name completion; accepted in `%final:...` and `%final(...)` when typed | `none`; selector operations remain typable. Keywords are not offered.                                                                                                                                                                                                                                  |
+| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                  | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                          |
+| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                          | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                  |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                            | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `bead=`, `priority=`, `runners=`, `time=` before target rows; `bead=` completes open bead IDs, `priority=` suggests `10` and `1`, `runners=` suggests `0` and `1`, and `time=` suggests `5m` and `1430`. |
+| `%hide` / `%h`      | Bare flag and plus form                                                            | No argument rows.                                                                                                                                                                                                                                                                                      |
+| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                                        | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                    |
+| `%repeat` / `%r`    | `%repeat:...`                                                                      | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                      |
+| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                        | No structured argument rows.                                                                                                                                                                                                                                                                           |
+| `%xprompts_enabled` | `%xprompts_enabled:...`                                                            | `false`, `true`.                                                                                                                                                                                                                                                                                       |
+
+Keyword-name completion omits non-repeatable keywords that are already present and
+keywords that conflict with a selected keyword, but this is only a completion filter:
+manually typed text still reaches the normal directive validator. `%wait:` deliberately
+does not offer `bead=`, `priority=`, `runners=`, or `time=`; structured wait keywords
+are parenthesized only. If a dynamic inventory fails, static directive names, aliases,
+keyword rows, and fixed values still complete while model, agent, bead, or filesystem
+rows may be absent or stale according to the surface.
 
 ### Syntax
 
