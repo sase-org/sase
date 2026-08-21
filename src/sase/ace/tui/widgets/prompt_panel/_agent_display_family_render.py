@@ -34,6 +34,8 @@ from ._container_hint_text import container_text_with_file_hints
 from ._fold_language import fold_count_style
 from ._file_path_hints import (
     has_file_path,
+    iter_container_file_path_matches,
+    iter_xprompt_container_file_path_matches,
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget
@@ -248,13 +250,18 @@ class AgentFamilyDisplayMixin:
         semantic_context: AgentPromptHighlightContext | None = None,
     ) -> Text:
         """Return one visible family content fragment with numbered paths."""
+        include_xprompt = xprompt_agent is not None and raw_xprompt is not None
         text = container_text_with_file_hints(
             content,
             hint_state,
             workspace_dir=workspace_dir,
             budget=budget,
+            matcher=(
+                iter_xprompt_container_file_path_matches
+                if include_xprompt
+                else iter_container_file_path_matches
+            ),
         )
-        include_xprompt = xprompt_agent is not None and raw_xprompt is not None
         context = semantic_context
         if context is None and include_xprompt and xprompt_agent is not None:
             context = agent_prompt_highlight_context(

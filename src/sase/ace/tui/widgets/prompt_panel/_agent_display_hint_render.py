@@ -48,6 +48,7 @@ from ._agent_xprompt_highlighting import (
     apply_authored_prompt_overlays,
 )
 from ._file_path_hints import resolve_agent_workspace_dir
+from ._file_path_hints import iter_xprompt_file_path_matches
 from ._helpers import append_section_heading, format_output
 from ._hint_caps import append_bounded_text_with_file_hints
 from ._member_roster import member_jump_map_publisher_for
@@ -327,6 +328,7 @@ class AgentHintRenderMixin:
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
+                matcher=iter_xprompt_file_path_matches,
             )
             xprompt_source = header_text.plain[xprompt_start:]
             hint_spans = tuple(

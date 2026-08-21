@@ -49,7 +49,10 @@ def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
     artifacts_dir.mkdir()
     (artifacts_dir / "raw_xprompt.md").write_text(
         "#git:sase %auto #pr:my_change %m:opus Ask Agent Clan; run `checks`\n"
-        "---\n%{fast=a | safe=b} /sase_plan inspect sase-core",
+        '#work(@plans:"quoted payload.md"#L12) @bead:sase-9z '
+        "@agent:visual.xprompt-highlight @commit:sase@abcdef1\n"
+        "---\n%{fast=@plans:202608/design.md | safe=@plans:202608/other.md} "
+        "/sase_plan inspect sase-core",
         encoding="utf-8",
     )
     (artifacts_dir / "01_prompt.md").write_text(
@@ -128,7 +131,13 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
             ":my_change",
             "%m",
             ":opus",
+            "plans",
+            "bead",
+            "agent",
             "---",
+            "quoted",
+            "payload.md",
+            "commit",
             "/sase_plan",
             "Agent Clan",
             "sase-core",

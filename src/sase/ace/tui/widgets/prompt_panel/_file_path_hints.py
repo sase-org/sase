@@ -10,6 +10,8 @@ from typing import Protocol
 from rich.style import StyleType
 from rich.text import Text
 
+from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_candidate_ranges
+from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_BYTES, PLAIN_RENDER_MAX_LINES
 from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX as LOGICAL_PLAN_REFERENCE_PREFIX
 
 _FILE_PATH_ALTERNATIVES = (
@@ -183,6 +185,19 @@ def iter_container_file_path_matches(
             yield match
 
 
+def iter_xprompt_file_path_matches(content: str) -> Iterator[re.Match[str]]:
+    """Yield ordinary file hints, excluding complete typed artifact refs."""
+    yield from _matches_outside_artifact_refs(content, iter_file_path_matches(content))
+
+
+def iter_xprompt_container_file_path_matches(content: str) -> Iterator[re.Match[str]]:
+    """Yield container file hints, excluding complete typed artifact refs."""
+    yield from _matches_outside_artifact_refs(
+        content,
+        iter_container_file_path_matches(content),
+    )
+
+
 def file_hint_match_span(match: re.Match[str]) -> tuple[int, int]:
     """Return the visible token span for a file-hint regex match."""
     return (match.start(1) if match.group(1) else match.start(2), match.end(2))
@@ -191,6 +206,29 @@ def file_hint_match_span(match: re.Match[str]) -> tuple[int, int]:
 def has_file_path(content: str) -> bool:
     """Return whether *content* has a file path outside HTTP(S) URLs."""
     return next(iter_file_path_matches(content), None) is not None
+
+
+def _matches_outside_artifact_refs(
+    content: str,
+    matches: Iterator[re.Match[str]],
+) -> Iterator[re.Match[str]]:
+    ref_ranges = artifact_ref_candidate_ranges(
+        content,
+        max_bytes=PLAIN_RENDER_MAX_BYTES,
+        max_lines=PLAIN_RENDER_MAX_LINES,
+    )
+    if not ref_ranges:
+        yield from matches
+        return
+
+    ref_index = 0
+    for match in matches:
+        match_start, match_end = file_hint_match_span(match)
+        while ref_index < len(ref_ranges) and ref_ranges[ref_index].end <= match_start:
+            ref_index += 1
+        if ref_index < len(ref_ranges) and ref_ranges[ref_index].start < match_end:
+            continue
+        yield match
 
 
 def append_text_with_file_hints(

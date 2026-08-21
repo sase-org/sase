@@ -14,6 +14,10 @@ from sase.xprompt import alt_inspect, xprompt_inspect
 from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
 
+from .artifact_ref_syntax import (
+    ArtifactRefStylePalette,
+    apply_artifact_ref_overlays,
+)
 from .frontmatter_syntax import FRONTMATTER_MARKDOWN_LEXER
 from .lazy_syntax import (
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
@@ -112,6 +116,8 @@ def highlight_prompt_text(
     glossary_catalog: EditorGlossaryCatalog | None = None,
     repo_catalog: EditorRepoMentionCatalog | None = None,
     semantic_styles: SemanticHighlightStyles | None = None,
+    artifact_ref_known_kinds: frozenset[str] | None = None,
+    artifact_ref_styles: ArtifactRefStylePalette | None = None,
 ) -> Text:
     """Return Markdown-highlighted prompt text with xprompt token overlays.
 
@@ -143,6 +149,15 @@ def highlight_prompt_text(
             text,
             known_skills=known_skills,
         )
+        if artifact_ref_known_kinds is not None:
+            apply_artifact_ref_overlays(
+                highlighted,
+                text,
+                known_kinds=artifact_ref_known_kinds,
+                palette=artifact_ref_styles,
+                max_bytes=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+                max_lines=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+            )
         return highlighted
     except Exception:
         return Text(text)

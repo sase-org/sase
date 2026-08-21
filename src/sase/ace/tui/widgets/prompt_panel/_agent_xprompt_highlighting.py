@@ -6,14 +6,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.ace.tui.util.artifact_ref_syntax import (
+    ArtifactRefStylePalette,
+    apply_artifact_ref_overlays,
+    artifact_ref_style_palette_from_theme,
+)
 from sase.ace.tui.glossary_catalog import PromptGlossaryContext
 from sase.ace.tui.repo_mention_catalog import PromptRepoMentionContext
+from sase.ace.tui.util.lazy_syntax import (
+    MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+    MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+)
 from sase.ace.tui.util.semantic_overlay import apply_semantic_overlays
 from sase.ace.tui.util.semantic_styles import (
     SemanticHighlightStyles,
     semantic_highlight_styles_from_theme,
 )
 from sase.ace.tui.util.xprompt_syntax import apply_xprompt_overlays
+from sase.artifact_refs import parsable_artifact_ref_kinds
 from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 from sase.xprompt.repo_mention_catalog import EditorRepoMentionCatalog
@@ -31,6 +41,8 @@ class AgentPromptHighlightContext:
     glossary_catalog: EditorGlossaryCatalog | None
     repo_catalog: EditorRepoMentionCatalog | None
     styles: SemanticHighlightStyles | None
+    artifact_ref_known_kinds: frozenset[str]
+    artifact_ref_styles: ArtifactRefStylePalette
     fingerprint: tuple[object, ...]
 
     @property
@@ -105,6 +117,7 @@ def agent_prompt_highlight_context(
         repo_value if isinstance(repo_value, EditorRepoMentionCatalog) else None
     )
     styles = None
+    artifact_ref_styles = artifact_ref_style_palette_from_theme(None)
     if app is not None:
         try:
             styles = semantic_highlight_styles_from_theme(
@@ -112,6 +125,13 @@ def agent_prompt_highlight_context(
             )
         except Exception:
             styles = None
+        try:
+            artifact_ref_styles = artifact_ref_style_palette_from_theme(
+                getattr(app, "current_theme", None)
+            )
+        except Exception:
+            artifact_ref_styles = artifact_ref_style_palette_from_theme(None)
+    artifact_ref_known_kinds = _artifact_ref_known_kinds()
     fingerprint = (
         frozenset(known_skills),
         _catalog_fingerprint(
@@ -125,6 +145,8 @@ def agent_prompt_highlight_context(
             kind="repo",
         ),
         styles.signature if styles is not None else "",
+        artifact_ref_styles.signature,
+        artifact_ref_known_kinds,
     )
     return AgentPromptHighlightContext(
         project=project,
@@ -133,6 +155,8 @@ def agent_prompt_highlight_context(
         glossary_catalog=glossary_catalog,
         repo_catalog=repo_catalog,
         styles=styles,
+        artifact_ref_known_kinds=artifact_ref_known_kinds,
+        artifact_ref_styles=artifact_ref_styles,
         fingerprint=fingerprint,
     )
 
@@ -165,6 +189,15 @@ def apply_authored_prompt_overlays(
                 region_start=region_start,
                 known_skills=context.known_skills,
             )
+            apply_artifact_ref_overlays(
+                highlighted,
+                source,
+                known_kinds=context.artifact_ref_known_kinds,
+                palette=context.artifact_ref_styles,
+                region_start=region_start,
+                max_bytes=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
+                max_lines=MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+            )
         for span in hint_spans:
             style = getattr(span, "style", None)
             start = getattr(span, "start", None)
@@ -174,6 +207,13 @@ def apply_authored_prompt_overlays(
             highlighted.stylize(style, start, end)
     except Exception:
         return
+
+
+def _artifact_ref_known_kinds() -> frozenset[str]:
+    try:
+        return frozenset(parsable_artifact_ref_kinds())
+    except Exception:
+        return frozenset()
 
 
 def _known_skills_for_project(

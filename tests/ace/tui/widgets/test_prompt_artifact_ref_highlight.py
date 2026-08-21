@@ -160,11 +160,20 @@ async def test_artifact_ref_overlay_marks_each_part_and_registers_styles() -> No
             "artifact_ref.sigil",
             "artifact_ref.kind",
             "artifact_ref.separator",
+            "artifact_ref.delimiter",
+            "artifact_ref.payload",
+            "artifact_ref.fragment",
+            "artifact_ref.error",
+        ):
+            assert name in text_area._theme.syntax_styles
+        for name in (
+            "artifact_ref.sigil",
+            "artifact_ref.kind",
+            "artifact_ref.separator",
             "artifact_ref.payload",
             "artifact_ref.fragment",
         ):
             assert name in names
-            assert name in text_area._theme.syntax_styles
 
         styles = text_area._theme.syntax_styles
         assert styles["artifact_ref.kind"].color == Color.parse(
@@ -173,6 +182,20 @@ async def test_artifact_ref_overlay_marks_each_part_and_registers_styles() -> No
         assert styles["artifact_ref.kind"].bold is True
         assert styles["artifact_ref.payload"].color != styles["artifact_ref.kind"].color
         assert styles["artifact_ref.fragment"].italic is True
+
+
+async def test_artifact_ref_overlay_marks_quoted_delimiters() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        _seed_known_kinds(text_area)
+        text_area.load_text('@plans:"two words.md"#L12')
+        text_area._build_highlight_map()
+
+        names = [name for *_range, name in _artifact_highlights(text_area)]
+        assert names.count("artifact_ref.delimiter") == 2
+        assert "artifact_ref.payload" in names
+        assert "artifact_ref.fragment" in names
 
 
 @pytest.mark.parametrize("token", ("@bead:sase-9z", "@agent:9w"))
@@ -201,6 +224,18 @@ async def test_artifact_ref_overlay_subdues_well_formed_unknown_kind() -> None:
         highlights = _artifact_highlights(text_area)
         assert highlights == [(0, 0, 12, "artifact_ref.unknown")]
         assert text_area._theme.syntax_styles["artifact_ref.unknown"].dim is True
+
+
+async def test_artifact_ref_overlay_marks_malformed_candidates_as_error() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        text_area = app.query_one(PromptTextArea)
+        _seed_known_kinds(text_area)
+        text_area.load_text("@plans:")
+        text_area._build_highlight_map()
+
+        assert _artifact_highlights(text_area) == [(0, 0, 7, "artifact_ref.error")]
+        assert text_area._theme.syntax_styles["artifact_ref.error"].underline is True
 
 
 async def test_artifact_ref_overlay_uses_neutral_style_while_cache_is_cold() -> None:

@@ -173,6 +173,8 @@ class AgentDisplayRenderMixin(
             glossary_catalog=context.glossary_catalog,
             repo_catalog=context.repo_catalog,
             semantic_styles=context.styles,
+            artifact_ref_known_kinds=context.artifact_ref_known_kinds,
+            artifact_ref_styles=context.artifact_ref_styles,
         )
         cache[key] = highlighted
         if len(cache) > _XPROMPT_HIGHLIGHT_CACHE_LIMIT:

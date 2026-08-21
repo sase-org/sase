@@ -15,7 +15,10 @@ from sase.ace.tui.util.lazy_syntax import (
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
     CachedRenderable,
 )
+from sase.ace.tui.util.artifact_ref_syntax import artifact_ref_style_palette_from_theme
 from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+from sase.ace.tui.widgets.prompt_panel._hint_caps import HintContentBudget
 
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
@@ -46,6 +49,16 @@ def _styles_at(text: Text, needle: str, *, offset: int = 0) -> set[str]:
         for span in text.spans
         if span.start <= position < span.end and span.style is not None
     }
+
+
+def _last_style_at(text: Text, needle: str, *, offset: int = 0) -> str | None:
+    position = text.plain.index(needle) + offset
+    styles = [
+        str(span.style)
+        for span in text.spans
+        if span.start <= position < span.end and span.style is not None
+    ]
+    return styles[-1] if styles else None
 
 
 class TestAgentXPromptRendering:
@@ -186,6 +199,91 @@ class TestAgentXPromptRendering:
         header = _header_text(panel.captured[-1])
         assert "AGENT XPROMPT\n#gh:widgets Run `pytest`" in header.plain
         assert any("#e6db74" in style for style in _styles_at(header, "pytest"))
+
+    def test_agent_xprompt_highlights_artifact_refs_after_xprompt_args(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt=("#work(@plans:202608/design.md#L12) and `@plans:literal.md`"),
+        )
+
+        panel.update_display(agent)
+
+        header = _header_text(panel.captured[-1])
+        palette = artifact_ref_style_palette_from_theme(None)
+        assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(header, "#work")
+        assert _last_style_at(header, "plans") == str(palette.style_for_key("kind"))
+        assert _last_style_at(header, "202608/design.md") == str(
+            palette.style_for_key("payload")
+        )
+        assert _last_style_at(header, "#L12") == str(palette.style_for_key("fragment"))
+        literal_offset = header.plain.index("literal")
+        assert str(palette.style_for_key("payload")) not in {
+            str(span.style)
+            for span in header.spans
+            if span.start <= literal_offset < span.end and span.style is not None
+        }
+
+    def test_xprompt_highlight_cache_invalidates_when_ref_theme_changes(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        from sase.ace.tui.widgets.prompt_panel import _agent_display_render
+
+        original = _agent_display_render.highlight_prompt_text
+        calls = 0
+
+        def _counted(
+            text: str,
+            *,
+            known_skills: frozenset[str] = frozenset(),
+            **kwargs: object,
+        ) -> Text:
+            nonlocal calls
+            calls += 1
+            return original(text, known_skills=known_skills, **kwargs)
+
+        panel = FakePromptPanel()
+        panel.app = SimpleNamespace(
+            current_theme=SimpleNamespace(
+                secondary="#335577",
+                success="#00aa66",
+                accent="#9955cc",
+                error="#cc3344",
+                foreground="#ffffff",
+                background="#000000",
+            )
+        )
+        monkeypatch.setattr(
+            _agent_display_render,
+            "highlight_prompt_text",
+            _counted,
+        )
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt="@plans:202608/design.md",
+        )
+
+        panel.update_display(agent)
+        panel.update_display(agent)
+        assert calls == 1
+
+        panel.app.current_theme = SimpleNamespace(
+            secondary="#335577",
+            success="#00aa66",
+            accent="#9955cc",
+            error="#cc3344",
+            foreground="#000000",
+            background="#ffffff",
+        )
+        panel.update_display(agent)
+        assert calls == 2
 
     def test_agent_prompt_and_chat_use_logical_project_name(
         self,
@@ -395,6 +493,67 @@ class TestAgentXPromptRendering:
             rendered,
             "AGENT XPROMPT",
             "#work([1] @src/raw.py) %auto",
+        )
+
+    def test_hint_mode_keeps_typed_artifact_refs_semantic(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            workspace_dir=str(workspace_dir),
+            raw_xprompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
+        )
+
+        result = panel.update_display_with_hints(agent)
+
+        rendered = _header_text(panel.captured[-1])
+        assert "#work(@plans:202608/design.md#L12) and [1] @src/raw.py" in (
+            rendered.plain
+        )
+        assert result.file_hints == {1: str(workspace_dir / "src/raw.py")}
+        assert "[1] 202608/design.md" not in rendered.plain
+        assert _last_style_at(rendered, "plans") == str(
+            artifact_ref_style_palette_from_theme(None).style_for_key("kind")
+        )
+
+    def test_family_hint_xprompt_keeps_typed_artifact_refs_semantic(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            workspace_dir=str(workspace_dir),
+            raw_xprompt="#work(@plans:202608/design.md#L12) and @src/raw.py",
+        )
+        hint_state = HeaderHintState(
+            hint_counter=1,
+            hint_mappings={},
+            workspace_dir=str(workspace_dir),
+            tool_call_reports={},
+        )
+
+        text = panel._family_text_with_hints(
+            "#work(@plans:202608/design.md#L12) and @src/raw.py",
+            hint_state,
+            workspace_dir=str(workspace_dir),
+            budget=HintContentBudget(),
+            xprompt_agent=agent,
+            raw_xprompt=agent.get_raw_xprompt_content(),
+        )
+
+        assert text.plain == "#work(@plans:202608/design.md#L12) and [1] @src/raw.py"
+        assert hint_state.hint_mappings == {1: str(workspace_dir / "src/raw.py")}
+        assert _last_style_at(text, "plans") == str(
+            artifact_ref_style_palette_from_theme(None).style_for_key("kind")
         )
 
     def test_hint_mode_skips_paths_inside_http_urls(

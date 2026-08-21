@@ -7,20 +7,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.util.artifact_ref_syntax import (
+    artifact_ref_style_palette_from_theme,
+    artifact_ref_styled_spans,
+    build_artifact_ref_candidate_spans,
+)
 from sase.artifact_refs import (
     ArtifactRefContext,
-    ArtifactRefPromptCandidate,
-    ArtifactRefSpan,
     artifact_ref_context,
     parsable_artifact_ref_kinds,
-    scan_artifact_refs,
 )
-from sase.xprompt._literal_zones import literal_zone_ranges
-from sase.xprompt.highlight_theme import derive_argument_color
 from sase.xprompt.project_identity import known_project_namespaces
 
 from ._jinja_highlight import (
@@ -171,61 +170,26 @@ class ArtifactRefHighlightMixin(_MixinBase):
         text = self.text
         if "@" not in text:
             return
-        encoded = text.encode("utf-8")
-        if len(encoded) > _MAX_OVERLAY_BYTES:
-            return
-        if text.count("\n") > _MAX_OVERLAY_LINES:
-            return
-
-        try:
-            candidates = scan_artifact_refs(text)
-            literal_ranges = literal_zone_ranges(text)
-        except Exception:
-            return
-        if not candidates:
-            return
-
-        converted = _candidate_character_spans(text, encoded, candidates)
         known_kinds = self._get_warm_artifact_ref_known_kinds()
-        literal_index = 0
-        for candidate, spans in zip(candidates, converted, strict=True):
-            candidate_span = spans["candidate"]
-            while (
-                literal_index < len(literal_ranges)
-                and literal_ranges[literal_index][1] <= candidate_span.start
-            ):
-                literal_index += 1
-            if (
-                literal_index < len(literal_ranges)
-                and literal_ranges[literal_index][0] < candidate_span.end
-            ):
-                continue
-
-            if known_kinds is None:
-                self._append_artifact_ref_span(
-                    candidate_span,
-                    "artifact_ref.neutral",
-                )
-                continue
-            if candidate.well_formed and candidate.kind not in known_kinds:
-                self._append_artifact_ref_span(
-                    candidate_span,
-                    "artifact_ref.unknown",
-                )
-                continue
-            for part in ("sigil", "kind", "separator", "payload", "fragment"):
-                span = spans.get(part)
-                if span is not None:
-                    self._append_artifact_ref_span(
-                        span,
-                        f"artifact_ref.{part}",
-                    )
+        candidates = build_artifact_ref_candidate_spans(
+            text,
+            known_kinds=known_kinds,
+            max_bytes=_MAX_OVERLAY_BYTES,
+            max_lines=_MAX_OVERLAY_LINES,
+        )
+        for span in artifact_ref_styled_spans(candidates):
+            self._append_highlight_span(
+                span.span.start,
+                span.span.end,
+                span.style_name,
+            )
 
     def _append_artifact_ref_span(
         self,
-        span: ArtifactRefSpan,
+        span: Any,
         style_name: str,
     ) -> None:
+        """Compatibility wrapper for older focused widget tests."""
         self._append_highlight_span(span.start, span.end, style_name)
 
     def _get_warm_artifact_ref_known_kinds(self) -> frozenset[str] | None:
@@ -387,49 +351,8 @@ class ArtifactRefHighlightMixin(_MixinBase):
         active_name = theme_name or str(getattr(self, "theme", "css") or "css")
         base = self._resolve_artifact_ref_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
-        app_theme = self.app.current_theme
-        background = app_theme.background or "#000000"
-        argument_color = derive_argument_color(
-            app_theme.success,
-            foreground=app_theme.foreground,
-            background=background,
-        )
-        fragment_color = derive_argument_color(
-            app_theme.accent,
-            foreground=app_theme.foreground,
-            background=background,
-        )
-        syntax_styles.update(
-            {
-                "artifact_ref.sigil": Style(
-                    color=app_theme.secondary,
-                    bold=True,
-                ),
-                "artifact_ref.kind": Style(
-                    color=app_theme.success,
-                    bold=True,
-                ),
-                "artifact_ref.separator": Style(
-                    color=app_theme.secondary,
-                    dim=True,
-                    bold=True,
-                ),
-                "artifact_ref.payload": Style(color=argument_color),
-                "artifact_ref.fragment": Style(
-                    color=fragment_color,
-                    italic=True,
-                ),
-                "artifact_ref.unknown": Style(
-                    color=app_theme.foreground,
-                    dim=True,
-                    italic=True,
-                ),
-                "artifact_ref.neutral": Style(
-                    color=app_theme.secondary,
-                    dim=True,
-                ),
-            }
-        )
+        palette = artifact_ref_style_palette_from_theme(self.app.current_theme)
+        syntax_styles.update(palette.styles)
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -449,57 +372,6 @@ class ArtifactRefHighlightMixin(_MixinBase):
             assert fallback is not None
             return fallback
         return theme
-
-
-def _candidate_character_spans(
-    text: str,
-    encoded: bytes,
-    candidates: tuple[ArtifactRefPromptCandidate, ...],
-) -> tuple[dict[str, ArtifactRefSpan], ...]:
-    """Convert scanner byte spans to TextArea's Python-character offsets."""
-    span_rows = tuple(_candidate_spans(candidate) for candidate in candidates)
-    if len(encoded) == len(text):
-        return span_rows
-
-    offsets = {
-        value
-        for spans in span_rows
-        for span in spans.values()
-        for value in (span.start, span.end)
-    }
-    converted: dict[int, int] = {}
-    byte_offset = 0
-    for character_offset, character in enumerate(text):
-        if byte_offset in offsets:
-            converted[byte_offset] = character_offset
-        byte_offset += len(character.encode("utf-8"))
-    if byte_offset in offsets:
-        converted[byte_offset] = len(text)
-    return tuple(
-        {
-            part: ArtifactRefSpan(
-                start=converted[span.start],
-                end=converted[span.end],
-            )
-            for part, span in spans.items()
-        }
-        for spans in span_rows
-    )
-
-
-def _candidate_spans(
-    candidate: ArtifactRefPromptCandidate,
-) -> dict[str, ArtifactRefSpan]:
-    spans = {
-        "candidate": candidate.candidate_span,
-        "sigil": candidate.sigil_span,
-        "kind": candidate.kind_span,
-        "separator": candidate.separator_span,
-        "payload": candidate.payload_span,
-    }
-    if candidate.fragment_span is not None:
-        spans["fragment"] = candidate.fragment_span
-    return spans
 
 
 __all__ = ["ArtifactRefHighlightMixin"]

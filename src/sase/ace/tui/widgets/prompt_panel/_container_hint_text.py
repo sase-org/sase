@@ -8,6 +8,7 @@ from rich.text import Text
 
 from ._agent_display_state import HeaderHintState
 from ._file_path_hints import (
+    FileHintMatcher,
     FileHintPathResolver,
     LOGICAL_PLAN_REFERENCE_PREFIX,
     append_text_with_file_hints,
@@ -25,13 +26,14 @@ def container_text_with_file_hints(
     workspace_dir: str | None,
     budget: HintContentBudget | None,
     path_resolver: FileHintPathResolver | None = None,
+    matcher: FileHintMatcher = iter_container_file_path_matches,
 ) -> Text:
     """Return bounded text annotated with hints while preserving source spans."""
     source = content if isinstance(content, Text) else Text(content)
     bounded = bound_hint_content(
         source.plain,
         budget=budget,
-        matcher=iter_container_file_path_matches,
+        matcher=matcher,
     )
     source_text = bounded.content
     counter = hint_state.hint_counter
@@ -40,7 +42,7 @@ def container_text_with_file_hints(
             file_hint_match_span(match)[0],
             len(f"[{counter + index}] "),
         )
-        for index, match in enumerate(iter_container_file_path_matches(source_text))
+        for index, match in enumerate(matcher(source_text))
     )
     text = Text(style=source.style)
     hint_state.hint_counter = append_text_with_file_hints(
@@ -50,7 +52,7 @@ def container_text_with_file_hints(
         hint_state.hint_mappings,
         workspace_dir,
         path_resolver=path_resolver or container_hint_path_resolver({}),
-        matcher=iter_container_file_path_matches,
+        matcher=matcher,
     )
     for span in source.spans:
         if span.start >= len(source_text):
