@@ -57,9 +57,16 @@ def write_finalizer_result(
     return path
 
 
-def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+def write_json_atomic(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    exclusive: bool = False,
+) -> None:
     """Write *payload* as deterministic JSON using same-directory replace."""
 
+    if exclusive and path.exists():
+        raise FileExistsError(f"immutable finalizer artifact already exists: {path}")
     tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         with tmp_path.open("w", encoding="utf-8") as handle:
@@ -75,9 +82,16 @@ def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
             pass
 
 
-def write_text_artifact(path: Path, text: str) -> None:
+def write_text_artifact(
+    path: Path,
+    text: str,
+    *,
+    exclusive: bool = False,
+) -> None:
     """Write bounded stdout/stderr text with the same atomic convention."""
 
+    if exclusive and path.exists():
+        raise FileExistsError(f"immutable finalizer artifact already exists: {path}")
     tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         with tmp_path.open("w", encoding="utf-8", errors="replace") as handle:

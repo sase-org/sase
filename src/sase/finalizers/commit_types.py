@@ -53,6 +53,9 @@ class StitchCommandResult:
     stdout: str = ""
     stderr: str = ""
     duration_seconds: float = 0.0
+    timed_out: bool = False
+    stdout_truncated: bool = False
+    stderr_truncated: bool = False
 
 
 StitchRunner = Callable[
@@ -79,14 +82,19 @@ def success_result(
     )
 
 
-def refused_result(instance_id: str, reason: str) -> FinalizerInstanceResultWire:
+def refused_result(
+    instance_id: str,
+    reason: str,
+    *,
+    attempt: int = 1,
+) -> FinalizerInstanceResultWire:
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
         status="refused",
         refusal_reason=reason,
         attempts=[
             FinalizerAttemptWire(
-                attempt=1,
+                attempt=attempt,
                 status="refused",
                 diagnostic_code="commit_refused",
             )
@@ -97,6 +105,7 @@ def refused_result(instance_id: str, reason: str) -> FinalizerInstanceResultWire
                 severity="error",
                 message=reason,
                 instance_id=instance_id,
+                attempt=attempt,
             )
         ],
     )
@@ -110,17 +119,18 @@ def failed_result(
     attempts: Sequence[FinalizerAttemptWire] = (),
     evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
 ) -> FinalizerInstanceResultWire:
+    recorded_attempts = list(attempts) or [
+        FinalizerAttemptWire(
+            attempt=1,
+            status="failed",
+            diagnostic_code=code,
+        )
+    ]
+    attempt_number = recorded_attempts[-1].attempt
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
         status="failed",
-        attempts=list(attempts)
-        or [
-            FinalizerAttemptWire(
-                attempt=1,
-                status="failed",
-                diagnostic_code=code,
-            )
-        ],
+        attempts=recorded_attempts,
         evidence=list(evidence),
         diagnostics=[
             FinalizerDiagnosticWire(
@@ -128,6 +138,7 @@ def failed_result(
                 severity="error",
                 message=message,
                 instance_id=instance_id,
+                attempt=attempt_number,
             )
         ],
     )

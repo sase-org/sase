@@ -9,6 +9,7 @@ from typing import Any
 
 from sase.config.core import load_merged_config
 from sase.core.finalizer_wire import FinalizerPlanWire
+from sase.finalizers.bounded_subprocess import HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS
 from sase.finalizers.config import ConfiguredFinalizerInstance, FinalizerConfig
 from sase.plugins.inventory import PluginInventory, collect_plugin_inventory
 from sase.plugins.qualified_id import (
@@ -515,9 +516,9 @@ def _command_timeout(
     diagnostics: list[FinalizerProviderDiagnostic],
 ) -> float:
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
-        return float(value)
+        return min(float(value), HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS)
     if isinstance(value, float) and value > 0:
-        return value
+        return min(value, HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS)
     if not isinstance(value, str):
         diagnostics.append(
             _command_diagnostic(
@@ -551,7 +552,7 @@ def _command_timeout(
             )
         )
         return 120.0
-    return seconds
+    return min(seconds, HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS)
 
 
 def _command_submission(

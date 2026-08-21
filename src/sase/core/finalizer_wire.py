@@ -138,6 +138,7 @@ class FinalizerDiagnosticWire:
     message: str
     severity: str
     instance_id: str | None = None
+    attempt: int | None = None
 
 
 @dataclass(frozen=True)
@@ -324,6 +325,7 @@ def finalizer_diagnostic_from_dict(data: dict[str, Any]) -> FinalizerDiagnosticW
         message=str(data["message"]),
         severity=str(data["severity"]),
         instance_id=_optional_str(data.get("instance_id")),
+        attempt=_optional_int(data.get("attempt")),
     )
 
 
@@ -379,6 +381,10 @@ def finalizer_aggregate_result_from_dict(
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def _optional_int(value: Any) -> int | None:
+    return None if value is None else int(value)
 
 
 __all__ = [

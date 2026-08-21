@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 import json
 import os
 from pathlib import Path
-import subprocess
+import re
 import sys
 import time
 from typing import Any
@@ -16,6 +16,10 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.artifacts import instance_artifact_dir, write_text_artifact
+from sase.finalizers.bounded_subprocess import (
+    HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+    run_bounded_subprocess,
+)
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     ResumeRunner,
@@ -32,6 +36,7 @@ from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
 _CONFLICT_PROMPT_FILENAME = "conflict_repair_prompt.md"
 _CONFLICT_RESPONSE_FILENAME = "conflict_repair_response.md"
+_ARTIFACT_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def run_stitch_create(
@@ -81,6 +86,7 @@ def resolve_commit_conflict(
     attempts: list[FinalizerAttemptWire],
     evidence: list[FinalizerOutcomeEvidenceWire],
     before_markers: Sequence[Mapping[str, Any]],
+    attempt_id: int,
 ) -> InvokeResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
@@ -106,29 +112,38 @@ def resolve_commit_conflict(
         options=options,
         repo=repo,
     )
-    if any(
-        marker_matches_repo(marker, repo)
+    repaired_markers = [
+        marker
         for marker in new_commit_markers(
             before_markers,
             load_commit_results(artifact_root(context.artifacts_dir)),
         )
-    ):
+        if marker_matches_repo(marker, repo)
+    ]
+    if repaired_markers:
+        evidence.append(
+            FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
+        )
+        evidence.extend(marker_evidence(repaired_markers[-1]))
         return current_result
     resumed = resume_runner(repo, context)
-    attempts.append(
-        FinalizerAttemptWire(
-            attempt=len(attempts) + 1,
-            status="success" if resumed.returncode == 0 else "failed",
-            diagnostic_code=None
-            if resumed.returncode == 0
-            else (
-                "second_unresolved_conflict"
-                if resumed.returncode == EXIT_CODE_CONFLICT
-                else "stale_conflict_checkpoint"
-            ),
-        )
+    record_stitch_artifacts(
+        context, "commit", attempt_id, resumed, label="conflict-repair"
     )
-    record_stitch_artifacts(context, "commit", len(attempts), resumed)
+    if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
+        code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
+        message_text = f"sase stitch create --resume {code} for {repo.name}"
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                "commit",
+                code,
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=current_result,
+        )
     if resumed.returncode == EXIT_CODE_CONFLICT:
         raise BuiltinCommitFinalizerError(
             f"commit finalizer hit a second unresolved conflict in {repo.name}",
@@ -156,6 +171,9 @@ def resolve_commit_conflict(
             ),
             invoke_result=current_result,
         )
+    evidence.append(
+        FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
+    )
     return current_result
 
 
@@ -216,12 +234,34 @@ def record_stitch_artifacts(
     instance_id: str,
     attempt: int,
     result: StitchCommandResult,
+    *,
+    label: str = "stitch",
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return
-    write_text_artifact(artifact_dir / f"attempt-{attempt}.stdout", result.stdout)
-    write_text_artifact(artifact_dir / f"attempt-{attempt}.stderr", result.stderr)
+    safe_label = _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
+    prefix = f"attempt-{attempt}.{safe_label}"
+    try:
+        write_text_artifact(
+            artifact_dir / f"{prefix}.stdout",
+            result.stdout,
+            exclusive=True,
+        )
+        write_text_artifact(
+            artifact_dir / f"{prefix}.stderr",
+            result.stderr,
+            exclusive=True,
+        )
+    except FileExistsError as exc:
+        raise BuiltinCommitFinalizerError(
+            str(exc),
+            result=failed_result(
+                instance_id,
+                "immutable_attempt_artifact",
+                str(exc),
+            ),
+        ) from exc
 
 
 def stitch_failure_message(repo: DirtyRepo, result: StitchCommandResult) -> str:
@@ -239,20 +279,21 @@ def _run_stitch_argv(
     env = dict(os.environ)
     if context.artifacts_dir:
         env["SASE_ARTIFACTS_DIR"] = context.artifacts_dir
-    started = time.monotonic()
-    completed = subprocess.run(
+    completed = run_bounded_subprocess(
         argv,
         cwd=repo.path,
         env=env,
-        capture_output=True,
-        text=True,
-        check=False,
+        input_bytes=None,
+        timeout=HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
     )
     return StitchCommandResult(
         returncode=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-        duration_seconds=time.monotonic() - started,
+        stdout=completed.stdout.decode("utf-8", errors="replace"),
+        stderr=completed.stderr.decode("utf-8", errors="replace"),
+        duration_seconds=completed.duration_seconds,
+        timed_out=completed.timed_out,
+        stdout_truncated=completed.stdout_truncated,
+        stderr_truncated=completed.stderr_truncated,
     )
 
 

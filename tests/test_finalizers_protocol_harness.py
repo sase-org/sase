@@ -497,6 +497,12 @@ def test_successful_conflict_resume_continues_same_stitch(
     assert result.usage == {"input_tokens": 4}
     payload = json.loads((artifacts / "finalizer_result.json").read_text())
     assert payload["status"] == "success"
+    evidence_kinds = [
+        item["kind"]
+        for instance in payload["instances"]
+        for item in instance.get("evidence", [])
+    ]
+    assert "conflict_repair" in evidence_kinds
 
 
 @pytest.mark.parametrize("marker_matches_sidecar", [True, False])
@@ -724,6 +730,55 @@ def test_clean_commit_only_does_not_recover(
     payload = json.loads((artifacts / "finalizer_result.json").read_text())
     assert payload["status"] == "success"
     assert payload["cycles"] == 1
+
+
+def test_retryable_stitch_failure_stops_at_commit_budget_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty = {"repos": (_repo(repo),)}
+    _patch_dirty(monkeypatch, repo, dirty)
+    commit = ConfiguredFinalizerInstance(
+        instance_id="commit",
+        provider_ref="builtin@commit",
+        max_attempts=2,
+        provenance={"use": FinalizerFieldProvenance("test", None)},
+    )
+    config = FinalizerConfig(
+        defaults=("commit",),
+        required=(),
+        instances={"commit": commit},
+        provenance={},
+    )
+    monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.finalizers.controller.load_finalizer_config",
+        lambda: config,
+    )
+    calls = {"n": 0}
+
+    def fail_stitch(
+        _repo: DirtyRepo,
+        _message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        calls["n"] += 1
+        return StitchCommandResult(returncode=1, stderr="hook failed\n")
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", fail_stitch)
+    _submit_commit(artifacts)
+    with pytest.raises(BuiltinCommitFinalizerError, match="hook failed"):
+        _run(artifacts)
+    assert calls["n"] == 2
+    payload = json.loads((artifacts / "finalizer_result.json").read_text())
+    assert payload["status"] == "failed"
+    attempts = payload["instances"][0]["attempts"]
+    assert [item["attempt"] for item in attempts] == [1, 2]
 
 
 def test_controller_no_progress_fails_closed(

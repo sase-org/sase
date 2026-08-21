@@ -38,6 +38,7 @@ from sase.finalizers.commit_types import (
     success_result as _success_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
+from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
 from sase.finalizers.reconciliation import (
     PreparedCommitDirtyState,
     prepare_commit_dirty_state,
@@ -76,6 +77,7 @@ def execute_commit_finalizer(
     options: LLMInvocationOptions | None = None,
     stitch_runner: StitchRunner | None = None,
     resume_runner: ResumeRunner | None = None,
+    ledger: InstanceLedger | None = None,
 ) -> BuiltinCommitExecution:
     """Execute accepted ``commit`` declarations through ``sase stitch create``."""
 
@@ -117,6 +119,13 @@ def execute_commit_finalizer(
             instance.instance_id,
             "missing_commit_declaration",
             f"commit finalizer requires a current accepted declaration: {exc}",
+            attempts=[
+                FinalizerAttemptWire(
+                    attempt=_preflight_attempt(ledger),
+                    status="failed",
+                    diagnostic_code="missing_commit_declaration",
+                )
+            ],
         )
         raise BuiltinCommitFinalizerError(
             result.diagnostics[0].message,
@@ -131,6 +140,22 @@ def execute_commit_finalizer(
     }
     decisions = _commit_decisions_for_instance(envelope, instance.instance_id)
     current_result = invoke_result
+    ordered = _dirty_repos_in_context_order(
+        state.dirty_state,
+        decisions,
+        accepted_context,
+        attempt=_peek_attempt(ledger),
+        ledger=ledger,
+    )
+    for repo in ordered:
+        _reject_stale_repository_obligation(
+            repo,
+            obligation_by_id,
+            instance.instance_id,
+            attempt=_peek_attempt(ledger),
+            ledger=ledger,
+        )
+    attempt_id: int | None = None
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
     runner = stitch_runner or run_stitch_create
@@ -199,49 +224,83 @@ def execute_commit_finalizer(
             ),
         )
 
-    for repo in _dirty_repos_in_context_order(
-        state.dirty_state,
-        decisions,
-        accepted_context,
-    ):
-        _reject_stale_repository_obligation(
-            repo, obligation_by_id, instance.instance_id
-        )
+    for repo in ordered:
         decision = decisions[_repository_decision_id(repo)]
         action = str(decision.get("action"))
         if action == "refuse":
             reason = str(decision.get("reason", "")).strip()
-            result = _refused_result(instance.instance_id, reason)
+            result = _refused_result(
+                instance.instance_id,
+                reason,
+                attempt=_preflight_attempt(ledger),
+            )
             raise BuiltinCommitFinalizerError(
                 f"commit finalizer refused dirty repository {repo.name}: {reason}",
                 result=result,
                 invoke_result=current_result,
             )
+        if attempt_id is None:
+            try:
+                attempt_id = (
+                    ledger.consume_before_execute() if ledger is not None else 1
+                )
+            except FinalizerBudgetError as exc:
+                raise BuiltinCommitFinalizerError(
+                    str(exc),
+                    result=_failed_result(
+                        instance.instance_id,
+                        "attempt_budget_exhausted",
+                        str(exc),
+                        attempts=[
+                            FinalizerAttemptWire(
+                                attempt=_preflight_attempt(ledger),
+                                status="failed",
+                                diagnostic_code="attempt_budget_exhausted",
+                            )
+                        ],
+                    ),
+                    invoke_result=current_result,
+                ) from exc
+            attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
+        consumed_attempt = attempt_id
 
         message = str(decision.get("message", "")).strip()
         protected = _protected_baseline_paths(artifacts, repo.path)
         before_markers = _load_commit_results(artifacts)
         stitch = runner(repo, message, protected, context)
-        attempts.append(
-            FinalizerAttemptWire(
-                attempt=len(attempts) + 1,
-                status="success" if stitch.returncode == 0 else "failed",
-                diagnostic_code=None
-                if stitch.returncode == 0
-                else (
-                    "commit_conflict"
-                    if stitch.returncode == EXIT_CODE_CONFLICT
-                    else "stitch_failed"
-                ),
-            )
-        )
         _record_stitch_artifacts(
             context,
             instance.instance_id,
-            len(attempts),
+            consumed_attempt,
             stitch,
+            label=repo.name,
         )
+        if stitch.timed_out or stitch.stdout_truncated or stitch.stderr_truncated:
+            code = "stitch_timeout" if stitch.timed_out else "stitch_output_cap"
+            message_text = f"sase stitch create {code} for {repo.name}"
+            attempts[0] = FinalizerAttemptWire(
+                attempt=consumed_attempt,
+                status="failed",
+                diagnostic_code=code,
+            )
+            result = _failed_result(
+                instance.instance_id,
+                code,
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=result,
+                invoke_result=current_result,
+            )
         if stitch.returncode == EXIT_CODE_CONFLICT:
+            attempts[0] = FinalizerAttemptWire(
+                attempt=consumed_attempt,
+                status="failed",
+                diagnostic_code="commit_conflict",
+            )
             current_result = _resolve_commit_conflict(
                 repo,
                 context,
@@ -255,9 +314,15 @@ def execute_commit_finalizer(
                 attempts=attempts,
                 evidence=evidence,
                 before_markers=before_markers,
+                attempt_id=consumed_attempt,
             )
         elif stitch.returncode != 0:
             message_text = _stitch_failure_message(repo, stitch)
+            attempts[0] = FinalizerAttemptWire(
+                attempt=consumed_attempt,
+                status="failed",
+                diagnostic_code="stitch_failed",
+            )
             result = _failed_result(
                 instance.instance_id,
                 "stitch_failed",
@@ -358,6 +423,16 @@ def execute_commit_finalizer(
         attempts=attempts,
         evidence=evidence,
     )
+    if attempt_id is None:
+        return BuiltinCommitExecution(
+            invoke_result=current_result,
+            result=_success_result(
+                instance.instance_id,
+                attempts=(),
+                evidence=evidence,
+            ),
+        )
+    attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="success")
     return BuiltinCommitExecution(
         invoke_result=current_result,
         result=_success_result(
@@ -499,10 +574,25 @@ def _accepted_repos_from_host(
     return tuple(repos)
 
 
+def _preflight_attempt(ledger: InstanceLedger | None) -> int:
+    if ledger is None:
+        return 1
+    return ledger.allocate_attempt()
+
+
+def _peek_attempt(ledger: InstanceLedger | None) -> int:
+    if ledger is None:
+        return 1
+    return ledger.next_attempt
+
+
 def _dirty_repos_in_context_order(
     dirty_state: DirtyState,
     decisions: Mapping[str, Mapping[str, Any]],
     accepted_context: FinalizerContextWire,
+    *,
+    attempt: int = 1,
+    ledger: InstanceLedger | None = None,
 ) -> list[DirtyRepo]:
     repos_by_id = {_repository_decision_id(repo): repo for repo in dirty_state.repos}
     ordered: list[DirtyRepo] = []
@@ -524,6 +614,8 @@ def _dirty_repos_in_context_order(
             ordered.append(repo)
     missing = sorted(set(repos_by_id) - set(decisions))
     if missing:
+        if ledger is not None:
+            attempt = ledger.allocate_attempt()
         raise BuiltinCommitFinalizerError(
             "commit declaration is stale; missing decision(s): " + ", ".join(missing),
             result=_failed_result(
@@ -531,6 +623,13 @@ def _dirty_repos_in_context_order(
                 "stale_commit_declaration",
                 "commit declaration is stale; missing decision(s): "
                 + ", ".join(missing),
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code="stale_commit_declaration",
+                    )
+                ],
             ),
         )
     return ordered
@@ -666,10 +765,15 @@ def _reject_stale_repository_obligation(
     repo: DirtyRepo,
     obligation_by_id: Mapping[str, Any],
     instance_id: str,
+    *,
+    attempt: int = 1,
+    ledger: InstanceLedger | None = None,
 ) -> None:
     repo_id = _repository_decision_id(repo)
     obligation = obligation_by_id.get(repo_id)
     if obligation is None:
+        if ledger is not None:
+            attempt = ledger.allocate_attempt()
         raise BuiltinCommitFinalizerError(
             f"commit declaration is stale; repository {repo.name} is not in "
             "the accepted context",
@@ -678,6 +782,13 @@ def _reject_stale_repository_obligation(
                 "stale_commit_declaration",
                 f"commit declaration is stale; repository {repo.name} is not "
                 "in the accepted context",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code="stale_commit_declaration",
+                    )
+                ],
             ),
         )
     expected = getattr(obligation, "digest", None)
@@ -689,6 +800,8 @@ def _reject_stale_repository_obligation(
         list(repo.changed_files),
     )
     if current != expected:
+        if ledger is not None:
+            attempt = ledger.allocate_attempt()
         raise BuiltinCommitFinalizerError(
             f"commit declaration is stale; repository {repo.name} changed after submit",
             result=_failed_result(
@@ -696,6 +809,13 @@ def _reject_stale_repository_obligation(
                 "stale_commit_declaration",
                 f"commit declaration is stale; repository {repo.name} changed "
                 "after submit",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code="stale_commit_declaration",
+                    )
+                ],
             ),
         )
 

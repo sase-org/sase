@@ -18,6 +18,7 @@ from sase.core.finalizer_facade import (
 )
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
+    FinalizerAttemptWire,
     FinalizerContextWire,
     FinalizerInstancePolicyWire,
     FinalizerInstanceResultWire,
@@ -128,6 +129,13 @@ def test_finalizer_facade_aggregates_instance_outcomes() -> None:
                 instance_id="commit",
                 status="refused",
                 refusal_reason="No attributable repository changes",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=1,
+                        status="refused",
+                        diagnostic_code="commit_refused",
+                    )
+                ],
             ),
         ]
     )
@@ -138,3 +146,75 @@ def test_finalizer_facade_aggregates_instance_outcomes() -> None:
         "commit",
     ]
     assert aggregate.diagnostics[0].instance_id == "commit"
+
+
+def test_finalizer_facade_all_skipped_and_all_failed_aggregation() -> None:
+    skipped = aggregate_finalizer_outcomes(
+        [
+            FinalizerInstanceResultWire(instance_id="lint", status="skipped"),
+            FinalizerInstanceResultWire(instance_id="audit", status="skipped"),
+        ]
+    )
+    assert skipped.status == "success"
+    assert skipped.diagnostics == []
+
+    failed = aggregate_finalizer_outcomes(
+        [
+            FinalizerInstanceResultWire(
+                instance_id="lint",
+                status="failed",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=1, status="failed", diagnostic_code="command_failed"
+                    )
+                ],
+            ),
+            FinalizerInstanceResultWire(
+                instance_id="audit",
+                status="failed",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=1, status="failed", diagnostic_code="execute_failed"
+                    )
+                ],
+            ),
+        ]
+    )
+    assert failed.status == "failed"
+    assert failed.diagnostics[0].instance_id == "lint"
+
+
+def test_finalizer_facade_rejects_incoherent_attempt_ledgers() -> None:
+    with pytest.raises(ValueError, match="unique and increasing"):
+        aggregate_finalizer_outcomes(
+            [
+                FinalizerInstanceResultWire(
+                    instance_id="lint",
+                    status="failed",
+                    attempts=[
+                        FinalizerAttemptWire(attempt=1, status="failed"),
+                        FinalizerAttemptWire(attempt=1, status="failed"),
+                    ],
+                )
+            ]
+        )
+    with pytest.raises(ValueError, match="terminal status"):
+        aggregate_finalizer_outcomes(
+            [
+                FinalizerInstanceResultWire(
+                    instance_id="lint",
+                    status="failed",
+                    attempts=[FinalizerAttemptWire(attempt=1, status="success")],
+                )
+            ]
+        )
+    with pytest.raises(ValueError, match="skipped status cannot record attempts"):
+        aggregate_finalizer_outcomes(
+            [
+                FinalizerInstanceResultWire(
+                    instance_id="lint",
+                    status="skipped",
+                    attempts=[FinalizerAttemptWire(attempt=1, status="skipped")],
+                )
+            ]
+        )

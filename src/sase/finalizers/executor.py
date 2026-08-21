@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import json
 import os
 from pathlib import Path
-import signal
-import subprocess
 import sys
 import time
 from typing import Any
@@ -22,12 +20,24 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
     finalizer_wire_to_json_dict,
 )
-from sase.finalizers.artifacts import instance_artifact_dir, write_text_artifact
+from sase.finalizers.artifacts import (
+    instance_artifact_dir,
+    write_json_atomic,
+    write_text_artifact,
+)
+from sase.finalizers.bounded_subprocess import (
+    HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+    STDOUT_CAP_BYTES,
+    BoundedCompletedProcess,
+    clamp_timeout_seconds,
+    run_bounded_subprocess,
+)
 from sase.finalizers.config import (
     ConfiguredFinalizerInstance,
     FinalizerConfig,
     load_finalizer_config,
 )
+from sase.finalizers.ledger import InstanceLedger, run_budgeted_attempts
 from sase.finalizers.providers import (
     BUILTIN_COMMAND_PROVIDER_REF,
     BUILTIN_COMMIT_PROVIDER_REF,
@@ -42,8 +52,6 @@ from sase.finalizers.providers import (
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 
 
-STDOUT_CAP_BYTES = 1_048_576
-STDERR_CAP_BYTES = 1_048_576
 PROVIDER_OPERATION_TIMEOUT_SECONDS = 30.0
 
 _BASE_ENV_KEYS = (
@@ -74,7 +82,7 @@ _PROVIDER_RESULT_KEYS = frozenset(
     }
 )
 _NON_EXECUTE_SUCCESS_STATUSES = frozenset({"ok", "success"})
-_EXECUTE_STATUSES = frozenset({"success", "failed", "skipped"})
+_EXECUTE_STATUSES = frozenset({"success", "failed"})
 
 
 class FinalizerExecutionError(RuntimeError):
@@ -94,6 +102,7 @@ class FinalizerExecutionContext:
     selected: tuple[str, ...] = ()
     accepted_payloads: Mapping[str, Any] = field(default_factory=dict)
     obligations: tuple[Mapping[str, Any], ...] = ()
+    attempt: int | None = None
 
 
 ProviderOperationRunner = Callable[
@@ -114,24 +123,28 @@ def execute_non_commit_finalizer(
     context: FinalizerExecutionContext,
     *,
     operation_runner: ProviderOperationRunner | None = None,
+    ledger: InstanceLedger | None = None,
 ) -> FinalizerInstanceResultWire:
     """Execute a selected non-commit finalizer instance."""
 
     if instance.provider_ref == BUILTIN_COMMIT_PROVIDER_REF:
         raise FinalizerExecutionError("commit is handled by the commit finalizer")
     if instance.provider_ref == BUILTIN_COMMAND_PROVIDER_REF:
-        return execute_command_finalizer(instance, context)
+        return execute_command_finalizer(instance, context, ledger=ledger)
     return execute_plugin_finalizer(
         instance,
         config,
         context,
         operation_runner=operation_runner or run_provider_operation,
+        ledger=ledger,
     )
 
 
 def execute_command_finalizer(
     instance: ConfiguredFinalizerInstance,
     context: FinalizerExecutionContext,
+    *,
+    ledger: InstanceLedger | None = None,
 ) -> FinalizerInstanceResultWire:
     """Run a constrained ``builtin@command`` finalizer."""
 
@@ -144,45 +157,16 @@ def execute_command_finalizer(
             fatal[0].message if fatal else "invalid builtin@command config",
         )
 
-    attempt_results: list[FinalizerAttemptWire] = []
-    evidence: list[FinalizerOutcomeEvidenceWire] = []
-    max_attempts = max(1, instance.max_attempts)
-    for attempt in range(1, max_attempts + 1):
-        result = _run_command_attempt(instance, command_config, context, attempt)
-        attempt_results.append(
-            FinalizerAttemptWire(
-                attempt=attempt,
-                status="success" if result["returncode"] == 0 else "failed",
-                diagnostic_code=None
-                if result["returncode"] == 0
-                else str(result["diagnostic_code"]),
-            )
-        )
-        evidence.extend(result["evidence"])
-        if result["returncode"] == 0:
-            return FinalizerInstanceResultWire(
-                instance_id=instance.instance_id,
-                status="success",
-                attempts=attempt_results,
-                evidence=evidence,
-            )
-    return FinalizerInstanceResultWire(
-        instance_id=instance.instance_id,
-        status="failed",
-        attempts=attempt_results,
-        evidence=evidence,
-        diagnostics=[
-            FinalizerDiagnosticWire(
-                code="command_failed",
-                severity="error",
-                message=(
-                    f"builtin@command {instance.instance_id!r} failed after "
-                    f"{max_attempts} attempt(s)"
-                ),
-                instance_id=instance.instance_id,
-            )
-        ],
+    owned = ledger or InstanceLedger(
+        instance.instance_id, max(1, instance.max_attempts)
     )
+
+    def run_once() -> FinalizerInstanceResultWire:
+        return _execute_command_once(instance, command_config, context, owned)
+
+    if ledger is None:
+        return run_budgeted_attempts(owned, run_once)
+    return run_once()
 
 
 def execute_plugin_finalizer(
@@ -191,6 +175,7 @@ def execute_plugin_finalizer(
     context: FinalizerExecutionContext,
     *,
     operation_runner: ProviderOperationRunner,
+    ledger: InstanceLedger | None = None,
 ) -> FinalizerInstanceResultWire:
     """Execute an external finalizer through the isolated worker protocol."""
 
@@ -212,64 +197,18 @@ def execute_plugin_finalizer(
             f"finalizer provider {instance.provider_ref!r} is disabled by {joined}",
         )
 
-    attempts: list[FinalizerAttemptWire] = []
-    evidence: list[FinalizerOutcomeEvidenceWire] = []
-    diagnostics: list[FinalizerDiagnosticWire] = []
-    for operation in ("describe", "validate", "execute", "verify"):
-        request = _provider_request(instance, config, context, operation)
-        try:
-            result = operation_runner(instance, provider, operation, request, context)
-            _validate_provider_result(instance, operation, result)
-        except FinalizerExecutionError as exc:
-            diagnostics.append(
-                FinalizerDiagnosticWire(
-                    code=f"provider_{operation}_failed",
-                    severity="error",
-                    message=str(exc),
-                    instance_id=instance.instance_id,
-                )
-            )
-            attempts.append(
-                FinalizerAttemptWire(
-                    attempt=len(attempts) + 1,
-                    status="failed",
-                    diagnostic_code=f"provider_{operation}_failed",
-                )
-            )
-            return FinalizerInstanceResultWire(
-                instance_id=instance.instance_id,
-                status="failed",
-                attempts=attempts,
-                evidence=evidence,
-                diagnostics=diagnostics,
-            )
-        status = str(result.get("status"))
-        if operation == "execute":
-            attempts.append(
-                FinalizerAttemptWire(
-                    attempt=len(attempts) + 1,
-                    status=status,
-                    diagnostic_code=None if status == "success" else "execute_failed",
-                )
-            )
-            evidence.extend(_provider_evidence(result))
-            if status != "success":
-                return FinalizerInstanceResultWire(
-                    instance_id=instance.instance_id,
-                    status="failed" if status == "failed" else "skipped",
-                    attempts=attempts,
-                    evidence=evidence,
-                    diagnostics=_provider_diagnostics(instance, result),
-                )
-        else:
-            diagnostics.extend(_provider_diagnostics(instance, result))
-    return FinalizerInstanceResultWire(
-        instance_id=instance.instance_id,
-        status="success",
-        attempts=attempts,
-        evidence=evidence,
-        diagnostics=diagnostics,
+    owned = ledger or InstanceLedger(
+        instance.instance_id, max(1, instance.max_attempts)
     )
+
+    def run_once() -> FinalizerInstanceResultWire:
+        return _execute_plugin_once(
+            instance, config, context, provider, operation_runner, owned
+        )
+
+    if ledger is None:
+        return run_budgeted_attempts(owned, run_once)
+    return run_once()
 
 
 def validate_external_declaration_payload(
@@ -351,7 +290,9 @@ def run_provider_operation(
         cwd=resolve_finalizer_project_dir(),
         env=_sanitized_env(_allowed_env_names(instance.config)),
         input_bytes=payload,
-        timeout=PROVIDER_OPERATION_TIMEOUT_SECONDS,
+        timeout=min(
+            PROVIDER_OPERATION_TIMEOUT_SECONDS, HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS
+        ),
     )
     _write_provider_attempt_artifacts(instance, operation, context, completed)
     if completed.timed_out:
@@ -385,15 +326,152 @@ def result_to_json(result: FinalizerInstanceResultWire) -> dict[str, Any]:
     return finalizer_wire_to_json_dict(result)
 
 
-@dataclass(frozen=True)
-class _CompletedProcess:
-    returncode: int
-    stdout: bytes
-    stderr: bytes
-    duration_seconds: float
-    timed_out: bool = False
-    stdout_truncated: bool = False
-    stderr_truncated: bool = False
+def _execute_command_once(
+    instance: ConfiguredFinalizerInstance,
+    command_config: CommandFinalizerConfig,
+    context: FinalizerExecutionContext,
+    ledger: InstanceLedger,
+) -> FinalizerInstanceResultWire:
+    attempt = ledger.consume_before_execute()
+    result = _run_command_attempt(instance, command_config, context, attempt)
+    if result["returncode"] == 0:
+        return FinalizerInstanceResultWire(
+            instance_id=instance.instance_id,
+            status="success",
+            attempts=[
+                FinalizerAttemptWire(attempt=attempt, status="success"),
+            ],
+            evidence=result["evidence"],
+        )
+    code = str(result["diagnostic_code"])
+    return FinalizerInstanceResultWire(
+        instance_id=instance.instance_id,
+        status="failed",
+        attempts=[
+            FinalizerAttemptWire(
+                attempt=attempt,
+                status="failed",
+                diagnostic_code=code,
+            )
+        ],
+        evidence=result["evidence"],
+        diagnostics=[
+            FinalizerDiagnosticWire(
+                code=code,
+                severity="error",
+                message=(
+                    f"builtin@command {instance.instance_id!r} failed on "
+                    f"attempt {attempt}"
+                ),
+                instance_id=instance.instance_id,
+                attempt=attempt,
+            )
+        ],
+    )
+
+
+def _execute_plugin_once(
+    instance: ConfiguredFinalizerInstance,
+    config: FinalizerConfig,
+    context: FinalizerExecutionContext,
+    provider: FinalizerProviderRecord,
+    operation_runner: ProviderOperationRunner,
+    ledger: InstanceLedger,
+) -> FinalizerInstanceResultWire:
+    evidence: list[FinalizerOutcomeEvidenceWire] = []
+    diagnostics: list[FinalizerDiagnosticWire] = []
+    attempt: int | None = None
+    for operation in ("describe", "validate", "execute", "verify"):
+        if operation == "execute":
+            attempt = ledger.consume_before_execute()
+        bound_context = (
+            context if attempt is None else replace(context, attempt=attempt)
+        )
+        request = _provider_request(instance, config, bound_context, operation)
+        try:
+            result = operation_runner(
+                instance, provider, operation, request, bound_context
+            )
+            if operation == "execute" and str(result.get("status")) == "skipped":
+                raise FinalizerExecutionError(
+                    "provider-authored skipped is not allowed; only the host "
+                    "may skip an untriggered instance"
+                )
+            _validate_provider_result(instance, operation, result)
+        except FinalizerExecutionError as exc:
+            if attempt is None:
+                attempt = ledger.allocate_attempt()
+            code = (
+                "provider_skipped_forbidden"
+                if "provider-authored skipped" in str(exc)
+                else f"provider_{operation}_failed"
+            )
+            return FinalizerInstanceResultWire(
+                instance_id=instance.instance_id,
+                status="failed",
+                attempts=[
+                    FinalizerAttemptWire(
+                        attempt=attempt,
+                        status="failed",
+                        diagnostic_code=code,
+                    )
+                ],
+                evidence=evidence,
+                diagnostics=[
+                    FinalizerDiagnosticWire(
+                        code=code,
+                        severity="error",
+                        message=str(exc),
+                        instance_id=instance.instance_id,
+                        attempt=attempt,
+                    )
+                ],
+            )
+        status = str(result.get("status"))
+        if operation == "execute":
+            assert attempt is not None
+            evidence.extend(_provider_evidence(result))
+            if status != "success":
+                execute_diagnostics = _provider_diagnostics(
+                    instance, result, attempt=attempt
+                )
+                return FinalizerInstanceResultWire(
+                    instance_id=instance.instance_id,
+                    status="failed",
+                    attempts=[
+                        FinalizerAttemptWire(
+                            attempt=attempt,
+                            status="failed",
+                            diagnostic_code="execute_failed",
+                        )
+                    ],
+                    evidence=evidence,
+                    diagnostics=execute_diagnostics
+                    or [
+                        FinalizerDiagnosticWire(
+                            code="execute_failed",
+                            severity="error",
+                            message=(
+                                f"provider execute for {instance.instance_id!r} failed"
+                            ),
+                            instance_id=instance.instance_id,
+                            attempt=attempt,
+                        )
+                    ],
+                )
+            diagnostics.extend(_provider_diagnostics(instance, result, attempt=attempt))
+        else:
+            diagnostics.extend(_provider_diagnostics(instance, result, attempt=attempt))
+    assert attempt is not None
+    return FinalizerInstanceResultWire(
+        instance_id=instance.instance_id,
+        status="success",
+        attempts=[
+            FinalizerAttemptWire(attempt=attempt, status="success"),
+        ],
+        evidence=evidence,
+        diagnostics=diagnostics,
+    )
 
 
 def _run_command_attempt(
@@ -408,7 +486,7 @@ def _run_command_attempt(
         cwd=_resolve_cwd(command_config),
         env=_sanitized_env(command_config.env),
         input_bytes=None,
-        timeout=command_config.timeout_seconds,
+        timeout=clamp_timeout_seconds(command_config.timeout_seconds),
     )
     duration = completed.duration_seconds or (time.monotonic() - started)
     _write_command_attempt_artifacts(instance, attempt, context, completed)
@@ -442,82 +520,85 @@ def _run_subprocess(
     env: Mapping[str, str],
     input_bytes: bytes | None,
     timeout: float,
-) -> _CompletedProcess:
-    started = time.monotonic()
-    process = subprocess.Popen(
-        list(argv),
+) -> BoundedCompletedProcess:
+    return run_bounded_subprocess(
+        argv,
         cwd=cwd,
-        env=dict(env),
-        stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
+        env=env,
+        input_bytes=input_bytes,
+        timeout=clamp_timeout_seconds(timeout),
     )
-    timed_out = False
-    try:
-        stdout, stderr = process.communicate(input=input_bytes, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _kill_process_group(process)
-        stdout, stderr = process.communicate()
-    stdout_truncated = len(stdout) > STDOUT_CAP_BYTES
-    stderr_truncated = len(stderr) > STDERR_CAP_BYTES
-    return _CompletedProcess(
-        returncode=process.returncode if process.returncode is not None else -9,
-        stdout=stdout[:STDOUT_CAP_BYTES],
-        stderr=stderr[:STDERR_CAP_BYTES],
-        duration_seconds=time.monotonic() - started,
-        timed_out=timed_out,
-        stdout_truncated=stdout_truncated,
-        stderr_truncated=stderr_truncated,
-    )
-
-
-def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        return
-    except OSError:
-        process.kill()
 
 
 def _write_command_attempt_artifacts(
     instance: ConfiguredFinalizerInstance,
     attempt: int,
     context: FinalizerExecutionContext,
-    completed: _CompletedProcess,
+    completed: BoundedCompletedProcess,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
         return
-    write_text_artifact(
+    _write_exclusive_text(
         artifact_dir / f"attempt-{attempt}.stdout",
         completed.stdout.decode("utf-8", errors="replace"),
     )
-    write_text_artifact(
+    _write_exclusive_text(
         artifact_dir / f"attempt-{attempt}.stderr",
         completed.stderr.decode("utf-8", errors="replace"),
     )
+    payload = {
+        "attempt": attempt,
+        "returncode": completed.returncode,
+        "timed_out": completed.timed_out,
+        "stdout_truncated": completed.stdout_truncated,
+        "stderr_truncated": completed.stderr_truncated,
+    }
+    try:
+        write_json_atomic(
+            artifact_dir / f"attempt-{attempt}.diagnostics.json",
+            payload,
+            exclusive=True,
+        )
+    except FileExistsError as exc:
+        raise FinalizerExecutionError(str(exc)) from exc
 
 
 def _write_provider_attempt_artifacts(
     instance: ConfiguredFinalizerInstance,
     operation: str,
     context: FinalizerExecutionContext,
-    completed: _CompletedProcess,
+    completed: BoundedCompletedProcess,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
         return
-    write_text_artifact(
-        artifact_dir / f"{operation}.stdout",
-        completed.stdout.decode("utf-8", errors="replace"),
-    )
-    write_text_artifact(
-        artifact_dir / f"{operation}.stderr",
-        completed.stderr.decode("utf-8", errors="replace"),
-    )
+    if context.attempt is not None:
+        prefix = f"attempt-{context.attempt}.{operation}"
+        exclusive = True
+    else:
+        prefix = operation
+        exclusive = False
+    try:
+        write_text_artifact(
+            artifact_dir / f"{prefix}.stdout",
+            completed.stdout.decode("utf-8", errors="replace"),
+            exclusive=exclusive,
+        )
+        write_text_artifact(
+            artifact_dir / f"{prefix}.stderr",
+            completed.stderr.decode("utf-8", errors="replace"),
+            exclusive=exclusive,
+        )
+    except FileExistsError as exc:
+        raise FinalizerExecutionError(str(exc)) from exc
+
+
+def _write_exclusive_text(path: Path, text: str) -> None:
+    try:
+        write_text_artifact(path, text, exclusive=True)
+    except FileExistsError as exc:
+        raise FinalizerExecutionError(str(exc)) from exc
 
 
 def _provider_request(
@@ -680,6 +761,8 @@ def _provider_evidence(
 def _provider_diagnostics(
     instance: ConfiguredFinalizerInstance,
     result: Mapping[str, Any],
+    *,
+    attempt: int | None = None,
 ) -> list[FinalizerDiagnosticWire]:
     raw = result.get("diagnostics")
     if not isinstance(raw, list):
@@ -702,6 +785,7 @@ def _provider_diagnostics(
                     severity=severity,
                     message=message,
                     instance_id=instance.instance_id,
+                    attempt=attempt,
                 )
             )
     return diagnostics
@@ -711,13 +795,15 @@ def _failed_result(
     instance_id: str,
     code: str,
     message: str,
+    *,
+    attempt: int = 1,
 ) -> FinalizerInstanceResultWire:
     return FinalizerInstanceResultWire(
         instance_id=instance_id,
         status="failed",
         attempts=[
             FinalizerAttemptWire(
-                attempt=1,
+                attempt=attempt,
                 status="failed",
                 diagnostic_code=code,
             )
@@ -728,6 +814,7 @@ def _failed_result(
                 severity="error",
                 message=message,
                 instance_id=instance_id,
+                attempt=attempt,
             )
         ],
     )

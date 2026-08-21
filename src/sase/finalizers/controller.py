@@ -21,6 +21,7 @@ from sase.core.finalizer_wire import (
 )
 from sase.finalizers.artifacts import write_finalizer_result
 from sase.finalizers.commit import (
+    BuiltinCommitExecution,
     BuiltinCommitFinalizerError,
     execute_commit_finalizer,
 )
@@ -39,6 +40,12 @@ from sase.finalizers.declaration import (
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
+)
+from sase.finalizers.ledger import (
+    InstanceLedger,
+    is_retryable_result,
+    ledger_for_instance,
+    run_budgeted_attempts,
 )
 from sase.finalizers.plan import (
     FinalizerPlanIntegrityError,
@@ -98,6 +105,7 @@ def run_finalizers(
     )
     current_result = invoke_result
     results_by_id: dict[str, FinalizerInstanceResultWire] = {}
+    ledgers: dict[str, InstanceLedger] = {}
     ran_non_commit: set[str] = set()
     fingerprints: set[str] = set()
     active_provider_ref: str | None = None
@@ -170,43 +178,21 @@ def run_finalizers(
                         artifacts_dir=artifacts_dir,
                         options=options,
                     )
-                    try:
-                        execution = execute_commit_finalizer(
-                            instance,
-                            context,
-                            provider=provider,
-                            invoke_result=current_result,
-                            model_tier=model_tier,
-                            suppress_output=suppress_output,
-                            model_override=model_override,
-                            options=options,
-                        )
-                    except BuiltinCommitFinalizerError as exc:
-                        if (
-                            exc.code == "stale_commit_declaration"
-                            and not _declaration_recovery_spent(artifacts_dir)
-                        ):
-                            current_result = _ensure_current_declaration(
-                                provider=provider,
-                                invoke_result=exc.invoke_result or current_result,
-                                model_tier=model_tier,
-                                suppress_output=suppress_output,
-                                model_override=model_override,
-                                artifacts_dir=artifacts_dir,
-                                options=options,
-                            )
-                            execution = execute_commit_finalizer(
-                                instance,
-                                context,
-                                provider=provider,
-                                invoke_result=current_result,
-                                model_tier=model_tier,
-                                suppress_output=suppress_output,
-                                model_override=model_override,
-                                options=options,
-                            )
-                        else:
-                            raise
+                    ledger = ledger_for_instance(
+                        ledgers, instance_id, instance.max_attempts
+                    )
+                    execution = _run_budgeted_commit(
+                        instance,
+                        context,
+                        ledger,
+                        provider=provider,
+                        invoke_result=current_result,
+                        model_tier=model_tier,
+                        suppress_output=suppress_output,
+                        model_override=model_override,
+                        options=options,
+                        artifacts_dir=artifacts_dir,
+                    )
                     current_result = execution.invoke_result
                     _remember_result(results_by_id, execution.result)
                     _record_instance_metrics(
@@ -227,7 +213,24 @@ def run_finalizers(
                     progressed = True
                     continue
 
-                result = execute_non_commit_finalizer(instance, config, context)
+                ledger = ledger_for_instance(
+                    ledgers, instance_id, instance.max_attempts
+                )
+
+                def _run_non_commit(
+                    bound_instance: Any = instance,
+                    bound_config: Any = config,
+                    bound_context: FinalizerExecutionContext = context,
+                    bound_ledger: InstanceLedger = ledger,
+                ) -> FinalizerInstanceResultWire:
+                    return execute_non_commit_finalizer(
+                        bound_instance,
+                        bound_config,
+                        bound_context,
+                        ledger=bound_ledger,
+                    )
+
+                result = run_budgeted_attempts(ledger, _run_non_commit)
                 ran_non_commit.add(instance_id)
                 _remember_result(results_by_id, result)
                 _record_instance_metrics(
@@ -286,7 +289,9 @@ def run_finalizers(
         _write_aggregate_result(
             artifacts_dir,
             list(results_by_id.values()),
-            "failed",
+            exc.result.status
+            if exc.result.status in {"failed", "refused"}
+            else "failed",
             cycles=cycles,
         )
         raise
@@ -340,6 +345,80 @@ def run_finalizers(
         cycles=cycles,
     )
     return current_result
+
+
+def _run_budgeted_commit(
+    instance: Any,
+    context: FinalizerExecutionContext,
+    ledger: InstanceLedger,
+    *,
+    provider: Any,
+    invoke_result: Any,
+    model_tier: ModelTier,
+    suppress_output: bool,
+    model_override: str | None,
+    options: Any,
+    artifacts_dir: str | None,
+) -> BuiltinCommitExecution:
+    current_result = invoke_result
+    while True:
+        consumed_before = ledger.consumed
+        try:
+            execution = execute_commit_finalizer(
+                instance,
+                context,
+                provider=provider,
+                invoke_result=current_result,
+                model_tier=model_tier,
+                suppress_output=suppress_output,
+                model_override=model_override,
+                options=options,
+                ledger=ledger,
+            )
+        except BuiltinCommitFinalizerError as exc:
+            if (
+                exc.code == "stale_commit_declaration"
+                and not _declaration_recovery_spent(artifacts_dir)
+                and ledger.consumed == consumed_before
+            ):
+                current_result = _ensure_current_declaration(
+                    provider=provider,
+                    invoke_result=exc.invoke_result or current_result,
+                    model_tier=model_tier,
+                    suppress_output=suppress_output,
+                    model_override=model_override,
+                    artifacts_dir=artifacts_dir,
+                    options=options,
+                )
+                execution = execute_commit_finalizer(
+                    instance,
+                    context,
+                    provider=provider,
+                    invoke_result=current_result,
+                    model_tier=model_tier,
+                    suppress_output=suppress_output,
+                    model_override=model_override,
+                    options=options,
+                    ledger=ledger,
+                )
+                return BuiltinCommitExecution(
+                    invoke_result=execution.invoke_result,
+                    result=ledger.record(execution.result),
+                )
+            merged = ledger.record(exc.result)
+            if is_retryable_result(merged) and ledger.remaining() > 0:
+                if exc.invoke_result is not None:
+                    current_result = exc.invoke_result
+                continue
+            raise BuiltinCommitFinalizerError(
+                str(exc),
+                result=merged,
+                invoke_result=exc.invoke_result,
+            ) from exc
+        return BuiltinCommitExecution(
+            invoke_result=execution.invoke_result,
+            result=ledger.record(execution.result),
+        )
 
 
 def _should_skip_finalizers(artifacts_dir: str | None) -> bool:
@@ -497,18 +576,21 @@ def _remember_result(
     result: FinalizerInstanceResultWire,
 ) -> None:
     previous = results_by_id.get(result.instance_id)
-    if previous is None or not previous.attempts:
+    if previous is None:
         results_by_id[result.instance_id] = result
         return
-    offset = len(previous.attempts)
+    seen = {item.attempt for item in previous.attempts}
     merged_attempts = [
         *previous.attempts,
-        *[
-            replace(attempt, attempt=offset + index)
-            for index, attempt in enumerate(result.attempts, start=1)
-        ],
+        *[item for item in result.attempts if item.attempt not in seen],
     ]
-    results_by_id[result.instance_id] = replace(result, attempts=merged_attempts)
+    results_by_id[result.instance_id] = replace(
+        result,
+        attempts=merged_attempts,
+        evidence=[*previous.evidence, *result.evidence],
+        diagnostics=[*previous.diagnostics, *result.diagnostics],
+        refusal_reason=result.refusal_reason or previous.refusal_reason,
+    )
 
 
 def _failed_result(
@@ -532,9 +614,19 @@ def _failed_result(
                 severity="error",
                 message=message,
                 instance_id=instance_id,
+                attempt=1,
             )
         ],
     )
+
+
+_STATUS_RANK = {"success": 0, "pending": 1, "refused": 2, "failed": 3}
+
+
+def _fail_closed_status(requested: str, aggregated: str) -> str:
+    if _STATUS_RANK.get(requested, 0) >= _STATUS_RANK.get(aggregated, 0):
+        return requested
+    return aggregated
 
 
 def _write_aggregate_result(
@@ -544,18 +636,40 @@ def _write_aggregate_result(
     *,
     cycles: int,
 ) -> None:
+    requested = status
     diagnostics: list[Any]
     if instance_results:
         try:
             aggregate = aggregate_finalizer_outcomes(instance_results)
-            status = aggregate.status
+            status = _fail_closed_status(requested, aggregate.status)
             diagnostics = list(aggregate.diagnostics)
+            if status == "failed" and aggregate.status == "success":
+                diagnostics = [
+                    FinalizerDiagnosticWire(
+                        code="controller_failed",
+                        severity="error",
+                        message=(
+                            "controller failed closed; aggregate success was "
+                            "not published"
+                        ),
+                    ),
+                    *diagnostics,
+                ]
         except Exception:
+            status = requested if requested != "success" else "failed"
             diagnostics = [
                 diagnostic
                 for result in instance_results
                 for diagnostic in result.diagnostics
             ]
+            if not diagnostics:
+                diagnostics = [
+                    FinalizerDiagnosticWire(
+                        code="aggregate_integrity_failed",
+                        severity="error",
+                        message="finalizer aggregation failed closed",
+                    )
+                ]
     else:
         diagnostics = []
     payload = {
