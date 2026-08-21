@@ -302,8 +302,7 @@ class TestMissingWaitTargetIndicator:
         )
 
         assert "?" not in left.plain
-        assert "◆◐" not in left.plain
-        assert "◆?" not in left.plain
+        assert "◐1" not in left.plain
         assert "WAITING" not in left.plain
 
     def test_unsatisfied_dependency_without_slot_request_stays_waiting(self) -> None:
@@ -375,8 +374,8 @@ class TestMissingWaitTargetIndicator:
             ),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ◆◐1)")
-        assert "bold #FFD700" in _styles_covering(left, "◆◐1")
+        assert left.plain.endswith("test_cl (WAITING ◐1)")
+        assert "bold #FFD700" in _styles_covering(left, "◐1")
 
     def test_waiting_row_renders_mixed_domains_before_annotations(self) -> None:
         agent = make_agent(
@@ -397,9 +396,9 @@ class TestMissingWaitTargetIndicator:
             has_unresolvable_wait_target=True,
         )
 
-        assert left.plain.endswith("test_cl (WAITING ▶1 · ◆●1 ! +5m)")
+        assert left.plain.endswith("test_cl (WAITING ▶1 · ●1 ! +5m)")
         assert "bold #FFD700" in _styles_covering(left, "▶1")
-        assert "bold #5FD787" in _styles_covering(left, "◆●1")
+        assert "bold #5FD787" in _styles_covering(left, "●1")
 
     def test_waiting_row_keeps_unknown_agent_and_bead_tokens_distinct(
         self,
@@ -421,7 +420,7 @@ class TestMissingWaitTargetIndicator:
             ),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ?1 · ◆?2 +5m)")
+        assert left.plain.endswith("test_cl (WAITING ?1 · ?2 +5m)")
 
 
 class TestRelativeWaitDurationRendering:

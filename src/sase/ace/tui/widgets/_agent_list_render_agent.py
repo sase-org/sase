@@ -70,6 +70,8 @@ from ._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
+    _BEAD_LINKED_AGENT_GLYPH,
+    _BEAD_LINKED_AGENT_GLYPH_STYLE,
     _CHILD_INDENT,
     _CLAN_NAME_STYLE,
     _FAMILY_NAME_STYLE,
@@ -99,11 +101,7 @@ from ._agent_list_styling import (
     _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
     monitor_status_presentation,
 )
-from ..wait_status_presentation import (
-    BEAD_LINKED_AGENT_GLYPH_STYLE,
-    BEAD_WAIT_GLYPH,
-    format_wait_dependency_status_counts,
-)
+from ..wait_status_presentation import format_wait_dependency_status_counts
 
 
 def _should_render_provider_badge(agent: Agent) -> bool:
@@ -517,7 +515,7 @@ def format_agent_option(
     # the event loop. Cold or missing legacy candidates render no glyph.
     if not agent.is_clan_container and agent_has_confirmed_bead(agent):
         text.append(" ")
-        text.append(BEAD_WAIT_GLYPH, style=BEAD_LINKED_AGENT_GLYPH_STYLE)
+        text.append(_BEAD_LINKED_AGENT_GLYPH, style=_BEAD_LINKED_AGENT_GLYPH_STYLE)
 
     # Shared trailing identity block. Grouping rows distinguish their name by
     # color; bead context stays to the left and clan tribes stay to the right.

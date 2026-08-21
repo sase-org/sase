@@ -38,10 +38,6 @@ WAIT_UNKNOWN_GLYPH_STYLE = "bold #FFAF5F"
 WAIT_UNRESOLVABLE_GLYPH = "!"
 WAIT_UNRESOLVABLE_GLYPH_STYLE = "bold #FF5F5F"
 
-# Shared with the trailing "bead-linked agent" row badge. Waited-on bead
-# tokens reuse this glyph and then take canonical bead-status color.
-BEAD_WAIT_GLYPH = "◆"
-BEAD_LINKED_AGENT_GLYPH_STYLE = "bold #5FD7AF"
 WAIT_DOMAIN_SEPARATOR = "·"
 WAIT_DOMAIN_SEPARATOR_STYLE = "dim"
 
@@ -74,14 +70,14 @@ def _wait_status_badge(bucket: str | None) -> _WaitStatusBadge:
 
 
 def _wait_bead_status_token(status: str | None) -> tuple[str, str]:
-    """Return the ``◆<status>`` token and canonical Rich style for a bead."""
+    """Return the canonical status glyph and Rich style for a waited-on bead."""
     if status in BEAD_STATUS_PRESENTATIONS:
         presentation = bead_status_presentation(status)
         return (
-            f"{BEAD_WAIT_GLYPH}{presentation.tui_glyph}",
+            presentation.tui_glyph,
             presentation.rich_style,
         )
-    return f"{BEAD_WAIT_GLYPH}{WAIT_UNKNOWN_GLYPH}", WAIT_UNKNOWN_GLYPH_STYLE
+    return WAIT_UNKNOWN_GLYPH, WAIT_UNKNOWN_GLYPH_STYLE
 
 
 def append_wait_status_badge(text: Text, bucket: str | None) -> None:
@@ -157,8 +153,6 @@ def format_wait_dependency_status_counts(
 
 
 __all__ = [
-    "BEAD_LINKED_AGENT_GLYPH_STYLE",
-    "BEAD_WAIT_GLYPH",
     "WAIT_DOMAIN_SEPARATOR",
     "WAIT_DOMAIN_SEPARATOR_STYLE",
     "WAIT_STATUS_BADGES",

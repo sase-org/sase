@@ -6,7 +6,6 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.wait_status_presentation import (
-    BEAD_WAIT_GLYPH,
     WAIT_UNKNOWN_GLYPH_STYLE,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
@@ -43,13 +42,12 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
 def test_waited_for_bead_uses_every_canonical_status_token() -> None:
     for status in bead_status_display_order():
         presentation = bead_status_presentation(status)
-        token = f"{BEAD_WAIT_GLYPH}{presentation.tui_glyph}"
+        token = presentation.tui_glyph
         style = presentation.rich_style
         agent = make_agent(status="WAITING", waiting_for_beads=["sase-9r.2"])
         summary = DetailHeaderSummary(wait_bead_statuses=(("sase-9r.2", status),))
         header = _waiting_header(agent, summary)
 
-        assert token == f"◆{presentation.tui_glyph}"
         assert _waiting_line(agent, summary) == f"Wait: [beads] sase-9r.2 {token}"
         assert _styles_covering(header, token) == {style}
 
@@ -64,8 +62,8 @@ def test_unknown_waited_for_bead_gets_unknown_token() -> None:
     )
     header = _waiting_header(agent, summary)
 
-    assert _waiting_line(agent, summary) == "Wait: [beads] sase-9r.2 ◆?"
-    assert _styles_covering(header, "◆?") == {WAIT_UNKNOWN_GLYPH_STYLE}
+    assert _waiting_line(agent, summary) == "Wait: [beads] sase-9r.2 ?"
+    assert _styles_covering(header, "?") == {WAIT_UNKNOWN_GLYPH_STYLE}
 
 
 def test_no_summary_preserves_plain_first_paint() -> None:
@@ -86,7 +84,7 @@ def test_multiple_waited_for_beads_keep_status_tokens_attached() -> None:
         wait_bead_statuses=(("a", "closed"), ("b", "open")),
     )
 
-    assert _waiting_line(agent, summary) == "Wait: [beads] a ◆●, b ◆○"
+    assert _waiting_line(agent, summary) == "Wait: [beads] a ●, b ○"
 
 
 def test_mismatched_summary_degrades_to_unknown_token() -> None:
@@ -98,7 +96,7 @@ def test_mismatched_summary_degrades_to_unknown_token() -> None:
         wait_bead_statuses=(("stale", "closed"),),
     )
 
-    assert _waiting_line(agent, summary) == "Wait: [beads] current ◆?"
+    assert _waiting_line(agent, summary) == "Wait: [beads] current ?"
 
 
 def test_agent_only_wait_rendering_is_tagged() -> None:
@@ -134,11 +132,10 @@ def test_wait_lanes_keep_agent_glyphs_and_status_bearing_bead_tokens() -> None:
     assert lines[0].startswith("Wait: [agents]")
     assert "coder ✓" in lines[0]
     assert "[tribes]" in text.plain
-    assert "run-bead ◆◐" in text.plain
+    assert "run-bead ◐" in text.plain
     assert "[time]" in text.plain
     assert "[runners]" in text.plain
-    assert "coder ◆" not in text.plain
     assert _styles_covering(text, "✓") == {"bold #5FD75F"}
-    assert _styles_covering(text, "◆◐") == {
+    assert _styles_covering(text, "◐") == {
         bead_status_presentation("in_progress").rich_style
     }

@@ -163,6 +163,10 @@ _AGENT_NAME_ANNOTATION_STYLE = "#FFD700"  # Gold
 _FILE_CHANGE_GLYPH = "✏️"
 _FILE_CHANGE_GLYPH_STYLE = "bold #FFD75F"
 
+# Linked-bead identity badge for agents launched by ``sase bead work``.
+_BEAD_LINKED_AGENT_GLYPH = "◆"
+_BEAD_LINKED_AGENT_GLYPH_STYLE = "bold #5FD7AF"
+
 # Reverted badge for agents whose commits were intentionally undone via `,r`.
 _REVERTED_GLYPH = "↺"
 _REVERTED_GLYPH_STYLE = "bold #D7875F"

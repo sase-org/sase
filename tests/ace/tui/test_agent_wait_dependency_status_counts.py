@@ -18,7 +18,6 @@ from sase.ace.tui.models.agent_wait_beads import (
     _WaitBeadStatusSnapshotEntry,
 )
 from sase.ace.tui.wait_status_presentation import (
-    BEAD_WAIT_GLYPH,
     WAIT_DOMAIN_SEPARATOR,
     WAIT_UNKNOWN_GLYPH,
     WAIT_UNKNOWN_GLYPH_STYLE,
@@ -119,18 +118,18 @@ def test_counts_keep_agent_and_bead_domains_separate() -> None:
         ),
     )
     rendered = format_wait_dependency_status_counts(counts)
-    assert rendered.plain == ("▲1 ✗1 ◐1 ▶1 …1 ⏳1 ✓1 ?1 · ◆○1 ◆◎1 ◆◇1 ◆◈1 ◆◐1 ◆●1 ◆?1")
+    assert rendered.plain == ("▲1 ✗1 ◐1 ▶1 …1 ⏳1 ✓1 ?1 · ○1 ◎1 ◇1 ◈1 ◐1 ●1 ?1")
     assert "▶2" not in rendered.plain
-    assert rendered.plain.index("?1") < rendered.plain.index("◆?1")
+    assert rendered.plain.index(WAIT_DOMAIN_SEPARATOR) < rendered.plain.rindex("?1")
 
 
 def test_similar_agent_and_bead_statuses_do_not_merge() -> None:
     waiter = make_agent(
         status="WAITING",
-        waiting_for=["running"],
+        waiting_for=["starting"],
         waiting_for_beads=["running-bead"],
     )
-    maps = collect_agent_wait_status_maps([waiter, _dep("running", "Running")])
+    maps = collect_agent_wait_status_maps([waiter, _dep("starting", "Starting")])
     bead_snapshot = WaitBeadStatusSnapshot(
         (_WaitBeadStatusSnapshotEntry("running-bead", "in_progress"),)
     )
@@ -139,10 +138,10 @@ def test_similar_agent_and_bead_statuses_do_not_merge() -> None:
     rendered = format_wait_dependency_status_counts(counts)
 
     assert counts == WaitDependencyStatusCounts(
-        agents=WaitAgentStatusCounts(running=1),
+        agents=WaitAgentStatusCounts(starting=1),
         beads=WaitBeadStatusCounts(in_progress=1),
     )
-    assert rendered.plain == "▶1 · ◆◐1"
+    assert rendered.plain == "◐1 · ◐1"
 
 
 def test_formatter_suppresses_zeroes_and_keeps_multi_digit_counts() -> None:
@@ -181,13 +180,13 @@ def test_formatter_emits_separator_only_for_mixed_domains() -> None:
 
     assert agent_only.plain == "▶2 ✓1"
     assert WAIT_DOMAIN_SEPARATOR not in agent_only.plain
-    assert bead_only.plain == "◆○2 ◆◐1"
+    assert bead_only.plain == "○2 ◐1"
     assert WAIT_DOMAIN_SEPARATOR not in bead_only.plain
-    assert mixed.plain == "▶1 · ◆◐2"
+    assert mixed.plain == "▶1 · ◐2"
     assert "dim" in _styles_covering(mixed, WAIT_DOMAIN_SEPARATOR)
-    assert unknown_mixed.plain == "?1 · ◆?2"
+    assert unknown_mixed.plain == "?1 · ?2"
     assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(unknown_mixed, "?1")
-    assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(unknown_mixed, "◆?2")
+    assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(unknown_mixed, "?2")
 
 
 def test_bead_tokens_use_canonical_glyph_color_and_unbroken_style() -> None:
@@ -204,20 +203,18 @@ def test_bead_tokens_use_canonical_glyph_color_and_unbroken_style() -> None:
     )
     rendered = format_wait_dependency_status_counts(counts)
 
-    assert rendered.plain == "◆○1 ◆◎1 ◆◇1 ◆◈1 ◆◐2 ◆●1 ◆?3"
+    assert rendered.plain == "○1 ◎1 ◇1 ◈1 ◐2 ●1 ?3"
+    assert "◆" not in rendered.plain
     for status in bead_status_display_order():
         presentation = bead_status_presentation(status)
-        token = f"{BEAD_WAIT_GLYPH}{presentation.tui_glyph}"
+        token = presentation.tui_glyph
         count = "2" if status == "in_progress" else "1"
         complete = f"{token}{count}"
         assert complete in rendered.plain
         covering = _styles_covering(rendered, complete)
         assert covering == {presentation.rich_style}
-        assert token.startswith(BEAD_WAIT_GLYPH)
         assert token != WAIT_UNKNOWN_GLYPH
-    unknown_token = f"{BEAD_WAIT_GLYPH}{WAIT_UNKNOWN_GLYPH}"
-    assert unknown_token == "◆?"
-    assert _styles_covering(rendered, "◆?3") == {WAIT_UNKNOWN_GLYPH_STYLE}
+    assert _styles_covering(rendered, "?3") == {WAIT_UNKNOWN_GLYPH_STYLE}
 
 
 def test_documented_wait_summary_examples_match_formatter() -> None:
@@ -235,11 +232,10 @@ def test_documented_wait_summary_examples_match_formatter() -> None:
         )
     )
 
-    assert mixed.plain == "▶1 · ◆◐2"
-    assert unknown_mixed.plain == "?1 · ◆?2"
-    assert "WAITING ▶1 · ◆◐2" in docs
+    assert mixed.plain == "▶1 · ◐2"
+    assert unknown_mixed.plain == "?1 · ?2"
+    assert "WAITING ▶1 · ◐2" in docs
     assert "`?N`" in docs
-    assert "`◆?N`" in docs
     assert "trailing gold `◆` linked-bead badge" in docs
 
 
@@ -256,7 +252,7 @@ def test_cold_bead_cache_miss_is_omitted_until_warm() -> None:
     counts = wait_dependency_status_counts(waiter, maps, bead_snapshot)
 
     assert counts == WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(unknown=1))
-    assert format_wait_dependency_status_counts(counts).plain == "◆?1"
+    assert format_wait_dependency_status_counts(counts).plain == "?1"
 
 
 def test_stale_bead_status_stays_visible_during_revalidation() -> None:
@@ -271,7 +267,7 @@ def test_stale_bead_status_stays_visible_during_revalidation() -> None:
     assert counts == WaitDependencyStatusCounts(
         beads=WaitBeadStatusCounts(in_progress=1)
     )
-    assert format_wait_dependency_status_counts(counts).plain == "◆◐1"
+    assert format_wait_dependency_status_counts(counts).plain == "◐1"
 
 
 def test_clan_wait_counts_expanded_members_not_aggregate() -> None:
@@ -344,15 +340,14 @@ def test_tribe_time_and_runner_waits_do_not_enter_dependency_counts() -> None:
 
 
 def test_bead_status_tokens_are_semantically_readable() -> None:
-    unknown = f"{BEAD_WAIT_GLYPH}{WAIT_UNKNOWN_GLYPH}"
-    assert unknown == "◆?"
+    unknown = WAIT_UNKNOWN_GLYPH
     rendered_unknown = format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(unknown=1))
     )
-    assert rendered_unknown.plain == "◆?1"
+    assert rendered_unknown.plain == "?1"
     for status in bead_status_display_order():
         presentation = bead_status_presentation(status)
-        token = f"{BEAD_WAIT_GLYPH}{presentation.tui_glyph}"
+        token = presentation.tui_glyph
         rendered = format_wait_dependency_status_counts(
             WaitDependencyStatusCounts(
                 beads=WaitBeadStatusCounts(**{status: 1}),

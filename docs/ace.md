@@ -1858,14 +1858,14 @@ cannot be mistaken for a fraction. Implicit-cap rows omit the repeated capacity 
 wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a
 bead wait. A compact `WAITING` row summarizes named waits as two independent groups:
 agent counts keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep
-the bead-domain `◆` plus the canonical Beads-tab status glyph (`◆○` open, `◆◐` in
-progress, `◆●` closed). Zero entries are omitted, the count is always shown, and a dim
-`·` appears only when both groups are present, for example `WAITING ▶1 · ◆◐2`. Unknown
-agents render as `?N`; an authoritative missing or unmapped bead renders as `◆?N`. These
-tokens sit directly after `WAITING` and before a reserved-tribe `!`, duration, or
-countdown annotation. They are not the trailing gold `◆` linked-bead badge that marks an
-agent launched by `sase bead work`. **Stopped** keeps the strict "you need to act"
-semantics for plan approval, questions, and workflow input.
+the canonical Beads-tab status glyph (`○` open, `◐` in progress, `●` closed). Zero
+entries are omitted, the count is always shown, and a dim `·` appears only when both
+groups are present, for example `WAITING ▶1 · ◐2`. Unknown agents and unknown beads both
+render as `?N`; in mixed rows, group position disambiguates them, as in
+`WAITING ?1 · ?2`. These tokens sit directly after `WAITING` and before a reserved-tribe
+`!`, duration, or countdown annotation. They are not the trailing gold `◆` linked-bead
+badge that marks an agent launched by `sase bead work`. **Stopped** keeps the strict
+"you need to act" semantics for plan approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -1931,15 +1931,15 @@ row: marks, a focused panel, and a focused group are all handled before ACE look
 whether the selected row is a monitor.
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the
-status glyph and the tribe/name. That trailing linked-bead badge is a fixed-style
-identity marker, not a wait-count token; waited-on beads in a `WAITING` summary use
-status-colored `◆○` / `◆◐` / `◆●` tokens instead. A phase agent named `<epic_id>.<N>`
-displays that phase bead ID; the final `<epic_id>.land` agent displays the parent epic
-bead ID; a standalone task worker named `<task_id>` displays its task bead ID. Legacy
-plain `<epic_id>` land agents keep the same badge. Legacy dismissed names keep the badge
-after their historical date prefix is stripped. Modern phase and task rows use their
-explicit launch metadata immediately; legacy bead-shaped names retain the deferred
-bead-store confirmation fallback.
+status glyph and the tribe/name. That trailing gold `◆` linked-bead badge is a
+fixed-style identity marker, not a wait-count token; waited-on beads in a `WAITING`
+summary use status-colored `○` / `◐` / `●` tokens instead. A phase agent named
+`<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>.land` agent displays
+the parent epic bead ID; a standalone task worker named `<task_id>` displays its task
+bead ID. Legacy plain `<epic_id>` land agents keep the same badge. Legacy dismissed
+names keep the badge after their historical date prefix is stripped. Modern phase and
+task rows use their explicit launch metadata immediately; legacy bead-shaped names
+retain the deferred bead-store confirmation fallback.
 
 Each agent row also carries a per-provider emoji badge before the display name so the
 LLM provider behind a row is readable at a glance without scanning the right-hand model
@@ -3842,20 +3842,20 @@ and completed (the agent has finished).
 
 ### Active Statuses
 
-| Status             | Color           | Description                                                                                |
-| ------------------ | --------------- | ------------------------------------------------------------------------------------------ |
-| **RUNNING**        | Gold            | Agent subprocess is executing                                                              |
-| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity                       |
-| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; agent `?N` and bead `◆?N` mark unknown targets |
-| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                      |
-| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                |
-| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                |
-| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                |
-| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                        |
-| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet                         |
-| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                        |
-| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                |
-| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                          |
+| Status             | Color           | Description                                                                                                     |
+| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
+| **RUNNING**        | Gold            | Agent subprocess is executing                                                                                   |
+| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity                                            |
+| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; group order separates agents from beads |
+| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                                           |
+| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                                     |
+| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                                     |
+| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                                     |
+| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                                             |
+| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet                                              |
+| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                                             |
+| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                                     |
+| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                                               |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an
 answer it writes a `pending_question.json` marker into its run directory and temporarily
@@ -4156,16 +4156,17 @@ pinned attempt view resets the cursor.
   lane lists the dependency names recorded on the waiting agent, adds per-name status
   badges for currently known agents, clan containers, or family containers, and marks
   unknown names with `?` so typos and stale references are obvious. The `[beads]` lane
-  uses the same status-bearing `◆` token as the compact row, without a count:
-  `run-bead ◆◐`, `done-bead ◆●`, and `bead-id ◆?` for an unknown bead. A WAITING list
-  row keeps agent and bead counts in separate groups (`▶1 · ◆◐2`); unknown agents render
-  as `?N` and unknown beads as `◆?N`. Timed-only and runner-only waits do not receive
-  those markers. Timed waits add compact duration, target time, and countdown text when
-  available. An explicit runner threshold on a `QUEUED` row shows the live running
-  count, threshold, and its `queue #N of M` capacity-aware display rank; `runners=0` is
-  labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its
-  rank and elapsed time since `slot_requested_at`, followed by cap context. It
-  deliberately suppresses the marker's stale dependency, bead, and time-wait fields.
+  uses the same status-bearing token as the compact row, without a count: `run-bead ◐`,
+  `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row keeps agent and
+  bead counts in separate groups (`▶1 · ◐2`); unknown targets can render as `?1 · ?2`,
+  with group order separating agents from beads. Timed-only and runner-only waits do not
+  receive those markers. Timed waits add compact duration, target time, and countdown
+  text when available. An explicit runner threshold on a `QUEUED` row shows the live
+  running count, threshold, and its `queue #N of M` capacity-aware display rank;
+  `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:`
+  line led by its rank and elapsed time since `slot_requested_at`, followed by cap
+  context. It deliberately suppresses the marker's stale dependency, bead, and time-wait
+  fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;

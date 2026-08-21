@@ -170,8 +170,8 @@ def test_cached_format_agent_option_invalidates_on_bead_wait_count_change() -> N
     )
 
     assert open_counts[0] is not closed_counts[0]
-    assert open_counts[0].plain.endswith("(WAITING ◆○1)")
-    assert closed_counts[0].plain.endswith("(WAITING ◆●1)")
+    assert open_counts[0].plain.endswith("(WAITING ○1)")
+    assert closed_counts[0].plain.endswith("(WAITING ●1)")
 
 
 def test_format_agent_option_marks_unresolvable_wait_target_distinctly() -> None:

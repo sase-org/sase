@@ -315,12 +315,10 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
             await wait_for_svg_contains(page, "wait-unknown")
             await wait_for_visual_idle(page)
 
-            assert_page_svg_styled_text_contains(
-                page, "WAITING ✗1 ▶1 ✓1 ?1 · ◆○1 ◆◐1 ◆●1"
-            )
-            assert_page_svg_styled_text_contains(page, "?1 · ◆○1")
+            assert_page_svg_styled_text_contains(page, "WAITING ✗1 ▶1 ✓1 ?1 · ○1 ◐1 ●1")
+            assert_page_svg_styled_text_contains(page, "?1 · ○1")
             assert_page_svg_styled_text_contains(page, "▶1")
-            assert_page_svg_styled_text_contains(page, "◆◐1")
+            assert_page_svg_styled_text_contains(page, "◐1")
             assert_page_svg_contains(page, "Wait:")
             assert_page_svg_contains(page, "[agents]")
             assert_page_svg_contains(page, "[beads]")
@@ -331,7 +329,6 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
             assert_page_svg_contains(page, "▶")
             assert_page_svg_contains(page, "✗")
             assert_page_svg_contains(page, "?")
-            assert_page_svg_contains(page, "◆")
             ace_png_visual.assert_page_png(
                 page,
                 "agents_waiting_missing_target_row_120x40",
