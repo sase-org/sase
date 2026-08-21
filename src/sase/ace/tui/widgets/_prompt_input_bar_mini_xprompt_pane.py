@@ -223,6 +223,39 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
         self.refresh_frontmatter_panel_from_stack()
         return True
 
+    def mark_mini_xprompt_target_written(
+        self,
+        *,
+        item_id: str,
+        body: str,
+        frontmatter: str,
+        source_markdown: str | None,
+        loaded_fingerprint: SourceFingerprint,
+    ) -> bool:
+        """Mark the mounted mini-xprompt draft clean after a successful write."""
+        if self._mode != "prompt" or not self.is_mounted:
+            return False
+        self._sync_state_from_widgets()
+        mini = self._stack.mini_xprompt_item
+        if mini is None or mini.item_id != item_id or mini.mini_xprompt_target is None:
+            return False
+        mini.text = body
+        mini.mini_xprompt_target = replace(
+            mini.mini_xprompt_target,
+            exists=True,
+            frontmatter=frontmatter,
+            loaded_body=body,
+            loaded_markdown=source_markdown,
+            loaded_fingerprint=loaded_fingerprint,
+            clean_hash=mini_xprompt_draft_hash(frontmatter, body),
+            derived_from=None,
+            save_warning=None,
+        )
+        self._refresh_title()
+        self.refresh_frontmatter_panel_from_stack()
+        self.refresh_cursor_readouts()
+        return True
+
     def mini_xprompt_target_origin_available(self, pane_id: str) -> bool:
         """Return whether a captured origin pane can still accept a mini result."""
         if self._mode != "prompt" or not self.is_mounted:

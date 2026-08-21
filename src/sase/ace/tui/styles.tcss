@@ -4564,6 +4564,69 @@ SnippetSaveConfirmModal #snippet-save-confirm-hints {
     text-align: center;
 }
 
+MiniXPromptSaveConfirmModal {
+    align: center middle;
+}
+
+MiniXPromptSaveConfirmModal > Container {
+    width: 86%;
+    height: 72%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-title {
+    text-style: bold;
+    text-align: center;
+    height: 1;
+    margin-bottom: 1;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-header {
+    height: 2;
+    text-style: bold;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-warning {
+    height: 1;
+    color: $warning;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-preview {
+    height: auto;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-verdict {
+    height: 2;
+    margin-top: 1;
+    text-style: bold;
+}
+
+MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-success {
+    color: $success;
+}
+
+MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-warning {
+    color: $warning;
+}
+
+MiniXPromptSaveConfirmModal .mini-xprompt-save-confirm-verdict-error {
+    color: $error;
+}
+
+MiniXPromptSaveConfirmModal #mini-xprompt-save-confirm-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+}
+
 InputItemModal,
 XPromptItemModal {
     align: center middle;

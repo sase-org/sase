@@ -22,6 +22,12 @@ if TYPE_CHECKING:
     from .mini_xprompt_name_modal import (
         MiniXPromptNameResult as MiniXPromptNameResult,
     )
+    from .mini_xprompt_save_confirm_modal import (
+        MiniXPromptSaveConfirmModal as MiniXPromptSaveConfirmModal,
+    )
+    from .mini_xprompt_save_confirm_modal import (
+        MiniXPromptSaveConfirmState as MiniXPromptSaveConfirmState,
+    )
     from .project_select_modal import ProjectSelectModal as ProjectSelectModal
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
     from .snippet_name_modal import SnippetNameModal as SnippetNameModal
@@ -206,6 +212,14 @@ _LAZY_EXPORTS = {
     "MiniXPromptNameResult": (
         ".mini_xprompt_name_modal",
         "MiniXPromptNameResult",
+    ),
+    "MiniXPromptSaveConfirmModal": (
+        ".mini_xprompt_save_confirm_modal",
+        "MiniXPromptSaveConfirmModal",
+    ),
+    "MiniXPromptSaveConfirmState": (
+        ".mini_xprompt_save_confirm_modal",
+        "MiniXPromptSaveConfirmState",
     ),
     "MentorApplyResult": (".mentor_review_models", "MentorApplyResult"),
     "MentorInfo": (".mentor_review_models", "MentorInfo"),
@@ -511,6 +525,8 @@ __all__ = [
     "LaunchApprovalResult",
     "GateDebugModal",
     "LocalXPromptNameModal",
+    "MiniXPromptSaveConfirmModal",
+    "MiniXPromptSaveConfirmState",
     "RecursiveFileFinderModal",
     "ModelPickerModal",
     "NotificationModal",
