@@ -79,6 +79,26 @@ async def test_launch_pane_refuses_close_while_write_busy(monkeypatch) -> None:
         )
 
 
+async def test_launch_pane_clock_refresh_is_inactive_while_hidden(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
+    pane = LaunchPane()
+
+    async with _LaunchPaneTestApp(pane).run_test() as pilot:
+        await wait_for(pilot, lambda: "large" in pane._row_by_id)
+        pane.on_center_tab_visibility_changed(False)
+        pane._refresh_effort_clock = MagicMock()  # type: ignore[method-assign]
+        pane._refresh_runner_limit_clock = MagicMock()  # type: ignore[method-assign]
+        pane._refresh_provider_clock = MagicMock()  # type: ignore[method-assign]
+
+        pane._refresh_models_clock()
+        pane.on_center_tab_visibility_changed(True)
+        pane._refresh_models_clock()
+
+        pane._refresh_effort_clock.assert_called_once()
+        pane._refresh_runner_limit_clock.assert_called_once()
+        pane._refresh_provider_clock.assert_called_once()
+
+
 async def test_launch_pane_restores_session_row_after_snapshot(
     monkeypatch,
 ) -> None:

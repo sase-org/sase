@@ -12,7 +12,6 @@ from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.models_panel import ModelsPanelResult
-from sase.feature_flags import override_flags
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 
@@ -180,31 +179,7 @@ async def test_direct_entry_opens_requested_child_once(
         assert hub._entry.term == "Agent Hood"
 
 
-async def test_launch_direct_entry_opens_launch_when_flag_enabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _created, calls = _patch_hub_children(monkeypatch)
-    state = AdminCenterSessionState()
-    state.config_hub.active_subtab = "memory"
-
-    with override_flags(admin_center_launch_subtab=True):
-        async with _HostApp().run_test() as pilot:
-            modal = ConfigCenterModal(
-                initial_tab="config",
-                session_state=state,
-                config_entry=ConfigHubEntry(subtab="launch"),
-            )
-            pilot.app.push_screen(modal)
-            await wait_for(pilot, lambda: modal._active_tab == "config")
-            hub = modal.query_one("#config", ConfigHubPane)
-            await wait_for(pilot, lambda: "launch" in hub._panes)
-
-            assert calls == ["launch"]
-            assert hub._active_subtab == "launch"
-            assert state.config_hub.active_subtab == "launch"
-
-
-async def test_launch_direct_entry_is_ignored_when_flag_disabled(
+async def test_launch_direct_entry_opens_launch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _created, calls = _patch_hub_children(monkeypatch)
@@ -220,11 +195,11 @@ async def test_launch_direct_entry_is_ignored_when_flag_disabled(
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
-        await wait_for(pilot, lambda: "memory" in hub._panes)
+        await wait_for(pilot, lambda: "launch" in hub._panes)
 
-        assert calls == ["memory"]
-        assert hub._active_subtab == "memory"
-        assert "launch" not in hub._panes
+        assert calls == ["launch"]
+        assert hub._active_subtab == "launch"
+        assert state.config_hub.active_subtab == "launch"
 
 
 async def test_legacy_xprompts_resume_opens_config_hub(

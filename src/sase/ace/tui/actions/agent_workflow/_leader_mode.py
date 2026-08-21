@@ -310,11 +310,6 @@ class LeaderModeMixin:
         """Open Launch settings (top-bar override pills click here)."""
         self._open_models_panel()
 
-    def _launch_settings_in_admin_center_enabled(self) -> bool:
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        return current_flags().enabled(FeatureFlag.admin_center_launch_subtab)
-
     def _open_launch_settings(self) -> None:
         from ...modals.config_hub_session import ConfigHubEntry
 
@@ -356,27 +351,7 @@ class LeaderModeMixin:
 
     def _open_models_panel(self) -> None:
         """Open Launch settings (leader ``,m`` by default)."""
-        from ...modals import ModelsPanel, ModelsPanelResult
-
-        if LeaderModeMixin._launch_settings_in_admin_center_enabled(self):
-            LeaderModeMixin._open_launch_settings(self)
-            return
-
-        def _on_dismissed(result: ModelsPanelResult | None) -> None:
-            # The panel emits its own per-action toasts; here we only refresh
-            # the top-bar override pills when an override changed while the
-            # panel was open.
-            if result is None:
-                return
-            if result.changed:
-                LeaderModeMixin._refresh_launch_indicators(
-                    self, provider_routing_changed=result.provider_routing_changed
-                )
-
-        self.push_screen(  # type: ignore[attr-defined]
-            ModelsPanel(),
-            callback=_on_dismissed,
-        )
+        LeaderModeMixin._open_launch_settings(self)
 
     def _update_leader_footer(self, *, current_tab: TabName = "artifacts") -> None:
         """Update the footer to show leader mode bindings.

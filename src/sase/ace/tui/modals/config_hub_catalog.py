@@ -152,6 +152,7 @@ CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "snippets",
     "glossary",
     "memory",
+    "launch",
     "misc",
 )
 RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(

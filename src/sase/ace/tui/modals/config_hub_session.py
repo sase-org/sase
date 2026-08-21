@@ -8,14 +8,7 @@ from typing import Any, Literal
 from .catalog_pane_contract import CatalogPaneSession
 
 ConfigSubTab = Literal["xprompts", "snippets", "glossary", "memory", "launch", "misc"]
-_BASE_CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
-    "xprompts",
-    "snippets",
-    "glossary",
-    "memory",
-    "misc",
-)
-_LAUNCH_CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
     "xprompts",
     "snippets",
     "glossary",
@@ -25,18 +18,9 @@ _LAUNCH_CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
 )
 
 
-def launch_config_subtab_enabled() -> bool:
-    """Return whether the guarded Config Launch child should be exposed."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.admin_center_launch_subtab)
-
-
 def config_subtab_order() -> tuple[ConfigSubTab, ...]:
     """Return the active Config catalog order for this process."""
-    if launch_config_subtab_enabled():
-        return _LAUNCH_CONFIG_SUBTAB_ORDER
-    return _BASE_CONFIG_SUBTAB_ORDER
+    return CONFIG_SUBTAB_ORDER
 
 
 def validated_config_subtab(value: object) -> ConfigSubTab | None:
@@ -106,7 +90,7 @@ __all__ = [
     "ConfigHubEntry",
     "ConfigHubSessionState",
     "ConfigSubTab",
+    "CONFIG_SUBTAB_ORDER",
     "config_subtab_order",
-    "launch_config_subtab_enabled",
     "validated_config_subtab",
 ]
