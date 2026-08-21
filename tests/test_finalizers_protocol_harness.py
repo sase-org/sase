@@ -466,21 +466,20 @@ def test_resumed_sidecar_row_is_matched_by_exact_cwd(
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="resolved")
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        if marker_matches_sidecar:
-            result = _run(artifacts, provider)
-            assert calls == ["create", "resume"]
-            assert "resolved" in result.content
-            payload = json.loads((artifacts / "finalizer_result.json").read_text())
-            assert payload["status"] == "success"
-        else:
-            with pytest.raises(
-                BuiltinCommitFinalizerError,
-                match="no commit_results.json entry was recorded",
-            ):
-                _run(artifacts, provider)
-            assert calls == ["create", "resume"]
+    _submit_commit(artifacts)
+    if marker_matches_sidecar:
+        result = _run(artifacts, provider)
+        assert calls == ["create", "resume"]
+        assert "resolved" in result.content
+        payload = json.loads((artifacts / "finalizer_result.json").read_text())
+        assert payload["status"] == "success"
+    else:
+        with pytest.raises(
+            BuiltinCommitFinalizerError,
+            match="no commit_results.json entry was recorded",
+        ):
+            _run(artifacts, provider)
+        assert calls == ["create", "resume"]
 
 
 def test_stale_checkpoint_after_conflict_fails_closed(

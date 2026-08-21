@@ -107,11 +107,11 @@ def execute_commit_finalizer(
 
     dirty_before_decisions = state.dirty_state
     try:
-        root = finalizer_declaration._require_artifacts_dir(
+        root = finalizer_declaration.require_artifacts_dir(
             context.artifacts_dir,
             "finalizer declaration load",
         )
-        accepted_context = finalizer_declaration._load_latest_context(root)
+        accepted_context = finalizer_declaration.load_latest_finalizer_context(root)
         envelope = _load_current_final_submission(context.artifacts_dir)
     except Exception as exc:
         result = _failed_result(
@@ -350,18 +350,18 @@ def _commit_decisions_for_instance(
 
 
 def _load_current_final_submission(artifacts_dir: str | None) -> dict[str, Any]:
-    root = finalizer_declaration._require_artifacts_dir(
+    root = finalizer_declaration.require_artifacts_dir(
         artifacts_dir,
         "finalizer declaration load",
     )
-    plan = finalizer_declaration._load_plan(root)
-    context = finalizer_declaration._load_latest_context(root)
-    submission = finalizer_declaration._load_latest_submission(root)
-    envelope = finalizer_declaration._normalize_submission_envelope(
+    plan = finalizer_declaration.load_finalizer_plan(root)
+    context = finalizer_declaration.load_latest_finalizer_context(root)
+    submission = finalizer_declaration.load_latest_finalizer_submission(root)
+    envelope = finalizer_declaration.normalize_submission_envelope(
         submission["submission"]
     )
     validate_finalizer_submission(plan, context, envelope)
-    finalizer_declaration._validate_provider_payloads(plan, context, envelope)
+    finalizer_declaration.validate_provider_payloads(plan, context, envelope)
     return envelope
 
 
@@ -390,9 +390,9 @@ def _dirty_repos_in_context_order(
 
 
 def _repository_decision_id(repo: DirtyRepo) -> str:
-    from sase.finalizers.declaration import _repository_obligation_id
+    from sase.finalizers.declaration import repository_obligation_id
 
-    return _repository_obligation_id(repo)
+    return repository_obligation_id(repo)
 
 
 def _protected_baseline_paths(
@@ -504,7 +504,7 @@ def _reject_stale_repository_obligation(
     expected = getattr(obligation, "digest", None)
     if not isinstance(expected, str) or not expected:
         return
-    current = finalizer_declaration._repository_state_digest(
+    current = finalizer_declaration.repository_state_digest(
         repo_id,
         repo,
         list(repo.changed_files),

@@ -50,6 +50,23 @@ from sase.core.finalizer_wire import (
 from sase.core.finalizer_wire import (
     finalizer_provider_spec_from_dict as _finalizer_provider_spec_from_dict,
 )
+from sase.core.commit_finalizer_prompt_artifacts import (
+    commit_finalizer_pass_prompt_filename as _commit_finalizer_pass_prompt_filename,
+)
+from sase.ace.tui.modals.config_hub_catalog import (
+    config_subtab_specs as _config_subtab_specs,
+)
+from sase.ace.tui.modals.models_panel import ModelsPanel as _ModelsPanel
+from sase.ace.tui.util.artifact_ref_syntax import (
+    ArtifactRefCandidateSpans as _ArtifactRefCandidateSpans,
+)
+from sase.ace.tui.util.artifact_ref_syntax import (
+    ArtifactRefPartSpan as _ArtifactRefPartSpan,
+)
+from sase.ace.tui.util.artifact_ref_syntax import (
+    ArtifactRefStyledSpan as _ArtifactRefStyledSpan,
+)
+from sase.feature_flags.cli_summary import FlagListSummary as _FlagListSummary
 from sase.core.finalizer_wire import (
     finalizer_selector_op_from_dict as _finalizer_selector_op_from_dict,
 )
@@ -60,6 +77,9 @@ from sase.finalizers.commit import BuiltinCommitExecution as _BuiltinCommitExecu
 from sase.finalizers.commit import StitchCommandResult as _StitchCommandResult
 from sase.finalizers.commit import run_stitch_create as _run_stitch_create
 from sase.finalizers.config import FinalizerFieldProvenance as _FinalizerFieldProvenance
+from sase.finalizers.controller import (
+    FinalizerControllerError as _FinalizerControllerError,
+)
 from sase.finalizers.declaration import (
     FinalContextPublication as _FinalContextPublication,
 )
@@ -75,20 +95,49 @@ from sase.finalizers.executor import (
 )
 from sase.finalizers.executor import result_to_json as _result_to_json
 from sase.finalizers.executor import run_provider_operation as _run_provider_operation
+from sase.finalizers.reconciliation import (
+    auto_commit_done_plan_status_if_possible as _auto_commit_done_plan_status_if_possible,
+)
+from sase.finalizers.reconciliation import (
+    auto_commit_external_sdd_prompt_qa_if_possible as _auto_commit_external_sdd_prompt_qa_if_possible,
+)
+from sase.finalizers.reconciliation import (
+    auto_commit_separate_sdd_store_if_possible as _auto_commit_separate_sdd_store_if_possible,
+)
+from sase.finalizers.reconciliation import clean_result_reason as _clean_result_reason
 from sase.finalizers.sdk import FinalizerProvider as _FinalizerProvider
 from sase.finalizers.sdk import sdk_worker_main as _sdk_worker_main
+from sase.llm_provider.commit_finalizer_prompting import (
+    result_changed_files as _result_changed_files,
+)
+from sase.main._init_skills_manifest import (
+    SkillManifestOwnershipPlan as _SkillManifestOwnershipPlan,
+)
 
 _PUBLIC_API_REFS = (
+    _ArtifactRefCandidateSpans,
+    _ArtifactRefPartSpan,
+    _ArtifactRefStyledSpan,
     _BuiltinCommitExecution,
     _FinalContextPublication,
     _FinalizerExecutionError,
+    _FinalizerControllerError,
     _FinalizerFieldProvenance,
     _FinalizerInstanceView,
     _FinalizerPlanEntryWire,
     _FinalizerProvider,
     _FinalizerSubmissionPayloadWire,
+    _FlagListSummary,
+    _ModelsPanel,
+    _SkillManifestOwnershipPlan,
     _StitchCommandResult,
     _build_finalizer_inventory,
+    _auto_commit_done_plan_status_if_possible,
+    _auto_commit_external_sdd_prompt_qa_if_possible,
+    _auto_commit_separate_sdd_store_if_possible,
+    _clean_result_reason,
+    _commit_finalizer_pass_prompt_filename,
+    _config_subtab_specs,
     _execute_command_finalizer,
     _execute_plugin_finalizer,
     _final_submission_is_current,
@@ -106,6 +155,7 @@ _PUBLIC_API_REFS = (
     _finalizer_selector_op_from_dict,
     _finalizer_wire_schema_version,
     _result_to_json,
+    _result_changed_files,
     _run_provider_operation,
     _run_stitch_create,
     _sdk_worker_main,

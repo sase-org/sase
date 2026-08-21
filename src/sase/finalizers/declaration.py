@@ -114,8 +114,8 @@ def publish_final_context(
 ) -> FinalContextPublication:
     """Recompute, validate, and atomically publish the current finalizer context."""
 
-    root = _require_artifacts_dir(artifacts_dir, "sase final context")
-    plan = _load_plan(root)
+    root = require_artifacts_dir(artifacts_dir, "sase final context")
+    plan = load_finalizer_plan(root)
     run_id, agent_id, turn_nonce = _run_identity(root, "sase final context")
     dirty_state = _collect_dirty_state(root)
     requirements, obligations = _build_context_requirements(plan, dirty_state)
@@ -147,16 +147,16 @@ def submit_final_manifest(
 ) -> dict[str, Any]:
     """Validate and atomically publish one finalizer declaration manifest."""
 
-    root = _require_artifacts_dir(artifacts_dir, "sase final submit")
+    root = require_artifacts_dir(artifacts_dir, "sase final submit")
     content_digest = _safe_value_digest(manifest)
 
     with locked_file(root / f"{FINAL_SUBMISSION_FILENAME}.lock", fcntl.LOCK_EX):
         try:
-            plan = _load_plan(root)
-            context = _load_latest_context(root)
-            envelope = _normalize_submission_envelope(manifest)
+            plan = load_finalizer_plan(root)
+            context = load_latest_finalizer_context(root)
+            envelope = normalize_submission_envelope(manifest)
             validation = validate_finalizer_submission(plan, context, envelope)
-            _validate_provider_payloads(plan, context, envelope)
+            validate_provider_payloads(plan, context, envelope)
         except FinalizerDeclarationError as exc:
             _append_attempt_record_locked(
                 root,
@@ -254,16 +254,16 @@ def read_final_manifest_from_path(path: str) -> Mapping[str, Any]:
 def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
     """Return whether the latest accepted submission satisfies the latest context."""
 
-    root = _require_artifacts_dir(artifacts_dir, "finalizer declaration check")
-    plan = _load_plan(root)
-    context = _load_latest_context(root)
+    root = require_artifacts_dir(artifacts_dir, "finalizer declaration check")
+    plan = load_finalizer_plan(root)
+    context = load_latest_finalizer_context(root)
     if not _context_requires_submission(context):
         return True
     try:
-        submission = _load_latest_submission(root)
-        envelope = _normalize_submission_envelope(submission["submission"])
+        submission = load_latest_finalizer_submission(root)
+        envelope = normalize_submission_envelope(submission["submission"])
         validate_finalizer_submission(plan, context, envelope)
-        _validate_provider_payloads(plan, context, envelope)
+        validate_provider_payloads(plan, context, envelope)
     except Exception:
         return False
     return True
@@ -296,7 +296,7 @@ def ensure_final_declaration_or_recover(
     recovery_nonce = mint_finalizer_turn_nonce()
     try:
         prompt = _declaration_recovery_prompt(context)
-        root = _require_artifacts_dir(
+        root = require_artifacts_dir(
             artifacts_dir,
             "finalizer declaration recovery",
         )
@@ -338,7 +338,7 @@ def ensure_final_declaration_or_recover(
             os.environ[SASE_FINAL_TURN_NONCE_ENV] = previous_nonce
 
 
-def _require_artifacts_dir(value: str | None, command: str) -> Path:
+def require_artifacts_dir(value: str | None, command: str) -> Path:
     raw = value or os.environ.get("SASE_ARTIFACTS_DIR")
     if not raw:
         raise FinalizerDeclarationError(
@@ -369,7 +369,7 @@ def _run_identity(root: Path, command: str) -> tuple[str, str, str]:
     return run_id, agent_id, turn_nonce
 
 
-def _load_plan(root: Path) -> FinalizerPlanWire:
+def load_finalizer_plan(root: Path) -> FinalizerPlanWire:
     payload = load_persisted_finalizer_plan(str(root))
     if not payload:
         raise FinalizerDeclarationError(
@@ -468,9 +468,9 @@ def _build_context_requirements(
 
 
 def _repository_obligation(repo: DirtyRepo) -> FinalizerObligationWire:
-    repo_id = _repository_obligation_id(repo)
+    repo_id = repository_obligation_id(repo)
     paths = list(repo.changed_files)
-    state_digest = _repository_state_digest(repo_id, repo, paths)
+    state_digest = repository_state_digest(repo_id, repo, paths)
     return FinalizerObligationWire(
         obligation_id=repo_id,
         kind="repository",
@@ -480,7 +480,7 @@ def _repository_obligation(repo: DirtyRepo) -> FinalizerObligationWire:
     )
 
 
-def _repository_obligation_id(repo: DirtyRepo) -> str:
+def repository_obligation_id(repo: DirtyRepo) -> str:
     raw = json.dumps(
         {
             "kind": repo.kind,
@@ -493,7 +493,7 @@ def _repository_obligation_id(repo: DirtyRepo) -> str:
     return f"repo-{hashlib.sha256(raw).hexdigest()[:12]}"
 
 
-def _repository_state_digest(
+def repository_state_digest(
     repo_id: str,
     repo: DirtyRepo,
     paths: Sequence[str],
@@ -608,7 +608,7 @@ def _manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
     }
 
 
-def _load_latest_context(root: Path) -> FinalizerContextWire:
+def load_latest_finalizer_context(root: Path) -> FinalizerContextWire:
     try:
         payload = json.loads((root / FINAL_CONTEXT_FILENAME).read_text())
     except (OSError, json.JSONDecodeError) as exc:
@@ -632,7 +632,7 @@ def _load_latest_context(root: Path) -> FinalizerContextWire:
         ) from exc
 
 
-def _load_latest_submission(root: Path) -> Mapping[str, Any]:
+def load_latest_finalizer_submission(root: Path) -> Mapping[str, Any]:
     try:
         payload = json.loads((root / FINAL_SUBMISSION_FILENAME).read_text())
     except (OSError, json.JSONDecodeError) as exc:
@@ -650,7 +650,7 @@ def _load_latest_submission(root: Path) -> Mapping[str, Any]:
     return payload
 
 
-def _normalize_submission_envelope(manifest: Mapping[str, Any]) -> dict[str, Any]:
+def normalize_submission_envelope(manifest: Mapping[str, Any]) -> dict[str, Any]:
     raw: Any = manifest.get("submission") if "submission" in manifest else manifest
     if not isinstance(raw, Mapping):
         raise FinalizerDeclarationError(
@@ -684,7 +684,7 @@ def _normalize_submission_envelope(manifest: Mapping[str, Any]) -> dict[str, Any
     return envelope
 
 
-def _validate_provider_payloads(
+def validate_provider_payloads(
     plan: FinalizerPlanWire,
     context: FinalizerContextWire,
     envelope: Mapping[str, Any],
@@ -840,7 +840,7 @@ def _context_requires_submission(context: FinalizerContextWire) -> bool:
 
 def _latest_context_matches_nonce(root: Path, nonce: str) -> bool:
     try:
-        return _load_latest_context(root).turn_nonce == nonce
+        return load_latest_finalizer_context(root).turn_nonce == nonce
     except FinalizerDeclarationError:
         return False
 
@@ -905,7 +905,7 @@ def _record_attempt_best_effort(
     content_digest: str,
 ) -> None:
     try:
-        root = _require_artifacts_dir(None, "sase final submit")
+        root = require_artifacts_dir(None, "sase final submit")
         with locked_file(root / f"{FINAL_SUBMISSION_FILENAME}.lock", fcntl.LOCK_EX):
             _append_attempt_record_locked(
                 root,
