@@ -18,7 +18,6 @@ _BUILTIN_MODEL_ALIASES: tuple[str, ...] = (
     "large",
     "xlarge",
 )
-_HIDDEN_SURFACE_DIRECTIVES: frozenset[str] = frozenset({"final"})
 
 
 def flag_source_path(_project: str | None) -> Path | None:
@@ -77,7 +76,7 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
         if not isinstance(row, dict):
             continue
         name = str(row.get("name") or "")
-        if not name or name in _HIDDEN_SURFACE_DIRECTIVES:
+        if not name:
             continue
         description = str(row.get("description") or "")
         alias = row.get("alias")

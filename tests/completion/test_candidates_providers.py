@@ -36,12 +36,11 @@ def test_artifact_relation_candidates_include_cli_slugs() -> None:
     assert {"related", "implements", "supersedes", "derives-from"} <= values
 
 
-def test_directive_candidates_use_shared_contract_and_hide_final() -> None:
+def test_directive_candidates_use_shared_contract_and_expose_final() -> None:
     result = candidates_for("directive", "", project=None, limit=200)
 
     values = {candidate.value for candidate in result}
-    assert {"model", "effort", "id", "wait", "auto"} <= values
-    assert "final" not in values
+    assert {"model", "effort", "id", "wait", "auto", "final"} <= values
     model = next(candidate for candidate in result if candidate.value == "model")
     assert "Override the LLM model" in model.description
     assert "alias %m" in model.description

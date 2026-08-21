@@ -136,7 +136,6 @@ class _ModelEntryDisplay(Protocol):
 
 _TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
 _IDENTITY_ROLES = frozenset({"clan", "family", "tribe"})
-_HIDDEN_COMPLETION_DIRECTIVES = frozenset({"final"})
 
 
 def build_directive_completion_candidates(
@@ -154,7 +153,7 @@ def build_directive_completion_candidates(
     candidates = [
         _directive_name_candidate(row)
         for row in _core_candidate_rows(clause)
-        if isinstance(row.get("insertion"), str) and not _is_hidden_directive_name(row)
+        if isinstance(row.get("insertion"), str)
     ]
     return candidates, _shared_extension(
         [candidate.insertion[1:] for candidate in candidates],
@@ -542,12 +541,6 @@ def _directive_name_candidate(row: dict[str, object]) -> CompletionCandidate:
             description=str(description),
         ),
     )
-
-
-def _is_hidden_directive_name(row: dict[str, object]) -> bool:
-    insertion = str(row.get("insertion") or "")
-    name = str(row.get("name") or insertion.removeprefix("%"))
-    return name in _HIDDEN_COMPLETION_DIRECTIVES
 
 
 def _parenthesized_keyword_fallback(
