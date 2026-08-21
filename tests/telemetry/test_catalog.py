@@ -54,6 +54,7 @@ def test_catalog_subsystem_derivation() -> None:
 
     assert by_attr["AGENT_RUNS"].subsystem == "Agent Lifecycle"
     assert by_attr["LLM_INVOCATIONS"].subsystem == "LLM Provider"
+    assert by_attr["FINALIZER_SELECTED"].subsystem == "Finalizers"
     assert by_attr["AXE_CYCLES"].subsystem == "Axe Orchestrator"
     assert by_attr["HOOK_EXECUTIONS"].subsystem == "Hooks / Mentors / Workflows"
     assert by_attr["MENTOR_EXECUTIONS"].subsystem == "Hooks / Mentors / Workflows"

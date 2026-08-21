@@ -21,6 +21,7 @@ from sase.finalizers.config import (
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
+    FinalizerExecutionError,
     execute_non_commit_finalizer,
 )
 from sase.finalizers.plan import FinalizerPlanError, resolve_and_persist_finalizer_plan
@@ -28,6 +29,7 @@ from sase.finalizers.providers import (
     FinalizerProviderRecord,
     parse_command_finalizer_config,
 )
+from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.xprompt.directives import PromptDirectives
@@ -180,22 +182,30 @@ def test_builtin_command_finalizer_runs_and_records_artifacts(
         "sase.finalizers.controller.load_finalizer_config",
         lambda: config,
     )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
+    monkeypatch.setenv("SASE_FINAL_TURN_NONCE", "nonce-1")
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: DirtyState(project_dir=str(tmp_path), repos=(), details=""),
+    )
 
     with override_flags(pluggable_finalizers=True):
         resolve_and_persist_finalizer_plan(
             PromptDirectives(),
             artifacts_dir=str(tmp_path),
         )
-
-    result = run_finalizers(
-        provider=MagicMock(),
-        original_prompt="do work",
-        invoke_result=InvokeResult(content="done"),
-        model_tier="small",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(tmp_path),
-    )
+        result = run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="small",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(tmp_path),
+        )
 
     assert result.content == "done"
     payload = json.loads((tmp_path / "finalizer_result.json").read_text())
@@ -257,3 +267,134 @@ def test_external_provider_runs_describe_validate_execute_verify(
     assert result.status == "success"
     assert seen == ["describe", "validate", "execute", "verify"]
     assert result.evidence[0].kind == "audit"
+
+
+def test_builtin_command_timeout_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = _instance(
+        "slow-check",
+        "builtin@command",
+        config={
+            "command": [sys.executable, "-c", "import time; time.sleep(2)"],
+            "cwd": "primary",
+            "timeout": "50ms",
+            "submission": "none",
+        },
+    )
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
+    result = execute_non_commit_finalizer(
+        instance,
+        _config({"slow-check": instance}, defaults=("slow-check",)),
+        FinalizerExecutionContext(artifacts_dir=str(tmp_path), plan_digest="sha256:t"),
+    )
+
+    assert result.status == "failed"
+    assert result.attempts[0].diagnostic_code == "command_timeout"
+
+
+def test_builtin_command_sanitizes_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SECRET_TOKEN", "should-not-leak")
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
+    instance = _instance(
+        "env-check",
+        "builtin@command",
+        config={
+            "command": [
+                sys.executable,
+                "-c",
+                "import os; print(os.environ.get('SECRET_TOKEN', ''))",
+            ],
+            "cwd": "primary",
+            "timeout": "5s",
+            "submission": "none",
+        },
+    )
+    result = execute_non_commit_finalizer(
+        instance,
+        _config({"env-check": instance}, defaults=("env-check",)),
+        FinalizerExecutionContext(artifacts_dir=str(tmp_path), plan_digest="sha256:t"),
+    )
+
+    assert result.status == "success"
+    stdout = tmp_path / "finalizers" / "env-check" / "attempt-1.stdout"
+    assert stdout.read_text().strip() == ""
+
+
+def test_plugin_timeout_and_malformed_output_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = _instance("audit", "example-finalizers@audit")
+    config = _config({"audit": instance}, defaults=("audit",))
+    provider = FinalizerProviderRecord(
+        provider_ref="example-finalizers@audit",
+        provider_id="audit",
+        package="example-finalizers",
+        version="1.0.0",
+        entry_point="example_finalizers:provider",
+        builtin=False,
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.executor.collect_finalizer_providers",
+        lambda: (provider,),
+    )
+
+    def boom(
+        _instance: ConfiguredFinalizerInstance,
+        _provider: FinalizerProviderRecord,
+        operation: str,
+        _request: Mapping[str, Any],
+        _context: FinalizerExecutionContext,
+    ) -> dict[str, Any]:
+        if operation == "execute":
+            raise FinalizerExecutionError("provider operation 'execute' timed out")
+        return {
+            "schema_version": 1,
+            "operation": operation,
+            "provider_ref": "example-finalizers@audit",
+            "instance_id": "audit",
+            "status": "ok",
+        }
+
+    result = execute_non_commit_finalizer(
+        instance,
+        config,
+        FinalizerExecutionContext(artifacts_dir=str(tmp_path), plan_digest="sha256:t"),
+        operation_runner=boom,
+    )
+    assert result.status == "failed"
+    assert "timed out" in result.diagnostics[0].message
+
+
+def test_disabled_plugin_provider_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance = _instance("audit", "example-finalizers@audit")
+    config = _config({"audit": instance}, defaults=("audit",))
+    provider = FinalizerProviderRecord(
+        provider_ref="example-finalizers@audit",
+        provider_id="audit",
+        package="example-finalizers",
+        version="1.0.0",
+        entry_point="example_finalizers:provider",
+        builtin=False,
+        disabled_by=("SASE_DISABLE_PLUGINS",),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.executor.collect_finalizer_providers",
+        lambda: (provider,),
+    )
+    result = execute_non_commit_finalizer(
+        instance,
+        config,
+        FinalizerExecutionContext(artifacts_dir=str(tmp_path), plan_digest="sha256:t"),
+    )
+
+    assert result.status == "failed"
+    assert result.attempts[0].diagnostic_code == "provider_disabled"

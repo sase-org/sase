@@ -286,3 +286,108 @@ def test_flag_on_invocation_persists_plan_and_uses_beta_controller(
     beta_controller.assert_called_once()
     assert "/sase_final" in provider.invoke.call_args.args[0]
     assert (tmp_path / FINALIZER_PLAN_FILENAME).is_file()
+
+
+def _config_with_lint() -> ConfigLayer:
+    return ConfigLayer(
+        name="default",
+        path=None,
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "finalizers": {
+                "defaults": ["commit"],
+                "required": [],
+                "instances": {
+                    "commit": {
+                        "use": "builtin@commit",
+                        "after": [],
+                        "max_attempts": 2,
+                        "refusal": "fail",
+                    },
+                    "lint": {
+                        "use": "builtin@command",
+                        "after": [],
+                        "max_attempts": 1,
+                        "config": {"command": ["true"], "submission": "none"},
+                    },
+                },
+            }
+        },
+    )
+
+
+def test_final_lint_retains_default_commit_in_dependency_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [_config_with_lint()],
+    )
+    _, directives = extract_prompt_directives("%final:lint\nDo work")
+
+    with override_flags(pluggable_finalizers=True):
+        resolved = resolve_and_persist_finalizer_plan(
+            directives,
+            artifacts_dir=str(tmp_path),
+        )
+
+    assert resolved is not None
+    assert resolved.selected_instances == ("commit", "lint")
+
+
+def test_unknown_and_empty_final_selectors_fail_before_plan_persistence(
+    tmp_path: Path,
+) -> None:
+    _, unknown = extract_prompt_directives("%final:does-not-exist\nDo work")
+    _, empty = extract_prompt_directives("%final\nDo work")
+
+    with override_flags(pluggable_finalizers=True):
+        with pytest.raises(FinalizerPlanError):
+            resolve_and_persist_finalizer_plan(unknown, artifacts_dir=str(tmp_path))
+        with pytest.raises(FinalizerPlanError, match="empty selector"):
+            resolve_and_persist_finalizer_plan(empty, artifacts_dir=str(tmp_path))
+
+    assert not (tmp_path / FINALIZER_PLAN_FILENAME).exists()
+
+
+def test_required_commit_cannot_be_cleared_by_final_none(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [
+            ConfigLayer(
+                name="default",
+                path=None,
+                exists=True,
+                list_strategy="concatenate",
+                data={
+                    "finalizers": {
+                        "defaults": ["commit"],
+                        "required": ["commit"],
+                        "instances": {
+                            "commit": {
+                                "use": "builtin@commit",
+                                "after": [],
+                                "max_attempts": 2,
+                                "refusal": "fail",
+                            }
+                        },
+                    }
+                },
+            )
+        ],
+    )
+    _, directives = extract_prompt_directives("%final:none\nDo work")
+
+    with override_flags(pluggable_finalizers=True):
+        with pytest.raises(FinalizerPlanError):
+            resolve_and_persist_finalizer_plan(
+                directives,
+                artifacts_dir=str(tmp_path),
+            )
+
+    assert not (tmp_path / FINALIZER_PLAN_FILENAME).exists()

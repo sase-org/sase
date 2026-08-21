@@ -221,3 +221,63 @@ def test_missing_required_declaration_gets_one_fresh_recovery_turn(
     assert "recovered" in result.content
     assert result.usage == {"input_tokens": 3}
     assert os.environ[SASE_FINAL_TURN_NONCE_ENV] == "nonce-1"
+
+
+def test_submit_rejects_stale_nonce_and_plan_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_agent_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _dirty_state(tmp_path),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration.dirty_path_fingerprints",
+        lambda _path: {"src/app.py": ("M", "abc123")},
+    )
+
+    with override_flags(pluggable_finalizers=True):
+        _persist_default_plan(tmp_path)
+        publication = publish_final_context()
+        stale_nonce = deepcopy(_valid_manifest(publication))
+        stale_nonce["turn_nonce"] = "other-nonce"
+        with pytest.raises(FinalizerDeclarationError):
+            submit_final_manifest(stale_nonce)
+
+        stale_plan = deepcopy(_valid_manifest(publication))
+        stale_plan["plan_digest"] = "0" * 64
+        with pytest.raises(FinalizerDeclarationError):
+            submit_final_manifest(stale_plan)
+
+
+def test_handoff_skips_declaration_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_agent_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _dirty_state(tmp_path),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration.dirty_path_fingerprints",
+        lambda _path: {"src/app.py": ("M", "abc123")},
+    )
+    (tmp_path / ".sase_plan_pending").write_text("1\n", encoding="utf-8")
+    provider = MagicMock()
+    original = InvokeResult(content="planning")
+
+    with override_flags(pluggable_finalizers=True):
+        _persist_default_plan(tmp_path)
+        result = ensure_final_declaration_or_recover(
+            provider=provider,
+            invoke_result=original,
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(tmp_path),
+        )
+
+    assert result is original
+    provider.invoke.assert_not_called()

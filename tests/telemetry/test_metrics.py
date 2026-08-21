@@ -58,4 +58,4 @@ def test_default_singletons_are_stubs() -> None:
 
 def test_metric_def_count() -> None:
     """Sanity check the slimmed debugging and health metric catalog."""
-    assert len(METRIC_DEFS) == 28
+    assert len(METRIC_DEFS) == 34

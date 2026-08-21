@@ -14,6 +14,7 @@ from sase.telemetry.metrics import METRIC_DEFS
 _PREFIX_TO_SUBSYSTEM: dict[str, str] = {
     "sase_agent": "Agent Lifecycle",
     "sase_llm": "LLM Provider",
+    "sase_finalizer": "Finalizers",
     "sase_axe": "Axe Orchestrator",
     "sase_hook": "Hooks / Mentors / Workflows",
     "sase_mentor": "Hooks / Mentors / Workflows",
@@ -27,6 +28,7 @@ _PREFIX_TO_SUBSYSTEM: dict[str, str] = {
 SUBSYSTEM_ORDER: list[str] = [
     "Agent Lifecycle",
     "LLM Provider",
+    "Finalizers",
     "Axe Orchestrator",
     "Hooks / Mentors / Workflows",
     "VCS / Workspace",
