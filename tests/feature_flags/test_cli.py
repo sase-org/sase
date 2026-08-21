@@ -246,6 +246,8 @@ def test_flag_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     assert payload["flags"][0]["key"] == "demo_flag"
     assert payload["flags"][0]["bead"] == "sase-nb.test"
     assert payload["flags"][0]["due_state"] == "live"
+    assert payload["flags"][0]["saved"] is None
+    assert payload["flags"][0]["source"] == "default"
     assert " · " not in out
     assert f"{FLAG_DUE_GLYPH} 1" not in out
 
@@ -409,6 +411,36 @@ def test_flag_list_row_reuses_shared_kind_and_value_styles() -> None:
     assert "default=off" in off_row.plain
 
 
+def test_flag_list_json_includes_saved_without_renaming_keys(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    flag = demo_flag("demo_flag")
+    args = create_parser().parse_args(["flag", "list", "--json"])
+
+    handle_flag_list(
+        args,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"demo_flag": True},
+            source="state",
+            source_detail="/tmp/feature_flags.json",
+            saved={"demo_flag": True},
+            state_path="/tmp/feature_flags.json",
+        ),
+        beads=(flag_bead("demo_flag"),),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload) == {"diagnostics", "flags", "schema_version"}
+    assert payload["flags"][0]["source"] == "state"
+    assert payload["flags"][0]["source_detail"] == "/tmp/feature_flags.json"
+    assert payload["flags"][0]["saved"] is True
+    assert payload["flags"][0]["enabled"] is True
+
+
 def test_flag_show_unknown_key_errors(capsys: pytest.CaptureFixture[str]) -> None:
     args = create_parser().parse_args(["flag", "show", "missing_flag"])
 
@@ -488,7 +520,78 @@ def test_flag_show_renders_cli_layer_without_env_row() -> None:
     ]
     assert "cli" in layer_names
     assert "env" not in layer_names
+    assert "state" not in layer_names
     assert "--disable-feature" in out
+    assert "saved:      —" in out
+
+
+def test_flag_show_explains_saved_value_when_cli_wins() -> None:
+    console, buf = _console()
+    flag = demo_flag("demo_flag")
+    args = create_parser().parse_args(["flag", "show", "demo_flag"])
+    state_path = "/tmp/feature_flags.json"
+
+    exit_code = handle_flag_show(
+        args,
+        console=console,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"demo_flag": False},
+            source="cli",
+            source_detail="--disable-feature",
+            saved={"demo_flag": True},
+            state_path=state_path,
+        ),
+        beads=(flag_bead("demo_flag"),),
+        layers=(),
+        call_sites=(),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    assert exit_code == 0
+    out = buf.getvalue()
+    assert "CLI:--disable-feature" in out
+    assert "effective:  off" in out
+    assert "saved:      on" in out
+    layer_names = [
+        line.split()[0]
+        for line in out.splitlines()
+        if line.startswith("  ")
+        and line.split()[0] in {"default", "state", "env", "cli", "user", "local"}
+    ]
+    assert layer_names.index("state") < layer_names.index("cli")
+    assert state_path in out
+
+
+def test_flag_list_renders_saved_provenance() -> None:
+    console, buf = _console()
+    flag = demo_flag("demo_flag")
+    args = create_parser().parse_args(["flag", "list"])
+    state_path = "/tmp/feature_flags.json"
+
+    exit_code = handle_flag_list(
+        args,
+        console=console,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"demo_flag": True},
+            source="state",
+            source_detail=state_path,
+            saved={"demo_flag": True},
+            state_path=state_path,
+        ),
+        beads=(flag_bead("demo_flag"),),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    assert exit_code == 0
+    out = buf.getvalue()
+    assert "SAVED:" in out
+    assert state_path in out
 
 
 def test_flag_new_requires_sase_managed(

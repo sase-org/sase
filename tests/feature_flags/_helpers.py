@@ -46,6 +46,8 @@ def snapshot_for(
     enabled: dict[str, bool] | None = None,
     source: FlagSource = "default",
     source_detail: str = "",
+    saved: dict[str, bool] | None = None,
+    state_path: str = "",
     diagnostics: tuple[Any, ...] = (),
 ) -> FeatureFlagSnapshot:
     overrides = enabled or {}
@@ -61,7 +63,12 @@ def snapshot_for(
             source_detail=source_detail,
             overridden=value != flag.default or source != "default",
         )
-    return FeatureFlagSnapshot(decisions=decisions, diagnostics=diagnostics)
+    return FeatureFlagSnapshot(
+        decisions=decisions,
+        diagnostics=diagnostics,
+        saved=saved or {},
+        state_path=state_path,
+    )
 
 
 def flag_bead(

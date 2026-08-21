@@ -295,6 +295,94 @@ def test_cli_disable_beats_env_and_records_disable_option() -> None:
     assert decision.source_detail == "--disable-feature"
 
 
+def test_saved_state_beats_user_and_overlay_and_loses_to_override_env_cli() -> None:
+    definitions_by_key = definitions(
+        demo_flag("beta_flag"),
+        demo_flag("sunset_flag", kind="sunset"),
+    )
+    layers = [
+        layer("user", {"beta_flag": False, "sunset_flag": False}, detail="user.yml"),
+        layer(
+            "overlay:extra.yml",
+            {"beta_flag": False, "sunset_flag": True},
+            detail="extra.yml",
+        ),
+    ]
+    saved = {"beta_flag": True, "sunset_flag": False}
+    path = "/tmp/feature_flags.json"
+
+    saved_wins = resolve_feature_flags(
+        definitions=definitions_by_key,
+        layers=layers,
+        saved=saved,
+        saved_detail=path,
+    )
+    beta = saved_wins.decision("beta_flag")
+    sunset = saved_wins.decision("sunset_flag")
+    assert beta.enabled is True
+    assert beta.source == "state"
+    assert beta.source_detail == path
+    assert beta.overridden is True
+    assert sunset.enabled is False
+    assert sunset.source == "state"
+    assert saved_wins.saved == saved
+    assert saved_wins.state_path == path
+
+    override_wins = resolve_feature_flags(
+        definitions=definitions_by_key,
+        layers=layers,
+        saved=saved,
+        saved_detail=path,
+        overrides={"beta_flag": False},
+    )
+    assert override_wins.enabled("beta_flag") is False
+    assert override_wins.decision("beta_flag").source == "override"
+    assert override_wins.saved == saved
+
+    env_wins = resolve_feature_flags(
+        definitions=definitions_by_key,
+        layers=layers,
+        saved=saved,
+        saved_detail=path,
+        env_value='{"beta_flag":false}',
+    )
+    assert env_wins.enabled("beta_flag") is False
+    assert env_wins.decision("beta_flag").source == "env"
+
+    cli_wins = resolve_feature_flags(
+        definitions=definitions_by_key,
+        layers=layers,
+        saved=saved,
+        saved_detail=path,
+        overrides={"beta_flag": False},
+        env_value='{"beta_flag":false}',
+        cli={"beta_flag": True},
+    )
+    assert cli_wins.enabled("beta_flag") is True
+    assert cli_wins.decision("beta_flag").source == "cli"
+    assert cli_wins.decision("beta_flag").source_detail == "--enable-feature"
+
+
+def test_unknown_saved_key_is_diagnostic_only_and_local_still_rejected() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag()),
+        layers=[layer("local", {"demo_flag": True}, detail="local.yml")],
+        saved={"demo_flag": True, "future_release_flag": True},
+        saved_detail="/tmp/feature_flags.json",
+    )
+
+    decision = snapshot.decision("demo_flag")
+    assert decision.enabled is True
+    assert decision.source == "state"
+    assert "future_release_flag" not in snapshot.decisions
+    assert snapshot.saved["future_release_flag"] is True
+    assert [diagnostic.code for diagnostic in snapshot.diagnostics] == [
+        "scope_violation",
+        "unknown_key",
+    ]
+    assert snapshot.diagnostics[1].source == "state"
+
+
 def test_cli_can_set_a_flag() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(demo_flag("demo_flag")),

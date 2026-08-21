@@ -34,6 +34,7 @@ class FlagView:
     decision: FeatureFlagDecision
     bead: FlagBeadSnapshot | None
     due_state: FlagRemovalState | None
+    saved: bool | None = None
 
 
 def flag_views(
@@ -84,6 +85,7 @@ def flag_views(
                 decision=decision,
                 bead=bead,
                 due_state=due_state,
+                saved=resolved_snapshot.saved.get(key),
             )
         )
     return tuple(views)

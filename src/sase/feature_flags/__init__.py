@@ -9,6 +9,8 @@ from sase.feature_flags.models import (
     FeatureFlagDiagnostic,
     FeatureFlagEnvError,
     FeatureFlagError,
+    FeatureFlagMutationOutcome,
+    FeatureFlagStateError,
 )
 from sase.feature_flags.registry import FeatureFlag
 from sase.feature_flags.snapshot import (
@@ -16,6 +18,7 @@ from sase.feature_flags.snapshot import (
     install_process_feature_flags,
     override_flags,
 )
+from sase.feature_flags.state import set_saved_feature_flag
 
 
 __all__ = [
@@ -26,7 +29,10 @@ __all__ = [
     "FeatureFlagDiagnostic",
     "FeatureFlagEnvError",
     "FeatureFlagError",
+    "FeatureFlagMutationOutcome",
+    "FeatureFlagStateError",
     "current_flags",
     "install_process_feature_flags",
     "override_flags",
+    "set_saved_feature_flag",
 ]

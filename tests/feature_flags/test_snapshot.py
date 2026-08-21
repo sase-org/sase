@@ -35,6 +35,11 @@ def _install_snapshot_inputs(
         "_project_layer_inputs",
         lambda: (layers, diagnostics),
     )
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: ({}, (), ""),
+    )
     reset_process_feature_flags()
 
 
@@ -181,6 +186,56 @@ def test_set_cli_feature_flags_invalidates_snapshot_and_exports_env(
     assert second.enabled("demo_flag") is True
     assert second.decision("demo_flag").source == "cli"
     assert second.decision("demo_flag").source_detail == "--enable-feature"
+    assert parse_feature_flags_env(os.environ[SASE_FEATURE_FLAGS_ENV]) == {
+        "demo_flag": True,
+        "keep_me": True,
+    }
+
+
+def test_process_snapshot_applies_saved_state_before_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(
+        monkeypatch,
+        defs=definitions(demo_flag()),
+        layers=(layer("user", {"demo_flag": False}, detail="user.yml"),),
+    )
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: ({"demo_flag": True}, (), "/tmp/feature_flags.json"),
+    )
+    reset_process_feature_flags()
+
+    resolved = snapshot_mod.current_flags()
+
+    decision = resolved.decision("demo_flag")
+    assert decision.enabled is True
+    assert decision.source == "state"
+    assert decision.source_detail == "/tmp/feature_flags.json"
+    assert dict(resolved.saved) == {"demo_flag": True}
+    assert resolved.state_path == "/tmp/feature_flags.json"
+    with pytest.raises(TypeError):
+        resolved.saved["demo_flag"] = False  # type: ignore[index]
+
+
+def test_sync_saved_feature_flag_merges_env_and_invalidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(
+        monkeypatch,
+        defs=definitions(demo_flag(), demo_flag("keep_me")),
+    )
+    monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"keep_me":true}')
+    first = snapshot_mod.current_flags()
+    assert first.enabled("demo_flag") is False
+
+    snapshot_mod.sync_saved_feature_flag("demo_flag", True)
+    second = snapshot_mod.current_flags()
+
+    assert second is not first
+    assert second.enabled("demo_flag") is True
+    assert second.decision("demo_flag").source == "env"
     assert parse_feature_flags_env(os.environ[SASE_FEATURE_FLAGS_ENV]) == {
         "demo_flag": True,
         "keep_me": True,

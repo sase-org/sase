@@ -118,12 +118,14 @@ def resolve_feature_flags(
     *,
     definitions: Mapping[str, FeatureFlagDefinition],
     layers: Sequence[FeatureFlagLayerInput],
+    saved: Mapping[str, bool] | None = None,
+    saved_detail: str = "",
     overrides: Mapping[str, bool] | None = None,
     env_value: str | None = None,
     legacy_env: Mapping[str, str] | None = None,
     cli: Mapping[str, bool] | None = None,
 ) -> FeatureFlagSnapshot:
-    """Resolve feature flags through config layers, overrides, env, and CLI."""
+    """Resolve feature flags through config, saved state, overrides, env, and CLI."""
     decisions = {
         key: FeatureFlagDecision(
             key=key,
@@ -164,6 +166,17 @@ def resolve_feature_flags(
             source=source,
             source_detail=_source_detail(layer),
             diagnostic_source=layer.name,
+            diagnostics=diagnostics,
+        )
+
+    if saved:
+        _apply_values(
+            decisions=decisions,
+            definitions=definitions,
+            values=saved,
+            source="state",
+            source_detail=saved_detail,
+            diagnostic_source="state",
             diagnostics=diagnostics,
         )
 
@@ -237,4 +250,9 @@ def resolve_feature_flags(
                 diagnostics=diagnostics,
             )
 
-    return FeatureFlagSnapshot(decisions=decisions, diagnostics=tuple(diagnostics))
+    return FeatureFlagSnapshot(
+        decisions=decisions,
+        diagnostics=tuple(diagnostics),
+        saved=dict(saved) if saved else {},
+        state_path=saved_detail,
+    )

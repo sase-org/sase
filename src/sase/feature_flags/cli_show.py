@@ -75,6 +75,8 @@ def handle_flag_show(
         key,
         view.definition,
         layers if layers is not None else current_flag_layers(),
+        saved_value=view.saved,
+        saved_detail=resolved_snapshot.state_path,
         env_value=_env_value_from_decision(view.decision),
         env_detail=view.decision.source_detail,
         cli_value=_cli_value_from_decision(view.decision),
@@ -124,6 +126,7 @@ def _render_show(
     console.print("[bold]VALUE[/bold]")
     console.print(f"  default:    {on_off(view.definition.default)}")
     console.print(f"  effective:  {on_off(view.decision.enabled)}")
+    console.print(f"  saved:      {_format_layer_value(view.saved)}")
     console.print(Text("  source:     ") + source_text(view.decision))
     console.print(f"  overridden: {'yes' if view.decision.overridden else 'no'}")
     console.print()
@@ -171,7 +174,9 @@ def _layer_rows(
     definition: FeatureFlagDefinition,
     layers: Sequence[FeatureFlagLayerInput],
     *,
-    env_value: bool | None,
+    saved_value: bool | None = None,
+    saved_detail: str = "",
+    env_value: bool | None = None,
     env_detail: str = "",
     cli_value: bool | None = None,
     cli_detail: str = "",
@@ -194,6 +199,14 @@ def _layer_rows(
             value = raw
             note = _layer_note(layer, raw)
         rows.append({"name": layer.name, "value": value, "note": note})
+    if saved_value is not None:
+        rows.append(
+            {
+                "name": "state",
+                "value": saved_value,
+                "note": saved_detail or "(saved)",
+            }
+        )
     if env_value is not None:
         rows.append(
             {

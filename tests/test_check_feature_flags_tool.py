@@ -108,6 +108,22 @@ def test_rule_3_accepts_feature_flag_attribute_use(tmp_path: Path) -> None:
     )
 
 
+def test_rule_4_rejects_import_time_saved_mutation(tmp_path: Path) -> None:
+    tool = _load_tool()
+    path = _write(
+        tmp_path / "src" / "sase" / "bindings.py",
+        "from sase.feature_flags.state import set_saved_feature_flag\n"
+        "\n"
+        "set_saved_feature_flag('demo_flag', True)\n",
+    )
+
+    findings = tool.check_import_time([path])
+
+    assert _rules(findings) == [4]
+    assert findings[0].path == path
+    assert "set_saved_feature_flag" in findings[0].message
+
+
 def test_rule_4_rejects_import_time_resolution(tmp_path: Path) -> None:
     tool = _load_tool()
     path = _write(
@@ -132,6 +148,7 @@ def test_rule_4_allows_function_body_and_skips_guards(tmp_path: Path) -> None:
         "from typing import TYPE_CHECKING\n"
         "from sase.feature_flags.snapshot import current_flags\n"
         "from sase.feature_flags import install_process_feature_flags\n"
+        "from sase.feature_flags.state import set_saved_feature_flag\n"
         "\n"
         "if TYPE_CHECKING:\n"
         "    current_flags()\n"
@@ -139,6 +156,7 @@ def test_rule_4_allows_function_body_and_skips_guards(tmp_path: Path) -> None:
         "def main() -> None:\n"
         "    install_process_feature_flags()\n"
         "    current_flags()\n"
+        "    set_saved_feature_flag('demo_flag', True)\n"
         "\n"
         "if __name__ == '__main__':\n"
         "    current_flags()\n",

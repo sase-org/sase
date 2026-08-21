@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal
 
@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 
 
 FlagKind = Literal["beta", "sunset"]
-FlagSource = Literal["default", "user", "overlay", "local", "override", "env", "cli"]
+FlagSource = Literal[
+    "default", "user", "overlay", "local", "state", "override", "env", "cli"
+]
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
@@ -29,6 +31,14 @@ class FeatureFlagError(Exception):
 
 class FeatureFlagEnvError(FeatureFlagError):
     """Raised when ``SASE_FEATURE_FLAGS`` is malformed."""
+
+
+class FeatureFlagStateError(FeatureFlagError):
+    """Raised when the machine-local feature-flag store cannot be used."""
+
+    def __init__(self, message: str, *, path: str = "") -> None:
+        super().__init__(message)
+        self.path = path
 
 
 @dataclass(frozen=True)
@@ -84,10 +94,13 @@ class FeatureFlagSnapshot:
 
     decisions: Mapping[str, FeatureFlagDecision]
     diagnostics: tuple[FeatureFlagDiagnostic, ...] = ()
+    saved: Mapping[str, bool] = field(default_factory=dict)
+    state_path: str = ""
 
     def __post_init__(self) -> None:
         """Freeze mapping inputs so callers cannot mutate a snapshot."""
         object.__setattr__(self, "decisions", MappingProxyType(dict(self.decisions)))
+        object.__setattr__(self, "saved", MappingProxyType(dict(self.saved)))
         object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
 
     def enabled(self, key: object) -> bool:
@@ -111,13 +124,35 @@ class FeatureFlagSnapshot:
         )
 
 
+@dataclass(frozen=True)
+class FeatureFlagMutationOutcome:
+    """Structured result of one saved-preference mutation."""
+
+    key: str
+    enabled: bool
+    previous_saved: bool | None
+    changed: bool
+    before: FeatureFlagDecision
+    after: FeatureFlagDecision
+    shadowed: bool
+    shadowing_source: FlagSource | None
+    state_path: str
+    diagnostics: tuple[FeatureFlagDiagnostic, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Freeze diagnostic inputs so callers cannot mutate an outcome."""
+        object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
+
+
 __all__ = [
     "FeatureFlagDecision",
     "FeatureFlagDefinition",
     "FeatureFlagDiagnostic",
     "FeatureFlagEnvError",
     "FeatureFlagError",
+    "FeatureFlagMutationOutcome",
     "FeatureFlagSnapshot",
+    "FeatureFlagStateError",
     "FlagKind",
     "FlagSource",
     "is_feature_flag_key",

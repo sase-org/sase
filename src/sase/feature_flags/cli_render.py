@@ -54,6 +54,10 @@ def source_text(decision: FeatureFlagDecision) -> Text:
             "--enable-feature" if decision.enabled else "--disable-feature"
         )
         return Text(f"CLI:{option}", style="bold reverse")
+    if decision.source == "state":
+        if decision.source_detail:
+            return Text(f"SAVED:{decision.source_detail}")
+        return Text("SAVED")
     if decision.source == "default":
         return Text("default", style="dim")
     if decision.source_detail:

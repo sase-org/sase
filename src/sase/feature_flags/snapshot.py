@@ -72,11 +72,25 @@ def _project_layer_inputs() -> tuple[
     return tuple(inputs), tuple(diagnostics)
 
 
+def _saved_state_input() -> tuple[
+    Mapping[str, bool],
+    tuple[FeatureFlagDiagnostic, ...],
+    str,
+]:
+    from sase.feature_flags.state import load_saved_feature_flags
+
+    loaded = load_saved_feature_flags()
+    return dict(loaded.flags), loaded.diagnostics, loaded.path
+
+
 def _build_snapshot() -> FeatureFlagSnapshot:
     layers, projection_diagnostics = _project_layer_inputs()
+    saved_flags, saved_diagnostics, saved_path = _saved_state_input()
     snapshot = resolve_feature_flags(
         definitions=feature_flag_definitions(),
         layers=layers,
+        saved=saved_flags,
+        saved_detail=saved_path,
         overrides=_current_overrides(),
         env_value=os.environ.get(SASE_FEATURE_FLAGS_ENV),
         legacy_env=os.environ,
@@ -84,7 +98,13 @@ def _build_snapshot() -> FeatureFlagSnapshot:
     )
     return FeatureFlagSnapshot(
         decisions=snapshot.decisions,
-        diagnostics=(*projection_diagnostics, *snapshot.diagnostics),
+        diagnostics=(
+            *projection_diagnostics,
+            *saved_diagnostics,
+            *snapshot.diagnostics,
+        ),
+        saved=snapshot.saved,
+        state_path=snapshot.state_path,
     )
 
 
@@ -97,6 +117,14 @@ def set_cli_feature_flags(values: Mapping[str, bool]) -> None:
         _cli_values.update(recorded)
         _snapshot = None
         merge_feature_flags_env(recorded)
+
+
+def sync_saved_feature_flag(key: str, enabled: bool) -> None:
+    """Merge a saved preference into process transport and drop the cache."""
+    global _snapshot
+    with _lock:
+        merge_feature_flags_env({key: enabled})
+        _snapshot = None
 
 
 def current_flag_layers() -> tuple[FeatureFlagLayerInput, ...]:

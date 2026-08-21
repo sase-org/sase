@@ -34,6 +34,7 @@ def flag_view_json(view: FlagView) -> dict[str, Any]:
         "remove_by_release": (
             None if view.bead is None else view.bead.remove_by_release
         ),
+        "saved": view.saved,
         "source": view.decision.source,
         "source_detail": view.decision.source_detail,
     }
