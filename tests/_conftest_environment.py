@@ -11,6 +11,7 @@ from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_REAL_HOST_SASE_CONFIG_DIR = Path.home() / ".config" / "sase"
 _DIRECTORY_MAP_PLACEHOLDER = (
     _REPO_ROOT / "tests" / "fixtures" / "directory-map-placeholder.bin"
 )
@@ -31,6 +32,54 @@ def _clear_ambient_console_color_override_env_vars() -> None:
 
 
 _clear_ambient_console_color_override_env_vars()
+
+
+def _is_sase_config_layer_name(name: str) -> bool:
+    return name in {"sase.yml", "sase.yaml"} or (
+        name.startswith("sase_") and name.endswith((".yml", ".yaml"))
+    )
+
+
+def _assert_not_real_host_sase_config_layer(path: os.PathLike[str] | str) -> None:
+    candidate = Path(path)
+    try:
+        resolved = candidate.resolve(strict=False)
+        host_config_dir = _REAL_HOST_SASE_CONFIG_DIR.resolve(strict=False)
+        relative = resolved.relative_to(host_config_dir)
+    except (OSError, RuntimeError, ValueError):
+        return
+
+    if len(relative.parts) == 1 and _is_sase_config_layer_name(relative.name):
+        raise AssertionError(
+            "pytest attempted to write a real host SASE config layer instead "
+            f"of an isolated sandbox path: {resolved}"
+        )
+
+
+@pytest.fixture(autouse=True)
+def _forbid_real_host_sase_config_layer_writes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fail closed if a stale by-value ``CONFIG_DIR`` import targets the host."""
+    original_write_text = Path.write_text
+    original_write_bytes = Path.write_bytes
+
+    def guarded_write_text(
+        self: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        _assert_not_real_host_sase_config_layer(self)
+        return original_write_text(self, data, encoding, errors, newline)
+
+    def guarded_write_bytes(self: Path, data: bytes) -> int:
+        _assert_not_real_host_sase_config_layer(self)
+        return original_write_bytes(self, data)
+
+    monkeypatch.setattr(Path, "write_text", guarded_write_text)
+    monkeypatch.setattr(Path, "write_bytes", guarded_write_bytes)
 
 
 @pytest.fixture(scope="session", autouse=True)

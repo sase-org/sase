@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.config.core import CONFIG_DIR
+from sase.config import core as config_core
 from sase.feature_flags.cli_set import ACE_RESTART_NOTICE, SET_JSON_SCHEMA_VERSION
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.snapshot import current_flags
@@ -26,6 +26,7 @@ from tests._conftest_runtime import reset_process_feature_flags
 
 KEY = "ref_sync_gesture"
 ROLLOUT = "admin_center_flags"
+_PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
 
 
 @pytest.fixture(autouse=True)
@@ -40,10 +41,38 @@ def _fingerprint(path: Path) -> tuple[bytes, int]:
     return path.read_bytes(), path.stat().st_mtime_ns
 
 
-def _seed_portable_config() -> dict[Path, tuple[bytes, int]]:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    user = CONFIG_DIR / "sase.yml"
-    overlay = CONFIG_DIR / "sase_extra.yml"
+def _resolve_config_dir_inside_pytest_sandbox(config_dir: Path) -> Path:
+    sandbox_value = os.environ.get(_PYTEST_SANDBOX_DIR_ENV_VAR)
+    assert sandbox_value, (
+        f"{_PYTEST_SANDBOX_DIR_ENV_VAR} is required before seeding config files"
+    )
+
+    sandbox_path = Path(sandbox_value)
+    assert sandbox_path.is_absolute(), (
+        f"{_PYTEST_SANDBOX_DIR_ENV_VAR} must be an absolute path: {sandbox_value!r}"
+    )
+
+    try:
+        sandbox = sandbox_path.resolve(strict=True)
+        resolved = config_dir.resolve(strict=False)
+        resolved.relative_to(sandbox)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise AssertionError(
+            f"refusing to seed config outside pytest sandbox {sandbox_path}: "
+            f"{config_dir}"
+        ) from exc
+
+    assert sandbox.is_dir(), (
+        f"{_PYTEST_SANDBOX_DIR_ENV_VAR} must name an existing directory: {sandbox}"
+    )
+    return resolved
+
+
+def _seed_portable_config(config_dir: Path) -> dict[Path, tuple[bytes, int]]:
+    config_dir = _resolve_config_dir_inside_pytest_sandbox(config_dir)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    user = config_dir / "sase.yml"
+    overlay = config_dir / "sase_extra.yml"
     user.write_text("feature_flags:\n  ref_sync_gesture: true\n", encoding="utf-8")
     overlay.write_text("timezone: UTC\n", encoding="utf-8")
     return {path: _fingerprint(path) for path in (user, overlay)}
@@ -83,11 +112,39 @@ def _run_public(
     return exc_info.value.code, captured.out, captured.err
 
 
+def test_seed_portable_config_requires_pytest_sandbox_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    monkeypatch.delenv(_PYTEST_SANDBOX_DIR_ENV_VAR, raising=False)
+
+    with pytest.raises(AssertionError, match=_PYTEST_SANDBOX_DIR_ENV_VAR):
+        _seed_portable_config(config_dir)
+
+    assert not config_dir.exists()
+
+
+def test_seed_portable_config_rejects_config_dir_outside_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    config_dir = tmp_path / "outside" / ".config" / "sase"
+    monkeypatch.setenv(_PYTEST_SANDBOX_DIR_ENV_VAR, str(sandbox))
+
+    with pytest.raises(AssertionError, match="outside pytest sandbox"):
+        _seed_portable_config(config_dir)
+
+    assert not config_dir.exists()
+
+
 def test_public_enable_then_disable_writes_state_and_leaves_config(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    fingerprints = _seed_portable_config()
+    fingerprints = _seed_portable_config(config_core.CONFIG_DIR)
     sources: list[str] = []
 
     def capture_restart(*, source: str = "", **_kwargs: object) -> RestartInfo:
@@ -150,7 +207,7 @@ def test_public_restart_failure_keeps_saved_preference(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    fingerprints = _seed_portable_config()
+    fingerprints = _seed_portable_config(config_core.CONFIG_DIR)
 
     code, out, err = _run_public(
         monkeypatch,
