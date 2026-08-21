@@ -89,11 +89,21 @@ async def _open_xprompts_tab(
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#xprompts")))
     pane = modal.query_one("#xprompts", XPromptBrowserPane)
-    filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+    option_list = pane.query_one("#browser-list", OptionList)
     await page.wait_for(
-        lambda _s: pane._get_highlighted_item() is not None and filter_input.has_focus
+        lambda _s: pane._get_highlighted_item() is not None and option_list.has_focus
     )
     return modal, pane
+
+
+async def _open_filter(page: AcePage, pane: XPromptBrowserPane) -> BrowserFilterInput:
+    """Reveal the XPrompts filter editor and wait until it owns focus."""
+    filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+    await page.press("slash")
+    await page.wait_for(
+        lambda _s: bool(filter_input.display) and filter_input.has_focus
+    )
+    return filter_input
 
 
 def _hint_text(pane: XPromptBrowserPane) -> str:
@@ -285,8 +295,8 @@ async def test_tab_switches_admin_center_tab_on_eligible_row(
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
+        option_list = pane.query_one("#browser-list", OptionList)
+        await page.wait_for(lambda _s: option_list.has_focus)
         assert pane.highlighted_row_is_loadable() is True
 
         await page.press("tab")
@@ -313,11 +323,11 @@ async def test_shift_tab_switches_admin_center_tab_on_yaml_backed_row(
         assert page.app.current_tab == "artifacts"
 
 
-async def test_empty_filter_reserves_numeric_tab_keys(
+async def test_list_focused_digits_select_admin_center_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Activating Config's XPrompts child focuses an empty filter; a
-    # following digit must jump tabs rather than be typed into the filter.
+    # Browse-first activation focuses the row list; a following digit must
+    # jump Admin Center tabs rather than become filter text.
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         _patch_panes(monkeypatch, prompts)
@@ -328,24 +338,25 @@ async def test_empty_filter_reserves_numeric_tab_keys(
         await page.press("1")
         await page.wait_for(lambda _s: modal._active_tab == "config")
         pane = modal.query_one("#xprompts", XPromptBrowserPane)
+        option_list = pane.query_one("#browser-list", OptionList)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
+        await page.wait_for(lambda _s: option_list.has_focus)
 
         await page.press("2")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert filter_input.value == ""
+        assert not filter_input.display
 
 
-async def test_empty_filter_swallows_reserved_numeric_keys(
+async def test_list_focused_out_of_range_digits_are_no_ops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Out-of-range digits route through the modal's reserved no-op action, so
-    # the active tab and the empty filter are both left untouched.
+    # the active tab and the hidden filter are both left untouched.
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
 
         for digit in ("7", "8", "9", "0"):
             await page.press(digit)
@@ -353,41 +364,49 @@ async def test_empty_filter_swallows_reserved_numeric_keys(
 
         assert modal._active_tab == "config"
         assert filter_input.value == ""
+        assert not filter_input.display
 
 
-async def test_digits_allowed_after_filter_text(
+async def test_digits_type_in_an_opened_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Once the filter holds text, digits fall through to normal Input editing.
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
+        filter_input = await _open_filter(page, pane)
 
-        await page.press("n")
-        await page.press("1")
-        await page.wait_for(lambda _s: filter_input.value == "n1")
+        await page.press("2")
+        await page.wait_for(lambda _s: filter_input.value == "2")
+        await page.press("n", "1")
+        await page.wait_for(lambda _s: filter_input.value == "2n1")
         assert modal._active_tab == "config"
 
 
-async def test_brackets_cycle_config_subtabs_from_xprompt_filter(
+async def test_brackets_cycle_config_subtabs_from_xprompt_list_and_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
+        hub = modal.query_one(ConfigHubPane)
 
         await page.press("right_square_bracket")
-        hub = modal.query_one(ConfigHubPane)
-        await page.wait_for(lambda _s: hub._active_subtab == "snippets")
+        await page.wait_for(lambda _s: hub._active_subtab == "glossary")
         await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: hub._active_subtab == "xprompts")
+        option_list = pane.query_one("#browser-list", OptionList)
+        await page.wait_for(lambda _s: option_list.has_focus)
+
+        filter_input = await _open_filter(page, pane)
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: hub._active_subtab == "snippets")
+        await page.press("right_square_bracket")
         await page.wait_for(lambda _s: hub._active_subtab == "xprompts")
 
         assert modal._active_tab == "config"
         assert filter_input.value == ""
+        assert filter_input.display
+        assert filter_input.has_focus
 
 
 async def test_tab_switches_main_tab_after_typed_filter_text(
@@ -396,8 +415,7 @@ async def test_tab_switches_main_tab_after_typed_filter_text(
     prompts = {"note": _md_xprompt("note", "Tab body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
-        await page.wait_for(lambda _s: filter_input.has_focus)
+        filter_input = await _open_filter(page, pane)
         assert pane.highlighted_row_is_loadable() is True
 
         await page.press("n")

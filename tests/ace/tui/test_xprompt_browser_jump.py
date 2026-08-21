@@ -1,13 +1,12 @@
-"""Apostrophe entry-jump coverage for the filter-first Config XPrompts child.
+"""Apostrophe entry-jump coverage for the browse-first Config XPrompts child.
 
-The XPrompts child is the one Config surface where the filter input --
-not the row list -- always owns focus, so the jump reservation lives in
-``BrowserFilterInput.on_key`` rather than the pane's own key handler. These
-tests exercise that reservation end to end: hint painting skips disabled
-group headers, a hint selects the right row and updates the preview, the
-back stack round-trips, ``Esc`` cancels without closing the modal, an
-already-typed filter keeps ``'`` as ordinary text, and a filter rebuild
-clears a stale back stack even after jump mode has already exited.
+The row list owns focus until ``/`` reveals the filter editor, so jump
+mode is armed from the list. These tests exercise that reservation end to
+end: hint painting skips disabled group headers, a hint selects the right
+row and updates the preview, the back stack round-trips, ``Esc`` cancels
+without closing the modal, an explicitly opened filter keeps ``'`` as
+ordinary text, and a filter rebuild clears a stale back stack even after
+jump mode has already exited.
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ from sase.xprompt.workflow_models import Workflow
 from tests.ace.tui.test_xprompt_browser_load_keymap import (
     _hint_text,
     _md_xprompt,
+    _open_filter,
     _open_xprompts_tab,
     _patch_panes,
 )
@@ -170,7 +170,7 @@ async def test_apostrophe_with_typed_filter_is_ordinary_text(
 ) -> None:
     async with AcePage() as page:
         _, pane = await _open_xprompts_tab(page, monkeypatch, _three_item_prompts())
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        filter_input = await _open_filter(page, pane)
 
         await page.press("n")
         await page.pause()
@@ -183,24 +183,18 @@ async def test_apostrophe_with_typed_filter_is_ordinary_text(
         assert pane.jump_mode_active is False
 
 
-async def test_jump_mode_key_does_not_leak_into_filter(
+async def test_opened_filter_types_leading_apostrophe_instead_of_jumping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with AcePage() as page:
         _, pane = await _open_xprompts_tab(page, monkeypatch, _three_item_prompts())
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        filter_input = await _open_filter(page, pane)
 
         await page.press("apostrophe")
         await page.pause()
-        assert pane.jump_mode_active is True
 
-        # "z" is not an allocated hint for a 3-item list ("0"/"1"/"2"), so it
-        # is an invalid hint key -- consumed to exit jump mode, not typed.
-        await page.press("z")
-        await page.pause()
-
+        assert filter_input.value == "'"
         assert pane.jump_mode_active is False
-        assert filter_input.value == ""
 
 
 async def test_filtering_after_a_jump_clears_the_stale_back_stack(
@@ -208,7 +202,6 @@ async def test_filtering_after_a_jump_clears_the_stale_back_stack(
 ) -> None:
     async with AcePage() as page:
         _, pane = await _open_xprompts_tab(page, monkeypatch, _three_item_prompts())
-        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
 
         await page.press("apostrophe")
         await page.press("1")
@@ -218,6 +211,7 @@ async def test_filtering_after_a_jump_clears_the_stale_back_stack(
         # Narrowing the filter to just "zzz" changes the row identities, so
         # rule 5 (stale data) must drop the now-meaningless back stack even
         # though jump mode already exited when the hint was picked above.
+        filter_input = await _open_filter(page, pane)
         await page.press("z", "z", "z")
         await page.wait_for(lambda _s: filter_input.value == "zzz")
 

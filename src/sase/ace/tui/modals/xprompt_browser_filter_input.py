@@ -15,17 +15,16 @@ if TYPE_CHECKING:
 
 
 class BrowserFilterInput(Input):
-    """Custom input for the XPrompt browser with navigation key bindings.
+    """Explicitly opened text editor for the XPrompt browser filter.
 
-    Since the filter input always has focus while the XPrompts child is active,
-    Ctrl-key combinations are used for navigation and actions to avoid conflicts
-    with text input. When embedded in Config, brackets cycle Config sub-tabs,
+    The row list owns focus until ``/`` reveals this widget. Printable
+    characters -- including a leading digit or apostrophe -- are filter text.
+    Ctrl-key combinations keep preview scrolling and list motion available
+    while typing. When embedded in Config, brackets cycle Config sub-tabs,
     while the Admin Center's priority ``Tab`` / ``Shift+Tab`` bindings handle
-    main-tab navigation. The apostrophe key is likewise reserved: while the filter is
-    empty it arms the adaptive entry-jump hints instead of being typed, and
-    while jump mode is active every key is routed to the jump state machine
-    first. Once the filter holds text, apostrophe falls through to normal
-    :class:`Input` editing so quoted filter text can be typed.
+    main-tab navigation. Enter and Escape finish the filter session. While
+    jump mode is still active, every key is routed to the jump state machine
+    first, so Escape cancels jump before it can close the editor.
     """
 
     BINDINGS = [
@@ -35,33 +34,19 @@ class BrowserFilterInput(Input):
         ("ctrl+u", "scroll_preview_up_or_clear", "Scroll Up/Clear"),
         ("ctrl+n", "forward('next_option')", "Next"),
         ("ctrl+p", "forward('prev_option')", "Prev"),
-        ("enter", "forward('edit_xprompt')", "Edit here"),
-        ("E", "forward('external_edit_xprompt')", "External editor"),
+        ("enter", "close_filter", "Done"),
+        ("escape", "close_filter", "Close filter"),
         ("ctrl+o", "forward('add_xprompt')", "Add"),
         ("ctrl+i", "forward('load_xprompt')", "Load"),
     ]
 
     def on_key(self, event: events.Key) -> None:
-        """Reserve empty-filter numeric tab keys and the jump key before they
-        become text.
+        """Give jump cancellation first refusal, then Config bracket cycling.
 
-        While the filter is empty, digit keys are likewise reserved for the
-        Admin Center's numbered tab keymaps: in-range digits jump to a tab and
-        out-of-range digits are swallowed no-ops via the same modal action.
-        Once the filter holds text, digits fall through to normal
-        :class:`Input` editing so values such as ``bug2`` or ``2026`` can be
-        typed. When this pane is nested in the Config hub, ``[`` / ``]``
-        cycle Config sub-tabs instead of becoming filter text.
-
-        The apostrophe key follows the same empty-filter reservation: with no
-        filter text, it arms the pane's adaptive jump hints instead of being
-        typed. While jump mode is active, every key -- hint characters,
-        ``'`` itself for the back stack, and ``escape`` -- is routed to the
-        jump state machine first, so none of it leaks into the filter text.
-
-        ``Ctrl+I`` remains the explicit inline-load binding when the terminal
-        reports it distinctly. A bare ``Tab`` always reaches the Admin Center's
-        priority next-tab binding.
+        Printable keys, including empty-filter digits and apostrophe, stay
+        ordinary editor text. ``Ctrl+I`` remains the explicit inline-load
+        binding when the terminal reports it distinctly. A bare ``Tab``
+        always reaches the Admin Center's priority next-tab binding.
         """
         pane = self._pane()
         if pane is not None and pane.jump_mode_active:
@@ -73,22 +58,7 @@ class BrowserFilterInput(Input):
 
         from .config_hub_keys import handle_config_hub_bracket_key
 
-        if handle_config_hub_bracket_key(self, event):
-            return
-
-        if event.key == "apostrophe" and not self.value and pane is not None:
-            event.stop()
-            event.prevent_default()
-            pane.action_jump_to_entry()
-            return
-
-        if len(event.key) == 1 and event.key.isdigit() and not self.value:
-            host = self.screen
-            focus_tab = getattr(host, "action_focus_center_tab", None)
-            if callable(focus_tab):
-                event.stop()
-                event.prevent_default()
-                focus_tab(int(event.key))
+        handle_config_hub_bracket_key(self, event)
 
     def _pane(self) -> XPromptBrowserPane | None:
         """Return the owning :class:`XPromptBrowserPane`, if any."""
@@ -98,6 +68,12 @@ class BrowserFilterInput(Input):
                 return cast("XPromptBrowserPane", node)
             node = getattr(node, "parent", None)
         return None
+
+    def action_close_filter(self) -> None:
+        """Keep the applied query and return focus to the row list."""
+        pane = self._pane()
+        if pane is not None:
+            pane._close_filter()
 
     def action_forward(self, action_name: str) -> None:
         """Forward an action to the owning pane."""
@@ -131,6 +107,7 @@ def _looks_like_browser_pane(node: object) -> bool:
         "action_load_xprompt",
         "scroll_preview_down",
         "scroll_preview_up",
+        "_close_filter",
     )
     return all(callable(getattr(node, name, None)) for name in required)
 

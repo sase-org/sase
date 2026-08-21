@@ -13,17 +13,21 @@ from .pane_entry_jump import apply_jump_hint_prefix
 from .xprompt_browser_helpers import BrowserItem, append_input_args
 
 
-def browser_hint_text(*, loadable: bool) -> str:
+def browser_hint_text(*, loadable: bool, filtering: bool = False) -> str:
     """Return the hint line, showing ``^i: load`` only for loadable rows.
 
     ``^i`` inline-loads the highlighted xprompt into the prompt bar and is
     inactive for YAML-backed rows (workflows and config-backed entries), so the
-    hint surfaces it only when the current selection is eligible.
+    hint surfaces it only when the current selection is eligible. The resting
+    browse line advertises ``/: filter``; an open editor describes Enter/Escape
+    as finishing the filter session rather than closing the Admin Center.
     """
     load_hint = "^i: load  " if loadable else ""
+    if filtering:
+        return f"^n/^p: move  enter/Esc: done  {load_hint}^o: add  ^d/^u: scroll"
     return (
-        f"^n/^p: move  ': jump  enter: edit  E: $EDITOR  {load_hint}^o: add  "
-        "^d/^u: scroll  Tab/Shift+Tab: tab  Esc: close"
+        f"j/k: move  /: filter  ': jump  enter: edit  E: $EDITOR  {load_hint}"
+        "^o: add  ^d/^u: scroll  Esc: close"
     )
 
 

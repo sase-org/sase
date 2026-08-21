@@ -8589,6 +8589,7 @@ XPromptBrowserPane #browser-title {
 XPromptBrowserPane #browser-filter-input {
     width: 100%;
     margin-bottom: 1;
+    border: tall $accent;
 }
 
 XPromptBrowserPane #browser-panels {

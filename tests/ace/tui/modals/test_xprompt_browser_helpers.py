@@ -9,7 +9,10 @@ from sase.ace.tui.modals.xprompt_browser_helpers import (
     classify_source,
     is_yaml_backed_source,
 )
-from sase.ace.tui.modals.xprompt_browser_options import create_item_label
+from sase.ace.tui.modals.xprompt_browser_options import (
+    browser_hint_text,
+    create_item_label,
+)
 from sase.ace.tui.modals.xprompt_browser_preview import (
     create_meta_text,
     create_simple_preview,
@@ -102,6 +105,21 @@ def test_is_yaml_backed_source_flags_config_and_plugin_prefixes() -> None:
     assert is_yaml_backed_source("config_overlay:sase_extra.yml") is True
     assert is_yaml_backed_source("project_local_config:sase") is True
     assert is_yaml_backed_source("plugin_config:sase_github") is True
+
+
+def test_browser_hint_text_toggles_filter_and_load_segments() -> None:
+    browse = browser_hint_text(loadable=True)
+    assert browse.startswith("j/k: move  /: filter")
+    assert "^i: load  " in browse
+    assert browse.endswith("Esc: close")
+    assert "Tab/Shift+Tab" not in browse
+
+    filtering = browser_hint_text(loadable=True, filtering=True)
+    assert filtering.startswith("^n/^p: move  enter/Esc: done")
+    assert "^i: load  " in filtering
+    assert "Esc: close" not in filtering
+    assert "/: filter" not in filtering
+    assert "Tab/Shift+Tab" not in filtering
 
 
 def test_browser_filters_and_previews_descriptions() -> None:

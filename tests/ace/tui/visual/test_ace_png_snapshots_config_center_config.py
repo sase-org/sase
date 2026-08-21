@@ -12,6 +12,8 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_pane import ConfigPane
+from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
+from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
     _config_layers,
@@ -178,4 +180,35 @@ async def test_config_center_xprompts_tab_png_snapshot(
             page,
             "config_center_xprompts_tab_120x40",
             title="ACE SASE Admin Center — Config XPrompts child",
+        )
+
+
+async def test_config_center_xprompts_filter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        modal = await _open_modal(page, "config")
+        pane = modal.query_one("#xprompts", XPromptBrowserPane)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.press("slash")
+        await page.wait_for(
+            lambda _s: bool(filter_input.display) and filter_input.has_focus
+        )
+        await page.press("r", "e", "v")
+        await page.wait_for(lambda _s: filter_input.value == "rev")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_xprompts_filter_120x40",
+            title="ACE SASE Admin Center — Config XPrompts child (filter)",
         )

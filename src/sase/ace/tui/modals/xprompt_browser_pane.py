@@ -1,14 +1,15 @@
 """Reusable XPrompt browser pane for the Config Center modal.
 
-This widget hosts the body of the former ``XPromptBrowserModal`` (filter input,
-grouped list, preview, and metadata) so it can live as the **XPrompts** child
-inside the Config catalog. All behavior of the old browser is preserved; the
-only structural change is that the surrounding
+This widget hosts the body of the former ``XPromptBrowserModal`` (grouped
+list, preview, metadata, and a slash-revealed live filter) so it can live as
+the **XPrompts** child inside the Config catalog. Surrounding
 ``ModalScreen`` chrome (centering container, escape handling, tab navigation)
-now belongs to the host modal.
+belongs to the host modal.
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from textual import events
 from textual.app import ComposeResult
@@ -49,10 +50,14 @@ from .xprompt_browser_preview import (
     create_workflow_preview,
 )
 
+if TYPE_CHECKING:
+    from .config_hub_pane import ConfigHubPane
+
 
 class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertical):
     """Pane for browsing, inspecting, and managing xprompts."""
 
+    can_focus = False
     _option_list_id = "browser-list"
     BINDINGS = [
         ("j", "next_option", "Next"),
@@ -67,7 +72,10 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
         ("ctrl+u", "scroll_preview_up", "Scroll Up"),
         ("enter", "edit_xprompt", "Edit here"),
         ("E", "external_edit_xprompt", "External editor"),
+        ("slash", "focus_filter", "Filter"),
         ("apostrophe", "jump_to_entry", "Jump"),
+        ("left_square_bracket", "cycle_config_subtab_reverse", "Prev sub-tab"),
+        ("right_square_bracket", "cycle_config_subtab", "Next sub-tab"),
     ]
 
     def __init__(
@@ -109,10 +117,12 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
     def compose(self) -> ComposeResult:
         total = len(self._all_items)
         yield Label(f"XPrompt Browser [{total} xprompts]", id="browser-title")
-        yield BrowserFilterInput(
+        filter_input = BrowserFilterInput(
             placeholder="Type to filter...",
             id="browser-filter-input",
         )
+        filter_input.display = False
+        yield filter_input
         with Horizontal(id="browser-panels"):
             with Vertical(id="browser-list-panel"):
                 yield OptionList(*self._create_options(), id="browser-list")
@@ -120,17 +130,19 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
                 with VerticalScroll(id="browser-preview-scroll"):
                     yield Static("", id="browser-preview")
                 yield Static("", id="browser-meta")
-        yield Static(self._hint_text(loadable=False), id="browser-hints", markup=False)
+        yield Static(
+            self._hint_text(loadable=False, filtering=False),
+            id="browser-hints",
+            markup=False,
+        )
 
     def on_key(self, event: events.Key) -> None:
         """Drive jump mode for keys that arrive with the row list focused.
 
-        The filter input owns focus by default and routes jump keys itself in
-        :meth:`BrowserFilterInput.on_key`, which stops them before they reach
-        this handler.  A click can focus the row list instead, and an
-        ``OptionList`` passes unhandled keys straight through -- without this
+        An ``OptionList`` passes unhandled keys straight through -- without this
         handler a digit hint would fall through to the Admin Center's numbered
-        tab bindings and switch tabs mid-jump.
+        tab bindings and switch tabs mid-jump. The filter editor routes jump
+        keys itself in :meth:`BrowserFilterInput.on_key` while it has focus.
         """
         if self._filter_input_has_focus():
             return
@@ -145,19 +157,32 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
             event.stop()
             self.action_jump_to_entry()
 
+    def _filter_input(self) -> BrowserFilterInput:
+        """Return the pane-local filter editor."""
+        return self.query_one("#browser-filter-input", BrowserFilterInput)
+
     def _filter_input_has_focus(self) -> bool:
         """Whether the filter input owns focus and handles jump keys itself."""
         try:
-            return self.query_one("#browser-filter-input", BrowserFilterInput).has_focus
+            return self._filter_input().has_focus
         except Exception:
             return False
 
-    def _hint_text(self, *, loadable: bool) -> str:
-        """Return the hint line for the current loadability/jump state."""
+    def _filter_is_visible(self) -> bool:
+        """Whether the filter editor is currently in the layout."""
+        try:
+            return bool(self._filter_input().display)
+        except Exception:
+            return False
+
+    def _hint_text(self, *, loadable: bool, filtering: bool | None = None) -> str:
+        """Return the hint line for the current loadability/jump/filter state."""
         if self.jump_mode_active:
             action = "back" if self.jump_back_stack else "first"
             return f"JUMP ' {action}  <esc> cancel"
-        return browser_hint_text(loadable=loadable)
+        if filtering is None:
+            filtering = self._filter_is_visible()
+        return browser_hint_text(loadable=loadable, filtering=filtering)
 
     def _set_hints(self, *, loadable: bool) -> None:
         """Sync the hint line to whether the current row is loadable."""
@@ -176,15 +201,79 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
         return create_item_label(item)
 
     def on_mount(self) -> None:
+        try:
+            self._filter_input().display = False
+        except Exception:
+            pass
         option_list = self.query_one("#browser-list", OptionList)
         self._restore_highlight_and_preview(option_list, filter_text="")
 
     def focus_default(self) -> None:
-        """Focus the filter input when the XPrompts child activates."""
+        """Focus the visible filter editor, otherwise the row list."""
         try:
-            self.query_one("#browser-filter-input", BrowserFilterInput).focus()
+            filter_input = self._filter_input()
+            if filter_input.display:
+                filter_input.focus()
+                return
+            self.query_one("#browser-list", OptionList).focus()
         except Exception:
             pass
+
+    def _config_hub(self) -> ConfigHubPane | None:
+        """Return the enclosing Config hub, if this pane is embedded in one."""
+        from .config_hub_pane import ConfigHubPane
+
+        node: object | None = self.parent
+        while node is not None:
+            if isinstance(node, ConfigHubPane):
+                return node
+            node = getattr(node, "parent", None)
+        return None
+
+    def action_cycle_config_subtab(self) -> None:
+        """Cycle to the next Config catalog child when this pane is embedded."""
+        hub = self._config_hub()
+        if hub is not None:
+            hub.action_cycle_subtab()
+
+    def action_cycle_config_subtab_reverse(self) -> None:
+        """Cycle to the previous Config catalog child when this pane is embedded."""
+        hub = self._config_hub()
+        if hub is not None:
+            hub.action_cycle_subtab_reverse()
+
+    def action_focus_filter(self) -> None:
+        """Reveal the live filter editor and place the cursor for typing."""
+        try:
+            filter_input = self._filter_input()
+        except Exception:
+            return
+        filter_input.display = True
+        filter_input.focus()
+        filter_input.cursor_position = len(filter_input.value)
+        self._sync_hints()
+
+    def _close_filter(self) -> None:
+        """Hide the filter editor, keeping the applied query and list focus."""
+        try:
+            filter_input = self._filter_input()
+        except Exception:
+            return
+        if not filter_input.display:
+            return
+        filter_input.display = False
+        try:
+            self.query_one("#browser-list", OptionList).focus()
+        except Exception:
+            pass
+        self._sync_hints()
+
+    def _sync_hints(self) -> None:
+        """Refresh the hint line for the current row and filter visibility."""
+        item = self._get_highlighted_item()
+        self._set_hints(
+            loadable=item is not None and not is_yaml_backed_source(item.source_path)
+        )
 
     def _skip_to_first_item(self, option_list: OptionList) -> None:
         """Skip to the first non-header item."""
@@ -266,7 +355,7 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
 
     def _current_filter_value(self) -> str:
         try:
-            return self.query_one("#browser-filter-input", BrowserFilterInput).value
+            return self._filter_input().value
         except Exception:
             return ""
 
@@ -309,6 +398,8 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
         )
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "browser-filter-input":
+            return
         filter_text = event.value
         previous_names = [item.name for item in self._get_flat_items()]
         self._rebuild_groups(filter_text)
@@ -323,6 +414,18 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
             option_list.add_option(opt)
 
         self._restore_highlight_and_preview(option_list, filter_text=filter_text)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "browser-filter-input":
+            return
+        self._close_filter()
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Enter on the row list edits the highlighted xprompt."""
+        event.stop()
+        if event.option is None or not self._is_item_option(event.option.id):
+            return
+        self.action_edit_xprompt()
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -457,8 +560,7 @@ class XPromptBrowserPane(PaneEntryJumpMixin, XPromptBrowserActionsMixin, Vertica
     def _reload_xprompts(self) -> None:
         """Reload all xprompts and rebuild the list."""
         try:
-            filter_input = self.query_one("#browser-filter-input", BrowserFilterInput)
-            filter_text = filter_input.value
+            filter_text = self._filter_input().value
         except Exception:
             filter_text = ""
 
