@@ -280,7 +280,25 @@ def test_release_branch_core_floor_lane_uses_published_floor() -> None:
         if step.get("uses") == "actions/download-artifact@v4"
     )
 
+    install_just_index = next(
+        index
+        for index, step in enumerate(job["steps"])
+        if step.get("name") == "Install just"
+    )
+    contract_index = next(
+        index
+        for index, step in enumerate(job["steps"])
+        if step.get("name") == "Run contract set"
+    )
+    assert install_just_index < contract_index
+
     run_text = _job_run_text(job)
+    assert "just-1.50.0-x86_64-unknown-linux-musl.tar.gz" in run_text
+    assert (
+        "27e011cd6328fadd632e59233d2cf5f18460b8a8c4269acd324c1a8669f34db0" in run_text
+    )
+    assert "sudo install -m 0755 /tmp/just /usr/local/bin/just" in run_text
+    assert "just --version" in run_text
     assert (
         "tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml" in run_text
     )
