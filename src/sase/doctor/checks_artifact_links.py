@@ -8,7 +8,7 @@ from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     artifact_link_aggregate_path,
-    artifact_links_enabled,
+    resolve_artifact_link_project_key,
 )
 
 if TYPE_CHECKING:
@@ -34,26 +34,41 @@ def artifact_links_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
     """Rebuild-compare the project aggregate against sidecar ``links/`` JSON."""
 
-    if not artifact_links_enabled():
+    store = _resolve_store(context)
+    if store is None:
         return DiagnosticCheck(
             id=_CHECK_ID,
             group="project",
             status="SKIP",
             title="Artifact link aggregate",
-            summary="artifact_links is disabled; v1 Referenced By path remains",
-            data={"enabled": False},
+            summary="no SDD store found in this checkout",
+            data={"stale": False},
         )
 
-    store = _resolve_store(context)
-    project_key = _project_key(context)
-    if store is None or not project_key:
+    try:
+        project_key = _project_key(context)
+    except Exception as exc:  # noqa: BLE001 - make config failures actionable
         return DiagnosticCheck(
             id=_CHECK_ID,
             group="project",
-            status="SKIP",
+            status="ERROR",
             title="Artifact link aggregate",
-            summary="no SDD store or project key found in this checkout",
-            data={"enabled": True, "stale": False},
+            summary="could not resolve a canonical project key for artifact links",
+            next_steps=str(exc),
+            data={"stale": False, "error": str(exc)},
+        )
+    if not project_key:
+        return DiagnosticCheck(
+            id=_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title="Artifact link aggregate",
+            summary="could not resolve a canonical project key for artifact links",
+            next_steps=(
+                "Check the workspace marker, ProjectSpec key, PROJECT_NAME, "
+                "aliases, and provider slug for this checkout."
+            ),
+            data={"stale": False},
         )
 
     adapter = ArtifactLinkStore.from_sdd_store(store, project_key)
@@ -69,7 +84,7 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
             status="OK",
             title="Artifact link aggregate",
             summary="no artifact link rows to index",
-            data={"enabled": True, "stale": False, "rows": 0},
+            data={"stale": False, "rows": 0},
         )
     if missing or stale:
         status: CheckStatus = "ERROR"
@@ -86,7 +101,6 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
                 "from sidecar links/ JSON.",
             ),
             data={
-                "enabled": True,
                 "stale": True,
                 "missing": missing,
                 "rows": expected_count,
@@ -98,7 +112,7 @@ def _check_artifact_links_aggregate(context: DoctorContext) -> DiagnosticCheck:
         status="OK",
         title="Artifact link aggregate",
         summary=f"{expected_count} artifact link row(s) indexed",
-        data={"enabled": True, "stale": False, "rows": expected_count},
+        data={"stale": False, "rows": expected_count},
     )
 
 
@@ -123,22 +137,7 @@ def _rows_signature(document: dict[str, object]) -> tuple[tuple[object, ...], ..
 
 
 def _project_key(context: DoctorContext) -> str | None:
-    try:
-        from sase.workspace_provider.marker import find_marker_from_cwd
-
-        found = find_marker_from_cwd(str(context.cwd))
-    except Exception:  # noqa: BLE001 - a doctor check never breaks the report.
-        found = None
-    if found is not None and found[1].project_key:
-        return found[1].project_key
-    if context.project:
-        return context.project
-    try:
-        from sase.bead.project_name import infer_project_name_from_cwd
-
-        return infer_project_name_from_cwd(str(context.cwd))
-    except Exception:  # noqa: BLE001 - a doctor check never breaks the report.
-        return None
+    return resolve_artifact_link_project_key(context.cwd, fallback=context.project)
 
 
 def _resolve_store(context: DoctorContext) -> SddStore | None:

@@ -232,23 +232,6 @@ def test_artifact_links_source_emits_links_and_linked_by_for_current_pane() -> N
     assert linked_by[0].label == "Linked By"
 
 
-def test_artifact_links_source_returns_empty_when_flag_snapshot_is_disabled() -> None:
-    snapshot = _files_snapshot_with_link_rows(
-        (
-            {
-                "source_ref": "file:doc",
-                "relation": "implements",
-                "target_ref": "bead:sase-r8",
-            },
-        ),
-        enabled=False,
-    )
-    contract = compile_builtin_contract("files", label="F", icon="x", accent="#0")
-    index = build_files_relation_index(snapshot, contract=contract)
-
-    assert not index.edges_for_relation(ArtifactEntryTarget("files", ("doc",)), "links")
-
-
 def test_artifact_links_source_deduplicates_undirected_related_rows() -> None:
     snapshot = _files_snapshot_with_link_rows(
         (
@@ -508,7 +491,6 @@ def _archive(
 def _files_snapshot_with_link_rows(
     rows: tuple[dict[str, str], ...],
     *,
-    enabled: bool = True,
     extra_logical_ids: tuple[str, ...] = (),
 ) -> FilesSnapshot:
     logical_ids = ("doc", *extra_logical_ids)
@@ -545,7 +527,6 @@ def _files_snapshot_with_link_rows(
         view_mode_counts={"text": len(logical_ids)},
         origin_counts={"ref": len(logical_ids)},
         artifact_links=ArtifactLinksSnapshot(
-            enabled=enabled,
             rows=tuple({**row, "_project": "alpha"} for row in rows),
         ),
     )

@@ -9,10 +9,8 @@ from typing import Any
 from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
 from sase.core.rust import require_rust_binding
-from sase.sdd.artifact_link_migrate import migrate_links_tree
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
-    artifact_links_enabled,
     resolve_artifact_link_store,
 )
 from sase.sdd.referenced_by_doctor import missing_referenced_by_indexes
@@ -27,13 +25,12 @@ _RESOLVED = frozenset({"exact", "drifted", "vcs_backed"})
 class ArtifactLinkHealthReport:
     """Doctor findings for the artifact link graph."""
 
-    enabled: bool
     skipped: bool
     dangling: tuple[str, ...] = ()
     stale_tables: tuple[str, ...] = ()
     missing_companions: tuple[str, ...] = ()
     missing_head_indexes: tuple[str, ...] = ()
-    migrated_paths: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
     read_events: int = 0
     rebuilt: bool = False
 
@@ -47,6 +44,7 @@ class ArtifactLinkHealthReport:
                 self.stale_tables,
                 self.missing_companions,
                 self.missing_head_indexes,
+                self.errors,
             )
         )
 
@@ -54,22 +52,18 @@ class ArtifactLinkHealthReport:
 def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthReport:
     """Inspect (and optionally rebuild) the current project's link graph."""
 
-    if not artifact_links_enabled():
-        return ArtifactLinkHealthReport(enabled=False, skipped=True)
     try:
         store = resolve_artifact_link_store()
-    except Exception:  # noqa: BLE001 - doctor never breaks the index report
-        return ArtifactLinkHealthReport(enabled=True, skipped=True)
+    except Exception as exc:  # noqa: BLE001 - report the file index too
+        return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
 
-    migrated: list[str] = []
-    if fix:
-        for root in store.sidecar_roots.values():
-            for path in migrate_links_tree(root, write=True):
-                migrated.append(str(path))
-        store.rebuild_aggregate()
-
-    rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
-    dangling = _dangling_refs(rows)
+    try:
+        if fix:
+            store.rebuild_aggregate()
+        rows = [dict(row) for row in store.load_aggregate().get("rows", [])]
+    except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
+        return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
+    dangling = _dangling_refs(rows, store)
     stale = _stale_tables(store, rows)
     missing_companions = _missing_companions(rows)
     missing_head = _missing_head_indexes(store)
@@ -83,27 +77,30 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         _rebuild_existing_projections(store, rows)
 
     return ArtifactLinkHealthReport(
-        enabled=True,
         skipped=False,
         dangling=tuple(dangling),
         stale_tables=tuple(stale),
         missing_companions=tuple(missing_companions),
         missing_head_indexes=tuple(missing_head),
-        migrated_paths=tuple(migrated),
         read_events=read_events,
         rebuilt=fix,
     )
 
 
-def _dangling_refs(rows: list[dict[str, Any]]) -> list[str]:
+def _dangling_refs(rows: list[dict[str, Any]], store: ArtifactLinkStore) -> list[str]:
     seen: set[str] = set()
     dangling: list[str] = []
+    bead_ids = _known_bead_ids(store)
     for row in rows:
         for key in ("source_ref", "target_ref"):
             ref = str(row.get(key) or "")
             if not ref or ref in seen:
                 continue
             seen.add(ref)
+            if ref.startswith("bead:") and bead_ids is not None:
+                if ref.removeprefix("bead:") not in bead_ids:
+                    dangling.append(ref)
+                continue
             try:
                 result = resolve_cli_reference(ref)
             except (RuntimeError, ValueError):
@@ -112,6 +109,18 @@ def _dangling_refs(rows: list[dict[str, Any]]) -> list[str]:
             if result.resolution.status not in _RESOLVED:
                 dangling.append(ref)
     return sorted(dangling)
+
+
+def _known_bead_ids(store: ArtifactLinkStore) -> set[str] | None:
+    if store.beads_dir is None:
+        return None
+    try:
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
+
+        with open_bead_project_for_beads_dir(store.beads_dir) as project:
+            return {str(issue.id) for issue in project.list_issues()}
+    except Exception:  # noqa: BLE001 - fall back to regular artifact resolution
+        return None
 
 
 def _stale_tables(store: ArtifactLinkStore, rows: list[dict[str, Any]]) -> list[str]:

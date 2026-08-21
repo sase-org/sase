@@ -10,7 +10,6 @@ import pytest
 
 from sase.artifact_cli.read import handle_read
 from sase.artifact_read_log import ArtifactReadError, read_artifact_read_events
-from sase.feature_flags import override_flags
 from tests._conftest_environment import redirect_sase_home
 from tests.main.artifact_cli_reference_helpers import resolved_reference
 
@@ -53,8 +52,7 @@ def test_read_strips_frontmatter_and_managed_blocks_and_audits(
         lambda: (_ for _ in ()).throw(RuntimeError("no store")),
     )
 
-    with override_flags(artifact_links=False):
-        assert handle_read(_read_args()) == 0
+    assert handle_read(_read_args()) == 0
 
     output = capsys.readouterr()
     assert "# Heading" in output.out
@@ -62,7 +60,7 @@ def test_read_strips_frontmatter_and_managed_blocks_and_audits(
     assert "title: Doc" not in output.out
     assert "sase:links:start" not in output.out
     assert "Referenced By" not in output.out
-    assert "not recorded as a link" in output.err
+    assert "not recorded as a graph edge" in output.err
     from sase.core.paths import sase_projects_dir
 
     candidates = list(sase_projects_dir().glob("*/artifact_reads.jsonl"))
@@ -120,8 +118,7 @@ def test_read_records_prepared_path_not_resolution_path(
         lambda _result: prepared,
     )
 
-    with override_flags(artifact_links=False):
-        assert handle_read(_read_args()) == 0
+    assert handle_read(_read_args()) == 0
 
     from sase.core.paths import sase_projects_dir
 

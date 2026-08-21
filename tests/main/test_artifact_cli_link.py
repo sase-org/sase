@@ -1,16 +1,16 @@
-"""Tests for ``sase artifact link add/list/rm`` and flag-off writers."""
+"""Tests for ``sase artifact link add/list/rm``."""
 
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
 from sase.artifact_cli.link_ops import handle_link_add, handle_link_list, handle_link_rm
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
@@ -56,84 +56,50 @@ def test_add_list_rm_round_trip(
         target_ref="plan:202608/b.md",
         why="extends the ref contract this epic landed",
     )
-    with override_flags(artifact_links=True):
-        assert handle_link_add(add_args) == 0
-        first = capsys.readouterr().out
-        assert "added" in first
-        assert handle_link_add(add_args) == 0
-        second = capsys.readouterr().out
-        assert "unchanged" in second
-        assert (
-            handle_link_list(
-                argparse.Namespace(
-                    reference="plan:202608/a.md",
-                    direction="both",
-                    json=True,
-                    limit=50,
-                    origin=None,
-                    relation=None,
-                )
+    assert handle_link_add(add_args) == 0
+    first = capsys.readouterr().out
+    assert "added" in first
+    assert handle_link_add(add_args) == 0
+    second = capsys.readouterr().out
+    assert "unchanged" in second
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference="plan:202608/a.md",
+                direction="both",
+                json=True,
+                limit=50,
+                origin=None,
+                relation=None,
             )
-            == 0
         )
-        payload = json.loads(capsys.readouterr().out)
-        assert len(payload) == 1
-        assert payload[0]["relation"] == "implements"
-        assert (
-            handle_link_rm(
-                argparse.Namespace(
-                    source_ref="plan:202608/a.md",
-                    target_ref="plan:202608/b.md",
-                    relation=None,
-                )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload) == 1
+    assert payload[0]["relation"] == "implements"
+    assert (
+        handle_link_rm(
+            argparse.Namespace(
+                source_ref="plan:202608/a.md",
+                target_ref="plan:202608/b.md",
+                relation=None,
             )
-            == 0
         )
-        assert "removed implements" in capsys.readouterr().out
-        assert store.load_artifact_rows("plan:202608/a.md") == ()
+        == 0
+    )
+    assert "removed implements" in capsys.readouterr().out
+    assert store.load_artifact_rows("plan:202608/a.md") == ()
 
 
-def test_add_and_rm_error_when_flag_is_off(
+def test_add_and_rm_work_without_feature_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     store = _store(tmp_path, monkeypatch)
     _patch_store(monkeypatch, store)
-    with override_flags(artifact_links=False):
-        assert (
-            handle_link_add(
-                argparse.Namespace(
-                    source_ref="plan:202608/a.md",
-                    relation="related",
-                    target_ref="plan:202608/b.md",
-                    why="shares a root cause",
-                )
-            )
-            == 1
-        )
-        assert "artifact_links" in capsys.readouterr().err
-        assert (
-            handle_link_rm(
-                argparse.Namespace(
-                    source_ref="plan:202608/a.md",
-                    target_ref="plan:202608/b.md",
-                    relation=None,
-                )
-            )
-            == 1
-        )
-        assert "artifact_links" in capsys.readouterr().err
-
-
-def test_list_still_reads_when_flag_is_off(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    store = _store(tmp_path, monkeypatch)
-    _patch_store(monkeypatch, store)
-    with override_flags(artifact_links=True):
+    assert (
         handle_link_add(
             argparse.Namespace(
                 source_ref="plan:202608/a.md",
@@ -142,21 +108,50 @@ def test_list_still_reads_when_flag_is_off(
                 why="shares a root cause",
             )
         )
-        capsys.readouterr()
-    with override_flags(artifact_links=False):
-        assert (
-            handle_link_list(
-                argparse.Namespace(
-                    reference=None,
-                    direction="both",
-                    json=True,
-                    limit=50,
-                    origin=None,
-                    relation=None,
-                )
+        == 0
+    )
+    assert (
+        handle_link_rm(
+            argparse.Namespace(
+                source_ref="plan:202608/a.md",
+                target_ref="plan:202608/b.md",
+                relation=None,
             )
-            == 0
         )
+        == 0
+    )
+    assert capsys.readouterr().err == ""
+
+
+def test_list_reads_rows_without_feature_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _patch_store(monkeypatch, store)
+    handle_link_add(
+        argparse.Namespace(
+            source_ref="plan:202608/a.md",
+            relation="related",
+            target_ref="plan:202608/b.md",
+            why="shares a root cause",
+        )
+    )
+    capsys.readouterr()
+    assert (
+        handle_link_list(
+            argparse.Namespace(
+                reference=None,
+                direction="both",
+                json=True,
+                limit=50,
+                origin=None,
+                relation=None,
+            )
+        )
+        == 0
+    )
     payload = json.loads(capsys.readouterr().out)
     assert payload[0]["relation"] == "related"
 
@@ -168,34 +163,33 @@ def test_add_rejects_reserved_and_machine_relations(
 ) -> None:
     store = _store(tmp_path, monkeypatch)
     _patch_store(monkeypatch, store)
-    with override_flags(artifact_links=True):
-        assert (
-            handle_link_add(
-                argparse.Namespace(
-                    source_ref="bead:sase-a",
-                    relation="blocks",
-                    target_ref="bead:sase-b",
-                    why="ordering",
-                )
+    assert (
+        handle_link_add(
+            argparse.Namespace(
+                source_ref="bead:sase-a",
+                relation="blocks",
+                target_ref="bead:sase-b",
+                why="ordering",
             )
-            == 1
         )
-        assert "sase bead dep" in capsys.readouterr().err
-        assert (
-            handle_link_add(
-                argparse.Namespace(
-                    source_ref="agent:one",
-                    relation="cites",
-                    target_ref="plan:202608/a.md",
-                    why="from a prompt",
-                )
+        == 1
+    )
+    assert "sase bead dep" in capsys.readouterr().err
+    assert (
+        handle_link_add(
+            argparse.Namespace(
+                source_ref="agent:one",
+                relation="cites",
+                target_ref="plan:202608/a.md",
+                why="from a prompt",
             )
-            == 1
         )
-        assert "prompt-ref" in capsys.readouterr().err
+        == 1
+    )
+    assert "prompt-ref" in capsys.readouterr().err
 
 
-def test_migrate_notes_apply_requires_flag_and_dry_run_succeeds(
+def test_migrate_notes_apply_and_dry_run_succeed(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -209,15 +203,23 @@ def test_migrate_notes_apply_requires_flag_and_dry_run_succeeds(
         def list_issues(self) -> tuple[object, ...]:
             return ()
 
+    class _Mutation:
+        project = SimpleNamespace(mutation_changed=False)
+
+        def __enter__(self) -> _Mutation:
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def commit(self, _message: str) -> None:
+            raise AssertionError("empty migration should not commit")
+
     monkeypatch.setattr("sase.bead.cli_common.get_read_view", lambda: _View())
-    with override_flags(artifact_links=False):
-        assert (
-            handle_link_migrate_notes(argparse.Namespace(apply=True, json=False)) == 1
-        )
-        assert "artifact_links" in capsys.readouterr().err
-        assert (
-            handle_link_migrate_notes(argparse.Namespace(apply=False, json=True)) == 0
-        )
+    monkeypatch.setattr("sase.bead.cli_common.bead_store_mutation", lambda: _Mutation())
+    assert handle_link_migrate_notes(argparse.Namespace(apply=True, json=False)) == 0
+    assert "RELATED: migration (applied)" in capsys.readouterr().out
+    assert handle_link_migrate_notes(argparse.Namespace(apply=False, json=True)) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["mode"] == "dry_run"
     assert payload["converted"] == []

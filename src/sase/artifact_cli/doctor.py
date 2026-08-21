@@ -36,8 +36,8 @@ def handle_doctor(args: argparse.Namespace) -> int:
         link_report = inspect_artifact_link_health(
             fix=bool(getattr(args, "fix", False))
         )
-    except Exception:  # noqa: BLE001 - doctor still reports the file index
-        link_report = ArtifactLinkHealthReport(enabled=True, skipped=True)
+    except Exception as exc:  # noqa: BLE001 - doctor still reports the file index
+        link_report = ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
     healthy = (
         _inspection_healthy(inspection)
         and (verification is None or _verification_healthy(verification))
@@ -145,15 +145,9 @@ def _print_report(
             tuple(mismatch.id for mismatch in verification.mismatches),
         )
     if link_report.skipped:
-        table.add_row(
-            "Artifact links",
-            (
-                "[dim]skipped (artifact_links disabled)[/dim]"
-                if not link_report.enabled
-                else "[dim]skipped (no store)[/dim]"
-            ),
-        )
+        table.add_row("Artifact links", "[dim]skipped (no store)[/dim]")
     else:
+        _add_ids(table, "Artifact link errors", link_report.errors)
         _add_ids(table, "Dangling link refs", link_report.dangling)
         _add_ids(table, "Stale Links tables", link_report.stale_tables)
         _add_ids(table, "Missing companions", link_report.missing_companions)
@@ -165,12 +159,6 @@ def _print_report(
         table.add_row("Recorded reads", str(link_report.read_events))
         if link_report.rebuilt:
             table.add_row("Link aggregate", "[green]rebuilt[/green]")
-        _add_ids(
-            table,
-            "Migrated v1 indexes",
-            link_report.migrated_paths,
-            healthy=True,
-        )
 
     Console().print(
         Panel(

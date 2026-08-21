@@ -7,16 +7,14 @@ churn for callers while giving each responsibility a smaller home.
 
 from sase.sdd._artifact_link_store_impl import (
     ArtifactLinkStore,
+    resolve_artifact_link_project_key,
     resolve_artifact_link_store,
 )
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_AGGREGATE_FILENAME,
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     NON_SIDECAR_KINDS,
-    ArtifactLinksDisabledError,
     artifact_link_aggregate_path,
-    artifact_links_disabled_message,
-    artifact_links_enabled,
     assembled_artifact_relations,
     canonicalize_artifact_link_ref,
 )
@@ -26,11 +24,9 @@ __all__ = [
     "ARTIFACT_LINK_ROW_SCHEMA_VERSION",
     "NON_SIDECAR_KINDS",
     "ArtifactLinkStore",
-    "ArtifactLinksDisabledError",
     "artifact_link_aggregate_path",
-    "artifact_links_disabled_message",
-    "artifact_links_enabled",
     "assembled_artifact_relations",
     "canonicalize_artifact_link_ref",
+    "resolve_artifact_link_project_key",
     "resolve_artifact_link_store",
 ]

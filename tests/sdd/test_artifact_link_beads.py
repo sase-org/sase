@@ -6,8 +6,6 @@ import pytest
 
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
-from sase.sdd.artifact_link_store import ArtifactLinksDisabledError
 from tests._conftest_environment import redirect_sase_home
 
 
@@ -22,20 +20,19 @@ def test_bead_link_event_round_trip_and_related_idempotency(
     project = _project(tmp_path, monkeypatch)
     left = project.create("Left", IssueType.PLAN)
     right = project.create("Right", IssueType.PLAN)
-    with override_flags(artifact_links=True):
-        added = project.add_link(
-            left.id,
-            f"bead:{right.id}",
-            "related",
-            "shares the ACE-TUI flake root cause",
-        )
-        reverse = project.add_link(
-            right.id,
-            f"bead:{left.id}",
-            "related",
-            "shares the ACE-TUI flake root cause",
-        )
-        reloaded = project.show(left.id)
+    added = project.add_link(
+        left.id,
+        f"bead:{right.id}",
+        "related",
+        "shares the ACE-TUI flake root cause",
+    )
+    reverse = project.add_link(
+        right.id,
+        f"bead:{left.id}",
+        "related",
+        "shares the ACE-TUI flake root cause",
+    )
+    reloaded = project.show(left.id)
 
     assert added.links[0].target_ref == f"bead:{right.id}"
     assert reverse.links == []
@@ -54,15 +51,14 @@ def test_bead_link_remove_event_round_trip(
     project = _project(tmp_path, monkeypatch)
     left = project.create("Left", IssueType.PLAN)
     right = project.create("Right", IssueType.PLAN)
-    with override_flags(artifact_links=True):
-        project.add_link(
-            left.id,
-            f"bead:{right.id}",
-            "related",
-            "shares the ACE-TUI flake root cause",
-        )
-        removed = project.remove_link(left.id, f"bead:{right.id}", relation="related")
-        reloaded = project.show(left.id)
+    project.add_link(
+        left.id,
+        f"bead:{right.id}",
+        "related",
+        "shares the ACE-TUI flake root cause",
+    )
+    removed = project.remove_link(left.id, f"bead:{right.id}", relation="related")
+    reloaded = project.show(left.id)
 
     assert removed.links == []
     assert reloaded.links == []
@@ -80,18 +76,5 @@ def test_reserved_relation_points_at_bead_dep(
     project = _project(tmp_path, monkeypatch)
     left = project.create("Left", IssueType.PLAN)
     right = project.create("Right", IssueType.PLAN)
-    with override_flags(artifact_links=True):
-        with pytest.raises(ValueError, match="sase bead dep"):
-            project.add_link(left.id, f"bead:{right.id}", "blocks", "scheduling")
-
-
-def test_flag_off_refuses_bead_link_mutation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project = _project(tmp_path, monkeypatch)
-    left = project.create("Left", IssueType.PLAN)
-    right = project.create("Right", IssueType.PLAN)
-    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
-        project.add_link(left.id, f"bead:{right.id}", "related", "why")
-    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
-        project.remove_link(left.id, f"bead:{right.id}", relation="related")
+    with pytest.raises(ValueError, match="sase bead dep"):
+        project.add_link(left.id, f"bead:{right.id}", "blocks", "scheduling")

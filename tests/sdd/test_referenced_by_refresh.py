@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
-from sase.feature_flags import override_flags
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 from sase.sdd.plan_header_block import PlanHeaderSection, PlanHeaderSectionKind
 from sase.sdd.plan_header_block import render_plan_header_block
@@ -91,21 +90,27 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
 
     assert written.ok and written.committed
     assert written.changed_files == (
-        "202608/example.md",
         "links/202608/example.md.json",
+        "202608/example.md",
     )
-    assert committed[0]["cause"] == "referenced_by"
+    assert committed[0]["cause"] == "artifact_links"
     assert committed[0]["already_locked"] is True
     content = document.read_text(encoding="utf-8")
     assert content.startswith("# Example\n\nBody\n\n<!-- sase:referenced-by:start -->")
     assert "## Referenced By" in content
-    assert "| [alice.athena.worker][1] | Project | plan:202608/example.md |" in content
+    assert (
+        "| cited-by | agent:alice.athena.worker | "
+        "prompt reference @plan:202608/example.md | 2 |"
+    ) in content
     index = json.loads(
         (root / "links/202608/example.md.json").read_text(encoding="utf-8")
     )
-    assert index["rows"][0]["agent"] == "alice.athena.worker"
+    assert index["schema_version"] == ARTIFACT_LINK_ROW_SCHEMA_VERSION
+    assert index["artifact_ref"] == "plan:202608/example.md"
+    assert index["rows"][0]["source_ref"] == "agent:alice.athena.worker"
+    assert index["rows"][0]["relation"] == "cites"
+    assert index["rows"][0]["origin"] == "prompt_ref"
     assert index["rows"][0]["uses"] == 2
-    assert index["rows"][0]["use_ids"] == [request.id]
 
     second = refresh_referenced_by(
         store,
@@ -119,52 +124,6 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert second.changed_files == ()
     assert not second.committed
     assert len(committed) == 1
-
-
-def test_refresh_referenced_by_skips_v2_link_indexes(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    root = tmp_path / "plans"
-    store = _store(root)
-    document = root / "202608" / "example.md"
-    document.parent.mkdir(parents=True)
-    document.write_text("# Example\n\nBody\n", encoding="utf-8")
-    index_path = root / "links" / "202608" / "example.md.json"
-    index_path.parent.mkdir(parents=True)
-    index_path.write_text(
-        json.dumps(
-            {
-                "schema_version": 2,
-                "artifact_ref": "plan:202608/example.md",
-                "rows": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    before_index = index_path.read_text(encoding="utf-8")
-    before_doc = document.read_text(encoding="utf-8")
-    monkeypatch.setattr(
-        "sase.sdd._git_contention.store_git_write_lock",
-        _acquired_lock,
-    )
-    monkeypatch.setattr(
-        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
-        lambda _repo_root: None,
-    )
-
-    report = refresh_referenced_by(
-        store,
-        role="plans",
-        requests=(_request(),),
-        write=True,
-    )
-
-    assert report.ok
-    assert report.actions == ()
-    assert index_path.read_text(encoding="utf-8") == before_index
-    assert document.read_text(encoding="utf-8") == before_doc
 
 
 def test_refresh_artifact_links_writes_v2_tables_after_plan_header(
@@ -234,13 +193,12 @@ def test_refresh_artifact_links_writes_v2_tables_after_plan_header(
 
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
 
-    with override_flags(artifact_links=True):
-        report = refresh_referenced_by(
-            store,
-            role="plans",
-            requests=(_request(),),
-            write=True,
-        )
+    report = refresh_referenced_by(
+        store,
+        role="plans",
+        requests=(_request(),),
+        write=True,
+    )
 
     assert report.ok and report.committed
     assert committed[0]["cause"] == "artifact_links"
@@ -304,13 +262,12 @@ def test_refresh_artifact_links_creates_binary_companion(
     )
     monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", lambda *_a, **_k: True)
 
-    with override_flags(artifact_links=True):
-        report = refresh_referenced_by(
-            store,
-            role="plans",
-            requests=(request,),
-            write=True,
-        )
+    report = refresh_referenced_by(
+        store,
+        role="plans",
+        requests=(request,),
+        write=True,
+    )
 
     companion = root / "202608" / "diagram.md"
     assert report.ok

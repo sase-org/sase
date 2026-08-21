@@ -359,7 +359,6 @@ def add_link(
     origin: str = "manual",
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
-    _require_artifact_links_flag()
     _guard_bead_store_write(beads_dir, "add_link")
     binding = require_rust_binding("bead_add_link")
     payload = _call_issue_operation(
@@ -383,7 +382,6 @@ def remove_link(
     relation: str | None = None,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
-    _require_artifact_links_flag()
     _guard_bead_store_write(beads_dir, "remove_link")
     binding = require_rust_binding("bead_remove_link")
     payload = _call_issue_operation(
@@ -470,20 +468,6 @@ def export_jsonl(beads_dir: Path | str) -> dict[str, Any]:
     _guard_bead_store_write(beads_dir, "export_jsonl")
     binding = require_rust_binding("bead_export_jsonl")
     return dict(binding(str(beads_dir)))
-
-
-def _require_artifact_links_flag() -> None:
-    from sase.sdd.artifact_link_store import (
-        ArtifactLinksDisabledError,
-        artifact_links_enabled,
-    )
-
-    if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(
-            "feature flag `artifact_links` is disabled; enable it to write typed "
-            "artifact links. Existing v1 Referenced By projections in links/ keep "
-            "updating."
-        )
 
 
 def _guard_bead_store_write(beads_dir: Path | str, operation: str) -> None:

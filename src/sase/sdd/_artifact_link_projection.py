@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Any, cast
 from sase.agents_sync.referenced_by_outbox_models import ReferencedByOutboxItem
 from sase.core.rust import require_rust_binding
 from sase.sdd._referenced_by_refresh_utils import relative_path
-from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
+from sase.sdd._artifact_link_store_support import upsert_artifact_link_rows
+from sase.sdd.artifact_link_store import (
+    ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+)
 from sase.sdd.hosted_links import resolve_hosted_branch
 
 if TYPE_CHECKING:
@@ -88,9 +91,8 @@ def preview_link_rows(
     """Apply incoming rows in memory without changing the link store."""
 
     rows = [dict(row) for row in existing_rows]
-    upsert = require_rust_binding("artifact_link_upsert_row")
     for incoming in incoming_rows:
-        outcome = upsert(rows, dict(incoming))
+        outcome = upsert_artifact_link_rows(rows, dict(incoming))
         rows = [dict(row) for row in outcome["rows"]]
     return tuple(rows)
 

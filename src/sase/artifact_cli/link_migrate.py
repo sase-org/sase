@@ -16,11 +16,6 @@ from sase.sdd.artifact_link_migrate_notes import (
     apply_related_note_migration,
     plan_related_note_migration,
 )
-from sase.sdd.artifact_link_store import (
-    ArtifactLinksDisabledError,
-    artifact_links_disabled_message,
-    artifact_links_enabled,
-)
 
 _MIGRATE_NOTES_SCHEMA_VERSION = 1
 
@@ -32,24 +27,15 @@ def handle_link_migrate_notes(args: argparse.Namespace) -> int:
 
     apply = bool(getattr(args, "apply", False))
     as_json = bool(getattr(args, "json", False))
-    if apply and not artifact_links_enabled():
-        print(f"Error: {artifact_links_disabled_message()}", file=sys.stderr)
-        return 1
 
     with get_read_view() as view:
         plan = plan_related_note_migration(view.list_issues())
     applied: dict[str, object] | None = None
     if apply:
-        try:
-            with bead_store_mutation() as mutation:
-                applied = apply_related_note_migration(mutation.project, plan)
-                if mutation.project.mutation_changed:
-                    mutation.commit(
-                        "chore(beads): migrate RELATED: notes to related links"
-                    )
-        except ArtifactLinksDisabledError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 1
+        with bead_store_mutation() as mutation:
+            applied = apply_related_note_migration(mutation.project, plan)
+            if mutation.project.mutation_changed:
+                mutation.commit("chore(beads): migrate RELATED: notes to related links")
     payload = _plan_to_json(plan, applied=applied)
     if as_json:
         json.dump(payload, sys.stdout, indent=2)

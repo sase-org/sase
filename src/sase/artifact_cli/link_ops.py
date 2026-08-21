@@ -20,7 +20,6 @@ from sase.core.time import format_local
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
-    ArtifactLinksDisabledError,
     assembled_artifact_relations,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
@@ -49,7 +48,7 @@ def handle_link_add(args: argparse.Namespace) -> int:
             "uses": 1,
         }
         outcome = store.upsert_row(row)
-    except (ArtifactLinksDisabledError, RuntimeError, TypeError, ValueError) as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
@@ -113,7 +112,7 @@ def handle_link_rm(args: argparse.Namespace) -> int:
             args.target_ref,
             relation=None if not relation else str(relation),
         )
-    except (ArtifactLinksDisabledError, RuntimeError, TypeError, ValueError) as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

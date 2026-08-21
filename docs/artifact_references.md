@@ -245,7 +245,7 @@ The write-back workflow runs in this order:
    does not repeat a `referenced-by/<provider>/` prefix, and the JSON is committed with
    the projection rather than written under `.sase/`.
 4. When the refresh changes files, SASE creates a local
-   `Update Referenced By projections` commit and starts a detached push. A successful
+   `Update artifact link projections` commit and starts a detached push. A successful
    refresh, including an idempotent no-op, acknowledges the request without waiting for
    that push to finish.
 
@@ -261,10 +261,9 @@ The write-back attempt can delay the publishing command's return, but it begins 
 after the prompt archive has been pushed and cannot roll that publication back. Because
 the managed block is stripped when SASE hashes a clean Markdown input, adding a
 back-reference does not make the original citation appear to have changed. These commits
-use the non-user file-hook cause `referenced_by`, so ordinary file hooks ignore the
+use the non-user file-hook cause `artifact_links`, so ordinary file hooks ignore the
 managed write unless they explicitly opt in with `filters.causes`.
 
-With the `artifact_links` beta flag enabled, deliberate relationships render separately
-as a top `Links` table and prompt-reference rows use the unified link graph behind the
-same `Referenced By` projection. See [Artifact Links](artifact_links.md) for the
-relation registry and CLI.
+Deliberate relationships render separately as a top `Links` table, while
+prompt-reference and read rows use the unified link graph behind the same Referenced By
+projection. See [Artifact Links](artifact_links.md) for the relation registry and CLI.

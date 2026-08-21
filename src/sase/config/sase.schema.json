@@ -3728,11 +3728,6 @@
         "type": "boolean"
       },
       "properties": {
-        "artifact_links": {
-          "type": "boolean",
-          "description": "Agents add typed artifact links, sase artifact read records a read edge, prompt refs write cites, and Markdown artifacts render Links and Referenced By tables from the unified graph.",
-          "default": false
-        },
         "coder_inherits_planner_chat": {
           "type": "boolean",
           "description": "Opt-in beta: the follow-up coder inherits the planner's chat via #fork instead of starting from the approved plan file alone.",

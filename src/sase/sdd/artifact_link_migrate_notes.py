@@ -10,11 +10,6 @@ from typing import Any
 from sase.bead.model import Issue
 from sase.bead.project import BeadProject
 from sase.sdd.artifact_link_beads import bead_source_ref
-from sase.sdd.artifact_link_store import (
-    ArtifactLinksDisabledError,
-    artifact_links_disabled_message,
-    artifact_links_enabled,
-)
 
 _RELATED_LINE_RE = re.compile(r"^RELATED:\s*(?P<targets>.+?)\s*[—–]\s*(?P<why>.+)\s*$")
 _BEAD_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
@@ -85,8 +80,6 @@ def apply_related_note_migration(
 ) -> dict[str, Any]:
     """Write ``related`` events and ``MIGRATED:`` notes for one dry-run plan."""
 
-    if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(artifact_links_disabled_message())
     converted = 0
     notes = 0
     for item in plan.conversions:

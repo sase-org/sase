@@ -73,10 +73,14 @@ def test_flag_help_lists_sorted_subcommands_and_managed_gate() -> None:
 def test_flag_new_help_documents_optional_flags_with_short_aliases() -> None:
     help_text = flat_help(parser_for(("sase", "flag", "new")).format_help())
 
-    assert "-d, --description" in help_text
-    assert "-k, --kind" in help_text
-    assert "-r, --remove-by" in help_text
-    assert "-z, --size" in help_text
+    for short, long in (
+        ("-d", "--description"),
+        ("-k", "--kind"),
+        ("-r", "--remove-by"),
+        ("-z", "--size"),
+    ):
+        assert short in help_text
+        assert long in help_text
     assert "--when-enabled" in help_text
     assert "--when-disabled" in help_text
     assert "--remove-when" in help_text

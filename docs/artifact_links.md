@@ -53,13 +53,14 @@ Read an artifact as context with an audited reason:
 sase artifact read <ref> "<why you need this context>"
 ```
 
-`read` strips managed Links and Referenced By blocks before printing Markdown. When the
-`artifact_links` beta flag is enabled inside an agent run, it also records a `read` edge
-from the agent to the artifact. `show`, `path`, and `open` remain silent reads.
+`read` strips managed Links and Referenced By blocks before printing Markdown. Inside a
+SASE agent run with an agent identity, it also records a `read` edge from the agent to
+the artifact. Outside an agent run it still prints the artifact and writes the audit
+row, but warns that no graph edge was recorded. `show`, `path`, and `open` remain silent
+reads.
 
-`link add`, `link rm`, and `migrate-notes --apply` require the `artifact_links` feature
-flag. `link list` can read existing rows with the flag off, and `read` still prints with
-an audit warning when it cannot record a link edge.
+`link add`, `link rm`, and `migrate-notes --apply` write the artifact-link graph
+directly. `link list` reads the current graph rows.
 
 ## Rendering
 
@@ -90,3 +91,7 @@ sase bead dep add <blocked-bead-id> <blocking-bead-id>
 Historical `RELATED:` notes remain in bead history. `sase artifact link migrate-notes`
 dry-runs the conversion, and `--apply` writes typed `related` edges plus `MIGRATED:`
 notes without deleting the original text.
+
+Historical schema-v1 `Referenced By` JSON sidecars must be migrated before graph reads.
+After artifact-link graduation, readers fail loudly on schema-v1 files instead of
+rewriting them implicitly.

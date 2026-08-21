@@ -23,7 +23,6 @@ from sase.core.artifact_consumption_query import (
     summarize_artifact_consumption,
 )
 from sase.sdd.artifact_link_store import (
-    artifact_links_enabled,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
 )
@@ -180,8 +179,6 @@ def _add_consumption_rows(
 
 
 def _add_link_rows(table: Table, links: list[dict[str, object]]) -> None:
-    if not artifact_links_enabled():
-        return
     if not links:
         table.add_row("links", "none")
         return
@@ -194,8 +191,6 @@ def _add_link_rows(table: Table, links: list[dict[str, object]]) -> None:
 
 
 def _load_links(reference: str) -> list[dict[str, object]]:
-    if not artifact_links_enabled():
-        return []
     try:
         store = resolve_artifact_link_store()
         canonical = canonicalize_artifact_link_ref(reference)

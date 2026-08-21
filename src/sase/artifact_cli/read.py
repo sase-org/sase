@@ -41,8 +41,6 @@ from sase.core.artifact_consumption import (
 from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-    ArtifactLinksDisabledError,
-    artifact_links_enabled,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
 )
@@ -51,8 +49,8 @@ from sase.sdd.frontmatter import parse_frontmatter
 
 _NON_TEXT_POINTER = "Open with `sase artifact open {ref}`."
 _READ_NOT_RECORDED = (
-    "note: this read was not recorded as a link "
-    "(enable `artifact_links` with `sase -f artifact_links` inside an agent run)"
+    "note: this read was not recorded as a graph edge "
+    "(no SASE agent run with an identity was detected)"
 )
 _RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
 _TEXT_KINDS = frozenset({"chat", "markdown", "plan", "document"})
@@ -90,12 +88,9 @@ def handle_read(args: argparse.Namespace) -> int:
                 _record_read_link(result, reason=str(args.reason))
             except Exception as exc:  # noqa: BLE001 - still print the artifact
                 print(f"Error: could not record read link: {exc}", file=sys.stderr)
-        elif not artifact_links_enabled() or not _in_agent_run():
+        else:
             print(_READ_NOT_RECORDED, file=sys.stderr)
     except ArtifactReadError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-    except ArtifactLinksDisabledError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -270,9 +265,7 @@ def _record_read_link(result: ResolvedArtifactReference, *, reason: str) -> None
 
 
 def _should_record_link() -> bool:
-    return bool(
-        artifact_links_enabled() and _in_agent_run() and discover_agent_identity()
-    )
+    return bool(_in_agent_run() and discover_agent_identity())
 
 
 def _in_agent_run() -> bool:

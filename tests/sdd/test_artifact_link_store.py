@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from sase.feature_flags import FeatureFlag, override_flags
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
-    ArtifactLinksDisabledError,
     assembled_artifact_relations,
     artifact_link_aggregate_path,
-    artifact_links_enabled,
+    resolve_artifact_link_project_key,
 )
 from tests._conftest_environment import redirect_sase_home
 
@@ -78,24 +77,84 @@ def test_assembled_relations_are_builtins_then_plugins_then_config() -> None:
     assert slugs[-1] == "plugin-rel"
 
 
-def test_flag_defaults_off_and_writes_are_refused(
+def test_project_key_resolution_maps_provider_slug_to_canonical_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    store = _store(tmp_path, monkeypatch)
-    assert artifact_links_enabled() is False
-    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
-        store.upsert_row(_row())
-    assert not any((tmp_path / "plans").rglob("*.json"))
+    marker = SimpleNamespace(project_key="sase-org/sase", project_name="sase")
+    record = SimpleNamespace(
+        project_name="gh_sase-org__sase",
+        display_name="sase",
+        aliases=[],
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd",
+        lambda _cwd: (str(tmp_path), marker),
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+
+    assert resolve_artifact_link_project_key(tmp_path) == "gh_sase-org__sase"
+
+
+def test_invalid_project_key_is_rejected_before_sidecar_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with pytest.raises(ValueError, match="invalid project key"):
+        ArtifactLinkStore(
+            project_key="sase-org/sase",
+            sidecar_roots={"plan": plans},
+        )
+    assert not list(plans.rglob("*.json"))
+    assert not list(plans.rglob("*.lock"))
+
+
+def test_unresolvable_provider_slug_returns_no_project_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = SimpleNamespace(project_key="missing-org/missing", project_name="")
+    record = SimpleNamespace(
+        project_name="gh_sase-org__sase",
+        display_name="sase",
+        aliases=[],
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd",
+        lambda _cwd: (str(tmp_path), marker),
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+
+    assert resolve_artifact_link_project_key(tmp_path) is None
+
+
+def test_marker_display_name_does_not_become_direct_project_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    marker = SimpleNamespace(project_key="sase-org/sase", project_name="sase")
+    monkeypatch.setattr(
+        "sase.workspace_provider.marker.find_marker_from_cwd",
+        lambda _cwd: (str(tmp_path), marker),
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_args, **_kwargs: [],
+    )
+
+    assert resolve_artifact_link_project_key(tmp_path) is None
 
 
 def test_upsert_writes_both_sidecars_and_rebuilds_aggregate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        assert FeatureFlag.artifact_links
-        assert artifact_links_enabled() is True
-        outcome = store.upsert_row(_row())
+    outcome = store.upsert_row(_row())
 
     assert outcome["kind"] == "added"
     source_path = _plan_index(tmp_path, "a.md")
@@ -119,10 +178,9 @@ def test_bead_endpoint_is_not_written_to_sidecar_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(
-            _row(source="plan:202608/a.md", relation="related", target="bead:sase-js")
-        )
+    store.upsert_row(
+        _row(source="plan:202608/a.md", relation="related", target="bead:sase-js")
+    )
 
     plan_index = _plan_index(tmp_path, "a.md")
     assert plan_index.is_file()
@@ -148,21 +206,44 @@ def test_bead_bead_row_lives_in_the_event_stream(
             beads_dir=project.beads_dir,
         )
         (tmp_path / "plans").mkdir(exist_ok=True)
-        with override_flags(artifact_links=True):
-            store.upsert_row(
-                _row(
-                    source=f"bead:{left.id}",
-                    relation="related",
-                    target=f"bead:{right.id}",
-                    description="shares the ACE-TUI flake root cause",
-                )
+        store.upsert_row(
+            _row(
+                source=f"bead:{left.id}",
+                relation="related",
+                target=f"bead:{right.id}",
+                description="shares the ACE-TUI flake root cause",
             )
+        )
 
         assert list((tmp_path / "plans").rglob("*.json")) == []
         rows = store.load_artifact_rows(f"bead:{left.id}")
         assert len(rows) == 1
         assert rows[0]["relation"] == "related"
         assert project.show(left.id).links[0].target_ref == f"bead:{right.id}"
+
+
+def test_prompt_ref_upsert_converges_uses_instead_of_incrementing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    prompt_ref = _row(
+        source="agent:alice.athena.worker",
+        relation="cites",
+        target="plan:202608/a.md",
+        origin="prompt_ref",
+        description="prompt reference @plan:202608/a.md",
+        uses=2,
+    )
+
+    assert store.upsert_row(prompt_ref)["kind"] == "added"
+    assert store.upsert_row(prompt_ref)["kind"] == "unchanged"
+    assert store.load_artifact_rows("plan:202608/a.md")[0]["uses"] == 2
+
+    store.upsert_row({**prompt_ref, "uses": 3})
+    assert store.load_artifact_rows("plan:202608/a.md")[0]["uses"] == 3
+
+    store.upsert_row({**prompt_ref, "uses": 1})
+    assert store.load_artifact_rows("plan:202608/a.md")[0]["uses"] == 3
 
 
 def test_undirected_related_is_idempotent(
@@ -181,9 +262,8 @@ def test_undirected_related_is_idempotent(
         target="plan:202608/a.md",
         description="shares the ACE-TUI flake root cause",
     )
-    with override_flags(artifact_links=True):
-        added = store.upsert_row(forward)
-        updated = store.upsert_row(reverse)
+    added = store.upsert_row(forward)
+    updated = store.upsert_row(reverse)
 
     assert added["kind"] == "added"
     assert updated["kind"] == "updated"
@@ -196,14 +276,13 @@ def test_reserved_relation_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        with pytest.raises(ValueError, match="sase bead dep"):
-            store.upsert_row(
-                _row(source="bead:sase-a", relation="blocks", target="bead:sase-b")
-            )
+    with pytest.raises(ValueError, match="sase bead dep"):
+        store.upsert_row(
+            _row(source="bead:sase-a", relation="blocks", target="bead:sase-b")
+        )
 
 
-def test_v1_sidecar_file_migrates_on_flag_on_write(
+def test_schema_v1_sidecar_file_is_unsupported_after_graduation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
@@ -217,29 +296,18 @@ def test_v1_sidecar_file_migrates_on_flag_on_write(
     )
     index_path.write_text(live.read_text(encoding="utf-8"), encoding="utf-8")
 
-    with override_flags(artifact_links=True):
-        store.upsert_row(
-            _row(
-                source="plan:202608/monitor_followup_wait_release.md",
-                relation="implements",
-                target="plan:202608/other.md",
-            )
-        )
-
-    payload = json.loads(index_path.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
-    relations = {row["relation"] for row in payload["rows"]}
-    assert relations == {"cites", "implements"}
+    with pytest.raises(RuntimeError, match="schema-v1 Referenced By"):
+        store.load_artifact_rows("plan:202608/monitor_followup_wait_release.md")
+    assert json.loads(index_path.read_text(encoding="utf-8"))["schema_version"] == 1
 
 
 def test_remove_rows_drops_every_edge_between_a_pair(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(_row())
-        store.upsert_row(_row(relation="related", description="shares a root cause"))
-        removed = store.remove_rows("plan:202608/a.md", "plan:202608/b.md")
+    store.upsert_row(_row())
+    store.upsert_row(_row(relation="related", description="shares a root cause"))
+    removed = store.remove_rows("plan:202608/a.md", "plan:202608/b.md")
 
     assert {row["relation"] for row in removed} == {"implements", "related"}
     assert store.load_artifact_rows("plan:202608/a.md") == ()
@@ -250,12 +318,11 @@ def test_remove_rows_can_target_one_relation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(_row())
-        store.upsert_row(_row(relation="related", description="shares a root cause"))
-        removed = store.remove_rows(
-            "plan:202608/a.md", "plan:202608/b.md", relation="implements"
-        )
+    store.upsert_row(_row())
+    store.upsert_row(_row(relation="related", description="shares a root cause"))
+    removed = store.remove_rows(
+        "plan:202608/a.md", "plan:202608/b.md", relation="implements"
+    )
 
     assert [row["relation"] for row in removed] == ["implements"]
     remaining = store.load_artifact_rows("plan:202608/a.md")
@@ -267,15 +334,14 @@ def test_file_file_row_persists_in_the_aggregate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(
-            _row(
-                source="file:explicit:0123456789abcdef01234567",
-                relation="related",
-                target="file:default:abcdef0123456789abcdef01",
-                description="same diagram family",
-            )
+    store.upsert_row(
+        _row(
+            source="file:explicit:0123456789abcdef01234567",
+            relation="related",
+            target="file:default:abcdef0123456789abcdef01",
+            description="same diagram family",
         )
+    )
 
     assert list((tmp_path / "plans").rglob("*.json")) == []
     rows = store.load_aggregate()["rows"]
@@ -283,26 +349,17 @@ def test_file_file_row_persists_in_the_aggregate(
     assert rows[0]["source_ref"] == "file:explicit:0123456789abcdef01234567"
 
 
-def test_remove_refuses_when_flag_is_off(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    store = _store(tmp_path, monkeypatch)
-    with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
-        store.remove_rows("plan:202608/a.md", "plan:202608/b.md")
-
-
 def test_upsert_canonicalizes_historical_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    with override_flags(artifact_links=True):
-        store.upsert_row(
-            _row(
-                source="plans:202608/a.md",
-                relation="implements",
-                target="@plan:202608/b.md",
-            )
+    store.upsert_row(
+        _row(
+            source="plans:202608/a.md",
+            relation="implements",
+            target="@plan:202608/b.md",
         )
+    )
     payload = json.loads(_plan_index(tmp_path, "a.md").read_text(encoding="utf-8"))
     assert payload["rows"][0]["source_ref"] == "plan:202608/a.md"
     assert payload["rows"][0]["target_ref"] == "plan:202608/b.md"

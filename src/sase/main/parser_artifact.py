@@ -113,10 +113,10 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "                              vcs_sha / vcs_relpath triple\n"
             "  Unresolvable VCS references rows --verify could not\n"
             "                              materialize from any checkout\n\n"
-            "When `artifact_links` is on, also reports dangling link rows,\n"
-            "stale Links tables, missing companions, and rendered blocks\n"
-            "whose links/ JSON is not in HEAD. --fix rebuilds the aggregate\n"
-            "and projections from truth; it never parses Markdown for state."
+            "Also reports dangling link rows, stale Links tables, missing\n"
+            "companions, and rendered blocks whose links/ JSON is not in\n"
+            "HEAD. --fix rebuilds the aggregate and projections from truth;\n"
+            "it never parses Markdown for state."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -341,10 +341,9 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "to stdout; a TTY pages, a pipe stays raw. Images, PDFs, and "
             "video print a metadata card and point at `sase artifact open`. "
             "`stitch:` prints the show payload plus the commit subject.\n\n"
-            "The read is refused if the audit row cannot be recorded. When "
-            "the `artifact_links` flag is on inside an agent run, a `read` "
-            "graph edge is also stored. `show`, `path`, and `open` stay "
-            "silent."
+            "The read is refused if the audit row cannot be recorded. Inside "
+            "a SASE agent run with an identity, a `read` graph edge is also "
+            "stored. `show`, `path`, and `open` stay silent."
         ),
         epilog=(
             "examples:\n"

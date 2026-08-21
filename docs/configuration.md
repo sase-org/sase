@@ -2773,7 +2773,7 @@ Filter fields under `filters`:
 | `filters.path_globs`       | list[string] | no       | all files      | Repo-relative POSIX globs; `!` prefixes a veto exclusion.                                               |
 | `filters.agent_name_globs` | list[string] | no       | all agents     | SASE agent-name globs matched against the agent that produced the event; `!` prefixes a veto exclusion. |
 | `filters.ops`              | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                                            |
-| `filters.causes`           | list[string] | no       | none           | Non-user event causes to accept in addition to ordinary user commits; currently `referenced_by`.        |
+| `filters.causes`           | list[string] | no       | none           | Non-user event causes to accept in addition to ordinary user commits; currently `artifact_links`.       |
 
 Matching semantics:
 
@@ -2797,8 +2797,8 @@ Matching semantics:
   a commit made outside a SASE agent has no agent name.
 - **Causes.** Ordinary user-originated commits always remain eligible. Internally
   generated commits are ignored unless their cause appears in `filters.causes`; the
-  current non-user cause is `referenced_by`, used when SASE updates managed
-  `Referenced By` blocks in artifact sidecars. This opt-in prevents a projection update
+  current non-user cause is `artifact_links`, used when SASE updates managed Links and
+  Referenced By blocks in artifact sidecars. This opt-in prevents a projection update
   from recursively triggering ordinary document-processing hooks.
 - **Filters.** All configured dimensions are AND-ed. `filters.projects` compares
   alias-resolved, user-facing project names, never ProjectSpec keys. `filters.sidecars`

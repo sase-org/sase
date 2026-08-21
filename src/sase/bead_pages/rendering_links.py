@@ -8,7 +8,6 @@ from typing import Any
 from sase.bead.model import Issue
 from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_beads import rows_touching_bead
-from sase.sdd.artifact_link_store import artifact_links_enabled
 
 _CURATED_ORIGINS = frozenset({"manual", "migrated"})
 _AUTOMATIC_ORIGINS = frozenset({"prompt_ref", "read"})
@@ -41,8 +40,6 @@ def apply_bead_page_link_tables(
     stripped = str(require_rust_binding("referenced_by_block_remove")(stripped))
     if not stripped.endswith("\n"):
         stripped += "\n"
-    if not artifact_links_enabled():
-        return stripped
 
     rows = rows_touching_bead(all_issues, issue.id, extra_rows=extra_rows)
     curated = [row for row in rows if str(row.get("origin") or "") in _CURATED_ORIGINS]

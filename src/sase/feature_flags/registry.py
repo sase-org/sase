@@ -21,7 +21,6 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
-    artifact_links = "artifact_links"
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
     commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
     completion_refresh_on_update = "completion_refresh_on_update"
@@ -33,16 +32,6 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
-    FeatureFlag.artifact_links: FeatureFlagDefinition(
-        key=FeatureFlag.artifact_links,
-        kind="beta",
-        description=(
-            "Agents add typed artifact links, sase artifact read records a "
-            "read edge, prompt refs write cites, and Markdown artifacts "
-            "render Links and Referenced By tables from the unified graph."
-        ),
-        bead="sase-rc",
-    ),
     FeatureFlag.coder_inherits_planner_chat: FeatureFlagDefinition(
         key=FeatureFlag.coder_inherits_planner_chat,
         kind="beta",

@@ -6,12 +6,10 @@ import pytest
 
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
-from sase.feature_flags import override_flags
 from sase.sdd.artifact_link_migrate_notes import (
     apply_related_note_migration,
     plan_related_note_migration,
 )
-from sase.sdd.artifact_link_store import ArtifactLinksDisabledError
 from tests._conftest_environment import redirect_sase_home
 
 
@@ -43,8 +41,7 @@ def test_migrate_notes_apply_writes_events_and_migrated_notes(
             left.id, f"RELATED: {right.id} — shares the ACE-TUI flake root cause"
         )
         plan = plan_related_note_migration(project.list_issues())
-        with override_flags(artifact_links=True):
-            applied = apply_related_note_migration(project, plan)
+        applied = apply_related_note_migration(project, plan)
         reloaded = project.show(left.id)
     assert applied["converted"] == 1
     assert "MIGRATED: linked as related/" in reloaded.notes
@@ -53,7 +50,7 @@ def test_migrate_notes_apply_writes_events_and_migrated_notes(
     assert reloaded.links[0].target_ref == f"bead:{right.id}"
 
 
-def test_migrate_notes_apply_requires_flag(
+def test_migrate_notes_apply_is_available_without_feature_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -62,6 +59,7 @@ def test_migrate_notes_apply_requires_flag(
         right = project.create("Right", IssueType.PLAN)
         project.append_note(left.id, f"RELATED: {right.id} — because")
         plan = plan_related_note_migration(project.list_issues())
-        with pytest.raises(ArtifactLinksDisabledError, match="artifact_links"):
-            apply_related_note_migration(project, plan)
-        assert plan_related_note_migration(project.list_issues()).conversions
+        applied = apply_related_note_migration(project, plan)
+        reloaded = project.show(left.id)
+    assert applied["converted"] == 1
+    assert reloaded.links[0].target_ref == f"bead:{right.id}"

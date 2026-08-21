@@ -23,7 +23,6 @@ from sase.project_display_names import load_project_ref_display_snapshot
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     artifact_link_aggregate_path,
-    artifact_links_enabled,
 )
 
 
@@ -31,21 +30,19 @@ from sase.sdd.artifact_link_store import (
 class ArtifactLinksSnapshot:
     """Already-loaded artifact link aggregate rows for one pane snapshot."""
 
-    enabled: bool
     rows: tuple[Mapping[str, Any], ...] = ()
     source_key: tuple[object, ...] = ()
     errors: tuple[str, ...] = ()
 
 
-_DISABLED_SNAPSHOT = ArtifactLinksSnapshot(enabled=False)
 _CACHE_LOCK = RLock()
 _CACHE: dict[tuple[tuple[str, object, object], ...], ArtifactLinksSnapshot] = {}
 
 
 def empty_artifact_links_snapshot() -> ArtifactLinksSnapshot:
-    """Return an enabled empty snapshot for tests and fallback data models."""
+    """Return an empty snapshot for tests and fallback data models."""
 
-    return ArtifactLinksSnapshot(enabled=True)
+    return ArtifactLinksSnapshot()
 
 
 def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
@@ -55,11 +52,9 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
     treated as empty; malformed aggregates are skipped and recorded in ``errors``.
     """
 
-    if not artifact_links_enabled():
-        return _DISABLED_SNAPSHOT
     projects = _project_keys(project)
     if not projects:
-        return ArtifactLinksSnapshot(enabled=True)
+        return ArtifactLinksSnapshot()
     signature = tuple(_aggregate_signature(project_key) for project_key in projects)
     with _CACHE_LOCK:
         cached = _CACHE.get(signature)
@@ -87,7 +82,6 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
                 copied.setdefault("_project", project_key)
                 rows.append(copied)
     snapshot = ArtifactLinksSnapshot(
-        enabled=True,
         rows=tuple(rows),
         source_key=signature,
         errors=tuple(errors),
@@ -106,7 +100,7 @@ def artifact_link_edges(
 ) -> tuple[RelationEdge, ...]:
     """Return link-graph edges touching the current pane's known targets."""
 
-    if snapshot is None or not snapshot.enabled:
+    if snapshot is None:
         return ()
     decl = {item.name: item for item in contract.relations}.get("links")
     if decl is None:

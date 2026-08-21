@@ -136,7 +136,7 @@ def test_commit_sdd_files_includes_links_index_but_still_excludes_sase(
 
     assert commit_sdd_files(
         repo,
-        "Update Referenced By projections",
+        "Update artifact link projections",
         paths=[document, index, ignored],
     )
     tracked = set(_git(repo, "ls-files", "-z").stdout.split("\0")) - {""}

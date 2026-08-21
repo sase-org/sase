@@ -20,9 +20,7 @@ def register_artifact_link_parser(
             "defaults to `sase artifact link list`.\n\n"
             "`add` always takes an explicit source ref, a closed-registry "
             "relation, a target ref, and a one-line why. `blocks` and "
-            "`depends-on` error with a pointer to `sase bead dep`.\n\n"
-            "Writing (`add`, `rm`, `migrate-notes --apply`) requires the "
-            "`artifact_links` beta flag. `list` still reads whatever exists."
+            "`depends-on` error with a pointer to `sase bead dep`."
         ),
         epilog=(
             "examples:\n"
@@ -147,7 +145,7 @@ def register_artifact_link_parser(
         "-a",
         "--apply",
         action="store_true",
-        help="Write bead events and MIGRATED: notes (requires artifact_links)",
+        help="Write bead events and MIGRATED: notes",
     )
     migrate_parser.add_argument(
         "-j",

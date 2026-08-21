@@ -11,7 +11,6 @@ from sase.sdd._referenced_by_refresh_models import (
     ReferencedByRefreshIssue,
     ReferencedByRefreshReport,
 )
-from sase.sdd.artifact_link_store import artifact_links_enabled
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -37,17 +36,12 @@ def refresh_referenced_by(
             f"artifact repository root does not exist: {repo_root}",
         )
 
-    use_artifact_links = artifact_links_enabled()
     from sase.sdd._git_contention import store_git_write_lock
 
     lock = (
         store_git_write_lock(
             repo_root,
-            op=(
-                "sdd.artifact_links.refresh"
-                if use_artifact_links
-                else "sdd.referenced_by.refresh"
-            ),
+            op="sdd.artifact_links.refresh",
             mutates_worktree=True,
         )
         if write
@@ -76,21 +70,9 @@ def refresh_referenced_by(
                     changed_files=(),
                     committed=False,
                 )
-        if use_artifact_links:
-            from sase.sdd._artifact_link_refresh import (
-                refresh_artifact_links_locked,
-            )
+        from sase.sdd._artifact_link_refresh import refresh_artifact_links_locked
 
-            return refresh_artifact_links_locked(
-                store,
-                role=role,
-                requests=requests,
-                write=write,
-            )
-
-        from sase.sdd._referenced_by_refresh_legacy import refresh_legacy_locked
-
-        return refresh_legacy_locked(
+        return refresh_artifact_links_locked(
             store,
             role=role,
             requests=requests,

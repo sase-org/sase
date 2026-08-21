@@ -15,9 +15,6 @@ from sase.bead.model import BeadLink, Issue
 from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-    ArtifactLinksDisabledError,
-    artifact_links_disabled_message,
-    artifact_links_enabled,
 )
 
 
@@ -47,10 +44,7 @@ def add_bead_endpoint_link(
     origin: str,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Write one LinkAdded event when the flag is on."""
-
-    if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(artifact_links_disabled_message())
+    """Write one LinkAdded event."""
     from sase.core import bead_mutation_facade as rust_beads
 
     _issue, outcome = rust_beads.add_link(
@@ -73,10 +67,7 @@ def remove_bead_endpoint_link(
     relation: str | None,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Write LinkRemoved events when the flag is on."""
-
-    if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(artifact_links_disabled_message())
+    """Write LinkRemoved events."""
     from sase.core import bead_mutation_facade as rust_beads
 
     _issue, outcome = rust_beads.remove_link(

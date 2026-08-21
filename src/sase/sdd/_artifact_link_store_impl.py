@@ -21,7 +21,6 @@ from sase.sdd._artifact_link_store_support import (
     pair_matches,
     read_artifact_link_index,
     read_json_object,
-    require_artifact_links_enabled,
     row_has_bead_endpoint,
     row_touches,
     sidecar_index_path,
@@ -32,7 +31,6 @@ from sase.sdd._artifact_link_store_support import (
     writes_sidecar_json,
 )
 from sase.sdd.referenced_by_index import (
-    REFERENCED_BY_INDEX_SCHEMA_VERSION,
     REFERENCED_BY_LINKS_DIR,
     referenced_by_index_schema_version,
 )
@@ -46,6 +44,11 @@ class ArtifactLinkStore:
     project_key: str
     sidecar_roots: Mapping[str, Path]
     beads_dir: Path | None = None
+
+    def __post_init__(self) -> None:
+        key = self.project_key.strip()
+        artifact_link_aggregate_path(key)
+        object.__setattr__(self, "project_key", key)
 
     @classmethod
     def from_sdd_store(cls, store: SddStore, project_key: str) -> ArtifactLinkStore:
@@ -86,7 +89,6 @@ class ArtifactLinkStore:
     def upsert_row(self, row: Mapping[str, Any]) -> dict[str, Any]:
         """Write one validated row to sidecar JSON (when owned) and the aggregate."""
 
-        require_artifact_links_enabled()
         validated = validate_artifact_link_row(row)
         outcome: dict[str, Any] | None = None
         for ref in (validated["source_ref"], validated["target_ref"]):
@@ -119,7 +121,6 @@ class ArtifactLinkStore:
         A→B and B→A are both removed.
         """
 
-        require_artifact_links_enabled()
         source = canonicalize_artifact_link_ref(source_ref)
         target = canonicalize_artifact_link_ref(target_ref)
         if relation is not None:
@@ -421,11 +422,12 @@ class ArtifactLinkStore:
                 continue
             for path in sorted(links_root.rglob("*.json")):
                 schema = referenced_by_index_schema_version(path)
-                if schema not in {
-                    REFERENCED_BY_INDEX_SCHEMA_VERSION,
-                    ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-                }:
+                if schema is None:
                     continue
+                if schema != ARTIFACT_LINK_ROW_SCHEMA_VERSION:
+                    raise RuntimeError(
+                        f"unsupported schema-v{schema} artifact link index: {path}"
+                    )
                 relative = path.relative_to(links_root).as_posix()
                 if not relative.endswith(".json"):
                     continue
@@ -444,7 +446,7 @@ def resolve_artifact_link_store(cwd: Path | None = None) -> ArtifactLinkStore:
     from sase.sdd.store import resolve_sdd_store
 
     start = (cwd or Path.cwd()).expanduser().resolve(strict=False)
-    project_key = _project_key_for_cwd(start)
+    project_key = resolve_artifact_link_project_key(start)
     if not project_key:
         raise RuntimeError("could not resolve the current project for artifact links")
     anchor = resolve_checkout_anchor(start)
@@ -455,18 +457,87 @@ def resolve_artifact_link_store(cwd: Path | None = None) -> ArtifactLinkStore:
     return ArtifactLinkStore.from_sdd_store(store, project_key)
 
 
-def _project_key_for_cwd(cwd: Path) -> str | None:
+def resolve_artifact_link_project_key(
+    cwd: Path | None = None,
+    *,
+    fallback: str | None = None,
+) -> str | None:
+    """Resolve *cwd* or *fallback* to a canonical ProjectSpec key."""
+
+    start = (cwd or Path.cwd()).expanduser().resolve(strict=False)
+    candidates: list[tuple[str, bool]] = []
     try:
         from sase.workspace_provider.marker import find_marker_from_cwd
 
-        found = find_marker_from_cwd(str(cwd))
+        found = find_marker_from_cwd(str(start))
     except Exception:  # noqa: BLE001 - CLI resolution is best-effort
         found = None
-    if found is not None and found[1].project_key:
-        return found[1].project_key
+    if found is not None:
+        marker = found[1]
+        if isinstance(marker.project_key, str) and marker.project_key.strip():
+            candidates.append((marker.project_key, True))
+        if isinstance(marker.project_name, str) and marker.project_name.strip():
+            candidates.append((marker.project_name, False))
+    if fallback:
+        candidates.append((fallback, True))
     try:
         from sase.bead.project_name import infer_project_name_from_cwd
 
-        return infer_project_name_from_cwd(str(cwd))
+        inferred = infer_project_name_from_cwd(str(start))
     except Exception:  # noqa: BLE001 - CLI resolution is best-effort
-        return None
+        inferred = None
+    if inferred:
+        candidates.append((inferred, False))
+    seen: set[str] = set()
+    for candidate, allow_direct in candidates:
+        ref = candidate.strip()
+        if not ref or ref in seen:
+            continue
+        seen.add(ref)
+        resolved = _project_key_for_ref(ref, allow_direct=allow_direct)
+        if resolved is not None:
+            return resolved
+    return None
+
+
+def _project_key_for_ref(ref: str, *, allow_direct: bool) -> str | None:
+    try:
+        from sase.core.paths import sase_projects_dir
+        from sase.core.project_lifecycle_facade import list_project_records
+        from sase.core.project_lifecycle_wire import effective_project_name
+
+        records = list_project_records(
+            sase_projects_dir(),
+            "all",
+            include_home=False,
+            projects_only=True,
+        )
+    except Exception:  # noqa: BLE001 - fall back to direct key validation
+        records = []
+
+    folded = ref.casefold()
+    for record in records:
+        aliases = {alias.casefold() for alias in getattr(record, "aliases", ())}
+        display = effective_project_name(record)
+        if folded in {
+            record.project_name.casefold(),
+            display.casefold(),
+            _project_provider_slug(record.project_name).casefold(),
+            *aliases,
+        }:
+            return record.project_name
+
+    if allow_direct and not records:
+        try:
+            artifact_link_aggregate_path(ref)
+        except ValueError:
+            return None
+        return ref
+    return None
+
+
+def _project_provider_slug(project_key: str) -> str:
+    if not project_key.startswith("gh_") or "__" not in project_key:
+        return project_key
+    owner, repository = project_key.removeprefix("gh_").split("__", 1)
+    return f"{owner}/{repository}"

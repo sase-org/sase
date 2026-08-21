@@ -9,9 +9,7 @@ from typing import Any
 
 from sase.core.paths import sase_projects_dir
 from sase.core.rust import require_rust_binding
-from sase.sdd.artifact_link_migrate import migrate_v1_index_to_v2
 from sase.sdd.referenced_by_index import (
-    REFERENCED_BY_INDEX_SCHEMA_VERSION,
     referenced_by_index_relpath,
     referenced_by_index_schema_version,
 )
@@ -22,35 +20,6 @@ NON_SIDECAR_KINDS = frozenset({"agent", "bead", "stitch"})
 PLANS_ROLE = "plans"
 PLAN_KIND = "plan"
 BEAD_KIND = "bead"
-
-
-class ArtifactLinksDisabledError(RuntimeError):
-    """Raised when a v2 link write is refused because the beta flag is off."""
-
-
-def artifact_links_enabled() -> bool:
-    """Return whether ``artifact_links`` is on in the process snapshot."""
-
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.artifact_links)
-
-
-def artifact_links_disabled_message() -> str:
-    """Return the flag-off diagnostic used by writers."""
-
-    return (
-        "feature flag `artifact_links` is disabled; enable it with "
-        "`sase -f artifact_links ...` to write typed artifact links. Existing "
-        "v1 Referenced By projections in links/ keep updating."
-    )
-
-
-def require_artifact_links_enabled() -> None:
-    """Refuse v2 writes when the beta flag is off."""
-
-    if not artifact_links_enabled():
-        raise ArtifactLinksDisabledError(artifact_links_disabled_message())
 
 
 def assembled_artifact_relations(
@@ -134,14 +103,17 @@ def empty_artifact_link_aggregate() -> dict[str, Any]:
 
 
 def read_artifact_link_index(path: Path, *, artifact_ref: str) -> dict[str, Any]:
-    """Read v2 truth, or migrate a v1 Referenced By index in memory."""
+    """Read one v2 artifact-link index."""
 
     if not path.is_file():
         return _empty_artifact_link_index(artifact_ref)
     schema = referenced_by_index_schema_version(path)
     payload = read_json_object(path)
-    if schema == REFERENCED_BY_INDEX_SCHEMA_VERSION:
-        return migrate_v1_index_to_v2(payload)
+    if schema == 1:
+        raise RuntimeError(
+            f"unsupported schema-v1 Referenced By index after artifact-link "
+            f"graduation: {path}; migrate this sidecar before reading links"
+        )
     if schema != ARTIFACT_LINK_ROW_SCHEMA_VERSION:
         raise RuntimeError(f"unsupported artifact link index schema: {path}")
     rows = payload.get("rows")
@@ -166,15 +138,70 @@ def upsert_artifact_link_rows(
 ) -> dict[str, Any]:
     """Insert or rewrite *incoming* in *rows* through sase-core."""
 
+    original_rows = [dict(row) for row in rows]
+    incoming_row = dict(incoming)
     outcome = require_rust_binding("artifact_link_upsert_row")(
-        [dict(row) for row in rows],
-        dict(incoming),
+        original_rows,
+        incoming_row,
     )
+    outcome_row = dict(outcome["row"])
+    outcome_rows = [dict(row) for row in outcome["rows"]]
+    if str(incoming_row.get("origin") or "") == "prompt_ref":
+        outcome_rows = _converge_prompt_ref_uses(
+            original_rows,
+            incoming_row,
+            outcome_rows,
+        )
+        identity = _row_identity(incoming_row)
+        for row in outcome_rows:
+            if (
+                str(row.get("origin") or "") == "prompt_ref"
+                and _row_identity(row) == identity
+            ):
+                outcome_row = dict(row)
+                break
     return {
-        "kind": str(outcome["kind"]),
-        "row": dict(outcome["row"]),
-        "rows": [dict(row) for row in outcome["rows"]],
+        "kind": "unchanged" if outcome_rows == original_rows else str(outcome["kind"]),
+        "row": outcome_row,
+        "rows": outcome_rows,
     }
+
+
+def _converge_prompt_ref_uses(
+    original_rows: Sequence[Mapping[str, Any]],
+    incoming: Mapping[str, Any],
+    outcome_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Make prompt-ref retries converge instead of incrementing read-style counts."""
+
+    identity = _row_identity(incoming)
+    existing_uses = max(
+        (
+            _row_uses(row)
+            for row in original_rows
+            if str(row.get("origin") or "") == "prompt_ref"
+            and _row_identity(row) == identity
+        ),
+        default=0,
+    )
+    uses = max(existing_uses, _row_uses(incoming))
+    rows: list[dict[str, Any]] = []
+    for raw in outcome_rows:
+        row = dict(raw)
+        if (
+            str(row.get("origin") or "") == "prompt_ref"
+            and _row_identity(row) == identity
+        ):
+            row["uses"] = uses
+        rows.append(row)
+    return rows
+
+
+def _row_uses(row: Mapping[str, Any]) -> int:
+    try:
+        return int(row.get("uses") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def pair_matches(
