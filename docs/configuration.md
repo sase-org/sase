@@ -1902,54 +1902,11 @@ still apply unless you override them.
 
 Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.py`
 
-### commit
-
-Configures commit enforcement around SASE-launched agents. The current commit finalizer
-is provider-neutral and runs in the shared LLM invocation layer after a successful
-provider invocation in a SASE agent session, identified by `SASE_AGENT_TIMESTAMP`.
-
-```yaml
-commit:
-  finalizer:
-    enabled: true
-    max_passes: 2
-```
-
-| Field                         | Type | Default | Description                                                                          |
-| ----------------------------- | ---- | ------- | ------------------------------------------------------------------------------------ |
-| `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
-| `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
-
-When the `pluggable_finalizers` beta is enabled, these legacy fields are treated as a
-compatibility input only when no non-default config layer defines `finalizers`. In that
-case `commit.finalizer.enabled: false` maps to `finalizers.defaults: []`, `true` maps to
-`[commit]`, and `commit.finalizer.max_passes` maps to
-`finalizers.instances.commit.max_attempts`. If both legacy and new settings are present,
-the `finalizers` block wins and `sase final doctor` reports the ignored legacy path and
-source layer. `SASE_DISABLE_COMMIT_STOP_HOOK=1` remains a beta escape hatch for
-legacy-only policy; it is ignored when `finalizers` is explicitly configured.
-
-When enabled, the finalizer checks the main workspace through the active VCS provider
-and configured `repos.linked` Git worktrees at their resolved paths. Repositories opened
-through `/sase_repo`, including external repos, are recorded in
-`opened_linked_workspaces.json` for ACE context and in the host project's durable
-repo-open log. Dirty enforced workspaces trigger a follow-up invocation that instructs
-the same provider to use the appropriate commit skill. Dirty opened repos are enforced
-like the main workspace. When the only enforced change is one tracked markdown file
-under `sdd/plans/`, and that file's only diff is leading front matter changing exactly
-from `status: wip` to `status: done`, the finalizer creates a direct
-`chore: Mark SDD plan done` commit instead of invoking the provider again. When
-`$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the
-final outcome is recorded in `commit_finalizer_result.json`.
-
-Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable
-name is historical; it now disables the provider-neutral finalizer.
-
 ### finalizers
 
-Configures beta host-owned completion finalizers. The bundled default selects the
-built-in commit instance, preserving ordinary commit enforcement when
-`pluggable_finalizers` is enabled.
+Configures host-owned completion finalizers for SASE-launched agent sessions. The
+bundled default selects the built-in commit instance, preserving ordinary commit
+enforcement without runtime-specific hooks.
 
 ```yaml
 finalizers:
@@ -1966,7 +1923,8 @@ finalizers:
 `defaults` is the ordered selection used when a prompt omits `%final`. `required`
 instances cannot be removed by `%final:none` or `%final:!name`. `instances` is keyed by
 lowercase slug; each instance names a trusted provider with `use`, optional dependency
-edges in `after`, bounded attempts, and provider-specific `config`.
+edges in `after`, bounded attempts through `max_attempts`, refusal handling, and
+provider-specific `config`.
 
 Only trusted configuration can define providers, commands, cwd policy, environment
 allowlists, timeouts, or retry policy. Prompt text can only select configured instances:
@@ -1977,10 +1935,27 @@ entry-point group, but installation alone is inert; a trusted config layer must 
 and select an instance. Plugin-contributed config layers cannot activate finalizers.
 
 Use `sase final list`, `sase final show <instance>`, and `sase final doctor` to inspect
-effective policy, provider provenance, diagnostics, and legacy-setting migration. During
-an active beta agent turn, `/sase_final` uses `sase final context -f json` and
-`sase final submit` to publish the one turn-bound declaration required by selected
-finalizers. The host still executes and verifies finalizers after the model returns.
+effective policy, provider provenance, and diagnostics. During an active agent turn,
+`/sase_final` uses `sase final context -f json` and `sase final submit` to publish the
+one turn-bound declaration required by selected finalizers. The host executes and
+verifies finalizers after the model returns.
+
+The built-in `builtin@commit` provider checks the main workspace, configured linked Git
+worktrees, and repositories opened through `/sase_repo`. Dirty enforced repositories
+become declaration obligations; each repository must receive exactly one `commit`
+decision with a Conventional Commit message or one `refuse` decision with a nonblank
+reason. Commit decisions dispatch through `sase stitch create` sequentially, preserve
+protected pre-existing dirt, write stitch evidence, stop on the first conflict for
+repair/resume, and fail completion when a refusal or unrepaired dirty state remains.
+Later mutating finalizers can reactivate commit until the controller reaches its bounded
+fixed point.
+
+When `$SASE_ARTIFACTS_DIR` is set, new runs write generic finalizer artifacts:
+`finalizer_baseline.json`, `final_context.json`, `final_submission.json`,
+`final_submission_attempts.jsonl`, `finalizer_result.json`, and per-instance files under
+`finalizers/<instance>/`. The commit provider also keeps current stitch evidence in
+`commit_results.json`. Historical `commit_finalizer_*` artifacts are read only for
+archived run reporting and are not a supported output format for new runs.
 
 #### commit.message
 
@@ -3934,7 +3909,6 @@ ordered fallback (behind Claude and Codex). Grok's `grok-4.6` model accepts only
 | `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
 | `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                           |
 | `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                      |
-| `SASE_DISABLE_COMMIT_STOP_HOOK`   | Disable commit finalization for this process.                                                                                                             |
 | `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
 | `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                               |
 

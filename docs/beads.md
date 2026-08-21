@@ -979,11 +979,10 @@ Two other surfaces enforce the same invariant:
 
 - **The commit finalizer** commits leftover bead state as a safety net, then runs the
   same verification against the store it committed to. Unpublished state fails the run
-  with `status=failed` and `reason=bead_state_unpublished` in
-  `commit_finalizer_result.json`, carrying the full diagnostic, instead of reporting
-  `finalized`. The failure is raised at the finalizer's return points, so the agent's
-  own commit passes still run first — aborting earlier would strand uncommitted code in
-  the workspace in order to report a bead problem.
+  through `finalizer_result.json`, carrying the full diagnostic instead of reporting
+  success. The failure is raised at the finalizer's return points, so the agent's own
+  commit passes still run first — aborting earlier would strand uncommitted code in the
+  workspace in order to report a bead problem.
 - **Launch-time workspace preparation** refuses to evict a numbered workspace (`#2` and
   above) whose sidecar bead-store clones hold unpublished canonical commits. It
   publishes synchronously first; if commits remain it retains a recovery ref under

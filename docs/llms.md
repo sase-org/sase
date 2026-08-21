@@ -185,24 +185,27 @@ provider = get_provider("claude")  # Explicit provider name
 
 ## Commit Finalization
 
-After a provider returns successfully, `invoke_agent()` runs the provider-neutral commit
-finalizer before success postprocessing when the process is a SASE agent session
-(`SASE_AGENT_TIMESTAMP` is set). The finalizer checks the active project workspace
-through the active VCS provider and checks configured linked repositories as Git
-worktrees at their resolved `workspace_dir`. If it finds dirty enforced work, it sends
-the same provider a bounded follow-up prompt that lists the dirty files and instructs
-the agent to use the appropriate commit skill, such as `/sase_git_commit`. Dirty linked
-repo clones are enforced like the main workspace. A narrow generated SDD plan closeout,
-where the only enforced change is one markdown file's frontmatter `status: wip` becoming
-`status: done`, is committed directly with a `SASE_TYPE=sdd` commit instead of consuming
-a provider follow-up pass.
+For SASE agent sessions, `invoke_agent()` resolves the host-owned `finalizers` plan
+before the provider turn and runs the generic finalizer controller before success
+postprocessing after the provider returns. The bundled `builtin@commit` instance checks
+the active project workspace through the active VCS provider and checks configured
+linked repositories as Git worktrees at their resolved `workspace_dir`. Repositories
+opened through `/sase_repo` are enforced like the main workspace.
 
-The finalizer skips when the call is outside a SASE agent session, when
-`commit.finalizer.enabled` is false, or when `SASE_DISABLE_COMMIT_STOP_HOOK=1` is set.
-When an artifacts directory is available, each follow-up pass writes
-`commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`; the
-final outcome is written to `commit_finalizer_result.json`. If the workspace remains
-dirty after `commit.finalizer.max_passes`, the invocation is converted into an
+When dirty enforced work requires model input, the host asks the agent to use
+`/sase_final` as its last normal action. The submitted declaration gives each dirty
+repository exactly one `commit` decision with a Conventional Commit message or one
+`refuse` decision with a nonblank reason, and accepted commit decisions dispatch through
+the appropriate stitch workflow. A narrow generated SDD plan closeout, where the only
+enforced change is one markdown file's frontmatter `status: wip` becoming
+`status: done`, is committed directly with a `SASE_TYPE=sdd` commit.
+
+When an artifacts directory is available, the host writes generic artifacts such as
+`final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and
+`finalizer_result.json`, plus per-instance files under `finalizers/<instance>/` and
+stitch evidence in `commit_results.json`. If dirty work remains after the configured
+attempt budget, a declaration is stale or refused, a conflict is unresolved, or a
+publication/discarded-work guard fails, the invocation is converted into an
 `LLMInvocationError` rather than being logged as a successful clean run.
 
 The older provider-native commit hook scripts are no longer shipped; SASE-launched agent

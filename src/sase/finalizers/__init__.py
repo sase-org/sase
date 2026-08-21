@@ -1,4 +1,4 @@
-"""Host-owned pluggable finalizer foundation."""
+"""Host-owned finalizer foundation."""
 
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.plan import (

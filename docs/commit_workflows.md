@@ -93,9 +93,9 @@ accidental closure for unrelated dirty work.
 
 The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the
 bead and method wording stays consistent between main-workspace and linked-repository
-commit guidance. `commit.finalizer.max_passes` controls how many follow-up invocations
-may run before SASE fails the invocation with a clear error and, when an artifacts
-directory is available, a `commit_finalizer_result.json` artifact.
+commit guidance. `finalizers.instances.commit.max_attempts` controls how many commit
+executor attempts may run before SASE fails the invocation with a clear error and, when
+an artifacts directory is available, a `finalizer_result.json` artifact.
 
 ### CLI Arguments
 
@@ -604,49 +604,56 @@ command success and checkpoint persistence has at-least-once execution semantics
 | `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                           |
 | `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                       |
 | `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo                                            |
-| `SASE_DISABLE_COMMIT_STOP_HOOK`     | Skip the commit finalizer when set                                                               |
 
 ## Commit Finalizer
 
-For SASE-launched agent sessions, the normal path is the provider-neutral finalizer in
-`src/sase/llm_provider/commit_finalizer.py`. It runs after a successful provider
-invocation and before success postprocessing. The finalizer is deliberately outside any
-one runtime's native hook system, so Claude, Codex, Antigravity (`agy`), Qwen, OpenCode,
-Muse Code, and provider plugins share the same behavior.
+For SASE-launched agent sessions, the normal path is the host-owned finalizer controller
+in `src/sase/finalizers/controller.py` with the bundled `builtin@commit` provider in
+`src/sase/finalizers/commit.py`. The finalizer plan is resolved before the model turn,
+the host asks for `/sase_final` only when selected finalizers need a turn-bound
+declaration, and the controller runs after a successful provider invocation. This path
+is deliberately outside any one runtime's native hook system, so Claude, Codex,
+Antigravity (`agy`), Qwen, OpenCode, Muse Code, and provider plugins share the same
+behavior.
 
 **Flow:**
 
-1. Skip when `commit.finalizer.enabled` is false, `SASE_DISABLE_COMMIT_STOP_HOOK=1` is
-   set, or the process is outside a SASE agent session (`SASE_AGENT_TIMESTAMP` is
-   unset).
-2. Resolve the project directory from provider/workspace environment variables.
-3. Check the main workspace through the VCS provider's diff helpers.
-4. Check configured linked repos from `SASE_LINKED_REPOS_JSON`, or from project config
-   when available, with `git status --porcelain`; opened-workspace markers provide paths
-   for linked repos opened during the run.
-5. Auto-commit an exact tracked SDD markdown `status: wip` to `status: done` closeout
-   when that is the only enforced change and the file is under `sdd/plans/`.
-6. If dirty enforced repos exist, run follow-up provider invocations up to
-   `commit.finalizer.max_passes`. When an artifacts directory is available, also write
-   `commit_finalizer_pass_<N>_prompt.md` and `commit_finalizer_pass_<N>_response.md`.
-7. Re-check every dirty target. If all enforced repos are clean, write
-   `commit_finalizer_result.json` with status `finalized` when artifacts are enabled,
-   and append the follow-up response to the agent's final response.
-8. If enforced changes remain after `commit.finalizer.max_passes`, write status `failed`
-   when artifacts are enabled and fail the invocation instead of silently accepting
-   dirty work.
+1. Resolve the selected `finalizers` plan. Omitting `%final` selects configured
+   defaults, `%final:none` clears removable defaults, `%final:lint` adds a configured
+   instance, `%final:!commit` removes one, and required instances cannot be removed.
+2. Publish `final_context.json` for the active turn when selected finalizers need model
+   input. `/sase_final` reads `sase final context -f json` and submits one manifest with
+   `sase final submit`.
+3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
+   `commit` decision with a Conventional Commit message or one `refuse` decision with a
+   nonblank reason.
+4. Resolve the project directory from provider/workspace environment variables, then
+   check the main workspace, configured linked repos, and repos opened through
+   `/sase_repo`.
+5. Preserve protected pre-existing dirt using `finalizer_baseline.json`, then dispatch
+   accepted commit decisions through `sase stitch create` in context order. The first
+   conflict blocks later repositories until repair/resume succeeds.
+6. Verify each mutation with stitch evidence in `commit_results.json`, publication
+   checks for sidecar SDD/bead state, and discarded-work classification for shared
+   clones.
+7. Recompute selected finalizer triggers after every mutating executor. Later finalizers
+   that create attributable repository work reactivate commit until the controller
+   reaches a bounded fixed point or fails with a no-progress/cycle diagnostic.
+8. Write the aggregate `finalizer_result.json` and per-instance artifacts under
+   `finalizers/<instance>/`. Refusals, stale declarations, unresolved conflicts,
+   unpublished bead state, dirty work after attempts are exhausted, and discarded work
+   fail completion instead of silently accepting unsafe state.
 
 For projects whose SDD store lives in a separate or sidecar repository, the finalizer
 also commits leftover bead state as a safety net (`chore(beads): sync bead state`) ahead
 of each dirty-state check, then verifies that commit actually reached the remote — a
 bead mutation that exists only in a workspace clone is destroyed when that workspace is
-evicted. If it stayed local, `commit_finalizer_result.json` records `status: "failed"`
-with `reason: "bead_state_unpublished"` and the full publication diagnostic instead of
-`finalized`, and the invocation fails. The finalizer holds that failure until its return
-points rather than raising it at the commit site, so the agent's own commit passes still
-run first — otherwise a bead problem would strand uncommitted code in the workspace. On
-the dirty-after-max-passes path (step 8) the publication diagnostic is appended to the
-existing error so neither failure is swallowed. See
+evicted. If it stayed local, `finalizer_result.json` records the publication diagnostic
+instead of success, and the invocation fails. The finalizer holds that failure until its
+return points rather than raising it at the commit site, so the agent's own commit
+passes still run first — otherwise a bead problem would strand uncommitted code in the
+workspace. On dirty-after-attempts-exhausted paths, the publication diagnostic is
+appended to the existing error so neither failure is swallowed. See
 [Publication Verification](beads.md#publication-verification).
 
 Configured linked repos are resolved to host-scoped directories before agent launch. For
@@ -659,33 +666,10 @@ When the only enforced dirty state is the exact SDD status closeout described ab
 finalizer creates the commit itself instead of running a follow-up provider invocation.
 The result artifact records `reason: "auto_committed_done_plan_status"`.
 
-### Pluggable finalizer beta
-
-When the `pluggable_finalizers` feature flag is enabled, the same invocation seam
-resolves a host-owned `finalizers` plan before the model turn and runs the generic
-controller after the provider returns. Omitting `%final` selects the bundled `commit`
-instance. `%final:none` clears defaults unless policy marks an instance required, and
-`%final:lint` adds a configured instance while retaining defaults.
-
-If dirty repository obligations require model input, the prompt asks the agent to use
-`/sase_final` as its last normal action. That skill reads `sase final context -f json`
-and submits one manifest with `sase final submit`. A commit payload must give each
-host-issued repo ID exactly one `commit` decision with a Conventional Commit message or
-one `refuse` decision with a nonblank reason. Refusal is retained in artifacts and fails
-completion while attributable dirt remains.
-
-The beta controller writes `finalizer_result.json` plus per-instance artifacts below
-`finalizers/<instance>/`. The built-in commit instance also writes the historical
-`commit_finalizer_result.json`, `commit_results.json`, and commit-finalizer prompt
-artifacts so existing reporting continues to work during migration. Error summaries
-prefer `finalizer_result.json` when present and fall back to the historical commit
-projection for older agents.
-
-`SASE_DISABLE_COMMIT_STOP_HOOK=1` still disables the default commit finalizer for
-legacy-only policy during the beta. If any non-default config layer explicitly defines
-`finalizers`, that new policy wins and `sase final doctor` reports the ignored legacy
-setting. The beta keeps the old branch available; removing the flag and legacy branch is
-owned by the dedicated flag-removal bead after soak criteria are met.
+Historical agents may still have archived `commit_finalizer_result.json` or
+`commit_finalizer_baseline.json` files. Reporting reads those legacy files only as a
+fallback when generic `finalizer_result.json` or `finalizer_baseline.json` data is
+absent; new runs write the generic artifacts.
 
 The obsolete provider-native commit hook scripts are no longer shipped. Active
 SASE-launched runs rely on the provider-neutral finalizer instead of runtime-specific

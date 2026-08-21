@@ -1,4 +1,4 @@
-"""Commit reconciliation coverage for the beta finalizer controller."""
+"""Commit reconciliation coverage for the finalizer controller."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Coverage for pluggable finalizer extension runtime and CLI inspection."""
+"""Coverage for finalizer extension runtime and CLI inspection."""
 
 from __future__ import annotations
 

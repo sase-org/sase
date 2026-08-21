@@ -1,4 +1,4 @@
-"""Coverage for the beta finalizer declaration channel."""
+"""Coverage for the finalizer declaration channel."""
 
 from __future__ import annotations
 
