@@ -35,7 +35,6 @@ class BuiltinEntryOutcome:
 
     status: ArtifactRefResolutionStatus
     entry: ArtifactEntry | None = None
-    prompt_text: str | None = None
     locator: str | None = None
     resolved_path: Path | None = None
     candidates: tuple[str, ...] = ()

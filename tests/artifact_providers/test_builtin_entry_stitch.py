@@ -7,11 +7,7 @@ from sase.artifact_ref_models import (
     ArtifactRefPayload,
     ArtifactRefRepository,
 )
-from sase.artifact_ref_operations import artifact_ref_expansion_validate
-from sase.artifact_providers.builtin_entry_stitch import (
-    _STITCH_EXPANSION_FORMAT,
-    resolve_stitch_entry,
-)
+from sase.artifact_providers.builtin_entry_stitch import resolve_stitch_entry
 
 from .helpers import init_git_repo, ref_context_for, stitch_context
 
@@ -44,10 +40,6 @@ def test_short_form_resolves_against_primary_repo(tmp_path: Path) -> None:
     assert outcome.locator == f"sase@{full_sha}"
     assert outcome.resolved_path == tmp_path / "repo"
     assert outcome.canonical_reference == f"stitch:sase@{full_sha}"
-    assert (
-        outcome.prompt_text
-        == f"stitch {full_sha} in sase (checkout: {tmp_path / 'repo'})"
-    )
 
 
 def test_qualified_form_resolves_a_non_primary_repo(tmp_path: Path) -> None:
@@ -128,12 +120,8 @@ def test_commit_alias_expands_byte_identically_to_stitch(tmp_path: Path) -> None
     )
 
     assert stitch_result == commit_result
-    assert stitch_result == f"stitch {full_sha} in sase (checkout: {tmp_path / 'repo'})"
-
-
-def test_expansion_format_is_valid() -> None:
-    placeholders = artifact_ref_expansion_validate(_STITCH_EXPANSION_FORMAT)
-    assert placeholders == ("captured_revision", "repository", "checkout_path")
+    assert stitch_result == f"the {full_sha} stitch in the sase repo"
+    assert str(tmp_path / "repo") not in stitch_result
 
 
 def test_sha_length_boundaries() -> None:

@@ -19,7 +19,7 @@ def test_record_and_read_round_trip(tmp_path: Path) -> None:
         raw_ref="@stitch:abc1234",
         canonical_ref="stitch:sase@" + "a" * 40,
         ref_kind="stitch",
-        prompt_text="stitch " + "a" * 40 + " in sase (checkout: /tmp/x)",
+        prompt_text="the " + "a" * 40 + " stitch in the sase repo",
         stable_id="stitch:sase@" + "a" * 40,
         agent_artifacts_dir=tmp_path,
     )
@@ -37,7 +37,7 @@ def test_one_row_per_occurrence_not_deduped(tmp_path: Path) -> None:
             raw_ref="@bead:sase-9z",
             canonical_ref="bead:sase-9z",
             ref_kind="bead",
-            prompt_text="@/pages/sase-9z/README.md",
+            prompt_text="the sase-9z bead in the sase project",
             stable_id="bead:sase-9z",
             agent_artifacts_dir=tmp_path,
         )
@@ -57,7 +57,7 @@ def test_no_agent_artifacts_dir_skips_without_raising(
         raw_ref="@bead:sase-9z",
         canonical_ref="bead:sase-9z",
         ref_kind="bead",
-        prompt_text="@/pages/sase-9z/README.md",
+        prompt_text="the sase-9z bead in the sase project",
     )
 
     assert record is None
@@ -72,7 +72,7 @@ def test_write_failure_does_not_raise(tmp_path: Path) -> None:
         raw_ref="@bead:sase-9z",
         canonical_ref="bead:sase-9z",
         ref_kind="bead",
-        prompt_text="@/pages/sase-9z/README.md",
+        prompt_text="the sase-9z bead in the sase project",
         agent_artifacts_dir=unwritable,
     )
 
@@ -119,4 +119,8 @@ def test_duplicate_prompt_refs_write_multiple_rows_while_consumption_dedupes(
     use_rows = read_artifact_ref_uses(tmp_path / ARTIFACT_REF_USE_MANIFEST_NAME)
     assert len(use_rows) == 2
     assert all(row.ref_kind == "plan" for row in use_rows)
+    assert all(
+        row.prompt_text == "the report.md file in the plans sidecar repo"
+        for row in use_rows
+    )
     assert len(consumption_events) == 1

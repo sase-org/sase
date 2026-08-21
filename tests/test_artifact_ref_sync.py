@@ -31,7 +31,11 @@ def _context(
             ArtifactRefDocumentExpansion(
                 kind=kind,
                 role=role,
-                expansion_format="@{checkout_path}",
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                    if is_pointer
+                    else "the {checkout_path} file"
+                ),
                 is_pointer=is_pointer,
             ),
         ),

@@ -79,7 +79,7 @@ def test_rewrite_stages_the_same_resolved_reference_list(
     assert staged == [
         {
             "raw_ref": "@plans:report.md",
-            "expanded_ref": f"@{plan}",
+            "expanded_ref": "the report.md file in the plans sidecar repo",
             "resolved_path": plan,
             "ref_kind": "plan",
             "label": "report.md",
@@ -159,9 +159,10 @@ def test_file_ref_expands_to_captured_copy(
         staged_file_paths=staged_paths,
     )
 
-    assert str(source) not in expanded
-    assert ".sase/artifacts/pool" in expanded
     captured_path = next(iter(staged_paths))
+    assert expanded == f"Read the {captured_path} file."
+    assert str(source) not in expanded
+    assert f"@{captured_path}" not in expanded
     assert Path(captured_path).read_text(encoding="utf-8") == "tasks"
     rows = sase_core_rs.prompt_artifact_manifest_parse(
         (tmp_path / ".sase/artifacts/prompt-artifacts.jsonl").read_bytes()
@@ -280,7 +281,7 @@ def test_failed_expansion_records_nothing(
 
     with pytest.raises(SystemExit, match="1"):
         process_artifact_references(
-            "@plans:missing.md",
+            "@chat:missing.md",
             context=make_context(tmp_path),
         )
 
@@ -310,7 +311,7 @@ def test_recorder_failure_does_not_change_expansion(
             "Read @plans:report.md.",
             context=context,
         )
-        == f"Read @{plan}."
+        == "Read the report.md file in the plans sidecar repo."
     )
 
 
@@ -428,7 +429,7 @@ def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:
         assert staged_file_paths == set()
         assert materialize_missing_roots is False
         seen.append(("artifact", is_home_mode))
-        return prompt.replace("@plans:x.md", "@/resolved/x.md")
+        return prompt.replace("@plans:x.md", "the x.md file in the plans sidecar repo")
 
     def process(
         prompt: str,
@@ -438,7 +439,7 @@ def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:
     ) -> str:
         assert staged_file_paths == set()
         seen.append(("file", is_home_mode))
-        assert "@/resolved/x.md" in prompt
+        assert "the x.md file in the plans sidecar repo" in prompt
         return prompt
 
     with (
@@ -457,3 +458,45 @@ def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:
         )
 
     assert seen == [("artifact", True), ("file", True)]
+
+
+def test_builtin_expansion_is_not_reparsed_by_file_references(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    plan = tmp_path / "plans" / "report.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Report\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+
+    expanded = process_artifact_references(
+        "Read @plans:report.md.",
+        context=context,
+    )
+    assert expanded == "Read the report.md file in the plans sidecar repo."
+    process_file_references(expanded)
+
+    manifest = tmp_path / ".sase/artifacts/prompt-artifacts.jsonl"
+    rows = sase_core_rs.prompt_artifact_manifest_parse(manifest.read_bytes())
+    assert len(rows) == 1
+    assert rows[0]["raw_ref"] == "@plans:report.md"
+
+
+def test_ordinary_authored_path_ref_still_follows_file_grammar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "notes.md"
+    source.write_text("hello\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+
+    expanded = process_file_references("Read @notes.md")
+
+    assert expanded == "Read @notes.md"
+    manifest = tmp_path / ".sase/artifacts/prompt-artifacts.jsonl"
+    rows = sase_core_rs.prompt_artifact_manifest_parse(manifest.read_bytes())
+    assert len(rows) == 1
+    assert rows[0]["raw_ref"] == "@notes.md"

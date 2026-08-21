@@ -82,14 +82,14 @@ Context affects ambiguity:
 During final preprocessing of each agent prompt at launch, a well-formed reference for a
 **path-bound** document kind (see [Expansion](#expansion)) in a workspace-backed prompt
 segment can materialize its configured sidecar when that role has a recorded remote but
-no local clone. For example, the first live `@plan:...` reference for a `plans` sidecar
-that is not yet cloned can clone it, refresh that segment's project context, and then
-resolve the document. SASE prints the role it is materializing. A clone failure stops
-launch with the remote's error and an explicit `sase repo path <role> --ensure` retry
-command.
+no local clone. For example, the first live citation of an explicitly path-bound custom
+kind can clone its sidecar, refresh that segment's project context, and then resolve the
+document. SASE prints the role it is materializing. A clone failure stops launch with
+the remote's error and an explicit `sase repo path <role> --ensure` retry command.
 
-Pointer document kinds, such as `@research:...`, never trigger this: their expansion
-does not depend on a local checkout, so citing one never clones its sidecar.
+Pointer document kinds, including `@plan:...` and `@research:...`, never trigger this:
+their expansion does not depend on a local checkout, so citing one never clones its
+sidecar.
 
 This write is launch-only. Validation, xprompt display and expansion previews, editor
 catalogs, and other discovery paths remain read-only and never clone a missing sidecar.
@@ -98,11 +98,11 @@ Materialize the role explicitly when one of those surfaces needs a local invento
 prompt (empty payload, immediately after the kind's colon) is the in-prompt equivalent:
 it syncs or first-clones that kind's sidecar, rebuilds the completion catalog, and
 reopens the payload menu with the newly-arrived rows badged. Pointer kinds such as
-`@research:` never auto-materialize at launch (see above), but they are reachable this
-way — `@research::` clones the sidecar on first use. See [ACE](ace.md) for the full
-gesture, its status row, and its `ref_sync_gesture` feature flag. References inside
-inline code, fenced code, or disabled xprompt regions stay literal and do not trigger
-materialization.
+`@plan:` and `@research:` never auto-materialize at launch (see above), but they are
+reachable this way — `@research::` clones the sidecar on first use. See [ACE](ace.md)
+for the full gesture, its status row, and its `ref_sync_gesture` feature flag.
+References inside inline code, fenced code, or disabled xprompt regions stay literal and
+do not trigger materialization.
 
 ## Allow-Listed Files
 
@@ -123,8 +123,8 @@ exclusions. SASE accepts regular files that stay under exactly one effective roo
 the glob policy, and fit the configured capture size limit.
 
 At launch, SASE reads the bytes once, hashes them with SHA-256, stores the captured
-object, and expands the prompt to that immutable copy. Later source edits do not change
-what the agent received.
+object, and expands the prompt to `the <captured-path> file`. Later source edits do not
+change what the agent received.
 
 ## Provider Specs
 
@@ -151,7 +151,7 @@ repos:
           kind: design
           icon: ◆
           expansion_format:
-            "the {checkout_path} file in the {sidecar_role} artifact repo"
+            "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
           properties: {}
           detail: {}
           identity: {}
@@ -195,16 +195,30 @@ drawn from a subset of the shared placeholder vocabulary:
 
 A format that uses `checkout_path` is **path-bound**: expansion resolves the reference
 to a local file, materializing a missing `auto_clone` sidecar when needed, and fails the
-launch with a diagnostic when the document cannot be found there. `@plan:` and every
-unconfigured document sidecar use the default path-bound format, `@{checkout_path}`.
+launch with a diagnostic when the document cannot be found there. Path-bound expansion
+is an opt-in compatibility capability for an explicit custom provider. Those providers
+should render prose such as `the {checkout_path} file`, not an `@`-prefixed filesystem
+path.
 
 A format that uses no path placeholder is a **pointer**: expansion renders straight from
 the reference itself, with no resolution dependency. A pointer reference never clones
 its sidecar and never fails a launch — an unresolvable pointer still expands, using
-whatever prose the format declares. `@research:<path>` is a pointer, declaring
+whatever prose the format declares. `@plan:`, `@research:`, and every unconfigured
+document sidecar use the default pointer format
 `"the {repo_relative_path} file in the {sidecar_role} sidecar repo"`, so
-`@research:202608/report/report.md` expands to "the 202608/report/report.md file in the
-research sidecar repo" whether or not the `research` sidecar is cloned.
+`@plan:202608/foobar.md` expands to "the 202608/foobar.md file in the plans sidecar
+repo" whether or not the `plans` sidecar is cloned.
+
+Built-in non-document kinds follow the same portable-prose rule. `@file:` becomes
+`the <captured-or-materialized-path> file`; `@bead:<id>` becomes
+`the <canonical-id> bead in the <project> project`; `@agent:<name>` becomes
+`the <canonical-name> agent in the <project> project`; `@stitch:` / `@commit:` become
+`the <full-sha> stitch in the <repository> repo`; `@patch:<name>` becomes
+`the <name> Patch in the <project> project`. Historical `@chat:` becomes
+`the <resolved-path> file`, and historical `@bug:` becomes
+`issue #<number> in the <project> project (<resolved-url>)`. Authored citations remain
+`@<kind>:<argument>`; none of these expansions inject an `@` sigil in front of a
+filesystem path. Fragments such as `(lines 10-20)` are appended after that pointer.
 
 ## Publication
 

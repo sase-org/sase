@@ -20,24 +20,10 @@ from sase.artifact_ref_models import (
     ArtifactRefContext,
     ArtifactRefRepository,
 )
-from sase.artifact_ref_operations import (
-    artifact_ref_expansion_render,
-    artifact_ref_expansion_validate,
-)
 from sase.artifact_ref_prompt_context import PromptRefContext
 from sase.artifact_ref_prompt_resolution import (
     repository_for_ref,
     resolve_checkout_commit,
-)
-
-
-_STITCH_EXPANSION_FORMAT = (
-    "stitch {captured_revision} in {repository} (checkout: {checkout_path})"
-)
-# Fail fast at import time rather than deep inside a Rust-side .format() call
-# if a future edit lets the format string and its substitution dict drift.
-_STITCH_EXPANSION_PLACEHOLDERS = frozenset(
-    artifact_ref_expansion_validate(_STITCH_EXPANSION_FORMAT)
 )
 
 
@@ -91,17 +77,9 @@ def resolve_stitch_entry(
             properties=_stitch_properties(repository.name, full_sha, checkout_path),
         )
     )
-    stitch_values = {
-        "captured_revision": full_sha,
-        "repository": repository.name,
-        "checkout_path": str(checkout_path),
-    }
-    assert set(stitch_values) == _STITCH_EXPANSION_PLACEHOLDERS
-    prompt_text = artifact_ref_expansion_render(_STITCH_EXPANSION_FORMAT, stitch_values)
     return BuiltinEntryOutcome(
         status="exact",
         entry=entry,
-        prompt_text=prompt_text,
         locator=f"{repository.name}@{full_sha}",
         resolved_path=checkout_path,
         canonical_reference=f"stitch:{repository.name}@{full_sha}",

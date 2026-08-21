@@ -339,6 +339,8 @@ def test_reference_expansion_updates_unused_and_show_consumption(
         context=context,
     )
     assert str(stored) in expanded
+    assert f"@{stored}" not in expanded
+    assert expanded == f"Read the {stored} file"
     assert query_artifact_files(index_path, unused_only=True) == []
 
     assert handle_show(argparse.Namespace(reference=reference, json=True)) == 0

@@ -430,7 +430,9 @@ def _provider_index(case: dict[str, Any]) -> RelationIndex:
             "ref": {
                 "kind": "notes",
                 "icon": "¶",
-                "expansion_format": "@{checkout_path}",
+                "expansion_format": (
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
                 "properties": {
                     "title": {"type": "string", "source": "markdown_frontmatter"},
                     "related": {"type": "string", "source": "markdown_frontmatter"},

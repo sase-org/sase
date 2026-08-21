@@ -5,11 +5,7 @@ from pathlib import Path
 import pytest
 
 from sase.artifact_ref_models import ArtifactRef, ArtifactRefContext, ArtifactRefPayload
-from sase.artifact_ref_operations import artifact_ref_expansion_validate
-from sase.artifact_providers.builtin_entry_patch import (
-    _PATCH_EXPANSION_FORMAT,
-    resolve_patch_entry,
-)
+from sase.artifact_providers.builtin_entry_patch import resolve_patch_entry
 from sase.artifact_ref_prompt_context import PromptRefContext, PromptRefProject
 
 
@@ -151,9 +147,27 @@ def test_missing_from_project_lists_both_spec_candidates(tmp_path: Path) -> None
     }
 
 
-def test_expansion_format_is_valid() -> None:
-    placeholders = artifact_ref_expansion_validate(_PATCH_EXPANSION_FORMAT)
-    assert placeholders == ("display_label", "project")
+def test_prompt_expansion_uses_centralized_patch_wording(tmp_path: Path) -> None:
+    from sase.artifact_refs import process_artifact_references
+
+    project = _project(tmp_path)
+    _write_spec(project.active_spec, ["my-patch"])
+    ref_context = PromptRefContext(
+        artifact_context=_empty_context(),
+        project=project,
+        primary_repo=None,
+        workspace_dir=None,
+        workspace_num=None,
+        origin="vcs_workflow",
+        vcs_ref="sase",
+    )
+
+    expanded = process_artifact_references(
+        "Look at @patch:my-patch.",
+        ref_contexts=(ref_context,),
+    )
+
+    assert expanded == "Look at the my-patch Patch in the sase project."
 
 
 def _no_project_ref_context() -> PromptRefContext:
@@ -262,3 +276,26 @@ def test_quoted_patch_name_resolves(tmp_path: Path) -> None:
     assert outcome.status == "exact"
     assert outcome.entry is not None
     assert outcome.entry.display_label == "My Patch Name"
+
+
+def test_quoted_patch_name_expands_through_centralized_wording(tmp_path: Path) -> None:
+    from sase.artifact_refs import process_artifact_references
+
+    project = _project(tmp_path)
+    _write_spec(project.active_spec, ["My Patch Name"])
+    ref_context = PromptRefContext(
+        artifact_context=_empty_context(),
+        project=project,
+        primary_repo=None,
+        workspace_dir=None,
+        workspace_num=None,
+        origin="vcs_workflow",
+        vcs_ref="sase",
+    )
+
+    expanded = process_artifact_references(
+        '@patch:"My Patch Name"',
+        ref_contexts=(ref_context,),
+    )
+
+    assert expanded == "the My Patch Name Patch in the sase project"

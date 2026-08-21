@@ -51,9 +51,14 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
         f"@file:{artifact_id}#page=2."
     )
 
-    assert process_artifact_references(prompt, context=context) == (
-        f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
+    expanded = process_artifact_references(prompt, context=context)
+    assert expanded == (
+        "Read the 202607/plan.md file in the plans sidecar repo (lines 2-4), "
+        f"the {chat} file (time 30s), and the {artifact} file (page 2)."
     )
+    assert f"@{plan}" not in expanded
+    assert f"@{chat}" not in expanded
+    assert f"@{artifact}" not in expanded
 
 
 def test_expands_vcs_backed_file_to_materialized_cache_path(
@@ -134,7 +139,10 @@ def test_expands_vcs_backed_file_to_materialized_cache_path(
         context=context,
     )
 
-    materialized = Path(expanded.removeprefix("Read @").removesuffix("."))
+    assert expanded.startswith("Read the ")
+    assert expanded.endswith(" file.")
+    materialized = Path(expanded.removeprefix("Read the ").removesuffix(" file."))
+    assert f"@{materialized}" not in expanded
     assert materialized.read_bytes() == content
     assert materialized.is_relative_to(cache_root / "vcs-cache")
     assert len(recorded) == 1
@@ -155,13 +163,16 @@ def test_expands_bead_and_agent_pages(tmp_path: Path) -> None:
     bead_page.write_text("# Bead\n", encoding="utf-8")
     agent_page.write_text("# Agent\n", encoding="utf-8")
 
-    assert (
-        process_artifact_references(
-            "Read @bead:sase-9z and @agent:9w.",
-            context=context,
-        )
-        == f"Read @{bead_page} and @{agent_page}."
+    expanded = process_artifact_references(
+        "Read @bead:sase-9z and @agent:9w.",
+        context=context,
     )
+    assert expanded == (
+        "Read the sase-9z bead in the sase project and "
+        "the alice.athena.9w agent in the sase project."
+    )
+    assert f"@{bead_page}" not in expanded
+    assert f"@{agent_page}" not in expanded
 
 
 def test_unknown_bare_and_literal_references_survive_byte_identically(
@@ -190,14 +201,14 @@ def test_unicode_before_reference_preserves_replacement_boundaries(
             "é @plans:plan.md done",
             context=context,
         )
-        == f"é @{plan} done"
+        == "é the plan.md file in the plans sidecar repo done"
     )
 
 
 @pytest.mark.parametrize(
     ("reference", "status"),
     (
-        ("@plans:missing.md", "missing"),
+        ("@chat:missing.md", "missing"),
         ("@commit:unknown@abcdef0", "unknown_repo"),
         ("@plans:../escape.md", "malformed"),
     ),
@@ -231,11 +242,25 @@ def test_unpublished_entity_reference_failure_includes_publication_hint(
     assert "sase bead page refresh" in output
 
 
-def test_ambiguous_document_drift_fails_with_status(
+def test_ambiguous_path_bound_document_drift_fails_with_status(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context = make_context(tmp_path)
+    context = ArtifactRefContext(
+        document_roots=make_context(tmp_path).document_roots,
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="plan",
+                role="plans",
+                expansion_format="the {checkout_path} file",
+                is_pointer=False,
+            ),
+        ),
+    )
     for month in ("202606", "202607"):
         path = tmp_path / "plans" / month / "plan.md"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -270,14 +295,14 @@ def test_commit_expands_to_full_locator_and_checkout(
             "@commit:sase@aaaaaaa",
             context=context,
         )
-        == f"stitch {full_sha} in sase (checkout: {workspace})"
+        == f"the {full_sha} stitch in the sase repo"
     )
     assert (
         process_artifact_references(
             "@stitch:sase@aaaaaaa",
             context=context,
         )
-        == f"stitch {full_sha} in sase (checkout: {workspace})"
+        == f"the {full_sha} stitch in the sase repo"
     )
 
 
@@ -352,5 +377,5 @@ def test_bug_expands_to_number_and_resolved_url(
             "@bug:gh_sase-org__sase#42",
             context=make_context(tmp_path),
         )
-        == "#42 https://bugs.test/sase/42"
+        == "issue #42 in the sase project (https://bugs.test/sase/42)"
     )

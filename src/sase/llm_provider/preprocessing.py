@@ -135,8 +135,10 @@ def preprocess_prompt_late(
     Steps:
         1. Protect fenced code blocks.
         2. ``$(cmd)`` command substitution.
-        3. ``@kind:payload`` artifact reference expansion or validation.
-        4. ``@path`` file reference processing or validation.
+        3. ``@kind:payload`` artifact reference expansion or validation into
+           portable prose (and, for explicit custom path-bound formats, path
+           tokens).
+        4. Ordinary authored ``@path`` file reference processing or validation.
         5. Top-level Jinja2 rendering.
         6. Prettier formatting.
         7. HTML comment stripping.
@@ -182,7 +184,9 @@ def preprocess_prompt_late(
     # 2. Command substitution
     prompt = process_command_substitution(prompt)
 
-    # 3. Artifact references, before file refs consume their resolved paths.
+    # 3. Artifact references first. Built-in expansions are portable prose and
+    #    are not re-parsed as ``@path`` tokens; staged_artifact_paths still
+    #    suppresses explicit custom path-bound formats that emit ``@path``.
     staged_artifact_paths: set[str] = set()
     artifact_jinja_protection = ArtifactRendererJinjaProtection()
     if file_ref_mode == "process":

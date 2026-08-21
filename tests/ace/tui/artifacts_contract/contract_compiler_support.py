@@ -58,7 +58,9 @@ def document_spec(
     ref: dict[str, object] = {
         "kind": kind,
         "icon": "¶",
-        "expansion_format": "@{checkout_path}",
+        "expansion_format": (
+            "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+        ),
         "properties": properties
         if properties is not None
         else {

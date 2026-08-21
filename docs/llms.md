@@ -2404,7 +2404,7 @@ and formatting work.
 | Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion               |
 | Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten             |
 | Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
-| Late  | Artifact references        | `@kind:payload`                            | Resolve known artifact kinds into launch-ready locators  |
+| Late  | Artifact references        | `@kind:payload`                            | Expand known artifact kinds into portable semantic prose |
 | Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
 | Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates              |
 | Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown             |
@@ -2417,14 +2417,13 @@ The pipeline runs in strict order. Prompt directives are extracted after xprompt
 expansion, so directives embedded in xprompts are honored. Late-phase command
 substitution and reference processing run with fenced blocks protected, so examples
 inside code fences are not executed or rewritten. Canonical artifact references are
-expanded before ordinary file references: document and artifact-file references become
-`@path` tokens, as do published bead and agent pages. A stitch becomes
-`stitch <full-sha> in <repo> (checkout: <path>)`; a Patch becomes a project-qualified
-label with an inspection hint. That hint currently names `sase patch show`, which is not
-a `sase` command — do not run it. Inspect a Patch from ACE's Patches view, with
-`sase patch search`, or with `sase patch current` in that Patch's workspace. Unknown
-`@kind:` references remain unchanged as prose. The retired `#ref/<kind>` renderer syntax
-is not accepted. Inline-code references also remain literal.
+expanded before ordinary file references: built-in artifact expansions become portable
+semantic prose (for example `the 202608/foobar.md file in the plans sidecar repo`) and
+do not inject `@path` tokens that the ordinary file-reference pass would re-parse.
+Unknown `@kind:` references remain unchanged as prose. The retired `#ref/<kind>`
+renderer syntax is not accepted. Inline-code references also remain literal. Explicit
+custom path-bound document providers may still emit path-shaped text; those remain
+excluded from the subsequent `@path` pass.
 
 During the same pass, SASE stages prompt references for later archive publication. File
 references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`

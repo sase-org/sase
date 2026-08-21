@@ -414,7 +414,9 @@ def test_provider_filename_family_and_declared_property() -> None:
             "ref": {
                 "kind": "notes",
                 "icon": "¶",
-                "expansion_format": "@{checkout_path}",
+                "expansion_format": (
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
                 "properties": {
                     "title": {"type": "string", "source": "markdown_frontmatter"},
                     "related": {"type": "string", "source": "markdown_frontmatter"},

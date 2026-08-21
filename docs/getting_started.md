@@ -224,15 +224,16 @@ without enumerating Patch names, so use `%` on the Patch or type its name. Choos
 and prompt-ready `@` reference; choose **Copy artifact reference** when you only want
 the reference on the clipboard.
 
-At launch, document, file, bead, and agent references become local `@absolute-path`
-tokens. A stitch becomes `stitch <full-sha> in <repo> (checkout: <path>)`; a Patch
-becomes `the <name> Patch in project <project>` plus an inspection hint. That hint
-currently names `sase patch show`, which is not a `sase` command — do not run it.
-Inspect a Patch from ACE's Patches view, with `sase patch search`, or with
-`sase patch current` when you are already in that Patch's workspace. A historical
-`@bug:` reference becomes its issue number and provider URL. A malformed or missing
-known reference stops the launch with a diagnostic instead of silently giving the agent
-bad context. Inline-code and fenced-code examples stay literal.
+At launch, each known artifact reference expands to portable semantic prose rather than
+an `@`-prefixed filesystem path. `@plan:202608/foobar.md` becomes
+`the 202608/foobar.md file in the plans sidecar repo`; `@research:` uses the same
+sidecar-pointer shape; `@file:` names the captured or materialized file; `@bead:` /
+`@agent:` / `@patch:` name the object in its project; `@stitch:` names the full SHA in
+its repository. Authored citations stay `@<kind>:<argument>`. A historical `@bug:`
+reference becomes `issue #<number> in the <project> project (<url>)`. A malformed or
+missing known non-pointer reference stops the launch with a diagnostic instead of
+silently giving the agent bad context. Inline-code and fenced-code examples stay
+literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The

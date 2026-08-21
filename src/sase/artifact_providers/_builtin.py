@@ -19,7 +19,9 @@ def builtin_plan_ref_provider_spec() -> dict[str, Any]:
         "ref": {
             "kind": "plan",
             "icon": "✎",
-            "expansion_format": "@{checkout_path}",
+            "expansion_format": (
+                "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+            ),
             "properties": {
                 "tier": {
                     "type": "string",

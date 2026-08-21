@@ -32,7 +32,10 @@ def test_plans_resolves_and_warns_once_while_plan_is_silent(
     deprecated = process_artifact_references(
         "@plans:x.md and @plans:x.md again", context=context
     )
-    assert deprecated == f"@{plan} and @{plan} again"
+    assert deprecated == (
+        "the x.md file in the plans sidecar repo and "
+        "the x.md file in the plans sidecar repo again"
+    )
     warnings = [
         line for line in capsys.readouterr().err.splitlines() if "@plans:" in line
     ]
@@ -41,7 +44,7 @@ def test_plans_resolves_and_warns_once_while_plan_is_silent(
     assert "@plan:<path>" in warnings[0]
 
     canonical = process_artifact_references("@plan:x.md", context=context)
-    assert canonical == f"@{plan}"
+    assert canonical == "the x.md file in the plans sidecar repo"
     assert capsys.readouterr().err == ""
 
 
@@ -63,7 +66,7 @@ def test_chat_and_bug_resolve_and_warn_with_replacement_named(
     chat.write_text("# Chat\n")
 
     chat_result = process_artifact_references("@chat:agent.md", context=context)
-    assert chat_result == f"@{chat}"
+    assert chat_result == f"the {chat} file"
     chat_warnings = capsys.readouterr().err
     assert "@chat:" in chat_warnings
     assert "@agent:<name>" in chat_warnings
@@ -71,7 +74,7 @@ def test_chat_and_bug_resolve_and_warn_with_replacement_named(
     bug_result = process_artifact_references(
         "@bug:gh_sase-org__sase#42", context=context
     )
-    assert bug_result == "#42 https://bugs.test/sase/42"
+    assert bug_result == ("issue #42 in the sase project (https://bugs.test/sase/42)")
     bug_warnings = capsys.readouterr().err
     assert "@bug:" in bug_warnings
     assert "@bead:<id>" in bug_warnings

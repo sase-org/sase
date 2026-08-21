@@ -10,24 +10,10 @@ from sase.artifact_providers.builtin_entries import (
     validate_builtin_entry,
 )
 from sase.artifact_ref_models import ArtifactEntry, ArtifactRef, ArtifactRefContext
-from sase.artifact_ref_operations import (
-    artifact_ref_expansion_render,
-    artifact_ref_expansion_validate,
-)
 from sase.artifact_ref_prompt_context import PromptRefContext, PromptRefProject
 
 
 log = logging.getLogger(__name__)
-
-_PATCH_EXPANSION_FORMAT = (
-    "the {display_label} Patch in project {project} "
-    "(inspect with `sase patch show {display_label}`)"
-)
-# Fail fast at import time rather than deep inside a Rust-side .format() call
-# if a future edit lets the format string and its substitution dict drift.
-_PATCH_EXPANSION_PLACEHOLDERS = frozenset(
-    artifact_ref_expansion_validate(_PATCH_EXPANSION_FORMAT)
-)
 
 
 def resolve_patch_entry(
@@ -67,13 +53,9 @@ def resolve_patch_entry(
             properties=_patch_properties(patch, project),
         )
     )
-    patch_values = {"display_label": patch.name, "project": project}
-    assert set(patch_values) == _PATCH_EXPANSION_PLACEHOLDERS
-    prompt_text = artifact_ref_expansion_render(_PATCH_EXPANSION_FORMAT, patch_values)
     return BuiltinEntryOutcome(
         status="exact",
         entry=entry,
-        prompt_text=prompt_text,
         locator=f"{project}/{patch.name}",
         resolved_path=None,
     )

@@ -208,3 +208,37 @@ def test_no_store_resolves_short_id_defers_to_rust(
     )
 
     assert outcome is None
+
+
+def test_short_and_full_bead_ids_expand_to_canonical_wording(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.artifact_refs import process_artifact_references
+
+    store = _store("sase", "sase", tmp_path)
+    page = store.root / "pages" / "sase-js" / "sase-js.4.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("# Bead\n")
+    context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=tmp_path / "c",
+        artifact_index_path=tmp_path / "i",
+        repositories=(),
+        projects=(),
+        bead_stores=(store,),
+    )
+
+    def resolve_id(beads_dir: Path, issue_id: str) -> str:
+        if str(beads_dir) == str(store.root) and issue_id == "js.4":
+            return "sase-js.4"
+        raise KeyError(f"Issue not found: {issue_id}")
+
+    monkeypatch.setattr(bead_read_facade, "resolve_id", resolve_id)
+    monkeypatch.setattr(bead_read_facade, "show", lambda _dir, full_id: _issue(full_id))
+
+    short = process_artifact_references("@bead:js.4", context=context)
+    full = process_artifact_references("@bead:sase-js.4", context=context)
+
+    assert short == full == "the sase-js.4 bead in the sase project"
+    assert f"@{page}" not in short

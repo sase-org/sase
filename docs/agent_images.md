@@ -226,8 +226,9 @@ single Python entry point:
 
 - `sase artifact path` prints the materialized cache path, and `sase artifact open`
   continues into the usual viewer.
-- `@file:` references in a prompt expand to a materialized path; a failure fails the
-  launch loudly rather than handing an agent a dangling path.
+- `@file:` references in a prompt expand to prose naming the materialized path
+  (`the <path> file`); a failure fails the launch loudly rather than handing an agent a
+  dangling path.
 - The ACE Files pane renders a `PROVENANCE` section instead of a stored path and
   materializes off the UI thread.
 - `sase artifact show` and `sase artifact list` need no materialization; `show` reports

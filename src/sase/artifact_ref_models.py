@@ -405,6 +405,19 @@ class ArtifactRefContext:
             None,
         )
 
+    def document_is_pointer(self, kind: str) -> bool:
+        """Return whether *kind* expands as a pointer rather than a local path.
+
+        Unconfigured document kinds use the default sidecar pointer format, so
+        a missing expansion policy is a pointer rather than a path-bound
+        fallback.
+        """
+
+        expansion = self.document_expansion_for(kind)
+        if expansion is None:
+            return True
+        return expansion.is_pointer
+
     def to_wire(self) -> dict[str, object]:
         return {
             "schema_version": ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,

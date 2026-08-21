@@ -8,6 +8,7 @@ from sase.sidecar_ref_config import (
     DEFAULT_DOCUMENT_REF_PATH_GLOBS,
     DEFAULT_DOCUMENT_TAB_ICON,
     effective_sidecar_ref_policies,
+    sidecar_role_for_ref_kind,
     _sidecar_ref_policy_report,
 )
 
@@ -334,7 +335,7 @@ def test_sidecar_ref_use_with_mismatched_plugin_prefix_fails_soft(
     assert "builtin@plan" in report.diagnostics[0].message
 
 
-def test_unconfigured_document_sidecar_defaults_to_path_bound_expansion(
+def test_unconfigured_document_sidecar_defaults_to_sidecar_pointer_expansion(
     tmp_path: Path,
 ) -> None:
     policies = effective_sidecar_ref_policies(
@@ -346,13 +347,13 @@ def test_unconfigured_document_sidecar_defaults_to_path_bound_expansion(
     policy = policies["docs"]
     assert (
         policy.expansion_format
-        == "@{checkout_path}"
-        == (DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT)
+        == DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT
+        == "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
     )
-    assert policy.is_pointer_expansion is False
+    assert policy.is_pointer_expansion is True
 
 
-def test_builtin_plan_spec_expansion_is_path_bound(tmp_path: Path) -> None:
+def test_builtin_plan_spec_expansion_is_sidecar_pointer(tmp_path: Path) -> None:
     policies = effective_sidecar_ref_policies(
         {},
         primary_workspace_dir=tmp_path / "workspace",
@@ -360,8 +361,33 @@ def test_builtin_plan_spec_expansion_is_path_bound(tmp_path: Path) -> None:
     )
 
     policy = policies["plans"]
-    assert policy.expansion_format == "@{checkout_path}"
-    assert policy.is_pointer_expansion is False
+    assert policy.expansion_format == DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT
+    assert (
+        policy.expansion_format
+        == (builtin_plan_ref_provider_spec()["ref"]["expansion_format"])
+    )
+    assert policy.is_pointer_expansion is True
+    assert policy.ref_kind == "plan"
+
+
+def test_plan_research_and_unconfigured_docs_select_sidecar_pointer_role(
+    tmp_path: Path,
+) -> None:
+    policies = effective_sidecar_ref_policies(
+        {},
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans", "research", "docs"),
+    )
+
+    assert policies["plans"].role == "plans"
+    assert policies["plans"].ref_kind == "plan"
+    assert policies["research"].role == "research"
+    assert policies["docs"].role == "docs"
+    assert policies["docs"].ref_kind == "docs"
+    for role in ("plans", "research", "docs"):
+        assert policies[role].is_pointer_expansion is True
+        assert "{sidecar_role}" in policies[role].expansion_format
+        assert "{repo_relative_path}" in policies[role].expansion_format
 
 
 def test_pointer_expansion_format_is_classified_correctly(tmp_path: Path) -> None:
@@ -446,3 +472,9 @@ def test_kind_only_expansion_format_normalizes_cleanly(tmp_path: Path) -> None:
     policy = report.policies["research"]
     assert policy.expansion_format == "{kind}"
     assert policy.is_pointer_expansion is True
+
+
+def test_sidecar_role_for_ref_kind_inverts_builtin_mapping() -> None:
+    assert sidecar_role_for_ref_kind("plan") == "plans"
+    assert sidecar_role_for_ref_kind("research") == "research"
+    assert sidecar_role_for_ref_kind("docs") == "docs"

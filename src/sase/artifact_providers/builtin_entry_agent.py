@@ -3,9 +3,8 @@
 Resolution itself is unchanged: it still delegates to the Rust resolver,
 which already globalizes the agent name and finds ``agents/<name>/README.md``.
 This module only adds the structured :class:`ArtifactEntry` properties read
-from the resolved page's own directory. The sibling chat-transcript pointer
-(``chat.md``/``prompt.md``) is a rendering-time concern, handled where the
-prompt replacement text is built.
+from the resolved page's own directory. Staging still retains that published
+page; prompt expansion names the agent without a filesystem path.
 """
 
 from __future__ import annotations

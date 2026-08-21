@@ -1,4 +1,4 @@
-"""Hardcoded expansion for launch-prompt artifact references."""
+"""Centralized expansion for launch-prompt artifact references."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from sase.artifact_ref_models import (
+    ArtifactEntry,
     ArtifactRef,
     ArtifactRefContext,
     ArtifactRefDocumentExpansion,
@@ -20,6 +21,10 @@ from sase.artifact_ref_operations import (
 )
 from sase.artifact_ref_prompt_resolution import artifact_resolved_path
 from sase.artifact_ref_renderers import ArtifactRendererJinjaProtection
+from sase.sidecar_ref_config import (
+    DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT,
+    sidecar_role_for_ref_kind,
+)
 
 
 _IssueUrlResolver = Callable[[str, int], str]
@@ -37,6 +42,11 @@ _DOCUMENT_EXPANSION_SUPPORTED_PLACEHOLDERS = frozenset(
         "checkout_path",
     }
 )
+_FILE_EXPANSION_FORMAT = "the {checkout_path} file"
+_BEAD_EXPANSION_FORMAT = "the {canonical_argument} bead in the {project} project"
+_AGENT_EXPANSION_FORMAT = "the {canonical_argument} agent in the {project} project"
+_STITCH_EXPANSION_FORMAT = "the {captured_revision} stitch in the {repository} repo"
+_PATCH_EXPANSION_FORMAT = "the {display_label} Patch in the {project} project"
 
 
 def artifact_ref_replacement(
@@ -47,6 +57,7 @@ def artifact_ref_replacement(
     materialized_path: Path | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
     issue_url_resolver: _IssueUrlResolver,
+    entry: ArtifactEntry | None = None,
 ) -> tuple[str, Path | None]:
     """Render the replacement text and return it with its resolved path."""
 
@@ -56,82 +67,242 @@ def artifact_ref_replacement(
         context=context,
         materialized_path=materialized_path,
     )
-    expansion = (
-        context.document_expansion_for(reference.kind)
-        if reference.kind_type == "document"
-        else None
+    replacement_text = _replacement_text(
+        reference,
+        resolution,
+        context=context,
+        resolved_path=resolved_path,
+        issue_url_resolver=issue_url_resolver,
+        entry=entry,
     )
-    replacement_text = (
-        _document_expansion_replacement_text(
-            reference,
-            expansion,
-            resolved_path=resolved_path,
-        )
-        if expansion is not None
-        else _legacy_replacement_text(
-            reference,
-            resolution,
-            resolved_path=resolved_path,
-            issue_url_resolver=issue_url_resolver,
-        )
-    )
+    replacement_text = f"{replacement_text}{_fragment_annotation(reference.fragment)}"
     if jinja_protection is not None:
         replacement_text = jinja_protection.protect(replacement_text)
     return replacement_text, resolved_path
 
 
-def _document_expansion_replacement_text(
+def _replacement_text(
     reference: ArtifactRef,
-    expansion: ArtifactRefDocumentExpansion,
+    resolution: ArtifactRefResolution,
+    *,
+    context: ArtifactRefContext,
+    resolved_path: Path | None,
+    issue_url_resolver: _IssueUrlResolver,
+    entry: ArtifactEntry | None,
+) -> str:
+    kind_type = reference.kind_type
+    if kind_type == "document":
+        return _document_expansion_text(
+            reference,
+            context.document_expansion_for(reference.kind),
+            resolved_path=resolved_path,
+        )
+    if kind_type in {"file", "chat"}:
+        return _path_file_text(resolved_path)
+    if kind_type == "bead":
+        return _bead_text(reference, resolution, entry)
+    if kind_type == "agent":
+        return _agent_text(reference, resolution, entry)
+    if kind_type in {"stitch", "commit"}:
+        return _stitch_text(resolution, entry)
+    if kind_type == "patch":
+        return _patch_text(reference, resolution, entry)
+    if kind_type == "bug":
+        return _bug_text(reference, resolution, issue_url_resolver)
+    raise RuntimeError(f"unsupported artifact reference kind: {reference.kind}")
+
+
+def _document_expansion_text(
+    reference: ArtifactRef,
+    expansion: ArtifactRefDocumentExpansion | None,
     *,
     resolved_path: Path | None,
 ) -> str:
-    used_placeholders = set(artifact_ref_expansion_validate(expansion.expansion_format))
+    expansion_format = (
+        DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT
+        if expansion is None
+        else expansion.expansion_format
+    )
+    used_placeholders = set(artifact_ref_expansion_validate(expansion_format))
     assert used_placeholders <= _DOCUMENT_EXPANSION_SUPPORTED_PLACEHOLDERS
     argument = reference.payload.path or ""
+    role = (
+        sidecar_role_for_ref_kind(reference.kind)
+        if expansion is None
+        else expansion.role
+    )
     available = {
         "kind": reference.kind,
         "argument": argument,
         "canonical_argument": render_artifact_ref(replace(reference, fragment=None)),
         "repo_relative_path": argument,
         "display_label": Path(argument).name,
-        "sidecar_role": expansion.role,
+        "sidecar_role": role,
     }
     if "checkout_path" in used_placeholders:
         if resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
         available["checkout_path"] = str(resolved_path)
     values = {name: available[name] for name in used_placeholders}
-    text = artifact_ref_expansion_render(expansion.expansion_format, values)
-    return f"{text}{_fragment_annotation(reference.fragment)}"
+    return artifact_ref_expansion_render(expansion_format, values)
 
 
-def _legacy_replacement_text(
+def _path_file_text(resolved_path: Path | None) -> str:
+    if resolved_path is None:
+        raise RuntimeError("resolver returned no artifact path")
+    return _render_expansion(
+        _FILE_EXPANSION_FORMAT, {"checkout_path": str(resolved_path)}
+    )
+
+
+def _bead_text(
     reference: ArtifactRef,
     resolution: ArtifactRefResolution,
-    *,
-    resolved_path: Path | None,
+    entry: ArtifactEntry | None,
+) -> str:
+    project, bead_id = _project_and_object(
+        kind="bead",
+        locator=resolution.locator,
+        rendered=resolution.rendered,
+        entry=entry,
+        payload_object=reference.payload.id,
+    )
+    return _render_expansion(
+        _BEAD_EXPANSION_FORMAT,
+        {"canonical_argument": bead_id, "project": project},
+    )
+
+
+def _agent_text(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    entry: ArtifactEntry | None,
+) -> str:
+    project, name = _project_and_object(
+        kind="agent",
+        locator=resolution.locator,
+        rendered=resolution.rendered,
+        entry=entry,
+        payload_object=reference.payload.name,
+        prefer_rendered_object=True,
+    )
+    return _render_expansion(
+        _AGENT_EXPANSION_FORMAT,
+        {"canonical_argument": name, "project": project},
+    )
+
+
+def _stitch_text(
+    resolution: ArtifactRefResolution,
+    entry: ArtifactEntry | None,
+) -> str:
+    repository = None if entry is None else entry.repository
+    full_sha = None if entry is None else entry.captured_revision
+    if not repository or not full_sha:
+        if resolution.locator is None:
+            raise RuntimeError("resolver returned no stitch locator")
+        repository, full_sha = _split_locator(
+            resolution.locator, separator="@", what="stitch", from_right=True
+        )
+    return _render_expansion(
+        _STITCH_EXPANSION_FORMAT,
+        {"captured_revision": full_sha, "repository": repository},
+    )
+
+
+def _patch_text(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    entry: ArtifactEntry | None,
+) -> str:
+    name = None if entry is None else entry.display_label
+    project = None if entry is None else entry.project_display_name
+    if not name or not project:
+        if resolution.locator is None:
+            raise RuntimeError("resolver returned no patch locator")
+        project, name = _split_locator(resolution.locator, separator="/", what="patch")
+    if not name:
+        name = reference.payload.name
+    if not name or not project:
+        raise RuntimeError("resolver returned no patch locator")
+    return _render_expansion(
+        _PATCH_EXPANSION_FORMAT, {"display_label": name, "project": project}
+    )
+
+
+def _bug_text(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
     issue_url_resolver: _IssueUrlResolver,
 ) -> str:
-    if reference.kind_type in {"document", "chat", "file", "bead", "agent"}:
-        if resolved_path is None:
-            raise RuntimeError("resolver returned no artifact path")
-        text = f"@{resolved_path}{_fragment_annotation(reference.fragment)}"
-        if reference.kind_type == "agent":
-            text += _agent_transcript_pointer(reference, resolution, resolved_path)
-        return text
-    if reference.kind_type == "commit":
-        if resolution.locator is None or resolved_path is None:
-            raise RuntimeError("resolver returned no commit locator")
-        return f"{resolution.locator} (checkout: {resolved_path})"
-    if reference.kind_type == "bug":
-        if reference.payload.number is None:
-            raise RuntimeError("resolver returned no bug number")
-        url = _bug_url(reference, resolution, issue_url_resolver)
-        if url is None:
-            raise RuntimeError("resolver returned no bug locator")
-        return f"#{reference.payload.number} {url}"
-    raise RuntimeError(f"unsupported artifact reference kind: {reference.kind}")
+    if reference.payload.number is None:
+        raise RuntimeError("resolver returned no bug number")
+    url = _bug_url(reference, resolution, issue_url_resolver)
+    if url is None or resolution.locator is None:
+        raise RuntimeError("resolver returned no bug locator")
+    project, _number = _split_locator(
+        resolution.locator, separator="#", what="bug", from_right=True
+    )
+    return f"issue #{reference.payload.number} in the {project} project ({url})"
+
+
+def _project_and_object(
+    *,
+    kind: str,
+    locator: str | None,
+    rendered: str,
+    entry: ArtifactEntry | None,
+    payload_object: str | None,
+    prefer_rendered_object: bool = False,
+) -> tuple[str, str]:
+    project = None if entry is None else entry.project_display_name
+    object_id = None if entry is None else entry.canonical_argument
+    if prefer_rendered_object:
+        object_id = _object_from_rendered(kind, rendered) or object_id
+    elif not object_id:
+        object_id = _object_from_rendered(kind, rendered)
+    if (not project or not object_id) and locator is not None:
+        loc_project, loc_object = _split_locator(locator, separator="/", what=kind)
+        if not project:
+            project = loc_project
+        if not object_id:
+            object_id = loc_object
+    if not object_id:
+        object_id = payload_object
+    if not project or not object_id:
+        raise RuntimeError(f"resolver returned no {kind} locator")
+    return project, object_id
+
+
+def _object_from_rendered(kind: str, rendered: str) -> str | None:
+    prefix = f"{kind}:"
+    if not rendered.startswith(prefix):
+        return None
+    object_id = rendered[len(prefix) :]
+    return object_id or None
+
+
+def _split_locator(
+    locator: str,
+    *,
+    separator: str,
+    what: str,
+    from_right: bool = False,
+) -> tuple[str, str]:
+    if separator not in locator:
+        raise RuntimeError(f"malformed {what} locator: {locator!r}")
+    left, right = (
+        locator.rsplit(separator, 1) if from_right else locator.split(separator, 1)
+    )
+    if not left or not right:
+        raise RuntimeError(f"malformed {what} locator: {locator!r}")
+    return left, right
+
+
+def _render_expansion(expansion_format: str, values: dict[str, str]) -> str:
+    placeholders = set(artifact_ref_expansion_validate(expansion_format))
+    assert set(values) == placeholders
+    return artifact_ref_expansion_render(expansion_format, values)
 
 
 def _bug_url(
@@ -145,28 +316,6 @@ def _bug_url(
         return None
     project = resolution.locator.rsplit("#", 1)[0]
     return issue_url_resolver(project, reference.payload.number)
-
-
-def _agent_transcript_pointer(
-    reference: ArtifactRef,
-    resolution: ArtifactRefResolution,
-    resolved_path: Path,
-) -> str:
-    """Point at chat.md/prompt.md beside an agent's page, when both exist.
-
-    Only names the siblings when they actually exist next to the page,
-    which is what makes dropping ``@chat`` from authoring lossless.
-    """
-
-    page_dir = resolved_path.parent
-    if not (page_dir / "chat.md").exists() or not (page_dir / "prompt.md").exists():
-        return ""
-    name = reference.payload.name or ""
-    project = (resolution.locator or "/").split("/", 1)[0]
-    return (
-        f" (agent {name} in project {project}; its prompt and chat "
-        "transcript are prompt.md and chat.md beside that page)"
-    )
 
 
 def _fragment_annotation(fragment: ArtifactRefFragment | None) -> str:

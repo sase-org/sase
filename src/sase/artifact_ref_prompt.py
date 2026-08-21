@@ -20,6 +20,7 @@ from typing import cast
 
 from sase.artifact_ref_kinds import CanonicalArtifactRef, parse_artifact_ref_canonical
 from sase.artifact_ref_models import (
+    ArtifactEntry,
     ArtifactRef,
     ArtifactRefContext,
     ArtifactRefPromptCandidate,
@@ -107,9 +108,10 @@ def process_artifact_references(
 ) -> str:
     """Resolve and expand live artifact references in a launch prompt.
 
-    Successfully staged file paths are added to ``staged_file_paths`` so the
-    following plain-file pass does not record generated ``@/path`` tokens as
-    separate authored references.
+    Successfully staged file paths are added to ``staged_file_paths`` when an
+    expansion still contains an ``@<path>`` token, so the following plain-file
+    pass does not restage explicit custom path-bound provider output. Built-in
+    expansions render portable prose and do not need that suppression.
     """
 
     return _expand_artifact_references(
@@ -225,12 +227,10 @@ def _expand_artifact_references(
             if outcome is not None
             else _resolve_for_launch(parsed, context=ref_context.artifact_context)
         )
-        pointer_expansion = (
-            ref_context.artifact_context.document_expansion_for(parsed.kind)
-            if parsed.kind_type == "document"
-            else None
+        is_pointer_ref = (
+            parsed.kind_type == "document"
+            and ref_context.artifact_context.document_is_pointer(parsed.kind)
         )
-        is_pointer_ref = pointer_expansion is not None and pointer_expansion.is_pointer
         if resolution.status not in _RESOLVED_STATUSES:
             if not is_pointer_ref:
                 materialization_failure = materialization_failures.get(
@@ -427,11 +427,6 @@ def _replacement_for_candidate(
     context: ArtifactRefContext,
     jinja_protection: ArtifactRendererJinjaProtection | None,
 ) -> tuple[str, Path | None, dict[str, object] | None]:
-    if outcome is not None and outcome.prompt_text is not None:
-        text = outcome.prompt_text
-        if jinja_protection is not None:
-            text = jinja_protection.protect(text)
-        return text, outcome.resolved_path, None
     materialized_path = _materialized_artifact_path(
         reference, resolution, context=context
     )
@@ -452,6 +447,7 @@ def _replacement_for_candidate(
         context=context,
         materialized_path=materialized_path,
         jinja_protection=jinja_protection,
+        entry=None if outcome is None else outcome.entry,
     )
     return replacement_text, resolved_path, captured_record
 
@@ -483,6 +479,7 @@ def _artifact_ref_replacement(
     context: ArtifactRefContext,
     materialized_path: Path | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
+    entry: ArtifactEntry | None = None,
 ) -> tuple[str, Path | None]:
     return _artifact_ref_replacement_impl(
         reference,
@@ -491,6 +488,7 @@ def _artifact_ref_replacement(
         materialized_path=materialized_path,
         jinja_protection=jinja_protection,
         issue_url_resolver=_resolved_bug_url,
+        entry=entry,
     )
 
 

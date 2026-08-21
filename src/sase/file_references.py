@@ -239,7 +239,8 @@ def process_file_references(
         prompt: The prompt text to process
         is_home_mode: If True, skip copying files and just expand tilde paths
         staged_file_paths: Resolved paths already staged by artifact-reference
-            expansion and therefore excluded from duplicate plain-file staging
+            expansion, used to skip restaging when an explicit custom
+            path-bound provider still emits an ``@path`` token
 
     Returns:
         The modified prompt with home-dir paths replaced by relative paths to

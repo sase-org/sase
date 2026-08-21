@@ -145,30 +145,33 @@ def test_malformed_meta_json_drops_properties_without_failing(tmp_path: Path) ->
     assert "model" not in outcome.entry.properties
 
 
-def test_transcript_pointer_appears_when_both_siblings_exist(tmp_path: Path) -> None:
+def test_prompt_expansion_uses_centralized_agent_wording(tmp_path: Path) -> None:
     from sase.artifact_refs import process_artifact_references
 
-    context, _readme = _write_page(tmp_path, chat=True, prompt=True)
+    context, page = _write_page(tmp_path, chat=True, prompt=True)
 
     result = process_artifact_references("Look at @agent:9w.", context=context)
 
-    page = context.agent_roots[0].root / "agents" / "alice.athena.9w" / "README.md"
-    assert f"@{page}" in result
-    assert (
-        "its prompt and chat transcript are prompt.md and chat.md beside that page"
-        in result
+    assert result == "Look at the alice.athena.9w agent in the sase project."
+    assert f"@{page}" not in result
+    assert "prompt.md" not in result
+    assert "chat.md" not in result
+
+
+def test_local_and_global_agent_names_expand_to_canonical_identity(
+    tmp_path: Path,
+) -> None:
+    from sase.artifact_refs import process_artifact_references
+
+    context, _page = _write_page(tmp_path)
+
+    local = process_artifact_references("Look at @agent:9w.", context=context)
+    global_name = process_artifact_references(
+        "Look at @agent:alice.athena.9w.", context=context
     )
 
-
-def test_transcript_pointer_omitted_when_siblings_are_absent(tmp_path: Path) -> None:
-    from sase.artifact_refs import process_artifact_references
-
-    context, _readme = _write_page(tmp_path)
-
-    result = process_artifact_references("Look at @agent:9w.", context=context)
-
-    page = context.agent_roots[0].root / "agents" / "alice.athena.9w" / "README.md"
-    assert result == f"Look at @{page}."
+    assert local == global_name
+    assert local == "Look at the alice.athena.9w agent in the sase project."
 
 
 def test_unresolvable_agent_has_no_entry(tmp_path: Path) -> None:

@@ -185,6 +185,35 @@ def test_present_sidecar_missing_file_names_searched_root(
     ensure.assert_not_called()
 
 
+def test_plan_pointer_ref_never_materializes_or_fails_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace, root, ref_context, _remote = _sidecar_context_with_store(
+        tmp_path,
+        role="plans",
+        kind="plan",
+        is_pointer=True,
+    )
+    assert not root.exists()
+    monkeypatch.chdir(tmp_path)
+    ensure = Mock()
+    monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
+
+    expanded = process_artifact_references(
+        "Review @plan:202608/foobar.md for context.",
+        ref_contexts=(ref_context,),
+        materialize_missing_roots=True,
+    )
+
+    assert expanded == (
+        "Review the 202608/foobar.md file in the plans sidecar repo for context."
+    )
+    ensure.assert_not_called()
+    assert not root.exists()
+    assert not (workspace / "sase" / "repos" / "plans").exists()
+
+
 def test_pointer_ref_never_materializes_or_fails_launch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

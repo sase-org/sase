@@ -66,19 +66,27 @@ def artifact_resolved_path(
                 )
             return materialized_path
         if resolution.resolved_path is None:
-            if reference.kind_type == "document":
-                expansion = context.document_expansion_for(reference.kind)
-                if expansion is not None and expansion.is_pointer:
-                    return None
+            if reference.kind_type == "document" and context.document_is_pointer(
+                reference.kind
+            ):
+                return None
             raise RuntimeError("resolver returned no artifact path")
         return resolution.resolved_path
     if reference.kind_type in {"commit", "stitch"}:
         if resolution.locator is None:
             raise RuntimeError(f"resolver returned no {reference.kind_type} locator")
+        if resolution.resolved_path is not None:
+            return resolution.resolved_path
         repository = repository_for_ref(reference.payload.repo or "", context)
-        if repository is None or repository.checkout_path is None:
+        if repository is None:
             raise RuntimeError("repository checkout is unavailable")
-        return repository.checkout_path
+        checkout = repository.checkout_path or next(
+            (path for path in repository.checkout_paths if path.exists()),
+            None,
+        )
+        if checkout is None:
+            raise RuntimeError("repository checkout is unavailable")
+        return checkout
     if reference.kind_type == "patch":
         return None
     if reference.kind_type == "bug":

@@ -46,7 +46,9 @@ REF_INVENTORY_GLOBS_CONFIG_KEY = "globs"
 DEFAULT_DOCUMENT_REF_PATH_GLOBS: tuple[str, ...] = ("**/*.md",)
 SIDECAR_REF_CONFIG_SOURCE_PREFIX = "sidecar_ref_config:"
 DOCUMENT_REF_PROVIDER_SPEC_SCHEMA_VERSION = 1
-DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT = "@{checkout_path}"
+DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT = (
+    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+)
 DEFAULT_DOCUMENT_TAB_ICON = "◆"
 
 # A subset of the Rust expansion vocabulary (sase-core's
@@ -155,6 +157,15 @@ class _SidecarRefPolicyReport:
 def sidecar_role_ref_kind(role: str) -> str:
     """Return the contextual ref kind for one sidecar role."""
     return _BUILTIN_SIDECAR_REF_KIND.get(role, role)
+
+
+def sidecar_role_for_ref_kind(kind: str) -> str:
+    """Return the sidecar role that exposes *kind*, or *kind* itself."""
+
+    for role, ref_kind in _BUILTIN_SIDECAR_REF_KIND.items():
+        if ref_kind == kind:
+            return role
+    return kind
 
 
 def sidecar_ref_policy_report(
@@ -687,5 +698,6 @@ __all__ = [
     "SidecarRefPolicy",
     "effective_sidecar_ref_policies",
     "sidecar_ref_policy_report",
+    "sidecar_role_for_ref_kind",
     "sidecar_role_ref_kind",
 ]
