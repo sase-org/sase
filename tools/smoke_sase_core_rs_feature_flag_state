@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Smoke feature-flag state bindings from the exact published Rust-core minimum."""
+
+from __future__ import annotations
+
+import importlib
+import importlib.metadata
+import sys
+import tempfile
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+
+REQUIRED_BINDINGS = (
+    "feature_flag_state_get",
+    "feature_flag_state_set",
+)
+WIRE_SCHEMA_VERSION = 1
+FIRST_FLAG = "prettier_enabled"
+SECOND_FLAG = "epic_resume_gate"
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError(
+            "missing feature-flag state binding(s): " + ", ".join(missing)
+        )
+
+
+def _require_mapping(payload: Any, *, label: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{label} is not a mapping: {payload!r}")
+    return payload
+
+
+def validate_round_trip(module: ModuleType) -> dict[str, Any]:
+    """Read empty state, set two flags, and prove a same-value set is idempotent."""
+
+    _require_bindings(module)
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-flag-state-smoke-") as tmp:
+        home = str(Path(tmp))
+        empty = _require_mapping(
+            module.feature_flag_state_get(home),
+            label="empty get",
+        )
+        if empty.get("version") != WIRE_SCHEMA_VERSION:
+            raise RuntimeError(f"unexpected empty snapshot version: {empty!r}")
+        if empty.get("flags") != {}:
+            raise RuntimeError(f"empty home was not an empty snapshot: {empty!r}")
+        if empty.get("diagnostics") not in ([], None):
+            raise RuntimeError(f"empty home reported diagnostics: {empty!r}")
+
+        first = _require_mapping(
+            module.feature_flag_state_set(home, FIRST_FLAG, False),
+            label="first set",
+        )
+        if (
+            first.get("flag") != FIRST_FLAG
+            or first.get("enabled") is not False
+            or first.get("previous") is not None
+            or first.get("changed") is not True
+        ):
+            raise RuntimeError(f"unexpected first set outcome: {first!r}")
+
+        second = _require_mapping(
+            module.feature_flag_state_set(home, SECOND_FLAG, True),
+            label="second set",
+        )
+        expected_flags = {FIRST_FLAG: False, SECOND_FLAG: True}
+        if second.get("flags") != expected_flags:
+            raise RuntimeError(
+                "second set did not preserve both flags: "
+                f"expected {expected_flags!r}, got {second!r}"
+            )
+
+        loaded = _require_mapping(
+            module.feature_flag_state_get(home),
+            label="loaded get",
+        )
+        if loaded.get("flags") != expected_flags:
+            raise RuntimeError(
+                "get after two sets did not return both flags: "
+                f"expected {expected_flags!r}, got {loaded!r}"
+            )
+
+        again = _require_mapping(
+            module.feature_flag_state_set(home, SECOND_FLAG, True),
+            label="idempotent set",
+        )
+        if again.get("previous") is not True or again.get("changed") is not False:
+            raise RuntimeError(f"same-value set was not idempotent: {again!r}")
+        if again.get("flags") != expected_flags:
+            raise RuntimeError(
+                "idempotent set changed stored flags: "
+                f"expected {expected_flags!r}, got {again!r}"
+            )
+
+        return {
+            "empty_flags": empty["flags"],
+            "first_changed": first["changed"],
+            "loaded_flags": loaded["flags"],
+            "idempotent_changed": again["changed"],
+            "idempotent_previous": again["previous"],
+        }
+
+
+def main() -> int:
+    try:
+        module = importlib.import_module("sase_core_rs")
+        version = importlib.metadata.version("sase-core-rs")
+        result = validate_round_trip(module)
+    except Exception as error:
+        print(f"[feature-flag-state-smoke] {error}", file=sys.stderr)
+        return 1
+    print(f"[feature-flag-state-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

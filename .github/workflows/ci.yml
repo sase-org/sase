@@ -438,6 +438,7 @@ jobs:
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_telemetry
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_at_reference_file_gate
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_bead_resolution
+          /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_feature_flag_state
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_plan_header
           /tmp/release-core-floor/bin/python tools/smoke_sase_core_rs_glossary_line_break
       - name: Run contract set

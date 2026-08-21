@@ -180,6 +180,8 @@ REQUIRED_BINDINGS = (
     "validate_finalizer_submission",
     "finalizer_json_digest",
     "aggregate_finalizer_outcomes",
+    "feature_flag_state_get",
+    "feature_flag_state_set",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

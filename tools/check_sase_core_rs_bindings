@@ -36,6 +36,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SRC_ROOT = REPO_ROOT / "src" / "sase"
 RUST_BINDING_FUNCTION = "require_rust_binding"
 
+# Bindings the published floor must expose before any Python facade imports
+# them. The static scan cannot see these until later phases add
+# ``require_rust_binding`` call sites; declaring them here keeps the
+# published-core gate honest in the meantime.
+REQUIRED_BINDINGS = (
+    "feature_flag_state_get",
+    "feature_flag_state_set",
+)
+
 
 @dataclass
 class _CallSite:
@@ -192,6 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     names, problems = collect_binding_names(args.src)
+    names.update(REQUIRED_BINDINGS)
     if problems:
         for problem in problems:
             print(problem, file=sys.stderr)

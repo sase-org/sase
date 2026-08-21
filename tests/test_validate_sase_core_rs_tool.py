@@ -80,6 +80,17 @@ def test_validate_sase_core_rs_requires_bead_link_mutation_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_feature_flag_state_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {"feature_flag_state_get", "feature_flag_state_set"}
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_inline_code_binding() -> None:
     validator = load_validate_sase_core_rs()
 

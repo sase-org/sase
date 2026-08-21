@@ -83,13 +83,37 @@ def test_scan_finds_direct_and_forwarded_binding_names(
     assert "save_dismissed_agent_group" in names
 
 
+def test_required_bindings_include_feature_flag_state(tool: ModuleType) -> None:
+    assert tool.REQUIRED_BINDINGS == (
+        "feature_flag_state_get",
+        "feature_flag_state_set",
+    )
+
+
+def test_list_includes_required_feature_flag_state_bindings(
+    tool: ModuleType, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "sample.py").write_text(
+        "from sase.core.rust import require_rust_binding\n"
+        "binding = require_rust_binding('scanned_binding')\n",
+        encoding="utf-8",
+    )
+    assert tool.main(["--src", str(tmp_path), "--list"]) == 0
+    listed = set(capsys.readouterr().out.split())
+    assert "scanned_binding" in listed
+    assert "feature_flag_state_get" in listed
+    assert "feature_flag_state_set" in listed
+
+
 def test_dev_extension_exposes_every_collected_name(
     real_source_scan: tuple[set[str], list[str]],
+    tool: ModuleType,
 ) -> None:
     names, problems = real_source_scan
     assert problems == []
     module = importlib.import_module("sase_core_rs")
-    missing = sorted(name for name in names if not hasattr(module, name))
+    required = names | set(tool.REQUIRED_BINDINGS)
+    missing = sorted(name for name in required if not hasattr(module, name))
     assert missing == []
 
 

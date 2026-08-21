@@ -292,6 +292,7 @@ def test_release_branch_core_floor_lane_uses_published_floor() -> None:
     assert "tools/smoke_sase_core_rs_telemetry" in run_text
     assert "tools/smoke_sase_core_rs_at_reference_file_gate" in run_text
     assert "tools/smoke_sase_core_rs_bead_resolution" in run_text
+    assert "tools/smoke_sase_core_rs_feature_flag_state" in run_text
     assert "tools/smoke_sase_core_rs_plan_header" in run_text
     assert "tools/smoke_sase_core_rs_glossary_line_break" in run_text
     assert "mapfile -t contract_files < tests/contract_manifest.txt" in run_text
