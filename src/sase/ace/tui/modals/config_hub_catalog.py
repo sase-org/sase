@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from rich.text import Text
 from textual.widget import Widget
 
 from ..widgets.panel_tab_strip import PanelTab
@@ -19,13 +20,15 @@ _CONFIG_ACCENT = "#00D7AF"
 
 
 @dataclass(frozen=True)
-class _ConfigSubTabSpec:
+class ConfigSubTabSpec:
     """Navigation and construction metadata for one Config catalog child."""
 
     id: ConfigSubTab
     label: str
     compact_label: str
     micro_label: str
+    description: str
+    compact_description: str
     factory: ConfigPaneFactory
 
 
@@ -148,16 +151,72 @@ def _entry_trigger(entry: ConfigHubEntry | None) -> str | None:
     return entry.trigger
 
 
-CONFIG_SUBTAB_SPECS: tuple[_ConfigSubTabSpec, ...] = (
-    _ConfigSubTabSpec("flags", "Flags", "Flags", "Flag", _flags_factory),
-    _ConfigSubTabSpec("glossary", "Glossary", "Gloss", "Gloss", _glossary_factory),
-    _ConfigSubTabSpec("launch", "Launch", "Launch", "Run", _launch_factory),
-    _ConfigSubTabSpec("memory", "Memory", "Memory", "Mem", _memory_factory),
-    _ConfigSubTabSpec("misc", "Misc", "Misc", "Misc", _misc_factory),
-    _ConfigSubTabSpec("snippets", "Snippets", "Snip", "Snip", _snippets_factory),
-    _ConfigSubTabSpec("xprompts", "XPrompts", "XP", "XP", _xprompts_factory),
+CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
+    ConfigSubTabSpec(
+        "flags",
+        "Flags",
+        "Flags",
+        "Flag",
+        "Review feature rollouts, effective state, provenance, and saved overrides.",
+        "Control feature rollouts and saved overrides.",
+        _flags_factory,
+    ),
+    ConfigSubTabSpec(
+        "glossary",
+        "Glossary",
+        "Gloss",
+        "Gloss",
+        "Browse shared terms, aliases, definitions, and their relationships.",
+        "Browse shared terms, definitions, and relationships.",
+        _glossary_factory,
+    ),
+    ConfigSubTabSpec(
+        "launch",
+        "Launch",
+        "Launch",
+        "Run",
+        "Tune model routing, reasoning effort, runner limits, and launch defaults.",
+        "Tune model routing, effort, and launch limits.",
+        _launch_factory,
+    ),
+    ConfigSubTabSpec(
+        "memory",
+        "Memory",
+        "Memory",
+        "Mem",
+        "Browse, edit, and publish the durable context agents receive.",
+        "Manage the durable context agents receive.",
+        _memory_factory,
+    ),
+    ConfigSubTabSpec(
+        "misc",
+        "Misc",
+        "Misc",
+        "Misc",
+        "Inspect effective values, source layers, and schema-backed settings.",
+        "Inspect effective values, sources, and other settings.",
+        _misc_factory,
+    ),
+    ConfigSubTabSpec(
+        "snippets",
+        "Snippets",
+        "Snip",
+        "Snip",
+        "Build reusable prompt fragments and preview their composed output.",
+        "Manage reusable prompt fragments and compositions.",
+        _snippets_factory,
+    ),
+    ConfigSubTabSpec(
+        "xprompts",
+        "XPrompts",
+        "XP",
+        "XP",
+        "Browse, preview, create, and edit reusable agent prompts and workflows.",
+        "Manage reusable agent prompts and workflows.",
+        _xprompts_factory,
+    ),
 )
-CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, _ConfigSubTabSpec] = {
+CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, ConfigSubTabSpec] = {
     spec.id: spec for spec in CONFIG_SUBTAB_SPECS
 }
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = tuple(
@@ -168,13 +227,13 @@ RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(
 )
 
 
-def config_subtab_specs() -> tuple[_ConfigSubTabSpec, ...]:
+def config_subtab_specs() -> tuple[ConfigSubTabSpec, ...]:
     """Return the active Config child specs in navigation order."""
     by_id = CONFIG_SUBTAB_BY_ID
     return tuple(by_id[subtab] for subtab in config_subtab_order())
 
 
-def config_subtab_by_id() -> dict[ConfigSubTab, _ConfigSubTabSpec]:
+def config_subtab_by_id() -> dict[ConfigSubTab, ConfigSubTabSpec]:
     """Return the active Config child spec map."""
     return {spec.id: spec for spec in config_subtab_specs()}
 
@@ -192,6 +251,18 @@ def config_panel_tabs() -> tuple[PanelTab, ...]:
         )
         for index, spec in enumerate(config_subtab_specs(), start=1)
     )
+
+
+def config_subtab_description_text(
+    spec: ConfigSubTabSpec,
+    *,
+    width: int,
+) -> Text:
+    """Render the Config child caption that fits ``width`` terminal cells."""
+    full = Text(f"› {spec.description}", style=_CONFIG_ACCENT)
+    if width <= 0 or full.cell_len <= width:
+        return full
+    return Text(f"› {spec.compact_description}", style=_CONFIG_ACCENT)
 
 
 CONFIG_PANEL_TABS: tuple[PanelTab, ...] = tuple(
@@ -212,8 +283,10 @@ __all__ = [
     "CONFIG_SUBTAB_ORDER",
     "CONFIG_SUBTAB_SPECS",
     "ConfigPaneFactory",
+    "ConfigSubTabSpec",
     "RELATION_SUBTABS",
     "config_panel_tabs",
     "config_subtab_by_id",
+    "config_subtab_description_text",
     "config_subtab_specs",
 ]

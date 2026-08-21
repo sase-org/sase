@@ -10,8 +10,11 @@ from sase.ace.tui.modals.config_center_catalog import (
     validated_center_tab,
 )
 from sase.ace.tui.modals.config_hub_catalog import (
+    CONFIG_SUBTAB_BY_ID,
     CONFIG_SUBTAB_ORDER,
+    CONFIG_SUBTAB_SPECS,
     config_panel_tabs,
+    config_subtab_description_text,
     config_subtab_specs,
 )
 from sase.ace.tui.modals.config_hub_session import (
@@ -33,6 +36,36 @@ _CATALOG_PATH = (
 _CENTER_CATALOG_PATH = (
     _ROOT / "src" / "sase" / "ace" / "tui" / "modals" / "config_center_catalog.py"
 )
+_REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+    "flags": (
+        "Review feature rollouts, effective state, provenance, and saved overrides.",
+        "Control feature rollouts and saved overrides.",
+    ),
+    "glossary": (
+        "Browse shared terms, aliases, definitions, and their relationships.",
+        "Browse shared terms, definitions, and relationships.",
+    ),
+    "launch": (
+        "Tune model routing, reasoning effort, runner limits, and launch defaults.",
+        "Tune model routing, effort, and launch limits.",
+    ),
+    "memory": (
+        "Browse, edit, and publish the durable context agents receive.",
+        "Manage the durable context agents receive.",
+    ),
+    "misc": (
+        "Inspect effective values, source layers, and schema-backed settings.",
+        "Inspect effective values, sources, and other settings.",
+    ),
+    "snippets": (
+        "Build reusable prompt fragments and preview their composed output.",
+        "Manage reusable prompt fragments and compositions.",
+    ),
+    "xprompts": (
+        "Browse, preview, create, and edit reusable agent prompts and workflows.",
+        "Manage reusable agent prompts and workflows.",
+    ),
+}
 
 
 def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
@@ -98,6 +131,63 @@ def test_config_subtab_order_includes_flags_when_rollout_is_on() -> None:
         )
         assert launch_spec.label == "Launch"
         assert launch_spec.micro_label == "Run"
+
+
+def test_registered_specs_carry_reviewed_full_and_compact_copy() -> None:
+    assert tuple(spec.id for spec in CONFIG_SUBTAB_SPECS) == tuple(
+        _REVIEWED_DESCRIPTIONS
+    )
+    for spec in CONFIG_SUBTAB_SPECS:
+        full, compact = _REVIEWED_DESCRIPTIONS[spec.id]
+        assert spec.description == full
+        assert spec.compact_description == compact
+        assert CONFIG_SUBTAB_BY_ID[spec.id] is spec
+
+
+def test_active_specs_keep_catalog_derived_description_order() -> None:
+    with override_flags(admin_center_flags=True):
+        specs = config_subtab_specs()
+        assert tuple(spec.id for spec in specs) == SESSION_SUBTAB_ORDER
+        assert tuple(
+            (spec.description, spec.compact_description) for spec in specs
+        ) == tuple(_REVIEWED_DESCRIPTIONS[subtab] for subtab in SESSION_SUBTAB_ORDER)
+
+    with override_flags(admin_center_flags=False):
+        specs = config_subtab_specs()
+        assert tuple(spec.id for spec in specs) == CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
+        assert "flags" not in {spec.id for spec in specs}
+        assert tuple(
+            (spec.description, spec.compact_description) for spec in specs
+        ) == tuple(
+            _REVIEWED_DESCRIPTIONS[subtab]
+            for subtab in CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS
+        )
+        tabs = config_panel_tabs()
+        assert tuple(tab.shortcut for tab in tabs) == (
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+        )
+
+
+def test_config_subtab_description_text_uses_cell_width() -> None:
+    spec = CONFIG_SUBTAB_BY_ID["flags"]
+    full = config_subtab_description_text(spec, width=10_000)
+    compact = config_subtab_description_text(spec, width=1)
+    assert full.plain == f"› {spec.description}"
+    assert compact.plain == f"› {spec.compact_description}"
+    assert str(full.style) == "#00D7AF"
+    assert str(compact.style) == "#00D7AF"
+    assert config_subtab_description_text(spec, width=full.cell_len).plain == (
+        full.plain
+    )
+    assert config_subtab_description_text(spec, width=full.cell_len - 1).plain == (
+        compact.plain
+    )
+    assert config_subtab_description_text(spec, width=0).plain == full.plain
 
 
 def test_config_subtab_order_omits_flags_when_rollout_is_off() -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from rich.text import Text
 from textual.containers import Vertical
 from textual.widgets import ContentSwitcher, Input, Static
 
@@ -10,7 +11,10 @@ from sase.ace.testing import AcePage, wait_for
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
+from sase.ace.tui.modals.config_hub_catalog import (
+    config_panel_tabs,
+    config_subtab_description_text,
+)
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import (
     ConfigHubEntry,
@@ -103,6 +107,29 @@ def _patch_hub_children(
     return created, calls
 
 
+def _caption_widget(hub: ConfigHubPane) -> Static:
+    return hub.query_one("#config-hub-tab-description", Static)
+
+
+def _caption_text(hub: ConfigHubPane) -> Text:
+    content = _caption_widget(hub).content
+    assert isinstance(content, Text)
+    return content
+
+
+def _assert_hub_caption(hub: ConfigHubPane, subtab: str | None = None) -> None:
+    active = hub._active_subtab if subtab is None else subtab
+    caption = _caption_widget(hub)
+    expected = config_subtab_description_text(
+        hub._subtab_by_id[active],
+        width=int(caption.size.width),
+    )
+    content = _caption_text(hub)
+    assert content.plain == expected.plain
+    assert str(content.style) == str(expected.style)
+    assert caption.can_focus is False
+
+
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
@@ -157,6 +184,9 @@ async def test_opening_config_constructs_only_the_active_child(
         assert hub.query_one("#config-hub-tabs", PanelTabStrip)._active_tab == (
             "xprompts"
         )
+        spec = hub._subtab_by_id["xprompts"]
+        assert _caption_text(hub).plain == f"› {spec.description}"
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_subtab_cycle_caches_children_and_does_not_reload(
@@ -171,11 +201,13 @@ async def test_subtab_cycle_caches_children_and_does_not_reload(
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
         await hub._switch_to("snippets")
+        _assert_hub_caption(hub, "snippets")
         await hub._switch_to("xprompts")
 
         assert calls == ["xprompts", "snippets"]
         assert hub._panes["xprompts"] is created["xprompts"][0]
         assert created["xprompts"][0].visibility[-3:] == [True, False, True]
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_failed_child_mount_leaves_previous_child_visible(
@@ -196,6 +228,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        before = _caption_text(hub).plain
 
         await pilot.press("0", "2")
         await pilot.pause()
@@ -204,6 +237,8 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         assert "glossary" not in hub._panes
         assert calls == ["xprompts"]
         assert created["xprompts"][0].visibility[-1] is True
+        assert _caption_text(hub).plain == before
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_direct_entry_opens_requested_child_once(
@@ -228,6 +263,7 @@ async def test_direct_entry_opens_requested_child_once(
         assert state.config_hub.active_subtab == "glossary"
         assert hub._entry is not None
         assert hub._entry.term == "Agent Hood"
+        _assert_hub_caption(hub, "glossary")
 
 
 async def test_launch_direct_entry_opens_launch(
@@ -251,6 +287,7 @@ async def test_launch_direct_entry_opens_launch(
         assert calls == ["launch"]
         assert hub._active_subtab == "launch"
         assert state.config_hub.active_subtab == "launch"
+        _assert_hub_caption(hub, "launch")
 
 
 async def test_legacy_xprompts_resume_opens_config_hub(
@@ -312,6 +349,7 @@ async def test_filter_brackets_cycle_config_subtabs(
         await pilot.press("right_square_bracket")
         await wait_for(pilot, lambda: hub._active_subtab == "flags")
         assert calls == ["xprompts", "flags"]
+        _assert_hub_caption(hub, "flags")
 
 
 async def test_config_number_prefix_selects_alphabetic_subtabs(
@@ -329,14 +367,17 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         await wait_for(pilot, lambda: hub._active_subtab == "flags")
         assert modal._active_tab == "config"
         assert hub._pending_subtab_select is False
+        _assert_hub_caption(hub, "flags")
 
         await pilot.press("0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
+        _assert_hub_caption(hub, "memory")
         await pilot.press("0", "7")
         await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
 
         assert calls == ["xprompts", "flags", "memory"]
         assert modal._session_state.config_hub.active_subtab == "xprompts"
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
@@ -435,6 +476,7 @@ async def test_config_filter_keeps_prefix_digits_as_text(
         assert input_widget.value == "01"
         assert hub._active_subtab == "xprompts"
         assert hub._pending_subtab_select is False
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_relationship_children_own_tab_keys(
@@ -475,6 +517,7 @@ async def test_busy_child_blocks_config_subtab_switch(
         await wait_for(pilot, lambda: modal._active_tab == "config")
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
+        before = _caption_text(hub).plain
 
         await pilot.press("0", "5")
         await pilot.pause()
@@ -482,6 +525,8 @@ async def test_busy_child_blocks_config_subtab_switch(
         assert tuple(hub._panes) == ("xprompts",)
         assert busy is not None
         assert busy.deactivate_checks == 1
+        assert _caption_text(hub).plain == before
+        _assert_hub_caption(hub, "xprompts")
 
 
 async def test_busy_config_child_blocks_top_level_switch_and_close(
@@ -658,6 +703,7 @@ async def test_flags_resume_falls_back_when_rollout_is_off(
             assert hub._active_subtab == "xprompts"
             assert "flags" not in hub._subtab_order
             assert validated_config_subtab("flags") is None
+            _assert_hub_caption(hub, "xprompts")
 
 
 async def test_flags_off_prefix_keeps_six_child_numbering(
@@ -674,8 +720,86 @@ async def test_flags_off_prefix_keeps_six_child_numbering(
 
             await pilot.press("0", "1")
             await wait_for(pilot, lambda: hub._active_subtab == "glossary")
+            _assert_hub_caption(hub, "glossary")
             await pilot.press("0", "6")
             await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
             await pilot.press("0", "7")
             await pilot.pause()
             assert hub._active_subtab == "xprompts"
+            _assert_hub_caption(hub, "xprompts")
+
+
+async def test_remembered_subtab_shows_matching_caption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    state = AdminCenterSessionState()
+    state.config_hub.active_subtab = "memory"
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config", session_state=state)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "memory" in hub._panes)
+
+        assert calls == ["memory"]
+        assert hub._active_subtab == "memory"
+        _assert_hub_caption(hub, "memory")
+
+
+async def test_resize_switches_caption_variant_without_reloading_children(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    async with AcePage(initial_tab="agents", size=(120, 40)) as page:
+        modal = ConfigCenterModal(initial_tab="config")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await page.wait_for(lambda _s: "xprompts" in hub._panes)
+
+        spec = hub._subtab_by_id["xprompts"]
+        child = hub._panes["xprompts"]
+        await page.wait_for(lambda _s: page.app.focused is child)
+        assert _caption_text(hub).plain == f"› {spec.description}"
+        before = list(calls)
+        panes = dict(hub._panes)
+
+        await page._pilot.resize_terminal(70, 32)  # noqa: SLF001
+        await page.wait_for(
+            lambda _s: _caption_text(hub).plain == f"› {spec.compact_description}"
+        )
+        assert calls == before
+        assert hub._panes == panes
+        assert page.app.focused is child
+        assert page.app.focused is not _caption_widget(hub)
+
+        await page._pilot.resize_terminal(120, 40)  # noqa: SLF001
+        await page.wait_for(
+            lambda _s: _caption_text(hub).plain == f"› {spec.description}"
+        )
+        assert calls == before
+        assert hub._panes == panes
+        assert page.app.focused is child
+        assert page.app.focused is not _caption_widget(hub)
+
+
+async def test_flags_direct_entry_shows_flags_caption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    with override_flags(admin_center_flags=True):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(
+                initial_tab="config",
+                config_entry=ConfigHubEntry(subtab="flags"),
+            )
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            await wait_for(pilot, lambda: "flags" in hub._panes)
+
+            assert calls == ["flags"]
+            _assert_hub_caption(hub, "flags")
+            assert "flags" in hub._subtab_order

@@ -7373,7 +7373,16 @@ ConfigHubPane {
 ConfigHubPane #config-hub-tabs {
     width: 100%;
     height: 1;
-    margin-bottom: 1;
+    margin-bottom: 0;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+ConfigHubPane #config-hub-tab-description {
+    width: 100%;
+    height: 1;
+    margin: 0;
     text-align: center;
     text-wrap: nowrap;
     text-overflow: clip;

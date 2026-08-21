@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import cast
+from typing import Any, cast
 
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Vertical
-from textual.events import Key
+from textual.events import Key, Resize
 from textual.widget import Widget
-from textual.widgets import ContentSwitcher, Input
+from textual.widgets import ContentSwitcher, Input, Static
 
 from sase.ace.tui.keymaps import (
     ConfigHubKeymaps,
@@ -24,8 +24,10 @@ from ..widgets.panel_tab_strip import PanelTabStrip
 from .config_center_session import AdminCenterSessionState
 from .config_hub_catalog import (
     RELATION_SUBTABS,
+    ConfigSubTabSpec,
     config_panel_tabs,
     config_subtab_by_id,
+    config_subtab_description_text,
 )
 from .config_hub_session import (
     ConfigHubEntry,
@@ -51,6 +53,39 @@ def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:
             _CONFIG_TABS_MICRO_BELOW_WIDTH,
         )
     return _CONFIG_TABS_COMPACT_BELOW_WIDTH, _CONFIG_TABS_MICRO_BELOW_WIDTH
+
+
+class _ConfigHubDescription(Static):
+    """One-row, width-aware caption for the active Config catalog child."""
+
+    can_focus = False
+
+    def __init__(self, spec: ConfigSubTabSpec, **kwargs: Any) -> None:
+        self._spec = spec
+        self._variant = "full"
+        super().__init__(
+            config_subtab_description_text(spec, width=0),
+            markup=False,
+            **kwargs,
+        )
+        self.styles.width = "100%"
+
+    def set_spec(self, spec: ConfigSubTabSpec) -> None:
+        """Swap the active child copy and repaint for the current width."""
+        self._spec = spec
+        self._apply_width(int(self.size.width), force=True)
+
+    def on_resize(self, event: Resize) -> None:
+        """Repaint only when the full/compact variant actually changes."""
+        self._apply_width(int(event.size.width), force=False)
+
+    def _apply_width(self, width: int, *, force: bool) -> None:
+        text = config_subtab_description_text(self._spec, width=width)
+        variant = "full" if text.plain == f"› {self._spec.description}" else "compact"
+        if not force and variant == self._variant:
+            return
+        self._variant = variant
+        self.update(text)
 
 
 class ConfigHubPane(Vertical):
@@ -103,6 +138,10 @@ class ConfigHubPane(Vertical):
             micro_below=self._micro_below,
             micro_separator="│",
             id="config-hub-tabs",
+        )
+        yield _ConfigHubDescription(
+            self._subtab_by_id[self._active_subtab],
+            id="config-hub-tab-description",
         )
         with ContentSwitcher(initial=_EMPTY_ID, id="config-hub-switcher"):
             yield Vertical(id=_EMPTY_ID)
@@ -272,9 +311,13 @@ class ConfigHubPane(Vertical):
         self._panes[subtab] = pane
         return pane
 
-    def _sync_strip(self, subtab: ConfigSubTab) -> None:
-        strip = self.query_one("#config-hub-tabs", PanelTabStrip)
-        strip.set_active_tab(subtab)
+    def _sync_chrome(self, subtab: ConfigSubTab) -> None:
+        """Keep the nested strip and description caption in lockstep."""
+        self.query_one("#config-hub-tabs", PanelTabStrip).set_active_tab(subtab)
+        self.query_one(
+            "#config-hub-tab-description",
+            _ConfigHubDescription,
+        ).set_spec(self._subtab_by_id[subtab])
 
     async def _switch_to(self, subtab: ConfigSubTab) -> bool:
         async with self._navigation_lock:
@@ -303,7 +346,7 @@ class ConfigHubPane(Vertical):
                 self._active_subtab = subtab
                 self._session_state.config_hub.active_subtab = subtab
                 switcher.current = subtab
-                self._sync_strip(subtab)
+                self._sync_chrome(subtab)
             except Exception as exc:
                 self._active_subtab = previous_subtab
                 self._session_state.config_hub.active_subtab = previous_subtab
@@ -311,7 +354,7 @@ class ConfigHubPane(Vertical):
                     switcher.current = (
                         previous_subtab if previous_subtab in self._panes else _EMPTY_ID
                     )
-                    self._sync_strip(previous_subtab)
+                    self._sync_chrome(previous_subtab)
                 except Exception:
                     pass
                 self._set_pane_active(previous_pane, True)
