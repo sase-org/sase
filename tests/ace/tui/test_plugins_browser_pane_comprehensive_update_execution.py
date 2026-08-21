@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -378,3 +378,109 @@ def test_provider_leg_uses_streaming_command_adapter(
 
     assert runners and runners[0] is not None
     assert reporter.proc.phase == "Updating agent CLIs"
+
+
+def test_execute_sase_leg_reports_current_and_blockers() -> None:
+    from tests.ace.tui._session_reporter import session_reporter
+
+    current_reporter = session_reporter(proc_type="comprehensive-update")
+    current = _execute_sase_leg(
+        ComprehensiveUpdatePreview(
+            request=ComprehensiveUpdateRequest(()),
+            sase_preview=None,
+            sase_current=True,
+        ),
+        uv_tool=None,
+        reporter=current_reporter,
+    )
+    blocked_reporter = session_reporter(proc_type="comprehensive-update")
+    blocked = _execute_sase_leg(
+        ComprehensiveUpdatePreview(
+            request=ComprehensiveUpdateRequest(()),
+            sase_preview=None,
+            sase_blocker="not a uv tool install",
+        ),
+        uv_tool=None,
+        reporter=blocked_reporter,
+    )
+
+    assert current.status is SaseUpdateResultStatus.ALREADY_CURRENT
+    current_output = current_reporter.proc.get_live_output()
+    assert "==> Checking SASE, core & plugins" in current_output
+    assert "--- SASE results" in current_output
+    assert "already current" in current_output
+    assert blocked.status is SaseUpdateResultStatus.SKIPPED
+    blocked_output = blocked_reporter.proc.get_live_output()
+    assert "==> Checking SASE, core & plugins" in blocked_output
+    assert "--- SASE results" in blocked_output
+    assert "not a uv tool install" in blocked_output
+
+
+def test_sase_leg_uses_streaming_uv_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.uv_tool.render import UpdateSummary
+    from tests.ace.tui._session_reporter import session_reporter
+
+    reporter = session_reporter(proc_type="comprehensive-update")
+    runners: list[object] = []
+
+    def run_summary(
+        _install: object | None, **kwargs: Any
+    ) -> tuple[UpdateSummary, float]:
+        runners.append(kwargs.get("run_fn"))
+        return UpdateSummary(), 0.1
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_pane._run_sase_update_summary",
+        run_summary,
+    )
+    preview = ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=DevUpdatePreview(plan=None, subject="sase"),
+    )
+
+    result = _execute_sase_leg(preview, uv_tool=object(), reporter=reporter)
+
+    assert result.status is SaseUpdateResultStatus.ALREADY_CURRENT
+    assert runners and runners[0] is not None
+    assert reporter.proc.phase == "Resolving sase update"
+    output = reporter.proc.get_live_output()
+    assert "==> Resolving sase update" in output
+    assert "--- SASE results" in output
+    assert "Already up to date." in output
+
+
+def test_sase_leg_uses_streaming_dev_adapter(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
+    from tests.ace.tui._session_reporter import session_reporter
+
+    reporter = session_reporter(proc_type="comprehensive-update")
+    runners: list[object] = []
+    fake_plan = cast(DevUpdatePlan, object())
+
+    def execute(_plan: DevUpdatePlan, **kwargs: Any) -> DevUpdateResult:
+        runners.append(kwargs.get("run"))
+        return DevUpdateResult(changed=False, outcomes=())
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_pane._execute_tui_dev_update",
+        execute,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
+        "append_dev_update_journal",
+        lambda *_args, **_kwargs: None,
+    )
+    preview = ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(()),
+        sase_preview=DevUpdatePreview(plan=fake_plan, subject="sase"),
+    )
+
+    result = _execute_sase_leg(preview, uv_tool=None, reporter=reporter)
+
+    assert result.status is SaseUpdateResultStatus.ALREADY_CURRENT
+    assert runners and runners[0] is not None
+    assert reporter.proc.phase == "Updating editable SASE checkouts"
+    output = reporter.proc.get_live_output()
+    assert "==> Updating editable SASE checkouts" in output
+    assert "--- SASE results" in output
+    assert "Editable checkouts already up to date." in output

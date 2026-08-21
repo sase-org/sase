@@ -102,3 +102,68 @@ def test_session_reporter_command_runner_streams_incremental_lines() -> None:
     assert result.returncode == 0
     assert "cli-line" in reporter.proc.get_live_output()
     assert "cli-line" in result.output
+
+
+def test_session_reporter_subprocess_run_fn_can_target_stderr() -> None:
+    reporter = session_reporter()
+    run_fn = reporter.subprocess_run_fn(output_target="stderr")
+
+    result = run_fn(
+        [sys.executable, "-c", "print('from-stdout', flush=True)"],
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert "from-stdout" in result.stderr
+    assert "from-stdout" in reporter.proc.get_live_output()
+
+
+def test_session_reporter_subprocess_run_fn_check_raises() -> None:
+    reporter = session_reporter()
+    run_fn = reporter.subprocess_run_fn()
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        run_fn([sys.executable, "-c", "import sys; sys.exit(2)"], check=True)
+
+    assert exc_info.value.returncode == 2
+
+
+def test_session_reporter_uv_runner_streams_through_stderr_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.uv_tool.runner import UvChangeSet
+
+    reporter = session_reporter()
+    seen: list[tuple[list[str], object]] = []
+
+    def fake_run_uv(argv: list[str], *, run_fn: object) -> UvChangeSet:
+        seen.append((list(argv), run_fn))
+        completed = run_fn(  # type: ignore[operator]
+            [
+                sys.executable,
+                "-c",
+                "import sys; print('uv-err', file=sys.stderr, flush=True)",
+            ]
+        )
+        return UvChangeSet(raw_output=completed.stderr)
+
+    monkeypatch.setattr("sase.uv_tool.runner.run_uv", fake_run_uv)
+    change_set = reporter.uv_runner()(["uv", "tool", "upgrade", "sase"])
+
+    assert seen[0][0] == ["uv", "tool", "upgrade", "sase"]
+    assert "uv-err" in change_set.raw_output
+    assert "uv-err" in reporter.proc.get_live_output()
+    assert "$ " in reporter.proc.get_live_output()
+
+
+def test_session_reporter_dev_command_runner_streams_and_sets_phase() -> None:
+    reporter = session_reporter()
+    result = reporter.dev_command_runner()(
+        (sys.executable, "-c", "print('dev-line', flush=True)")
+    )
+
+    assert result.returncode == 0
+    assert "dev-line" in result.stdout
+    assert "dev-line" in reporter.proc.get_live_output()
+    assert reporter.proc.phase is not None
+    assert reporter.proc.phase.startswith("Running ")

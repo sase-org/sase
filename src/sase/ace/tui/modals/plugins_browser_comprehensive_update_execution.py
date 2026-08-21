@@ -139,6 +139,31 @@ def _execute_sase_leg(
     reporter: SessionProcReporter | None = None,
 ) -> ComprehensiveSaseUpdateResult:
     """Attempt the selected SASE leg after all provider commands finish."""
+    result = _perform_sase_leg(preview, uv_tool, reporter=reporter)
+    _report_sase_leg(reporter, result)
+    return result
+
+
+def _report_sase_leg(
+    reporter: SessionProcReporter | None,
+    result: ComprehensiveSaseUpdateResult,
+) -> None:
+    """Publish a phase (when none was set) and a concise SASE result section."""
+    if reporter is None:
+        return
+    if reporter.proc.phase is None:
+        reporter.phase("Checking SASE, core & plugins")
+    reporter.section("SASE results")
+    reporter.log(result.message, stream="result")
+
+
+def _perform_sase_leg(
+    preview: ComprehensiveUpdatePreview,
+    uv_tool: object | None,
+    *,
+    reporter: SessionProcReporter | None = None,
+) -> ComprehensiveSaseUpdateResult:
+    """Run the selected SASE/core/plugin work without writing the result section."""
     if preview.sase_current:
         return ComprehensiveSaseUpdateResult(
             SaseUpdateResultStatus.ALREADY_CURRENT,
