@@ -21,7 +21,9 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_artifacts import (
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_directives import (
     append_directive_arg_completion_row,
     append_directive_completion_row,
+    append_finalizer_completion_row,
     append_model_completion_row,
+    finalizer_completion_column_widths,
     model_completion_column_widths,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_simple import (
@@ -46,6 +48,7 @@ __all__ = [
     "append_at_reference_group_rule",
     "append_directive_arg_completion_row",
     "append_directive_completion_row",
+    "append_finalizer_completion_row",
     "append_history_word_completion_row",
     "append_jinja_completion_row",
     "append_model_completion_row",
@@ -58,6 +61,7 @@ __all__ = [
     "artifact_ref_kind_label_width",
     "at_reference_directory_display",
     "history_word_label_width",
+    "finalizer_completion_column_widths",
     "is_agent_completion_candidate",
     "model_completion_column_widths",
     "placeholder_label_width",

@@ -18,6 +18,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_at_reference_group_rule,
     append_directive_arg_completion_row,
     append_directive_completion_row,
+    append_finalizer_completion_row,
     append_history_word_completion_row,
     append_jinja_completion_row,
     append_model_completion_row,
@@ -28,6 +29,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_repo_completion_row,
     append_xprompt_completion_row,
     artifact_ref_kind_label_width,
+    finalizer_completion_column_widths,
     history_word_label_width,
     model_completion_column_widths,
     placeholder_label_width,
@@ -38,7 +40,10 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
 from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
 )
-from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
+from sase.ace.tui.widgets.directive_completion import (
+    FinalizerCompletionMetadata,
+    ModelCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 
@@ -50,6 +55,7 @@ class _RowLayout:
     vcs_ref: int
     vcs_repo: int
     model: tuple[int, int]
+    finalizer: tuple[int, int]
     artifact_kind: int
     history_word: int
     placeholder: int
@@ -144,6 +150,9 @@ def _row_layout(
         vcs_ref=_max_label_width(visible, vcs_ref_label_width, kinds.vcs_ref),
         vcs_repo=_max_label_width(visible, vcs_repo_label_width, kinds.vcs_repo),
         model=model_completion_column_widths(visible) if kinds.model else (0, 0),
+        finalizer=(
+            finalizer_completion_column_widths(visible) if kinds.finalizer else (0, 0)
+        ),
         artifact_kind=(
             artifact_ref_kind_label_width(visible) if kinds.artifact_ref else 0
         ),
@@ -210,6 +219,13 @@ def _append_candidate_row(
                 is_selected,
                 layout.model,
             )
+        elif isinstance(candidate.metadata, FinalizerCompletionMetadata):
+            append_finalizer_completion_row(
+                content,
+                candidate,
+                is_selected,
+                layout.finalizer,
+            )
         else:
             append_directive_arg_completion_row(
                 content,
@@ -217,6 +233,7 @@ def _append_candidate_row(
                 is_selected,
                 tribe_colors=layout.tribe_colors,
                 model_widths=layout.model,
+                finalizer_widths=layout.finalizer,
                 inner_width=inner_width,
             )
     elif kinds.xprompt_arg_agent:

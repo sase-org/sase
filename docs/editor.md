@@ -192,6 +192,7 @@ directly:
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
+printf '{"schema_version":1}\n' | sase editor helper-bridge finalizer-catalog
 printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
   | sase editor helper-bridge vcs-repo-catalog
 ```
@@ -241,6 +242,14 @@ footer. Rung 3 and unenriched families have no `documentation`. Every family kee
 plain `family · N members` detail if resolution fails outright, and group enrichment is
 additive throughout, so missing plans or malformed legacy metadata never hide ordinary
 agent rows.
+
+`finalizer-catalog` requires `{"schema_version":1}` and optionally accepts `project`.
+Unknown request fields are ignored. It returns the effective configured finalizer
+instances in policy order (required, remaining defaults, then optional, each group
+alphabetically) with `value`, `provider_ref`, `required`/`default` flags, `after`,
+`max_attempts`, `documentation`, and `provenance_id`. Malformed finalizer configuration
+returns `status: error` with an empty `entries` list instead of invented rows, and the
+builder never loads provider code.
 
 `vcs-repo-catalog` requires a `workflow` and `namespace`, then asks that workflow's
 registered workspace provider for repositories. The response reports `status`,

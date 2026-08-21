@@ -342,6 +342,7 @@ JSON catalog operations. The current surface is:
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge xprompt-catalog
 printf '{"schema_version":1,"project":"sase"}\n' | sase editor helper-bridge snippet-catalog
 printf '{"schema_version":1}\n' | sase editor helper-bridge agent-catalog
+printf '{"schema_version":1}\n' | sase editor helper-bridge finalizer-catalog
 printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
   | sase editor helper-bridge vcs-repo-catalog
 ```
@@ -361,14 +362,17 @@ bead kind, structure, and title in `detail`, plus Markdown `documentation` for g
 phase, or task context. Older and unresolved families retain their member-count detail,
 and enrichment failures degrade safely; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the full fallback
-ladder. The `vcs-repo-catalog` operation returns provider-backed repository candidates
-for one VCS workflow and namespace, including structured failure fields and a
+ladder. The `finalizer-catalog` operation returns configured `%final` completion rows
+from effective finalizer configuration, fail-closed on malformed config, without loading
+provider code. The `vcs-repo-catalog` operation returns provider-backed repository
+candidates for one VCS workflow and namespace, including structured failure fields and a
 stale-cache flag. Its entry `ref` is the full value to insert, not just the
 repository-name suffix. Editor integrations should use this bridge or `sase lsp` instead
 of importing private catalog modules directly.
 
 Source: `src/sase/integrations/editor_helpers.py`,
 `src/sase/integrations/_editor_helper_agents.py`,
+`src/sase/integrations/_editor_helper_finalizers.py`,
 `src/sase/integrations/xprompt_lsp.py`, `src/sase/xprompt/vcs_repo_completion.py`
 
 ## Chat Update Worker

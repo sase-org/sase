@@ -41,6 +41,8 @@ def build_directive_arg_completion_candidates(
     bead_inventory: Sequence[Mapping[str, str]] | None = None,
     beads_state: BeadsState = "unavailable",
     excluded_bead_ids: Sequence[str] = (),
+    finalizer_inventory: Sequence[Mapping[str, object]] | None = None,
+    finalizers_state: BeadsState = "unavailable",
     path_candidates: PathCandidateBuilder | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build argument rows from a historical name/partial dispatch."""
@@ -57,6 +59,8 @@ def build_directive_arg_completion_candidates(
         bead_inventory=bead_inventory,
         beads_state=beads_state,
         excluded_bead_ids=excluded_bead_ids,
+        finalizer_inventory=finalizer_inventory,
+        finalizers_state=finalizers_state,
         path_candidates=path_candidates,
     )
 

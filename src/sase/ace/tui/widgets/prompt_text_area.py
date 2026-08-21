@@ -157,6 +157,9 @@ class PromptTextArea(
         self._wait_bead_available: bool = False
         self._wait_bead_project: str | None = None
         self._wait_bead_inflight: set[str] = set()
+        self._finalizer_inventory: tuple[dict[str, object], ...] | None = None
+        self._finalizer_available: bool = False
+        self._finalizer_inflight: bool = False
         self._active_xprompt_arg_hint: ActiveXPromptArgHint | None = None
         self._pending_xprompt_completion_spacer: (
             PendingXPromptCompletionSpacer | None

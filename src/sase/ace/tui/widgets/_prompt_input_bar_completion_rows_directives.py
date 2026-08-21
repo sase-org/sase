@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.directive_completion import (
     DirectiveArgCompletionMetadata,
     DirectiveCatalogPlaceholder,
     DirectiveCompletionMetadata,
+    FinalizerCompletionMetadata,
     ModelCompletionMetadata,
 )
 from sase.bead_status_presentation import bead_status_presentation
@@ -28,6 +29,16 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 _MODEL_NAME_CELL_MAX = 30
 _MODEL_KIND_CELL = 7
 _MODEL_TARGET_CELL_MAX = 34
+_FINALIZER_SELECTOR_CELL_MAX = 24
+_FINALIZER_STATE_CELL = 8
+_FINALIZER_PROVIDER_CELL_MAX = 28
+_FINALIZER_STATE_STYLES = {
+    "required": "bold cyan",
+    "default": "cyan",
+    "optional": "dim",
+    "remove": "bold",
+    "clear": "bold #D7AF5F",
+}
 
 
 def append_directive_completion_row(
@@ -65,6 +76,7 @@ def append_directive_arg_completion_row(
     is_selected: bool,
     tribe_colors: dict[str, str] | None = None,
     model_widths: tuple[int, int] | None = None,
+    finalizer_widths: tuple[int, int] | None = None,
     inner_width: int = 0,
 ) -> None:
     """Append one prompt directive argument completion row."""
@@ -89,6 +101,15 @@ def append_directive_arg_completion_row(
 
     if isinstance(candidate.metadata, DirectiveCatalogPlaceholder):
         content.append(candidate.display, style="dim")
+        return
+
+    if isinstance(candidate.metadata, FinalizerCompletionMetadata):
+        append_finalizer_completion_row(
+            content,
+            candidate,
+            is_selected,
+            finalizer_widths or finalizer_completion_column_widths([candidate]),
+        )
         return
 
     if isinstance(candidate.metadata, BeadCompletionMetadata):
@@ -260,6 +281,79 @@ def _selected_style(style: str, selected: bool) -> str:
     """Use a kind's color without bolding unselected alias names."""
     unselected = style.removeprefix("bold ")
     return style if selected else unselected
+
+
+def finalizer_completion_column_widths(
+    visible: list[CompletionCandidate],
+) -> tuple[int, int]:
+    """Return capped selector/provider widths for visible ``%final`` rows."""
+    selectors = [
+        Text(candidate.display).cell_len
+        for candidate in visible
+        if isinstance(candidate.metadata, FinalizerCompletionMetadata)
+    ]
+    providers = [
+        Text(metadata.provider).cell_len
+        for candidate in visible
+        if isinstance(
+            (metadata := candidate.metadata),
+            FinalizerCompletionMetadata,
+        )
+        and metadata.provider
+    ]
+    return (
+        min(max(selectors, default=0), _FINALIZER_SELECTOR_CELL_MAX),
+        min(max(providers, default=0), _FINALIZER_PROVIDER_CELL_MAX),
+    )
+
+
+def append_finalizer_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    widths: tuple[int, int],
+) -> None:
+    """Append one aligned ``%final`` selector, policy state, and provider."""
+    metadata = candidate.metadata
+    if not isinstance(metadata, FinalizerCompletionMetadata):
+        content.append(
+            candidate.display,
+            style="bold magenta" if is_selected else "magenta",
+        )
+        return
+
+    selector_width, provider_width = widths
+    state_label = metadata.state_label
+    name_style = _finalizer_selector_style(metadata, is_selected)
+    name = Text(candidate.display or metadata.value, style=name_style)
+    if selector_width:
+        name.truncate(selector_width, overflow="ellipsis", pad=True)
+    content.append_text(name)
+    content.append("  ")
+
+    state = Text(
+        state_label,
+        style=_FINALIZER_STATE_STYLES.get(state_label, "dim"),
+    )
+    state.truncate(_FINALIZER_STATE_CELL, overflow="ellipsis", pad=True)
+    content.append_text(state)
+
+    if metadata.provider and provider_width:
+        content.append("  ")
+        provider = Text(metadata.provider, style="dim")
+        provider.truncate(provider_width, overflow="ellipsis", pad=True)
+        content.append_text(provider)
+
+
+def _finalizer_selector_style(
+    metadata: FinalizerCompletionMetadata,
+    is_selected: bool,
+) -> str:
+    if metadata.kind == "finalizer_remove":
+        return "bold magenta strike" if is_selected else "magenta strike"
+    if metadata.kind == "finalizer_clear":
+        return "bold #D7AF5F" if is_selected else "#D7AF5F"
+    return "bold magenta" if is_selected else "magenta"
 
 
 def _append_bead_completion_row(

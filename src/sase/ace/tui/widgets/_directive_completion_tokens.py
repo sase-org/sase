@@ -338,6 +338,8 @@ def _colon_argument_chars_are_valid(clause: DirectiveClauseCompletion) -> bool:
     extra = "-="
     if clause.directive_name == "model" or clause.value_role == "model":
         extra = "-=./@"
+    elif clause.directive_name == "final" or clause.value_role == "finalizer_instance":
+        extra = "-_!"
     return all(char.isalnum() or char == "_" or char in extra for char in clause.token)
 
 

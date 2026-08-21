@@ -20,7 +20,10 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
     ArtifactRefSyncCompletionMetadata,
 )
-from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
+from sase.ace.tui.widgets.directive_completion import (
+    FinalizerCompletionMetadata,
+    ModelCompletionMetadata,
+)
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
@@ -54,6 +57,8 @@ def completion_panel_title(
         return "directives"
     if kinds.bead:
         return "beads"
+    if kinds.finalizer:
+        return "%final values"
     if kinds.directive_arg_agent:
         return "wait targets"
     if kinds.model:
@@ -129,6 +134,25 @@ def _at_reference_panel_title(
     if has_files or is_loading:
         return f"@ {at_reference_directory_display(directory)}"
     return token
+
+
+def finalizer_completion_subtitle(
+    rows: list[CompletionCandidate],
+    selected_index: int,
+    inner_width: int,
+) -> Text:
+    """Return the selected ``%final`` row's documentation as a subtitle."""
+    if not 0 <= selected_index < len(rows):
+        return Text()
+    metadata = rows[selected_index].metadata
+    if not isinstance(metadata, FinalizerCompletionMetadata):
+        return Text()
+    subtitle = metadata.documentation.replace("\n\n", " · ").replace("\n", " ")
+    text = Text(subtitle, no_wrap=True, overflow="ellipsis")
+    if inner_width <= 0:
+        return text
+    text.truncate(inner_width, overflow="ellipsis")
+    return text
 
 
 def model_completion_subtitle(

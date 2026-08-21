@@ -31,6 +31,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     artifact_ref_completion_subtitle,
     completion_delete_subtitle,
     completion_panel_title,
+    finalizer_completion_subtitle,
     history_word_completion_subtitle,
     model_completion_subtitle,
     placeholder_completion_subtitle,
@@ -194,6 +195,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
             )
         elif kinds.model:
             panel.border_subtitle = model_completion_subtitle(
+                rows,
+                selected_index,
+                max(0, panel.size.width - 2),
+            )
+        elif kinds.finalizer:
+            panel.border_subtitle = finalizer_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),

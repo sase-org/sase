@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 from sase.ace.tui.widgets.directive_completion import (
     BeadCompletionMetadata,
     DirectiveCatalogPlaceholder,
+    FinalizerCompletionMetadata,
     ModelCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -45,6 +46,7 @@ class CompletionPanelKinds:
     directive_arg: bool
     directive_arg_agent: bool
     bead: bool
+    finalizer: bool
     model: bool
     history: bool
     arg_completion: bool
@@ -74,13 +76,9 @@ class CompletionPanelKinds:
             directive_arg_agent=is_directive_arg
             and any(is_agent_completion_candidate(candidate) for candidate in rows),
             bead=is_directive_arg
-            and any(
-                isinstance(
-                    candidate.metadata,
-                    (BeadCompletionMetadata, DirectiveCatalogPlaceholder),
-                )
-                for candidate in rows
-            ),
+            and any(_is_bead_row(candidate) for candidate in rows),
+            finalizer=is_directive_arg
+            and any(_is_finalizer_row(candidate) for candidate in rows),
             model=is_directive_arg
             and any(
                 isinstance(candidate.metadata, ModelCompletionMetadata)
@@ -98,6 +96,26 @@ class CompletionPanelKinds:
             vcs_repo=completion_kind == VCS_REPO_COMPLETION_KIND,
             artifact_ref=completion_kind == ARTIFACT_REF_COMPLETION_KIND,
         )
+
+
+def _is_bead_row(candidate: CompletionCandidate) -> bool:
+    metadata = candidate.metadata
+    if isinstance(metadata, BeadCompletionMetadata):
+        return True
+    return (
+        isinstance(metadata, DirectiveCatalogPlaceholder)
+        and metadata.catalog == "beads"
+    )
+
+
+def _is_finalizer_row(candidate: CompletionCandidate) -> bool:
+    metadata = candidate.metadata
+    if isinstance(metadata, FinalizerCompletionMetadata):
+        return True
+    return (
+        isinstance(metadata, DirectiveCatalogPlaceholder)
+        and metadata.catalog == "finalizers"
+    )
 
 
 def at_reference_group_rule_needed(rows: list[CompletionCandidate]) -> bool:

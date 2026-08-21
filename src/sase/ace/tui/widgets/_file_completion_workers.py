@@ -74,6 +74,14 @@ class _WaitBeadInventoryWorkerResult:
     available: bool
 
 
+@dataclass(frozen=True)
+class _FinalizerInventoryWorkerResult:
+    """Result returned by a prompt finalizer-catalog worker."""
+
+    rows: tuple[dict[str, object], ...]
+    available: bool
+
+
 class FileCompletionWorkerMixin(FileCompletionContextMixin):
     """Mixin providing background inventory loading and result routing."""
 
@@ -95,6 +103,9 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         _wait_bead_available: bool
         _wait_bead_project: str | None
         _wait_bead_inflight: set[str]
+        _finalizer_inventory: tuple[dict[str, object], ...] | None
+        _finalizer_available: bool
+        _finalizer_inflight: bool
 
         def _clear_file_completion(
             self,
@@ -291,6 +302,70 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             return
         self._refresh_file_completion_from_cursor()
 
+    def on_mount(self) -> None:
+        """Warm the finalizer catalog as soon as a prompt pane is live."""
+        super_on_mount = getattr(super(), "on_mount", None)
+        if callable(super_on_mount):
+            super_on_mount()
+        self._schedule_finalizer_inventory_load()
+
+    def _prompt_app_or_none(self) -> object | None:
+        """Return the hosting app when one is active."""
+        try:
+            return self.app
+        except Exception:
+            return None
+
+    def _schedule_finalizer_inventory_load(self) -> None:
+        """Coalesce one finalizer-config replay on a background worker."""
+        if callable(getattr(self._prompt_app_or_none(), "finalizer_inventory", None)):
+            return
+        if self._finalizer_inflight:
+            return
+        self._finalizer_inflight = True
+
+        def task() -> _FinalizerInventoryWorkerResult:
+            from sase.finalizers.catalog import build_finalizer_completion_catalog
+
+            try:
+                catalog = build_finalizer_completion_catalog()
+            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
+                return _FinalizerInventoryWorkerResult(rows=(), available=False)
+            if not catalog.ok:
+                return _FinalizerInventoryWorkerResult(rows=(), available=False)
+            return _FinalizerInventoryWorkerResult(
+                rows=catalog.wire_entries(),
+                available=True,
+            )
+
+        self.run_worker(
+            task,
+            name="prompt-finalizers",
+            group="prompt-finalizers",
+            thread=True,
+        )
+
+    def _apply_finalizer_inventory_result(
+        self,
+        result: _FinalizerInventoryWorkerResult,
+    ) -> None:
+        """Store a warm catalog and refresh a still-current ``%final`` menu."""
+        self._finalizer_inventory = result.rows
+        self._finalizer_available = result.available
+        if not self._file_completion_active or self._completion_kind != "directive_arg":
+            return
+        clause_ctx = self._directive_clause_at_cursor()
+        if clause_ctx is None:
+            return
+        from sase.ace.tui.widgets.directive_completion import (
+            clause_needs_finalizer_inventory,
+        )
+
+        _row, clause = clause_ctx
+        if not clause_needs_finalizer_inventory(clause):
+            return
+        self._refresh_file_completion_from_cursor()
+
     def _apply_vcs_repo_completion_result(
         self,
         worker_result: _VcsRepoCompletionWorkerResult,
@@ -390,6 +465,29 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 if isinstance(result, _WaitBeadInventoryWorkerResult):
                     self._apply_wait_bead_inventory_result(result)
                     return
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
+        if event.worker.group == "prompt-finalizers":
+            if event.state in (
+                WorkerState.SUCCESS,
+                WorkerState.ERROR,
+                WorkerState.CANCELLED,
+            ):
+                self._finalizer_inflight = False
+            if event.state == WorkerState.SUCCESS:
+                result = event.worker.result
+                if isinstance(result, _FinalizerInventoryWorkerResult):
+                    self._apply_finalizer_inventory_result(result)
+                    return
+            if event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
+                if self._finalizer_inventory is None:
+                    self._apply_finalizer_inventory_result(
+                        _FinalizerInventoryWorkerResult(rows=(), available=False)
+                    )
+                return
             handler = getattr(super(), "on_worker_state_changed", None)
             if callable(handler):
                 handler(event)

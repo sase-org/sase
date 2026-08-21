@@ -85,6 +85,9 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         _wait_bead_available: bool
         _wait_bead_project: str | None
         _wait_bead_inflight: set[str]
+        _finalizer_inventory: tuple[dict[str, object], ...] | None
+        _finalizer_available: bool
+        _finalizer_inflight: bool
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
         )
@@ -135,6 +138,8 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         def _get_warm_artifact_ref_context(self) -> ArtifactRefContext | None: ...
         def _warm_current_artifact_ref_completion_catalog(self) -> None: ...
         def _schedule_wait_bead_inventory_load(self, project_key: str) -> None: ...
+        def _schedule_finalizer_inventory_load(self) -> None: ...
+        def _prompt_app_or_none(self) -> object | None: ...
         def _artifact_ref_sync_row(
             self,
             project: str | None,
@@ -319,9 +324,11 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         from sase.ace.tui.widgets.directive_completion import (
             BeadsState,
             DirectiveClauseCompletion,
+            FinalizersState,
             build_directive_clause_candidates,
             clause_needs_agent_snapshot,
             clause_needs_bead_inventory,
+            clause_needs_finalizer_inventory,
         )
         from sase.ace.tui.widgets.file_completion import build_completion_candidates
 
@@ -330,6 +337,8 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
 
         if clause_needs_bead_inventory(clause):
             self._ensure_wait_bead_inventory()
+        if clause_needs_finalizer_inventory(clause):
+            self._ensure_finalizer_inventory()
         raw_state, bead_inventory = self._wait_bead_inventory_state()
         beads_state: BeadsState
         if raw_state == "warm":
@@ -338,6 +347,14 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             beads_state = "loading"
         else:
             beads_state = "unavailable"
+        finalizer_raw, finalizer_inventory = self._finalizer_inventory_state()
+        finalizers_state: FinalizersState
+        if finalizer_raw == "warm":
+            finalizers_state = "warm"
+        elif finalizer_raw == "loading":
+            finalizers_state = "loading"
+        else:
+            finalizers_state = "unavailable"
         agent_candidates = (
             self._snapshot_agent_completion_candidates()
             if clause_needs_agent_snapshot(clause)
@@ -354,6 +371,8 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             agent_candidates=agent_candidates,
             bead_inventory=bead_inventory,
             beads_state=beads_state,
+            finalizer_inventory=finalizer_inventory,
+            finalizers_state=finalizers_state,
             path_candidates=path_candidates,
         )
 
@@ -400,6 +419,31 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
             self._wait_bead_project = None
             return
         self._schedule_wait_bead_inventory_load(project)
+
+    def _finalizer_inventory_state(
+        self,
+    ) -> tuple[str, tuple[dict[str, object], ...] | None]:
+        provider = getattr(self._prompt_app_or_none(), "finalizer_inventory", None)
+        if callable(provider):
+            provided = provider()
+            if isinstance(provided, tuple) and len(provided) == 2:
+                rows, available = provided
+                if available:
+                    return "warm", tuple(rows)
+                return "unavailable", ()
+        if self._finalizer_inventory is not None:
+            if self._finalizer_available:
+                return "warm", self._finalizer_inventory
+            return "unavailable", ()
+        return "loading", None
+
+    def _ensure_finalizer_inventory(self) -> None:
+        """Warm the finalizer catalog off the keystroke path."""
+        if callable(getattr(self._prompt_app_or_none(), "finalizer_inventory", None)):
+            return
+        if self._finalizer_inventory_state()[0] != "loading":
+            return
+        self._schedule_finalizer_inventory_load()
 
     def _placeholder_completion_includes_common_at_empty_prefix(self) -> bool:
         """Return the empty-prefix rule for the placeholder menu that is open.

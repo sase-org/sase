@@ -31,7 +31,9 @@ from sase.xprompt.model_completion import (
 )
 
 BeadsState = Literal["warm", "loading", "unavailable"]
+FinalizersState = BeadsState
 PathCandidateBuilder = Callable[[str], tuple[list[CompletionCandidate], str]]
+_FINALIZER_KINDS = frozenset({"finalizer", "finalizer_remove", "finalizer_clear"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,11 +91,34 @@ class BeadCompletionMetadata:
 
 
 @dataclass(frozen=True, slots=True)
+class FinalizerCompletionMetadata:
+    """Display metadata for a ``%final`` selector completion row."""
+
+    value: str
+    kind: str
+    status: str = ""
+    provider: str = ""
+    documentation: str = ""
+
+    @property
+    def state_label(self) -> str:
+        """Accessible policy or operation label, independent of color."""
+        if self.kind == "finalizer_remove":
+            return "remove"
+        if self.kind == "finalizer_clear":
+            return "clear"
+        if self.status in {"required", "default", "optional", "clear"}:
+            return self.status
+        return "optional"
+
+
+@dataclass(frozen=True, slots=True)
 class DirectiveCatalogPlaceholder:
     """Non-selectable loading or unavailable dynamic-catalog row."""
 
     kind: Literal["loading", "unavailable"]
     message: str
+    catalog: Literal["beads", "finalizers"] = "beads"
 
 
 class _ModelEntryDisplay(Protocol):
@@ -144,6 +169,8 @@ def build_directive_clause_candidates(
     bead_inventory: Sequence[Mapping[str, str]] | None = None,
     beads_state: BeadsState = "unavailable",
     excluded_bead_ids: Sequence[str] = (),
+    finalizer_inventory: Sequence[Mapping[str, object]] | None = None,
+    finalizers_state: FinalizersState = "unavailable",
     path_candidates: PathCandidateBuilder | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build ACE rows for a classified directive clause."""
@@ -160,6 +187,13 @@ def build_directive_clause_candidates(
     keyword_fallback = _parenthesized_keyword_fallback(clause)
     if keyword_fallback is not None:
         return keyword_fallback
+
+    if clause_needs_finalizer_inventory(clause):
+        return _build_finalizer_clause_candidates(
+            clause,
+            finalizer_inventory=finalizer_inventory,
+            finalizers_state=finalizers_state,
+        )
 
     if clause.value_role == "bead":
         return _build_bead_clause_candidates(
@@ -187,6 +221,7 @@ def build_directive_clause_candidates(
             clause,
             bead_inventory=bead_inventory,
             excluded_bead_ids=excluded_bead_ids,
+            finalizer_inventory=finalizer_inventory,
         )
         if isinstance(row.get("insertion"), str)
         and str(row["insertion"]).lower().startswith(partial_lower)
@@ -276,6 +311,13 @@ def clause_needs_bead_inventory(clause: DirectiveClauseCompletion) -> bool:
     )
 
 
+def clause_needs_finalizer_inventory(clause: DirectiveClauseCompletion) -> bool:
+    """Return True when ``%final`` catalog rows should back *clause*."""
+    if clause.is_name:
+        return False
+    return clause.directive_name == "final" or clause.value_role == "finalizer_instance"
+
+
 @cache
 def _directive_contract_by_name() -> dict[str, dict[str, object]]:
     entries: dict[str, dict[str, object]] = {}
@@ -338,12 +380,13 @@ def _build_bead_clause_candidates(
     excluded_bead_ids: Sequence[str],
 ) -> tuple[list[CompletionCandidate], str]:
     if beads_state == "loading":
-        return [_catalog_placeholder("loading", "loading beads…")], ""
+        return [_catalog_placeholder("loading", "loading beads…", catalog="beads")], ""
     if beads_state != "warm":
         return [
             _catalog_placeholder(
                 "unavailable",
                 "bead store unavailable — type a bead ID",
+                catalog="beads",
             )
         ], ""
 
@@ -363,7 +406,13 @@ def _build_bead_clause_candidates(
         if isinstance(row.get("insertion"), str)
     ]
     if not candidates:
-        return [_catalog_placeholder("unavailable", "no matching open beads")], ""
+        return [
+            _catalog_placeholder(
+                "unavailable",
+                "no matching open beads",
+                catalog="beads",
+            )
+        ], ""
     return candidates, ""
 
 
@@ -387,17 +436,79 @@ def _build_wait_or_agent_clause_candidates(
     return candidates, agent_shared
 
 
+def _build_finalizer_clause_candidates(
+    clause: DirectiveClauseCompletion,
+    *,
+    finalizer_inventory: Sequence[Mapping[str, object]] | None,
+    finalizers_state: FinalizersState,
+) -> tuple[list[CompletionCandidate], str]:
+    if finalizers_state == "loading":
+        return [
+            _catalog_placeholder(
+                "loading",
+                "loading finalizers…",
+                catalog="finalizers",
+            )
+        ], ""
+    if finalizers_state != "warm":
+        return [
+            _catalog_placeholder(
+                "unavailable",
+                "finalizer catalog unavailable — type a selector",
+                catalog="finalizers",
+            )
+        ], ""
+
+    rows = _core_candidate_rows(
+        clause,
+        finalizer_inventory=finalizer_inventory or (),
+    )
+    candidates = [
+        _finalizer_candidate(row)
+        for row in rows
+        if isinstance(row.get("insertion"), str)
+        and str(row.get("kind") or "") in _FINALIZER_KINDS
+    ]
+    return candidates, _shared_extension(
+        [candidate.insertion for candidate in candidates],
+        clause.token,
+    )
+
+
+def _finalizer_candidate(row: dict[str, object]) -> CompletionCandidate:
+    insertion = str(row["insertion"])
+    kind = str(row.get("kind") or "finalizer")
+    status = str(row.get("status") or "")
+    provider = str(row.get("detail") or "")
+    documentation = str(row.get("documentation") or "")
+    return CompletionCandidate(
+        display=str(row.get("display") or insertion),
+        insertion=insertion,
+        is_dir=False,
+        name=str(row.get("name") or insertion),
+        metadata=FinalizerCompletionMetadata(
+            value=insertion,
+            kind=kind,
+            status=status,
+            provider=provider,
+            documentation=documentation,
+        ),
+    )
+
+
 def _core_candidate_rows(
     clause: DirectiveClauseCompletion,
     *,
     bead_inventory: Sequence[Mapping[str, str]] | None = None,
     excluded_bead_ids: Sequence[str] = (),
+    finalizer_inventory: Sequence[Mapping[str, object]] | None = None,
 ) -> list[dict[str, object]]:
     inventories: dict[str, object] = {
         "models": [],
         "model_alias_keys": [],
         "agents": [],
         "beads": [dict(entry) for entry in bead_inventory or ()],
+        "finalizers": [dict(entry) for entry in finalizer_inventory or ()],
         "excluded_bead_ids": list(excluded_bead_ids),
     }
     payload = require_rust_binding("directive_completion_candidates")(
@@ -527,13 +638,19 @@ def _bead_candidate(
 def _catalog_placeholder(
     kind: Literal["loading", "unavailable"],
     message: str,
+    *,
+    catalog: Literal["beads", "finalizers"] = "beads",
 ) -> CompletionCandidate:
     return CompletionCandidate(
         display=message,
         insertion="",
         is_dir=False,
         name="",
-        metadata=DirectiveCatalogPlaceholder(kind=kind, message=message),
+        metadata=DirectiveCatalogPlaceholder(
+            kind=kind,
+            message=message,
+            catalog=catalog,
+        ),
     )
 
 
@@ -700,6 +817,8 @@ __all__ = [
     "DirectiveCatalogPlaceholder",
     "DirectiveClauseCompletion",
     "DirectiveCompletionMetadata",
+    "FinalizerCompletionMetadata",
+    "FinalizersState",
     "ModelCompletionMetadata",
     "PathCandidateBuilder",
     "build_agent_arg_completion_candidates",
@@ -708,6 +827,7 @@ __all__ = [
     "classify_directive_completion",
     "clause_needs_agent_snapshot",
     "clause_needs_bead_inventory",
+    "clause_needs_finalizer_inventory",
     "extract_directive_arg_token_around_cursor",
     "extract_directive_token_around_cursor",
     "is_directive_catalog_placeholder",

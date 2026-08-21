@@ -5195,12 +5195,18 @@ records from the previous generation.
 `sase editor` exposes JSON-over-stdin helper operations for editor integrations. It is
 intentionally a fixed-operation bridge rather than a generic shell or filesystem API.
 
-| Form                                         | Input                | Description                                                                                                      |
-| -------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sase editor helper-bridge agent-catalog`    | JSON object on stdin | Return active/recent agents and derived family, clan, and tribe prompt targets.                                  |
-| `sase editor helper-bridge xprompt-catalog`  | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
-| `sase editor helper-bridge snippet-catalog`  | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
-| `sase editor helper-bridge vcs-repo-catalog` | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
+| Form                                          | Input                | Description                                                                                                      |
+| --------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived family, clan, and tribe prompt targets.                                  |
+| `sase editor helper-bridge finalizer-catalog` | JSON object on stdin | Return configured `%final` completion rows from effective finalizer config without loading providers.            |
+| `sase editor helper-bridge xprompt-catalog`   | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
+| `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
+| `sase editor helper-bridge vcs-repo-catalog`  | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
+
+The `finalizer-catalog` request is `{"schema_version":1}` with an optional `project`
+hint; unknown fields are ignored. The response is a compact `status`/`message`/`entries`
+envelope. Malformed finalizer configuration returns `status: error` and no rows, and the
+builder never loads provider code.
 
 The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and
 reads the cross-project agent snapshot. Ordinary rows are de-duplicated by name and
