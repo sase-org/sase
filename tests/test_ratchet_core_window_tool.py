@@ -121,6 +121,39 @@ wheels = [
 """.lstrip()
 
 
+def _asttokens_package(version: str, digest: str) -> str:
+    return f"""
+[[package]]
+name = "asttokens"
+version = "{version}"
+source = {{ registry = "https://pypi.org/simple/" }}
+sdist = {{ url = "https://files.example/asttokens-{version}.tar.gz", hash = "sha256:{digest}-sdist", size = 10 }}
+wheels = [
+    {{ url = "https://files.example/asttokens-{version}-py3-none-any.whl", hash = "sha256:{digest}-wheel", size = 10 }},
+]
+""".lstrip()
+
+
+def _lock_text_with_asttokens(
+    version: str,
+    specifier: str,
+    *,
+    asttokens_version: str = "3.0.0",
+    asttokens_digest: str = "old",
+    asttokens_direct: bool = False,
+) -> str:
+    header, rest = _lock_text(version, specifier).split("\n\n", 1)
+    if asttokens_direct:
+        rest = rest.replace(
+            '    { name = "sase-core-rs" },',
+            '    { name = "asttokens" },\n    { name = "sase-core-rs" },',
+            1,
+        )
+    return (
+        f"{header}\n\n{_asttokens_package(asttokens_version, asttokens_digest)}\n{rest}"
+    )
+
+
 def _write_project(
     root: Path,
     *,
@@ -135,6 +168,29 @@ def _write_project(
     return pyproject, uv_lock
 
 
+def _write_project_with_asttokens(
+    root: Path,
+    *,
+    asttokens_direct: bool = False,
+    asttokens_version: str = "3.0.0",
+) -> tuple[Path, Path]:
+    pyproject = root / "pyproject.toml"
+    uv_lock = root / "uv.lock"
+    specifier = ">=0.21.3,<0.22.0"
+    pyproject.write_text(_pyproject_text(specifier), encoding="utf-8")
+    uv_lock.write_text(
+        _lock_text_with_asttokens(
+            "0.21.3",
+            specifier,
+            asttokens_direct=asttokens_direct,
+            asttokens_version=asttokens_version,
+        ),
+        encoding="utf-8",
+    )
+    (root / "README.md").write_text("# fixture\n", encoding="utf-8")
+    return pyproject, uv_lock
+
+
 def _successful_lock_runner(
     tool: ModuleType,
     *,
@@ -144,6 +200,30 @@ def _successful_lock_runner(
         specifier = tool.dependency_specifier_for_floor(target)
         (project_dir / "uv.lock").write_text(
             _lock_text_for_platforms(target.raw, specifier, platforms=platforms),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
+
+    return _runner
+
+
+def _asttokens_refresh_lock_runner(
+    tool: ModuleType,
+    *,
+    asttokens_version: str = "3.0.1",
+    asttokens_digest: str = "new",
+    asttokens_direct: bool = False,
+):
+    def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
+        specifier = tool.dependency_specifier_for_floor(target)
+        (project_dir / "uv.lock").write_text(
+            _lock_text_with_asttokens(
+                target.raw,
+                specifier,
+                asttokens_direct=asttokens_direct,
+                asttokens_digest=asttokens_digest,
+                asttokens_version=asttokens_version,
+            ),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
@@ -282,6 +362,62 @@ def test_default_mode_accepts_expanded_core_artifact_set(
     )
 
 
+def test_default_mode_rejects_transitive_lock_refresh_and_restores_files(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project_with_asttokens(tmp_path)
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+    monkeypatch.setattr(tool, "_run_uv_lock", _asttokens_refresh_lock_runner(tool))
+
+    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+
+    assert code == tool.EXIT_COULD_NOT_DETERMINE
+    assert pyproject.read_text(encoding="utf-8") == before_pyproject
+    assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
+    assert "uv.lock changed unrelated package asttokens" in capsys.readouterr().err
+
+
+def test_reconciliation_mode_allows_transitive_lock_refresh(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project_with_asttokens(tmp_path)
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+    monkeypatch.setattr(tool, "_run_uv_lock", _asttokens_refresh_lock_runner(tool))
+
+    code = tool.main(
+        [
+            "--allow-transitive-lock-refresh",
+            "--pyproject",
+            str(pyproject),
+            "--uv-lock",
+            str(uv_lock),
+        ]
+    )
+
+    assert code == tool.EXIT_RATCHET
+    assert '    "sase-core-rs>=0.22.0,<0.23.0",' in pyproject.read_text(
+        encoding="utf-8"
+    )
+    lock_text = uv_lock.read_text(encoding="utf-8")
+    assert 'name = "asttokens"\nversion = "3.0.1"' in lock_text
+    assert "sha256:new-sdist" in lock_text
+    out = capsys.readouterr().out
+    assert "allowed transitive uv.lock refresh: asttokens 3.0.0 -> 3.0.1" in out
+    assert "applied" in out
+
+
 def test_idempotent_when_declared_floor_is_newest(
     tool: ModuleType,
     tmp_path: Path,
@@ -390,7 +526,90 @@ def test_unrelated_package_movement_restores_files(
     )
 
 
-def test_unrelated_direct_dependency_diff_restores_files(
+def test_reconciliation_mode_rejects_package_set_changes(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project_with_asttokens(tmp_path)
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+
+    def _bad_lock_runner(
+        project_dir: Path,
+        target: object,
+    ) -> subprocess.CompletedProcess[str]:
+        specifier = tool.dependency_specifier_for_floor(target)
+        bad_lock = _lock_text_with_asttokens(target.raw, specifier).replace(
+            'name = "asttokens"',
+            'name = "asttokens-renamed"',
+            1,
+        )
+        (project_dir / "uv.lock").write_text(bad_lock, encoding="utf-8")
+        return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
+
+    monkeypatch.setattr(tool, "_run_uv_lock", _bad_lock_runner)
+
+    code = tool.main(
+        [
+            "--allow-transitive-lock-refresh",
+            "--pyproject",
+            str(pyproject),
+            "--uv-lock",
+            str(uv_lock),
+        ]
+    )
+
+    assert code == tool.EXIT_COULD_NOT_DETERMINE
+    assert pyproject.read_text(encoding="utf-8") == before_pyproject
+    assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
+    assert (
+        "package order or package set changed unexpectedly" in capsys.readouterr().err
+    )
+
+
+def test_reconciliation_mode_rejects_direct_dependency_package_refresh(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project_with_asttokens(
+        tmp_path,
+        asttokens_direct=True,
+    )
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+    monkeypatch.setattr(
+        tool,
+        "_run_uv_lock",
+        _asttokens_refresh_lock_runner(tool, asttokens_direct=True),
+    )
+
+    code = tool.main(
+        [
+            "--allow-transitive-lock-refresh",
+            "--pyproject",
+            str(pyproject),
+            "--uv-lock",
+            str(uv_lock),
+        ]
+    )
+
+    assert code == tool.EXIT_COULD_NOT_DETERMINE
+    assert pyproject.read_text(encoding="utf-8") == before_pyproject
+    assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
+    assert "direct dependency package asttokens" in capsys.readouterr().err
+
+
+def test_reconciliation_mode_rejects_direct_dependency_diff_restores_files(
     tool: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -418,7 +637,15 @@ def test_unrelated_direct_dependency_diff_restores_files(
 
     monkeypatch.setattr(tool, "_run_uv_lock", _bad_lock_runner)
 
-    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+    code = tool.main(
+        [
+            "--allow-transitive-lock-refresh",
+            "--pyproject",
+            str(pyproject),
+            "--uv-lock",
+            str(uv_lock),
+        ]
+    )
 
     assert code == tool.EXIT_COULD_NOT_DETERMINE
     assert pyproject.read_text(encoding="utf-8") == before_pyproject

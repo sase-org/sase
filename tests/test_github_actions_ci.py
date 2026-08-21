@@ -470,12 +470,18 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert check_branch["env"]["GH_TOKEN"] == "${{ secrets.SASE_RELEASE_TOKEN }}"
 
     run_text = _job_run_text(job)
-    assert "python tools/ratchet_core_window || ratchet_status=$?" in run_text
+    assert (
+        "python tools/ratchet_core_window --allow-transitive-lock-refresh "
+        "|| ratchet_status=$?"
+    ) in run_text
     assert "python tools/ratchet_core_window --report-only" not in run_text
     assert 'if [ "$ratchet_status" -eq 2 ]; then' in run_text
     assert "ratchet applied dependency metadata changes" in run_text
     assert "uv lock" in run_text
-    assert "python tools/ratchet_core_window" in run_text.split("uv lock")[0]
+    assert (
+        "python tools/ratchet_core_window --allow-transitive-lock-refresh"
+        in run_text.split("uv lock")[0]
+    )
     assert "git diff --quiet -- pyproject.toml uv.lock" in run_text
     assert "git add pyproject.toml uv.lock" in run_text
     assert 'git commit -m "chore: sync release metadata"' in run_text

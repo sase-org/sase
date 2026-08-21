@@ -92,6 +92,13 @@ class ReleaseFileSummary:
     wheel_tags: frozenset[str]
 
 
+@dataclass(frozen=True)
+class TransitiveLockRefresh:
+    name: str
+    before_version: str
+    after_version: str
+
+
 def _error(message: str) -> None:
     print(f"[ratchet_core_window] {message}", file=sys.stderr)
 
@@ -392,6 +399,51 @@ def _package_name(package: dict[str, Any]) -> str:
     return name
 
 
+def _lock_package_version(package: dict[str, Any]) -> str:
+    package_name = _package_name(package)
+    version = package.get("version")
+    if not isinstance(version, str):
+        raise LockRefreshError(f"uv.lock package {package_name} has no string version")
+    return version
+
+
+def _dependency_names(
+    package: dict[str, Any],
+    *,
+    field_name: str,
+) -> frozenset[str]:
+    dependencies = package.get(field_name, [])
+    if not isinstance(dependencies, list):
+        raise LockRefreshError(
+            f"uv.lock package {_package_name(package)} has a non-list {field_name}"
+        )
+    names: set[str] = set()
+    for dependency in dependencies:
+        if not isinstance(dependency, dict):
+            raise LockRefreshError(
+                f"uv.lock package {_package_name(package)} has a non-table "
+                f"{field_name} entry"
+            )
+        name = dependency.get("name")
+        if not isinstance(name, str):
+            raise LockRefreshError(
+                f"uv.lock package {_package_name(package)} has a {field_name} "
+                "entry without a string name"
+            )
+        names.add(_normalize_name(name))
+    return frozenset(names)
+
+
+def _find_package(
+    packages: list[dict[str, Any]],
+    normalized_name: str,
+) -> dict[str, Any] | None:
+    for package in packages:
+        if _normalize_name(_package_name(package)) == normalized_name:
+            return package
+    return None
+
+
 def _metadata_requires_dist(package: dict[str, Any]) -> list[dict[str, Any]]:
     metadata = package.get("metadata")
     requires_dist = metadata.get("requires-dist") if isinstance(metadata, dict) else None
@@ -493,12 +545,109 @@ def _validate_core_package_after(
         )
 
 
+def _validate_pypi_artifact(
+    artifact: object,
+    *,
+    package_name: str,
+    package_version: str,
+    label: str,
+) -> None:
+    if not isinstance(artifact, dict):
+        raise LockRefreshError(f"uv.lock {label} entry is not a table")
+    url = artifact.get("url")
+    if not isinstance(url, str):
+        raise LockRefreshError(f"uv.lock {label} entry has no URL")
+    digest = artifact.get("hash")
+    if not isinstance(digest, str) or not digest.startswith("sha256:"):
+        raise LockRefreshError(f"uv.lock {label} entry has no sha256 hash")
+    if package_version not in url:
+        raise LockRefreshError(
+            f"uv.lock {label} URL does not reference {package_name} {package_version}"
+        )
+
+
+def _validate_transitive_refresh_artifacts(package: dict[str, Any]) -> None:
+    package_name = _package_name(package)
+    package_version = _lock_package_version(package)
+    source = package.get("source")
+    if not isinstance(source, dict) or source.get("registry") != "https://pypi.org/simple/":
+        raise LockRefreshError(
+            f"uv.lock package {package_name} is not a PyPI registry package"
+        )
+
+    saw_artifact = False
+    sdist = package.get("sdist")
+    if sdist is not None:
+        saw_artifact = True
+        _validate_pypi_artifact(
+            sdist,
+            package_name=package_name,
+            package_version=package_version,
+            label=f"{package_name} sdist",
+        )
+    wheels = package.get("wheels")
+    if wheels is not None:
+        if not isinstance(wheels, list) or not wheels:
+            raise LockRefreshError(f"uv.lock package {package_name} has invalid wheels")
+        saw_artifact = True
+        for index, wheel in enumerate(wheels, start=1):
+            _validate_pypi_artifact(
+                wheel,
+                package_name=package_name,
+                package_version=package_version,
+                label=f"{package_name} wheel #{index}",
+            )
+    if not saw_artifact:
+        raise LockRefreshError(
+            f"uv.lock package {package_name} has no PyPI artifacts to refresh"
+        )
+
+
+def _validate_transitive_lock_refresh(
+    *,
+    before_package: dict[str, Any],
+    after_package: dict[str, Any],
+    direct_dependency_names: frozenset[str],
+) -> TransitiveLockRefresh:
+    package_name = _package_name(before_package)
+    normalized_name = _normalize_name(package_name)
+    if normalized_name in direct_dependency_names:
+        raise LockRefreshError(f"uv.lock changed direct dependency package {package_name}")
+
+    refresh_fields = {"version", "sdist", "wheels"}
+    before_static = {
+        key: value
+        for key, value in before_package.items()
+        if key not in refresh_fields
+    }
+    after_static = {
+        key: value
+        for key, value in after_package.items()
+        if key not in refresh_fields
+    }
+    if before_static != after_static:
+        raise LockRefreshError(
+            f"uv.lock package {package_name} changed fields outside version, "
+            "sdist, or wheels"
+        )
+
+    _validate_transitive_refresh_artifacts(before_package)
+    _validate_transitive_refresh_artifacts(after_package)
+    return TransitiveLockRefresh(
+        name=package_name,
+        before_version=_lock_package_version(before_package),
+        after_version=_lock_package_version(after_package),
+    )
+
+
 def _validate_uv_lock_diff(
     before: str,
     after: str,
     target: ParsedVersion,
     new_specifier: str,
-) -> None:
+    *,
+    allow_transitive_lock_refresh: bool,
+) -> tuple[TransitiveLockRefresh, ...]:
     before_data, before_packages = _parse_uv_lock(before)
     after_data, after_packages = _parse_uv_lock(after)
     before_top = {key: value for key, value in before_data.items() if key != "package"}
@@ -513,6 +662,13 @@ def _validate_uv_lock_diff(
             "uv.lock package order or package set changed unexpectedly"
         )
 
+    before_project_package = _find_package(before_packages, PROJECT_PACKAGE_NAME)
+    direct_dependency_names = (
+        frozenset()
+        if before_project_package is None
+        else _dependency_names(before_project_package, field_name="dependencies")
+    )
+    allowed_transitive_refreshes: list[TransitiveLockRefresh] = []
     seen_project_package = False
     seen_core_package = False
     for before_package, after_package, package_name in zip(
@@ -538,8 +694,16 @@ def _validate_uv_lock_diff(
                 target=target,
             )
         elif before_package != after_package:
-            raise LockRefreshError(
-                f"uv.lock changed unrelated package {package_name}"
+            if not allow_transitive_lock_refresh:
+                raise LockRefreshError(
+                    f"uv.lock changed unrelated package {package_name}"
+                )
+            allowed_transitive_refreshes.append(
+                _validate_transitive_lock_refresh(
+                    before_package=before_package,
+                    after_package=after_package,
+                    direct_dependency_names=direct_dependency_names,
+                )
             )
 
     if not seen_project_package:
@@ -548,6 +712,7 @@ def _validate_uv_lock_diff(
         )
     if not seen_core_package:
         raise LockRefreshError(f"uv.lock has no [[package]] stanza for {DEPENDENCY_NAME}")
+    return tuple(allowed_transitive_refreshes)
 
 
 def _validate_expected_diffs(
@@ -558,9 +723,32 @@ def _validate_expected_diffs(
     after_uv_lock: str,
     target: ParsedVersion,
     new_specifier: str,
-) -> None:
+    allow_transitive_lock_refresh: bool,
+) -> tuple[TransitiveLockRefresh, ...]:
     _validate_pyproject_diff(before_pyproject, after_pyproject, new_specifier)
-    _validate_uv_lock_diff(before_uv_lock, after_uv_lock, target, new_specifier)
+    return _validate_uv_lock_diff(
+        before_uv_lock,
+        after_uv_lock,
+        target,
+        new_specifier,
+        allow_transitive_lock_refresh=allow_transitive_lock_refresh,
+    )
+
+
+def _print_transitive_lock_refreshes(
+    refreshes: tuple[TransitiveLockRefresh, ...],
+) -> None:
+    if not refreshes:
+        return
+    items = []
+    for refresh in refreshes:
+        if refresh.before_version == refresh.after_version:
+            items.append(f"{refresh.name} {refresh.after_version}")
+        else:
+            items.append(
+                f"{refresh.name} {refresh.before_version} -> {refresh.after_version}"
+            )
+    print(f"allowed transitive uv.lock refresh: {', '.join(items)}")
 
 
 def _unified_diff(before: str, after: str, path: str) -> str:
@@ -641,7 +829,8 @@ def _render_report_diff(
     target: ParsedVersion,
     new_specifier: str,
     lock_runner: LockRunner,
-) -> str:
+    allow_transitive_lock_refresh: bool,
+) -> tuple[str, tuple[TransitiveLockRefresh, ...]]:
     with tempfile.TemporaryDirectory(prefix="sase-core-window-") as raw_tmp:
         scratch = Path(raw_tmp)
         (scratch / "pyproject.toml").write_text(after_pyproject, encoding="utf-8")
@@ -650,19 +839,23 @@ def _render_report_diff(
         _run_lock_or_raise(scratch, target, lock_runner)
         after_uv_lock = (scratch / "uv.lock").read_text(encoding="utf-8")
 
-    _validate_expected_diffs(
+    refreshes = _validate_expected_diffs(
         before_pyproject=before_pyproject,
         after_pyproject=after_pyproject,
         before_uv_lock=before_uv_lock,
         after_uv_lock=after_uv_lock,
         target=target,
         new_specifier=new_specifier,
+        allow_transitive_lock_refresh=allow_transitive_lock_refresh,
     )
-    return _combined_diff(
-        before_pyproject=before_pyproject,
-        after_pyproject=after_pyproject,
-        before_uv_lock=before_uv_lock,
-        after_uv_lock=after_uv_lock,
+    return (
+        _combined_diff(
+            before_pyproject=before_pyproject,
+            after_pyproject=after_pyproject,
+            before_uv_lock=before_uv_lock,
+            after_uv_lock=after_uv_lock,
+        ),
+        refreshes,
     )
 
 
@@ -676,29 +869,34 @@ def _apply_ratchet(
     target: ParsedVersion,
     new_specifier: str,
     lock_runner: LockRunner,
-) -> str:
+    allow_transitive_lock_refresh: bool,
+) -> tuple[str, tuple[TransitiveLockRefresh, ...]]:
     pyproject.write_text(after_pyproject, encoding="utf-8")
     try:
         _run_lock_or_raise(pyproject.parent, target, lock_runner)
         after_uv_lock = uv_lock.read_text(encoding="utf-8")
-        _validate_expected_diffs(
+        refreshes = _validate_expected_diffs(
             before_pyproject=before_pyproject,
             after_pyproject=after_pyproject,
             before_uv_lock=before_uv_lock,
             after_uv_lock=after_uv_lock,
             target=target,
             new_specifier=new_specifier,
+            allow_transitive_lock_refresh=allow_transitive_lock_refresh,
         )
     except RatchetError:
         pyproject.write_text(before_pyproject, encoding="utf-8")
         uv_lock.write_text(before_uv_lock, encoding="utf-8")
         raise
 
-    return _combined_diff(
-        before_pyproject=before_pyproject,
-        after_pyproject=after_pyproject,
-        before_uv_lock=before_uv_lock,
-        after_uv_lock=after_uv_lock,
+    return (
+        _combined_diff(
+            before_pyproject=before_pyproject,
+            after_pyproject=after_pyproject,
+            before_uv_lock=before_uv_lock,
+            after_uv_lock=after_uv_lock,
+        ),
+        refreshes,
     )
 
 
@@ -717,6 +915,7 @@ def ratchet_core_window(
     uv_lock: Path = DEFAULT_UV_LOCK,
     check: bool = False,
     report_only: bool = False,
+    allow_transitive_lock_refresh: bool = False,
     metadata_fetcher: Callable[[], dict[str, object]] | None = None,
     lock_runner: LockRunner | None = None,
 ) -> int:
@@ -750,7 +949,7 @@ def ratchet_core_window(
         print(f"{summary} pending")
         return EXIT_RATCHET
     if report_only:
-        diff = _render_report_diff(
+        diff, refreshes = _render_report_diff(
             pyproject=pyproject,
             uv_lock=uv_lock,
             before_pyproject=before_pyproject,
@@ -759,12 +958,14 @@ def ratchet_core_window(
             target=target,
             new_specifier=new_specifier,
             lock_runner=runner,
+            allow_transitive_lock_refresh=allow_transitive_lock_refresh,
         )
         print(f"{summary} would update:")
+        _print_transitive_lock_refreshes(refreshes)
         print(diff, end="")
         return EXIT_RATCHET
 
-    _apply_ratchet(
+    _diff, refreshes = _apply_ratchet(
         pyproject=pyproject,
         uv_lock=uv_lock,
         before_pyproject=before_pyproject,
@@ -773,7 +974,9 @@ def ratchet_core_window(
         target=target,
         new_specifier=new_specifier,
         lock_runner=runner,
+        allow_transitive_lock_refresh=allow_transitive_lock_refresh,
     )
+    _print_transitive_lock_refreshes(refreshes)
     print(f"{summary} applied")
     return EXIT_RATCHET
 
@@ -788,27 +991,40 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "-t",
+        "--allow-transitive-lock-refresh",
+        action="store_true",
+        help=(
+            "allow unchanged-package-set transitive PyPI packages to refresh "
+            "version, sdist, or wheel metadata."
+        ),
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="write nothing and exit 2 when a ratchet is pending.",
+    )
+    mode.add_argument(
+        "-r",
+        "--report-only",
+        action="store_true",
+        help="write nothing and print the exact diff that would be applied.",
+    )
+    parser.add_argument(
+        "-p",
         "--pyproject",
         type=Path,
         default=DEFAULT_PYPROJECT,
         help="Path to sase's pyproject.toml.",
     )
     parser.add_argument(
+        "-u",
         "--uv-lock",
         type=Path,
         default=DEFAULT_UV_LOCK,
         help="Path to sase's uv.lock.",
-    )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--check",
-        action="store_true",
-        help="write nothing and exit 2 when a ratchet is pending.",
-    )
-    mode.add_argument(
-        "--report-only",
-        action="store_true",
-        help="write nothing and print the exact diff that would be applied.",
     )
     namespace = parser.parse_args(argv)
 
@@ -818,6 +1034,7 @@ def main(argv: list[str] | None = None) -> int:
             uv_lock=namespace.uv_lock,
             check=namespace.check,
             report_only=namespace.report_only,
+            allow_transitive_lock_refresh=namespace.allow_transitive_lock_refresh,
         )
     except RatchetError as exc:
         _error(str(exc))
