@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.agent import artifact_files_cache
 from sase.agent.artifact_files_cache import get_global_cache
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import get_prompt_content
 
@@ -104,20 +105,24 @@ def test_repeat_select_caches_content_read(tmp_path: Path) -> None:
 
     agent = _StubAgent(str(artifacts_dir))
 
-    open_count = 0
-    real_open = open
+    read_count = 0
+    real_open_text = artifact_files_cache._open_text
 
-    def counting_open(*args, **kwargs):  # type: ignore[no-untyped-def]
-        nonlocal open_count
-        open_count += 1
-        return real_open(*args, **kwargs)
+    def counting_open_text(path: str) -> str:
+        nonlocal read_count
+        read_count += 1
+        return real_open_text(path)
 
-    with patch("builtins.open", side_effect=counting_open):
+    with patch(
+        "sase.agent.artifact_files_cache._open_text",
+        side_effect=counting_open_text,
+    ):
         get_prompt_content(agent)
-        baseline = open_count
+        baseline = read_count
         get_prompt_content(agent)
         get_prompt_content(agent)
 
     # Subsequent calls hit the cached file content; no new file opens for
     # reading the prompt body.
-    assert open_count == baseline
+    assert baseline == 1
+    assert read_count == baseline

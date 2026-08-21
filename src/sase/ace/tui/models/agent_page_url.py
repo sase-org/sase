@@ -38,6 +38,10 @@ _MAX_AGENT_PAGE_REGISTRY_SNAPSHOTS = 32
 _AGENT_PAGE_REGISTRY_SNAPSHOT_TTL_SECONDS = 30.0
 
 
+def _registry_snapshot_now() -> float:
+    return time.monotonic()
+
+
 def agent_publishes_page(agent: Agent) -> bool:
     """Return whether ``agent`` should have a published agents-sidecar page."""
     return bool(
@@ -91,7 +95,7 @@ def _snapshot_agent_name_registry(
         primary_root=str(Path(primary_root).expanduser().resolve(strict=False)),
         freshness_token=agent_name_registry_freshness_token(),
     )
-    now = time.monotonic()
+    now = _registry_snapshot_now()
     cached = _AGENT_PAGE_REGISTRY_SNAPSHOTS.get(key)
     if (
         cached is not None

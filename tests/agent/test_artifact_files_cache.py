@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from sase.agent.artifact_files_cache import ArtifactFileCache, TailCache
 
@@ -43,6 +44,19 @@ def test_read_text_invalidates_on_mtime_change(tmp_path: Path) -> None:
     st = f.stat()
     os.utime(f, ns=(st.st_mtime_ns + 5_000_000_000, st.st_mtime_ns + 5_000_000_000))
     assert cache.read_text(str(f)) == "world!!"
+
+
+def test_read_text_uses_module_owned_open_hook(tmp_path: Path) -> None:
+    cache = ArtifactFileCache()
+    f = tmp_path / "prompt.md"
+    f.write_text("hello", encoding="utf-8")
+    open_text = Mock(return_value="hooked")
+
+    with patch("sase.agent.artifact_files_cache._open_text", open_text):
+        assert cache.read_text(str(f)) == "hooked"
+        assert cache.read_text(str(f)) == "hooked"
+
+    open_text.assert_called_once_with(str(f))
 
 
 def test_read_json_caches(tmp_path: Path) -> None:

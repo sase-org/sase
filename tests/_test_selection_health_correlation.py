@@ -50,6 +50,10 @@ _SOURCE_AUDIT_SCAN_ROOTS: dict[str, tuple[str, ...]] = {
     "tests/test_markdown_print_width.py": ("src/sase/",),
     "tests/test_sdd_canonical_layout.py": ("src/sase/sdd/", "docs/", "tests/"),
     "tests/test_proc_submission_static_invariants.py": ("src/sase/",),
+    "tests/completion/test_snapshot.py": (
+        "src/sase/",
+        "tests/completion/snapshots/",
+    ),
     "tests/workspace_provider/test_primary_writable_store_import_boundary.py": (
         "src/sase/",
     ),

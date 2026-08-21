@@ -66,8 +66,9 @@ def _stub_hosted_resolver(
     monkeypatch: pytest.MonkeyPatch,
     *,
     url: str | None = _AGENT_PAGE_URL,
+    store_root: Path = Path("/sdd/widgets"),
 ) -> tuple[Mock, Mock, Mock]:
-    store = SimpleNamespace(repo_root=Path("/sdd/widgets"))
+    store = SimpleNamespace(repo_root=store_root)
     resolver = Mock()
     resolver.agent_url.return_value = url
     resolve_store = Mock(return_value=store)
@@ -264,22 +265,41 @@ def test_resolve_agent_page_url_refreshes_after_registry_invalidation(
 
 def test_resolve_agent_page_url_refreshes_after_snapshot_ttl(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
+    project_key = "ttl-project"
+    primary_root = tmp_path / project_key
+    store_root = tmp_path / "sdd" / project_key
     monkeypatch.setattr(
         "sase.ace.tui.models.agent_page_url.parse_workspace_dir",
-        lambda _project_file: "/projects/widgets",
+        lambda _project_file: str(primary_root),
     )
-    monotonic = Mock(side_effect=[100.0, 131.0])
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_page_url.time.monotonic",
-        monotonic,
+        "sase.ace.tui.models.agent_page_url.agent_name_registry_freshness_token",
+        lambda: 8675309,
     )
-    _resolve_store, _hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
-    agent = _committed_agent()
+    now = 100.0
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url._registry_snapshot_now",
+        lambda: now,
+    )
+    _resolve_store, hosted_resolver, resolver = _stub_hosted_resolver(
+        monkeypatch,
+        store_root=store_root,
+    )
+    agent = _committed_agent(
+        project_file=str(primary_root / f"{project_key}.sase"),
+        workspace_dir=str(primary_root.with_name(f"{project_key}_7")),
+    )
 
     assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+    now = 129.999
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+    assert resolver.snapshot_agent_name_registry.call_count == 1
+    now = 130.0
     assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
 
+    assert hosted_resolver.call_count == 3
     assert resolver.snapshot_agent_name_registry.call_count == 2
 
 

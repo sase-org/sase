@@ -26,6 +26,11 @@ _MARKER_AUDIT_NODEID = (
     "tests/test_agent_artifact_marker_path_passing_audit.py"
     "::test_tracked_marker_path_passing_sites_are_reviewed"
 )
+_COMPLETION_SNAPSHOT_NODEIDS = (
+    "tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift",
+    "tests/completion/test_snapshot.py"
+    "::test_current_structural_view_matches_checked_in_snapshot",
+)
 
 
 def test_dirty_tree_source_audit_failures_are_not_reproducible_flakes() -> None:
@@ -129,6 +134,84 @@ def test_a_clean_tree_intermittent_audit_failure_stays_a_reproducible_flake() ->
     )
 
     assert reproducible_flake_nodeids(runs) == frozenset({_MARKER_AUDIT_NODEID})
+    assert attributable_dirty_failures(runs) == ()
+
+
+def test_dirty_tree_completion_snapshot_drift_is_not_a_reproducible_flake() -> None:
+    runs = (
+        FullRunRecord(
+            name="argparse-drift",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=_COMPLETION_SNAPSHOT_NODEIDS,
+            workspace="/workspaces/sase_12",
+            changed_files=frozenset({"src/sase/main.py"}),
+            tree_dirty=True,
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"docs/unrelated.md"}),
+            tree_dirty=False,
+        ),
+        FullRunRecord(
+            name="snapshot-drift",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=_COMPLETION_SNAPSHOT_NODEIDS,
+            workspace="/workspaces/sase_16",
+            changed_files=frozenset({"tests/completion/snapshots/cli_spec.json"}),
+            tree_dirty=True,
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+    excluded = attributable_dirty_failures(runs)
+    assert {nodeid for nodeid, _record in excluded} == set(_COMPLETION_SNAPSHOT_NODEIDS)
+    assert len(excluded) == 4
+
+
+def test_clean_tree_completion_snapshot_drift_stays_a_reproducible_flake() -> None:
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=_COMPLETION_SNAPSHOT_NODEIDS,
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/sase/main.py"}),
+            tree_dirty=False,
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"docs/unrelated.md"}),
+            tree_dirty=False,
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=_COMPLETION_SNAPSHOT_NODEIDS,
+            workspace="/workspaces/sase_16",
+            changed_files=frozenset({"tests/completion/snapshots/cli_spec.json"}),
+            tree_dirty=False,
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset(_COMPLETION_SNAPSHOT_NODEIDS)
     assert attributable_dirty_failures(runs) == ()
 
 

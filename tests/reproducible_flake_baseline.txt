@@ -147,12 +147,11 @@ tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_
 # sase-qm: baselined per the bead's own instruction, on evidence from three
 # distinct workspaces and heads (2026-08-16, -17, -18). Corroborated 2026-08-19.
 tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
-# sase-qo: sase-qd.land root-caused and fixed this at 2026-08-19T01:12:58Z but
-# never committed the fix, so it is still live on master -- reproduced at
-# de06c55ca, 40 minutes after that instant. When the fix lands, replace this
-# entry with a `# fixed-at:` line naming the commit rather than just deleting
-# it, so the pre-fix evidence retires instead of lingering.
-tests/ace/tui/modals/test_project_inventory_subtabs.py::test_cross_navigation_and_escape_surface_disabled_workspaces
+# sase-qo: fixed by b6779c4d6 "fix(tui): keep the Projects highlight when a
+# current-project resolve lands" (committed 2026-08-19T01:29:14Z). One stale
+# pre-fix tree recorded a later failure after this instant; see the baseline
+# header's stale-tree limitation.
+# fixed-at: 2026-08-19T01:29:14Z tests/ace/tui/modals/test_project_inventory_subtabs.py::test_cross_navigation_and_escape_surface_disabled_workspaces
 # sase-n4.5: the epic that added both try_disable_provider and this contention
 # test (665a22ac5) owns the Rust lock-acquire timeout that starves. Two
 # independent failures on unrelated dirty trees -- workspace sase_18 at

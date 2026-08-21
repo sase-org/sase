@@ -29,6 +29,11 @@ def _stat_signature(path: str) -> tuple[int, int] | None:
     return (st.st_mtime_ns, st.st_size)
 
 
+def _open_text(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 @dataclass
 class TailCache:
     """Tracks an append-only file so each refresh reads only new bytes."""
@@ -186,8 +191,7 @@ class ArtifactFileCache:
                 return cached[1]
 
         try:
-            with open(path, encoding="utf-8") as f:
-                content = f.read()
+            content = _open_text(path)
         except OSError:
             return None
 
