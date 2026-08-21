@@ -395,3 +395,96 @@ def test_disabled_plugin_provider_fails_closed(
 
     assert result.status == "failed"
     assert result.attempts[0].diagnostic_code == "provider_disabled"
+
+
+def test_external_provider_request_includes_accepted_payload_and_obligations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    instance = _instance("audit", "example-finalizers@audit")
+    config = _config({"audit": instance}, defaults=("audit",))
+    provider = FinalizerProviderRecord(
+        provider_ref="example-finalizers@audit",
+        provider_id="audit",
+        package="example-finalizers",
+        version="1.0.0",
+        entry_point="example_finalizers:provider",
+        builtin=False,
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.executor.collect_finalizer_providers",
+        lambda: (provider,),
+    )
+    (tmp_path / "final_context.json").write_text(
+        json.dumps(
+            {
+                "context": {
+                    "obligations": [
+                        {
+                            "obligation_id": "repo-1",
+                            "kind": "repository",
+                            "display_name": "main",
+                            "paths": ["src/app.py"],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "final_submission.json").write_text(
+        json.dumps(
+            {
+                "submission": {
+                    "payloads": [
+                        {
+                            "instance_id": "audit",
+                            "payload": {"note": "from-declaration"},
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen: list[Mapping[str, Any]] = []
+
+    def run_operation(
+        _instance: ConfiguredFinalizerInstance,
+        _provider: FinalizerProviderRecord,
+        operation: str,
+        request: Mapping[str, Any],
+        _context: FinalizerExecutionContext,
+    ) -> dict[str, Any]:
+        seen.append(request)
+        return {
+            "schema_version": 1,
+            "operation": operation,
+            "provider_ref": "example-finalizers@audit",
+            "instance_id": "audit",
+            "status": "success" if operation == "execute" else "ok",
+            "evidence": [{"kind": "audit", "value": "ok"}]
+            if operation == "execute"
+            else [],
+        }
+
+    result = execute_non_commit_finalizer(
+        instance,
+        config,
+        FinalizerExecutionContext(
+            artifacts_dir=str(tmp_path),
+            plan_digest="sha256:test",
+        ),
+        operation_runner=run_operation,
+    )
+
+    assert result.status == "success"
+    assert [item["operation"] for item in seen] == [
+        "describe",
+        "validate",
+        "execute",
+        "verify",
+    ]
+    for request in seen:
+        assert request["payload"] == {"note": "from-declaration"}
+        assert request["obligations"][0]["obligation_id"] == "repo-1"

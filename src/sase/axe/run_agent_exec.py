@@ -195,6 +195,8 @@ def run_execution_loop(
 
     _publish_predicted_chat_path(ctx)
     _publish_root_timestamp(ctx)
+    if ctx.agent_name:
+        os.environ["SASE_AGENT_NAME"] = ctx.agent_name
 
     from sase.llm_provider.registry import (
         LLM_EXEC_PROVIDER_ENV,

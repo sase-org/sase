@@ -714,6 +714,21 @@ def validate_provider_payloads(
             )
         if entry.provider_ref == "builtin@commit":
             _validate_commit_payload(context, payload)
+        elif entry.provider_ref != "builtin@command":
+            from sase.finalizers.executor import (
+                FinalizerExecutionError,
+                validate_external_declaration_payload,
+            )
+
+            try:
+                validate_external_declaration_payload(
+                    instance_id, entry.provider_ref, context, payload
+                )
+            except FinalizerExecutionError as exc:
+                raise FinalizerDeclarationError(
+                    str(exc),
+                    code="external_payload_invalid",
+                ) from exc
 
 
 def _validate_commit_payload(

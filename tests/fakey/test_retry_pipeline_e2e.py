@@ -56,11 +56,16 @@ def test_execution_override_runs_fakey_with_requested_model_metadata(
     invocation = harness.invocation_records()[0]
     assert invocation["model"] == "opus"
     assert invocation["outcome"]["status"] == "succeeded"
-    assert harness.agent_meta() == {
+    meta = harness.agent_meta()
+    finalizers = meta.pop("finalizers")
+    assert meta == {
         **requested_meta,
         "model_alias_origin": "none",
         "exec_llm_provider": "fakey",
     }
+    assert finalizers["selected"] == ["commit"]
+    assert finalizers["raw_operations"] == []
+    assert isinstance(finalizers["plan_digest"], str) and finalizers["plan_digest"]
     assert harness.done_marker()["model"] == "opus"
     assert harness.done_marker()["llm_provider"] == "claude"
     assert harness.done_marker()["exec_llm_provider"] == "fakey"

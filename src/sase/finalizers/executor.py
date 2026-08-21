@@ -16,13 +16,18 @@ from typing import Any
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerAttemptWire,
+    FinalizerContextWire,
     FinalizerDiagnosticWire,
     FinalizerInstanceResultWire,
     FinalizerOutcomeEvidenceWire,
     finalizer_wire_to_json_dict,
 )
 from sase.finalizers.artifacts import instance_artifact_dir, write_text_artifact
-from sase.finalizers.config import ConfiguredFinalizerInstance, FinalizerConfig
+from sase.finalizers.config import (
+    ConfiguredFinalizerInstance,
+    FinalizerConfig,
+    load_finalizer_config,
+)
 from sase.finalizers.providers import (
     BUILTIN_COMMAND_PROVIDER_REF,
     BUILTIN_COMMIT_PROVIDER_REF,
@@ -259,6 +264,48 @@ def execute_plugin_finalizer(
     )
 
 
+def validate_external_declaration_payload(
+    instance_id: str,
+    provider_ref: str,
+    context: FinalizerContextWire,
+    payload: Any,
+) -> None:
+    """Run the selected provider's validate operation for one declaration payload."""
+
+    if not isinstance(payload, Mapping):
+        raise FinalizerExecutionError(
+            f"finalizer payload for {instance_id} must be an object"
+        )
+    config = load_finalizer_config()
+    instance = config.instances.get(instance_id)
+    if instance is None or instance.provider_ref != provider_ref:
+        raise FinalizerExecutionError(f"unknown finalizer instance {instance_id!r}")
+    exec_context = FinalizerExecutionContext(
+        artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
+        plan_digest=context.plan_digest,
+        run_id=context.run_id,
+        agent_id=context.agent_id,
+    )
+    providers = collect_finalizer_providers()
+    provider = provider_records_by_ref(providers).get(provider_ref)
+    if provider is None:
+        raise FinalizerExecutionError(
+            f"finalizer provider {provider_ref!r} is not installed"
+        )
+    if provider.disabled_by:
+        joined = ", ".join(provider.disabled_by)
+        raise FinalizerExecutionError(
+            f"finalizer provider {provider_ref!r} is disabled by {joined}"
+        )
+    request = _provider_request(instance, config, exec_context, "validate")
+    request["payload"] = dict(payload)
+    request["obligations"] = finalizer_wire_to_json_dict(list(context.obligations))
+    result = run_provider_operation(
+        instance, provider, "validate", request, exec_context
+    )
+    _validate_provider_result(instance, "validate", result)
+
+
 def run_provider_operation(
     instance: ConfiguredFinalizerInstance,
     provider: FinalizerProviderRecord,
@@ -460,7 +507,7 @@ def _provider_request(
     context: FinalizerExecutionContext,
     operation: str,
 ) -> dict[str, Any]:
-    return {
+    request: dict[str, Any] = {
         "schema_version": FINALIZER_WIRE_SCHEMA_VERSION,
         "operation": operation,
         "provider_ref": instance.provider_ref,
@@ -475,6 +522,70 @@ def _provider_request(
             if item.instance_id in config.defaults
         ],
     }
+    payloads = _load_accepted_payloads(context.artifacts_dir)
+    if instance.instance_id in payloads:
+        request["payload"] = payloads[instance.instance_id]
+    obligations = _load_host_obligations(context.artifacts_dir)
+    if obligations:
+        request["obligations"] = obligations
+    return request
+
+
+def _load_accepted_payloads(artifacts_dir: str | None) -> dict[str, Any]:
+    if not artifacts_dir:
+        return {}
+    from sase.finalizers.declaration import FINAL_SUBMISSION_FILENAME
+
+    try:
+        payload = json.loads(
+            (Path(artifacts_dir) / FINAL_SUBMISSION_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
+    submission = payload.get("submission")
+    if not isinstance(submission, Mapping):
+        return {}
+    raw_payloads = submission.get("payloads")
+    if not isinstance(raw_payloads, list):
+        return {}
+    accepted: dict[str, Any] = {}
+    for item in raw_payloads:
+        if not isinstance(item, Mapping):
+            continue
+        instance_id = item.get("instance_id")
+        if isinstance(instance_id, str) and "payload" in item:
+            accepted[instance_id] = item.get("payload")
+    return accepted
+
+
+def _load_host_obligations(artifacts_dir: str | None) -> list[dict[str, Any]]:
+    if not artifacts_dir:
+        return []
+    from sase.finalizers.declaration import FINAL_CONTEXT_FILENAME
+
+    try:
+        payload = json.loads(
+            (Path(artifacts_dir) / FINAL_CONTEXT_FILENAME).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, Mapping):
+        return []
+    context = payload.get("context")
+    if not isinstance(context, Mapping):
+        return []
+    obligations = context.get("obligations")
+    if not isinstance(obligations, list):
+        return []
+    loaded: list[dict[str, Any]] = []
+    for item in obligations:
+        if isinstance(item, dict):
+            loaded.append(item)
+    return loaded
 
 
 def _validate_provider_result(
@@ -620,4 +731,5 @@ __all__ = [
     "execute_plugin_finalizer",
     "result_to_json",
     "run_provider_operation",
+    "validate_external_declaration_payload",
 ]

@@ -325,3 +325,71 @@ def test_commit_consumes_exported_declaration_helpers() -> None:
         name for name in _COMMIT_DECLARATION_HELPERS if name not in consumed
     ]
     assert missing_consumers == []
+
+
+def test_submit_invokes_external_provider_validate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.finalizers.config import (
+        ConfiguredFinalizerInstance,
+        FinalizerConfig,
+        FinalizerFieldProvenance,
+    )
+    from sase.finalizers.executor import FinalizerExecutionError
+
+    instance = ConfiguredFinalizerInstance(
+        instance_id="audit",
+        provider_ref="example-finalizers@audit",
+        provenance={"use": FinalizerFieldProvenance("test", None)},
+    )
+    config = FinalizerConfig(
+        defaults=("audit",),
+        required=(),
+        instances={"audit": instance},
+        provenance={},
+    )
+    monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.finalizers.plan.diagnose_finalizer_providers",
+        lambda *_args, **_kwargs: (),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _clean_state(tmp_path),
+    )
+    seen: list[object] = []
+
+    def accept(
+        instance_id: str,
+        provider_ref: str,
+        _context: object,
+        payload: object,
+    ) -> None:
+        seen.append((instance_id, provider_ref, payload))
+
+    monkeypatch.setattr(
+        "sase.finalizers.executor.validate_external_declaration_payload",
+        accept,
+    )
+    _prepare_agent_env(monkeypatch, tmp_path)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(tmp_path),
+    )
+    publication = publish_final_context()
+    manifest = deepcopy(publication.payload["manifest_template"])
+    manifest["payloads"][0]["payload"] = {"note": "ok"}
+    submit_final_manifest(manifest)
+
+    assert seen == [("audit", "example-finalizers@audit", {"note": "ok"})]
+
+    def reject(*_args: object, **_kwargs: object) -> None:
+        raise FinalizerExecutionError("audit payload rejected")
+
+    monkeypatch.setattr(
+        "sase.finalizers.executor.validate_external_declaration_payload",
+        reject,
+    )
+    with pytest.raises(FinalizerDeclarationError, match="audit payload rejected"):
+        submit_final_manifest(manifest)
