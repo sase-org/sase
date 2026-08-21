@@ -30,7 +30,6 @@ from sase.core.finalizer_wire import (
     finalizer_plan_from_dict,
     finalizer_wire_to_json_dict,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.finalizers.plan import load_persisted_finalizer_plan
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import dirty_path_fingerprints
@@ -91,7 +90,7 @@ def mint_finalizer_turn_nonce() -> str:
 
 
 def append_finalizer_end_turn_instructions(prompt: str) -> str:
-    """Append beta-only end-of-turn instructions to a provider prompt."""
+    """Append end-of-turn final-declaration instructions to a provider prompt."""
 
     block = """## SASE Final Declaration
 
@@ -114,7 +113,6 @@ def publish_final_context(
 ) -> FinalContextPublication:
     """Recompute, validate, and atomically publish the current finalizer context."""
 
-    _require_beta_enabled("sase final context")
     root = _require_artifacts_dir(artifacts_dir, "sase final context")
     plan = _load_plan(root)
     run_id, agent_id, turn_nonce = _run_identity(root, "sase final context")
@@ -148,7 +146,6 @@ def submit_final_manifest(
 ) -> dict[str, Any]:
     """Validate and atomically publish one finalizer declaration manifest."""
 
-    _require_beta_enabled("sase final submit")
     root = _require_artifacts_dir(artifacts_dir, "sase final submit")
     content_digest = _safe_value_digest(manifest)
 
@@ -391,14 +388,6 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
             for path in paths:
                 lines.append(f"      {path}")
     return "\n".join(lines)
-
-
-def _require_beta_enabled(command: str) -> None:
-    if not current_flags().enabled(FeatureFlag.pluggable_finalizers):
-        raise FinalizerDeclarationError(
-            f"{command} requires feature flag `pluggable_finalizers`",
-            code="feature_flag_disabled",
-        )
 
 
 def _require_artifacts_dir(value: str | None, command: str) -> Path:

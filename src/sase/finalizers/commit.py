@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Any
@@ -37,8 +36,11 @@ from sase.finalizers.commit_types import (
     success_result as _success_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
-from sase.llm_provider import commit_finalizer as legacy_commit
-from sase.llm_provider.commit_finalizer_artifacts import artifact_root, write_result
+from sase.finalizers.reconciliation import (
+    PreparedCommitDirtyState,
+    prepare_commit_dirty_state,
+)
+from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
     FINALIZER_BASELINE_FILENAME,
@@ -51,12 +53,8 @@ from sase.llm_provider.commit_finalizer_git import (
     normalize_path,
     split_pre_existing_changed_files,
 )
-from sase.llm_provider.commit_finalizer_state import collect_dirty_state
-from sase.llm_provider.commit_finalizer_types import (
-    CommitFinalizerResult,
-    DirtyRepo,
-    DirtyState,
-)
+from sase.llm_provider.commit_finalizer_prompting import failure_message
+from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
@@ -91,13 +89,12 @@ def execute_commit_finalizer(
 
     artifacts = artifact_root(context.artifacts_dir)
     project_dir = resolve_finalizer_project_dir()
-    state = _prepare_dirty_state(project_dir, artifacts)
+    state = prepare_commit_dirty_state(project_dir, artifacts)
     if state.dirty_state.is_clean:
-        _write_clean_compat_result(
-            artifacts,
-            project_dir=project_dir,
-            state=state,
-            passes=0,
+        _raise_if_unpublished_bead_state(
+            state,
+            instance_id=instance.instance_id,
+            invoke_result=invoke_result,
         )
         return BuiltinCommitExecution(
             invoke_result=invoke_result,
@@ -121,14 +118,6 @@ def execute_commit_finalizer(
             instance.instance_id,
             "missing_commit_declaration",
             f"commit finalizer requires a current accepted declaration: {exc}",
-        )
-        _write_failed_compat_result(
-            artifacts,
-            project_dir=project_dir,
-            dirty_state=state.dirty_state,
-            reason="missing_declaration",
-            error=result.diagnostics[0].message,
-            passes=0,
         )
         raise BuiltinCommitFinalizerError(
             result.diagnostics[0].message,
@@ -158,14 +147,6 @@ def execute_commit_finalizer(
         if action == "refuse":
             reason = str(decision.get("reason", "")).strip()
             result = _refused_result(instance.instance_id, reason)
-            _write_failed_compat_result(
-                artifacts,
-                project_dir=project_dir,
-                dirty_state=state.dirty_state,
-                reason="refused",
-                error=reason,
-                passes=len(attempts),
-            )
             raise BuiltinCommitFinalizerError(
                 f"commit finalizer refused dirty repository {repo.name}: {reason}",
                 result=result,
@@ -219,14 +200,6 @@ def execute_commit_finalizer(
                 attempts=attempts,
                 evidence=evidence,
             )
-            _write_failed_compat_result(
-                artifacts,
-                project_dir=project_dir,
-                dirty_state=state.dirty_state,
-                reason="stitch_failed",
-                error=message_text,
-                passes=len(attempts),
-            )
             raise BuiltinCommitFinalizerError(
                 message_text,
                 result=result,
@@ -249,14 +222,6 @@ def execute_commit_finalizer(
                 attempts=attempts,
                 evidence=evidence,
             )
-            _write_failed_compat_result(
-                artifacts,
-                project_dir=project_dir,
-                dirty_state=state.dirty_state,
-                reason="missing_commit_result",
-                error=message_text,
-                passes=len(attempts),
-            )
             raise BuiltinCommitFinalizerError(
                 message_text,
                 result=result,
@@ -277,21 +242,13 @@ def execute_commit_finalizer(
                 attempts=attempts,
                 evidence=evidence,
             )
-            _write_failed_compat_result(
-                artifacts,
-                project_dir=project_dir,
-                dirty_state=_collect_dirty_state(project_dir, artifacts),
-                reason="dirty_after_stitch",
-                error=message_text,
-                passes=len(attempts),
-            )
             raise BuiltinCommitFinalizerError(
                 message_text,
                 result=result,
                 invoke_result=current_result,
             )
 
-        state = _prepare_dirty_state(project_dir, artifacts)
+        state = prepare_commit_dirty_state(project_dir, artifacts)
 
     _reject_discarded_dirty_work(
         dirty_before_decisions,
@@ -306,7 +263,7 @@ def execute_commit_finalizer(
     )
 
     if not state.dirty_state.is_clean:
-        message_text = legacy_commit.failure_message(
+        message_text = failure_message(
             state.dirty_state,
             max_passes=1,
             no_progress_passes=0,
@@ -318,31 +275,18 @@ def execute_commit_finalizer(
             attempts=attempts,
             evidence=evidence,
         )
-        _write_failed_compat_result(
-            artifacts,
-            project_dir=project_dir,
-            dirty_state=state.dirty_state,
-            reason="dirty_after_commit_decisions",
-            error=message_text,
-            passes=len(attempts),
-        )
         raise BuiltinCommitFinalizerError(
             message_text,
             result=result,
             invoke_result=current_result,
         )
 
-    legacy_commit._fail_on_unpublished_bead_state(
-        state.bead_publication_error,
-        artifact_root=artifacts,
-        project_dir=project_dir,
-        passes=len(attempts),
-    )
-    _write_clean_compat_result(
-        artifacts,
-        project_dir=project_dir,
-        state=state,
-        passes=len(attempts),
+    _raise_if_unpublished_bead_state(
+        state,
+        instance_id=instance.instance_id,
+        invoke_result=current_result,
+        attempts=attempts,
+        evidence=evidence,
     )
     return BuiltinCommitExecution(
         invoke_result=current_result,
@@ -354,49 +298,28 @@ def execute_commit_finalizer(
     )
 
 
-@dataclass(frozen=True)
-class _PreparedDirtyState:
-    dirty_state: DirtyState
-    done_plan_auto_committed: bool = False
-    sdd_prompt_qa_auto_committed: bool = False
-    sdd_store_auto_committed: bool = False
-    bead_publication_error: str | None = None
-
-
-def _prepare_dirty_state(
-    project_dir: str,
-    artifacts: Path | None,
-) -> _PreparedDirtyState:
-    bead_sync = legacy_commit._auto_commit_separate_sdd_store_if_possible(
-        project_dir,
-        artifacts,
+def _raise_if_unpublished_bead_state(
+    state: PreparedCommitDirtyState,
+    *,
+    instance_id: str,
+    invoke_result: InvokeResult,
+    attempts: Sequence[FinalizerAttemptWire] = (),
+    evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
+) -> None:
+    if state.bead_publication_error is None:
+        return
+    result = _failed_result(
+        instance_id,
+        "bead_state_unpublished",
+        state.bead_publication_error,
+        attempts=attempts,
+        evidence=evidence,
     )
-    dirty_state = _collect_dirty_state(project_dir, artifacts)
-    dirty_state, qa_auto_committed = (
-        legacy_commit._auto_commit_external_sdd_prompt_qa_if_possible(
-            project_dir,
-            dirty_state,
-            artifacts,
-        )
+    raise BuiltinCommitFinalizerError(
+        state.bead_publication_error,
+        result=result,
+        invoke_result=invoke_result,
     )
-    dirty_state, done_auto_committed = (
-        legacy_commit._auto_commit_done_plan_status_if_possible(
-            project_dir,
-            dirty_state,
-            artifacts,
-        )
-    )
-    return _PreparedDirtyState(
-        dirty_state=dirty_state,
-        done_plan_auto_committed=done_auto_committed,
-        sdd_prompt_qa_auto_committed=qa_auto_committed,
-        sdd_store_auto_committed=bead_sync.committed,
-        bead_publication_error=bead_sync.publication_error,
-    )
-
-
-def _collect_dirty_state(project_dir: str, artifacts: Path | None) -> DirtyState:
-    return collect_dirty_state(project_dir, artifact_root=artifacts)
 
 
 def _commit_decisions_for_instance(
@@ -635,71 +558,10 @@ def _reject_discarded_dirty_work(
         attempts=attempts,
         evidence=evidence,
     )
-    _write_failed_compat_result(
-        artifacts,
-        project_dir=project_dir,
-        dirty_state=after,
-        reason="dirty_work_discarded",
-        error=message_text,
-        passes=len(attempts),
-    )
     raise BuiltinCommitFinalizerError(
         message_text,
         result=result,
         invoke_result=invoke_result,
-    )
-
-
-def _write_clean_compat_result(
-    artifacts: Path | None,
-    *,
-    project_dir: str,
-    state: _PreparedDirtyState,
-    passes: int,
-) -> None:
-    finalized = (
-        passes > 0
-        or state.done_plan_auto_committed
-        or state.sdd_prompt_qa_auto_committed
-        or state.sdd_store_auto_committed
-    )
-    write_result(
-        artifacts,
-        CommitFinalizerResult(
-            status="finalized" if finalized else "clean",
-            reason=legacy_commit._clean_result_reason(
-                done_plan_auto_committed=state.done_plan_auto_committed,
-                sdd_prompt_qa_auto_committed=state.sdd_prompt_qa_auto_committed,
-                sdd_store_auto_committed=state.sdd_store_auto_committed,
-            )
-            if finalized and passes == 0
-            else ("clean_after_pass" if finalized else "clean"),
-            project_dir=project_dir,
-            passes=passes,
-            changed_files=[],
-        ),
-    )
-
-
-def _write_failed_compat_result(
-    artifacts: Path | None,
-    *,
-    project_dir: str,
-    dirty_state: DirtyState,
-    reason: str,
-    error: str,
-    passes: int,
-) -> None:
-    write_result(
-        artifacts,
-        CommitFinalizerResult(
-            status="failed",
-            reason=reason,
-            project_dir=project_dir,
-            passes=passes,
-            changed_files=legacy_commit._result_changed_files(dirty_state),
-            error=error,
-        ),
     )
 
 

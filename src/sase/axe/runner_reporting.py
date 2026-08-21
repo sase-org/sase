@@ -38,6 +38,8 @@ def _finalizer_verdict(artifacts_dir: str) -> str | None:
 
 
 def _commit_finalizer_verdict(artifacts_dir: str) -> str:
+    """Read-only fallback for archived agents that only wrote the legacy result."""
+
     result_path = os.path.join(artifacts_dir, "commit_finalizer_result.json")
     try:
         with open(result_path, encoding="utf-8") as f:

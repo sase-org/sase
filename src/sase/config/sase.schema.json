@@ -2970,24 +2970,6 @@
       "description": "Configuration for SASE commit enforcement.",
       "additionalProperties": false,
       "properties": {
-        "finalizer": {
-          "type": "object",
-          "description": "Provider-neutral post-invocation commit finalizer.",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Run the commit finalizer after SASE-launched agent turns.",
-              "default": true
-            },
-            "max_passes": {
-              "type": "integer",
-              "description": "Maximum follow-up turns the finalizer may run before failing a still-dirty workspace.",
-              "default": 2,
-              "minimum": 1
-            }
-          }
-        },
         "message": {
           "type": "object",
           "description": "Commit-message subject validation policy.",
@@ -3026,7 +3008,7 @@
     },
     "finalizers": {
       "type": "object",
-      "description": "Host-owned finalizer instances selected for SASE agent completion when the pluggable_finalizers beta is enabled.",
+      "description": "Host-owned finalizer instances selected for SASE agent completion.",
       "additionalProperties": false,
       "properties": {
         "defaults": {
@@ -3736,11 +3718,6 @@
         "completion_refresh_on_update": {
           "type": "boolean",
           "description": "After a successful sase update, regenerate, zcompile, and restamp installed shell completion scripts. Off by default while the generator soaks.",
-          "default": false
-        },
-        "pluggable_finalizers": {
-          "type": "boolean",
-          "description": "Opt-in beta: SASE agent completion resolves host-owned pluggable finalizer plans instead of directly invoking the legacy commit finalizer.",
           "default": false
         },
         "plugin_catalog_scoped_latest": {

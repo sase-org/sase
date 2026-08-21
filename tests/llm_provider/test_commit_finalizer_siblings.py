@@ -1,36 +1,35 @@
-"""Legacy sibling-env coverage for the shared commit finalizer.
+"""Linked-repo dirty discovery for the built-in commit finalizer.
 
 The finalizer is canonical on ``linked_repos`` terminology and env/markers but
 still honors the deprecated ``sibling`` env vars and opened-sibling markers.
-Tests here drive the finalizer through that compatibility surface.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
-from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
     add_origin,
-    commit_all,
+    collected_dirty_state,
     init_bare_remote,
     init_git_repo,
     mark_opened_sibling,
-    read_result_json,
-    run_finalizer,
     set_agent_env,
     set_clean_main,
     write_tool_call_record,
 )
 
 
-def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
+def _sibling_names(state) -> set[str]:
+    return {repo.name for repo in state.repos if repo.kind == "sibling"}
+
+
+def test_dirty_configured_sibling_without_open_marker_is_discovered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -38,8 +37,7 @@ def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
     sibling = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(sibling)
-    dirty_file = sibling / "dirty.txt"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -57,31 +55,15 @@ def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
         ),
     )
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(sibling)
-        return InvokeResult(content="finalized sibling")
-
-    provider.invoke.side_effect = invoke
-
-    result = run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nfinalized sibling"
-    assert "linked repo core" in prompts[0]
-    assert "dirty.txt" in prompts[0]
-    assert f"cd {sibling.resolve()}" in prompts[0]
-    assert dirty_file.exists()
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
-    assert result_json["reason"] == "clean_after_pass"
+    assert _sibling_names(state) == {"core"}
+    assert any("dirty.txt" in repo.changed_files for repo in state.repos)
 
 
-def test_dirty_configured_sibling_triggers_follow_up_turn(
+def test_dirty_configured_sibling_with_open_marker_is_discovered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -89,8 +71,7 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
     sibling = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(sibling)
-    dirty_file = sibling / "dirty.txt"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -110,25 +91,9 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(sibling)
-        return InvokeResult(content="finalized sibling")
-
-    provider.invoke.side_effect = invoke
-
-    result = run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nfinalized sibling"
-    assert "linked repo core" in prompts[0]
-    assert prompts[0].count("linked repo core") == 1
-    assert "dirty.txt" in prompts[0]
-    assert f"cd {sibling.resolve()}" in prompts[0]
-    assert "/sase_git_commit" in prompts[0]
+    assert _sibling_names(state) == {"core"}
 
 
 def test_opened_dirty_sibling_uses_recorded_path_when_config_omits_it(
@@ -139,34 +104,17 @@ def test_opened_dirty_sibling_uses_recorded_path_when_config_omits_it(
     sibling = tmp_path / "sase-core_10"
     main.mkdir()
     init_git_repo(sibling)
-    dirty_file = sibling / "dirty.txt"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (sibling / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(SIBLING_REPOS_JSON_ENV, json.dumps([]))
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "core", sibling)
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(sibling)
-        return InvokeResult(content="finalized recorded sibling")
-
-    provider.invoke.side_effect = invoke
-
-    result = run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nfinalized recorded sibling"
-    assert "linked repo core" in prompts[0]
-    assert "dirty.txt" in prompts[0]
-    assert f"cd {sibling.resolve()}" in prompts[0]
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
-    assert result_json["reason"] == "clean_after_pass"
+    assert _sibling_names(state) == {"core"}
+    assert any(repo.path == str(sibling.resolve()) for repo in state.repos)
 
 
 def test_dirty_observed_same_repo_workspace_from_artifacts_is_ignored(
@@ -197,16 +145,10 @@ def test_dirty_observed_same_repo_workspace_from_artifacts_is_ignored(
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.delenv(SIBLING_REPOS_JSON_ENV, raising=False)
-    provider = MagicMock()
 
-    result = run_finalizer(provider, artifacts_dir)
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
-    assert dirty_file.exists()
-    assert '"status": "clean"' in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    assert state.is_clean
 
 
 def test_dirty_primary_sibling_checkout_is_ignored_when_workspace_is_configured(
@@ -238,15 +180,13 @@ def test_dirty_primary_sibling_checkout_is_ignored_when_workspace_is_configured(
     )
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_sibling(monkeypatch, artifacts_dir, "core", workspace_sibling)
-    provider = MagicMock()
 
-    result = run_finalizer(provider, artifacts_dir)
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert state.is_clean
 
 
-def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
+def test_multiple_dirty_configured_siblings_are_discovered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -256,10 +196,8 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     main.mkdir()
     init_git_repo(alpha)
     init_git_repo(beta)
-    alpha_file = alpha / "alpha.txt"
-    beta_file = beta / "beta.txt"
-    alpha_file.write_text("alpha\n", encoding="utf-8")
-    beta_file.write_text("beta\n", encoding="utf-8")
+    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+    (beta / "beta.txt").write_text("beta\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -275,30 +213,12 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
     mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
     mark_opened_sibling(monkeypatch, artifacts_dir, "beta", beta)
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(alpha)
-        commit_all(beta)
-        return InvokeResult(content="finalized siblings")
-
-    provider.invoke.side_effect = invoke
-
-    run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert "linked repo alpha" in prompts[0]
-    assert "alpha.txt" in prompts[0]
-    assert "linked repo beta" in prompts[0]
-    assert "beta.txt" in prompts[0]
-    assert '"status": "finalized"' in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    assert _sibling_names(state) == {"alpha", "beta"}
 
 
-def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
+def test_dirty_configured_suffix_siblings_are_discovered_without_open_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -308,10 +228,8 @@ def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
     main.mkdir()
     init_git_repo(alpha)
     init_git_repo(beta)
-    alpha_file = alpha / "alpha.txt"
-    beta_file = beta / "beta.txt"
-    alpha_file.write_text("alpha\n", encoding="utf-8")
-    beta_file.write_text("beta\n", encoding="utf-8")
+    (alpha / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+    (beta / "beta.txt").write_text("beta\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -324,24 +242,9 @@ def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
         ),
     )
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
     mark_opened_sibling(monkeypatch, artifacts_dir, "alpha", alpha)
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(alpha)
-        commit_all(beta)
-        return InvokeResult(content="finalized siblings")
-
-    provider.invoke.side_effect = invoke
-
-    run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert "linked repo alpha" in prompts[0]
-    assert "alpha.txt" in prompts[0]
-    assert "linked repo beta" in prompts[0]
-    assert "beta.txt" in prompts[0]
-    assert beta_file.exists()
+    assert _sibling_names(state) == {"alpha", "beta"}

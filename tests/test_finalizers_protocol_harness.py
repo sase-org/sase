@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.agent.pending_handoff import PLAN_PENDING_MARKER
-from sase.feature_flags import override_flags
 from sase.finalizers.commit import (
     BuiltinCommitFinalizerError,
     StitchCommandResult,
@@ -29,8 +28,8 @@ from sase.finalizers.declaration import (
     submit_final_manifest,
 )
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_types import (
-    BeadStateSyncOutcome,
     DirtyRepo,
     DirtyState,
 )
@@ -84,7 +83,6 @@ def _patch_dirty(
         "sase.finalizers.commit.resolve_finalizer_project_dir",
         lambda: str(repo),
     )
-    monkeypatch.setattr("sase.finalizers.commit.collect_dirty_state", collect)
     monkeypatch.setattr(
         "sase.finalizers.declaration._collect_dirty_state",
         lambda _root: collect(str(repo)),
@@ -100,16 +98,10 @@ def _patch_dirty(
         ),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_separate_sdd_store_if_possible",
-        lambda _project_dir, _artifacts: BeadStateSyncOutcome(),
-    )
-    monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_external_sdd_prompt_qa_if_possible",
-        lambda _project_dir, state, _artifacts: (state, False),
-    )
-    monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_done_plan_status_if_possible",
-        lambda _project_dir, state, _artifacts: (state, False),
+        "sase.finalizers.commit.prepare_commit_dirty_state",
+        lambda _project_dir, _artifacts: PreparedCommitDirtyState(
+            dirty_state=collect(str(repo)),
+        ),
     )
 
 
@@ -222,12 +214,11 @@ def test_handoff_skips_generic_controller(
     _patch_dirty(monkeypatch, repo, dirty)
     provider = MagicMock()
 
-    with override_flags(pluggable_finalizers=True):
-        resolve_and_persist_finalizer_plan(
-            PromptDirectives(),
-            artifacts_dir=str(artifacts),
-        )
-        result = _run(artifacts, provider)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(artifacts),
+    )
+    result = _run(artifacts, provider)
 
     assert result.content == "done"
     provider.invoke.assert_not_called()
@@ -246,9 +237,8 @@ def test_final_none_writes_empty_success_result(
     _patch_dirty(monkeypatch, repo, dirty)
     _, directives = extract_prompt_directives("%final:none\nDo work")
 
-    with override_flags(pluggable_finalizers=True):
-        resolve_and_persist_finalizer_plan(directives, artifacts_dir=str(artifacts))
-        result = _run(artifacts)
+    resolve_and_persist_finalizer_plan(directives, artifacts_dir=str(artifacts))
+    result = _run(artifacts)
 
     assert result.content == "done"
     payload = json.loads((artifacts / "finalizer_result.json").read_text())
@@ -306,9 +296,8 @@ def test_sequential_multi_repo_kinds_and_protected_excludes(
         lambda _artifacts, _path: ("legacy.txt",),
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        result = _run(artifacts)
+    _submit_commit(artifacts)
+    result = _run(artifacts)
 
     assert result.content == "done"
     assert [name for name, _excludes in calls] == ["main", "plans"]
@@ -355,10 +344,9 @@ def test_first_repo_conflict_blocks_later_dispatch(
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="tried to repair")
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        with pytest.raises(BuiltinCommitFinalizerError, match="second unresolved"):
-            _run(artifacts, provider)
+    _submit_commit(artifacts)
+    with pytest.raises(BuiltinCommitFinalizerError, match="second unresolved"):
+        _run(artifacts, provider)
 
     assert seen == ["main", "resume:main"]
     assert provider.invoke.call_count == 1
@@ -415,9 +403,8 @@ def test_successful_conflict_resume_continues_same_stitch(
         usage={"input_tokens": 4},
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        result = _run(artifacts, provider)
+    _submit_commit(artifacts)
+    result = _run(artifacts, provider)
 
     assert calls == ["create", "resume"]
     assert "resolved" in result.content
@@ -450,10 +437,9 @@ def test_stale_checkpoint_after_conflict_fails_closed(
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="tried")
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        with pytest.raises(BuiltinCommitFinalizerError, match="resume failed"):
-            _run(artifacts, provider)
+    _submit_commit(artifacts)
+    with pytest.raises(BuiltinCommitFinalizerError, match="resume failed"):
+        _run(artifacts, provider)
 
 
 def test_post_submit_edit_is_rejected_before_mutation(
@@ -474,18 +460,17 @@ def test_post_submit_edit_is_rejected_before_mutation(
     runner = MagicMock()
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).write_text(
-            "spent\n",
-            encoding="utf-8",
-        )
-        fingerprints["value"] = {"src/app.py": ("M", "edited-after-submit")}
-        with pytest.raises(
-            (BuiltinCommitFinalizerError, FinalizerControllerError),
-            match="stale|declaration|changed",
-        ):
-            _run(artifacts)
+    _submit_commit(artifacts)
+    (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).write_text(
+        "spent\n",
+        encoding="utf-8",
+    )
+    fingerprints["value"] = {"src/app.py": ("M", "edited-after-submit")}
+    with pytest.raises(
+        (BuiltinCommitFinalizerError, FinalizerControllerError),
+        match="stale|declaration|changed",
+    ):
+        _run(artifacts)
 
     runner.assert_not_called()
 
@@ -548,12 +533,11 @@ def test_later_finalizer_dirt_reactivates_commit(
     provider = MagicMock()
     provider.invoke.side_effect = lambda *_args, **_kwargs: recover()
 
-    with override_flags(pluggable_finalizers=True):
-        resolve_and_persist_finalizer_plan(
-            PromptDirectives(),
-            artifacts_dir=str(artifacts),
-        )
-        result = _run(artifacts, provider)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(artifacts),
+    )
+    result = _run(artifacts, provider)
 
     assert "recovered" in result.content
     assert calls == ["main"]
@@ -574,12 +558,11 @@ def test_clean_commit_only_does_not_recover(
     _patch_dirty(monkeypatch, repo, dirty)
     provider = MagicMock()
 
-    with override_flags(pluggable_finalizers=True):
-        resolve_and_persist_finalizer_plan(
-            PromptDirectives(),
-            artifacts_dir=str(artifacts),
-        )
-        result = _run(artifacts, provider)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(artifacts),
+    )
+    result = _run(artifacts, provider)
 
     assert result.content == "done"
     provider.invoke.assert_not_called()
@@ -616,9 +599,8 @@ def test_controller_no_progress_fails_closed(
         fake_execute,
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _submit_commit(artifacts)
-        with pytest.raises(FinalizerControllerError, match="no progress"):
-            _run(artifacts)
+    _submit_commit(artifacts)
+    with pytest.raises(FinalizerControllerError, match="no progress"):
+        _run(artifacts)
 
     assert executions["count"] == 1

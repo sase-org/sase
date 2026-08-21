@@ -2,15 +2,13 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.llm_provider import commit_finalizer_git as finalizer_git
-from sase.llm_provider.commit_finalizer import run_commit_finalizer
-from sase.llm_provider.types import InvokeResult
-from tests.llm_provider._codex_fallback_helpers import commit_all, init_dirty_project
+from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from tests.llm_provider._codex_fallback_helpers import init_dirty_project
 
 
 def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
@@ -96,37 +94,6 @@ def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
     assert "CODEX_PROJECT_DIR" not in captured_env
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260512_183950")
 
-    inspected: dict[str, str] = {}
+    project_dir = resolve_finalizer_project_dir()
 
-    def fake_build(project_dir: str) -> tuple[bool, list[str], str, str]:
-        inspected["project_dir"] = project_dir
-        changed_files = finalizer_git.git_changed_files(project_dir)
-        if not changed_files:
-            return (False, [], "", "")
-        return (True, changed_files, "commit", "details body")
-
-    monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
-        fake_build,
-    )
-    provider = MagicMock()
-
-    def invoke(*_args: object, **_kwargs: object) -> InvokeResult:
-        commit_all(dirty_workspace)
-        return InvokeResult(content="follow-up")
-
-    provider.invoke.side_effect = invoke
-
-    result = run_commit_finalizer(
-        provider=provider,
-        original_prompt="prompt",
-        invoke_result=InvokeResult(content="response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(tmp_path / "artifacts"),
-    )
-
-    assert inspected["project_dir"] == str(dirty_workspace)
-    assert provider.invoke.call_count == 1
-    assert result.content == "response\n\nfollow-up"
+    assert project_dir == str(dirty_workspace)

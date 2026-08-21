@@ -14,13 +14,10 @@ import pytest
 
 from sase.axe import crs_runner, fix_hook_runner
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
+from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider import AIMessage
-from sase.llm_provider import commit_finalizer
-from sase.llm_provider.commit_finalizer_types import (
-    CommitFinalizerConfig,
-    DirtyState,
-)
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.main.query_handler import EmbeddedWorkflowResult
 from sase.workflows import crs as crs_workflow_module
 
@@ -102,17 +99,6 @@ def _install_clean_finalizer(
     monkeypatch: pytest.MonkeyPatch,
     observed_project_dirs: list[str],
 ) -> None:
-    monkeypatch.setattr(
-        commit_finalizer,
-        "_load_finalizer_config",
-        lambda: CommitFinalizerConfig(),
-    )
-    monkeypatch.setattr(
-        commit_finalizer,
-        "_auto_commit_separate_sdd_store_if_possible",
-        lambda _project_dir, _artifact_root: commit_finalizer.BeadStateSyncOutcome(),
-    )
-
     def collect_dirty_state(
         project_dir: str,
         *,
@@ -123,23 +109,35 @@ def _install_clean_finalizer(
         return DirtyState(project_dir=project_dir, repos=(), details="")
 
     monkeypatch.setattr(
-        commit_finalizer,
-        "_collect_dirty_state",
+        "sase.llm_provider.commit_finalizer_state.collect_dirty_state",
         collect_dirty_state,
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit.prepare_commit_dirty_state",
+        lambda project_dir, _artifacts: PreparedCommitDirtyState(
+            dirty_state=DirtyState(project_dir=project_dir, repos=(), details=""),
+        ),
     )
 
 
 def _invoke_clean_finalizer(artifacts_dir: str) -> AIMessage:
-    result = commit_finalizer.run_commit_finalizer(
-        provider=MagicMock(),
-        original_prompt="prompt",
-        invoke_result=InvokeResult(content="agent response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=artifacts_dir,
+    from sase.llm_provider.commit_finalizer_state import collect_dirty_state
+
+    collect_dirty_state(
+        resolve_finalizer_project_dir(),
+        artifact_root=Path(artifacts_dir),
     )
-    return AIMessage(content=result.content)
+    Path(artifacts_dir, "finalizer_result.json").write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "instances": [{"instance_id": "commit", "status": "success"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return AIMessage(content="agent response")
 
 
 def _assert_agent_env(
@@ -253,7 +251,7 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
 
     expected_error = (
         "Agent completed but no proposal was created — "
-        "commit finalizer: clean (no_changes); propose step: skipped"
+        "finalizers: success [commit=success]; propose step: skipped"
     )
     done = json.loads((artifacts_dir / "done.json").read_text(encoding="utf-8"))
     assert done["outcome"] == "failed"
@@ -262,9 +260,12 @@ def test_fix_hook_runner_publishes_env_and_reports_no_proposal(
         encoding="utf-8"
     )
     assert observed_project_dirs == [str(workspace_dir)]
-    assert "outside_sase_agent" not in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    assert (
+        json.loads(
+            (artifacts_dir / "finalizer_result.json").read_text(encoding="utf-8")
+        )["status"]
+        == "success"
+    )
     assert expected_error in notify.call_args.kwargs["notes"]
 
 
@@ -383,7 +384,7 @@ def test_crs_runner_publishes_env_and_reports_no_proposal(
 
     expected_error = (
         "Agent completed but no proposal was created — "
-        "commit finalizer: clean (no_changes); propose step: failed"
+        "finalizers: success [commit=success]; propose step: failed"
     )
     done = json.loads((artifacts_dir / "done.json").read_text(encoding="utf-8"))
     assert done["outcome"] == "failed"
@@ -392,7 +393,10 @@ def test_crs_runner_publishes_env_and_reports_no_proposal(
         encoding="utf-8"
     )
     assert observed_project_dirs == [str(workspace_dir)]
-    assert "outside_sase_agent" not in (
-        artifacts_dir / "commit_finalizer_result.json"
-    ).read_text(encoding="utf-8")
+    assert (
+        json.loads(
+            (artifacts_dir / "finalizer_result.json").read_text(encoding="utf-8")
+        )["status"]
+        == "success"
+    )
     assert expected_error in notify.call_args.kwargs["notes"]

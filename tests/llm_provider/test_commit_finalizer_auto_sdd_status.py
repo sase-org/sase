@@ -9,15 +9,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.finalizers.reconciliation import (
+    auto_commit_separate_sdd_store_if_possible as _auto_commit_separate_sdd_store_if_possible,
+    prepare_commit_dirty_state,
+)
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider import commit_finalizer_git_status as finalizer_git_status
-from sase.llm_provider.commit_finalizer import (
-    CommitFinalizerError,
-    _auto_commit_separate_sdd_store_if_possible,
-    collect_dirty_state,
-    run_commit_finalizer,
-)
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 from tests.sdd_policy_helpers import set_sdd_policy
 
@@ -101,7 +100,7 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
         return (True, changed_files, "commit", details)
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         build,
     )
 
@@ -114,15 +113,10 @@ def _use_separate_sdd_store_config(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
-    return run_commit_finalizer(
-        provider=provider,
-        original_prompt="primary prompt",
-        invoke_result=InvokeResult(content="primary response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts_dir),
+def _prepare(artifacts_dir: Path):
+    return prepare_commit_dirty_state(
+        resolve_finalizer_project_dir(),
+        artifacts_dir,
     )
 
 
@@ -135,22 +129,17 @@ def test_done_status_only_sdd_plan_change_is_auto_committed(
     plan.write_text(_PLAN_DONE, encoding="utf-8")
     _set_agent_env(monkeypatch, repo)
     _use_git_dirty_details(monkeypatch)
-    provider = MagicMock()
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    result = _run_finalizer(provider, artifacts_dir)
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert state.dirty_state.is_clean
+    assert state.done_plan_auto_committed is True
     assert _run_git(repo, "status", "--short") == ""
     commit_message = _run_git(repo, "log", "-1", "--pretty=%B")
     assert "chore: Mark SDD plan done" in commit_message
     assert "SASE_TYPE=sdd" in commit_message
-    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
-        encoding="utf-8"
-    )
-    assert '"status": "finalized"' in result_json
-    assert '"reason": "auto_committed_done_plan_status"' in result_json
 
 
 def test_auto_commit_git_runner_recovers_stale_index_lock(
@@ -187,21 +176,18 @@ def test_additional_dirty_file_uses_provider_path(
     extra.write_text("VALUE = 2\n", encoding="utf-8")
     _set_agent_env(monkeypatch, repo)
     _use_git_dirty_details(monkeypatch)
-    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    def invoke(*_: object, **__: object) -> InvokeResult:
-        _commit_all(repo, "provider finalized dirty files")
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    result = _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nprovider finalized"
-    assert _run_git(repo, "log", "-1", "--pretty=%s") == (
-        "provider finalized dirty files\n"
-    )
+    assert not state.dirty_state.is_clean
+    remaining = [
+        path
+        for repo_item in state.dirty_state.repos
+        for path in repo_item.changed_files
+    ]
+    assert any(path.endswith("extra.py") for path in remaining)
 
 
 def test_non_status_sdd_markdown_change_uses_provider_path(
@@ -214,20 +200,18 @@ def test_non_status_sdd_markdown_change_uses_provider_path(
     plan.write_text(changed_body, encoding="utf-8")
     _set_agent_env(monkeypatch, repo)
     _use_git_dirty_details(monkeypatch)
-    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    def invoke(*_: object, **__: object) -> InvokeResult:
-        _commit_all(repo, "provider finalized plan body")
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 1
-    assert _run_git(repo, "log", "-1", "--pretty=%s") == (
-        "provider finalized plan body\n"
-    )
+    assert not state.dirty_state.is_clean
+    remaining = [
+        path
+        for repo_item in state.dirty_state.repos
+        for path in repo_item.changed_files
+    ]
+    assert any("test_plan.md" in path for path in remaining)
 
 
 def test_sibling_done_status_change_uses_provider_path(
@@ -248,20 +232,12 @@ def test_sibling_done_status_change_uses_provider_path(
     artifacts_dir = tmp_path / "artifacts"
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     record_opened_sibling("core", str(sibling))
-    provider = MagicMock()
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    def invoke(*_: object, **__: object) -> InvokeResult:
-        _commit_all(sibling, "provider finalized sibling plan")
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert _run_git(sibling, "log", "-1", "--pretty=%s") == (
-        "provider finalized sibling plan\n"
-    )
+    assert not state.dirty_state.is_clean
+    assert any(item.path == str(sibling.resolve()) for item in state.dirty_state.repos)
 
 
 def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
@@ -276,23 +252,18 @@ def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
     _set_agent_env(monkeypatch, repo)
     _use_git_dirty_details(monkeypatch)
     _use_separate_sdd_store_config(monkeypatch)
-    provider = MagicMock()
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    result = _run_finalizer(provider, artifacts_dir)
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert state.sdd_store_auto_committed is True
+    assert state.dirty_state.is_clean
     assert _run_git(repo, "status", "--short") == ""
     assert _run_git(sdd_store, "status", "--short") == ""
     commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
     assert "chore(beads): sync bead state" in commit_message
     assert "SASE_TYPE=beads" in commit_message
-    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
-        encoding="utf-8"
-    )
-    assert '"status": "finalized"' in result_json
-    assert '"reason": "auto_committed_sdd_store"' in result_json
 
 
 def test_split_sdd_store_auto_commit_targets_only_bead_state(
@@ -409,49 +380,6 @@ def test_clean_bead_state_skips_finalizer_retry_commits(
     )
 
 
-def test_separate_sdd_store_auto_commit_runs_after_provider_pass(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    repo = tmp_path / "sase_10"
-    sdd_store = _create_clean_repo_with_ignored_sdd_store(repo)
-    dirty = repo / "feature.py"
-    dirty.write_text("VALUE = 1\n", encoding="utf-8")
-    _set_agent_env(monkeypatch, repo)
-    _use_git_dirty_details(monkeypatch)
-    _use_separate_sdd_store_config(monkeypatch)
-    provider = MagicMock()
-
-    calls = 0
-
-    def invoke(*_: object, **__: object) -> InvokeResult:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            _run_git(repo, "add", "feature.py")
-            _run_git(repo, "commit", "-q", "-m", "feat: commit main work")
-            notes = sdd_store / "research" / "note.md"
-            notes.parent.mkdir()
-            notes.write_text("forgotten sdd note\n", encoding="utf-8")
-        else:
-            _run_git(sdd_store, "add", "research/note.md")
-            _run_git(sdd_store, "commit", "-q", "-m", "docs: add research note")
-        return InvokeResult(content="provider finalized")
-
-    provider.invoke.side_effect = invoke
-
-    result = _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 2
-    assert result.content == (
-        "primary response\n\nprovider finalized\n\nprovider finalized"
-    )
-    assert _run_git(repo, "status", "--short") == ""
-    assert _run_git(sdd_store, "status", "--short") == ""
-    commit_message = _run_git(sdd_store, "log", "-1", "--pretty=%B")
-    assert "docs: add research note" in commit_message
-
-
 def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -464,8 +392,6 @@ def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
     _set_agent_env(monkeypatch, repo)
     _use_git_dirty_details(monkeypatch)
     _use_separate_sdd_store_config(monkeypatch)
-    provider = MagicMock()
-    provider.invoke.return_value = InvokeResult(content="still dirty")
     artifacts_dir = tmp_path / "artifacts"
 
     dirty_state = collect_dirty_state(str(repo), artifact_root=artifacts_dir)
@@ -477,11 +403,4 @@ def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
     assert f"cd {sdd_store.resolve()}" in dirty_state.details
     assert "/sase_git_commit" in dirty_state.details
     assert "git status --short --branch" in dirty_state.details
-
-    with pytest.raises(
-        CommitFinalizerError, match="changes remain after 2 finalizer pass"
-    ):
-        _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 2
     assert _run_git(sdd_store, "status", "--short") == "?? research/\n"

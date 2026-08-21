@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.finalizers.commit import (
     BuiltinCommitFinalizerError,
     StitchCommandResult,
@@ -20,8 +19,8 @@ from sase.finalizers.declaration import (
 )
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_types import (
-    BeadStateSyncOutcome,
     DirtyRepo,
     DirtyState,
 )
@@ -68,13 +67,6 @@ def _patch_commit_state(
         lambda: str(repo),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.collect_dirty_state",
-        lambda _project_dir, artifact_root=None: _dirty_state(
-            repo,
-            dirty=dirty["value"],
-        ),
-    )
-    monkeypatch.setattr(
         "sase.finalizers.declaration._collect_dirty_state",
         lambda _root: _dirty_state(repo, dirty=dirty["value"]),
     )
@@ -87,16 +79,10 @@ def _patch_commit_state(
         lambda _path: ["src/app.py"] if dirty["value"] else [],
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_separate_sdd_store_if_possible",
-        lambda _project_dir, _artifacts: BeadStateSyncOutcome(),
-    )
-    monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_external_sdd_prompt_qa_if_possible",
-        lambda _project_dir, state, _artifacts: (state, False),
-    )
-    monkeypatch.setattr(
-        "sase.finalizers.commit.legacy_commit._auto_commit_done_plan_status_if_possible",
-        lambda _project_dir, state, _artifacts: (state, False),
+        "sase.finalizers.commit.prepare_commit_dirty_state",
+        lambda _project_dir, _artifacts: PreparedCommitDirtyState(
+            dirty_state=_dirty_state(repo, dirty=dirty["value"]),
+        ),
     )
 
 
@@ -161,27 +147,23 @@ def test_builtin_commit_executes_declared_stitch_without_reprompt(
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
     provider = MagicMock()
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_and_submit_commit(artifacts)
-        result = run_finalizers(
-            provider=provider,
-            original_prompt="do work",
-            invoke_result=InvokeResult(content="done"),
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(artifacts),
-        )
+    _persist_and_submit_commit(artifacts)
+    result = run_finalizers(
+        provider=provider,
+        original_prompt="do work",
+        invoke_result=InvokeResult(content="done"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(artifacts),
+    )
 
     assert result.content == "done"
     provider.invoke.assert_not_called()
     assert [(call[0].name, call[1], call[2]) for call in calls] == [
         ("main", "fix(final): reconcile commit declaration", ())
     ]
-    compat = json.loads(
-        (artifacts / "commit_finalizer_result.json").read_text(encoding="utf-8")
-    )
-    assert compat["status"] == "finalized"
+    assert not (artifacts / "commit_finalizer_result.json").exists()
     aggregate = json.loads(
         (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
     )
@@ -202,25 +184,20 @@ def test_builtin_commit_refusal_fails_without_running_stitch(
     runner = MagicMock()
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_and_submit_commit(artifacts, action="refuse", reason="not mine")
-        with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
-            run_finalizers(
-                provider=MagicMock(),
-                original_prompt="do work",
-                invoke_result=InvokeResult(content="done"),
-                model_tier="large",
-                suppress_output=True,
-                model_override=None,
-                artifacts_dir=str(artifacts),
-            )
+    _persist_and_submit_commit(artifacts, action="refuse", reason="not mine")
+    with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
 
     runner.assert_not_called()
-    compat = json.loads(
-        (artifacts / "commit_finalizer_result.json").read_text(encoding="utf-8")
-    )
-    assert compat["status"] == "failed"
-    assert compat["reason"] == "refused"
+    assert not (artifacts / "commit_finalizer_result.json").exists()
     aggregate = json.loads(
         (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
     )

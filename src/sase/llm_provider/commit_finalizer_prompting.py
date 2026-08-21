@@ -135,64 +135,6 @@ def _result_changed_files(dirty_state: DirtyState) -> list[str]:
     return changed
 
 
-_SINGLE_TURN_CONTRACT = (
-    "--- Single-Turn Execution Contract ---\n"
-    "This is a non-interactive, single-turn invocation: once this response ends, "
-    "the process exits immediately. There is no later turn, no notification "
-    "delivery, and no scheduled wake-up. Background work does not survive the "
-    "end of this turn, and identifiers for background work started in a "
-    "previous pass are not resolvable in this one.\n"
-    "Never end this response in order to wait for something to finish, to be "
-    "notified, or to be resumed. If you need to verify something, do it now:\n"
-    "1. Split verification into slices that each fit inside the command-timeout "
-    "ceiling and run them in sequence within this turn; or\n"
-    "2. if work is already running in the background, block on it within this "
-    "same turn by polling until it finishes; or\n"
-    "3. if verification still cannot be completed, commit the work anyway and "
-    "state in your response exactly what was left unverified.\n"
-    "Committing the listed changes is the only outcome that ends the finalizer "
-    "successfully."
-)
-
-
-def build_follow_up_prompt(
-    *,
-    original_prompt: str,
-    accumulated_response: str,
-    details: str,
-    pass_number: int,
-    max_passes: int,
-    previous_pass_stalled: bool = False,
-    is_final_pass: bool = False,
-) -> str:
-    escalation_lines: list[str] = []
-    if previous_pass_stalled:
-        escalation_lines.append(
-            "The previous pass ended without committing and without changing "
-            "the working tree at all: it made no progress."
-        )
-    if is_final_pass:
-        escalation_lines.append(
-            "This is the final finalizer pass. If you do not commit the "
-            "listed changes now, the run fails."
-        )
-    escalation = ("\n" + "\n".join(escalation_lines) + "\n") if escalation_lines else ""
-
-    return (
-        f"{original_prompt}\n\n"
-        "--- Prior, Already-Terminated Output (do not resume or continue it) ---\n"
-        f"{accumulated_response}\n\n"
-        "Any intention recorded above to wait for, poll later, or be notified "
-        "about background work already failed and must not be repeated.\n\n"
-        f"{_SINGLE_TURN_CONTRACT}\n"
-        f"{escalation}\n"
-        f"--- Commit Finalizer Pass {pass_number} of {max_passes} ---\n"
-        f"{details}\n\n"
-        "After handling the commit requirement, respond with a "
-        "concise summary of what you did."
-    )
-
-
 def append_response(existing: str, new: str) -> str:
     return (existing + "\n\n" + new.strip()).strip()
 

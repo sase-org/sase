@@ -304,6 +304,27 @@ def test_no_proposal_summary_prefers_generic_finalizer_result(tmp_path: Path) ->
     )
 
 
+def test_no_proposal_summary_reads_historical_commit_result_only(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "commit_finalizer_result.json").write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "reason": "dirty_after_max_passes",
+                "error": "uncommitted changes remain",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert build_no_proposal_error_summary(str(tmp_path)) == (
+        "Agent completed but no proposal was created — "
+        "commit finalizer: failed (dirty_after_max_passes): "
+        "uncommitted changes remain"
+    )
+
+
 def test_finalize_axe_runner_no_matching_patch() -> None:
     """Test finalize_axe_runner skips suffix update when patch not found."""
     mock_cs = MagicMock()

@@ -93,7 +93,7 @@ def use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
         return (True, changed_files, instruction, details)
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         build,
     )
     monkeypatch.setattr(

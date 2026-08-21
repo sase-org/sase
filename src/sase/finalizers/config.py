@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-import os
 import re
 from typing import Any
 
@@ -23,7 +22,6 @@ _INSTANCE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 _FINALIZER_KEYS = frozenset({"defaults", "required", "instances"})
 _INSTANCE_KEYS = frozenset({"use", "after", "max_attempts", "refusal", "config"})
 _BUILTIN_PROVIDER_REFS = frozenset({"builtin@command", "builtin@commit"})
-_DISABLE_COMMIT_STOP_HOOK_ENV = "SASE_DISABLE_COMMIT_STOP_HOOK"
 
 
 @dataclass(frozen=True)
@@ -43,16 +41,6 @@ class FinalizerFieldProvenance:
 
     layer: str
     path: str | None
-
-
-@dataclass(frozen=True)
-class _LegacyCommitFinalizerField:
-    """Effective legacy commit-finalizer setting from one config layer."""
-
-    value: object
-    layer: str
-    layer_path: str | None
-    config_path: str
 
 
 @dataclass(frozen=True)
@@ -115,11 +103,6 @@ def load_finalizer_config() -> FinalizerConfig:
     state = _MutableFinalizerConfig()
     for layer in layers:
         _merge_layer(state, layer)
-    _apply_legacy_commit_finalizer_adapter(
-        state,
-        layers,
-        explicit_new_finalizers=_explicit_new_finalizers_configured(layers),
-    )
     return state.freeze()
 
 
@@ -316,183 +299,6 @@ def _type_error(
         message=f"{path} must be {expected}",
         layer=layer.name,
         path=path,
-    )
-
-
-def _explicit_new_finalizers_configured(layers: list[ConfigLayer]) -> bool:
-    return any(
-        layer.name != "default"
-        and not layer.name.startswith("plugin:")
-        and isinstance(layer.data.get("finalizers"), Mapping)
-        for layer in layers
-    )
-
-
-def _apply_legacy_commit_finalizer_adapter(
-    state: _MutableFinalizerConfig,
-    layers: list[ConfigLayer],
-    *,
-    explicit_new_finalizers: bool,
-) -> None:
-    enabled = _effective_legacy_field(layers, "enabled")
-    max_passes = _effective_legacy_field(layers, "max_passes")
-    disable_env = bool(os.environ.get(_DISABLE_COMMIT_STOP_HOOK_ENV))
-
-    if explicit_new_finalizers:
-        for field in (enabled, max_passes):
-            if field is not None:
-                state.diagnostics.append(
-                    FinalizerConfigDiagnostic(
-                        severity="warning",
-                        code="legacy_commit_finalizer_ignored",
-                        message=(
-                            f"legacy {field.config_path} is ignored because this "
-                            "configuration also defines finalizers"
-                        ),
-                        layer=field.layer,
-                        path=field.config_path,
-                    )
-                )
-        if disable_env:
-            state.diagnostics.append(
-                FinalizerConfigDiagnostic(
-                    severity="warning",
-                    code="legacy_commit_finalizer_env_ignored",
-                    message=(
-                        f"{_DISABLE_COMMIT_STOP_HOOK_ENV} is ignored because "
-                        "finalizers is explicitly configured"
-                    ),
-                    layer="environment",
-                    path=_DISABLE_COMMIT_STOP_HOOK_ENV,
-                )
-            )
-        return
-
-    if max_passes is not None:
-        normalized = _normalize_legacy_max_passes(max_passes.value)
-        _ensure_commit_instance_defaults(state)
-        state.instances.setdefault("commit", {})["max_attempts"] = normalized
-        state.instance_provenance.setdefault("commit", {})["max_attempts"] = (
-            FinalizerFieldProvenance(max_passes.layer, max_passes.layer_path)
-        )
-        state.diagnostics.append(
-            FinalizerConfigDiagnostic(
-                severity="warning",
-                code="legacy_commit_finalizer_mapped",
-                message=(
-                    "legacy commit.finalizer.max_passes maps to "
-                    "finalizers.instances.commit.max_attempts during the "
-                    "pluggable finalizers beta"
-                ),
-                layer=max_passes.layer,
-                path=max_passes.config_path,
-            )
-        )
-
-    if enabled is not None:
-        mapped_enabled = enabled.value if isinstance(enabled.value, bool) else True
-        if not isinstance(enabled.value, bool):
-            state.diagnostics.append(
-                FinalizerConfigDiagnostic(
-                    severity="warning",
-                    code="legacy_commit_finalizer_invalid",
-                    message="legacy commit.finalizer.enabled must be a boolean",
-                    layer=enabled.layer,
-                    path=enabled.config_path,
-                )
-            )
-        _map_legacy_enabled(state, mapped_enabled, enabled)
-
-    if disable_env:
-        state.defaults = ()
-        state.provenance["defaults"] = FinalizerFieldProvenance("environment", None)
-        state.diagnostics.append(
-            FinalizerConfigDiagnostic(
-                severity="warning",
-                code="legacy_commit_finalizer_env_mapped",
-                message=(
-                    f"{_DISABLE_COMMIT_STOP_HOOK_ENV} disables default finalizers "
-                    "only because no explicit finalizers policy is configured"
-                ),
-                layer="environment",
-                path=_DISABLE_COMMIT_STOP_HOOK_ENV,
-            )
-        )
-
-
-def _effective_legacy_field(
-    layers: list[ConfigLayer],
-    key: str,
-) -> _LegacyCommitFinalizerField | None:
-    effective: _LegacyCommitFinalizerField | None = None
-    for layer in layers:
-        if layer.name == "default" or layer.name.startswith("plugin:"):
-            continue
-        finalizer = _legacy_commit_finalizer_mapping(layer.data)
-        if finalizer is None or key not in finalizer:
-            continue
-        effective = _LegacyCommitFinalizerField(
-            value=finalizer[key],
-            layer=layer.name,
-            layer_path=layer.path,
-            config_path=f"commit.finalizer.{key}",
-        )
-    return effective
-
-
-def _legacy_commit_finalizer_mapping(
-    data: Mapping[str, Any],
-) -> Mapping[str, Any] | None:
-    commit = data.get("commit")
-    if not isinstance(commit, Mapping):
-        return None
-    finalizer = commit.get("finalizer")
-    return finalizer if isinstance(finalizer, Mapping) else None
-
-
-def _normalize_legacy_max_passes(value: object) -> int:
-    if isinstance(value, bool):
-        return 2
-    if isinstance(value, int):
-        return max(1, value)
-    if not isinstance(value, str):
-        return 2
-    try:
-        return max(1, int(value))
-    except ValueError:
-        return 2
-
-
-def _ensure_commit_instance_defaults(state: _MutableFinalizerConfig) -> None:
-    fields = state.instances.setdefault("commit", {})
-    fields.setdefault("use", "builtin@commit")
-    fields.setdefault("after", ())
-    fields.setdefault("refusal", "fail")
-
-
-def _map_legacy_enabled(
-    state: _MutableFinalizerConfig,
-    enabled: bool,
-    field: _LegacyCommitFinalizerField,
-) -> None:
-    if enabled:
-        _ensure_commit_instance_defaults(state)
-    state.defaults = ("commit",) if enabled else ()
-    state.provenance["defaults"] = FinalizerFieldProvenance(
-        field.layer,
-        field.layer_path,
-    )
-    state.diagnostics.append(
-        FinalizerConfigDiagnostic(
-            severity="warning",
-            code="legacy_commit_finalizer_mapped",
-            message=(
-                "legacy commit.finalizer.enabled maps to finalizers.defaults "
-                "during the pluggable finalizers beta"
-            ),
-            layer=field.layer,
-            path=field.config_path,
-        )
     )
 
 

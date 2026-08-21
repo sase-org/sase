@@ -92,8 +92,6 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
     ``sase.llm_provider``, the same constraint ``_invoke.py`` works around
     with its own lazy ``run_agent_helpers`` imports.
     """
-    if os.environ.get("SASE_DISABLE_COMMIT_STOP_HOOK"):
-        return
     from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
     from sase.llm_provider.commit_finalizer_config import (
         resolve_finalizer_project_dir,
@@ -131,22 +129,23 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
     if plan is None:
         return False
 
-    parent_baselines = [
-        os.path.join(plan.parent_artifacts_dir, name)
-        for name in (BASELINE_FILENAME, FINALIZER_BASELINE_FILENAME)
-    ]
-    if not any(os.path.isfile(path) for path in parent_baselines):
+    parent_generic = os.path.join(
+        plan.parent_artifacts_dir, FINALIZER_BASELINE_FILENAME
+    )
+    parent_legacy = os.path.join(plan.parent_artifacts_dir, BASELINE_FILENAME)
+    if os.path.isfile(parent_generic):
+        source = parent_generic
+    elif os.path.isfile(parent_legacy):
+        source = parent_legacy
+    else:
         return False
 
     try:
         os.makedirs(artifacts_dir, exist_ok=True)
-        for parent_baseline in parent_baselines:
-            if not os.path.isfile(parent_baseline):
-                continue
-            shutil.copyfile(
-                parent_baseline,
-                os.path.join(artifacts_dir, os.path.basename(parent_baseline)),
-            )
+        shutil.copyfile(
+            source,
+            os.path.join(artifacts_dir, os.path.basename(source)),
+        )
     except OSError:
         return False
     return True

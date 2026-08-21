@@ -69,7 +69,6 @@ FINALIZER_ATTEMPTS: StubCounter = StubCounter()
 FINALIZER_DURATION: StubHistogram = StubHistogram()
 FINALIZER_RECOVERIES: StubCounter = StubCounter()
 FINALIZER_SUBMISSIONS: StubCounter = StubCounter()
-FINALIZER_PARITY_BRANCH: StubCounter = StubCounter()
 FINALIZER_SHARED_CLONE: StubCounter = StubCounter()
 
 
@@ -347,14 +346,6 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_finalizer_submissions_total",
         "Total finalizer declaration submissions by result and diagnostic code",
         ["result", "code"],
-        {},
-    ),
-    (
-        "FINALIZER_PARITY_BRANCH",
-        "counter",
-        "sase_finalizer_parity_branch_total",
-        "Total finalizer branch selections at the invocation seam",
-        ["branch", "result"],
         {},
     ),
     (

@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
-from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
-    commit_all,
+    collected_dirty_state,
     init_git_repo,
-    read_result_json,
-    run_finalizer,
     set_agent_env,
     set_clean_main,
 )
@@ -45,13 +41,11 @@ def test_legacy_none_record_is_dropped_and_non_blocking(
         ),
     )
     artifacts_dir = tmp_path / "artifacts"
-    provider = MagicMock()
+    artifacts_dir.mkdir()
 
-    result = run_finalizer(provider, artifacts_dir)
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
-    assert read_result_json(artifacts_dir)["reason"] == "no_changes"
+    assert state.is_clean
 
 
 def test_new_linked_record_is_blocking(
@@ -62,8 +56,7 @@ def test_new_linked_record_is_blocking(
     linked = main / "sase" / "repos" / "linked" / "chezmoi"
     main.mkdir()
     init_git_repo(linked)
-    dirty_file = linked / "dotfile"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (linked / "dotfile").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     monkeypatch.setenv(
@@ -71,22 +64,9 @@ def test_new_linked_record_is_blocking(
         json.dumps([{"name": "chezmoi", "workspace_dir": str(linked)}]),
     )
     artifacts_dir = tmp_path / "artifacts"
-    prompts: list[str] = []
-    provider = MagicMock()
+    artifacts_dir.mkdir()
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(linked)
-        return InvokeResult(content="finalized linked repo")
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    result = run_finalizer(provider, artifacts_dir)
-
-    assert result.content == "primary response\n\nfinalized linked repo"
-    assert "linked repo chezmoi" in prompts[0]
-    assert "dotfile" in prompts[0]
-    assert f"cd {linked.resolve()}" in prompts[0]
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
-    assert result_json["reason"] == "clean_after_pass"
+    assert {repo.name for repo in state.repos} == {"chezmoi"}
+    assert "dotfile" in state.repos[0].changed_files

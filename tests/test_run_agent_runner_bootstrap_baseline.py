@@ -53,21 +53,6 @@ def test_capture_commit_finalizer_baseline_delegates_to_resolved_project_dir(
     capture.assert_called_once_with(str(tmp_path), str(tmp_path / "artifacts"))
 
 
-def test_capture_commit_finalizer_baseline_is_noop_when_hook_disabled(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_DISABLE_COMMIT_STOP_HOOK", "1")
-    capture = MagicMock()
-    monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
-    )
-
-    _capture_commit_finalizer_baseline(str(tmp_path / "artifacts"))
-
-    capture.assert_not_called()
-
-
 def _family_attach_plan(*, parent_artifacts_dir: str) -> FamilyAttachLaunchPlan:
     return FamilyAttachLaunchPlan(
         parent_arg="research.worker",

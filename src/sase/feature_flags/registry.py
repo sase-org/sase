@@ -23,7 +23,6 @@ class FeatureFlag(StrEnum):
 
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
     completion_refresh_on_update = "completion_refresh_on_update"
-    pluggable_finalizers = "pluggable_finalizers"
     plugin_catalog_scoped_latest = "plugin_catalog_scoped_latest"
     prettier_enabled = "prettier_enabled"
     ref_sync_gesture = "ref_sync_gesture"
@@ -48,16 +47,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "while the generator soaks."
         ),
         bead="sase-qg",
-    ),
-    FeatureFlag.pluggable_finalizers: FeatureFlagDefinition(
-        key=FeatureFlag.pluggable_finalizers,
-        kind="beta",
-        description=(
-            "Opt-in beta: SASE agent completion resolves host-owned pluggable "
-            "finalizer plans instead of directly invoking the legacy commit "
-            "finalizer."
-        ),
-        bead="sase-ro",
     ),
     FeatureFlag.plugin_catalog_scoped_latest: FeatureFlagDefinition(
         key=FeatureFlag.plugin_catalog_scoped_latest,

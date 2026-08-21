@@ -1191,9 +1191,6 @@ llm_provider:
   #       honor_reset_hint: null
 
 commit:
-  finalizer:
-    enabled: true
-    max_passes: 2
   message:
     # Reject `sase stitch create` messages whose subject line is not a Conventional
     # Commit (`type(scope)!: description`). Merge, revert, and fixup subjects

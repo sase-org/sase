@@ -105,7 +105,6 @@ def capture_opened_repo_dirty_baseline(
                 return None
             records[repo_id] = record
             _write_finalizer_baseline_payload(root, list(records.values()))
-            _write_legacy_dirty_baseline(root, list(records.values()))
     except Exception as exc:
         _logger.warning("Failed to capture opened repo dirty baseline", exc_info=True)
         return f"{type(exc).__name__}: {exc}"
@@ -114,6 +113,10 @@ def capture_opened_repo_dirty_baseline(
 
 def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
     """Load the baseline :func:`capture_dirty_baseline` wrote, if any.
+
+    New runs write ``finalizer_baseline.json``. ``commit_finalizer_baseline.json``
+    is a historical-only reader for archived agents; this function never writes
+    that filename.
 
     Returns ``None`` on a missing, unreadable, or malformed baseline file so
     callers degrade to pre-baseline behavior rather than raising.
@@ -127,6 +130,7 @@ def load_dirty_baseline(artifact_root: Path | None) -> DirtyBaseline | None:
 
 
 def _load_legacy_dirty_baseline(artifact_root: Path) -> DirtyBaseline | None:
+    """Read archived ``commit_finalizer_baseline.json`` files; never a writer."""
     try:
         raw = (artifact_root / BASELINE_FILENAME).read_text(encoding="utf-8")
         data = json.loads(raw)
@@ -226,7 +230,6 @@ def _write_dirty_baseline_records(
     lock_path = root / f"{FINALIZER_BASELINE_FILENAME}.lock"
     with locked_file(lock_path, fcntl.LOCK_EX):
         _write_finalizer_baseline_payload(root, records)
-        _write_legacy_dirty_baseline(root, records)
 
 
 def _read_finalizer_baseline_payload(root: Path) -> dict[str, Any]:
@@ -250,16 +253,6 @@ def _write_finalizer_baseline_payload(
         "repositories": sorted(records, key=lambda item: str(item.get("repo_id", ""))),
     }
     _write_json_atomic(root / FINALIZER_BASELINE_FILENAME, payload)
-
-
-def _write_legacy_dirty_baseline(root: Path, records: list[dict[str, Any]]) -> None:
-    payload = {
-        str(record["path"]): record.get("fingerprints", {})
-        for record in records
-        if isinstance(record.get("path"), str)
-        and record.get("scope", _BASELINE_SCOPE_RUN_START) == _BASELINE_SCOPE_RUN_START
-    }
-    _write_json_atomic(root / BASELINE_FILENAME, payload)
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:

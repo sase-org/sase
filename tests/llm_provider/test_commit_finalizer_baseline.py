@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,13 +26,11 @@ from sase.llm_provider.commit_finalizer_git import (
     dirty_path_fingerprints,
     split_pre_existing_changed_files,
 )
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
     init_git_repo,
-    read_result_json,
-    run_finalizer,
     set_agent_env,
     set_clean_main,
 )
@@ -77,13 +74,13 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
         return (True, changed_files, "commit", details)
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         build,
     )
 
 
-def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
-    return run_finalizer(provider, artifacts_dir)
+def _dirty_details(project_dir: Path, artifacts_dir: Path) -> str:
+    return collect_dirty_state(str(project_dir), artifact_root=artifacts_dir).details
 
 
 def test_pre_existing_main_file_is_excluded_and_reported_separately(
@@ -104,30 +101,16 @@ def test_pre_existing_main_file_is_excluded_and_reported_separately(
     mine = repo / "mine.txt"
     mine.write_text("agent work\n", encoding="utf-8")
 
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "mine.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit my work")
-        return InvokeResult(content="committed my work")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert _PRE_EXISTING_HEADER in prompt
-    must_commit_section, _, pre_existing_section = prompt.partition(
+    details = _dirty_details(repo, artifacts_dir)
+    assert _PRE_EXISTING_HEADER in details
+    must_commit_section, _, pre_existing_section = details.partition(
         _PRE_EXISTING_HEADER
     )
     assert "mine.txt" in must_commit_section
     assert "pre_existing.txt" not in must_commit_section
     assert "pre_existing.txt" in pre_existing_section
-
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
     assert pre_existing.read_text(encoding="utf-8") == "foreign\n"
+    assert not (artifacts_dir / BASELINE_FILENAME).exists()
 
 
 def test_baseline_dirty_file_edited_again_stays_in_must_commit_set(
@@ -149,23 +132,9 @@ def test_baseline_dirty_file_edited_again_stays_in_must_commit_set(
     # status code (untracked) is unchanged but the content is not.
     shared.write_text("agent v2\n", encoding="utf-8")
 
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "shared.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit shared file")
-        return InvokeResult(content="committed shared file")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert "shared.txt" in prompt
-    assert _PRE_EXISTING_HEADER not in prompt
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
+    details = _dirty_details(repo, artifacts_dir)
+    assert "shared.txt" in details
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_clean_baseline_does_not_affect_files_dirtied_after_capture(
@@ -183,21 +152,9 @@ def test_clean_baseline_does_not_affect_files_dirtied_after_capture(
     mine = repo / "mine.txt"
     mine.write_text("agent work\n", encoding="utf-8")
 
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "mine.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit my work")
-        return InvokeResult(content="committed")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert "mine.txt" in prompt
-    assert _PRE_EXISTING_HEADER not in prompt
+    details = _dirty_details(repo, artifacts_dir)
+    assert "mine.txt" in details
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_continuation_run_finalizer_commits_inherited_starters_work(
@@ -227,25 +184,9 @@ def test_continuation_run_finalizer_commits_inherited_starters_work(
     starter_work = repo / "starter_work.txt"
     starter_work.write_text("starter's uncommitted work\n", encoding="utf-8")
 
-    # The continuation run inherits the lane's baseline file byte-for-byte and
-    # its finalizer runs against that same artifacts directory.
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "starter_work.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit starter's work")
-        return InvokeResult(content="committed starter's work")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert "starter_work.txt" in prompt
-    assert _PRE_EXISTING_HEADER not in prompt
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
+    details = _dirty_details(repo, artifacts_dir)
+    assert "starter_work.txt" in details
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_missing_baseline_file_behaves_like_no_baseline(
@@ -260,20 +201,8 @@ def test_missing_baseline_file_behaves_like_no_baseline(
     (repo / "mine.txt").write_text("agent work\n", encoding="utf-8")
     artifacts_dir = tmp_path / "artifacts"  # capture_dirty_baseline never called
 
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "mine.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit")
-        return InvokeResult(content="committed")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert _PRE_EXISTING_HEADER not in prompt
+    details = _dirty_details(repo, artifacts_dir)
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_corrupt_baseline_file_degrades_to_no_baseline(
@@ -290,20 +219,8 @@ def test_corrupt_baseline_file_degrades_to_no_baseline(
     artifacts_dir.mkdir(parents=True)
     (artifacts_dir / BASELINE_FILENAME).write_text("not json{{{", encoding="utf-8")
 
-    provider = MagicMock()
-
-    def invoke(_prompt: str, **_: object) -> InvokeResult:
-        _run_git(repo, "add", "mine.txt")
-        _run_git(repo, "commit", "-q", "-m", "commit")
-        return InvokeResult(content="committed")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    prompt = provider.invoke.call_args.args[0]
-    assert _PRE_EXISTING_HEADER not in prompt
+    details = _dirty_details(repo, artifacts_dir)
+    assert _PRE_EXISTING_HEADER not in details
 
 
 def test_pre_existing_sibling_file_is_excluded_and_reported_separately(
@@ -329,30 +246,11 @@ def test_pre_existing_sibling_file_is_excluded_and_reported_separately(
     mine_file = sibling / "mine.txt"
     mine_file.write_text("agent\n", encoding="utf-8")
 
-    prompts: list[str] = []
-    provider = MagicMock()
-
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        subprocess.run(["git", "add", "mine.txt"], cwd=sibling, check=True)
-        subprocess.run(
-            ["git", "commit", "-q", "-m", "commit my sibling work"],
-            cwd=sibling,
-            check=True,
-        )
-        return InvokeResult(content="finalized sibling")
-
-    provider.invoke.side_effect = invoke
-
-    _run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert "mine.txt" in prompts[0]
-    assert _PRE_EXISTING_HEADER in prompts[0]
-    _, _, pre_existing_section = prompts[0].partition(_PRE_EXISTING_HEADER)
+    details = _dirty_details(main, artifacts_dir)
+    assert "mine.txt" in details
+    assert _PRE_EXISTING_HEADER in details
+    _, _, pre_existing_section = details.partition(_PRE_EXISTING_HEADER)
     assert "foreign.txt" in pre_existing_section
-    result_json = read_result_json(artifacts_dir)
-    assert result_json["status"] == "finalized"
     assert foreign_file.read_text(encoding="utf-8") == "foreign\n"
     foreign_status = subprocess.run(
         ["git", "status", "--porcelain", "foreign.txt"],
@@ -379,6 +277,7 @@ def test_capture_writes_no_baseline_when_dirty_state_collection_fails(
     capture_dirty_baseline(str(tmp_path), str(artifacts_dir))
 
     assert not (artifacts_dir / BASELINE_FILENAME).exists()
+    assert not (artifacts_dir / FINALIZER_BASELINE_FILENAME).exists()
 
 
 def test_capture_writes_fingerprints_for_dirty_paths(
@@ -405,6 +304,7 @@ def test_capture_writes_fingerprints_for_dirty_paths(
     )
     assert payload["schema_version"] == 1
     assert payload["repositories"][0]["fingerprints"]["dirty.txt"][0] == "??"
+    assert not (artifacts_dir / BASELINE_FILENAME).exists()
 
 
 def test_late_open_baseline_capture_first_repo_id_wins(tmp_path: Path) -> None:
@@ -467,6 +367,22 @@ def test_load_dirty_baseline_rejects_malformed_payloads(
 
 def test_load_dirty_baseline_returns_none_for_missing_root() -> None:
     assert load_dirty_baseline(None) is None
+
+
+def test_load_dirty_baseline_reads_historical_legacy_file_only(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    repo = "/historical/repo"
+    (artifacts_dir / BASELINE_FILENAME).write_text(
+        json.dumps({repo: {"file.txt": ["M", "abc123"]}}),
+        encoding="utf-8",
+    )
+
+    assert load_dirty_baseline(artifacts_dir) == {
+        repo: {"file.txt": ("M", "abc123")},
+    }
 
 
 def test_split_pre_existing_changed_files_requires_matching_hash(

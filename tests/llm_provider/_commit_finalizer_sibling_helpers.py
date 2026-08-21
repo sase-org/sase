@@ -15,8 +15,8 @@ from sase.linked_repos import (
     record_opened_external_repo,
     record_opened_linked_repo,
 )
-from sase.llm_provider.commit_finalizer import run_commit_finalizer
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_state import collect_dirty_state
+from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 
 
@@ -62,7 +62,7 @@ def set_agent_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> None:
 def set_clean_main(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     build = MagicMock(return_value=(False, [], "", ""))
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details", build
+        "sase.llm_provider.commit_finalizer_state.build_commit_details", build
     )
     return build
 
@@ -86,28 +86,14 @@ def isolate_user_config(monkeypatch: pytest.MonkeyPatch, config_dir: Path) -> No
     monkeypatch.setattr("sase.config.core._include_local_config", False)
 
 
-def run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
-    return run_commit_finalizer(
-        provider=provider,
-        original_prompt="primary prompt",
-        invoke_result=InvokeResult(content="primary response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts_dir),
-    )
+def collected_dirty_state(project_dir: Path, artifacts_dir: Path) -> DirtyState:
+    return collect_dirty_state(str(project_dir), artifact_root=artifacts_dir)
 
 
 def write_tool_call_record(artifacts_dir: Path, record: dict[str, object]) -> None:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     with open(artifacts_dir / "tool_calls.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
-
-
-def read_result_json(artifacts_dir: Path) -> dict[str, object]:
-    return json.loads(
-        (artifacts_dir / "commit_finalizer_result.json").read_text(encoding="utf-8")
-    )
 
 
 def mark_opened_sibling(

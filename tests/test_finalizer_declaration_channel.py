@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -96,9 +95,8 @@ def test_context_publishes_opaque_dirty_repository_obligation(
         lambda _path: {"src/app.py": ("M", "abc123")},
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        publication = publish_final_context()
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
 
     context = publication.payload["context"]
     obligations = context["obligations"]
@@ -129,16 +127,15 @@ def test_submit_accepts_manifest_and_retains_invalid_attempt_diagnostic(
         lambda _path: {"src/app.py": ("M", "abc123")},
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        publication = publish_final_context()
-        manifest = _valid_manifest(publication)
-        accepted = submit_final_manifest(manifest)
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
+    manifest = _valid_manifest(publication)
+    accepted = submit_final_manifest(manifest)
 
-        stale = deepcopy(manifest)
-        stale["context_digest"] = "0" * 64
-        with pytest.raises(FinalizerDeclarationError, match="context"):
-            submit_final_manifest(stale)
+    stale = deepcopy(manifest)
+    stale["context_digest"] = "0" * 64
+    with pytest.raises(FinalizerDeclarationError, match="context"):
+        submit_final_manifest(stale)
 
     assert accepted["validation"]["accepted_instances"] == ["commit"]
     assert (tmp_path / FINAL_SUBMISSION_FILENAME).is_file()
@@ -165,16 +162,15 @@ def test_clean_commit_context_does_not_spend_recovery_turn(
     provider = MagicMock()
     original = InvokeResult(content="done")
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        result = ensure_final_declaration_or_recover(
-            provider=provider,
-            invoke_result=original,
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(tmp_path),
-        )
+    _persist_default_plan(tmp_path)
+    result = ensure_final_declaration_or_recover(
+        provider=provider,
+        invoke_result=original,
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(tmp_path),
+    )
 
     assert result is original
     provider.invoke.assert_not_called()
@@ -205,16 +201,15 @@ def test_missing_required_declaration_gets_one_fresh_recovery_turn(
 
     provider.invoke.side_effect = recover
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        result = ensure_final_declaration_or_recover(
-            provider=provider,
-            invoke_result=InvokeResult(content="initial", usage={"input_tokens": 2}),
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(tmp_path),
-        )
+    _persist_default_plan(tmp_path)
+    result = ensure_final_declaration_or_recover(
+        provider=provider,
+        invoke_result=InvokeResult(content="initial", usage={"input_tokens": 2}),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(tmp_path),
+    )
 
     assert provider.invoke.call_count == 1
     assert "initial" in result.content
@@ -237,18 +232,17 @@ def test_submit_rejects_stale_nonce_and_plan_digest(
         lambda _path: {"src/app.py": ("M", "abc123")},
     )
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        publication = publish_final_context()
-        stale_nonce = deepcopy(_valid_manifest(publication))
-        stale_nonce["turn_nonce"] = "other-nonce"
-        with pytest.raises(FinalizerDeclarationError):
-            submit_final_manifest(stale_nonce)
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
+    stale_nonce = deepcopy(_valid_manifest(publication))
+    stale_nonce["turn_nonce"] = "other-nonce"
+    with pytest.raises(FinalizerDeclarationError):
+        submit_final_manifest(stale_nonce)
 
-        stale_plan = deepcopy(_valid_manifest(publication))
-        stale_plan["plan_digest"] = "0" * 64
-        with pytest.raises(FinalizerDeclarationError):
-            submit_final_manifest(stale_plan)
+    stale_plan = deepcopy(_valid_manifest(publication))
+    stale_plan["plan_digest"] = "0" * 64
+    with pytest.raises(FinalizerDeclarationError):
+        submit_final_manifest(stale_plan)
 
 
 def test_handoff_skips_declaration_recovery(
@@ -268,16 +262,15 @@ def test_handoff_skips_declaration_recovery(
     provider = MagicMock()
     original = InvokeResult(content="planning")
 
-    with override_flags(pluggable_finalizers=True):
-        _persist_default_plan(tmp_path)
-        result = ensure_final_declaration_or_recover(
-            provider=provider,
-            invoke_result=original,
-            model_tier="large",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(tmp_path),
-        )
+    _persist_default_plan(tmp_path)
+    result = ensure_final_declaration_or_recover(
+        provider=provider,
+        invoke_result=original,
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(tmp_path),
+    )
 
     assert result is original
     provider.invoke.assert_not_called()

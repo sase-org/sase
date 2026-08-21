@@ -104,7 +104,7 @@ def test_main_commit_details_filter_reserved_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         lambda _project_dir: (
             True,
             changed_files,

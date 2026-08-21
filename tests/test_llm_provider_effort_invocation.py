@@ -305,7 +305,7 @@ def test_qwen_explicit_effort_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("sase.llm_provider._invoke.run_commit_finalizer")
+@patch("sase.finalizers.run_finalizers")
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.postprocess_success")
 def test_invoke_agent_threads_explicit_directive_effort(
@@ -333,7 +333,7 @@ def test_invoke_agent_threads_explicit_directive_effort(
 
 
 @patch("sase.llm_provider.config._get_default_effort", return_value="high")
-@patch("sase.llm_provider._invoke.run_commit_finalizer")
+@patch("sase.finalizers.run_finalizers")
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.postprocess_success")
 def test_invoke_agent_threads_config_default_effort(
@@ -370,7 +370,7 @@ def test_default_effort_reaches_codex_cli() -> None:
             "sase.llm_provider._invoke.get_provider",
             return_value=CodexProvider(),
         ),
-        patch("sase.llm_provider._invoke.run_commit_finalizer") as mock_finalizer,
+        patch("sase.finalizers.run_finalizers") as mock_finalizer,
         patch("sase.llm_provider._invoke.postprocess_success"),
         patch("sase.llm_provider.codex.provider_timer"),
         patch("sase.llm_provider.codex.subprocess.Popen") as mock_popen,

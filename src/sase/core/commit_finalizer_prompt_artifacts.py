@@ -1,17 +1,15 @@
-"""Shared naming for commit-finalizer follow-up prompt artifacts.
+"""Historical naming for commit-finalizer follow-up prompt artifacts.
 
-The commit finalizer writes its internal re-prompt for each pass to a
+Older releases wrote each LLM follow-up re-prompt to a
 ``commit_finalizer_pass_{N}_prompt.md`` file in the agent's artifacts dir.
 Those files match the generic ``*_prompt.md`` glob the TUI uses to locate the
 agent's *submitted* prompt, and (being written post-completion) are newer than
 the original prompt — so they would hijack the AGENT PROMPT panel.
 
-This module is the single source of truth for that filename convention so the
-writer (``sase.llm_provider.commit_finalizer``) and the display-selection
-readers (``sase.agent.artifact_files_cache`` and
-``sase.core.artifact_file_defaults``) cannot drift apart. It lives in
-``sase.core`` — the lowest layer the writer and both readers can import without
-inverting the existing ``core`` < ``llm_provider`` dependency direction.
+New runs do not write these files. This module remains the single source of
+truth for the historical filename convention so display-selection readers
+(``sase.agent.artifact_files_cache`` and ``sase.core.artifact_file_defaults``)
+still skip archived follow-up prompts.
 """
 
 from __future__ import annotations

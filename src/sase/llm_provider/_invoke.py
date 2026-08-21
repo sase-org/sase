@@ -14,7 +14,6 @@ from sase.core.time import generate_timestamp
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
 from sase.telemetry.metrics import (
-    FINALIZER_PARITY_BRANCH,
     LLM_CACHE_READ_TOKENS,
     LLM_ERRORS,
     LLM_INPUT_TOKENS,
@@ -29,9 +28,7 @@ from .postprocessing import (
     save_prompt_to_file,
 )
 from .preprocessing import preprocess_prompt
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.xprompt.directives import PromptDirectives
-from .commit_finalizer import run_commit_finalizer
 from .config import resolve_effective_effort
 from .launch_selection import LaunchSelection
 from .registry import (
@@ -154,28 +151,23 @@ def invoke_agent(
         result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
         query = result.prompt
         result_directives = result.directives
-    use_pluggable_finalizers = current_flags().enabled(FeatureFlag.pluggable_finalizers)
-    finalizer_plan = None
-    if use_pluggable_finalizers or result_directives.final:
-        from sase.finalizers.plan import resolve_and_persist_finalizer_plan
+    from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 
-        finalizer_plan = resolve_and_persist_finalizer_plan(
-            result_directives,
-            artifacts_dir=artifacts_dir,
-        )
-        if finalizer_plan is not None and artifacts_dir:
-            from sase.axe.run_agent_helpers import update_meta_field
-
-            update_meta_field(
-                artifacts_dir,
-                "finalizers",
-                finalizer_plan.agent_meta_projection(),
-            )
-    if use_pluggable_finalizers and finalizer_plan is not None and artifacts_dir:
+    finalizer_plan = resolve_and_persist_finalizer_plan(
+        result_directives,
+        artifacts_dir=artifacts_dir,
+    )
+    if finalizer_plan is not None and artifacts_dir:
+        from sase.axe.run_agent_helpers import update_meta_field
         from sase.finalizers.declaration import (
             append_finalizer_end_turn_instructions,
         )
 
+        update_meta_field(
+            artifacts_dir,
+            "finalizers",
+            finalizer_plan.agent_meta_projection(),
+        )
         query = append_finalizer_end_turn_instructions(query)
     model_override = result_directives.model
     model_alias_overrides = dict(result_directives.model_alias_overrides)
@@ -297,7 +289,7 @@ def invoke_agent(
     context.metadata_model = model_override
     t0 = time.monotonic()
     previous_finalizer_nonce = os.environ.get("SASE_FINAL_TURN_NONCE")
-    if use_pluggable_finalizers and artifacts_dir:
+    if artifacts_dir:
         from sase.finalizers.declaration import mint_finalizer_turn_nonce
 
         mint_finalizer_turn_nonce()
@@ -337,35 +329,18 @@ def invoke_agent(
             model_override=model_override,
             options=invocation_options,
         )
-        if use_pluggable_finalizers:
-            FINALIZER_PARITY_BRANCH.labels(
-                branch="pluggable",
-                result="selected",
-            ).inc()
-            from sase.finalizers import run_finalizers
+        from sase.finalizers import run_finalizers
 
-            invoke_result = run_finalizers(
-                provider=provider,
-                original_prompt=query,
-                invoke_result=invoke_result,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                artifacts_dir=artifacts_dir,
-                options=invocation_options,
-            )
-        else:
-            FINALIZER_PARITY_BRANCH.labels(branch="legacy", result="selected").inc()
-            invoke_result = run_commit_finalizer(
-                provider=provider,
-                original_prompt=query,
-                invoke_result=invoke_result,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                artifacts_dir=artifacts_dir,
-                options=invocation_options,
-            )
+        invoke_result = run_finalizers(
+            provider=provider,
+            original_prompt=query,
+            invoke_result=invoke_result,
+            model_tier=model_tier,
+            suppress_output=suppress_output,
+            model_override=model_override,
+            artifacts_dir=artifacts_dir,
+            options=invocation_options,
+        )
         response_content = invoke_result.content
 
         # Record success metrics
@@ -482,7 +457,7 @@ def invoke_agent(
         raise LLMInvocationError(error_content) from e
 
     finally:
-        if use_pluggable_finalizers and artifacts_dir:
+        if artifacts_dir:
             if previous_finalizer_nonce is None:
                 os.environ.pop("SASE_FINAL_TURN_NONCE", None)
             else:

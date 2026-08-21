@@ -224,18 +224,20 @@ def test_invoke_agent_execution_provider_override_preserves_requested_metadata(
         )
 
     get_provider.assert_called_once_with("fakey")
-    provider.invoke.assert_called_once_with(
-        "prompt",
-        model_tier="large",
-        suppress_output=True,
-        model_override="opus",
-        options=_NO_EFFORT,
-    )
-    assert json.loads((artifacts / "agent_meta.json").read_text()) == {
-        "llm_provider": "claude",
-        "model": "opus",
-        "exec_llm_provider": "fakey",
+    submitted_prompt = provider.invoke.call_args.args[0]
+    assert submitted_prompt.startswith("prompt")
+    assert "/sase_final" in submitted_prompt
+    assert provider.invoke.call_args.kwargs == {
+        "model_tier": "large",
+        "suppress_output": True,
+        "model_override": "opus",
+        "options": _NO_EFFORT,
     }
+    meta = json.loads((artifacts / "agent_meta.json").read_text())
+    assert meta["llm_provider"] == "claude"
+    assert meta["model"] == "opus"
+    assert meta["exec_llm_provider"] == "fakey"
+    assert meta["finalizers"]["selected"] == ["commit"]
 
 
 def test_execution_override_resolves_display_model_with_requested_provider(
@@ -410,7 +412,7 @@ def test_invoke_agent_consumes_pool_once_per_invocation(
         patch("sase.llm_provider._invoke.get_provider", return_value=provider),
         patch("sase.llm_provider._invoke.postprocess_success"),
         patch(
-            "sase.llm_provider._invoke.run_commit_finalizer",
+            "sase.finalizers.run_finalizers",
             side_effect=lambda **kw: kw["invoke_result"],
         ),
     ):
@@ -459,7 +461,7 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
         ) as mock_get_provider,
         patch("sase.llm_provider._invoke.postprocess_success"),
         patch(
-            "sase.llm_provider._invoke.run_commit_finalizer",
+            "sase.finalizers.run_finalizers",
             side_effect=lambda **kw: kw["invoke_result"],
         ),
         caplog.at_level(logging.WARNING, logger="sase.llm_provider.launch_selection"),
@@ -555,7 +557,7 @@ def test_invoke_agent_no_directive_routes_through_shipped_default_pool(
         patch("sase.llm_provider._invoke.get_provider", return_value=provider),
         patch("sase.llm_provider._invoke.postprocess_success"),
         patch(
-            "sase.llm_provider._invoke.run_commit_finalizer",
+            "sase.finalizers.run_finalizers",
             side_effect=lambda **kw: kw["invoke_result"],
         ),
     ):

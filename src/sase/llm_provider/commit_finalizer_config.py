@@ -1,21 +1,14 @@
-"""Configuration and workspace resolution for commit finalization."""
+"""Workspace resolution for commit finalization."""
 
 from __future__ import annotations
 
 import os
-from typing import Any
 
-from sase.config.core import load_merged_config
 from sase.env_contracts import (
     SASE_WORKSPACE_DIR_ENV_VARS,
     provider_project_dir_from_env,
 )
 
-from .commit_finalizer_types import (
-    _DEFAULT_ENABLED,
-    _DEFAULT_MAX_PASSES,
-    CommitFinalizerConfig,
-)
 
 _WORKSPACE_ENV_VARS = SASE_WORKSPACE_DIR_ENV_VARS
 
@@ -38,32 +31,4 @@ def _workspace_env_value() -> str | None:
     return None
 
 
-def load_finalizer_config() -> CommitFinalizerConfig:
-    try:
-        config = load_merged_config()
-    except Exception:
-        return CommitFinalizerConfig()
-
-    commit_config = config.get("commit", {})
-    if not isinstance(commit_config, dict):
-        return CommitFinalizerConfig()
-    finalizer_config = commit_config.get("finalizer", {})
-    if not isinstance(finalizer_config, dict):
-        return CommitFinalizerConfig()
-
-    enabled = finalizer_config.get("enabled", _DEFAULT_ENABLED)
-    max_passes = finalizer_config.get("max_passes", _DEFAULT_MAX_PASSES)
-    return CommitFinalizerConfig(
-        enabled=enabled if isinstance(enabled, bool) else _DEFAULT_ENABLED,
-        max_passes=_normalize_max_passes(max_passes),
-    )
-
-
-def _normalize_max_passes(value: Any) -> int:
-    if isinstance(value, bool):
-        return _DEFAULT_MAX_PASSES
-    try:
-        max_passes = int(value)
-    except (TypeError, ValueError):
-        return _DEFAULT_MAX_PASSES
-    return max(1, max_passes)
+__all__ = ["resolve_finalizer_project_dir"]

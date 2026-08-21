@@ -10,16 +10,11 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
-
 import pytest
 
+from sase.finalizers.reconciliation import prepare_commit_dirty_state
 from sase.llm_provider import commit_finalizer_git as finalizer_git
-from sase.llm_provider.commit_finalizer import (
-    CommitFinalizerError,
-    run_commit_finalizer,
-)
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 from tests.sdd_policy_helpers import set_sdd_policy
 
@@ -96,7 +91,7 @@ def _use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
         return (True, changed_files, "commit", details)
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         build,
     )
 
@@ -132,15 +127,10 @@ def published_sdd_store(
     return repo, sdd_store, bare
 
 
-def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
-    return run_commit_finalizer(
-        provider=provider,
-        original_prompt="primary prompt",
-        invoke_result=InvokeResult(content="primary response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts_dir),
+def _prepare(artifacts_dir: Path):
+    return prepare_commit_dirty_state(
+        resolve_finalizer_project_dir(),
+        artifacts_dir,
     )
 
 
@@ -149,19 +139,15 @@ def test_finalizer_publishes_the_bead_state_it_commits(
     tmp_path: Path,
 ) -> None:
     _repo, _sdd_store, bare = published_sdd_store
-    provider = MagicMock()
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    result = _run_finalizer(provider, artifacts_dir)
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert state.sdd_store_auto_committed is True
+    assert state.bead_publication_error is None
+    assert state.dirty_state.is_clean
     assert "chore(beads): sync bead state" in _remote_subjects(bare)
-    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
-        encoding="utf-8"
-    )
-    assert '"status": "finalized"' in result_json
-    assert '"reason": "auto_committed_sdd_store"' in result_json
 
 
 def test_unpublishable_bead_state_fails_instead_of_reporting_finalized(
@@ -170,22 +156,18 @@ def test_unpublishable_bead_state_fails_instead_of_reporting_finalized(
 ) -> None:
     _repo, sdd_store, bare = published_sdd_store
     _run_git(sdd_store, "remote", "set-url", "origin", str(bare.parent / "missing.git"))
-    provider = MagicMock()
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    with pytest.raises(CommitFinalizerError) as excinfo:
-        _run_finalizer(provider, artifacts_dir)
+    state = _prepare(artifacts_dir)
 
-    error = str(excinfo.value)
+    assert state.sdd_store_auto_committed is True
+    assert state.bead_publication_error is not None
+    error = state.bead_publication_error
     assert "was committed locally but NOT published" in error
     assert "unpublished bead commit(s): 1" in error
     assert str(sdd_store) in error
     assert f"git -C {sdd_store} push" in error
-    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
-        encoding="utf-8"
-    )
-    assert '"status": "failed"' in result_json
-    assert '"reason": "bead_state_unpublished"' in result_json
     # The commit is preserved locally so it can still be republished.
     assert "chore(beads): sync bead state" in _run_git(
         sdd_store, "log", "-1", "--pretty=%s"
@@ -200,21 +182,19 @@ def test_unpublished_bead_state_still_lets_the_agent_commit_its_own_work(
     repo, sdd_store, bare = published_sdd_store
     _run_git(sdd_store, "remote", "set-url", "origin", str(bare.parent / "missing.git"))
     (repo / "feature.py").write_text("VALUE = 1\n", encoding="utf-8")
-    provider = MagicMock()
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    def invoke(*_: object, **__: object) -> InvokeResult:
-        _run_git(repo, "add", "feature.py")
-        _run_git(repo, "commit", "-q", "-m", "feat: commit main work")
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    with pytest.raises(CommitFinalizerError) as excinfo:
-        _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 1
-    assert _run_git(repo, "status", "--short") == ""
-    assert "was committed locally but NOT published" in str(excinfo.value)
+    assert state.bead_publication_error is not None
+    assert "was committed locally but NOT published" in state.bead_publication_error
+    remaining = [
+        path
+        for repo_item in state.dirty_state.repos
+        for path in repo_item.changed_files
+    ]
+    assert any("feature.py" in path for path in remaining)
 
 
 def test_sdd_store_without_an_upstream_stays_silent(
@@ -245,12 +225,10 @@ def test_sdd_store_without_an_upstream_stays_silent(
         lambda: {"sdd": {"push_after_commit": False}},
     )
     artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
 
-    result = _run_finalizer(MagicMock(), artifacts_dir)
+    state = _prepare(artifacts_dir)
 
-    assert result.content == "primary response"
-    result_json = (artifacts_dir / "commit_finalizer_result.json").read_text(
-        encoding="utf-8"
-    )
-    assert '"status": "finalized"' in result_json
-    assert '"reason": "auto_committed_sdd_store"' in result_json
+    assert state.sdd_store_auto_committed is True
+    assert state.bead_publication_error is None
+    assert state.dirty_state.is_clean

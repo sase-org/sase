@@ -4,25 +4,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
 from sase.linked_repos import OPENED_LINKED_FILENAME
-from sase.llm_provider.types import InvokeResult
 
 from ._commit_finalizer_sibling_helpers import (
-    commit_all,
+    collected_dirty_state,
     init_git_repo,
     mark_opened_external,
-    read_result_json,
-    run_finalizer,
     set_agent_env,
     set_clean_main,
 )
 
 
-def test_dirty_external_repo_triggers_correctly_labeled_follow_up(
+def test_dirty_external_repo_is_discovered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -30,11 +26,9 @@ def test_dirty_external_repo_triggers_correctly_labeled_follow_up(
     external = main / "sase" / "repos" / "external" / "gh" / "acme" / "widget"
     main.mkdir()
     init_git_repo(external)
-    dirty_file = external / "dirty.txt"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (external / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
-    monkeypatch.setenv("SASE_COMMIT_METHOD", "create_pull_request")
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_external(
         monkeypatch,
@@ -43,29 +37,14 @@ def test_dirty_external_repo_triggers_correctly_labeled_follow_up(
         external,
     )
 
-    prompts: list[str] = []
-    provider = MagicMock()
+    state = collected_dirty_state(main, artifacts_dir)
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(external)
-        return InvokeResult(content="finalized external repo")
-
-    provider.invoke.side_effect = invoke
-
-    result = run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nfinalized external repo"
-    assert "external repo `gh:acme/widget`" in prompts[0]
-    assert "dirty.txt" in prompts[0]
-    assert f"cd {external.resolve()}" in prompts[0]
-    assert "/sase_git_commit" in prompts[0]
-    assert "commit method type is `create_pull_request`" in prompts[0]
-    assert read_result_json(artifacts_dir)["reason"] == "clean_after_pass"
+    assert [repo.kind for repo in state.repos] == ["external"]
+    assert state.repos[0].name == "gh:acme/widget"
+    assert "dirty.txt" in state.repos[0].changed_files
 
 
-def test_clean_external_repo_does_not_trigger_follow_up(
+def test_clean_external_repo_is_not_discovered(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,13 +56,10 @@ def test_clean_external_repo_does_not_trigger_follow_up(
     set_clean_main(monkeypatch)
     artifacts_dir = tmp_path / "artifacts"
     mark_opened_external(monkeypatch, artifacts_dir, "dotdrop", external)
-    provider = MagicMock()
 
-    result = run_finalizer(provider, artifacts_dir)
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
-    assert read_result_json(artifacts_dir)["reason"] == "no_changes"
+    assert state.is_clean
 
 
 def test_v2_marker_without_kind_remains_a_linked_repo(
@@ -94,8 +70,7 @@ def test_v2_marker_without_kind_remains_a_linked_repo(
     linked = main / "sase" / "repos" / "linked" / "core"
     main.mkdir()
     init_git_repo(linked)
-    dirty_file = linked / "dirty.txt"
-    dirty_file.write_text("dirty\n", encoding="utf-8")
+    (linked / "dirty.txt").write_text("dirty\n", encoding="utf-8")
     set_agent_env(monkeypatch, main)
     set_clean_main(monkeypatch)
     artifacts_dir = tmp_path / "artifacts"
@@ -111,18 +86,8 @@ def test_v2_marker_without_kind_remains_a_linked_repo(
         ),
         encoding="utf-8",
     )
-    prompts: list[str] = []
-    provider = MagicMock()
 
-    def invoke(prompt: str, **_: object) -> InvokeResult:
-        prompts.append(prompt)
-        commit_all(linked)
-        return InvokeResult(content="finalized linked repo")
+    state = collected_dirty_state(main, artifacts_dir)
 
-    provider.invoke.side_effect = invoke
-
-    run_finalizer(provider, artifacts_dir)
-
-    assert provider.invoke.call_count == 1
-    assert "linked repo core" in prompts[0]
-    assert "external repo `core`" not in prompts[0]
+    assert [repo.kind for repo in state.repos] == ["sibling"]
+    assert state.repos[0].name == "core"

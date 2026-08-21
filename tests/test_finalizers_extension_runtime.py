@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.finalizers.cli import build_finalizer_inventory
 from sase.finalizers.config import (
     ConfiguredFinalizerInstance,
@@ -136,12 +135,11 @@ def test_selected_missing_external_provider_fails_before_plan_persistence(
         lambda: config,
     )
 
-    with override_flags(pluggable_finalizers=True):
-        with pytest.raises(FinalizerPlanError, match="not installed"):
-            resolve_and_persist_finalizer_plan(
-                PromptDirectives(),
-                artifacts_dir=str(tmp_path),
-            )
+    with pytest.raises(FinalizerPlanError, match="not installed"):
+        resolve_and_persist_finalizer_plan(
+            PromptDirectives(),
+            artifacts_dir=str(tmp_path),
+        )
 
     assert not (tmp_path / "finalizer_plan.json").exists()
 
@@ -192,20 +190,19 @@ def test_builtin_command_finalizer_runs_and_records_artifacts(
         lambda _root: DirtyState(project_dir=str(tmp_path), repos=(), details=""),
     )
 
-    with override_flags(pluggable_finalizers=True):
-        resolve_and_persist_finalizer_plan(
-            PromptDirectives(),
-            artifacts_dir=str(tmp_path),
-        )
-        result = run_finalizers(
-            provider=MagicMock(),
-            original_prompt="do work",
-            invoke_result=InvokeResult(content="done"),
-            model_tier="small",
-            suppress_output=True,
-            model_override=None,
-            artifacts_dir=str(tmp_path),
-        )
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(tmp_path),
+    )
+    result = run_finalizers(
+        provider=MagicMock(),
+        original_prompt="do work",
+        invoke_result=InvokeResult(content="done"),
+        model_tier="small",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(tmp_path),
+    )
 
     assert result.content == "done"
     payload = json.loads((tmp_path / "finalizer_result.json").read_text())

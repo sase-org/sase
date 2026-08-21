@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import subprocess
-from unittest.mock import MagicMock
 
 import pytest
 
+from sase.finalizers.reconciliation import prepare_commit_dirty_state
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider import commit_finalizer_git_autocommit as finalizer_autocommit
-from sase.llm_provider.commit_finalizer import run_commit_finalizer
-from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.sdd.files import set_prompt_qa
 from sase.sdd.store import SddStore
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
@@ -85,7 +83,7 @@ def _set_finalizer_env(monkeypatch: pytest.MonkeyPatch, project_dir: Path) -> No
         return (True, changed, "commit", "Uncommitted changes detected")
 
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
+        "sase.llm_provider.commit_finalizer_state.build_commit_details",
         build,
     )
     monkeypatch.setattr(
@@ -107,15 +105,10 @@ def _configure_external_store(
     return store
 
 
-def _run_finalizer(provider: MagicMock, artifacts_dir: Path) -> InvokeResult:
-    return run_commit_finalizer(
-        provider=provider,
-        original_prompt="primary prompt",
-        invoke_result=InvokeResult(content="primary response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts_dir),
+def _prepare(artifacts_dir: Path):
+    return prepare_commit_dirty_state(
+        resolve_finalizer_project_dir(),
+        artifacts_dir,
     )
 
 
@@ -170,22 +163,17 @@ def test_external_qa_only_change_is_auto_committed_without_prompting(
     set_prompt_qa(prompt, _QA)
     _set_finalizer_env(monkeypatch, main)
     _configure_external_store(monkeypatch, plans)
-    provider = MagicMock()
     artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
 
-    result = _run_finalizer(provider, artifacts)
+    state = _prepare(artifacts)
 
-    provider.invoke.assert_not_called()
-    assert result.content == "primary response"
+    assert state.sdd_prompt_qa_auto_committed is True
+    assert state.dirty_state.is_clean
     assert _run_git(plans, "status", "--short") == ""
     commit_message = _run_git(plans, "log", "-1", "--pretty=%B")
     assert "Add Q&A to test_plan prompt" in commit_message
     assert "SASE_TYPE=sdd" in commit_message
-    result_data = json.loads(
-        (artifacts / "commit_finalizer_result.json").read_text(encoding="utf-8")
-    )
-    assert result_data["status"] == "finalized"
-    assert result_data["reason"] == "auto_committed_sdd_prompt_qa"
 
 
 @pytest.mark.parametrize("unsafe_change", ["mixed", "untracked", "non_prompt"])
@@ -221,21 +209,13 @@ def test_unsafe_external_sdd_changes_use_normal_finalizer_prompting(
 
     _set_finalizer_env(monkeypatch, main)
     _configure_external_store(monkeypatch, plans)
-    provider = MagicMock()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
 
-    def invoke(*_args: object, **_kwargs: object) -> InvokeResult:
-        _commit_all(plans, "provider finalized unsafe SDD change")
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts)
 
-    provider.invoke.side_effect = invoke
-
-    result = _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nprovider finalized"
-    assert _run_git(plans, "status", "--short") == ""
-    expected_commits = "3" if unsafe_change == "non_prompt" else "2"
-    assert _run_git(plans, "rev-list", "--count", "HEAD").strip() == expected_commits
+    assert not state.dirty_state.is_clean
+    assert state.sdd_prompt_qa_auto_committed is False
 
 
 def test_qa_only_change_created_during_pass_is_auto_committed(
@@ -251,19 +231,15 @@ def test_qa_only_change_created_during_pass_is_auto_committed(
     plans, prompt = _create_prompt_repo(tmp_path)
     _set_finalizer_env(monkeypatch, main)
     _configure_external_store(monkeypatch, plans)
-    provider = MagicMock()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
 
-    def invoke(*_args: object, **_kwargs: object) -> InvokeResult:
-        _commit_all(main, "add feature")
-        set_prompt_qa(prompt, _QA)
-        return InvokeResult(content="provider finalized")
+    state = _prepare(artifacts)
 
-    provider.invoke.side_effect = invoke
-
-    result = _run_finalizer(provider, tmp_path / "artifacts")
-
-    assert provider.invoke.call_count == 1
-    assert result.content == "primary response\n\nprovider finalized"
-    assert _run_git(main, "status", "--short") == ""
-    assert _run_git(plans, "status", "--short") == ""
-    assert "Add Q&A to test_plan prompt" in _run_git(plans, "log", "-1", "--pretty=%B")
+    assert not state.dirty_state.is_clean
+    remaining = [
+        path
+        for repo_item in state.dirty_state.repos
+        for path in repo_item.changed_files
+    ]
+    assert any("feature.py" in path for path in remaining)

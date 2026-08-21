@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import os
 from pathlib import Path
 
+from sase.commit_instructions import build_commit_details
 from sase.linked_repos import (
     HIDDEN_SIDECAR_ROLES,
     LINKED_REPOS_JSON_ENV,
@@ -327,11 +328,7 @@ def _dirty_agents_prompt_archive_repo(project_dir: str) -> list[DirtyRepo]:
 
 
 def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
-    from . import commit_finalizer
-
-    has_changes, changed_files, instruction, details = (
-        commit_finalizer.build_commit_details(project_dir)
-    )
+    has_changes, changed_files, instruction, details = build_commit_details(project_dir)
     if not has_changes:
         return (False, [], "", "")
 

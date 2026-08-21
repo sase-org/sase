@@ -15,7 +15,6 @@ from sase.core.finalizer_wire import (
     FinalizerPlanWire,
     finalizer_wire_to_json_dict,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.finalizers.config import (
     FinalizerConfigDiagnostic,
     load_finalizer_config,
@@ -65,18 +64,9 @@ def resolve_and_persist_finalizer_plan(
     *,
     artifacts_dir: str | None,
 ) -> ResolvedFinalizerPlan | None:
-    """Validate prompt selection and persist the sealed plan when beta-enabled."""
+    """Validate prompt selection and persist the sealed plan."""
 
     raw_operations = tuple(directives.final)
-    if not _pluggable_finalizers_enabled():
-        if raw_operations:
-            raise FinalizerPlanError(
-                "%final requires feature flag `pluggable_finalizers`; enable the "
-                "beta with `sase --enable-feature pluggable_finalizers ...` "
-                "or remove the directive"
-            )
-        return None
-
     try:
         selectors = parse_finalizer_selector_ops(raw_operations)
     except FinalizerSelectorError as exc:
@@ -123,10 +113,6 @@ def load_persisted_finalizer_plan(
     except (OSError, json.JSONDecodeError):
         return None
     return data if isinstance(data, Mapping) else None
-
-
-def _pluggable_finalizers_enabled() -> bool:
-    return current_flags().enabled(FeatureFlag.pluggable_finalizers)
 
 
 def _persist_plan(
