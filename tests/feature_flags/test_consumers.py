@@ -15,16 +15,11 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     definitions = feature_flag_definitions()
 
     coder = definitions[FeatureFlag.coder_inherits_planner_chat]
-    refresh = definitions[FeatureFlag.completion_refresh_on_update]
     ref_sync = definitions[FeatureFlag.ref_sync_gesture]
 
     assert coder.kind == "beta"
     assert coder.default is False
     assert coder.bead == "sase-qe"
-
-    assert refresh.kind == "beta"
-    assert refresh.default is False
-    assert refresh.bead == "sase-qg"
 
     assert ref_sync.kind == "sunset"
     assert ref_sync.default is True

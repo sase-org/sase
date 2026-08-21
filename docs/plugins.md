@@ -288,13 +288,11 @@ Axe restarted (pid 12345) to load the updated code.
   under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether axe was
   restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`, the planned
   command or dev plan, and each package's current version.
-- **Installed shell-completion scripts can be refreshed after the upgrade**, so a
-  stamped script does not drift behind the CLI it completes. This is gated behind the
-  `completion_refresh_on_update` beta feature flag (default off); with the flag on, a
-  successful update regenerates, `zcompile`s, and re-stamps every previously installed
-  script, adds a `completion_refresh` object to the JSON payload, and reports failures
-  without failing the update itself. See
-  [Shell Completion](completion.md#refresh-on-update).
+- **Installed shell-completion scripts are refreshed after a successful upgrade**, so a
+  stamped script does not drift behind the CLI it completes. A successful update
+  regenerates, `zcompile`s, and re-stamps every previously installed script, adds a
+  `completion_refresh` object to the JSON payload, and reports failures without failing
+  the update itself. See [Shell Completion](completion.md#refresh-on-update).
 - A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still
   exits `0`.
 - The authoritative record of what is in sase's environment is uv's own

@@ -1,4 +1,4 @@
-"""Both-states tests for the flagged completion refresh on ``sase update``."""
+"""Tests for the unconditional completion refresh on ``sase update``."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from sase.completion.install import CompletionRefreshReport, RefreshShellOutcome
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
 from sase.main.update_handler import handle_update_command
-from sase.uv_tool.runner import parse_uv_output
+from sase.uv_tool.errors import UvCommandFailedError
+from sase.uv_tool.runner import UvChangeSet, parse_uv_output
 from tests.main.update_command_helpers import (
     _UPGRADE_OUTPUT,
     _args,
@@ -35,7 +35,7 @@ def _refresh_ok() -> CompletionRefreshReport:
     )
 
 
-def test_update_skips_refresh_when_flag_disabled(tmp_path: Path) -> None:
+def test_update_skips_refresh_on_dry_run(tmp_path: Path) -> None:
     calls: list[int] = []
 
     def _refresh() -> CompletionRefreshReport:
@@ -43,27 +43,51 @@ def test_update_skips_refresh_when_flag_disabled(tmp_path: Path) -> None:
         return _refresh_ok()
 
     out = _console()
-    with override_flags(completion_refresh_on_update=False):
-        assert (
-            current_flags().enabled(FeatureFlag.completion_refresh_on_update) is False
-        )
-        code = handle_update_command(
-            _args(),
-            console=out,
-            probe_fn=lambda: _install(tmp_path),
-            run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-            axe_running_fn=lambda: False,
-            version_fn=_versions,
-            clock=lambda: 0.0,
-            refresh_completions_fn=_refresh,
-        )
+    code = handle_update_command(
+        _args(dry_run=True),
+        console=out,
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+        refresh_completions_fn=_refresh,
+    )
 
     assert code == 0
     assert calls == []
     assert "Refreshing installed shell completions" not in _text(out)
 
 
-def test_update_refreshes_when_flag_enabled(tmp_path: Path) -> None:
+def test_update_skips_refresh_when_upgrade_fails(tmp_path: Path) -> None:
+    calls: list[int] = []
+
+    def _refresh() -> CompletionRefreshReport:
+        calls.append(1)
+        return _refresh_ok()
+
+    def _run(argv: list[str]) -> UvChangeSet:
+        raise UvCommandFailedError(argv=argv, returncode=2, stderr="No solution found")
+
+    err = _console()
+    code = handle_update_command(
+        _args(),
+        console=_console(),
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=_run,
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+        refresh_completions_fn=_refresh,
+    )
+
+    assert code == 1
+    assert calls == []
+    assert "Refreshing installed shell completions" not in _text(err)
+
+
+def test_update_refreshes_completions_after_success(tmp_path: Path) -> None:
     calls: list[int] = []
 
     def _refresh() -> CompletionRefreshReport:
@@ -71,18 +95,16 @@ def test_update_refreshes_when_flag_enabled(tmp_path: Path) -> None:
         return _refresh_ok()
 
     out = _console()
-    with override_flags(completion_refresh_on_update=True):
-        assert current_flags().enabled(FeatureFlag.completion_refresh_on_update) is True
-        code = handle_update_command(
-            _args(),
-            console=out,
-            probe_fn=lambda: _install(tmp_path),
-            run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-            axe_running_fn=lambda: False,
-            version_fn=_versions,
-            clock=lambda: 0.0,
-            refresh_completions_fn=_refresh,
-        )
+    code = handle_update_command(
+        _args(),
+        console=out,
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+        refresh_completions_fn=_refresh,
+    )
 
     assert code == 0
     assert calls == [1]
@@ -98,16 +120,15 @@ def test_update_refresh_failure_is_not_fatal(
     def _boom() -> CompletionRefreshReport:
         raise RuntimeError("zcompile exploded")
 
-    with override_flags(completion_refresh_on_update=True):
-        code = handle_update_command(
-            _args(json=True),
-            probe_fn=lambda: _install(tmp_path),
-            run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-            axe_running_fn=lambda: False,
-            version_fn=_versions,
-            clock=lambda: 0.0,
-            refresh_completions_fn=_boom,
-        )
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+        refresh_completions_fn=_boom,
+    )
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)

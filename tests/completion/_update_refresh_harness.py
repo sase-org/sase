@@ -15,7 +15,6 @@ from sase.completion.install import (
 )
 from sase.completion.install_stamp import read_stamp
 from sase.completion.install_targets import SUPPORTED_SHELLS, script_path
-from sase.feature_flags import override_flags
 from sase.main.update_handler import handle_update_command
 from sase.uv_tool.runner import parse_uv_output
 from tests.main.update_command_helpers import (
@@ -85,17 +84,16 @@ def successful_update(
     *,
     refresh_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> dict[str, Any]:
-    """Run a successful managed ``sase update`` with completion refresh enabled."""
-    with override_flags(completion_refresh_on_update=True):
-        code = handle_update_command(
-            _args(json=True),
-            probe_fn=lambda: _uv_tool_install(tmp_path / "uv-tool"),
-            run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-            axe_running_fn=lambda: False,
-            version_fn=_versions,
-            clock=lambda: 0.0,
-            refresh_completions_fn=refresh_fn,
-        )
+    """Run a successful managed ``sase update`` with the production refresh hook."""
+    code = handle_update_command(
+        _args(json=True),
+        probe_fn=lambda: _uv_tool_install(tmp_path / "uv-tool"),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        axe_running_fn=lambda: False,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+        refresh_completions_fn=refresh_fn,
+    )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["changed"] is True

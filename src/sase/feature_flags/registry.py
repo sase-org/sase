@@ -22,7 +22,6 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
-    completion_refresh_on_update = "completion_refresh_on_update"
     ref_sync_gesture = "ref_sync_gesture"
 
 
@@ -35,16 +34,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "via #fork instead of starting from the approved plan file alone."
         ),
         bead="sase-qe",
-    ),
-    FeatureFlag.completion_refresh_on_update: FeatureFlagDefinition(
-        key=FeatureFlag.completion_refresh_on_update,
-        kind="beta",
-        description=(
-            "After a successful sase update, regenerate, zcompile, and "
-            "restamp installed shell completion scripts. Off by default "
-            "while the generator soaks."
-        ),
-        bead="sase-qg",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

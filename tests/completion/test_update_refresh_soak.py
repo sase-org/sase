@@ -1,4 +1,4 @@
-"""Production-path soak for ``completion_refresh_on_update``.
+"""Production-path soak for unconditional update-time completion refresh.
 
 Uses disposable, explicitly passed directories rather than the operator's
 home. Cycles go through ``handle_update_command`` with a successful managed

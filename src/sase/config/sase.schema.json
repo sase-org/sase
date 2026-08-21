@@ -3715,11 +3715,6 @@
           "description": "Opt-in beta: the follow-up coder inherits the planner's chat via #fork instead of starting from the approved plan file alone.",
           "default": false
         },
-        "completion_refresh_on_update": {
-          "type": "boolean",
-          "description": "After a successful sase update, regenerate, zcompile, and restamp installed shell completion scripts. Off by default while the generator soaks.",
-          "default": false
-        },
         "ref_sync_gesture": {
           "type": "boolean",
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",

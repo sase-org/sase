@@ -16,7 +16,6 @@ from sase.completion.install import (
     zwc_path,
 )
 from sase.completion.install_stamp import InstallStamp, read_stamp, write_stamp
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
 
 
 def _emit(shell: str) -> tuple[str, str]:
@@ -300,7 +299,7 @@ def test_refresh_skips_chezmoi_owned_stamps(tmp_path: Path) -> None:
     assert seen == []
 
 
-def test_maybe_refresh_respects_both_flag_states() -> None:
+def test_maybe_refresh_runs_the_injected_refresher() -> None:
     calls: list[int] = []
 
     def _refresh() -> CompletionRefreshReport:
@@ -310,25 +309,17 @@ def test_maybe_refresh_respects_both_flag_states() -> None:
             outcomes=(RefreshShellOutcome("zsh", True, "refreshed", "/tmp/_sase"),),
         )
 
-    with override_flags(completion_refresh_on_update=False):
-        disabled = maybe_refresh_installed_completions(_refresh)
-    assert disabled.attempted is False
-    assert calls == []
-    assert current_flags().enabled(FeatureFlag.completion_refresh_on_update) is False
-
-    with override_flags(completion_refresh_on_update=True):
-        enabled = maybe_refresh_installed_completions(_refresh)
-    assert enabled.attempted is True
+    report = maybe_refresh_installed_completions(_refresh)
+    assert report.attempted is True
     assert calls == [1]
-    assert enabled.outcomes[0].ok is True
+    assert report.outcomes[0].ok is True
 
 
 def test_maybe_refresh_swallows_failures() -> None:
     def _boom() -> CompletionRefreshReport:
         raise RuntimeError("generator exploded")
 
-    with override_flags(completion_refresh_on_update=True):
-        report = maybe_refresh_installed_completions(_boom)
+    report = maybe_refresh_installed_completions(_boom)
     assert report.attempted is True
     assert report.outcomes[0].ok is False
     assert "generator exploded" in report.outcomes[0].detail

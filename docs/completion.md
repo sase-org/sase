@@ -177,17 +177,9 @@ embedded fragment.
 
 ## Refresh On Update
 
-`sase update` can regenerate, `zcompile`, and re-stamp every previously installed
+`sase update` regenerates, `zcompile`s, and re-stamps every previously installed
 completion script after a successful upgrade, so an installed script never drifts stale
-behind the CLI it completes. This is gated behind the `completion_refresh_on_update`
-beta feature flag (default off) — rewriting files on every machine during an unrelated
-command is exactly the kind of early-landed path that flag exists for. Enable it once
-you trust the generator:
-
-```bash
-sase flag list completion_refresh_on_update   # inspect
-sase -f completion_refresh_on_update update   # try once, without changing the default
-```
+behind the CLI it completes.
 
 Refresh skips any stamp whose owner is `chezmoi`, because those files are regenerated
 from the chezmoi source tree instead of being locally owned. An explicit local install

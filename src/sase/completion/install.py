@@ -33,7 +33,6 @@ from sase.completion.install_targets import (
     resolve_target,
     script_path,
 )
-from sase.feature_flags import FeatureFlag, current_flags
 
 
 RECOMMENDED_ZSTYLE = """\
@@ -101,7 +100,7 @@ class RefreshShellOutcome:
 
 @dataclass(frozen=True, slots=True)
 class CompletionRefreshReport:
-    """Result of the flagged ``sase update`` completion refresh."""
+    """Result of the ``sase update`` completion refresh."""
 
     attempted: bool
     outcomes: tuple[RefreshShellOutcome, ...]
@@ -471,12 +470,10 @@ def _refresh_stamped_completions(
 def maybe_refresh_installed_completions(
     refresh_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> CompletionRefreshReport:
-    """Run the update-time refresh when the beta flag is on.
+    """Run the update-time completion refresh after a successful update.
 
-    Failures are reported, never fatal. The flag is resolved at call time.
+    Failures are reported, never fatal.
     """
-    if not current_flags().enabled(FeatureFlag.completion_refresh_on_update):
-        return CompletionRefreshReport(attempted=False, outcomes=())
     fn = refresh_fn or _refresh_stamped_completions
     try:
         return fn()
