@@ -31,7 +31,13 @@ async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
         assert panel.border_title == "directives"
-        assert "Override the LLM model for this prompt" in panel.render().plain
+        insertions = {
+            candidate.insertion for candidate in ta._file_completion_candidates
+        }
+        assert {"%final", "%model"} <= insertions
+        plain = panel.render().plain
+        assert "Split prompt into variants with different text" in plain
+        assert "Select configured finalizer instances for this launch" in plain
 
 
 async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:

@@ -8,7 +8,7 @@ import select
 import shlex
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,7 +21,10 @@ from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
     BeadCompletionMetadata,
     DirectiveArgCompletionMetadata,
+    DirectiveCatalogPlaceholder,
     DirectiveCompletionMetadata,
+    FinalizerCompletionMetadata,
+    FinalizersState,
     ModelCompletionMetadata,
     build_directive_clause_candidates,
     build_directive_completion_candidates,
@@ -35,13 +38,19 @@ from sase.xprompt._directive_types import (
 )
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 from sase.xprompt.model_completion import _ModelCompletionEntry
+from tests._xprompt_directive_completion_parity_helpers import (
+    _FINALIZER_ROWS,
+    _OPTIONAL_FINALIZER_ROWS,
+    _finalizer_catalog_payload,
+    _write_failing_helper,
+    _write_helper,
+)
 
 MODEL_CATALOG_PATCH = (
     "sase.ace.tui.widgets.directive_completion.build_model_completion_catalog"
 )
 MODEL_ALIAS_NAMES_PATCH = "sase.llm_provider.config.model_alias_names"
 MODEL_ALIAS_DESCRIPTION_PATCH = "sase.llm_provider.config.model_alias_description"
-_HIDDEN_SURFACE_DIRECTIVES = frozenset({"final"})
 _SPECIAL_RUNTIME_DIRECTIVES = frozenset({"alt", "xprompts_enabled"})
 _AGENT_ROWS = (
     AgentCompletionCandidate("planner", "planner", "RUNNING"),
@@ -124,11 +133,7 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     ace_candidates, shared = build_directive_completion_candidates("%")
     assert shared == ""
     ace_rows = _ace_surface_rows(ace_candidates)
-    contract_order = [
-        f"%{row['name']}"
-        for row in sase_core_rs.directive_contract()
-        if row["name"] not in _HIDDEN_SURFACE_DIRECTIVES
-    ]
+    contract_order = [f"%{row['name']}" for row in sase_core_rs.directive_contract()]
 
     with LspSession(tmp_path) as lsp:
         lsp_rows = lsp.complete("%")
@@ -217,6 +222,115 @@ def test_lsp_uses_utf16_replacement_ranges(tmp_path: Path) -> None:
     }
 
 
+def test_ace_and_lsp_finalizer_add_rows_match(tmp_path: Path) -> None:
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, "%final:")
+
+    assert [row.insertion for row in ace_rows] == ["commit", "lint", "zoom"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert ace_rows[0].detail == "builtin@commit · required"
+    assert ace_rows[1].detail == "builtin@command · default"
+    assert ace_rows[2].detail == "plugin@zoom · optional"
+    assert "Required for this launch." in ace_rows[0].documentation
+    assert "Provider: `builtin@commit`" in ace_rows[0].documentation
+    assert "Depends on: `format`" in ace_rows[1].documentation
+    assert "Retry policy: 2 attempts" in ace_rows[1].documentation
+    assert "Retry policy: 1 attempt" in ace_rows[2].documentation
+
+
+def test_ace_and_lsp_finalizer_remove_omits_required(tmp_path: Path) -> None:
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, "%final:!")
+
+    assert [row.insertion for row in ace_rows] == ["!lint", "!zoom"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert all(row.detail.startswith("remove · ") for row in ace_rows)
+    assert "Remove `lint` from the launch selection." in ace_rows[0].documentation
+    assert not any(row.insertion in {"!commit", "none"} for row in ace_rows)
+
+
+def test_ace_and_lsp_none_suppressed_when_required_exists(tmp_path: Path) -> None:
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, "%final:n")
+
+    assert [row.insertion for row in ace_rows] == []
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+
+
+def test_ace_and_lsp_none_available_when_clear_is_legal(tmp_path: Path) -> None:
+    ace_rows, lsp_rows = _ace_and_lsp_rows(
+        tmp_path,
+        "%final:n",
+        finalizer_inventory=_OPTIONAL_FINALIZER_ROWS,
+    )
+
+    assert [row.insertion for row in ace_rows] == ["none"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert ace_rows[0].detail == "clear"
+    assert "Clear the configured finalizer selection" in ace_rows[0].documentation
+
+
+def test_ace_and_lsp_finalizer_repeated_directive_matches(tmp_path: Path) -> None:
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, "%final:none %final:l")
+
+    assert [row.insertion for row in ace_rows] == ["lint"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+
+
+def test_ace_and_lsp_finalizer_parenthesized_clause_replacement(
+    tmp_path: Path,
+) -> None:
+    text = "%final(commit, !l"
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, text)
+
+    assert [row.insertion for row in ace_rows] == ["!lint"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    lsp = _only_lsp(lsp_rows)
+    assert lsp.raw is not None
+    assert lsp.raw["textEdit"]["range"] == {
+        "start": {"line": 0, "character": 15},
+        "end": {"line": 0, "character": _utf16_len(text)},
+    }
+
+
+def test_ace_and_lsp_finalizer_utf16_replacement_next_to_non_ascii(
+    tmp_path: Path,
+) -> None:
+    text = "🙂 %final(café, c"
+    ace_rows, lsp_rows = _ace_and_lsp_rows(tmp_path, text)
+
+    assert [row.insertion for row in ace_rows] == ["commit"]
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    lsp = _only_lsp(lsp_rows)
+    assert lsp.raw is not None
+    prefix = "🙂 %final(café, "
+    assert lsp.raw["textEdit"]["range"] == {
+        "start": {"line": 0, "character": _utf16_len(prefix)},
+        "end": {"line": 0, "character": _utf16_len(text)},
+    }
+
+
+def test_finalizer_helper_failure_degrades_without_invented_rows(
+    tmp_path: Path,
+) -> None:
+    helper = _write_failing_helper(tmp_path)
+    clause = classify_directive_completion("%final:", len("%final:"))
+    assert clause is not None
+    ace_candidates, _ = build_directive_clause_candidates(
+        clause,
+        finalizers_state="unavailable",
+    )
+    with LspSession(tmp_path, helper=helper) as lsp:
+        lsp_rows = lsp.complete("%final:")
+
+    assert len(ace_candidates) == 1
+    placeholder = ace_candidates[0].metadata
+    assert isinstance(placeholder, DirectiveCatalogPlaceholder)
+    assert placeholder.kind == "unavailable"
+    assert placeholder.catalog == "finalizers"
+    assert ace_candidates[0].insertion == ""
+    assert [row.insertion for row in lsp_rows] == []
+    assert _selectable_surface_rows(_ace_surface_rows(ace_candidates)) == []
+    assert _selectable_surface_rows(lsp_rows) == []
+
+
 def _contract_by_name() -> dict[str, dict[str, Any]]:
     rows = sase_core_rs.directive_contract()
     return {str(row["name"]): row for row in rows}
@@ -256,16 +370,44 @@ def _suggested_values(row: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
-def _ace_clause_rows(text: str) -> list[SurfaceRow]:
+def _ace_and_lsp_rows(
+    tmp_path: Path,
+    text: str,
+    *,
+    finalizer_inventory: Sequence[Mapping[str, object]] = _FINALIZER_ROWS,
+    finalizers_state: FinalizersState = "warm",
+    helper: Path | None = None,
+) -> tuple[list[SurfaceRow], list[LspSurfaceRow]]:
+    ace_rows = _ace_clause_rows(
+        text,
+        finalizer_inventory=finalizer_inventory,
+        finalizers_state=finalizers_state,
+    )
+    with LspSession(
+        tmp_path,
+        helper=helper,
+        finalizer_catalog=None if helper is not None else finalizer_inventory,
+    ) as lsp:
+        lsp_rows = lsp.complete(text)
+    return ace_rows, lsp_rows
+
+
+def _ace_clause_rows(
+    text: str,
+    *,
+    finalizer_inventory: Sequence[Mapping[str, object]] = _FINALIZER_ROWS,
+    finalizers_state: FinalizersState = "warm",
+) -> list[SurfaceRow]:
     clause = classify_directive_completion(text, len(text))
     assert clause is not None
-    candidates, shared = build_directive_clause_candidates(
+    candidates, _shared = build_directive_clause_candidates(
         clause,
         agent_candidates=_AGENT_ROWS,
         bead_inventory=_BEAD_ROWS,
         beads_state="warm",
+        finalizer_inventory=finalizer_inventory,
+        finalizers_state=finalizers_state,
     )
-    assert shared == ""
     return _ace_surface_rows(candidates)
 
 
@@ -300,6 +442,16 @@ def _ace_surface_rows(candidates: Iterable[Any]) -> list[SurfaceRow]:
         elif isinstance(metadata, ModelCompletionMetadata):
             documentation = _model_documentation(metadata)
             detail = _model_detail(metadata)
+        elif isinstance(metadata, FinalizerCompletionMetadata):
+            documentation = metadata.documentation
+            detail = _finalizer_surface_detail(
+                kind=metadata.kind,
+                status=metadata.status,
+                provider=metadata.provider,
+            )
+        elif isinstance(metadata, DirectiveCatalogPlaceholder):
+            documentation = metadata.message
+            detail = metadata.kind
         rows.append(
             SurfaceRow(
                 label=candidate.display,
@@ -408,6 +560,22 @@ def _only_lsp(rows: list[LspSurfaceRow]) -> LspSurfaceRow:
     return rows[0]
 
 
+def _finalizer_surface_detail(*, kind: str, status: str, provider: str) -> str:
+    if kind == "finalizer_remove":
+        head = f"remove · {provider}" if provider else "remove"
+    elif kind == "finalizer_clear":
+        head = "clear"
+    else:
+        head = provider
+    if status and status not in head.split(" · "):
+        return f"{head} · {status}" if head else status
+    return head
+
+
+def _selectable_surface_rows(rows: Iterable[SurfaceRow]) -> list[SurfaceRow]:
+    return _surface_rows(row for row in rows if row.insertion)
+
+
 @dataclass(frozen=True, slots=True)
 class LspSurfaceRow(SurfaceRow):
     raw: dict[str, Any] | None = None
@@ -442,9 +610,18 @@ def _comparison_detail(detail: str) -> str:
 
 
 class LspSession:
-    def __init__(self, tmp_path: Path, *, helper: Path | None = None) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        *,
+        helper: Path | None = None,
+        finalizer_catalog: dict[str, Any]
+        | Sequence[Mapping[str, object]]
+        | None = None,
+    ) -> None:
         self._tmp_path = tmp_path
         self._helper = helper
+        self._finalizer_catalog = finalizer_catalog
         self._proc: subprocess.Popen[bytes] | None = None
         self._version = 0
         self._opened = False
@@ -458,11 +635,17 @@ class LspSession:
         helper = self._helper or _write_helper(self._tmp_path)
         model_catalog = self._tmp_path / "model_catalog.json"
         model_catalog.write_text(json.dumps(_model_catalog_payload()), encoding="utf-8")
+        finalizer_catalog = self._tmp_path / "finalizer_catalog.json"
+        finalizer_catalog.write_text(
+            json.dumps(_finalizer_catalog_payload(self._finalizer_catalog)),
+            encoding="utf-8",
+        )
         env = os.environ.copy()
         env["SASE_MOBILE_HELPER_BRIDGE_COMMAND"] = shlex.join(
             [sys.executable, str(helper)]
         )
         env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
+        env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
         self._proc = subprocess.Popen(
             [str(binary)],
             stdin=subprocess.PIPE,
@@ -615,9 +798,25 @@ def _lsp_surface_row(item: dict[str, Any]) -> LspSurfaceRow:
         label=str(item.get("label") or ""),
         insertion=insertion,
         documentation=doc_text,
-        detail=str(item.get("detail") or _label_detail(item) or ""),
+        detail=_lsp_row_detail(item),
         raw=item,
     )
+
+
+def _lsp_row_detail(item: dict[str, Any]) -> str:
+    label_details = item.get("labelDetails")
+    description = ""
+    policy = ""
+    if isinstance(label_details, dict):
+        description = str(label_details.get("description") or "")
+        policy = str(label_details.get("detail") or "")
+    if policy.startswith(" · ") and description:
+        status = policy.strip(" ·")
+        parts = [part for part in description.split(" · ") if part]
+        if status and status not in parts:
+            parts.append(status)
+        return " · ".join(parts)
+    return str(item.get("detail") or description or "")
 
 
 def _label_detail(item: dict[str, Any]) -> str:
@@ -634,140 +833,3 @@ def _wait_readable(fd: int) -> bool:
 
 def _utf16_len(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
-
-
-def _write_helper(tmp_path: Path) -> Path:
-    helper = tmp_path / "lsp_helper.py"
-    helper.write_text(_HELPER_SCRIPT, encoding="utf-8")
-    return helper
-
-
-def _write_failing_helper(tmp_path: Path) -> Path:
-    helper = tmp_path / "failing_lsp_helper.py"
-    helper.write_text(
-        "import sys\nprint('helper unavailable', file=sys.stderr)\nsys.exit(2)\n",
-        encoding="utf-8",
-    )
-    return helper
-
-
-_HELPER_SCRIPT = r"""
-import json
-import sys
-
-
-def result():
-    return {
-        "status": "success",
-        "message": None,
-        "warnings": [],
-        "skipped": [],
-        "partial_failure_count": None,
-    }
-
-
-def context():
-    return {"project": None, "scope": "unspecified"}
-
-
-operation = sys.argv[-1]
-if operation == "agent-catalog":
-    payload = {
-        "schema_version": 1,
-        "status": "ok",
-        "message": "",
-        "entries": [
-            {
-                "name": "planner",
-                "status": "RUNNING",
-                "project": "sase",
-                "kind": "agent",
-                "member_count": 1,
-                "detail": "RUNNING",
-                "documentation": "",
-            },
-            {
-                "name": "coder",
-                "status": "RUNNING",
-                "project": "sase",
-                "kind": "agent",
-                "member_count": 1,
-                "detail": "RUNNING",
-                "documentation": "",
-            },
-            {
-                "name": "review",
-                "status": "RUNNING",
-                "project": "sase",
-                "kind": "clan",
-                "member_count": 1,
-                "detail": "clan",
-                "documentation": "",
-            },
-            {
-                "name": "ship",
-                "status": "RUNNING",
-                "project": "sase",
-                "kind": "family",
-                "member_count": 1,
-                "detail": "family",
-                "documentation": "",
-            },
-            {
-                "name": "@builders",
-                "status": "RUNNING",
-                "project": "sase",
-                "kind": "tribe",
-                "member_count": 1,
-                "detail": "tribe",
-                "documentation": "",
-            },
-        ],
-        "beads": [
-            {
-                "id": "sase-a",
-                "title": "Active bug",
-                "status": "in_progress",
-                "type_label": "task",
-                "created_at": "2026-08-01T00:00:00Z",
-                "updated_at": "2026-08-20T12:00:00Z",
-                "task_type": "bug",
-                "project": "sase",
-            }
-        ],
-    }
-elif operation == "xprompt-catalog":
-    payload = {
-        "schema_version": 1,
-        "result": result(),
-        "context": context(),
-        "entries": [],
-        "stats": {
-            "total_count": 0,
-            "project_count": 0,
-            "skill_count": 0,
-            "memory_count": 0,
-            "pdf_requested": False,
-        },
-        "catalog_attachment": None,
-    }
-elif operation == "snippet-catalog":
-    payload = {
-        "schema_version": 1,
-        "result": result(),
-        "context": context(),
-        "entries": [],
-        "stats": {"total_count": 0},
-    }
-elif operation == "vcs-repo-catalog":
-    payload = {
-        "schema_version": 1,
-        "status": "ok",
-        "message": "",
-        "entries": [],
-    }
-else:
-    raise SystemExit(f"unsupported operation: {operation}")
-
-json.dump(payload, sys.stdout)
-"""
