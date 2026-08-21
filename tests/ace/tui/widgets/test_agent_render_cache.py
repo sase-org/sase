@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from sase.ace.tui.models._agent_tree import agent_fold_key
-from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.agent_completion import (
+    WaitAgentStatusCounts,
+    WaitBeadStatusCounts,
+    WaitDependencyStatusCounts,
+)
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
@@ -131,12 +135,43 @@ def test_cached_format_agent_option_invalidates_on_missing_wait_target_change() 
         agent,
         0,
         is_selected=False,
-        wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(unknown=1)
+        ),
     )
 
     assert known[0] is not missing[0]
     assert known[0].plain.endswith("(WAITING)")
     assert missing[0].plain.endswith("(WAITING ?1)")
+
+
+def test_cached_format_agent_option_invalidates_on_bead_wait_count_change() -> None:
+    cache = AgentRenderCache()
+    agent = _agent(status="WAITING")
+    agent.waiting_for_beads = ["run-bead"]
+
+    open_counts = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            beads=WaitBeadStatusCounts(open=1)
+        ),
+    )
+    closed_counts = cached_format_agent_option(
+        cache,
+        agent,
+        0,
+        is_selected=False,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            beads=WaitBeadStatusCounts(closed=1)
+        ),
+    )
+
+    assert open_counts[0] is not closed_counts[0]
+    assert open_counts[0].plain.endswith("(WAITING ◆○1)")
+    assert closed_counts[0].plain.endswith("(WAITING ◆●1)")
 
 
 def test_format_agent_option_marks_unresolvable_wait_target_distinctly() -> None:

@@ -7,7 +7,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.agent_completion import (
+    WaitAgentStatusCounts,
+    WaitBeadStatusCounts,
+    WaitDependencyStatusCounts,
+)
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -211,7 +215,9 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(running=2, done=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(running=2, done=1)
+            ),
         )
 
         assert left.plain.endswith("test_cl (WAITING ▶2 ✓1)")
@@ -225,7 +231,9 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1)
+            ),
         )
 
         assert left.plain.endswith("test_cl (WAITING ?1)")
@@ -243,7 +251,9 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=2),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=2)
+            ),
         )
 
         assert left.plain.count("?") == 1
@@ -285,10 +295,16 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1),
+                beads=WaitBeadStatusCounts(in_progress=1, unknown=1),
+            ),
         )
 
         assert "?" not in left.plain
+        assert "◆◐" not in left.plain
+        assert "◆?" not in left.plain
+        assert "WAITING" not in left.plain
 
     def test_unsatisfied_dependency_without_slot_request_stays_waiting(self) -> None:
         agent = make_agent(
@@ -300,7 +316,9 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1)
+            ),
         )
 
         assert left.plain.endswith("test_cl (WAITING ?1)")
@@ -316,7 +334,9 @@ class TestMissingWaitTargetIndicator:
             agent,
             0,
             is_selected=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1)
+            ),
         )
 
         assert left.plain.endswith("test_cl (WAITING ?1 +5m)")
@@ -336,10 +356,72 @@ class TestMissingWaitTargetIndicator:
             is_selected=False,
             now=now,
             wait_deps_satisfied=False,
-            wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1)
+            ),
         )
 
         assert left.plain.endswith("test_cl (WAITING ?1 (until 14:15, 1m29s))")
+
+    def test_waiting_row_renders_bead_only_counts_after_warmup(self) -> None:
+        agent = make_agent(status="WAITING", waiting_for_beads=["run-bead"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ◆◐1)")
+        assert "bold #FFD700" in _styles_covering(left, "◆◐1")
+
+    def test_waiting_row_renders_mixed_domains_before_annotations(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["builder", "@default"],
+            waiting_for_beads=["done-bead"],
+            wait_duration=300,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(running=1),
+                beads=WaitBeadStatusCounts(closed=1),
+            ),
+            has_unresolvable_wait_target=True,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ▶1 · ◆●1 ! +5m)")
+        assert "bold #FFD700" in _styles_covering(left, "▶1")
+        assert "bold #5FD787" in _styles_covering(left, "◆●1")
+
+    def test_waiting_row_keeps_unknown_agent_and_bead_tokens_distinct(
+        self,
+    ) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["ghost"],
+            waiting_for_beads=["missing-bead"],
+            wait_duration=300,
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                agents=WaitAgentStatusCounts(unknown=1),
+                beads=WaitBeadStatusCounts(unknown=2),
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ?1 · ◆?2 +5m)")
 
 
 class TestRelativeWaitDurationRendering:

@@ -22,6 +22,8 @@ from sase.ace.tui._agent_completion_visibility import (
 )
 from sase.ace.tui._agent_completion_wait import (
     AgentWaitStatusMaps,
+    WaitAgentStatusCounts,
+    WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
     ZERO_WAIT_DEPENDENCY_STATUS_COUNTS,
     agent_status_buckets_for_app,
@@ -42,6 +44,8 @@ __all__ = [
     "AgentCompletionCandidate",
     "AgentVcsWorkflow",
     "AgentWaitStatusMaps",
+    "WaitAgentStatusCounts",
+    "WaitBeadStatusCounts",
     "WaitDependencyStatusCounts",
     "ZERO_WAIT_DEPENDENCY_STATUS_COUNTS",
     "_collect_agent_status_buckets",

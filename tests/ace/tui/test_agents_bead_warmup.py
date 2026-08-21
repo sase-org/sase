@@ -21,7 +21,10 @@ import pytest
 from textual.app import App
 from textual.message import Message
 
-from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.agent_completion import (
+    WaitBeadStatusCounts,
+    WaitDependencyStatusCounts,
+)
 from sase.ace.tui.actions.agents._loading_bead_warmup import (
     AgentBeadWarmupMixin,
     _AgentBeadWarmupCandidates,
@@ -430,7 +433,11 @@ def test_apply_wait_bead_status_results_passes_fresh_count_override() -> None:
 
     assert app._patched == [waiter]
     assert app._patch_kwargs == [
-        {"wait_dependency_counts": WaitDependencyStatusCounts(done=1)}
+        {
+            "wait_dependency_counts": WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(closed=1)
+            )
+        }
     ]
 
 

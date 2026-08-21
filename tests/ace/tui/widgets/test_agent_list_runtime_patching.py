@@ -6,7 +6,11 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.agent_completion import (
+    WaitAgentStatusCounts,
+    WaitBeadStatusCounts,
+    WaitDependencyStatusCounts,
+)
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -65,7 +69,7 @@ async def test_normal_refresh_removes_missing_wait_marker_when_target_appears() 
         missing_prompt = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert "(WAITING ?1)" in missing_prompt
         assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
-            WaitDependencyStatusCounts(unknown=1)
+            WaitDependencyStatusCounts(agents=WaitAgentStatusCounts(unknown=1))
         )
 
         target = agent(
@@ -83,7 +87,54 @@ async def test_normal_refresh_removes_missing_wait_marker_when_target_appears() 
         assert "(WAITING ?1)" not in refreshed_prompt
         assert "(WAITING ▶1)" in refreshed_prompt
         assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
-            WaitDependencyStatusCounts(running=1)
+            WaitDependencyStatusCounts(agents=WaitAgentStatusCounts(running=1))
+        )
+
+
+@pytest.mark.asyncio
+async def test_patch_row_replaces_stale_bead_wait_counts() -> None:
+    app = AgentListHarness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        waiting = agent(status="WAITING", run_start=None)
+        waiting.agent_name = "waiter"
+        waiting.waiting_for_beads = ["run-bead"]
+        app._agents_with_children = [waiting]
+
+        widget.update_list([waiting], current_idx=0)
+        await pilot.pause()
+
+        row = agent_row_index(widget, 0)
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "(WAITING)" in before
+        assert "◆◐1" not in before
+
+        widget._target_width = max(widget._target_width, 80)
+        patched = widget.patch_agent_row(
+            0,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            ),
+        )
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched is True
+        assert "(WAITING ◆◐1)" in after
+        assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
+            WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=1))
+        )
+
+        widget._target_width = 8
+        grew = widget.patch_agent_row(
+            0,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=12)
+            ),
+        )
+        assert grew is False
+        assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
+            WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=1))
         )
 
 

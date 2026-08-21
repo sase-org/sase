@@ -506,6 +506,19 @@ def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
         assert "Agent run log" in action_labels
 
 
+def test_agents_help_documents_two_domain_wait_badges() -> None:
+    sections = dict(agents_bindings(load_keymap_registry({})))
+    badges = dict(sections["Waiting Badges"])
+
+    assert badges["▶2 ✓1 ?1"] == "Agent wait counts"
+    assert badges["◆○2 ◆◐1"] == "Bead wait counts"
+    assert badges["▶1 · ◆◐2"] == "Mixed agent · bead groups"
+    assert badges["?N"] == "Unknown agent dependency"
+    assert badges["◆?N"] == "Unknown or missing bead"
+    assert badges["[beads] id ◆◐"] == "Bead wait target status"
+    assert "beads: id ✓" not in badges
+
+
 def test_agents_help_documents_inline_metadata_search() -> None:
     reg = load_keymap_registry({})
     sections = dict(agents_bindings(reg))

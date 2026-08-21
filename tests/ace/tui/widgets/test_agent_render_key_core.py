@@ -9,7 +9,11 @@ from datetime import datetime
 
 import pytest
 
-from sase.ace.tui.agent_completion import WaitDependencyStatusCounts
+from sase.ace.tui.agent_completion import (
+    WaitAgentStatusCounts,
+    WaitBeadStatusCounts,
+    WaitDependencyStatusCounts,
+)
 from sase.ace.tui.widgets._agent_list_rendering import agent_render_key
 
 from ._agent_render_cache_helpers import agent as _agent
@@ -467,10 +471,80 @@ def test_render_key_changes_when_wait_dependency_counts_change() -> None:
         is_marked=False,
         hint_char=None,
         now=None,
-        wait_dependency_counts=WaitDependencyStatusCounts(unknown=1),
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(unknown=1)
+        ),
     )
 
     assert known_key != missing_key
+
+
+def test_render_key_changes_when_agent_or_bead_wait_counts_change() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for = ["builder"]
+    agent.waiting_for_beads = ["run-bead"]
+    key_kwargs = {
+        "index": 0,
+        "is_selected": False,
+        "fold_annotation": "",
+        "is_expanded": False,
+        "is_marked": False,
+        "hint_char": None,
+        "now": None,
+    }
+    running_open = agent_render_key(
+        agent,
+        **key_kwargs,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(running=1),
+            beads=WaitBeadStatusCounts(open=1),
+        ),
+    )
+    running_closed = agent_render_key(
+        agent,
+        **key_kwargs,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(running=1),
+            beads=WaitBeadStatusCounts(closed=1),
+        ),
+    )
+    done_open = agent_render_key(
+        agent,
+        **key_kwargs,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(done=1),
+            beads=WaitBeadStatusCounts(open=1),
+        ),
+    )
+    agent_unknown = agent_render_key(
+        agent,
+        **key_kwargs,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(unknown=1)
+        ),
+    )
+    bead_unknown = agent_render_key(
+        agent,
+        **key_kwargs,
+        wait_dependency_counts=WaitDependencyStatusCounts(
+            beads=WaitBeadStatusCounts(unknown=1)
+        ),
+    )
+
+    assert running_open != running_closed
+    assert running_open != done_open
+    assert agent_unknown != bead_unknown
+    assert hash(
+        WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(running=1),
+            beads=WaitBeadStatusCounts(open=1),
+        )
+    ) == hash(
+        WaitDependencyStatusCounts(
+            agents=WaitAgentStatusCounts(running=1),
+            beads=WaitBeadStatusCounts(open=1),
+        )
+    )
 
 
 def test_render_key_changes_when_unresolvable_wait_target_flag_flips() -> None:

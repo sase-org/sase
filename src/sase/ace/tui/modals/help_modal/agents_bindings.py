@@ -433,14 +433,17 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Waiting Badges",
             [
-                ("▶2 ✓1 ?1", "Dependency state counts"),
-                ("▶ ◐ … ⏳ ✓ ✗ ▲", "Dependency states (see Grouping)"),
-                ("?", "Unknown or unresolved dependency"),
+                ("▶2 ✓1 ?1", "Agent wait counts"),
+                ("◆○2 ◆◐1", "Bead wait counts"),
+                ("▶1 · ◆◐2", "Mixed agent · bead groups"),
+                ("?N", "Unknown agent dependency"),
+                ("◆?N", "Unknown or missing bead"),
+                ("▶ ◐ … ⏳ ✓ ✗ ▲", "Agent states (see Grouping)"),
                 ("!", "Reserved tribe never resolves"),
                 ("[tribes] @t → name ✓", "Bound tribe entity/status"),
                 ("[tribes] @t (next launch)", "Pending tribe wait"),
                 ("[tribes] @default !", "Reserved tribe wait"),
-                ("beads: id ✓", "Bead wait target status"),
+                ("[beads] id ◆◐", "Bead wait target status"),
             ],
         ),
         (

@@ -158,10 +158,6 @@ _HIDDEN_ICON = "◌"
 # lockstep.
 _AGENT_NAME_ANNOTATION_STYLE = "#FFD700"  # Gold
 
-# Bead context badge for agents launched by ``sase bead work``.
-_BEAD_GLYPH = "◆"
-_BEAD_GLYPH_STYLE = "bold #5FD7AF"
-
 # File-change badge for agents whose persisted diff includes reviewable edits.
 # Plan/prompt bookkeeping-only diffs are classified at load time and omitted.
 _FILE_CHANGE_GLYPH = "✏️"

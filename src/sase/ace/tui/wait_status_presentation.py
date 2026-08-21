@@ -12,9 +12,17 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKETS,
     QUEUED_STATUS_COLOR,
 )
+from sase.bead_status_presentation import (
+    BEAD_STATUS_PRESENTATIONS,
+    bead_status_presentation,
+)
 
 if TYPE_CHECKING:
-    from ._agent_completion_wait import WaitDependencyStatusCounts
+    from ._agent_completion_wait import (
+        WaitAgentStatusCounts,
+        WaitBeadStatusCounts,
+        WaitDependencyStatusCounts,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +37,13 @@ WAIT_UNKNOWN_GLYPH = "?"
 WAIT_UNKNOWN_GLYPH_STYLE = "bold #FFAF5F"
 WAIT_UNRESOLVABLE_GLYPH = "!"
 WAIT_UNRESOLVABLE_GLYPH_STYLE = "bold #FF5F5F"
+
+# Shared with the trailing "bead-linked agent" row badge. Waited-on bead
+# tokens reuse this glyph and then take canonical bead-status color.
+BEAD_WAIT_GLYPH = "◆"
+BEAD_LINKED_AGENT_GLYPH_STYLE = "bold #5FD7AF"
+WAIT_DOMAIN_SEPARATOR = "·"
+WAIT_DOMAIN_SEPARATOR_STYLE = "dim"
 
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror the established
 # agent-row status accents.
@@ -50,13 +65,6 @@ WAIT_STATUS_BADGES: dict[str, _WaitStatusBadge] = {
 WAIT_UNKNOWN_BADGE = _WaitStatusBadge(WAIT_UNKNOWN_GLYPH, WAIT_UNKNOWN_GLYPH_STYLE)
 WAIT_STATUS_COUNT_BUCKETS: tuple[str, ...] = AGENT_STATUS_BUCKETS
 
-BEAD_STATUS_TO_WAIT_BUCKET: dict[str, str] = {
-    "closed": "Done",
-    "in_progress": "Running",
-    "claimed": "Starting",
-    "open": "Waiting",
-}
-
 
 def _wait_status_badge(bucket: str | None) -> _WaitStatusBadge:
     """Return the wait badge for a normalized agent bucket or unknown value."""
@@ -65,11 +73,15 @@ def _wait_status_badge(bucket: str | None) -> _WaitStatusBadge:
     return WAIT_STATUS_BADGES.get(bucket, WAIT_UNKNOWN_BADGE)
 
 
-def wait_bead_status_bucket(status: str | None) -> str | None:
-    """Normalize a waited-on bead status to an agent wait-status bucket."""
-    if status is None:
-        return None
-    return BEAD_STATUS_TO_WAIT_BUCKET.get(status)
+def _wait_bead_status_token(status: str | None) -> tuple[str, str]:
+    """Return the ``◆<status>`` token and canonical Rich style for a bead."""
+    if status in BEAD_STATUS_PRESENTATIONS:
+        presentation = bead_status_presentation(status)
+        return (
+            f"{BEAD_WAIT_GLYPH}{presentation.tui_glyph}",
+            presentation.rich_style,
+        )
+    return f"{BEAD_WAIT_GLYPH}{WAIT_UNKNOWN_GLYPH}", WAIT_UNKNOWN_GLYPH_STYLE
 
 
 def append_wait_status_badge(text: Text, bucket: str | None) -> None:
@@ -80,41 +92,75 @@ def append_wait_status_badge(text: Text, bucket: str | None) -> None:
 
 
 def append_wait_bead_status_badge(text: Text, status: str | None) -> None:
-    """Append the standard per-bead badge for a wait dependency."""
-    append_wait_status_badge(text, wait_bead_status_bucket(status))
+    """Append the status-bearing bead wait token without a count."""
+    token, style = _wait_bead_status_token(status)
+    text.append(" ")
+    text.append(token, style=style)
 
 
-def format_wait_dependency_status_counts(
-    counts: WaitDependencyStatusCounts | None,
+def _format_wait_agent_status_counts(
+    counts: WaitAgentStatusCounts | None,
 ) -> Text:
-    """Format a zero-suppressed compact status-count summary."""
+    """Format a zero-suppressed compact agent wait-count group."""
     rendered = Text()
     if counts is None or not counts.has_any:
         return rendered
 
     first = True
-    for bucket in WAIT_STATUS_COUNT_BUCKETS:
-        count = counts.count_for_bucket(bucket)
-        if count <= 0:
-            continue
+    for bucket, count in counts.nonzero_buckets():
         if not first:
             rendered.append(" ")
-        badge = _wait_status_badge(bucket)
+        badge = _wait_status_badge(None if bucket == "unknown" else bucket)
         rendered.append(badge.glyph, style=badge.style)
         rendered.append(str(count), style=badge.style)
         first = False
+    return rendered
 
-    if counts.unknown > 0:
+
+def _format_wait_bead_status_counts(
+    counts: WaitBeadStatusCounts | None,
+) -> Text:
+    """Format a zero-suppressed compact bead wait-count group."""
+    rendered = Text()
+    if counts is None or not counts.has_any:
+        return rendered
+
+    first = True
+    for status, count in counts.nonzero_statuses():
         if not first:
             rendered.append(" ")
-        rendered.append(WAIT_UNKNOWN_BADGE.glyph, style=WAIT_UNKNOWN_BADGE.style)
-        rendered.append(str(counts.unknown), style=WAIT_UNKNOWN_BADGE.style)
+        token, style = _wait_bead_status_token(None if status == "unknown" else status)
+        rendered.append(f"{token}{count}", style=style)
+        first = False
+    return rendered
 
+
+def format_wait_dependency_status_counts(
+    counts: WaitDependencyStatusCounts | None,
+) -> Text:
+    """Format a two-domain, zero-suppressed compact status-count summary."""
+    rendered = Text()
+    if counts is None or not counts.has_any:
+        return rendered
+
+    agent_text = _format_wait_agent_status_counts(counts.agents)
+    bead_text = _format_wait_bead_status_counts(counts.beads)
+    if agent_text.cell_len:
+        rendered.append_text(agent_text)
+    if agent_text.cell_len and bead_text.cell_len:
+        rendered.append(" ")
+        rendered.append(WAIT_DOMAIN_SEPARATOR, style=WAIT_DOMAIN_SEPARATOR_STYLE)
+        rendered.append(" ")
+    if bead_text.cell_len:
+        rendered.append_text(bead_text)
     return rendered
 
 
 __all__ = [
-    "BEAD_STATUS_TO_WAIT_BUCKET",
+    "BEAD_LINKED_AGENT_GLYPH_STYLE",
+    "BEAD_WAIT_GLYPH",
+    "WAIT_DOMAIN_SEPARATOR",
+    "WAIT_DOMAIN_SEPARATOR_STYLE",
     "WAIT_STATUS_BADGES",
     "WAIT_STATUS_COUNT_BUCKETS",
     "WAIT_UNKNOWN_GLYPH",
@@ -124,5 +170,4 @@ __all__ = [
     "append_wait_bead_status_badge",
     "append_wait_status_badge",
     "format_wait_dependency_status_counts",
-    "wait_bead_status_bucket",
 ]

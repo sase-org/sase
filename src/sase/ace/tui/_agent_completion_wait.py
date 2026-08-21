@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from sase.ace.tui._agent_completion_candidates import (
@@ -15,7 +15,7 @@ from sase.agent.status_buckets import (
     agent_status_bucket,
     aggregate_agent_group_bucket,
 )
-from sase.ace.tui.wait_status_presentation import wait_bead_status_bucket
+from sase.bead_status_presentation import BEAD_STATUS_VALUES
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.wait_dependency_resolution import (
     TribeMemberRow,
@@ -53,8 +53,8 @@ class AgentWaitStatusMaps:
 
 
 @dataclass(frozen=True, slots=True)
-class WaitDependencyStatusCounts:
-    """Compact status counts for one WAITING row's agent and bead dependencies."""
+class WaitAgentStatusCounts:
+    """Compact status counts for one WAITING row's ordinary agent dependencies."""
 
     stopped: int = 0
     failed: int = 0
@@ -67,7 +67,7 @@ class WaitDependencyStatusCounts:
 
     @property
     def has_any(self) -> bool:
-        """Return whether any dependency has a countable visible status."""
+        """Return whether any agent dependency has a countable visible status."""
         return any(
             (
                 self.stopped,
@@ -88,11 +88,79 @@ class WaitDependencyStatusCounts:
             return 0
         return getattr(self, field_name)
 
+    def nonzero_buckets(self) -> Iterator[tuple[str, int]]:
+        """Yield canonical agent buckets with a positive count, unknown last."""
+        for bucket in AGENT_STATUS_BUCKETS:
+            count = self.count_for_bucket(bucket)
+            if count > 0:
+                yield bucket, count
+        if self.unknown > 0:
+            yield "unknown", self.unknown
+
+
+@dataclass(frozen=True, slots=True)
+class WaitBeadStatusCounts:
+    """Compact status counts for one WAITING row's waited-on beads."""
+
+    open: int = 0
+    claimed: int = 0
+    ready: int = 0
+    snoozed: int = 0
+    in_progress: int = 0
+    closed: int = 0
+    unknown: int = 0
+
+    @property
+    def has_any(self) -> bool:
+        """Return whether any bead dependency has a countable visible status."""
+        return any(
+            (
+                self.open,
+                self.claimed,
+                self.ready,
+                self.snoozed,
+                self.in_progress,
+                self.closed,
+                self.unknown,
+            )
+        )
+
+    def count_for_status(self, status: str) -> int:
+        """Return this row's count for an exact bead status or ``unknown``."""
+        if status == "unknown":
+            return self.unknown
+        if status not in _BEAD_COUNT_FIELDS:
+            return 0
+        return getattr(self, status)
+
+    def nonzero_statuses(self) -> Iterator[tuple[str, int]]:
+        """Yield canonical bead statuses with a positive count, unknown last."""
+        for status in BEAD_STATUS_VALUES:
+            count = getattr(self, status)
+            if count > 0:
+                yield status, count
+        if self.unknown > 0:
+            yield "unknown", self.unknown
+
+
+@dataclass(frozen=True, slots=True)
+class WaitDependencyStatusCounts:
+    """Two-domain compact counts for one WAITING row's visible dependencies."""
+
+    agents: WaitAgentStatusCounts = field(default_factory=WaitAgentStatusCounts)
+    beads: WaitBeadStatusCounts = field(default_factory=WaitBeadStatusCounts)
+
+    @property
+    def has_any(self) -> bool:
+        """Return whether either dependency domain has a countable status."""
+        return self.agents.has_any or self.beads.has_any
+
 
 ZERO_WAIT_DEPENDENCY_STATUS_COUNTS = WaitDependencyStatusCounts()
 _WAIT_COUNT_FIELDS: dict[str, str] = {
     bucket: bucket.lower() for bucket in AGENT_STATUS_BUCKETS
 }
+_BEAD_COUNT_FIELDS: frozenset[str] = frozenset(BEAD_STATUS_VALUES)
 
 
 def _preferred_wait_dependency_bucket(current: str | None, candidate: str) -> str:
@@ -370,7 +438,8 @@ def wait_dependency_status_counts(
     if not wait_agent.waiting_for and not wait_agent.waiting_for_beads:
         return ZERO_WAIT_DEPENDENCY_STATUS_COUNTS
 
-    tally = dict.fromkeys((*AGENT_STATUS_BUCKETS, "unknown"), 0)
+    agent_tally = dict.fromkeys((*AGENT_STATUS_BUCKETS, "unknown"), 0)
+    bead_tally = dict.fromkeys((*BEAD_STATUS_VALUES, "unknown"), 0)
 
     for name in wait_agent.waiting_for:
         if _parse_tribe_target(name) is not None:
@@ -378,29 +447,40 @@ def wait_dependency_status_counts(
         clan_members = status_maps.clan_member_statuses.get(name)
         if clan_members is not None:
             for _label, bucket in clan_members:
-                _increment_wait_count(tally, bucket)
+                _increment_agent_wait_count(agent_tally, bucket)
             continue
-        _increment_wait_count(tally, status_maps.buckets.get(name))
+        _increment_agent_wait_count(agent_tally, status_maps.buckets.get(name))
 
     if wait_bead_statuses is not None:
         for bead_id in wait_agent.waiting_for_beads:
             entry = wait_bead_statuses.entry_for(bead_id)
             if entry is None or entry.is_cold:
                 continue
-            _increment_wait_count(tally, wait_bead_status_bucket(entry.status))
+            _increment_bead_wait_count(bead_tally, entry.status)
 
-    return _wait_counts_from_tally(tally)
+    agents = _agent_counts_from_tally(agent_tally)
+    beads = _bead_counts_from_tally(bead_tally)
+    if not agents.has_any and not beads.has_any:
+        return ZERO_WAIT_DEPENDENCY_STATUS_COUNTS
+    return WaitDependencyStatusCounts(agents=agents, beads=beads)
 
 
-def _increment_wait_count(tally: dict[str, int], bucket: str | None) -> None:
+def _increment_agent_wait_count(tally: dict[str, int], bucket: str | None) -> None:
     if bucket in _WAIT_COUNT_FIELDS:
         tally[bucket] += 1
     else:
         tally["unknown"] += 1
 
 
-def _wait_counts_from_tally(tally: Mapping[str, int]) -> WaitDependencyStatusCounts:
-    return WaitDependencyStatusCounts(
+def _increment_bead_wait_count(tally: dict[str, int], status: str | None) -> None:
+    if status in _BEAD_COUNT_FIELDS:
+        tally[status] += 1
+    else:
+        tally["unknown"] += 1
+
+
+def _agent_counts_from_tally(tally: Mapping[str, int]) -> WaitAgentStatusCounts:
+    return WaitAgentStatusCounts(
         stopped=tally.get("Stopped", 0),
         failed=tally.get("Failed", 0),
         starting=tally.get("Starting", 0),
@@ -412,8 +492,22 @@ def _wait_counts_from_tally(tally: Mapping[str, int]) -> WaitDependencyStatusCou
     )
 
 
+def _bead_counts_from_tally(tally: Mapping[str, int]) -> WaitBeadStatusCounts:
+    return WaitBeadStatusCounts(
+        open=tally.get("open", 0),
+        claimed=tally.get("claimed", 0),
+        ready=tally.get("ready", 0),
+        snoozed=tally.get("snoozed", 0),
+        in_progress=tally.get("in_progress", 0),
+        closed=tally.get("closed", 0),
+        unknown=tally.get("unknown", 0),
+    )
+
+
 __all__ = [
     "AgentWaitStatusMaps",
+    "WaitAgentStatusCounts",
+    "WaitBeadStatusCounts",
     "WaitDependencyStatusCounts",
     "ZERO_WAIT_DEPENDENCY_STATUS_COUNTS",
     "agent_status_buckets_for_app",
