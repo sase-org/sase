@@ -1,7 +1,7 @@
-"""One-shot ``>`` + digit numbered-link dispatch for Glossary and Memory.
+"""One-shot ``.`` + digit numbered-link dispatch for Glossary and Memory.
 
 Bare ``1``-``9`` stay available to the Admin Center's top-level tabs. These
-panes arm ``greater_than_sign``, then resolve the next decimal digit on the
+panes arm ``full_stop``, then resolve the next decimal digit on the
 UI thread. The path is state-only: no I/O, workers, or pane rebuilds.
 """
 
@@ -13,10 +13,11 @@ from typing import Any
 from textual.events import Key
 from textual.widgets import Input
 
-NUMBERED_LINK_PREFIX_KEY = "greater_than_sign"
-NUMBERED_LINK_CHIP_PREFIX = ">"
+NUMBERED_LINK_PREFIX_KEY = "full_stop"
+NUMBERED_LINK_CHIP_PREFIX = "."
 NUMBERED_LINK_MIN = 1
 NUMBERED_LINK_MAX = 9
+NUMBERED_LINK_HELP_KEYS = f"{NUMBERED_LINK_CHIP_PREFIX}1-{NUMBERED_LINK_MAX}"
 NUMBERED_LINK_BINDING: tuple[str, str, str] = (
     NUMBERED_LINK_PREFIX_KEY,
     "arm_numbered_link",
@@ -31,7 +32,7 @@ def _filter_has_focus(widget: Any) -> bool:
 
 def _is_prefix_key(event: Key) -> bool:
     character = getattr(event, "character", None)
-    return event.key == NUMBERED_LINK_PREFIX_KEY or character == ">"
+    return event.key in (NUMBERED_LINK_PREFIX_KEY, ".") or character == "."
 
 
 def _decimal_digit(event: Key) -> str | None:
@@ -62,10 +63,10 @@ def handle_numbered_link_key(
     *,
     follow: Callable[[int], None],
 ) -> bool:
-    """Resolve an armed ``>N`` numbered-link shortcut.
+    """Resolve an armed ``.N`` numbered-link shortcut.
 
     Config-hub sub-tab forwarding must run first so an already-armed
-    Config ``0`` prefix still wins. A repeated ``>`` stays armed. A digit
+    Config ``0`` prefix still wins. A repeated ``.`` stays armed. A digit
     outside ``1``-``9`` is consumed and cancels. Any other key cancels and
     continues through normal dispatch. Returns True when the event was
     consumed.
@@ -100,6 +101,7 @@ def handle_numbered_link_key(
 __all__ = [
     "NUMBERED_LINK_BINDING",
     "NUMBERED_LINK_CHIP_PREFIX",
+    "NUMBERED_LINK_HELP_KEYS",
     "NUMBERED_LINK_MAX",
     "NUMBERED_LINK_MIN",
     "NUMBERED_LINK_PREFIX_KEY",

@@ -142,7 +142,7 @@ def test_relation_chip_rows_number_continuously_across_rows() -> None:
     assert "1 Beta" in text
     assert "2 Gamma" in text
     assert "3 Delta" in text
-    assert ">1 Beta" not in text
+    assert ".1 Beta" not in text
 
 
 def test_relation_chip_rows_omit_empty_row() -> None:
@@ -179,7 +179,7 @@ def test_numbered_chip_rows_share_renderer_for_parent_children_labels() -> None:
     assert "CHILDREN" in text
     assert "1 hub" in text
     assert "2 grand" in text
-    assert ">1 hub" not in text
+    assert ".1 hub" not in text
 
 
 def test_numbered_chip_rows_render_optional_shortcut_prefix() -> None:
@@ -191,13 +191,13 @@ def test_numbered_chip_rows_render_optional_shortcut_prefix() -> None:
             ),
             focused_number=None,
             accent="#87D7FF",
-            shortcut_prefix=">",
+            shortcut_prefix=".",
         )
     )
 
-    assert ">1 Beta" in text
-    assert ">2 Gamma" in text
-    assert ">3 Delta" in text
+    assert ".1 Beta" in text
+    assert ".2 Gamma" in text
+    assert ".3 Delta" in text
 
 
 def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:

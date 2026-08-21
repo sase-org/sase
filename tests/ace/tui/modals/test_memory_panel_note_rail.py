@@ -65,13 +65,18 @@ async def test_filter_extends_into_bodies_only_when_toggled(
 
         await pilot.press("slash")
         await wait_for(pilot, lambda: panel._filter_input().display)
+        await pilot.press(".", "1")
+        assert panel._filter_input().value == ".1"
+        assert panel._pending_numbered_link is False
+        for _ in range(2):
+            await pilot.press("backspace")
         for char in "dragonfruit":
             await pilot.press(char)
         await wait_for(pilot, lambda: not panel._rows)
 
         await pilot.press("escape")
         await wait_for(pilot, lambda: not panel._filter_input().display)
-        await pilot.press("full_stop")
+        await pilot.press("greater_than_sign")
         await wait_for(
             pilot, lambda: [row.note.path.stem for row in panel._rows] == ["hub"]
         )

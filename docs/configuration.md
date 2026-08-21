@@ -1073,73 +1073,77 @@ focused pane, not globally.
 prompt pane with `gG` or `Ctrl+G G`. A value may list more than one key, separated by
 commas:
 
-| Field                      | Default         | Description                                                      |
-| -------------------------- | --------------- | ---------------------------------------------------------------- |
-| `next_term`                | `j`             | Move the term-list cursor to the next term.                      |
-| `prev_term`                | `k`             | Move the term-list cursor to the previous term.                  |
-| `first_term`               | `g`             | Jump to the first term.                                          |
-| `last_term`                | `G`             | Jump to the last term.                                           |
-| `scroll_definition_down`   | `ctrl+d`        | Scroll the definition card down by half a page.                  |
-| `scroll_definition_up`     | `ctrl+u`        | Scroll the definition card up by half a page.                    |
-| `filter_terms`             | `slash`         | Filter terms and aliases.                                        |
-| `toggle_definition_filter` | `full_stop`     | Extend the active filter into definition bodies.                 |
-| `next_relation`            | `tab`           | Focus the next `SEE ALSO` / `REFERENCED BY` chip.                |
-| `prev_relation`            | `shift+tab`     | Focus the previous relation chip.                                |
-| `follow_relation`          | `enter,l`       | Travel to the focused chip's term (or chip ① when none focused). |
-| `travel_back`              | `backspace,h`   | Walk back one step along the travel trail.                       |
-| `next_project`             | `p`             | Cycle forward through the enabled-project ring.                  |
-| `prev_project`             | `P`             | Cycle backward through the enabled-project ring.                 |
-| `add_term`                 | `a`             | Open the add-term form.                                          |
-| `delete_term`              | `d`             | Confirm and delete the selected term.                            |
-| `open_source`              | `o`             | Open the definition's source line in `$EDITOR`.                  |
-| `open_viewer`              | `Z`             | Hand the source file to the artifact viewer.                     |
-| `copy_definition`          | `y`             | Copy the definition to the clipboard.                            |
-| `copy_source_path`         | `Y`             | Copy the source path to the clipboard.                           |
-| `refresh`                  | `r`             | Re-read the current project's glossary.                          |
-| `help`                     | `question_mark` | Open the panel-scoped help overlay.                              |
+| Field                      | Default             | Description                                                      |
+| -------------------------- | ------------------- | ---------------------------------------------------------------- |
+| `next_term`                | `j`                 | Move the term-list cursor to the next term.                      |
+| `prev_term`                | `k`                 | Move the term-list cursor to the previous term.                  |
+| `first_term`               | `g`                 | Jump to the first term.                                          |
+| `last_term`                | `G`                 | Jump to the last term.                                           |
+| `scroll_definition_down`   | `ctrl+d`            | Scroll the definition card down by half a page.                  |
+| `scroll_definition_up`     | `ctrl+u`            | Scroll the definition card up by half a page.                    |
+| `filter_terms`             | `slash`             | Filter terms and aliases.                                        |
+| `toggle_definition_filter` | `greater_than_sign` | Extend the active filter into definition bodies.                 |
+| `next_relation`            | `tab`               | Focus the next `SEE ALSO` / `REFERENCED BY` chip.                |
+| `prev_relation`            | `shift+tab`         | Focus the previous relation chip.                                |
+| `follow_relation`          | `enter,l`           | Travel to the focused chip's term (or chip ① when none focused). |
+| `travel_back`              | `backspace,h`       | Walk back one step along the travel trail.                       |
+| `next_project`             | `p`                 | Cycle forward through the enabled-project ring.                  |
+| `prev_project`             | `P`                 | Cycle backward through the enabled-project ring.                 |
+| `add_term`                 | `a`                 | Open the add-term form.                                          |
+| `delete_term`              | `d`                 | Confirm and delete the selected term.                            |
+| `open_source`              | `o`                 | Open the definition's source line in `$EDITOR`.                  |
+| `open_viewer`              | `Z`                 | Hand the source file to the artifact viewer.                     |
+| `copy_definition`          | `y`                 | Copy the definition to the clipboard.                            |
+| `copy_source_path`         | `Y`                 | Copy the source path to the clipboard.                           |
+| `refresh`                  | `r`                 | Re-read the current project's glossary.                          |
+| `help`                     | `question_mark`     | Open the panel-scoped help overlay.                              |
 
 Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
-app-level bindings. `>` then `1`–`9` follows a numbered relation chip; that prefix is a
-fixed pane key, not a configurable `ace.keymaps.glossary` field. On the embedded Admin
-Center Config sub-tab, bare digits remain top-level Admin Center tab selectors.
+app-level bindings. `.` then `1`–`9` follows a numbered relation chip; that prefix is a
+fixed pane key, not a configurable `ace.keymaps.glossary` field, and `full_stop` is
+reserved so a user override cannot silently shadow it. `greater_than_sign` (`>`) remains
+a valid configurable key. On the embedded Admin Center Config sub-tab, bare digits
+remain top-level Admin Center tab selectors. The compact glossary preview still uses
+bare `1`–`9`.
 
 **`memory`** — Bindings active only inside the [Memory panel](ace.md#memory-panel), the
 browse-and-edit surface opened from a prompt pane with `gm` or `Ctrl+G m`. A value may
 list more than one key, separated by commas:
 
-| Field                | Default         | Description                                                         |
-| -------------------- | --------------- | ------------------------------------------------------------------- |
-| `next_note`          | `j`             | Move the note rail cursor to the next note.                         |
-| `prev_note`          | `k`             | Move the note rail cursor to the previous note.                     |
-| `first_note`         | `g`             | Jump to the first note.                                             |
-| `last_note`          | `G`             | Jump to the last note.                                              |
-| `scroll_body_down`   | `ctrl+d`        | Scroll the note card down by half a page.                           |
-| `scroll_body_up`     | `ctrl+u`        | Scroll the note card up by half a page.                             |
-| `filter_notes`       | `slash`         | Filter notes by stem and description.                               |
-| `toggle_body_filter` | `full_stop`     | Extend the active filter into note bodies.                          |
-| `next_link`          | `tab`           | Focus the next `PARENT` / `CHILDREN` chip.                          |
-| `prev_link`          | `shift+tab`     | Focus the previous link chip.                                       |
-| `follow_link`        | `enter,l`       | Travel to the focused chip's note (or chip ① when none focused).    |
-| `travel_back`        | `backspace,h`   | Walk back one step along the travel trail.                          |
-| `next_scope`         | `p`             | Cycle forward through the memory scope ring.                        |
-| `prev_scope`         | `P`             | Cycle backward through the memory scope ring.                       |
-| `pick_scope`         | `ctrl+p`        | Open the filterable scope picker.                                   |
-| `add_note`           | `a`             | Open the add-note form.                                             |
-| `edit_note`          | `e`             | Open the edit form for the selected note's type/parent/description. |
-| `delete_note`        | `d`             | Confirm and delete the selected note.                               |
-| `publish`            | `I`             | Open the publish confirmation (`sase memory init`).                 |
-| `open_source`        | `o`             | Open the note body in `$EDITOR`.                                    |
-| `open_viewer`        | `Z`             | Hand the source file to the artifact viewer.                        |
-| `copy_body`          | `y`             | Copy the note body to the clipboard.                                |
-| `copy_source_path`   | `Y`             | Copy the source path to the clipboard.                              |
-| `refresh`            | `r`             | Re-read the current scope.                                          |
-| `help`               | `question_mark` | Open the panel-scoped help overlay.                                 |
+| Field                | Default             | Description                                                         |
+| -------------------- | ------------------- | ------------------------------------------------------------------- |
+| `next_note`          | `j`                 | Move the note rail cursor to the next note.                         |
+| `prev_note`          | `k`                 | Move the note rail cursor to the previous note.                     |
+| `first_note`         | `g`                 | Jump to the first note.                                             |
+| `last_note`          | `G`                 | Jump to the last note.                                              |
+| `scroll_body_down`   | `ctrl+d`            | Scroll the note card down by half a page.                           |
+| `scroll_body_up`     | `ctrl+u`            | Scroll the note card up by half a page.                             |
+| `filter_notes`       | `slash`             | Filter notes by stem and description.                               |
+| `toggle_body_filter` | `greater_than_sign` | Extend the active filter into note bodies.                          |
+| `next_link`          | `tab`               | Focus the next `PARENT` / `CHILDREN` chip.                          |
+| `prev_link`          | `shift+tab`         | Focus the previous link chip.                                       |
+| `follow_link`        | `enter,l`           | Travel to the focused chip's note (or chip ① when none focused).    |
+| `travel_back`        | `backspace,h`       | Walk back one step along the travel trail.                          |
+| `next_scope`         | `p`                 | Cycle forward through the memory scope ring.                        |
+| `prev_scope`         | `P`                 | Cycle backward through the memory scope ring.                       |
+| `pick_scope`         | `ctrl+p`            | Open the filterable scope picker.                                   |
+| `add_note`           | `a`                 | Open the add-note form.                                             |
+| `edit_note`          | `e`                 | Open the edit form for the selected note's type/parent/description. |
+| `delete_note`        | `d`                 | Confirm and delete the selected note.                               |
+| `publish`            | `I`                 | Open the publish confirmation (`sase memory init`).                 |
+| `open_source`        | `o`                 | Open the note body in `$EDITOR`.                                    |
+| `open_viewer`        | `Z`                 | Hand the source file to the artifact viewer.                        |
+| `copy_body`          | `y`                 | Copy the note body to the clipboard.                                |
+| `copy_source_path`   | `Y`                 | Copy the source path to the clipboard.                              |
+| `refresh`            | `r`                 | Re-read the current scope.                                          |
+| `help`               | `question_mark`     | Open the panel-scoped help overlay.                                 |
 
 Like gate, statistics, and glossary keys, memory keys are scoped to the panel and may
-overlap app-level bindings. `>` then `1`–`9` follows a numbered parent or child chip;
-that prefix is a fixed pane key, not a configurable `ace.keymaps.memory` field. On the
-embedded Admin Center Config sub-tab, bare digits remain top-level Admin Center tab
-selectors.
+overlap app-level bindings. `.` then `1`–`9` follows a numbered parent or child chip;
+that prefix is a fixed pane key, not a configurable `ace.keymaps.memory` field, and
+`full_stop` is reserved so a user override cannot silently shadow it.
+`greater_than_sign` (`>`) remains a valid configurable key. On the embedded Admin Center
+Config sub-tab, bare digits remain top-level Admin Center tab selectors.
 
 **`snippets`** — Bindings active only inside the
 [Snippets panel](ace.md#snippets-panel), the browse-and-edit surface opened from a
@@ -1173,7 +1177,8 @@ commas:
 | `help`                 | `question_mark` | Open the panel-scoped help overlay.                                 |
 
 Like gate, statistics, glossary, and memory keys, snippets keys are scoped to the panel
-and may overlap app-level bindings.
+and may overlap app-level bindings. Snippets still uses bare `1`–`9` for numbered chips
+and keeps `.` (`full_stop`) as the default body-filter toggle.
 
 **`projects`** — Bindings active on all three Admin Center
 [Projects-tab](ace.md#projects-tab) sub-tabs (Projects, Repos, Workspaces), so

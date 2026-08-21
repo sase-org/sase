@@ -333,7 +333,8 @@ def test_help_modal_lists_glossary_panel() -> None:
         assert ("gG / Ctrl+G G", "Open from prompt") in pairs
         assert "Glossary Panel" in names
         assert ("j / k", "Move through terms") in pairs
-        assert (">1-9", "Follow numbered chip") in pairs
+        assert (">", "Match definition bodies") in pairs
+        assert (".1-9", "Follow numbered chip") in pairs
         assert ("Esc", "Close and restore prompt") in pairs
         for _name, bindings in sections:
             if _name != "Glossary Panel":
@@ -355,9 +356,10 @@ def test_help_modal_lists_memory_panel() -> None:
         assert ("gm / Ctrl+G m", "Open from prompt") in pairs
         assert "Memory Panel" in names
         assert ("j / k", "Move through notes") in pairs
+        assert (">", "Match note bodies") in pairs
         assert ("Ctrl+P", "Pick a scope") in pairs
         assert ("I", "Publish unpublished") in pairs
-        assert (">1-9", "Follow numbered chip") in pairs
+        assert (".1-9", "Follow numbered chip") in pairs
         assert ("Esc", "Close and restore prompt") in pairs
         for _name, bindings in sections:
             if _name != "Memory Panel":
@@ -369,8 +371,8 @@ def test_help_modal_lists_memory_panel() -> None:
 
 def test_panel_scoped_help_lists_prefixed_chip_shortcut() -> None:
     reg = load_keymap_registry({})
-    assert (">1-9", "Follow numbered chip") in glossary_help_bindings(reg.glossary)
-    assert (">1-9", "Follow numbered chip") in memory_help_bindings(reg.memory)
+    assert (".1-9", "Follow numbered chip") in glossary_help_bindings(reg.glossary)
+    assert (".1-9", "Follow numbered chip") in memory_help_bindings(reg.memory)
 
 
 def test_help_modal_lists_snippets_panel() -> None:

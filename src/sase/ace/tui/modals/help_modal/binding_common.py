@@ -3,6 +3,7 @@
 from typing import Literal
 
 from ...keymaps import BUILTIN_MODE_NAMES, KeymapRegistry, key_display_name
+from ..numbered_link_keys import NUMBERED_LINK_HELP_KEYS
 
 TabName = Literal["artifacts", "agents", "axe"]
 
@@ -155,7 +156,7 @@ def glossary_panel_section(
             (d(g.toggle_definition_filter), "Match definition bodies"),
             (f"{d(g.next_relation)} / {d(g.prev_relation)}", "Move relation chip"),
             (d(g.follow_relation), "Follow relation"),
-            (">1-9", "Follow numbered chip"),
+            (NUMBERED_LINK_HELP_KEYS, "Follow numbered chip"),
             (d(g.travel_back), "Walk back along trail"),
             (f"{d(g.next_project)} / {d(g.prev_project)}", "Cycle visible project"),
             (d(g.add_term), "Add a term"),
@@ -184,7 +185,7 @@ def memory_panel_section(
             (d(m.toggle_body_filter), "Match note bodies"),
             (f"{d(m.next_link)} / {d(m.prev_link)}", "Move link chip"),
             (d(m.follow_link), "Follow link"),
-            (">1-9", "Follow numbered chip"),
+            (NUMBERED_LINK_HELP_KEYS, "Follow numbered chip"),
             (d(m.travel_back), "Walk back along trail"),
             (f"{d(m.next_scope)} / {d(m.prev_scope)}", "Cycle visible scope"),
             (d(m.pick_scope), "Pick a scope"),

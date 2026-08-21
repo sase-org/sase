@@ -1,4 +1,4 @@
-"""Shared one-shot ``>N`` numbered-link dispatcher coverage."""
+"""Shared one-shot ``.N`` numbered-link dispatcher coverage."""
 
 from __future__ import annotations
 
@@ -65,8 +65,17 @@ async def test_repeated_prefix_stays_armed_then_follows() -> None:
     app = _NumberedLinkApp()
     async with app.run_test() as pilot:
         pane = app.pane()
-        await pilot.press(">", ">", "2")
+        await pilot.press(".", ".", "2")
         assert pane.followed == [2]
+        assert pane._pending_numbered_link is False
+
+
+async def test_canonical_full_stop_prefix_follows() -> None:
+    app = _NumberedLinkApp()
+    async with app.run_test() as pilot:
+        pane = app.pane()
+        await pilot.press("full_stop", "3")
+        assert pane.followed == [3]
         assert pane._pending_numbered_link is False
 
 
@@ -74,12 +83,12 @@ async def test_invalid_digit_cancels_without_following() -> None:
     app = _NumberedLinkApp()
     async with app.run_test() as pilot:
         pane = app.pane()
-        await pilot.press(">", "0")
+        await pilot.press(".", "0")
         await pilot.pause()
         assert pane.followed == []
         assert pane._pending_numbered_link is False
 
-        await pilot.press(">", "1")
+        await pilot.press(".", "1")
         assert pane.followed == [1]
 
 
@@ -87,11 +96,24 @@ async def test_non_digit_cancels_and_passthrough_keeps_other_actions() -> None:
     app = _NumberedLinkApp()
     async with app.run_test() as pilot:
         pane = app.pane()
-        await pilot.press(">", "q")
+        await pilot.press(".", "q")
         await pilot.pause()
         assert pane.followed == []
         assert pane.closed is True
         assert pane._pending_numbered_link is False
+
+
+async def test_greater_than_does_not_arm_dispatcher() -> None:
+    app = _NumberedLinkApp()
+    async with app.run_test() as pilot:
+        pane = app.pane()
+        await pilot.press(">", "1")
+        await pilot.pause()
+        assert pane.followed == []
+        assert pane._pending_numbered_link is False
+
+        await pilot.press(".", "2")
+        assert pane.followed == [2]
 
 
 async def test_filter_input_keeps_prefix_and_digits_as_text() -> None:
@@ -100,9 +122,9 @@ async def test_filter_input_keeps_prefix_and_digits_as_text() -> None:
         pane = app.pane()
         await pilot.press("slash")
         await wait_for(pilot, lambda: isinstance(app.focused, FilterInput))
-        await pilot.press(">", "1", "2")
+        await pilot.press(".", "1", "2", ">")
         filt = pane.query_one(FilterInput)
-        assert filt.value == ">12"
+        assert filt.value == ".12>"
         assert pane.followed == []
         assert pane._pending_numbered_link is False
 
@@ -111,7 +133,7 @@ async def test_pending_prefix_clears_when_hidden() -> None:
     app = _NumberedLinkApp()
     async with app.run_test() as pilot:
         pane = app.pane()
-        await pilot.press(">")
+        await pilot.press(".")
         assert pane._pending_numbered_link is True
         clear_numbered_link_prefix(pane)
         await pilot.press("3")

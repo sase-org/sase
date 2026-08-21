@@ -46,9 +46,9 @@ async def test_relation_chip_numbering_is_continuous_across_both_rows(
         meta = panel_static_text(panel, "glossary-panel-card-meta")
         assert "SEE ALSO" in meta
         assert "REFERENCED BY" in meta
-        assert ">1 Beta" in meta
-        assert ">2 Gamma" in meta
-        assert ">3 Delta" in meta
+        assert ".1 Beta" in meta
+        assert ".2 Gamma" in meta
+        assert ".3 Delta" in meta
 
 
 async def test_digit_follows_referenced_by_chip_when_see_also_empty(
@@ -76,7 +76,7 @@ async def test_digit_follows_referenced_by_chip_when_see_also_empty(
             "CCC Ref",
         ]
 
-        await pilot.press(">", "2")
+        await pilot.press(".", "2")
         await wait_for(pilot, lambda: panel._current_term == "CCC Ref")
         assert panel._trail == ["AAA Leaf"]
         assert panel._pending_numbered_link is False
@@ -225,8 +225,8 @@ async def test_filter_input_keeps_prefix_and_digits_as_text(
         await wait_for(pilot, lambda: not panel._loading)
         await pilot.press("slash")
         await wait_for(pilot, lambda: panel._filter_input().display)
-        await pilot.press(">", "1")
-        assert panel._filter_input().value == ">1"
+        await pilot.press(".", "1", ">")
+        assert panel._filter_input().value == ".1>"
         assert panel._trail == []
         assert panel._pending_numbered_link is False
 
@@ -246,7 +246,7 @@ async def test_hiding_pane_clears_pending_numbered_link(
     app = GlossaryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
-        await pilot.press(">")
+        await pilot.press(".")
         assert panel._pending_numbered_link is True
         panel.on_center_tab_visibility_changed(False)
         assert panel._pending_numbered_link is False

@@ -47,7 +47,7 @@ async def test_relation_chip_numbering_is_continuous_across_both_rows(
         assert "1 beta" in meta
         assert "2 gamma" in meta
         assert "3 delta" in meta
-        assert ">1 beta" not in meta
+        assert ".1 beta" not in meta
 
 
 async def test_digit_follows_called_by_chip_when_calls_empty(

@@ -238,7 +238,7 @@ async def test_glossary_panel_populated_png_snapshot(
         page.app.push_screen(GlossaryPanel(initial_term="Agent Hood"))
         await page.expect_modal("GlossaryPanel")
         await wait_for_state(page, lambda: _panel_ready(page), description="panel load")
-        await page.press(">", "1")
+        await page.press(".", "1")
         await wait_for_state(
             page,
             lambda: (

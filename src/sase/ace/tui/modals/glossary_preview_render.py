@@ -140,7 +140,7 @@ def build_numbered_chip_rows(
     ``SEE ALSO`` / ``REFERENCED BY`` chips and Memory ``PARENT`` /
     ``CHILDREN`` chips share this renderer so the two surfaces cannot
     drift visually. *shortcut_prefix* is prepended to each chip number
-    (``>1 name``); callers such as Snippets and the compact glossary
+    (``.1 name``); callers such as Snippets and the compact glossary
     preview leave it empty.
     """
     rows: list[tuple[str, Text]] = []

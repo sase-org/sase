@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.ace.tui.keymaps import MemoryPanelKeymaps, memory_help_bindings
+from sase.ace.tui.modals.numbered_link_keys import NUMBERED_LINK_HELP_KEYS
 
 _ACCENT = "#87D7FF"
 
@@ -69,7 +70,7 @@ class MemoryPanelHelpModal(ModalScreen[None]):
         note.append(
             "\nfollow_link ships as enter,l, but only l currently follows a chip: "
             "the note list holds focus and consumes Enter for its own selection "
-            "action, so Enter does nothing in this panel. Use l or >1-9.",
+            f"action, so Enter does nothing in this panel. Use l or {NUMBERED_LINK_HELP_KEYS}.",
             style="dim",
         )
         return Group(text, note)

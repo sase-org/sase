@@ -35,6 +35,11 @@ async def test_filter_matches_terms_aliases_and_definitions(
 
         await pilot.press("slash")
         await wait_for(pilot, lambda: panel._filter_input().display)
+        await pilot.press(".", "1")
+        assert panel._filter_input().value == ".1"
+        assert panel._pending_numbered_link is False
+        for _ in range(2):
+            await pilot.press("backspace")
         for char in "hood":
             await pilot.press(char)
         await wait_for(
@@ -45,7 +50,7 @@ async def test_filter_matches_terms_aliases_and_definitions(
         # widens the same pattern to also match "Sase Agent"'s definition.
         await pilot.press("escape")
         await wait_for(pilot, lambda: not panel._filter_input().display)
-        await pilot.press("full_stop")
+        await pilot.press("greater_than_sign")
         await wait_for(
             pilot,
             lambda: (

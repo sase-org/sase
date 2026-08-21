@@ -50,8 +50,8 @@ async def test_root_note_chips_are_children_only(
         meta = panel_static_text(panel, "memory-panel-card-meta")
         assert "PARENT" not in meta
         assert "CHILDREN" in meta
-        assert ">1 both" in meta
-        assert ">2 child" in meta
+        assert ".1 both" in meta
+        assert ".2 child" in meta
 
 
 async def test_child_note_chips_are_parent_only(
@@ -75,7 +75,7 @@ async def test_child_note_chips_are_parent_only(
         meta = panel_static_text(panel, "memory-panel-card-meta")
         assert "PARENT" in meta
         assert "CHILDREN" not in meta
-        assert ">1 hub" in meta
+        assert ".1 hub" in meta
 
 
 async def test_note_with_both_edges_numbers_continuously(
@@ -99,8 +99,8 @@ async def test_note_with_both_edges_numbers_continuously(
         meta = panel_static_text(panel, "memory-panel-card-meta")
         assert "PARENT" in meta
         assert "CHILDREN" in meta
-        assert ">1 hub" in meta
-        assert ">2 grand" in meta
+        assert ".1 hub" in meta
+        assert ".2 grand" in meta
 
 
 async def test_agents_parent_root_without_children_has_no_chips(
@@ -186,7 +186,7 @@ async def test_digit_follows_child_chip(
         panel._land_on_note("sase/memory/hub.md")
         await wait_for(pilot, lambda: panel._current_note == "sase/memory/hub.md")
 
-        await pilot.press(">", "2")
+        await pilot.press(".", "2")
         await wait_for(pilot, lambda: panel._current_note == "sase/memory/child.md")
         assert panel._trail == ["sase/memory/hub.md"]
         assert panel._pending_numbered_link is False
@@ -254,6 +254,29 @@ async def test_scope_switch_clears_chips_and_does_not_leave_stale_links(
         meta = panel_static_text(panel, "memory-panel-card-meta")
         assert "PARENT" not in meta
         assert "CHILDREN" not in meta
+
+
+async def test_filter_input_keeps_prefix_and_digits_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = scope_ref("sase", "sase")
+    install_fixed_load(
+        monkeypatch, (ref,), {"sase": scope_snapshot(ref, _linked_notes())}
+    )
+
+    panel = MemoryPane()
+    app = MemoryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        panel._land_on_note("sase/memory/hub.md")
+        await wait_for(pilot, lambda: panel._current_note == "sase/memory/hub.md")
+
+        await pilot.press("slash")
+        await wait_for(pilot, lambda: panel._filter_input().display)
+        await pilot.press(".", "1", ">")
+        assert panel._filter_input().value == ".1>"
+        assert panel._trail == []
+        assert panel._pending_numbered_link is False
 
 
 async def test_bare_digit_does_not_follow_link(

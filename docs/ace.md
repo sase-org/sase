@@ -4536,13 +4536,17 @@ ace:
       follow_relation: "enter,l"
       travel_back: "backspace,h"
       filter_terms: "slash"
-      toggle_definition_filter: "full_stop"
+      toggle_definition_filter: "greater_than_sign"
       add_term: "a"
       delete_term: "d"
 ```
 
 These bindings dispatch only while the panel is open. The full action list and defaults
-are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
+are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps). `.`
+(`full_stop`) is reserved for the fixed `.` then `1`–`9` numbered-chip prefix; a config
+that assigns it to a Glossary action is warned and reverted to that action's default.
+`>` (`greater_than_sign`) remains a valid configurable key and is the default for
+`toggle_definition_filter`.
 
 ### Remapping Memory Panel Keys
 
@@ -4556,7 +4560,7 @@ ace:
       follow_link: "enter,l"
       travel_back: "backspace,h"
       filter_notes: "slash"
-      toggle_body_filter: "full_stop"
+      toggle_body_filter: "greater_than_sign"
       add_note: "a"
       edit_note: "e"
       delete_note: "d"
@@ -4564,7 +4568,11 @@ ace:
 ```
 
 These bindings dispatch only while the panel is open. The full action list and defaults
-are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps).
+are in the [`ace.keymaps` configuration reference](configuration.md#acekeymaps). `.`
+(`full_stop`) is reserved for the fixed `.` then `1`–`9` numbered-chip prefix; a config
+that assigns it to a Memory action is warned and reverted to that action's default. `>`
+(`greater_than_sign`) remains a valid configurable key and is the default for
+`toggle_body_filter`.
 
 ### Remapping Snippets Panel Keys
 
@@ -5332,15 +5340,15 @@ Two navigation axes stay synchronized:
 
 - **Alphabetical.** `j`/`k` (or the `↑`/`↓` arrows) move the term-list cursor; the
   definition card follows. `g`/`G` jump to the first and last term. `/` filters terms
-  and aliases with the same predicate as `sase glossary list`; `.` extends the match
+  and aliases with the same predicate as `sase glossary list`; `>` extends the match
   into definition bodies, matching `--definitions`. `Esc` closes the filter and keeps
   the selection when it is still visible. An empty result reads
   `no terms matched: <pattern>`.
 - **Relational.** The definition card carries numbered `SEE ALSO` chips (outbound
   references from this definition) and `REFERENCED BY` chips (inbound terms that mention
-  this one). Numbering is continuous across both rows so `>1`–`>9` is never ambiguous.
+  this one). Numbering is continuous across both rows so `.1`–`.9` is never ambiguous.
   `Tab` / `Shift+Tab` move a chip cursor, and `l` follows the focused chip — or chip ①
-  when none is focused. `>` then `1`–`9` jumps straight to a numbered chip without
+  when none is focused. `.` then `1`–`9` jumps straight to a numbered chip without
   moving the chip cursor first. Following moves the term-list cursor to the target,
   pushes the previous term onto a trail bounded at 32 entries, and clears an active
   filter when the target is hidden. `h` or `Backspace` walks back. A non-empty trail
@@ -5349,7 +5357,7 @@ Two navigation axes stay synchronized:
 
 `follow_relation` ships as `enter,l`, but only `l` currently follows a chip: the term
 list holds focus and consumes `Enter` for its own selection action, so `Enter` does
-nothing in this panel. Use `l` or `>1`–`>9`.
+nothing in this panel. Use `l` or `.1`–`.9`.
 
 `p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
 glossary configured, plus the project you opened from even when it has none — so `a` can
@@ -5380,7 +5388,7 @@ exists. Always-available keys live in `?` and in this guide.
 Most keys named above are remappable under
 [`ace.keymaps.glossary`](configuration.md#acekeymaps); see
 [Remapping Glossary Panel Keys](#remapping-glossary-panel-keys). Three sets are fixed
-and are not part of that scope: `Esc` and `q` (close), the `>` then `1`–`9`
+and are not part of that scope: `Esc` and `q` (close), the `.` then `1`–`9`
 relation-chip shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys
 the underlying list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
@@ -5410,13 +5418,13 @@ a dim description snippet.
 Two navigation axes stay synchronized:
 
 - **Tree.** `j`/`k` move the note rail cursor; the note card follows. `g`/`G` jump to
-  the first and last note. `/` filters notes by stem and description; `.` extends the
+  the first and last note. `/` filters notes by stem and description; `>` extends the
   match into note bodies. `Esc` closes the filter and keeps the selection when it is
   still visible. An empty result reads `no notes matched: <pattern>`.
 - **Relational.** The note card carries a numbered `PARENT` chip (omitted when the
   parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN` chips,
-  numbered continuously so `>1`–`>9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
-  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `>` then
+  numbered continuously so `.1`–`.9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
+  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `.` then
   `1`–`9` jumps straight to a numbered chip. Following pushes the previous note onto a
   trail bounded at 32 entries and clears an active filter when the target is hidden. `h`
   or `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
@@ -5424,7 +5432,7 @@ Two navigation axes stay synchronized:
   Admin Center tab selectors.
 
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
-holds focus and consumes `Enter` for its own selection action. Use `l` or `>1`–`>9`.
+holds focus and consumes `Enter` for its own selection action. Use `l` or `.1`–`.9`.
 
 The note card also shows a badge row (`TIER 1 · always loaded` / `TIER 2`, plus
 `GENERATED`, `SHADOWS HOME`, `ORPHANED`, and `INVALID` when they apply), the
@@ -5486,7 +5494,7 @@ in `?` and in this guide.
 Most keys named above are remappable under
 [`ace.keymaps.memory`](configuration.md#acekeymaps); see
 [Remapping Memory Panel Keys](#remapping-memory-panel-keys). Three sets are fixed and
-are not part of that scope: `Esc` and `q` (close), the `>` then `1`–`9` link-chip
+are not part of that scope: `Esc` and `q` (close), the `.` then `1`–`9` link-chip
 shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
 list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 

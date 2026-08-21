@@ -32,6 +32,11 @@ from sase.ace.tui.keymaps.key_validation import (
 
 log = logging.getLogger(__name__)
 
+# Glossary and Memory keep ``.`` (``full_stop``) as the fixed numbered-link
+# prefix. An override that assigns it to a configurable action is reverted so
+# it cannot shadow or be shadowed by that prefix. Snippets is not reserved.
+_NUMBERED_LINK_RESERVED_KEYS = frozenset({"full_stop"})
+
 
 def _load_scope_keymaps(
     keymaps_cfg: dict[str, Any],
@@ -40,15 +45,18 @@ def _load_scope_keymaps(
     dataclass_type: type[Any],
     defaults: dict[str, str],
     pre_step: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    reserved_keys: frozenset[str] = frozenset(),
 ) -> Any:
     """Load and validate one focused-pane binding scope.
 
     Shared by every scope with a dataclass, a bundled-defaults loader, and a
     ``ace.keymaps.<scope>`` config section: unknown-action warnings, per-field
-    canonicalization, invalid-key revert, and duplicate-key revert all behave
-    identically across scopes. ``pre_step`` runs on the raw overrides mapping
-    before extras are computed, for scope-specific migrations (e.g. the gate
-    scope's ``activate_control`` deprecation shim).
+    canonicalization, invalid-key revert, reserved-key revert, and
+    duplicate-key revert all behave identically across scopes. ``pre_step``
+    runs on the raw overrides mapping before extras are computed, for
+    scope-specific migrations (e.g. the gate scope's ``activate_control``
+    deprecation shim). ``reserved_keys`` names Textual keys a user override
+    may not bind; those fields fall back to the bundled default.
     """
 
     field_names = {field.name for field in fields(dataclass_type)}
@@ -91,8 +99,20 @@ def _load_scope_keymaps(
             )
             values[name] = defaults[name]
             user_overridden.discard(name)
-        else:
-            values[name] = normalize_key_binding(key)
+            continue
+        values[name] = normalize_key_binding(key)
+        if reserved_keys and any(
+            part in reserved_keys for part in split_key_alternatives(values[name])
+        ):
+            log.warning(
+                "Reserved key %r for %s action %r; reverting to default %r",
+                values[name],
+                scope,
+                name,
+                defaults[name],
+            )
+            values[name] = defaults[name]
+            user_overridden.discard(name)
 
     key_to_actions: dict[str, list[str]] = {}
     for name, key_value in values.items():
@@ -183,6 +203,7 @@ def load_glossary_keymaps(keymaps_cfg: dict[str, Any]) -> GlossaryPanelKeymaps:
         scope="glossary",
         dataclass_type=GlossaryPanelKeymaps,
         defaults=load_builtin_glossary_defaults(),
+        reserved_keys=_NUMBERED_LINK_RESERVED_KEYS,
     )
 
 
@@ -194,6 +215,7 @@ def load_memory_keymaps(keymaps_cfg: dict[str, Any]) -> MemoryPanelKeymaps:
         scope="memory",
         dataclass_type=MemoryPanelKeymaps,
         defaults=load_builtin_memory_defaults(),
+        reserved_keys=_NUMBERED_LINK_RESERVED_KEYS,
     )
 
 

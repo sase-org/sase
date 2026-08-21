@@ -159,7 +159,7 @@ def glossary_help_bindings(
     for action, description in _GLOSSARY_BINDING_META:
         bindings.append((key_display_name(getattr(keymaps, action)), description))
         if action == "follow_relation":
-            bindings.append((">1-9", "Follow numbered chip"))
+            bindings.append((".1-9", "Follow numbered chip"))
     return bindings
 
 
@@ -186,7 +186,7 @@ def memory_help_bindings(
     for action, description in _MEMORY_BINDING_META:
         bindings.append((key_display_name(getattr(keymaps, action)), description))
         if action == "follow_link":
-            bindings.append((">1-9", "Follow numbered chip"))
+            bindings.append((".1-9", "Follow numbered chip"))
     return bindings
 
 
