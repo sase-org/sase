@@ -10,9 +10,13 @@ from typing import Any
 from rich.console import Console
 
 from sase.config.file_hooks import FileHookConfig, FileHookFilters
+from sase.file_hooks.engine import dispatch_file_hook_events
 from sase.main.file_hook_handler import (
+    FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION,
     FILE_HOOK_LIST_JSON_SCHEMA_VERSION,
+    _handle_file_hook_history_command,
     _handle_file_hook_list_command,
+    _handle_file_hook_show_command,
 )
 from sase.main.parser import create_parser, default_list_delegation_notice
 
@@ -67,6 +71,20 @@ def test_internal_exec_batch_parses_but_is_hidden_from_help() -> None:
     assert args.file_hook_subcommand == "exec-batch"
     assert args.batch == "/tmp/batch.json"
     assert "exec-batch" not in file_hook_parser.format_help()
+    assert "history" in file_hook_parser.format_help()
+    assert "show" in file_hook_parser.format_help()
+
+
+def test_file_hook_history_and_show_parse() -> None:
+    history = create_parser().parse_args(["file-hook", "history", "-n", "5", "-j"])
+    show = create_parser().parse_args(["file-hook", "show", "abc123", "--json"])
+
+    assert history.file_hook_subcommand == "history"
+    assert history.limit == 5
+    assert history.json is True
+    assert show.file_hook_subcommand == "show"
+    assert show.audit_id == "abc123"
+    assert show.json is True
 
 
 def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
@@ -140,3 +158,65 @@ def test_file_hook_list_empty_state() -> None:
 
     assert code == 0
     assert stream.getvalue().strip() == "No file hooks configured."
+
+
+def test_file_hook_history_and_show_render_audits(
+    tmp_path: Any,
+    capsys: Any,
+) -> None:
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    from sase.config.file_hooks import FileHookConfig, FileHookFilters
+    from sase.file_hooks.engine import CapturedFileEvent
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    event = CapturedFileEvent(
+        abs_path=str(repo / "report.md"),
+        repo_root=str(repo),
+        project="sase",
+        repo_kind="sidecar:research",
+        sidecar_role="research",
+        rel_path="report.md",
+        op="ADD",
+        agent_name="research.0v.final",
+    )
+    hook = FileHookConfig(
+        name="research-highlights",
+        description=None,
+        command="true",
+        timeout_seconds=120,
+        filters=FileHookFilters(),
+    )
+    result = dispatch_file_hook_events(
+        [event],
+        hooks=[hook],
+        popen=lambda *args, **kwargs: MagicMock(),
+        producer="artifact",
+    )
+    assert result.audit_id
+
+    history_code = _handle_file_hook_history_command(
+        argparse.Namespace(json=True, limit=20)
+    )
+    history_payload = json.loads(capsys.readouterr().out)
+    assert history_code == 0
+    assert history_payload["schema_version"] == FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION
+    assert history_payload["count"] == 1
+    assert history_payload["audits"][0]["outcome"] == "batch_dispatched"
+    assert history_payload["audits"][0]["producer"] == "artifact"
+
+    show_code = _handle_file_hook_show_command(
+        argparse.Namespace(json=True, audit_id=result.audit_id[:8])
+    )
+    show_payload = json.loads(capsys.readouterr().out)
+    assert show_code == 0
+    assert show_payload["audit_id"] == result.audit_id
+    assert show_payload["matched_hook_names"] == ["research-highlights"]
+
+    missing = _handle_file_hook_show_command(
+        argparse.Namespace(json=False, audit_id="missing")
+    )
+    assert missing == 1
+    assert "not found" in capsys.readouterr().err

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from sase.output import print_status
@@ -69,6 +70,8 @@ from sase.workflows.commit.workflow_types import (
     VALID_METHODS,
     RunResult,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 class CommitWorkflow(BaseWorkflow):
@@ -297,24 +300,41 @@ class CommitWorkflow(BaseWorkflow):
             return
         if "file_hooks" in cp.completed_steps:
             return
-        try:
-            from sase.config.file_hooks import get_all_file_hooks
-            from sase.file_hooks import emit_commit_file_hook_events
+        from sase.config.file_hooks import load_file_hooks
+        from sase.file_hooks.producer import produce_commit_file_hooks
 
-            hooks = get_all_file_hooks()
-            if hooks:
+        try:
+            hooks = load_file_hooks()
+        except Exception:
+            produce_commit_file_hooks(
+                repo_root=cp.cwd,
+                commit_sha=cp.commit_sha,
+                provider=provider,  # type: ignore[arg-type]
+                project_file=cp.project_file,
+                producer="commit",
+            )
+            cp.completed_steps.append("file_hooks")
+            checkpoint_save(cp)
+            return
+        commit_sha = cp.commit_sha
+        if hooks and not commit_sha:
+            try:
                 commit_sha = provider.revision_id(  # type: ignore[attr-defined]
                     "HEAD", cp.cwd
                 )
-                emit_commit_file_hook_events(
-                    repo_root=cp.cwd,
-                    commit_sha=commit_sha,
-                    provider=provider,  # type: ignore[arg-type]
-                    project_file=cp.project_file,
-                    hooks=hooks,
+            except Exception:
+                _logger.warning(
+                    "File-hook commit SHA lookup failed; continuing",
+                    exc_info=True,
                 )
-        except Exception:
-            pass
+        produce_commit_file_hooks(
+            repo_root=cp.cwd,
+            commit_sha=commit_sha,
+            provider=provider,  # type: ignore[arg-type]
+            project_file=cp.project_file,
+            producer="commit",
+            hooks=hooks,
+        )
         cp.completed_steps.append("file_hooks")
         checkpoint_save(cp)
 

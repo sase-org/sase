@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,7 @@ from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTie
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
 _COMMIT_PROVIDER_REF = "builtin@commit"
+_logger = logging.getLogger(__name__)
 
 
 def execute_commit_finalizer(
@@ -228,6 +230,11 @@ def execute_commit_finalizer(
                 invoke_result=current_result,
             )
         evidence.extend(_marker_evidence(repo_markers[-1]))
+        _reconcile_commit_file_hooks(
+            repo,
+            repo_markers[-1],
+            workspace_dir=project_dir,
+        )
 
         remaining = _unexpected_remaining_paths(repo.path, protected)
         if remaining:
@@ -492,6 +499,40 @@ def _normalize_fingerprints(
 def _unexpected_remaining_paths(repo_path: str, protected: Sequence[str]) -> list[str]:
     protected_set = set(protected)
     return [path for path in git_changed_files(repo_path) if path not in protected_set]
+
+
+def _marker_commit_sha(marker: Mapping[str, Any]) -> str | None:
+    for key in ("commit_sha", "result"):
+        value = marker.get(key)
+        if isinstance(value, str) and value.strip() and not value.startswith("http"):
+            return value
+    return None
+
+
+def _reconcile_commit_file_hooks(
+    repo: DirtyRepo,
+    marker: Mapping[str, Any],
+    *,
+    workspace_dir: str,
+) -> None:
+    """Ensure the deterministic commit batch exists after a verified marker."""
+    try:
+        from sase.agent.identity import resolve_local_agent_name
+        from sase.file_hooks.producer import reconcile_commit_file_hooks
+
+        sidecar_role = repo.name if repo.kind == "sdd" else None
+        reconcile_commit_file_hooks(
+            repo_root=repo.path,
+            commit_sha=_marker_commit_sha(marker),
+            workspace_dir=workspace_dir,
+            sidecar_role=sidecar_role,
+            agent_name=resolve_local_agent_name(),
+        )
+    except Exception:
+        _logger.warning(
+            "File-hook finalizer reconciliation failed; continuing",
+            exc_info=True,
+        )
 
 
 def _reject_stale_repository_obligation(

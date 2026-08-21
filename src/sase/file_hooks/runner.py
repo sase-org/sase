@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
+from sase.file_hooks.audit import FILE_HOOK_STATE_DIRS
 from sase.file_hooks.engine import BATCH_SCHEMA_VERSION
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification
@@ -223,7 +224,7 @@ def _prune_file_hook_state(
     cutoff = (time.time() if now is None else now) - retention_seconds
     removed: list[Path] = []
     root = sase_subdir("file_hooks")
-    for dirname in ("batches", "logs", "runs"):
+    for dirname in FILE_HOOK_STATE_DIRS:
         directory = root / dirname
         if not directory.is_dir():
             continue

@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 import hashlib
 import json
 import logging
 import os
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from sase.config.file_hooks import (
@@ -21,12 +21,18 @@ from sase.config.file_hooks import (
     get_all_file_hooks,
     match_events,
 )
-from sase.core.paths import sase_subdir
-from sase.core.time import get_timezone
+from sase.file_hooks.audit import (
+    FileHookDispatchOutcome,
+    FileHookDispatchResult,
+    FileHookProducer,
+    atomic_create_json as _atomic_create_json,
+    complete_file_hook_attempt,
+    file_hooks_root as _file_hooks_root,
+    now_iso as _now_iso,
+    safe_file_hook_error_diagnostic,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
-
     from sase.vcs_provider import VCSProvider
 
 
@@ -62,6 +68,20 @@ class CapturedFileEvent:
             agent_name=self.agent_name,
         )
 
+    def identity(self) -> dict[str, Any]:
+        """Return the durable, non-secret identity for producer audits."""
+        return {
+            "abs_path": self.abs_path,
+            "repo_root": self.repo_root,
+            "project": self.project,
+            "repo_kind": self.repo_kind,
+            "sidecar_role": self.sidecar_role,
+            "rel_path": self.rel_path,
+            "op": self.op,
+            "cause": self.cause,
+            "agent_name": self.agent_name,
+        }
+
 
 def _current_agent_name() -> str | None:
     """Best-effort SASE agent attribution for events captured in-process."""
@@ -71,31 +91,6 @@ def _current_agent_name() -> str | None:
         return resolve_local_agent_name()
     except Exception:
         return None
-
-
-def _file_hooks_root() -> Path:
-    return sase_subdir("file_hooks")
-
-
-def _now_iso() -> str:
-    return datetime.now(get_timezone()).isoformat()
-
-
-def _atomic_create_json(path: Path, payload: dict[str, object]) -> bool:
-    """Create *path* exactly once and return whether this call won."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        return False
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2, sort_keys=True)
-            stream.write("\n")
-    except Exception:
-        path.unlink(missing_ok=True)
-        raise
-    return True
 
 
 def _batch_id(
@@ -155,69 +150,208 @@ def _batch_payload(
     }
 
 
-def emit_file_hook_events(
+def _context_from_events(
+    events: Sequence[CapturedFileEvent],
+) -> tuple[str | None, str | None, str | None, str | None]:
+    if not events:
+        return (None, None, None, None)
+    first = events[0]
+    return (first.repo_root, first.sidecar_role, first.agent_name, first.project)
+
+
+def _result(
+    *,
+    outcome: FileHookDispatchOutcome,
+    producer: FileHookProducer,
+    events: Sequence[CapturedFileEvent] = (),
+    matched_hook_names: Sequence[str] = (),
+    configured_hook_count: int = 0,
+    commit_sha: str | None = None,
+    batch_id: str | None = None,
+    batch_path: Path | str | None = None,
+    error: str | None = None,
+    repo_root: str | None = None,
+    sidecar_role: str | None = None,
+    agent_name: str | None = None,
+    project: str | None = None,
+) -> FileHookDispatchResult:
+    context_root, context_sidecar, context_agent, context_project = (
+        _context_from_events(events)
+    )
+    return FileHookDispatchResult(
+        outcome=outcome,
+        producer=producer,
+        events=tuple(event.identity() for event in events),
+        matched_hook_names=tuple(matched_hook_names),
+        configured_hook_count=configured_hook_count,
+        commit_sha=commit_sha,
+        batch_id=batch_id,
+        batch_path=str(batch_path) if batch_path is not None else None,
+        error=error,
+        repo_root=repo_root or context_root,
+        sidecar_role=sidecar_role or context_sidecar,
+        agent_name=agent_name or context_agent,
+        project=project or context_project,
+    )
+
+
+def _spawn_batch(
+    *,
+    batch_path: Path,
+    batch_id: str,
+    repo_root: str,
+    popen: Callable[..., subprocess.Popen[str]],
+) -> None:
+    logs_dir = _file_hooks_root() / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    runner_log = logs_dir / f"{batch_id}.log"
+    argv = [
+        sys.executable,
+        "-m",
+        "sase",
+        "file-hook",
+        "exec-batch",
+        str(batch_path),
+    ]
+    try:
+        with runner_log.open("ab") as output:
+            popen(
+                argv,
+                cwd=repo_root,
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                close_fds=True,
+            )
+    except Exception:
+        batch_path.unlink(missing_ok=True)
+        raise
+
+
+def dispatch_file_hook_events(
     events: Sequence[CapturedFileEvent],
     *,
     hooks: Sequence[FileHookConfig] | None = None,
     commit_sha: str | None = None,
-    popen: Callable[..., subprocess.Popen[str]] = subprocess.Popen,
-) -> Path | None:
-    """Match *events*, persist a batch, and spawn its detached runner.
+    popen: Callable[..., subprocess.Popen[str]] | None = None,
+    producer: FileHookProducer = "dispatch",
+    repo_root: str | None = None,
+    sidecar_role: str | None = None,
+    agent_name: str | None = None,
+    project: str | None = None,
+) -> FileHookDispatchResult:
+    """Match *events*, persist a batch, spawn the runner, and record the outcome.
 
     This producer-side boundary is deliberately fail-soft. A hook engine,
     filesystem, or spawn failure must never alter the result of a commit or
     artifact creation.
     """
+    spawn = popen or subprocess.Popen
+    captured = tuple(events)
     try:
         configured = list(hooks) if hooks is not None else get_all_file_hooks()
-        if not configured or not events:
-            return None
-        matching_events = [event.matching_event() for event in events]
+
+        def finish(
+            outcome: FileHookDispatchOutcome,
+            *,
+            matched_hook_names: Sequence[str] = (),
+            batch_id: str | None = None,
+            batch_path: Path | str | None = None,
+            error: str | None = None,
+        ) -> FileHookDispatchResult:
+            return complete_file_hook_attempt(
+                _result(
+                    outcome=outcome,
+                    producer=producer,
+                    events=captured,
+                    matched_hook_names=matched_hook_names,
+                    configured_hook_count=len(configured),
+                    commit_sha=commit_sha,
+                    batch_id=batch_id,
+                    batch_path=batch_path,
+                    error=error,
+                    repo_root=repo_root,
+                    sidecar_role=sidecar_role,
+                    agent_name=agent_name,
+                    project=project,
+                )
+            )
+
+        if not configured:
+            return finish("no_hooks")
+        if not captured:
+            return finish("no_match")
+        matching_events = [event.matching_event() for event in captured]
         planned = match_events(configured, matching_events)
         if not planned:
-            return None
+            return finish("no_match")
 
         hook_names = [run.hook.name for run in planned]
-        batch_id = _batch_id(events, hook_names, commit_sha)
+        matched_names = tuple(dict.fromkeys(hook_names))
+        batch_id = _batch_id(captured, hook_names, commit_sha)
         batch_path = _file_hooks_root() / "batches" / f"{batch_id}.json"
         payload = _batch_payload(
             batch_id=batch_id,
-            events=events,
+            events=captured,
             hooks=configured,
             commit_sha=commit_sha,
         )
-        if not _atomic_create_json(batch_path, payload):
-            return batch_path
-
-        logs_dir = _file_hooks_root() / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        runner_log = logs_dir / f"{batch_id}.log"
-        argv = [
-            sys.executable,
-            "-m",
-            "sase",
-            "file-hook",
-            "exec-batch",
-            str(batch_path),
-        ]
-        try:
-            with runner_log.open("ab") as output:
-                popen(
-                    argv,
-                    cwd=events[0].repo_root,
-                    stdin=subprocess.DEVNULL,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                    close_fds=True,
-                )
-        except Exception:
-            batch_path.unlink(missing_ok=True)
-            raise
-        return batch_path
-    except Exception:
+        created = _atomic_create_json(batch_path, payload)
+        if not created:
+            return finish(
+                "batch_already_present",
+                matched_hook_names=matched_names,
+                batch_id=batch_id,
+                batch_path=batch_path,
+            )
+        _spawn_batch(
+            batch_path=batch_path,
+            batch_id=batch_id,
+            repo_root=captured[0].repo_root,
+            popen=spawn,
+        )
+        return finish(
+            "batch_dispatched",
+            matched_hook_names=matched_names,
+            batch_id=batch_id,
+            batch_path=batch_path,
+        )
+    except Exception as exc:
         logger.warning("File-hook dispatch failed; continuing", exc_info=True)
-        return None
+        return complete_file_hook_attempt(
+            _result(
+                outcome="producer_error",
+                producer=producer,
+                events=captured,
+                configured_hook_count=len(hooks) if hooks is not None else 0,
+                commit_sha=commit_sha,
+                error=safe_file_hook_error_diagnostic(exc),
+                repo_root=repo_root,
+                sidecar_role=sidecar_role,
+                agent_name=agent_name,
+                project=project,
+            )
+        )
+
+
+def emit_file_hook_events(
+    events: Sequence[CapturedFileEvent],
+    *,
+    hooks: Sequence[FileHookConfig] | None = None,
+    commit_sha: str | None = None,
+    popen: Callable[..., subprocess.Popen[str]] | None = None,
+    producer: FileHookProducer = "dispatch",
+) -> Path | None:
+    """Compatibility wrapper around :func:`dispatch_file_hook_events`."""
+    result = dispatch_file_hook_events(
+        events,
+        hooks=hooks,
+        commit_sha=commit_sha,
+        popen=popen,
+        producer=producer,
+    )
+    return Path(result.batch_path) if result.batch_path else None
 
 
 def _canonical_commit_entries(
@@ -379,22 +513,48 @@ def _classify_repository(
     return (f"sidecar:{role}", role)
 
 
-def emit_commit_file_hook_events(
+def dispatch_commit_file_hook_events(
     *,
     repo_root: str | Path,
-    commit_sha: str,
+    commit_sha: str | None,
     provider: VCSProvider | None = None,
     project_file: str | None = None,
     sidecar_role: str | None = None,
     hooks: Sequence[FileHookConfig] | None = None,
     cause: str = "user",
-) -> Path | None:
-    """Fail-soft producer seam for a newly created repository commit."""
-    configured = list(hooks) if hooks is not None else get_all_file_hooks()
-    if not configured:
-        return None
+    agent_name: str | None = None,
+    workspace_dir: str | Path | None = None,
+    producer: FileHookProducer = "commit",
+    popen: Callable[..., subprocess.Popen[str]] | None = None,
+) -> FileHookDispatchResult:
+    """Typed fail-soft producer seam for a newly created repository commit."""
+    root = Path(repo_root).expanduser().resolve(strict=False)
+    attributed_agent = agent_name if agent_name is not None else _current_agent_name()
     try:
-        root = Path(repo_root).expanduser().resolve()
+        configured = list(hooks) if hooks is not None else get_all_file_hooks()
+        if not configured:
+            return complete_file_hook_attempt(
+                _result(
+                    outcome="no_hooks",
+                    producer=producer,
+                    commit_sha=commit_sha,
+                    repo_root=str(root),
+                    sidecar_role=sidecar_role,
+                    agent_name=attributed_agent,
+                )
+            )
+        if not commit_sha:
+            return complete_file_hook_attempt(
+                _result(
+                    outcome="producer_error",
+                    producer=producer,
+                    configured_hook_count=len(configured),
+                    repo_root=str(root),
+                    sidecar_role=sidecar_role,
+                    agent_name=attributed_agent,
+                    error="commit SHA is missing",
+                )
+            )
         if provider is None:
             from sase.vcs_provider import get_vcs_provider
 
@@ -402,6 +562,7 @@ def emit_commit_file_hook_events(
         repo_kind, effective_sidecar = _classify_repository(
             root,
             sidecar_role=sidecar_role,
+            workspace_dir=workspace_dir,
         )
         project = _project_name(
             project_file or os.environ.get("SASE_AGENT_PROJECT_FILE"),
@@ -415,17 +576,64 @@ def emit_commit_file_hook_events(
             project=project,
             repo_kind=repo_kind,
             sidecar_role=effective_sidecar,
-            agent_name=_current_agent_name(),
+            agent_name=attributed_agent,
             cause=cause,
         )
-        return emit_file_hook_events(
+        return dispatch_file_hook_events(
             events,
             hooks=configured,
             commit_sha=commit_sha,
+            popen=popen,
+            producer=producer,
+            repo_root=str(root),
+            sidecar_role=effective_sidecar,
+            agent_name=attributed_agent,
+            project=project,
         )
-    except Exception:
+    except Exception as exc:
         logger.warning("File-hook commit capture failed; continuing", exc_info=True)
-        return None
+        return complete_file_hook_attempt(
+            _result(
+                outcome="producer_error",
+                producer=producer,
+                commit_sha=commit_sha,
+                repo_root=str(root),
+                sidecar_role=sidecar_role,
+                agent_name=attributed_agent,
+                error=safe_file_hook_error_diagnostic(exc),
+            )
+        )
+
+
+def emit_commit_file_hook_events(
+    *,
+    repo_root: str | Path,
+    commit_sha: str,
+    provider: VCSProvider | None = None,
+    project_file: str | None = None,
+    sidecar_role: str | None = None,
+    hooks: Sequence[FileHookConfig] | None = None,
+    cause: str = "user",
+    agent_name: str | None = None,
+    workspace_dir: str | Path | None = None,
+    producer: FileHookProducer = "commit",
+    popen: Callable[..., subprocess.Popen[str]] | None = None,
+) -> Path | None:
+    """Fail-soft producer seam for a newly created repository commit."""
+    result = dispatch_commit_file_hook_events(
+        repo_root=repo_root,
+        commit_sha=commit_sha,
+        provider=provider,
+        project_file=project_file,
+        sidecar_role=sidecar_role,
+        hooks=hooks,
+        cause=cause,
+        agent_name=agent_name,
+        workspace_dir=workspace_dir,
+        producer=producer,
+        popen=popen,
+    )
+    return Path(result.batch_path) if result.batch_path else None
 
 
 def _repository_root(path: Path) -> Path | None:
@@ -476,29 +684,68 @@ def capture_artifact_file_event(source_path: str | Path) -> CapturedFileEvent:
     )
 
 
+def dispatch_artifact_file_hook_event(
+    captured_source: CapturedFileEvent,
+    stored_path: str | Path,
+    *,
+    hooks: Sequence[FileHookConfig] | None = None,
+    popen: Callable[..., subprocess.Popen[str]] | None = None,
+    producer: FileHookProducer = "artifact",
+) -> FileHookDispatchResult:
+    """Typed artifact ADD dispatch against the durable stored path."""
+    try:
+        event = CapturedFileEvent(
+            abs_path=str(Path(stored_path).expanduser().resolve()),
+            repo_root=captured_source.repo_root,
+            project=captured_source.project,
+            repo_kind=captured_source.repo_kind,
+            sidecar_role=captured_source.sidecar_role,
+            rel_path=captured_source.rel_path,
+            op="ADD",
+            cause=captured_source.cause,
+            agent_name=captured_source.agent_name,
+        )
+    except Exception as exc:
+        logger.warning(
+            "File-hook artifact event build failed; continuing",
+            exc_info=True,
+        )
+        return complete_file_hook_attempt(
+            _result(
+                outcome="producer_error",
+                producer=producer,
+                events=(captured_source,),
+                error=safe_file_hook_error_diagnostic(exc),
+                repo_root=captured_source.repo_root,
+                sidecar_role=captured_source.sidecar_role,
+                agent_name=captured_source.agent_name,
+                project=captured_source.project,
+            )
+        )
+    return dispatch_file_hook_events(
+        [event],
+        hooks=hooks,
+        popen=popen,
+        producer=producer,
+    )
+
+
 def emit_artifact_file_hook_event(
     captured_source: CapturedFileEvent,
     stored_path: str | Path,
 ) -> Path | None:
     """Emit an artifact ADD while executing against its durable stored path."""
-    event = CapturedFileEvent(
-        abs_path=str(Path(stored_path).expanduser().resolve()),
-        repo_root=captured_source.repo_root,
-        project=captured_source.project,
-        repo_kind=captured_source.repo_kind,
-        sidecar_role=captured_source.sidecar_role,
-        rel_path=captured_source.rel_path,
-        op="ADD",
-        cause=captured_source.cause,
-        agent_name=captured_source.agent_name,
-    )
-    return emit_file_hook_events([event])
+    result = dispatch_artifact_file_hook_event(captured_source, stored_path)
+    return Path(result.batch_path) if result.batch_path else None
 
 
 __all__ = [
     "BATCH_SCHEMA_VERSION",
     "CapturedFileEvent",
     "capture_artifact_file_event",
+    "dispatch_artifact_file_hook_event",
+    "dispatch_commit_file_hook_events",
+    "dispatch_file_hook_events",
     "emit_artifact_file_hook_event",
     "emit_commit_file_hook_events",
     "emit_file_hook_events",

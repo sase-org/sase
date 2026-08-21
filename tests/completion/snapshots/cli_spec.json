@@ -9181,6 +9181,58 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "b8ed0c6ef10f6e2a",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "history",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--limit"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "file-hook",
+              "history"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "b0be4c7a9522cb8a",
             "hidden": false,
             "mutex_groups": [],
@@ -9216,6 +9268,55 @@
               "list"
             ],
             "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "ef57ec86d75d11f0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "file-hook",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "audit_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "audit_id",
+                "nargs": null
+              }
+            ],
             "subcommands": []
           }
         ]

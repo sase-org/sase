@@ -18,14 +18,17 @@ import pytest
 from sase.artifact_cli.create import handle_create
 from sase.config.file_hooks import FileHookConfig, FileHookFilters
 from sase.core.artifact_file_types import ArtifactFile
+from sase.file_hooks.audit import list_file_hook_audits, safe_file_hook_error_diagnostic
 from sase.file_hooks.engine import (
     CapturedFileEvent,
     _derive_commit_file_events,
     capture_artifact_file_event,
+    dispatch_file_hook_events,
     emit_artifact_file_hook_event,
     emit_commit_file_hook_events,
     emit_file_hook_events,
 )
+
 from sase.file_hooks.runner import _prune_file_hook_state, execute_batch
 from sase.notifications.priority import is_error
 from sase.notifications.store import load_notifications
@@ -216,14 +219,24 @@ def _emitted_agent_names(batch_path: Path) -> list[str | None]:
 
 def _stub_detached_spawn(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the real batch payload while never spawning a runner process."""
+    original = dispatch_file_hook_events
+
+    def wrapped(
+        events: Any,
+        **kwargs: Any,
+    ) -> Any:
+        if kwargs.get("popen") is None:
+            kwargs["popen"] = lambda *args, **spawn_kwargs: MagicMock()
+        return original(events, **kwargs)
+
     monkeypatch.setattr(
-        "sase.file_hooks.engine.emit_file_hook_events",
-        lambda events, **kwargs: emit_file_hook_events(
-            events,
-            popen=lambda *args, **spawn_kwargs: MagicMock(),
-            **kwargs,
-        ),
+        "sase.file_hooks.engine.dispatch_file_hook_events",
+        wrapped,
     )
+
+
+def _audits() -> list[str]:
+    return [item.outcome for item in list_file_hook_audits()]
 
 
 def _emit_commit(
@@ -304,14 +317,17 @@ def test_excluded_agent_produces_no_batch(
     _clear_agent_env(monkeypatch)
     monkeypatch.setenv("SASE_AGENT_NAME", "research.7.cld")
 
-    assert (
-        emit_file_hook_events(
-            [_event(repo, agent_name="research.7.cld")],
-            hooks=[_hook("render", agent_name_globs=("!research.*.cld",))],
-            popen=lambda *args, **kwargs: MagicMock(),
-        )
-        is None
+    result = dispatch_file_hook_events(
+        [_event(repo, agent_name="research.7.cld")],
+        hooks=[_hook("render", agent_name_globs=("!research.*.cld",))],
+        popen=lambda *args, **kwargs: MagicMock(),
+        producer="commit",
     )
+
+    assert result.outcome == "no_match"
+    assert result.batch_path is None
+    assert result.audit_path is not None
+    assert "no_match" in _audits()
 
 
 def test_artifact_capture_and_emit_preserve_the_agent_name(
@@ -345,15 +361,31 @@ def test_detached_spawn_failure_is_non_gating_and_leaves_no_pending_batch(
 ) -> None:
     repo = _init_repo(tmp_path)
 
-    result = emit_file_hook_events(
+    result = dispatch_file_hook_events(
         [_event(repo)],
         hooks=[_hook("render")],
-        popen=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no spawn")),
+        popen=lambda *args, **kwargs: (_ for _ in ()).throw(
+            OSError("no spawn token=super-secret")
+        ),
+        producer="commit",
     )
 
-    assert result is None
+    assert result.outcome == "producer_error"
+    assert result.batch_path is None
+    assert result.error is not None
+    assert "OSError" in result.error
+    assert "super-secret" not in result.error
+    assert "token=<redacted>" in result.error
     batches = Path(os.environ["SASE_HOME"]).expanduser() / "file_hooks" / "batches"
     assert list(batches.glob("*.json")) == []
+    notifications = [
+        notification
+        for notification in load_notifications()
+        if notification.sender == "file-hooks"
+    ]
+    assert len(notifications) == 1
+    assert is_error(notifications[0])
+    assert notifications[0].files[0] == result.audit_path
 
 
 def test_runner_reports_success_failure_and_timeout_and_is_idempotent(
@@ -412,17 +444,22 @@ def test_pruning_removes_only_expired_audit_files(tmp_path: Path) -> None:
     root = Path(os.environ["SASE_HOME"]).expanduser() / "file_hooks"
     old = root / "runs" / "old.log"
     recent = root / "logs" / "recent.log"
+    old_audit = root / "audit" / "old.json"
     old.parent.mkdir(parents=True)
     recent.parent.mkdir(parents=True)
+    old_audit.parent.mkdir(parents=True)
     old.write_text("old", encoding="utf-8")
     recent.write_text("recent", encoding="utf-8")
+    old_audit.write_text("{}\n", encoding="utf-8")
     now = time.time()
     os.utime(old, (now - 100, now - 100))
+    os.utime(old_audit, (now - 100, now - 100))
 
     removed = _prune_file_hook_state(now=now, retention_seconds=50)
 
-    assert removed == [old]
+    assert set(removed) == {old, old_audit}
     assert not old.exists()
+    assert not old_audit.exists()
     assert recent.exists()
 
 
@@ -431,7 +468,7 @@ def test_checkpointed_file_hook_step_never_refires(
     tmp_path: Path,
 ) -> None:
     emit = MagicMock()
-    monkeypatch.setattr("sase.file_hooks.emit_commit_file_hook_events", emit)
+    monkeypatch.setattr("sase.file_hooks.producer.produce_commit_file_hooks", emit)
     workflow = CommitWorkflow({"message": "chore: done"}, "create_commit")
     checkpoint = CommitCheckpoint(
         method="create_commit",
@@ -453,12 +490,11 @@ def test_sdd_commit_emits_once_with_its_sidecar_role(
     repo = _init_repo(tmp_path)
     (repo / "report.md").write_text("# report\n", encoding="utf-8")
     hook = _hook("render")
-    emit = MagicMock()
     monkeypatch.setattr(
-        "sase.config.file_hooks.get_all_file_hooks",
+        "sase.config.file_hooks.load_file_hooks",
         lambda: [hook],
     )
-    monkeypatch.setattr("sase.file_hooks.emit_commit_file_hook_events", emit)
+    _stub_detached_spawn(monkeypatch)
 
     assert commit_sdd_files(
         repo,
@@ -467,13 +503,12 @@ def test_sdd_commit_emits_once_with_its_sidecar_role(
         record_commit_marker=False,
     )
 
-    emit.assert_called_once_with(
-        repo_root=repo,
-        commit_sha=_git(repo, "rev-parse", "HEAD"),
-        sidecar_role="research",
-        hooks=[hook],
-        cause="user",
-    )
+    audits = list_file_hook_audits()
+    assert audits
+    assert audits[0].producer == "sdd"
+    assert audits[0].sidecar_role == "research"
+    assert audits[0].outcome in {"batch_dispatched", "batch_already_present"}
+    assert audits[0].commit_sha == _git(repo, "rev-parse", "HEAD")
 
 
 def test_sdd_hook_fast_path_does_not_resolve_head_without_hooks(
@@ -481,7 +516,7 @@ def test_sdd_hook_fast_path_does_not_resolve_head_without_hooks(
     tmp_path: Path,
 ) -> None:
     head = MagicMock()
-    monkeypatch.setattr("sase.config.file_hooks.get_all_file_hooks", list)
+    monkeypatch.setattr("sase.config.file_hooks.load_file_hooks", list)
     monkeypatch.setattr("sase.sdd._commit_store._git_head_sha", head)
 
     _emit_sdd_file_hooks(tmp_path, sidecar_role="research")
@@ -512,21 +547,147 @@ def test_artifact_create_emits_stored_path(
     source = tmp_path / "source.md"
     source.write_text("# source\n", encoding="utf-8")
     stored = tmp_path / "stored.md"
+    stored.write_text("# source\n", encoding="utf-8")
     captured = _event(tmp_path, "source.md")
-    emitted: list[tuple[CapturedFileEvent, str]] = []
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent"))
     monkeypatch.setattr(
-        "sase.config.file_hooks.get_all_file_hooks",
+        "sase.file_hooks.producer.load_file_hooks",
         lambda: [_hook("artifact")],
     )
     monkeypatch.setattr(
-        "sase.file_hooks.capture_artifact_file_event",
+        "sase.file_hooks.producer.capture_artifact_file_event",
         lambda path: captured,
     )
+    _stub_detached_spawn(monkeypatch)
     monkeypatch.setattr(
-        "sase.file_hooks.emit_artifact_file_hook_event",
-        lambda event, path: emitted.append((event, str(path))),
+        "sase.artifact_cli.create.store_explicit_artifact_file",
+        lambda *args, **kwargs: ArtifactFile(
+            id="explicit:test",
+            label="source.md",
+            kind="markdown",
+            path=str(stored),
+        ),
+    )
+    args = argparse.Namespace(
+        path=str(source),
+        label=None,
+        kind=None,
+        move=False,
+        bead=None,
+    )
+
+    assert handle_create(args) == 0
+    audits = list_file_hook_audits()
+    assert audits
+    assert audits[0].outcome == "batch_dispatched"
+    assert audits[0].producer == "artifact"
+    assert Path(audits[0].events[0]["abs_path"]) == stored
+    assert audits[0].batch_path is not None
+    payload = json.loads(Path(audits[0].batch_path).read_text(encoding="utf-8"))
+    assert payload["runs"][0]["abs_path"] == str(stored)
+
+
+def test_dispatch_records_no_hooks_without_a_batch(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+
+    result = dispatch_file_hook_events([_event(repo)], hooks=[])
+
+    assert result.outcome == "no_hooks"
+    assert result.batch_path is None
+    assert result.audit_path is not None
+    assert list_file_hook_audits()[0].outcome == "no_hooks"
+    notifications = [
+        notification
+        for notification in load_notifications()
+        if notification.sender == "file-hooks"
+    ]
+    assert notifications == []
+
+
+def test_deterministic_commit_batch_is_reused(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    spawned: list[object] = []
+
+    def fake_popen(argv: list[str], **kwargs: object) -> MagicMock:
+        spawned.append(argv)
+        return MagicMock()
+
+    first = dispatch_file_hook_events(
+        [_event(repo)],
+        hooks=[_hook("render")],
+        commit_sha="c" * 40,
+        popen=fake_popen,
+        producer="commit",
+    )
+    second = dispatch_file_hook_events(
+        [_event(repo)],
+        hooks=[_hook("render")],
+        commit_sha="c" * 40,
+        popen=fake_popen,
+        producer="finalizer",
+    )
+
+    assert first.outcome == "batch_dispatched"
+    assert second.outcome == "batch_already_present"
+    assert second.batch_path == first.batch_path
+    assert len(spawned) == 1
+    assert [item.outcome for item in list_file_hook_audits()] == [
+        "batch_already_present",
+        "batch_dispatched",
+    ]
+
+
+def test_safe_error_diagnostic_redacts_secrets_and_truncates() -> None:
+    class TokenError(RuntimeError):
+        pass
+
+    short = safe_file_hook_error_diagnostic(TokenError("api_key=abcd1234 leftover"))
+    assert "api_key=<redacted>" in short
+    assert "abcd1234" not in short
+    long = safe_file_hook_error_diagnostic(RuntimeError("x" * 800))
+    assert long.endswith("...")
+    assert len(long) == 500
+
+
+def test_notification_failure_does_not_hide_producer_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = _init_repo(tmp_path)
+    monkeypatch.setattr(
+        "sase.notifications.store.append_notification",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("notify boom")),
+    )
+
+    result = dispatch_file_hook_events(
+        [_event(repo)],
+        hooks=[_hook("render")],
+        popen=lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no spawn")),
+        producer="artifact",
+    )
+
+    assert result.outcome == "producer_error"
+    assert result.audit_path is not None
+    assert Path(result.audit_path).is_file()
+
+
+def test_artifact_create_survives_producer_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.md"
+    source.write_text("# source\n", encoding="utf-8")
+    stored = tmp_path / "stored.md"
+    stored.write_text("# source\n", encoding="utf-8")
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "agent"))
+    monkeypatch.setattr(
+        "sase.file_hooks.producer.load_file_hooks",
+        lambda: (_ for _ in ()).throw(RuntimeError("config exploded")),
     )
     monkeypatch.setattr(
         "sase.artifact_cli.create.store_explicit_artifact_file",
@@ -546,4 +707,11 @@ def test_artifact_create_emits_stored_path(
     )
 
     assert handle_create(args) == 0
-    assert emitted == [(captured, str(stored))]
+    audits = list_file_hook_audits()
+    assert audits[0].outcome == "producer_error"
+    notifications = [
+        notification
+        for notification in load_notifications()
+        if notification.sender == "file-hooks"
+    ]
+    assert notifications and is_error(notifications[0])

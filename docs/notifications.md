@@ -312,7 +312,7 @@ The following events generate notifications:
 | `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                           |
 | `sync`                         | A sync operation completed for a Patch                                                                                                          |
 | `axe`                          | Hourly error digest summarizing recent axe errors                                                                                               |
-| `file-hooks`                   | A configured per-file hook completed or failed                                                                                                  |
+| `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                        |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                        |
 | Workflow-specific sender label | Workflow completion (success or failure)                                                                                                        |
 

@@ -476,10 +476,15 @@ def _load_file_hooks() -> list[FileHookConfig]:
     return hooks
 
 
+def load_file_hooks() -> list[FileHookConfig]:
+    """Load valid file hooks, raising on config-layer failure."""
+    return _load_file_hooks()
+
+
 def get_all_file_hooks() -> list[FileHookConfig]:
     """Return every valid effective file hook, failing soft on config errors."""
     try:
-        return _load_file_hooks()
+        return load_file_hooks()
     except (FileNotFoundError, TypeError, ValueError) as exc:
         logger.warning("Failed to load file hooks: %s", exc)
         return []
@@ -547,6 +552,7 @@ __all__ = [
     "PlannedRun",
     "get_all_file_hooks",
     "get_file_hook_diagnostics",
+    "load_file_hooks",
     "hook_matches_event",
     "match_events",
 ]

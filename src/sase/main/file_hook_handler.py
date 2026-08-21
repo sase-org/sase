@@ -13,9 +13,17 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.config.file_hooks import FileHookConfig, get_all_file_hooks
+from sase.file_hooks.audit import (
+    FileHookAuditAmbiguousError,
+    FileHookAuditNotFoundError,
+    FileHookDispatchResult,
+    list_file_hook_audits,
+    load_file_hook_audit,
+)
 
 
 FILE_HOOK_LIST_JSON_SCHEMA_VERSION = 3
+FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION = 1
 
 
 def _filter_text(hook: FileHookConfig) -> Text:
@@ -93,20 +101,145 @@ def _handle_file_hook_list_command(
     return 0
 
 
+def _audit_path_label(result: FileHookDispatchResult) -> str:
+    for event in result.events:
+        rel_path = event.get("rel_path")
+        if isinstance(rel_path, str) and rel_path:
+            return rel_path
+    return "-"
+
+
+def _history_limit(args: argparse.Namespace) -> int | None:
+    limit = getattr(args, "limit", 20)
+    if not isinstance(limit, int) or limit <= 0:
+        return None
+    return limit
+
+
+def _handle_file_hook_history_command(
+    args: argparse.Namespace,
+    *,
+    console: Console | None = None,
+) -> int:
+    """Render recent producer audits."""
+    records = list_file_hook_audits(limit=_history_limit(args))
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "schema_version": FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION,
+                    "count": len(records),
+                    "audits": [
+                        item.to_payload() | {"audit_path": item.audit_path}
+                        for item in records
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    output = console or Console()
+    if not records:
+        output.print("[dim]No file-hook producer audits recorded.[/dim]")
+        return 0
+
+    table = Table(
+        title="File-Hook Producer History",
+        expand=True,
+        header_style="bold",
+        show_lines=False,
+    )
+    table.add_column("Time", min_width=19, no_wrap=True)
+    table.add_column("Outcome", min_width=16, overflow="fold")
+    table.add_column("Producer", min_width=10, no_wrap=True)
+    table.add_column("File", ratio=2, overflow="fold")
+    table.add_column("Hooks", ratio=1, overflow="fold")
+    table.add_column("Audit", min_width=12, overflow="fold")
+    for item in records:
+        outcome_style = "red" if item.outcome == "producer_error" else "cyan"
+        table.add_row(
+            item.created_at[:19] if item.created_at else "-",
+            Text(item.outcome, style=outcome_style),
+            item.producer,
+            _audit_path_label(item),
+            ", ".join(item.matched_hook_names) or "-",
+            item.audit_id,
+        )
+    output.print(table)
+    return 0
+
+
+def _handle_file_hook_show_command(
+    args: argparse.Namespace,
+    *,
+    console: Console | None = None,
+) -> int:
+    """Render one producer audit in full."""
+    try:
+        result = load_file_hook_audit(args.audit_id)
+    except FileHookAuditNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    except FileHookAuditAmbiguousError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    payload = result.to_payload()
+    payload["audit_path"] = result.audit_path
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    output = console or Console()
+    output.print(f"[bold cyan]{result.audit_id}[/bold cyan]  {result.outcome}")
+    rows = (
+        ("producer", result.producer),
+        ("created_at", result.created_at or "-"),
+        ("commit_sha", result.commit_sha or "-"),
+        ("repository", result.repo_root or "-"),
+        ("sidecar", result.sidecar_role or "-"),
+        ("agent", result.agent_name or "-"),
+        ("project", result.project or "-"),
+        ("hooks", ", ".join(result.matched_hook_names) or "-"),
+        ("configured_hooks", str(result.configured_hook_count)),
+        ("batch", result.batch_id or "-"),
+        ("batch_path", result.batch_path or "-"),
+        ("error", result.error or "-"),
+        ("audit_path", result.audit_path or "-"),
+    )
+    for label, value in rows:
+        output.print(f"[dim]{label}:[/dim] {value}")
+    if result.events:
+        output.print("[dim]events:[/dim]")
+        for event in result.events:
+            rel_path = event.get("rel_path") or event.get("abs_path") or "-"
+            op = event.get("op") or "-"
+            output.print(f"  {op} {rel_path}")
+    return 0
+
+
 def handle_file_hook_command(args: argparse.Namespace) -> None:
     """Dispatch a ``sase file-hook`` subcommand."""
-    if getattr(args, "file_hook_subcommand", None) == "exec-batch":
+    subcommand = getattr(args, "file_hook_subcommand", None)
+    if subcommand == "exec-batch":
         from sase.file_hooks.runner import execute_batch
 
         sys.exit(execute_batch(args.batch))
-    if getattr(args, "file_hook_subcommand", None) == "list":
+    if subcommand == "history":
+        sys.exit(_handle_file_hook_history_command(args))
+    if subcommand == "list":
         sys.exit(_handle_file_hook_list_command(args))
+    if subcommand == "show":
+        sys.exit(_handle_file_hook_show_command(args))
 
-    print("Usage: sase file-hook {list}")
+    print("Usage: sase file-hook {history,list,show}")
     sys.exit(1)
 
 
 __all__ = [
+    "FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION",
     "FILE_HOOK_LIST_JSON_SCHEMA_VERSION",
     "handle_file_hook_command",
 ]

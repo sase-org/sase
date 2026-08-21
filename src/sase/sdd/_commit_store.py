@@ -171,22 +171,28 @@ def _emit_sdd_file_hooks(
 ) -> None:
     """Best-effort detached hooks for a newly created SDD commit."""
     try:
-        from sase.config.file_hooks import get_all_file_hooks
+        from sase.config.file_hooks import load_file_hooks
+        from sase.file_hooks.producer import produce_commit_file_hooks
 
-        hooks = get_all_file_hooks()
-        if not hooks:
+        try:
+            hooks = load_file_hooks()
+        except Exception:
+            produce_commit_file_hooks(
+                repo_root=sdd_dir,
+                commit_sha=None,
+                sidecar_role=sidecar_role,
+                cause=cause,
+                producer="sdd",
+            )
             return
-        sha = _git_head_sha(sdd_dir)
-        if not sha:
-            return
-        from sase.file_hooks import emit_commit_file_hook_events
-
-        emit_commit_file_hook_events(
+        sha = None if not hooks else _git_head_sha(sdd_dir)
+        produce_commit_file_hooks(
             repo_root=sdd_dir,
             commit_sha=sha,
             sidecar_role=sidecar_role,
-            hooks=hooks,
             cause=cause,
+            producer="sdd",
+            hooks=hooks,
         )
     except Exception:
         _logger.debug("failed to emit SDD file hooks", exc_info=True)

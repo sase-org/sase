@@ -2725,7 +2725,9 @@ Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
 
 Defines non-gating commands that run once per matching file event. Use
 `sase file-hook list` to inspect the effective hooks, including the config layer that
-contributed each entry; add `-j/--json` for machine-readable output.
+contributed each entry; add `-j/--json` for machine-readable output. Use
+`sase file-hook history` and `sase file-hook show` to inspect producer audits for
+whether a matching event was dispatched, unmatched, or failed before a command ran.
 
 ```yaml
 file_hooks:
@@ -2802,9 +2804,26 @@ Matching semantics:
   alias-resolved, user-facing project names, never ProjectSpec keys. `filters.sidecars`
   compares sidecar role names. A project-local `sase/sase.yml` declaration without
   `filters.projects` is automatically scoped to the detected project.
-- **Execution.** Runs are post-commit and non-gating. Hook failures never fail or block
-  a commit. Each matched command runs with the absolute path appended as a shell-quoted
+- **Execution.** Runs are post-write and non-gating. Hook configuration, matching,
+  persistence, spawn, or command failures never fail or block an artifact copy or a
+  commit. Each matched command runs with the absolute path appended as a shell-quoted
   final argument and reports success or failure through a SASE notification.
+- **Producer audits.** Every configured-event dispatch attempt persists a bounded record
+  under the file-hook state root (`audit/`) before returning. That record explains a
+  filter miss, a dispatched or already-present batch, or a producer failure without
+  relying on Python logging. Successful matches continue to use batches and run logs as
+  the execution record. Audits follow the same 30-day retention as batches, runner logs,
+  and run logs.
+- **Producer failures vs command-run failures.** A _producer_ failure is a problem
+  before a hook command runs: config load, event capture, batch persistence, or runner
+  spawn. Those create one non-gating `file-hooks` error notification that points at the
+  audit record. Ordinary no-hooks and filter-miss outcomes stay quiet. A _command-run_
+  failure is the hook command itself exiting non-zero or timing out; that evidence stays
+  on the batch run log and the existing per-run notification.
+- **Finalizer reconciliation.** After a successful built-in commit marker is verified,
+  finalization re-derives the committed file events and ensures the deterministic commit
+  batch exists. An already-dispatched batch is reused without spawning again; a missed
+  first dispatch is retried.
 
 The user layer (`~/.config/sase/sase.yml`) replaces the bundled/default `file_hooks`
 list. Selected machine overlays (`sase_*.yml`) and project-local `sase/sase.yml`
@@ -2816,7 +2835,9 @@ Filter fields at the hook top level are no longer accepted; move `projects`, `si
 `path_globs`, `agent_name_globs`, `ops`, and `causes` under `filters`. Note that `globs`
 was renamed to `filters.path_globs`; the old key is not accepted.
 
-Source: `src/sase/config/file_hooks.py`, `src/sase/config/sase.schema.json`
+Source: `src/sase/config/file_hooks.py`, `src/sase/file_hooks/engine.py`,
+`src/sase/file_hooks/audit.py`, `src/sase/file_hooks/producer.py`,
+`src/sase/config/sase.schema.json`
 
 ### plugins
 
@@ -4955,13 +4976,16 @@ filters, timeout, and contributing config source. Invalid and duplicate hooks ar
 already excluded with configuration warnings, so this is the runtime-effective view
 rather than a raw config dump.
 
-| Form                         | Flag         | Description                         |
-| ---------------------------- | ------------ | ----------------------------------- |
-| `sase file-hook list`        | —            | Render the effective hook table.    |
-| `sase file-hook list --json` | `-j, --json` | Emit machine-readable hook records. |
+| Form                            | Flag          | Description                                                                                         |
+| ------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| `sase file-hook list`           | —             | Render the effective hook table.                                                                    |
+| `sase file-hook list --json`    | `-j, --json`  | Emit machine-readable hook records.                                                                 |
+| `sase file-hook history`        | `-n, --limit` | Show recent producer audits (dispatched, unmatched, or failed). Default 20; `0` means all retained. |
+| `sase file-hook history --json` | `-j, --json`  | Emit machine-readable producer audits.                                                              |
+| `sase file-hook show AUDIT_ID`  | `-j, --json`  | Show one producer audit by exact id or unique prefix.                                               |
 
-See [`file_hooks`](#file_hooks) for matching, merge, execution, and notification
-behavior.
+See [`file_hooks`](#file_hooks) for matching, merge, execution, producer audits, and
+notification behavior.
 
 ### `sase version`
 
