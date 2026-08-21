@@ -4,29 +4,57 @@ from __future__ import annotations
 
 import argparse
 
+_FLAG_SUBCOMMANDS = "{disable,enable,list,new,show}"
+_MUTATION_PRECEDENCE = (
+    "Saved machine preferences outrank registry defaults, user config, and "
+    "overlay config. Inherited SASE_FEATURE_FLAGS and root "
+    "-f/--enable-feature or -F/--disable-feature still win for this process."
+)
+_MUTATION_RESTART = (
+    "On success, AXE is restarted when it is already running so new processes "
+    "see the saved value. A stopped AXE daemon is left stopped. Any separately "
+    "running ACE session must be restarted in its own terminal. Repeating an "
+    "already-saved enable or disable still retries that AXE restart. A restart "
+    "failure does not roll back the saved preference."
+)
+_MUTATION_STATE = (
+    "The choice is stored in the SASE-owned machine-state file "
+    "`feature_flags.json` under SASE_HOME (normally ~/.sase/feature_flags.json). "
+    "It is not written to ~/.config/sase/sase.yml, overlays, or project-local "
+    "sase.yml."
+)
+
 
 def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase flag`` subcommand parser."""
     flag_parser = subparsers.add_parser(
         "flag",
-        help="Inspect SASE feature flags and scaffold a new one",
+        help="Inspect, persist, and scaffold SASE feature flags",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Inspect the code-owned SASE feature-flag registry and scaffold a "
-            "new flag plus its dedicated removal bead.\n"
+            "Inspect the code-owned SASE feature-flag registry, persist a "
+            "machine-local enable or disable choice, and scaffold a new flag "
+            "plus its dedicated removal bead.\n"
             "\n"
             "With no subcommand, `sase flag` defaults to `sase flag list`.\n"
             "\n"
             "`sase flag new` only runs in a SASE-managed checkout "
             "(is_sase_managed: true in sase/sase.yml). The registry lives in "
             "the SASE source tree; scaffolding a flag from another project "
-            "has nowhere to paste the entry. `list` and `show` work in any "
-            "project because they report this process's resolved flags."
+            "has nowhere to paste the entry. `list`, `show`, `enable`, and "
+            "`disable` work in any project: they report this process's "
+            "resolved flags or persist a machine-local preference.\n"
+            "\n"
+            f"{_MUTATION_STATE}\n"
+            "\n"
+            f"{_MUTATION_PRECEDENCE}"
         ),
         epilog=(
             "examples:\n"
             "  sase flag                         # same as `sase flag list`\n"
             "  sase flag list                    # every registered flag\n"
+            "  sase flag enable ref_sync_gesture # persist on for this machine\n"
+            "  sase flag disable ref_sync_gesture\n"
             "  sase flag show plugins_enabled    # one flag's provenance\n"
             "  sase flag new demo_key --when-enabled '...' --when-disabled '...' "
             "--remove-when '...'\n"
@@ -37,7 +65,18 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
     flag_sub = flag_parser.add_subparsers(
         dest="flag_subcommand",
         help="Flag subcommands",
-        metavar="{list,new,show}",
+        metavar=_FLAG_SUBCOMMANDS,
+    )
+
+    _add_mutation_parser(
+        flag_sub,
+        "disable",
+        help_text="Persistently disable a registered feature flag",
+    )
+    _add_mutation_parser(
+        flag_sub,
+        "enable",
+        help_text="Persistently enable a registered feature flag",
     )
 
     list_parser = flag_sub.add_parser(
@@ -165,6 +204,44 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Registered feature-flag key to inspect",
     )
     show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+
+
+def _add_mutation_parser(
+    flag_sub: argparse._SubParsersAction,
+    name: str,
+    *,
+    help_text: str,
+) -> None:
+    parser = flag_sub.add_parser(
+        name,
+        help=help_text,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            f"Persistently {name} a registered feature flag on this machine.\n"
+            "\n"
+            f"{_MUTATION_STATE}\n"
+            "\n"
+            f"{_MUTATION_PRECEDENCE}\n"
+            "\n"
+            f"{_MUTATION_RESTART}"
+        ),
+        epilog=(
+            "examples:\n"
+            f"  sase flag {name} ref_sync_gesture\n"
+            f"  sase flag {name} ref_sync_gesture --json"
+        ),
+    )
+    parser.add_argument(
+        "flag_key",
+        metavar="<key>",
+        help="Registered feature-flag key to persist",
+    )
+    parser.add_argument(
         "-j",
         "--json",
         action="store_true",

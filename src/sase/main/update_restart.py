@@ -96,14 +96,20 @@ def _call_restart_axe(
     return restart_axe_fn()
 
 
-def render_restart_info(restart: RestartInfo, *, console: Console, quiet: bool) -> None:
+def render_restart_info(
+    restart: RestartInfo,
+    *,
+    console: Console,
+    quiet: bool,
+    purpose: str = "load the updated code",
+) -> None:
     if restart.status in ("skipped_no_change", "skipped_not_running"):
         return
     text = Text()
     if restart.status == "restarted":
         text.append("↻ ", style="green")
         text.append(restart.message, style="green")
-        text.append(" to load the updated code.", style="dim")
+        text.append(f" to {purpose}.", style="dim")
     else:
         text.append("⚠ ", style="yellow")
         text.append(restart.message or "Axe restart failed.", style="yellow")

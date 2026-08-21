@@ -79,6 +79,26 @@ def test_kind_resolution_precedence_on_real_tree() -> None:
     assert id_positional.kind is ValueKind.BEAD
 
 
+def test_flag_key_positionals_are_flag_kinded() -> None:
+    spec = build_spec()
+    flag_group = _by_path(spec.root, ("flag",))
+    assert [child.name for child in flag_group.subcommands] == [
+        "disable",
+        "enable",
+        "list",
+        "new",
+        "show",
+    ]
+    for name in ("disable", "enable", "new", "show"):
+        command = _by_path(spec.root, ("flag", name))
+        flag_key = next(
+            positional
+            for positional in command.positionals
+            if positional.dest == "flag_key"
+        )
+        assert flag_key.kind is ValueKind.FLAG, name
+
+
 def test_default_list_child_recorded() -> None:
     spec = build_spec()
     bead = _by_path(spec.root, ("bead",))

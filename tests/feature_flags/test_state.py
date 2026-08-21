@@ -25,13 +25,26 @@ from sase.feature_flags.state import (
     set_saved_feature_flag,
 )
 from sase.feature_flags import snapshot as snapshot_mod
+from sase.feature_flags.registry import feature_flag_definitions
 from tests._conftest_runtime import reset_process_feature_flags
 
 from ._helpers import definitions, demo_flag, layer
 
 
-BETA_KEY = "epic_resume_gate"
-SUNSET_KEY = "prettier_enabled"
+BETA_KEY = "demo_beta_flag"
+SUNSET_KEY = "ref_sync_gesture"
+
+
+@pytest.fixture(autouse=True)
+def _install_beta_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep a beta definition alongside the live sunset flag for both-kinds tests."""
+    defs = dict(feature_flag_definitions())
+    defs[BETA_KEY] = demo_flag(BETA_KEY, kind="beta")
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: defs,
+    )
+    monkeypatch.setattr(snapshot_mod, "feature_flag_definitions", lambda: defs)
 
 
 @pytest.fixture(autouse=True)

@@ -9469,7 +9469,7 @@
       {
         "aliases": [],
         "default_child": "list",
-        "description_digest": "ba40848d8b53d444",
+        "description_digest": "1610eeabec378ff5",
         "hidden": false,
         "mutex_groups": [],
         "name": "flag",
@@ -9492,6 +9492,104 @@
         ],
         "positionals": [],
         "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "59fad45368d9e1a4",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "disable",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "flag",
+              "disable"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "flag_key",
+                "is_remainder": false,
+                "kind": "flag",
+                "metavar": "<key>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "3230815a7f33e6a6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "enable",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "flag",
+              "enable"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "flag_key",
+                "is_remainder": false,
+                "kind": "flag",
+                "metavar": "<key>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
           {
             "aliases": [],
             "default_child": null,
