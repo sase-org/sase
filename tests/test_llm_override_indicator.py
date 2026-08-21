@@ -266,7 +266,7 @@ def test_tooltip_describes_inactive_default_states() -> None:
     assert indicator._build_tooltip(None) == (
         "Launch default: resolving...\n"
         "No temporary override active.\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
     indicator._cached_default = ("claude", "opus")
@@ -294,7 +294,7 @@ def test_tooltip_describes_active_override_with_effort_and_expiry() -> None:
         "Temporary override on launch default\n"
         "CLAUDE(opus) @ xhigh\n"
         "1h2m left\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 
@@ -307,7 +307,7 @@ def test_tooltip_describes_until_cleared_override() -> None:
         "Temporary override on launch default\n"
         "CODEX(o3)\n"
         "Until cleared\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 
@@ -522,7 +522,7 @@ def test_tooltip_adds_rotation_line_for_round_robin_pool() -> None:
         "Launch default: CLAUDE(opus)\n"
         "@large rotates across 2 models; CLAUDE(opus) is next.\n"
         "No temporary override active.\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 
@@ -542,5 +542,5 @@ def test_tooltip_omits_rotation_line_for_non_pool_default() -> None:
     assert tooltip == (
         "Launch default: CLAUDE(opus)\n"
         "No temporary override active.\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )

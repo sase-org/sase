@@ -7,15 +7,41 @@ from typing import Any, Literal
 
 from .catalog_pane_contract import CatalogPaneSession
 
-ConfigSubTab = Literal["xprompts", "snippets", "glossary", "memory", "misc"]
-_CONFIG_SUBTABS: frozenset[str] = frozenset(
-    ("xprompts", "snippets", "glossary", "memory", "misc")
+ConfigSubTab = Literal["xprompts", "snippets", "glossary", "memory", "launch", "misc"]
+_BASE_CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+    "xprompts",
+    "snippets",
+    "glossary",
+    "memory",
+    "misc",
 )
+_LAUNCH_CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+    "xprompts",
+    "snippets",
+    "glossary",
+    "memory",
+    "launch",
+    "misc",
+)
+
+
+def launch_config_subtab_enabled() -> bool:
+    """Return whether the guarded Config Launch child should be exposed."""
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.admin_center_launch_subtab)
+
+
+def config_subtab_order() -> tuple[ConfigSubTab, ...]:
+    """Return the active Config catalog order for this process."""
+    if launch_config_subtab_enabled():
+        return _LAUNCH_CONFIG_SUBTAB_ORDER
+    return _BASE_CONFIG_SUBTAB_ORDER
 
 
 def validated_config_subtab(value: object) -> ConfigSubTab | None:
     """Return a catalog-backed Config sub-tab identity, if valid."""
-    if isinstance(value, str) and value in _CONFIG_SUBTABS:
+    if isinstance(value, str) and value in config_subtab_order():
         return value  # type: ignore[return-value]
     return None
 
@@ -48,6 +74,7 @@ class ConfigHubSessionState:
     active_subtab: ConfigSubTab = "xprompts"
     glossary: CatalogPaneSession = field(default_factory=CatalogPaneSession)
     memory: Any = None
+    launch: Any = None
     snippets: Any = None
 
     def memory_session(self) -> Any:
@@ -57,6 +84,14 @@ class ConfigHubSessionState:
 
             self.memory = MemoryPaneSession()
         return self.memory
+
+    def launch_session(self) -> Any:
+        """Return the Launch bookmark, creating it on first use."""
+        if self.launch is None:
+            from .models_panel_types import LaunchPaneSessionState
+
+            self.launch = LaunchPaneSessionState()
+        return self.launch
 
     def snippets_session(self) -> Any:
         """Return the Snippets bookmark, creating it on first use."""
@@ -71,5 +106,7 @@ __all__ = [
     "ConfigHubEntry",
     "ConfigHubSessionState",
     "ConfigSubTab",
+    "config_subtab_order",
+    "launch_config_subtab_enabled",
     "validated_config_subtab",
 ]

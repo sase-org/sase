@@ -110,7 +110,7 @@ def test_tooltip_lists_active_provider_disables() -> None:
         "running processes continue.\n"
         "Pools spare a soft provider while another member can cover; "
         "|| fallbacks and explicit %model still use it.\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 
@@ -133,7 +133,7 @@ def test_tooltip_renders_day_unit_for_multi_day_disable() -> None:
         "running processes continue.\n"
         "Pools spare a soft provider while another member can cover; "
         "|| fallbacks and explicit %model still use it.\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 

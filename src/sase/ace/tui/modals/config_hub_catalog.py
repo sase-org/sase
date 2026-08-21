@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from textual.widget import Widget
 
 from ..widgets.panel_tab_strip import PanelTab
-from .config_hub_session import ConfigHubEntry, ConfigSubTab
+from .config_hub_session import ConfigHubEntry, ConfigSubTab, config_subtab_order
 
 if TYPE_CHECKING:
     from .config_hub_pane import ConfigHubPane
@@ -88,6 +88,20 @@ def _memory_factory(hub: ConfigHubPane) -> Widget:
     return pane
 
 
+def _launch_factory(hub: ConfigHubPane) -> Widget:
+    from .models_panel import LaunchPane
+
+    pane = LaunchPane(
+        host=hub,
+        session_state=hub._session_state.config_hub.launch_session(),
+        display_mode="embedded",
+        activate_on_mount=hub._host_visible,
+        id="launch",
+    )
+    pane.add_class("-embedded")
+    return pane
+
+
 def _misc_factory(hub: ConfigHubPane) -> Widget:
     from .config_pane import ConfigPane
 
@@ -127,17 +141,49 @@ CONFIG_SUBTAB_SPECS: tuple[_ConfigSubTabSpec, ...] = (
     _ConfigSubTabSpec("snippets", "Snippets", "Snippets", "Snip", _snippets_factory),
     _ConfigSubTabSpec("glossary", "Glossary", "Glossary", "Gloss", _glossary_factory),
     _ConfigSubTabSpec("memory", "Memory", "Memory", "Mem", _memory_factory),
+    _ConfigSubTabSpec("launch", "Launch", "Launch", "Run", _launch_factory),
     _ConfigSubTabSpec("misc", "Misc", "Misc", "Misc", _misc_factory),
-)
-CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = tuple(
-    spec.id for spec in CONFIG_SUBTAB_SPECS
 )
 CONFIG_SUBTAB_BY_ID: dict[ConfigSubTab, _ConfigSubTabSpec] = {
     spec.id: spec for spec in CONFIG_SUBTAB_SPECS
 }
+CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+    "xprompts",
+    "snippets",
+    "glossary",
+    "memory",
+    "misc",
+)
 RELATION_SUBTABS: frozenset[ConfigSubTab] = frozenset(
     ("snippets", "glossary", "memory")
 )
+
+
+def config_subtab_specs() -> tuple[_ConfigSubTabSpec, ...]:
+    """Return the active Config child specs in navigation order."""
+    by_id = CONFIG_SUBTAB_BY_ID
+    return tuple(by_id[subtab] for subtab in config_subtab_order())
+
+
+def config_subtab_by_id() -> dict[ConfigSubTab, _ConfigSubTabSpec]:
+    """Return the active Config child spec map."""
+    return {spec.id: spec for spec in config_subtab_specs()}
+
+
+def config_panel_tabs() -> tuple[PanelTab, ...]:
+    """Return PanelTab metadata for the active Config catalog."""
+    return tuple(
+        PanelTab(
+            spec.id,
+            spec.label,
+            _CONFIG_ACCENT,
+            compact_label=spec.compact_label,
+            micro_label=spec.micro_label,
+        )
+        for spec in config_subtab_specs()
+    )
+
+
 CONFIG_PANEL_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         spec.id,
@@ -147,6 +193,7 @@ CONFIG_PANEL_TABS: tuple[PanelTab, ...] = tuple(
         micro_label=spec.micro_label,
     )
     for spec in CONFIG_SUBTAB_SPECS
+    if spec.id != "launch"
 )
 
 __all__ = [
@@ -156,4 +203,7 @@ __all__ = [
     "CONFIG_SUBTAB_SPECS",
     "ConfigPaneFactory",
     "RELATION_SUBTABS",
+    "config_panel_tabs",
+    "config_subtab_by_id",
+    "config_subtab_specs",
 ]

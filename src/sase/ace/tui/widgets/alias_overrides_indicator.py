@@ -4,7 +4,7 @@ A concise, uniform sidecar to :class:`LLMOverrideIndicator`. Where that
 widget renders the gold launch-default override pill, this one surfaces
 temporary overrides on aliases and the other launch settings in a single violet
 pill, visually parallel to but clearly distinct from the gold default pill. The
-Launch Control (leader ``,m``) remains the authoritative detail view; this pill
+Launch settings (leader ``,m``) remain the authoritative detail view; this pill
 is intentionally terse:
 
 * no non-default override active → empty (the pill collapses to zero width);
@@ -14,8 +14,7 @@ is intentionally terse:
 It reads :func:`get_active_alias_overrides` (minus the default-launch setting)
 on each refresh; that read self-cleans expired entries, so the pill never shows
 a stale override.
-Hover reveals the full targets and remaining durations; clicking opens the
-Launch Control.
+Hover reveals the full targets and remaining durations; clicking opens Launch settings.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ from ._override_pill import (
 )
 
 #: Violet pill, parallel to the gold default pill but unmistakably distinct;
-#: matches Launch Control override-chip accent for a uniform override style.
+#: matches the launch override-chip accent for a uniform override style.
 _ACTIVE_STYLE = ALIAS_LANE_PALETTE.base_style
 
 
@@ -68,7 +67,7 @@ class AliasOverridesIndicator(Static):
         return super().refresh()
 
     async def on_click(self) -> None:
-        """Open Launch Control."""
+        """Open Launch settings."""
         await self.app.run_action("open_models_panel")
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
@@ -149,7 +148,7 @@ class AliasOverridesIndicator(Static):
             (
                 "Temporary model overrides:",
                 *lines,
-                "Press ,m for Launch Control.",
+                "Press ,m for Config > Launch.",
             )
         )
 

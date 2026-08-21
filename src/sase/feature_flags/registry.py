@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     artifact_links = "artifact_links"
+    admin_center_launch_subtab = "admin_center_launch_subtab"
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
     commit_finalizer_shared_clone_exempt = "commit_finalizer_shared_clone_exempt"
     completion_refresh_on_update = "completion_refresh_on_update"
@@ -42,6 +43,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "render Links and Referenced By tables from the unified graph."
         ),
         bead="sase-rc",
+    ),
+    FeatureFlag.admin_center_launch_subtab: FeatureFlagDefinition(
+        key=FeatureFlag.admin_center_launch_subtab,
+        kind="beta",
+        description=(
+            "Expose Launch as a guarded Admin Center Config sub-tab and "
+            "route Launch Control openers to it."
+        ),
+        bead="sase-rq",
     ),
     FeatureFlag.coder_inherits_planner_chat: FeatureFlagDefinition(
         key=FeatureFlag.coder_inherits_planner_chat,

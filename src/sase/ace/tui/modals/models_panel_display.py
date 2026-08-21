@@ -249,7 +249,10 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
         )
 
     def _title_text(self) -> Text:
-        text = Text("Launch Control", style="bold cyan")
+        title = (
+            "Launch settings" if self.display_mode == "embedded" else "Launch Control"
+        )
+        text = Text(title, style="bold cyan")
         if self._active_bucket is not None:
             text.append(" › ", style="dim")
             bucket = self._bucket_by_name.get(self._active_bucket)

@@ -2676,7 +2676,7 @@
         },
         "model_alias_history_limit": {
           "type": "integer",
-          "description": "Maximum runs shown per alias in the Launch Control agent-history panel.",
+          "description": "Maximum runs shown per alias in the Launch settings agent-history panel.",
           "default": 10,
           "minimum": 1
         },
@@ -2708,7 +2708,7 @@
             },
             "custom": {
               "type": "object",
-              "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and Launch Control.",
+              "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and Launch settings.",
               "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,
@@ -2728,14 +2728,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ACE Launch Control; alias resolution remains flat and unchanged."
+                    "description": "Optional display-only bucket in ACE Launch settings; alias resolution remains flat and unchanged."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional display-only Launch Control bucket metadata for buckets referenced by custom aliases.",
+              "description": "Optional display-only Launch settings bucket metadata for buckets referenced by custom aliases.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40
@@ -3717,6 +3717,11 @@
         "type": "boolean"
       },
       "properties": {
+        "admin_center_launch_subtab": {
+          "type": "boolean",
+          "description": "Expose Launch as a guarded Admin Center Config sub-tab and route Launch Control openers to it.",
+          "default": false
+        },
         "artifact_links": {
           "type": "boolean",
           "description": "Agents add typed artifact links, sase artifact read records a read edge, prompt refs write cites, and Markdown artifacts render Links and Referenced By tables from the unified graph.",
@@ -3743,14 +3748,14 @@
           "description": "Opt-in beta: the epic_resume chop raises an EpicResume gate when a failed phase agent stalls an epic.",
           "default": false
         },
-        "plugin_catalog_scoped_latest": {
-          "type": "boolean",
-          "description": "Eager PyPI latest-version enrichment is limited to installed plugins. The Updates > Plugins highlighted row lazily fetches latest for the current uninstalled entry through the detail debouncer. sase plugin show still fetches the requested plugin. sase plugin list stays installed-only unless -A|--all-latest.",
-          "default": false
-        },
         "pluggable_finalizers": {
           "type": "boolean",
           "description": "Opt-in beta: SASE agent completion resolves host-owned pluggable finalizer plans instead of directly invoking the legacy commit finalizer.",
+          "default": false
+        },
+        "plugin_catalog_scoped_latest": {
+          "type": "boolean",
+          "description": "Eager PyPI latest-version enrichment is limited to installed plugins. The Updates > Plugins highlighted row lazily fetches latest for the current uninstalled entry through the detail debouncer. sase plugin show still fetches the requested plugin. sase plugin list stays installed-only unless -A|--all-latest.",
           "default": false
         },
         "prettier_enabled": {

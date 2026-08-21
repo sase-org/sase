@@ -174,7 +174,7 @@ def test_adapter_refuses_hard_disabled_provider_before_spawn(
         )
 
     assert recorded
-    assert "Launch Control" in str(exc_info.value)
+    assert "Config > Launch" in str(exc_info.value)
 
 
 def test_adapter_launches_when_provider_is_only_soft_disabled(

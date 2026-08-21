@@ -47,4 +47,4 @@ def test_handle_open_launch_control_warns_when_panel_is_unavailable() -> None:
 
     app = _BareApp()
     assert handle_open_launch_control(app, _notification()) is False
-    assert app.notifications == [("Launch Control is unavailable", "warning")]
+    assert app.notifications == [("Launch settings are unavailable", "warning")]

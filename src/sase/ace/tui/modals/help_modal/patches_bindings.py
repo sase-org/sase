@@ -241,7 +241,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'models_panel'))}",
-                    "Launch Control",
+                    "Config > Launch",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'update_sase'))}",

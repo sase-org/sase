@@ -43,7 +43,7 @@ class ProviderDisablesIndicator(Static):
         return super().refresh()
 
     async def on_click(self) -> None:
-        """Open Launch Control."""
+        """Open Launch settings."""
         await self.app.run_action("open_models_panel")
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
@@ -129,7 +129,7 @@ class ProviderDisablesIndicator(Static):
                 "running processes continue.",
                 "Pools spare a soft provider while another member can cover; "
                 "|| fallbacks and explicit %model still use it.",
-                "Press ,m for Launch Control.",
+                "Press ,m for Config > Launch.",
             )
         )
 

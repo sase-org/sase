@@ -1083,7 +1083,7 @@ llm_provider:
   default_model: "@large"
   epic_lander_model: "@large"
   big_epic_lander_model: "@xlarge"
-  # Maximum prior runs shown for one alias in the Launch Control agent-history
+  # Maximum prior runs shown for one alias in the Launch settings agent-history
   # panel. Values below 1 are ignored and fall back to 10.
   model_alias_history_limit: 10
   # Model aliases for launch sizes, delegated work, and reusable prompts.
@@ -1102,7 +1102,7 @@ llm_provider:
   # @<alias> reference. An alias
   # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
-  # completions and Launch Control. Bucket membership is display-only: ACE
+  # completions and Launch settings. Bucket membership is display-only: ACE
   # shows only buckets referenced by custom aliases.
   # Current shipped defaults and descriptions for every builtin alias below are
   # the single responsibility of
@@ -1119,7 +1119,7 @@ llm_provider:
   #     blogger:
   #       model: claude/opus
   #       description: "Agents that draft and edit blog posts."
-  #       bucket: writing          # optional Launch Control grouping
+  #       bucket: writing          # optional Launch settings grouping
   #   buckets:
   #     writing:
   #       description: "Writing and editing roles."

@@ -150,7 +150,7 @@ def test_tooltip_describes_single_override_target_and_effort() -> None:
     assert tooltip == (
         "Temporary model overrides:\n"
         "@medium -> CLAUDE(opus) @ xhigh - 1h2m left\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 
@@ -172,7 +172,7 @@ def test_tooltip_sorts_multiple_overrides_and_describes_until_cleared() -> None:
         "Temporary model overrides:\n"
         "@fast -> CLAUDE(haiku) - until cleared\n"
         "@medium -> CLAUDE(opus) @ xhigh - 1h2m left\n"
-        "Press ,m for Launch Control."
+        "Press ,m for Config > Launch."
     )
 
 

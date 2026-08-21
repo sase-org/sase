@@ -14,18 +14,22 @@ from textual.widgets import ContentSwitcher, Input
 from ..widgets.panel_tab_strip import PanelTabStrip
 from .config_center_session import AdminCenterSessionState
 from .config_hub_catalog import (
-    CONFIG_PANEL_TABS,
-    CONFIG_SUBTAB_BY_ID,
-    CONFIG_SUBTAB_ORDER,
     RELATION_SUBTABS,
+    config_panel_tabs,
+    config_subtab_by_id,
 )
-from .config_hub_session import ConfigHubEntry, ConfigSubTab, validated_config_subtab
+from .config_hub_session import (
+    ConfigHubEntry,
+    ConfigSubTab,
+    config_subtab_order,
+    validated_config_subtab,
+)
 
 _EMPTY_ID = "config-hub-empty"
 
 
 class ConfigHubPane(Vertical):
-    """Lazy, cached host for the five Config catalog children."""
+    """Lazy, cached host for the Config catalog children."""
 
     can_focus = False
     BINDINGS = [
@@ -45,6 +49,9 @@ class ConfigHubPane(Vertical):
         self._project = project
         self._session_state = session_state or AdminCenterSessionState()
         self._entry = entry
+        self._subtab_order = config_subtab_order()
+        self._subtab_by_id = config_subtab_by_id()
+        self._panel_tabs = config_panel_tabs()
         requested = None if entry is None else validated_config_subtab(entry.subtab)
         remembered = validated_config_subtab(
             self._session_state.config_hub.active_subtab
@@ -58,7 +65,7 @@ class ConfigHubPane(Vertical):
 
     def compose(self) -> ComposeResult:
         yield PanelTabStrip(
-            CONFIG_PANEL_TABS,
+            self._panel_tabs,
             self._active_subtab,
             uppercase_active=True,
             compact_below=72,
@@ -92,6 +99,36 @@ class ConfigHubPane(Vertical):
         """Dismiss the enclosing Admin Center (Snippets host contract)."""
         self._close_admin_center()
 
+    def request_launch_close(self, result: object) -> None:
+        """Dismiss the enclosing Admin Center (Launch host contract)."""
+        self.on_launch_changed(result)
+        self._close_admin_center()
+
+    def on_launch_changed(self, result: object) -> None:
+        """Refresh app-level launch indicators after embedded Launch writes."""
+        changed = bool(getattr(result, "changed", False))
+        if not changed:
+            return
+        refresh = getattr(self.app, "_refresh_launch_indicators", None)
+        if callable(refresh):
+            refresh(
+                provider_routing_changed=bool(
+                    getattr(result, "provider_routing_changed", False)
+                )
+            )
+
+    def can_deactivate(self) -> bool:
+        """Return whether the active Config child can be hidden."""
+        child = self._active_child()
+        can_deactivate = getattr(child, "can_deactivate", None)
+        return not callable(can_deactivate) or bool(can_deactivate())
+
+    def can_close(self) -> bool:
+        """Return whether the active Config child can close with the hub."""
+        child = self._active_child()
+        can_close = getattr(child, "can_close", None)
+        return not callable(can_close) or bool(can_close())
+
     def _close_admin_center(self) -> None:
         close = getattr(self.screen, "action_close", None)
         if callable(close):
@@ -123,7 +160,7 @@ class ConfigHubPane(Vertical):
         return self._panes.get(self._active_subtab)
 
     def _create_pane(self, subtab: ConfigSubTab) -> Widget:
-        return CONFIG_SUBTAB_BY_ID[subtab].factory(self)
+        return self._subtab_by_id[subtab].factory(self)
 
     @staticmethod
     def _set_pane_active(pane: Widget | None, active: bool) -> None:
@@ -175,10 +212,12 @@ class ConfigHubPane(Vertical):
                 if self._host_visible:
                     self.focus_default()
                 return True
+            if not self.can_deactivate():
+                return False
             try:
                 pane = await self._ensure_pane(subtab)
             except Exception as exc:
-                spec = CONFIG_SUBTAB_BY_ID[subtab]
+                spec = self._subtab_by_id[subtab]
                 self.notify(
                     f"Could not open {spec.label}: {exc}",
                     severity="error",
@@ -206,7 +245,7 @@ class ConfigHubPane(Vertical):
                     pass
                 self._set_pane_active(previous_pane, True)
                 self.notify(
-                    f"Could not open {CONFIG_SUBTAB_BY_ID[subtab].label}: {exc}",
+                    f"Could not open {self._subtab_by_id[subtab].label}: {exc}",
                     severity="error",
                 )
                 return False
@@ -217,9 +256,9 @@ class ConfigHubPane(Vertical):
             return True
 
     def _cycle_subtab(self, step: int) -> None:
-        index = CONFIG_SUBTAB_ORDER.index(self._active_subtab)
+        index = self._subtab_order.index(self._active_subtab)
         self._schedule_switch(
-            CONFIG_SUBTAB_ORDER[(index + step) % len(CONFIG_SUBTAB_ORDER)]
+            self._subtab_order[(index + step) % len(self._subtab_order)]
         )
 
     def action_cycle_subtab(self) -> None:

@@ -84,7 +84,7 @@ def test_blocked_prompt_raises_before_spawn_and_records_failure(
 
     spawn.assert_not_called()
     assert recorded == ["%model:claude/opus Fix the flaky selector"]
-    assert "Launch Control" in str(exc_info.value)
+    assert "Config > Launch" in str(exc_info.value)
     assert "claude/opus" in str(exc_info.value)
 
 

@@ -17,7 +17,7 @@ from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
 
 _LAUNCH_UNIT_KEYS = frozenset({"prompt", "template_group", "swarm_xprompts"})
-_REMEDY = "Enable it in ACE Launch Control (,m → p) or choose another model."
+_REMEDY = "Enable it in Config > Launch (,m -> p) or choose another model."
 
 ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
 

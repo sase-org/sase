@@ -8,9 +8,9 @@ strip. Mounted panes are cached for the lifetime of the modal, so returning
 to a tab preserves its selection and other pane-local state.
 
 The Config section hosts the nested XPrompts, Snippets, Glossary, Memory,
-and Misc catalog. Direct-entry actions may still pass ``initial_tab`` to
-open exactly one pane. Pane-local sub-tabs continue to use ``]`` / ``[``
-where provided.
+Launch, and Misc catalog when the Launch beta is enabled. Direct-entry
+actions may still pass ``initial_tab`` to open exactly one pane. Pane-local
+sub-tabs continue to use ``]`` / ``[`` where provided.
 """
 
 from __future__ import annotations
@@ -340,6 +340,8 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
             if tab == self._active_tab and tab in self._panes:
                 self._focus_active_pane()
                 return True
+            if not self._active_pane_can_deactivate():
+                return False
 
             try:
                 pane = await self._ensure_pane(tab)
@@ -385,8 +387,20 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
                     log.exception("Admin Center tab-activation callback failed")
             return True
 
+    def _active_pane_can_deactivate(self) -> bool:
+        pane = self._active_pane()
+        can_deactivate = getattr(pane, "can_deactivate", None)
+        return not callable(can_deactivate) or bool(can_deactivate())
+
+    def _active_pane_can_close(self) -> bool:
+        pane = self._active_pane()
+        can_close = getattr(pane, "can_close", None)
+        return not callable(can_close) or bool(can_close())
+
     def action_close(self) -> None:
         """Close SASE Admin Center."""
+        if not self._active_pane_can_close():
+            return
         self._set_pane_active(self._active_pane(), False)
         self.dismiss(self._active_tab)
 

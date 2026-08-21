@@ -307,40 +307,60 @@ class LeaderModeMixin:
         return True
 
     def action_open_models_panel(self) -> None:
-        """Open Launch Control (top-bar override pills click here)."""
+        """Open Launch settings (top-bar override pills click here)."""
         self._open_models_panel()
 
-    def _open_models_panel(self) -> None:
-        """Open Launch Control (leader ``,m`` by default)."""
-        from ...modals import ModelsPanel, ModelsPanelResult
+    def _launch_settings_in_admin_center_enabled(self) -> bool:
+        from sase.feature_flags import FeatureFlag, current_flags
+
+        return current_flags().enabled(FeatureFlag.admin_center_launch_subtab)
+
+    def _open_launch_settings(self) -> None:
+        from ...modals.config_hub_session import ConfigHubEntry
+
+        self._open_config_center(  # type: ignore[attr-defined]
+            "config",
+            config_entry=ConfigHubEntry(subtab="launch"),
+        )
+
+    def _refresh_launch_indicators(
+        self, *, provider_routing_changed: bool = False
+    ) -> None:
         from ...widgets import (
             AliasOverridesIndicator,
             LLMOverrideIndicator,
             ProviderDisablesIndicator,
         )
 
-        def _refresh_indicators(*, provider_routing_changed: bool = False) -> None:
-            # Refresh both top-bar override pills: the gold ``default`` pill and
-            # the violet non-``default`` pill. A single override action may touch
-            # either lane. Provider routing changes can also alter the cached
-            # launch default, so that lane is invalidated before refresh.
-            for selector, widget_type in (
-                ("#llm-override-indicator", LLMOverrideIndicator),
-                ("#alias-overrides-indicator", AliasOverridesIndicator),
-                ("#provider-disables-indicator", ProviderDisablesIndicator),
+        # Refresh both top-bar override pills: the gold ``default`` pill and
+        # the violet non-``default`` pill. A single override action may touch
+        # either lane. Provider routing changes can also alter the cached
+        # launch default, so that lane is invalidated before refresh.
+        for selector, widget_type in (
+            ("#llm-override-indicator", LLMOverrideIndicator),
+            ("#alias-overrides-indicator", AliasOverridesIndicator),
+            ("#provider-disables-indicator", ProviderDisablesIndicator),
+        ):
+            try:
+                indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
+            except Exception:
+                continue
+            if (
+                provider_routing_changed
+                and selector == "#llm-override-indicator"
+                and hasattr(indicator, "invalidate_cached_default")
             ):
-                try:
-                    indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
-                except Exception:
-                    continue
-                if (
-                    provider_routing_changed
-                    and selector == "#llm-override-indicator"
-                    and hasattr(indicator, "invalidate_cached_default")
-                ):
-                    indicator.invalidate_cached_default()
-                    continue
-                indicator.refresh()
+                indicator.invalidate_cached_default()
+                continue
+            indicator.refresh()
+
+    def _open_models_panel(self) -> None:
+        """Open Launch settings (leader ``,m`` by default)."""
+        from ...modals import ModelsPanel, ModelsPanelResult
+
+        if LeaderModeMixin._launch_settings_in_admin_center_enabled(self):
+            LeaderModeMixin._open_launch_settings(self)
+            return
 
         def _on_dismissed(result: ModelsPanelResult | None) -> None:
             # The panel emits its own per-action toasts; here we only refresh
@@ -349,8 +369,8 @@ class LeaderModeMixin:
             if result is None:
                 return
             if result.changed:
-                _refresh_indicators(
-                    provider_routing_changed=result.provider_routing_changed
+                LeaderModeMixin._refresh_launch_indicators(
+                    self, provider_routing_changed=result.provider_routing_changed
                 )
 
         self.push_screen(  # type: ignore[attr-defined]

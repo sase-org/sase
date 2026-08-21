@@ -4,12 +4,14 @@ from typing import cast
 from unittest.mock import MagicMock, call
 
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.models_panel import ModelsPanelResult
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     LLMOverrideIndicator,
     ProviderDisablesIndicator,
 )
+from sase.feature_flags import override_flags
 from tests._temporary_llm_override_helpers import full_registry
 
 
@@ -71,6 +73,21 @@ def test_open_models_panel_refreshes_indicators_when_changed() -> None:
     default_indicator.refresh.assert_called_once()
     alias_indicator.refresh.assert_called_once()
     provider_indicator.refresh.assert_called_once()
+
+
+def test_open_models_panel_routes_to_config_launch_when_flag_enabled() -> None:
+    mixin = MagicMock()
+
+    with override_flags(admin_center_launch_subtab=True):
+        LeaderModeMixin._open_models_panel(cast(LeaderModeMixin, mixin))
+
+    mixin.push_screen.assert_not_called()
+    mixin._open_config_center.assert_called_once()
+    args, kwargs = mixin._open_config_center.call_args
+    assert args == ("config",)
+    entry = kwargs["config_entry"]
+    assert isinstance(entry, ConfigHubEntry)
+    assert entry.subtab == "launch"
 
 
 def test_open_models_panel_invalidates_default_on_provider_routing_change() -> None:

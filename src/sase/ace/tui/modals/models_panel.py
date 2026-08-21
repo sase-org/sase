@@ -358,6 +358,10 @@ class _LaunchPaneBehavior(
             self._provider_routing_changed = True
         if agents_refresh is not None:
             self._request_agents_refresh(agents_refresh)
+        if self._host is not None and self._host is not self:
+            on_changed = getattr(self._host, "on_launch_changed", None)
+            if callable(on_changed):
+                on_changed(self._result())
 
     def _record_session_cursor(self) -> None:
         """Persist the active Launch bucket and highlighted row identity."""

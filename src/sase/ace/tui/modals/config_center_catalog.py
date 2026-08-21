@@ -93,7 +93,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         1,
         "Config",
         "#00D7AF",
-        "Browse XPrompts, snippets, glossary, memory, and layered settings.",
+        "Browse XPrompts, snippets, glossary, memory, launch, and settings.",
         "ConfigHubPane",
         _config_pane_factory,
     ),

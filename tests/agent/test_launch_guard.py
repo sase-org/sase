@@ -68,7 +68,7 @@ def test_explicit_model_on_hard_disabled_provider_is_blocked(
     message = str(DisabledProviderLaunchError.from_unit(unit))
     assert "claude/opus" in message
     assert "%model" in message
-    assert "Launch Control" in message
+    assert "Config > Launch" in message
 
 
 def test_explicit_model_on_soft_disabled_provider_is_not_blocked(

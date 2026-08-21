@@ -11,6 +11,8 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
+from sase.ace.tui.modals.models_panel import ModelsPanelResult
+from sase.feature_flags import override_flags
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from tests.ace.tui._config_center_tabs_helpers import _HostApp
 
@@ -30,6 +32,23 @@ class _HubChild(Static):
     def focus_default(self) -> None:
         self.focus_count += 1
         self.focus()
+
+
+class _BusyHubChild(_HubChild):
+    can_focus = True
+
+    def __init__(self, subtab: str) -> None:
+        super().__init__(subtab)
+        self.deactivate_checks = 0
+        self.close_checks = 0
+
+    def can_deactivate(self) -> bool:
+        self.deactivate_checks += 1
+        return False
+
+    def can_close(self) -> bool:
+        self.close_checks += 1
+        return False
 
 
 class _ForwardingFilter(Input):
@@ -161,6 +180,53 @@ async def test_direct_entry_opens_requested_child_once(
         assert hub._entry.term == "Agent Hood"
 
 
+async def test_launch_direct_entry_opens_launch_when_flag_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    state = AdminCenterSessionState()
+    state.config_hub.active_subtab = "memory"
+
+    with override_flags(admin_center_launch_subtab=True):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(
+                initial_tab="config",
+                session_state=state,
+                config_entry=ConfigHubEntry(subtab="launch"),
+            )
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            await wait_for(pilot, lambda: "launch" in hub._panes)
+
+            assert calls == ["launch"]
+            assert hub._active_subtab == "launch"
+            assert state.config_hub.active_subtab == "launch"
+
+
+async def test_launch_direct_entry_is_ignored_when_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _created, calls = _patch_hub_children(monkeypatch)
+    state = AdminCenterSessionState()
+    state.config_hub.active_subtab = "memory"
+
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(
+            initial_tab="config",
+            session_state=state,
+            config_entry=ConfigHubEntry(subtab="launch"),
+        )
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "memory" in hub._panes)
+
+        assert calls == ["memory"]
+        assert hub._active_subtab == "memory"
+        assert "launch" not in hub._panes
+
+
 async def test_legacy_xprompts_resume_opens_config_hub(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -239,3 +305,87 @@ async def test_relationship_children_own_tab_keys(
         assert hub.child_owns_tab_keys() is True
         assert modal.check_action("next_center_tab", ()) is False
         assert modal.check_action("prev_center_tab", ()) is False
+
+
+async def test_busy_child_blocks_config_subtab_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    busy: _BusyHubChild | None = None
+
+    def create(_self: ConfigHubPane, subtab: str) -> _HubChild:
+        nonlocal busy
+        if subtab == "xprompts":
+            busy = _BusyHubChild(subtab)
+            return busy
+        return _HubChild(subtab)
+
+    monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+        await wait_for(pilot, lambda: "xprompts" in hub._panes)
+
+        assert await hub._switch_to("snippets") is False
+        assert hub._active_subtab == "xprompts"
+        assert tuple(hub._panes) == ("xprompts",)
+        assert busy is not None
+        assert busy.deactivate_checks == 1
+
+
+async def test_busy_config_child_blocks_top_level_switch_and_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    busy: _BusyHubChild | None = None
+
+    def create(_self: ConfigHubPane, subtab: str) -> _BusyHubChild:
+        nonlocal busy
+        busy = _BusyHubChild(subtab)
+        return busy
+
+    monkeypatch.setattr(ConfigHubPane, "_create_pane", create)
+    async with _HostApp().run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        await wait_for(pilot, lambda: busy is not None)
+
+        assert await modal._switch_to("logs") is False
+        assert modal._active_tab == "config"
+        assert "logs" not in modal._panes
+        assert busy is not None
+        assert busy.deactivate_checks == 1
+
+        modal.action_close()
+        await pilot.pause()
+        assert modal.is_mounted
+        assert modal._active_tab == "config"
+        assert busy.close_checks == 1
+
+
+async def test_launch_result_refreshes_app_indicators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_hub_children(monkeypatch)
+    calls: list[bool] = []
+
+    async with _HostApp().run_test() as pilot:
+
+        def refresh_launch_indicators(
+            *, provider_routing_changed: bool = False
+        ) -> None:
+            calls.append(provider_routing_changed)
+
+        pilot.app._refresh_launch_indicators = refresh_launch_indicators  # type: ignore[attr-defined]
+        modal = ConfigCenterModal(initial_tab="config")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._active_tab == "config")
+        hub = modal.query_one("#config", ConfigHubPane)
+
+        hub.on_launch_changed(
+            ModelsPanelResult(changed=True, provider_routing_changed=True)
+        )
+        hub.on_launch_changed(ModelsPanelResult(changed=False))
+
+    assert calls == [True]
