@@ -7,8 +7,10 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.dismissed_agent_completion import effective_done_outcome
+from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
+    AGENT_FAMILY_ROLE_FIELD,
     agent_family_base,
     is_plan_chain_artifact_meta,
 )
@@ -106,7 +108,20 @@ def artifact_is_resolved(
         return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
+    if _is_monitor_member_meta(meta):
+        return False
     return _completed_handoff_workflow_state(artifact_dir)
+
+
+def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:
+    return is_monitor_member_role(
+        _str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)),
+        _str_or_none(meta.get("role_suffix")),
+    )
+
+
+def _str_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _completed_handoff_workflow_state(artifact_dir: Path) -> bool:

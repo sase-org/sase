@@ -11,7 +11,7 @@ from sase.axe.run_agent_wait_deps import (
     waiting_marker_dependencies_resolved,
 )
 from tests._agent_names_fixtures import make_agent
-from tests._axe_chop_wait_checks_helpers import make_waiting_agent
+from tests._axe_chop_wait_checks_helpers import make_waiting_agent, write_workflow_state
 
 
 def test_mark_bead_wait_sync_hint_honors_off_mode(
@@ -133,4 +133,77 @@ def test_waiting_marker_dependencies_resolved_matches_terminal_outcome_semantics
             artifacts_dir=str(waiter_dir),
         )
         is should_resolve
+    )
+
+
+def test_waiting_marker_fallback_resolves_non_monitor_completed_workflow_without_done(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "handoff-lane")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "handoff-lane--plan",
+        workflow_name="handoff-lane",
+        agent_family="handoff-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "handoff-lane--code",
+        workflow_name="handoff-lane",
+        agent_family="handoff-lane",
+        role_suffix="--code",
+        parent_timestamp=root_dir.name,
+    )
+    write_workflow_state(child_dir)
+
+    assert waiting_marker_dependencies_resolved(
+        waiter_dir / "waiting.json",
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+
+
+def test_waiting_marker_fallback_waits_for_settled_monitor_without_terminal_outcome(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "monitor-lane--plan",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "monitor-lane--mon-0",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--mon-0",
+        parent_timestamp=root_dir.name,
+        extra_meta={"monitor_state": "completed"},
+    )
+    write_workflow_state(monitor_dir)
+
+    assert not waiting_marker_dependencies_resolved(
+        waiter_dir / "waiting.json",
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
     )

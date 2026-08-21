@@ -85,6 +85,39 @@ def _write_monitor_done(
     (artifact_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
 
 
+def _write_completed_workflow_state(artifact_dir: Path) -> None:
+    (artifact_dir / "workflow_state.json").write_text(
+        json.dumps(
+            {
+                "workflow_name": "monitor-lane",
+                "status": "completed",
+                "current_step_index": 0,
+                "steps": [
+                    {
+                        "name": "main",
+                        "status": "completed",
+                        "error": None,
+                        "traceback": None,
+                    }
+                ],
+                "appears_as_agent": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifact_dir / "prompt_step_main.json").write_text(
+        json.dumps(
+            {
+                "step_name": "main",
+                "status": "completed",
+                "error": None,
+                "traceback": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _monitor_handoff_family(
     tmp_path: Path,
     *,
@@ -201,6 +234,77 @@ def test_running_monitor_without_done_marker_still_blocks(
     )
 
     assert not index.is_resolved("monitor-lane")
+    assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
+
+
+@pytest.mark.parametrize(
+    ("agent_family_role", "role_suffix"),
+    [
+        ("monitor", None),
+        (None, "--mon"),
+        (None, "--mon-0"),
+    ],
+)
+def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
+    tmp_path: Path,
+    agent_family_role: str | None,
+    role_suffix: str | None,
+) -> None:
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "monitor-lane--plan",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    monitor_suffix = role_suffix or "--mon"
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        f"monitor-lane{monitor_suffix}",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix=role_suffix,
+        parent_timestamp=root_dir.name,
+        extra_meta={
+            key: value
+            for key, value in {
+                "agent_family_role": agent_family_role,
+                "agent_clan": "monitor-clan",
+                "agent_clan_generation": root_dir.name,
+                "monitor_state": "completed",
+            }.items()
+            if value is not None
+        },
+    )
+    _write_completed_workflow_state(monitor_dir)
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+
+    monitor_candidate = index.artifacts_by_dir[str(monitor_dir)]
+    assert monitor_candidate.outcome is None
+    assert not monitor_candidate.is_resolved
+    assert not index.is_resolved(monitor_candidate.name)
+
+    family = index.family_candidate("monitor-lane")
+    assert family is not None
+    assert not family.is_resolved
+    assert family.is_done
+    assert not family.is_failed
+    assert not index.is_resolved("monitor-lane")
+
+    clan = index.clan_candidate("monitor-clan")
+    assert clan is not None
+    assert not clan.is_resolved
+    assert not clan.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
 
 
