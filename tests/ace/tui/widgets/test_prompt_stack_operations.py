@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 from tests.ace.tui.widgets._prompt_stack_helpers import (
+    mini_xprompt_target as _mini_xprompt_target,
     snippet_target as _snippet_target,
 )
 
@@ -84,6 +85,18 @@ def test_append_bottom_inserts_above_snippet_pane() -> None:
     assert state.selected_item is item
 
 
+def test_append_bottom_inserts_above_mini_xprompt_pane() -> None:
+    state = PromptStackState.single("agent")
+    mini = state.append_mini_xprompt_pane("mini", _mini_xprompt_target())
+
+    item = state.append_bottom("new agent")
+
+    assert state.items == [state.agent_items[0], item, mini]
+    assert state.agent_texts == ["agent", "new agent"]
+    assert state.mini_xprompt_index == 2
+    assert state.selected_item is item
+
+
 def test_insert_below_snippet_inserts_above_snippet_pane() -> None:
     state = PromptStackState.single("agent")
     snippet = state.append_snippet_pane("snippet", _snippet_target())
@@ -101,6 +114,14 @@ def test_append_snippet_pane_allows_only_one_snippet() -> None:
 
     with pytest.raises(ValueError):
         state.append_snippet_pane("second", _snippet_target("other"))
+
+
+def test_append_mini_xprompt_pane_allows_only_one_auxiliary() -> None:
+    state = PromptStackState.single("agent")
+    state.append_snippet_pane("snippet", _snippet_target())
+
+    with pytest.raises(ValueError):
+        state.append_mini_xprompt_pane("mini", _mini_xprompt_target())
 
 
 def test_inserted_items_get_unique_ids() -> None:
@@ -215,6 +236,16 @@ def test_move_selected_refuses_snippet_item() -> None:
     assert state.snippet_index == 1
 
 
+def test_move_selected_refuses_mini_xprompt_item() -> None:
+    state = PromptStackState.single("agent")
+    state.append_mini_xprompt_pane("mini", _mini_xprompt_target())
+
+    assert state.selected_item.is_mini_xprompt_pane
+    assert state.move_selected(-1) is False
+    assert state.agent_texts == ["agent"]
+    assert state.mini_xprompt_index == 1
+
+
 def test_move_selected_refuses_to_move_agent_past_snippet() -> None:
     state = PromptStackState.from_panes(["first", "second"])
     state.append_snippet_pane("snippet", _snippet_target())
@@ -268,6 +299,16 @@ def test_split_selected_is_noop_on_snippet_pane() -> None:
     assert state.agent_texts == ["agent"]
     assert state.snippet_item is not None
     assert state.snippet_item.text == "x\n---\ny"
+
+
+def test_split_selected_is_noop_on_mini_xprompt_pane() -> None:
+    state = PromptStackState.single("agent")
+    state.append_mini_xprompt_pane("x\n---\ny", _mini_xprompt_target())
+
+    assert state.split_selected() is False
+    assert state.agent_texts == ["agent"]
+    assert state.mini_xprompt_item is not None
+    assert state.mini_xprompt_item.text == "x\n---\ny"
 
 
 # --- load_segments_at: in-place load preserving neighbors -----------------
@@ -326,3 +367,15 @@ def test_load_segments_at_is_noop_on_snippet_pane() -> None:
     assert state.snippet_item is not None
     assert state.snippet_item.text == "snippet"
     assert state.selected_item.is_snippet_pane
+
+
+def test_load_segments_at_is_noop_on_mini_xprompt_pane() -> None:
+    state = PromptStackState.single("agent")
+    state.append_mini_xprompt_pane("mini", _mini_xprompt_target())
+
+    state.load_segments_at(1, ["x", "y"])
+
+    assert state.agent_texts == ["agent"]
+    assert state.mini_xprompt_item is not None
+    assert state.mini_xprompt_item.text == "mini"
+    assert state.selected_item.is_mini_xprompt_pane

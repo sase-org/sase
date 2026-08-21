@@ -189,6 +189,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         def focus_relative(self, delta: int, target_mode: str = "normal") -> bool: ...
         def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool: ...
         def request_open_prompt_stash(self) -> None: ...
+        def request_mini_xprompt_target_pane(self) -> None: ...
         def request_snippet_target_pane(self) -> None: ...
         def request_save_as_xprompt(self) -> None: ...
         def request_write_xprompt(self) -> None: ...
@@ -253,13 +254,13 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def submit_active_pane(self) -> None:
         """Submit the active pane through the existing ``g<enter>`` path."""
-        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
+        if self._mode != "prompt":
             return
         self.active_text_area().action_submit_prompt()
 
     def edit_definition_under_cursor(self) -> None:
         """Open the xprompt definition at the cursor in the bound stack."""
-        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
+        if self._mode != "prompt" or self._stack.selected_item.is_auxiliary_pane:
             return
         action = getattr(self.active_text_area(), "_edit_definition_under_cursor", None)
         if callable(action):
@@ -267,7 +268,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def format_active_prompt(self) -> None:
         """Format the pane that is active when this action is invoked."""
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return
         text_area = self.active_text_area()
         if not text_area.text:
@@ -409,10 +410,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_submit_active(self) -> bool:
         """Whether ``g<enter>`` can submit the active prompt pane."""
-        return self._mode == "prompt" and not self._stack.selected_item.is_snippet_pane
+        return self._mode == "prompt"
 
     def _g_prefix_available_definition(self) -> bool:
-        if self._mode != "prompt" or self._stack.selected_item.is_snippet_pane:
+        if self._mode != "prompt" or self._stack.selected_item.is_auxiliary_pane:
             return False
         try:
             from sase.ace.tui.widgets._prompt_jump_target import (
@@ -437,7 +438,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_available_format_prompt(self) -> bool:
         """Whether the active prompt-style pane contains text to format."""
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return False
         try:
             return bool(self.active_text_area().text.strip())
@@ -508,11 +509,15 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return False
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_mini_xprompt_pane:
+            return True
         return any(item.text.strip() for item in self._stack.agent_items) or bool(
             self._stack.frontmatter.strip()
         )
 
     def _g_prefix_available_write_xprompt(self) -> bool:
+        if self._stack.selected_item.is_auxiliary_pane:
+            return False
         return (
             self._stack.binding is not None and self._g_prefix_available_save_xprompt()
         )
@@ -527,7 +532,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return False
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return False
         return bool(self._stack.selected_item.text.strip())
 
@@ -549,6 +554,10 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_submit_active(self) -> str:
         """Return the context-sensitive ``g<enter>`` label."""
+        if self._stack.selected_item.is_snippet_pane:
+            return "save snippet"
+        if self._stack.selected_item.is_mini_xprompt_pane:
+            return "save mini-xprompt"
         if self._stack.agent_count > 1:
             return "launch this pane"
         return "submit this draft"
@@ -597,6 +606,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_save_xprompt(self) -> str:
         """Return the ``gx`` label."""
+        if self._stack.selected_item.is_mini_xprompt_pane:
+            return "retarget mini-xprompt"
         return "save as xprompt"
 
     def _g_prefix_label_write_xprompt(self) -> str:

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from ._prompt_bar_glossary_panel import PromptBarGlossaryPanelMixin
 from ._prompt_bar_memory_panel import PromptBarMemoryPanelMixin
+from ._prompt_bar_mini_xprompt_pane import PromptBarMiniXPromptPaneMixin
 from ._prompt_bar_snippets_panel import PromptBarSnippetsPanelMixin
 from ._prompt_bar_mount import PromptBarMountMixin
 from ._prompt_bar_requests import PromptBarRequestsMixin
@@ -28,6 +29,7 @@ class PromptBarMixin(
     PromptBarStashMixin,
     PromptBarSaveXpromptMixin,
     PromptBarSnippetPaneMixin,
+    PromptBarMiniXPromptPaneMixin,
     PromptBarRequestsMixin,
     PromptBarGlossaryPanelMixin,
     PromptBarMemoryPanelMixin,

@@ -19,7 +19,7 @@ mixin only wires the panel into the bar's lifecycle, focus, and height.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from textual.dom import DOMNode
@@ -71,6 +71,16 @@ class InlineExpansionTransaction:
         return {arg.name for arg in self.inputs}
 
 
+@dataclass(frozen=True, slots=True)
+class _FrontmatterScope:
+    """The active frontmatter storage scope for a prompt pane."""
+
+    key: str
+    raw: str
+    label: str | None
+    has_target: bool
+
+
 class PromptInputBarFrontmatterMixin(_MixinBase):
     """Mount, focus, persist, and size the Frontmatter Panel."""
 
@@ -98,15 +108,72 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             self, target_text_area: object, pane_id: str
         ) -> PromptTextArea | None: ...
 
-    # Cache of (frontmatter string -> assist entries) so completion in every
-    # pane reads the panel's *live* local xprompts without reparsing the YAML on
-    # each keystroke.  Keyed by the exact frontmatter string the stack carries,
-    # so a one-entry cache invalidates itself the moment the user edits a helper.
-    _local_xprompt_cache: tuple[str, list[XPromptAssistEntry]] | None = None
+    # Cache of (scope key, frontmatter string -> assist entries) so completion
+    # reads the active scope's live local xprompts without reparsing YAML on each
+    # keystroke.  Mini panes have their own scope; agent panes share the stack.
+    _local_xprompt_cache: tuple[str, str, list[XPromptAssistEntry]] | None = None
+
+    # -- scope ---------------------------------------------------------------
+
+    def _frontmatter_scope(self, text_area: object | None = None) -> _FrontmatterScope:
+        """Return the frontmatter scope for *text_area* or the selected pane."""
+        item = self._stack.selected_item
+        if text_area is not None:
+            text_area_id = getattr(text_area, "id", None)
+            if isinstance(text_area_id, str) and text_area_id:
+                for candidate in self._stack.items:
+                    try:
+                        candidate_id = self._pane_id(candidate)  # type: ignore[attr-defined]
+                    except Exception:
+                        continue
+                    if candidate_id == text_area_id:
+                        item = candidate
+                        break
+        target = item.mini_xprompt_target
+        if target is not None:
+            return _FrontmatterScope(
+                key=f"mini:{item.item_id}:{target.name}",
+                raw=target.frontmatter,
+                label=f"#{target.name}",
+                has_target=True,
+            )
+        return _FrontmatterScope(
+            key="stack",
+            raw=self._stack.frontmatter,
+            label=None,
+            has_target=self._stack.binding is not None
+            or (getattr(self, "_readonly_xprompt_target", None) is not None),
+        )
+
+    def _set_frontmatter_scope_model(
+        self,
+        model: PromptFrontmatter,
+        text_area: object | None = None,
+    ) -> None:
+        """Persist *model* to the target scope."""
+        raw = model.serialize()
+        item = self._stack.selected_item
+        if text_area is not None:
+            text_area_id = getattr(text_area, "id", None)
+            if isinstance(text_area_id, str) and text_area_id:
+                for candidate in self._stack.items:
+                    try:
+                        if self._pane_id(candidate) == text_area_id:  # type: ignore[attr-defined]
+                            item = candidate
+                            break
+                    except Exception:
+                        continue
+        target = item.mini_xprompt_target
+        if target is not None:
+            item.mini_xprompt_target = replace(target, frontmatter=raw)
+        else:
+            self._stack.set_frontmatter_model(model)
 
     # -- local xprompt completion parity --------------------------------------
 
-    def local_xprompt_assist_entries(self) -> list[XPromptAssistEntry]:
+    def local_xprompt_assist_entries(
+        self, text_area: object | None = None
+    ) -> list[XPromptAssistEntry]:
         """Assist entries for the local xprompts declared in the live frontmatter.
 
         Parses the stack's current ``frontmatter`` string into the structured
@@ -115,12 +182,13 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         ``<ctrl+l>`` completion and the argument-hint resolver.  Returns ``[]``
         when there is no frontmatter or it declares no local xprompts.
         """
-        frontmatter = self._stack.frontmatter
+        scope = self._frontmatter_scope(text_area)
+        frontmatter = scope.raw
         if not frontmatter:
             return []
         cached = self._local_xprompt_cache
-        if cached is not None and cached[0] == frontmatter:
-            return cached[1]
+        if cached is not None and cached[0] == scope.key and cached[1] == frontmatter:
+            return cached[2]
         try:
             model = PromptFrontmatter.parse(frontmatter)
         except Exception:
@@ -132,10 +200,10 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
                 xprompt_assist_entry_from_local_xprompt(name, xprompt)
                 for name, xprompt in model.xprompts.items()
             ]
-        self._local_xprompt_cache = (frontmatter, entries)
+        self._local_xprompt_cache = (scope.key, frontmatter, entries)
         return entries
 
-    def local_xprompts(self) -> dict[str, XPrompt]:
+    def local_xprompts(self, text_area: object | None = None) -> dict[str, XPrompt]:
         """Local xprompts from the live frontmatter, as real ``XPrompt`` objects.
 
         Parses the stack's current ``frontmatter`` string with
@@ -152,7 +220,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         contributes nothing rather than raising, so the selector simply omits
         local entries it cannot parse.
         """
-        frontmatter = self._stack.frontmatter
+        frontmatter = self._frontmatter_scope(text_area).raw
         if not frontmatter:
             return {}
         try:
@@ -160,6 +228,12 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         except Exception:
             return {}
         return dict(model.xprompts)
+
+    def frontmatter_model_for_text_area(
+        self, text_area: object | None = None
+    ) -> PromptFrontmatter:
+        """Return the parsed frontmatter model for a pane's active scope."""
+        return PromptFrontmatter.parse(self._frontmatter_scope(text_area).raw)
 
     # -- lookup ---------------------------------------------------------------
 
@@ -215,7 +289,11 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel = self._frontmatter_panel()
         if panel is None:
             return
-        panel.set_frontmatter(self._stack.frontmatter)
+        scope = self._frontmatter_scope()
+        setter = getattr(panel, "set_scope_label", None)
+        if callable(setter):
+            setter(scope.label)
+        panel.set_frontmatter(scope.raw)
         panel.remove_class("hidden")
         self._refresh_title()
         if focus:
@@ -234,7 +312,11 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         if panel.has_class("hidden"):
             self._show_frontmatter_panel(focus=True)
             return
-        panel.set_frontmatter(self._stack.frontmatter)
+        scope = self._frontmatter_scope()
+        setter = getattr(panel, "set_scope_label", None)
+        if callable(setter):
+            setter(scope.label)
+        panel.set_frontmatter(scope.raw)
         self._frontmatter_return_index = self._stack.selected_index
         self.call_after_refresh(panel.focus_panel)
         self._schedule_height_update()
@@ -269,10 +351,8 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         """Auto-show properties for frontmatter or xprompt target editing."""
         if self._mode != "prompt":
             return
-        has_target = self._stack.binding is not None or (
-            getattr(self, "_readonly_xprompt_target", None) is not None
-        )
-        if not self._stack.frontmatter and not has_target:
+        scope = self._frontmatter_scope()
+        if not scope.raw and not scope.has_target:
             return
         self._show_frontmatter_panel(focus=False)
 
@@ -290,16 +370,19 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         panel = self._frontmatter_panel()
         if panel is None:
             return
-        has_target = self._stack.binding is not None or (
-            getattr(self, "_readonly_xprompt_target", None) is not None
-        )
-        if self._stack.frontmatter or has_target:
+        scope = self._frontmatter_scope()
+        if scope.raw or scope.has_target:
             self._show_frontmatter_panel(focus=False)
         else:
             panel.add_class("hidden")
             self._schedule_height_update()
 
-    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> list[str]:
+    def merge_frontmatter_inputs(
+        self,
+        inputs: list[InputArg],
+        *,
+        target_text_area: object | None = None,
+    ) -> list[str]:
         """Stage undeclared xprompt inputs in prompt-level frontmatter.
 
         Existing prompt declarations win on name collisions so inline expansion
@@ -312,7 +395,9 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         if self._mode != "prompt" or not inputs:
             return []
         try:
-            model = PromptFrontmatter.parse(self._stack.frontmatter)
+            model = PromptFrontmatter.parse(
+                self._frontmatter_scope(target_text_area).raw
+            )
         except Exception:
             return []
 
@@ -324,7 +409,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             added.append(arg.name)
 
         if added:
-            self._stack.set_frontmatter_model(model)
+            self._set_frontmatter_scope_model(model, target_text_area)
         self.refresh_frontmatter_panel_from_stack()
         return added
 
@@ -368,7 +453,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
                 inputs=[arg for arg in inputs if not arg.is_step_input],
             )
         )
-        self._snapshot_auto_staged(added)
+        self._snapshot_auto_staged(added, text_area)
 
     def handle_text_area_undo(
         self, text_area: PromptTextArea, before_text: str, after_text: str
@@ -410,7 +495,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         """Mark *txn* undone and unstage the inputs it solely owns."""
         txn.active = False
         try:
-            model = PromptFrontmatter.parse(self._stack.frontmatter)
+            model = PromptFrontmatter.parse(self._frontmatter_scope(txn.text_area).raw)
         except Exception:
             # Mid-edit / invalid frontmatter: leave it untouched rather than
             # clobbering the user's text. The body undo still stands.
@@ -433,14 +518,14 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             # expansion no longer owns the name.
             del self._auto_staged_inputs[name]
         if changed:
-            self._stack.set_frontmatter_model(model)
+            self._set_frontmatter_scope_model(model, txn.text_area)
             self.refresh_frontmatter_panel_from_stack()
 
     def _redo_inline_expansion(self, txn: InlineExpansionTransaction) -> None:
         """Mark *txn* active again and restage the inputs its body needs."""
         txn.active = True
         try:
-            model = PromptFrontmatter.parse(self._stack.frontmatter)
+            model = PromptFrontmatter.parse(self._frontmatter_scope(txn.text_area).raw)
         except Exception:
             return
         restaged: list[str] = []
@@ -451,8 +536,8 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             # A name already present (user-authored or still staged by another
             # active expansion) is left untouched -- never overwrite it.
         if restaged:
-            self._stack.set_frontmatter_model(model)
-            self._snapshot_auto_staged(restaged)
+            self._set_frontmatter_scope_model(model, txn.text_area)
+            self._snapshot_auto_staged(restaged, txn.text_area)
             self.refresh_frontmatter_panel_from_stack()
 
     def _input_still_needed(self, name: str) -> bool:
@@ -466,7 +551,9 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
             txn.active and name in txn.depends for txn in self._inline_expansion_txns
         )
 
-    def _snapshot_auto_staged(self, names: list[str]) -> None:
+    def _snapshot_auto_staged(
+        self, names: list[str], text_area: object | None = None
+    ) -> None:
         """Record the persisted declaration for each freshly auto-staged *name*.
 
         Snapshots the round-tripped declaration (not the raw expansion arg) so a
@@ -476,7 +563,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         if not names:
             return
         try:
-            model = PromptFrontmatter.parse(self._stack.frontmatter)
+            model = PromptFrontmatter.parse(self._frontmatter_scope(text_area).raw)
         except Exception:
             return
         for name in names:
@@ -489,7 +576,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
     def on_frontmatter_panel_changed(self, event: FrontmatterPanel.Changed) -> None:
         """Persist a panel edit onto the stack's frontmatter string."""
         event.stop()
-        self._stack.set_frontmatter_model(event.model)
+        self._set_frontmatter_scope_model(event.model)
         self._refresh_title()
         self._schedule_height_update()
 
@@ -498,7 +585,7 @@ class PromptInputBarFrontmatterMixin(_MixinBase):
         event.stop()
         panel = self._frontmatter_panel()
         if event.is_empty:
-            self._stack.frontmatter = ""
+            self._set_frontmatter_scope_model(PromptFrontmatter())
             if panel is not None:
                 panel.add_class("hidden")
 

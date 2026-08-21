@@ -75,6 +75,15 @@ class _SnippetSeparatorInfo:
     state: str  # "clean" | "dirty" | "new"
 
 
+@dataclass(frozen=True)
+class _MiniXPromptSeparatorInfo:
+    """The chip/destination/state data the mini-xprompt separator renders."""
+
+    name: str
+    destination: str
+    state: str  # "clean" | "dirty" | "new"
+
+
 class _PromptStackSeparator(Static):
     """Width-aware separator row for one prompt-stack pane."""
 
@@ -84,12 +93,14 @@ class _PromptStackSeparator(Static):
         *,
         active: bool = False,
         snippet: _SnippetSeparatorInfo | None = None,
+        mini_xprompt: _MiniXPromptSeparatorInfo | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
         self.label = label
         self.active = active
         self.snippet = snippet
+        self.mini_xprompt = mini_xprompt
         self.position: tuple[int, int] | None = None
         self.vim_mode: str = "insert"
 
@@ -107,6 +118,13 @@ class _PromptStackSeparator(Static):
         self.snippet = info
         self.refresh()
 
+    def set_mini_xprompt_info(self, info: _MiniXPromptSeparatorInfo | None) -> None:
+        """Replace the mini-xprompt chip/destination/marker when changed."""
+        if self.mini_xprompt == info:
+            return
+        self.mini_xprompt = info
+        self.refresh()
+
     def set_position(
         self, position: tuple[int, int] | None, vim_mode: str = "insert"
     ) -> None:
@@ -122,6 +140,8 @@ class _PromptStackSeparator(Static):
         width = max(0, int(self.size.width))
         if self.snippet is not None:
             return self._render_snippet(width)
+        if self.mini_xprompt is not None:
+            return self._render_mini_xprompt(width)
 
         label = self.label
         if self.active:
@@ -164,6 +184,16 @@ class _PromptStackSeparator(Static):
             return "●", f"bold {self._theme_color('warning', 'yellow')}"
         return "✓", "dim"
 
+    def _mini_xprompt_marker(self) -> tuple[str, str]:
+        """Return ``(text, style)`` for the mini-xprompt pane's state marker."""
+        info = self.mini_xprompt
+        assert info is not None
+        if info.state == "new":
+            return "new", f"bold {self._theme_color('success', 'green')}"
+        if info.state == "dirty":
+            return "●", f"bold {self._theme_color('warning', 'yellow')}"
+        return "✓", "dim"
+
     def _render_snippet(self, width: int) -> Text:
         """Render the trigger-labeled title bar for the pinned snippet pane.
 
@@ -177,6 +207,50 @@ class _PromptStackSeparator(Static):
         chip = f"{chip_prefix}⇥ {info.trigger}"
         chip_style = "bold" if self.active else "dim"
         marker_text, marker_style = self._snippet_marker()
+
+        fixed_width = cell_len(f"  {chip}   {marker_text}  ")
+        dest_budget = max(0, width - fixed_width)
+        destination = (
+            _middle_elide_cells(info.destination, dest_budget)
+            if info.destination and dest_budget > 0
+            else ""
+        )
+
+        body = Text(no_wrap=True, overflow="crop")
+        body.append(" ")
+        body.append(chip, style=chip_style)
+        if destination:
+            body.append(" · ", style="dim")
+            body.append(destination, style="dim")
+        body.append(" ")
+        body.append(marker_text, style=marker_style)
+        body.append(" ")
+        label_width = body.cell_len
+
+        if width <= label_width:
+            text = body.copy()
+            text.no_wrap = True
+            text.overflow = "ellipsis"
+            text.truncate(width, overflow="ellipsis")
+            return text
+
+        rule_width = width - label_width
+        left_width = rule_width // 2
+        right_width = rule_width - left_width
+        text = Text(no_wrap=True, overflow="crop")
+        text.append(_STACK_SEPARATOR_RULE * left_width, style="dim")
+        text.append_text(body)
+        text.append_text(self._render_right_rule(right_width))
+        return text
+
+    def _render_mini_xprompt(self, width: int) -> Text:
+        """Render the name-labeled title bar for a pinned mini-xprompt pane."""
+        info = self.mini_xprompt
+        assert info is not None
+        chip_prefix = f"{_STACK_SEPARATOR_ACTIVE_MARKER} " if self.active else ""
+        chip = f"{chip_prefix}#{info.name}"
+        chip_style = "bold" if self.active else "dim"
+        marker_text, marker_style = self._mini_xprompt_marker()
 
         fixed_width = cell_len(f"  {chip}   {marker_text}  ")
         dest_budget = max(0, width - fixed_width)
@@ -290,6 +364,8 @@ class PromptInputBarStackRenderingMixin(
         for index, item in enumerate(self._stack.items):
             if item.is_snippet_pane:
                 label = "snippet"
+            elif item.is_mini_xprompt_pane:
+                label = "mini xprompt"
             else:
                 agent_number += 1
                 label = f"agent {agent_number}"
@@ -298,16 +374,23 @@ class PromptInputBarStackRenderingMixin(
                 state = "active" if active else "inactive"
                 classes = f"prompt-stack-separator {state}"
                 snippet_info = None
+                mini_xprompt_info = None
                 if item.is_snippet_pane:
                     classes += " snippet"
                     snippet_info = self._snippet_separator_info(item)
                     if snippet_info.state == "dirty":
                         classes += " snippet-dirty"
+                elif item.is_mini_xprompt_pane:
+                    classes += " mini-xprompt"
+                    mini_xprompt_info = self._mini_xprompt_separator_info(item)
+                    if mini_xprompt_info.state == "dirty":
+                        classes += " mini-xprompt-dirty"
                 widgets.append(
                     _PromptStackSeparator(
                         label,
                         active=active,
                         snippet=snippet_info,
+                        mini_xprompt=mini_xprompt_info,
                         id=self._sep_id(item),
                         classes=classes,
                     )
@@ -334,6 +417,8 @@ class PromptInputBarStackRenderingMixin(
         classes = f"prompt-input prompt-pane {state}"
         if self._stack.items[index].is_snippet_pane:
             classes += " snippet-target"
+        elif self._stack.items[index].is_mini_xprompt_pane:
+            classes += " mini-xprompt-target"
         return classes
 
     def _snippet_separator_info(self, item: PromptStackItem) -> _SnippetSeparatorInfo:
@@ -348,6 +433,24 @@ class PromptInputBarStackRenderingMixin(
             state = "clean"
         return _SnippetSeparatorInfo(
             trigger=target.trigger,
+            destination=target.display_path,
+            state=state,
+        )
+
+    def _mini_xprompt_separator_info(
+        self, item: PromptStackItem
+    ) -> _MiniXPromptSeparatorInfo:
+        """Return the chip/destination/marker state for the mini-xprompt rule."""
+        target = item.mini_xprompt_target
+        assert target is not None
+        if not target.exists:
+            state = "new"
+        elif self._stack.mini_xprompt_is_dirty:
+            state = "dirty"
+        else:
+            state = "clean"
+        return _MiniXPromptSeparatorInfo(
+            name=target.name,
             destination=target.display_path,
             state=state,
         )
@@ -433,7 +536,7 @@ class PromptInputBarStackRenderingMixin(
             if item.item_id == item_id:
                 return index
         for index in range(len(self._stack.items) - 1, -1, -1):
-            if not self._stack.items[index].is_snippet_pane:
+            if not self._stack.items[index].is_auxiliary_pane:
                 return index
         return self._stack.selected_index
 
@@ -484,26 +587,39 @@ class PromptInputBarStackRenderingMixin(
         self.refresh_cursor_readouts()
 
     def _snippet_frame_state(self) -> str | None:
-        """Return ``"safe"``/``"dirty"`` while the snippet pane holds focus.
+        """Return ``"safe"``/``"dirty"`` while an auxiliary pane holds focus.
 
-        ``None`` off the snippet pane: the bar frame answers "what does
+        ``None`` off an auxiliary pane: the bar frame answers "what does
         ``<enter>`` do right now", so it tracks focus, not mere existence.
         """
         if self._mode != "prompt":
             return None
         item = self._stack.selected_item
-        if not item.is_snippet_pane or item.snippet_target is None:
-            return None
-        return (
-            "dirty" if self._snippet_separator_info(item).state == "dirty" else "safe"
-        )
+        if item.is_snippet_pane and item.snippet_target is not None:
+            return (
+                "dirty"
+                if self._snippet_separator_info(item).state == "dirty"
+                else "safe"
+            )
+        if item.is_mini_xprompt_pane and item.mini_xprompt_target is not None:
+            return (
+                "dirty"
+                if self._mini_xprompt_separator_info(item).state == "dirty"
+                else "safe"
+            )
+        return None
 
     def _refresh_snippet_frame_classes(self) -> None:
-        """Sync the bar-level snippet frame classes with the active pane."""
+        """Sync bar-level auxiliary frame classes with the active pane."""
         state = self._snippet_frame_state()
         self.set_class(state is not None, "snippet-mode")
         self.set_class(state == "safe", "snippet-safe")
         self.set_class(state == "dirty", "snippet-dirty")
+        item = self._stack.selected_item
+        mini = state is not None and item.is_mini_xprompt_pane
+        self.set_class(mini, "mini-xprompt-mode")
+        self.set_class(mini and state == "safe", "mini-xprompt-safe")
+        self.set_class(mini and state == "dirty", "mini-xprompt-dirty")
 
     def refresh_cursor_readouts(self) -> None:
         """Sync the active pane's subtitle readout and each parked separator's rule.
@@ -525,9 +641,13 @@ class PromptInputBarStackRenderingMixin(
             except Exception:
                 continue
             if item.is_snippet_pane:
-                info = self._snippet_separator_info(item)
-                separator.set_snippet_info(info)
-                separator.set_class(info.state == "dirty", "snippet-dirty")
+                snippet_info = self._snippet_separator_info(item)
+                separator.set_snippet_info(snippet_info)
+                separator.set_class(snippet_info.state == "dirty", "snippet-dirty")
+            elif item.is_mini_xprompt_pane:
+                mini_info = self._mini_xprompt_separator_info(item)
+                separator.set_mini_xprompt_info(mini_info)
+                separator.set_class(mini_info.state == "dirty", "mini-xprompt-dirty")
             if index == self._stack.selected_index:
                 separator.set_position(None)
                 continue

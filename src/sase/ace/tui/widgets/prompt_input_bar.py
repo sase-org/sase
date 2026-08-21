@@ -32,6 +32,8 @@ from sase.ace.tui.widgets._prompt_input_bar_messages import (
     GlossaryPanelRequested as _GlossaryPanelRequested,
     HistoryRequested as _HistoryRequested,
     MemoryPanelRequested as _MemoryPanelRequested,
+    MiniXPromptPaneSaveRequested as _MiniXPromptPaneSaveRequested,
+    MiniXPromptTargetRequested as _MiniXPromptTargetRequested,
     SnippetPanelRequested as _SnippetPanelRequested,
     RestoreRequested as _RestoreRequested,
     SaveAsXpromptRequested as _SaveAsXpromptRequested,
@@ -56,6 +58,9 @@ from sase.ace.tui.widgets._prompt_input_bar_search import (
 )
 from sase.ace.tui.widgets._prompt_input_bar_snippet_pane import (
     PromptInputBarSnippetPaneMixin,
+)
+from sase.ace.tui.widgets._prompt_input_bar_mini_xprompt_pane import (
+    PromptInputBarMiniXPromptPaneMixin,
 )
 from sase.ace.tui.widgets._prompt_input_bar_stack_models import PromptFocusRestore
 from sase.ace.tui.widgets.frontmatter_panel import FrontmatterPanel
@@ -110,6 +115,7 @@ def _middle_elide_cells(value: str, width: int) -> str:
 class PromptInputBar(
     PromptInputBarFrontmatterMixin,
     PromptInputBarSnippetPaneMixin,
+    PromptInputBarMiniXPromptPaneMixin,
     PromptInputBarStackActionsMixin,
     PromptInputBarGPrefixHintsMixin,
     PromptInputBarSearchMixin,
@@ -135,6 +141,8 @@ class PromptInputBar(
     SnippetRequested = _SnippetRequested
     SnippetTargetRequested = _SnippetTargetRequested
     SnippetPaneSaveRequested = _SnippetPaneSaveRequested
+    MiniXPromptTargetRequested = _MiniXPromptTargetRequested
+    MiniXPromptPaneSaveRequested = _MiniXPromptPaneSaveRequested
     WorkflowEditorRequested = _WorkflowEditorRequested
     WriteXpromptRequested = _WriteXpromptRequested
 
@@ -178,6 +186,7 @@ class PromptInputBar(
         # previous panes are still being detached never collides on widget ids.
         self._generation = 0
         self._snippet_focus_restore: PromptFocusRestore | None = None
+        self._mini_xprompt_focus_restore: PromptFocusRestore | None = None
         self._placeholder = ""
         # ``#@`` + ``Ctrl+I`` inline expansions that auto-staged xprompt inputs,
         # coupled to the body splice so NORMAL-mode ``u`` / ``Ctrl+R`` unstage /
@@ -534,6 +543,15 @@ class PromptInputBar(
             return None
         return item.snippet_target.trigger
 
+    def _mini_xprompt_pane_name(self) -> str | None:
+        """Return the active pane's mini-xprompt name, or ``None`` off it."""
+        if self._mode != "prompt":
+            return None
+        item = self._stack.selected_item
+        if not item.is_mini_xprompt_pane or item.mini_xprompt_target is None:
+            return None
+        return item.mini_xprompt_target.name
+
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
@@ -550,6 +568,12 @@ class PromptInputBar(
         if trigger is not None:
             return (
                 f"[Enter] save ⇥ {trigger}  [Esc] normal  [^C] discard  [^G t] rename"
+            )
+        mini_name = self._mini_xprompt_pane_name()
+        if mini_name is not None:
+            return (
+                f"[Enter] save #{mini_name}  [Esc] normal  [^C] discard  "
+                "[^G x] retarget  [^G =] properties"
             )
         target_hint = self._target_save_hint()
         if self._mode == "prompt" and self._stack.agent_count > 1:
@@ -579,6 +603,12 @@ class PromptInputBar(
         if trigger is not None:
             return (
                 f"[g<enter>] save ⇥ {trigger}  [i] insert  [^C] discard  [^G t] rename"
+            )
+        mini_name = self._mini_xprompt_pane_name()
+        if mini_name is not None:
+            return (
+                f"[g<enter>] save #{mini_name}  [i] insert  [^C] discard  "
+                "[^G x] retarget  [^G =] properties"
             )
         target_hint = self._target_save_hint()
         if self._mode == "prompt" and self._stack.agent_count > 1:

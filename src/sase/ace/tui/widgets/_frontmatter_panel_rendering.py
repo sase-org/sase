@@ -61,6 +61,7 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
         _schema: dict[str, Any]
         _schema_order: list[str]
         _selected: int
+        _scope_label: str | None
 
         def _editable_text(self, field: str) -> str: ...
         def _schedule_layout_update(self) -> None: ...
@@ -113,7 +114,8 @@ class FrontmatterPanelRenderingMixin(_MixinBase):
             chip = f"[bold red]⟨! {errors}⟩[/]"
         else:
             chip = "[bold green]⟨✓⟩[/]"
-        self.border_title = f"frontmatter  {chip}"
+        label = f" {self._scope_label}" if self._scope_label else ""
+        self.border_title = f"frontmatter{label}  {chip}"
         if self._pending_g:
             self.border_subtitle = _SUBTITLE_PENDING_G
         elif self._edit_mode == "edit":

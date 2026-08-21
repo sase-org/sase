@@ -80,6 +80,8 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         bar = self._find_prompt_bar()
         if not bar or bar._mode != "prompt":
             return
+        if bar._stack.selected_item.is_auxiliary_pane:
+            return
         if self.document.line_count != 1:
             return
 
@@ -113,6 +115,8 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         PromptInputBar = prompt_bar_class()
         bar = self._find_prompt_bar()
         if not bar:
+            return
+        if bar._mode == "prompt" and bar._stack.selected_item.is_auxiliary_pane:
             return
         self._clear_insert_g_prefix()
         self._clear_soft_completion(cancel_timer=True)

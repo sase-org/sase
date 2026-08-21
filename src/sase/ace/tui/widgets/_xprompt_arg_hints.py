@@ -150,7 +150,10 @@ class XPromptArgHintMixin(_MixinBase):
         getter = getattr(bar, "local_xprompt_assist_entries", None)
         if not callable(getter):
             return []
-        result = getter()
+        try:
+            result = getter(self)
+        except TypeError:
+            result = getter()
         return result if isinstance(result, list) else []
 
     def _get_xprompt_arg_assist_entries(self) -> list[XPromptAssistEntry]:

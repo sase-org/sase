@@ -41,6 +41,7 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         ) -> int: ...
         def _pane_id(self, item: PromptStackItem) -> str: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def _schedule_xprompt_stale_check(self, *, force: bool = False) -> None: ...
         def _update_todo_count_for_text_area(self, text_area: object) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
@@ -54,6 +55,7 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         self._apply_active_classes()
         self.active_text_area().focus()
         self._refresh_title()
+        self.refresh_frontmatter_panel_from_stack()
         self._schedule_height_update()
         return self._stack.selected_index
 
@@ -84,6 +86,7 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
                 self._clear_active_completion_state()
                 self._stack.selected_index = index
                 self._apply_active_classes()
+                self.refresh_frontmatter_panel_from_stack()
                 self._schedule_height_update()
                 return
 

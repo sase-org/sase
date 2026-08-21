@@ -82,7 +82,7 @@ class JinjaDiagnosticsMixin(_MixinBase):
 
         diagnostics = jinja_inspect.inspect_template(
             text,
-            known=_known_jinja_names_for_prompt(self._find_prompt_bar(), text),
+            known=_known_jinja_names_for_prompt(self._find_prompt_bar(), text, self),
         )
         self._apply_jinja_diagnostics(diagnostics)
 
@@ -146,15 +146,25 @@ class JinjaDiagnosticsMixin(_MixinBase):
         self._refresh_jinja_overlay()
 
 
-def _known_jinja_names_for_prompt(bar: Any, text: str) -> set[str]:
+def _known_jinja_names_for_prompt(
+    bar: Any, text: str, text_area: object | None = None
+) -> set[str]:
     known = jinja_inspect.known_toplevel_context()
     known.update(jinja_inspect.builtin_runtime_names())
-    known.update(_stack_frontmatter_input_names(bar))
+    known.update(_stack_frontmatter_input_names(bar, text_area))
     known.update(_inline_frontmatter_input_names(text))
     return known
 
 
-def _stack_frontmatter_input_names(bar: Any) -> set[str]:
+def _stack_frontmatter_input_names(
+    bar: Any, text_area: object | None = None
+) -> set[str]:
+    getter = getattr(bar, "frontmatter_model_for_text_area", None)
+    if callable(getter):
+        try:
+            return _frontmatter_input_names(getter(text_area))
+        except (TypeError, ValueError):
+            return set()
     stack = getattr(bar, "_stack", None)
     if stack is None:
         return set()

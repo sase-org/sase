@@ -247,6 +247,36 @@ class SnippetPaneSaveRequested(Message, namespace="prompt_input_bar"):
         self.origin_pane_id = origin_pane_id
 
 
+class MiniXPromptTargetRequested(Message, namespace="prompt_input_bar"):
+    """Request the name panel for a pane-scoped mini-xprompt target."""
+
+    def __init__(
+        self,
+        *,
+        origin_bar: PromptInputBar,
+        origin_pane_id: str,
+        initial_name: str = "",
+    ) -> None:
+        super().__init__()
+        self.origin_bar = origin_bar
+        self.origin_pane_id = origin_pane_id
+        self.initial_name = initial_name
+
+
+class MiniXPromptPaneSaveRequested(Message, namespace="prompt_input_bar"):
+    """Request the save-review flow for the active mini-xprompt pane."""
+
+    def __init__(
+        self,
+        *,
+        origin_bar: PromptInputBar,
+        origin_pane_id: str,
+    ) -> None:
+        super().__init__()
+        self.origin_bar = origin_bar
+        self.origin_pane_id = origin_pane_id
+
+
 class EditorRequested(Message, namespace="prompt_input_bar"):
     """Message sent when user requests the single-pane external editor."""
 

@@ -223,12 +223,12 @@ class PromptTextAreaKeyHandlingMixin(
                 self._clear_file_completion()
             bar = self._find_prompt_bar()
             prompt_texts = bar.all_prompt_texts() if bar is not None else []
-            active_is_snippet = bool(
-                bar is not None and bar._stack.selected_item.is_snippet_pane
+            active_is_auxiliary = bool(
+                bar is not None and bar._stack.selected_item.is_auxiliary_pane
             )
             should_choose_submit = (
                 bar is not None
-                and not active_is_snippet
+                and not active_is_auxiliary
                 and (bar.is_stacked() or bar.xprompt_target() is not None)
                 and any(text.strip() for text in prompt_texts)
             )

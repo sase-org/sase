@@ -149,6 +149,8 @@ class PromptInputBarSearchMixin(_MixinBase):
         """Capture mounted panes and their matches, in stack order."""
         panes: list[_PromptSearchPaneSnapshot] = []
         for stack_index, item in enumerate(self._stack.items):
+            if item.is_auxiliary_pane:
+                continue
             try:
                 text_area = self.query_one(
                     f"#{self._pane_id(item)}",

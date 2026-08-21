@@ -101,7 +101,7 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
     def _added_bottom_pane_initial_text(self) -> str:
         """Return the VCS workflow seed for a newly appended agent pane."""
         selected = self._stack.selected_item
-        if selected.is_snippet_pane:
+        if selected.is_auxiliary_pane:
             return ""
         vcs_tag = extract_vcs_workflow_tag(f"{selected.text} ")
         if vcs_tag is None:

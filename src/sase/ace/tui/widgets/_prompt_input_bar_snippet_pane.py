@@ -29,6 +29,7 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
         SnippetPaneSaveRequested: Any
         SnippetTargetRequested: Any
         _generation: int
+        _mini_xprompt_focus_restore: PromptFocusRestore | None
         _mode: str
         _snippet_focus_restore: PromptFocusRestore | None
         _stack: PromptStackState
@@ -51,21 +52,30 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
         """Ask the app to open the snippet trigger-name panel."""
         if self._mode != "prompt":
             return
-        try:
-            origin = self.active_text_area()
-        except Exception:
-            return
-        initial_trigger = ""
-        snippet = self._stack.snippet_item
-        if snippet is not None and snippet.snippet_target is not None:
-            initial_trigger = snippet.snippet_target.trigger
-        self.post_message(
-            self.SnippetTargetRequested(
-                origin_bar=self,
-                origin_pane_id=origin.id or "",
-                initial_trigger=initial_trigger,
+
+        def _post_request() -> None:
+            try:
+                origin = self.active_text_area()
+            except Exception:
+                return
+            initial_trigger = ""
+            snippet = self._stack.snippet_item
+            if snippet is not None and snippet.snippet_target is not None:
+                initial_trigger = snippet.snippet_target.trigger
+            self.post_message(
+                self.SnippetTargetRequested(
+                    origin_bar=self,
+                    origin_pane_id=origin.id or "",
+                    initial_trigger=initial_trigger,
+                )
             )
-        )
+
+        self._sync_state_from_widgets()
+        auxiliary = self._stack.auxiliary_item
+        if auxiliary is not None and not auxiliary.is_snippet_pane:
+            self._confirm_discard_dirty_snippet(_post_request)
+            return
+        _post_request()
 
     def request_save_snippet_target_pane(
         self,
@@ -114,12 +124,17 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             self.refresh_cursor_readouts()
             return True
 
-        origin_index = self._item_index_for_pane_id(origin_pane_id)
+        origin_index = self._origin_index_for_auxiliary_open(origin_pane_id)
         if origin_index is None:
             return False
         restore = self._focus_restore_for_index(origin_index)
         if restore is None:
             return False
+        if self._stack.auxiliary_item is not None:
+            if self._stack.auxiliary_is_dirty:
+                return False
+            self._stack.remove_auxiliary_pane()
+            self._mini_xprompt_focus_restore = None
         self._snippet_focus_restore = restore
         self._clear_active_completion_state()
         self._stack.append_snippet_pane(result.existing_body or "", target)
@@ -203,28 +218,39 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             vim_mode=item.mode,
         )
 
+    def _origin_index_for_auxiliary_open(self, pane_id: str) -> int | None:
+        index = self._item_index_for_pane_id(pane_id)
+        if index is None:
+            return None
+        if not self._stack.items[index].is_auxiliary_pane:
+            return index
+        for candidate in range(len(self._stack.items) - 1, -1, -1):
+            if not self._stack.items[candidate].is_auxiliary_pane:
+                return candidate
+        return None
+
     def _confirm_discard_dirty_snippet(
         self,
         proceed: Callable[[], None],
     ) -> bool:
-        """Run *proceed* now or after confirming a dirty snippet discard."""
+        """Run *proceed* now or after confirming a dirty auxiliary discard."""
         if self._mode != "prompt":
             proceed()
             return True
         self._sync_state_from_widgets()
-        snippet = self._stack.snippet_item
-        if snippet is None or snippet.snippet_target is None:
+        auxiliary = self._stack.auxiliary_item
+        if auxiliary is None:
             proceed()
             return True
-        if not self._stack.snippet_is_dirty:
+        if not self._stack.auxiliary_is_dirty:
             proceed()
             return True
 
         stack = self._stack
         generation = self._generation
-        item_id = snippet.item_id
-        text = snippet.text
-        trigger = snippet.snippet_target.trigger
+        item_id = auxiliary.item_id
+        text = auxiliary.text
+        title, detail = self._dirty_auxiliary_guard_copy(auxiliary)
         handled = False
 
         def _on_confirm(confirmed: bool | None) -> None:
@@ -241,14 +267,14 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
                 ):
                     proceed()
                 return
-            self._refocus_dirty_snippet()
+            self._refocus_dirty_auxiliary()
 
         from sase.ace.tui.modals import ConfirmActionModal, ConfirmKind
 
         self.app.push_screen(
             ConfirmActionModal(
-                f"Discard unsaved snippet ⇥ {trigger}?",
-                "This snippet draft has unsaved changes.",
+                title,
+                detail,
                 kind=ConfirmKind.DANGER,
                 confirm_label="Discard",
                 cancel_label="Keep editing",
@@ -257,6 +283,20 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             _on_confirm,
         )
         return False
+
+    @staticmethod
+    def _dirty_auxiliary_guard_copy(item: PromptStackItem) -> tuple[str, str]:
+        if item.snippet_target is not None:
+            return (
+                f"Discard unsaved snippet ⇥ {item.snippet_target.trigger}?",
+                "This snippet draft has unsaved changes.",
+            )
+        if item.mini_xprompt_target is not None:
+            return (
+                f"Discard unsaved mini-xprompt #{item.mini_xprompt_target.name}?",
+                "This mini-xprompt draft has unsaved changes.",
+            )
+        return ("Discard unsaved draft?", "This draft has unsaved changes.")
 
     def _dirty_snippet_guard_current(
         self,
@@ -272,16 +312,16 @@ class PromptInputBarSnippetPaneMixin(_MixinBase):
             or self._generation != generation
         ):
             return False
-        snippet = self._stack.snippet_item
+        snippet = self._stack.auxiliary_item
         return (
             snippet is not None
             and snippet.item_id == item_id
             and snippet.text == text
-            and self._stack.snippet_is_dirty
+            and self._stack.auxiliary_is_dirty
         )
 
-    def _refocus_dirty_snippet(self) -> None:
-        index = self._stack.snippet_index
+    def _refocus_dirty_auxiliary(self) -> None:
+        index = self._stack.auxiliary_index
         if index is None:
             return
         try:

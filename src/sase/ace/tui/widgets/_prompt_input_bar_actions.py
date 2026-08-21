@@ -97,6 +97,14 @@ class PromptInputBarActionsMixin(_MixinBase):
             self,
             reason: Literal["saved", "discarded", "replaced"],
         ) -> bool: ...
+        def close_mini_xprompt_target(
+            self,
+            reason: Literal["saved", "discarded", "replaced"],
+        ) -> bool: ...
+        def request_save_mini_xprompt_target_pane(
+            self,
+            origin_text_area: PromptTextArea | None = None,
+        ) -> None: ...
         def request_save_snippet_target_pane(
             self,
             origin_text_area: PromptTextArea | None = None,
@@ -143,8 +151,8 @@ class PromptInputBarActionsMixin(_MixinBase):
             return False
         self._sync_state_from_widgets()
         if (
-            not self._stack.snippet_is_dirty
-            or self._stack.selected_item.is_snippet_pane
+            not self._stack.auxiliary_is_dirty
+            or self._stack.selected_item.is_auxiliary_pane
         ):
             return False
         if self._stack.agent_count > 1:
@@ -170,6 +178,9 @@ class PromptInputBarActionsMixin(_MixinBase):
 
         if self._mode == "prompt" and self._stack.selected_item.is_snippet_pane:
             self.request_save_snippet_target_pane(origin_text_area)
+            return None
+        if self._mode == "prompt" and self._stack.selected_item.is_mini_xprompt_pane:
+            self.request_save_mini_xprompt_target_pane(origin_text_area)
             return None
 
         if self._mode != "prompt" or self._stack.agent_count <= 1:
@@ -217,7 +228,7 @@ class PromptInputBarActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.snippet_is_dirty:
+        if self._stack.auxiliary_is_dirty:
             self._confirm_discard_dirty_snippet(
                 lambda: self._handle_whole_stack_submission_after_snippet_guard(
                     origin_text_area
@@ -440,6 +451,13 @@ class PromptInputBarActionsMixin(_MixinBase):
 
                 self._confirm_discard_dirty_snippet(_close_snippet)
                 return
+            if self._stack.selected_item.is_mini_xprompt_pane:
+
+                def _close_mini_xprompt() -> None:
+                    self.close_mini_xprompt_target("discarded")
+
+                self._confirm_discard_dirty_snippet(_close_mini_xprompt)
+                return
             cancelled_text = self._stack.selected_item.text.strip()
             removed = self._stack.remove_selected()
             if not removed:
@@ -452,7 +470,7 @@ class PromptInputBarActionsMixin(_MixinBase):
                         )
                     )
 
-                if self._stack.has_snippet_pane:
+                if self._stack.has_auxiliary_pane:
                     self._confirm_discard_dirty_snippet(_cancel_bar)
                 else:
                     _cancel_bar()

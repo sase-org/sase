@@ -32,7 +32,9 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
         def active_text_area(self) -> PromptTextArea: ...
-        def local_xprompts(self) -> dict[str, XPrompt]: ...
+        def local_xprompts(
+            self, text_area: object | None = None
+        ) -> dict[str, XPrompt]: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
 
     def convert_active_pane_to_local_xprompt(
@@ -55,7 +57,7 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return
         body = self._stack.selected_item.text.strip()
         if not body:

@@ -3660,6 +3660,14 @@ PromptInputBar.snippet-mode.snippet-dirty {
     border: double $warning;
 }
 
+PromptInputBar.mini-xprompt-mode.mini-xprompt-safe {
+    border: double $secondary;
+}
+
+PromptInputBar.mini-xprompt-mode.mini-xprompt-dirty {
+    border: double $warning;
+}
+
 PromptInputBar #prompt-completion {
     width: 100%;
     height: auto;
@@ -3950,6 +3958,17 @@ PromptInputBar .prompt-pane.snippet-target.inactive {
     border-left: vkey $primary;
 }
 
+/* Mini-xprompt panes use the xprompt accent family and keep the same pane fill
+   as ordinary agent panes. */
+PromptInputBar .prompt-pane.mini-xprompt-target.active,
+PromptInputBar .prompt-pane.mini-xprompt-target.active:focus {
+    border-left: thick $secondary;
+}
+
+PromptInputBar .prompt-pane.mini-xprompt-target.inactive {
+    border-left: vkey $secondary;
+}
+
 /* Separator rows: width-aware hairline rules with centered agent labels. */
 PromptInputBar .prompt-stack-separator {
     width: 100%;
@@ -3974,6 +3993,14 @@ PromptInputBar .prompt-stack-separator.snippet {
 }
 
 PromptInputBar .prompt-stack-separator.snippet.snippet-dirty {
+    color: $warning;
+}
+
+PromptInputBar .prompt-stack-separator.mini-xprompt {
+    color: $secondary;
+}
+
+PromptInputBar .prompt-stack-separator.mini-xprompt.mini-xprompt-dirty {
     color: $warning;
 }
 

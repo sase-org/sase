@@ -149,6 +149,7 @@ class FrontmatterPanel(
         self._raw_content_lines = 1
         self._raw_editor: VimTextArea | None = None
         self._feedback_widget: Static | None = None
+        self._scope_label: str | None = None
         self._content_lines = 1
         self._height_cap: int | None = None
         schema = frontmatter_field_schema()
@@ -225,6 +226,13 @@ class FrontmatterPanel(
         self._raw_content_lines = 1
         self._undo_stack.clear()
         self._show_rows_only()
+        self._refresh()
+
+    def set_scope_label(self, label: str | None) -> None:
+        """Set the optional scope label shown in the panel title."""
+        if self._scope_label == label:
+            return
+        self._scope_label = label
         self._refresh()
 
     def focus_panel(self) -> None:

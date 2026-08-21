@@ -11,19 +11,23 @@ from __future__ import annotations
 from ._prompt_stack_parsing import split_frontmatter, split_prompt_text
 from ._prompt_stack_state import PromptStackItem, PromptStackState
 from ._prompt_stack_targets import (
+    MiniXPromptPaneTarget,
     SnippetPaneTarget,
     SourceFingerprint,
     XPromptBinding,
     XPromptReadonlyTarget,
+    mini_xprompt_draft_hash,
 )
 
 __all__ = [
     "PromptStackItem",
     "PromptStackState",
+    "MiniXPromptPaneTarget",
     "SnippetPaneTarget",
     "SourceFingerprint",
     "XPromptBinding",
     "XPromptReadonlyTarget",
+    "mini_xprompt_draft_hash",
     "split_frontmatter",
     "split_prompt_text",
 ]

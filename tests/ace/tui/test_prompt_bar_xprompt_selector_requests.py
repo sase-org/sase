@@ -239,8 +239,15 @@ class _ExpandOriginBar(PromptInputBar):
         )
         return self._applied
 
-    def merge_frontmatter_inputs(self, inputs: list[InputArg]) -> None:  # type: ignore[override]
+    def merge_frontmatter_inputs(  # type: ignore[override]
+        self,
+        inputs: list[InputArg],
+        *,
+        target_text_area: object | None = None,
+    ) -> list[str]:
+        del target_text_area
         self.merge_calls.append(inputs)
+        return [arg.name for arg in inputs]
 
 
 def _expand_callback(

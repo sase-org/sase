@@ -146,9 +146,46 @@ class SnippetPaneTarget:
     save_warning: str | None = None
 
 
+def mini_xprompt_draft_hash(frontmatter: str, body: str) -> str:
+    """Return the stable dirty-check hash for one mini-xprompt draft."""
+    payload = f"{frontmatter}\0{body.strip()}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class MiniXPromptPaneTarget:
+    """The xprompt definition a pane-scoped mini-xprompt draft edits."""
+
+    name: str
+    reference: str
+    location_path: str
+    read_path: str
+    write_path: str
+    display_path: str
+    apply_target: str | None
+    via_chezmoi: bool
+    target_format: SaveTargetFormat
+    entry_name: str | None
+    storage_name: str
+    exists: bool
+    frontmatter: str
+    loaded_body: str | None
+    loaded_markdown: str | None
+    loaded_fingerprint: SourceFingerprint | None
+    clean_hash: str
+    derived_from: str | None = None
+    save_warning: str | None = None
+
+    def draft_hash(self, body: str) -> str:
+        """Return the dirty-check hash for *body* under this target frontmatter."""
+        return mini_xprompt_draft_hash(self.frontmatter, body)
+
+
 __all__ = [
+    "MiniXPromptPaneTarget",
     "SnippetPaneTarget",
     "SourceFingerprint",
     "XPromptBinding",
     "XPromptReadonlyTarget",
+    "mini_xprompt_draft_hash",
 ]

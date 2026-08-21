@@ -29,6 +29,7 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _readonly_xprompt_target: XPromptReadonlyTarget | None
+        _mini_xprompt_focus_restore: PromptFocusRestore | None
         _snippet_focus_restore: PromptFocusRestore | None
         _stack: PromptStackState
         _xprompt_source_stale: bool
@@ -77,7 +78,7 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         keeping the body text verbatim.
         """
         self._sync_state_from_widgets()
-        if self._stack.snippet_is_dirty:
+        if self._stack.auxiliary_is_dirty:
             self._confirm_discard_dirty_snippet(
                 lambda: self._load_stack_from_xprompt_markdown_after_snippet_guard(
                     text,
@@ -112,6 +113,8 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         self._stack = PromptStackState.from_text(text)
         if hasattr(self, "_snippet_focus_restore"):
             self._snippet_focus_restore = None
+        if hasattr(self, "_mini_xprompt_focus_restore"):
+            self._mini_xprompt_focus_restore = None
         self._rebuild_stack()
         if binding is not None:
             self.target_xprompt(binding, source_markdown=text)
@@ -195,7 +198,7 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         on a later whole-stack submit), and the pane is re-focused for typing.
         """
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return
         self._stack.selected_item.text = text
         self._rebuild_stack(enter_mode="insert")
@@ -237,7 +240,7 @@ class PromptInputBarStackXPromptMixin(_MixinBase):
         index = self._pane_index_for(text_area)
         if index is None:
             return False
-        if self._stack.items[index].is_snippet_pane:
+        if self._stack.items[index].is_auxiliary_pane:
             return False
 
         frontmatter, body = split_frontmatter(text)

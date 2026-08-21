@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 
 from ._prompt_stack_binding import PromptStackBindingMixin
 from ._prompt_stack_parsing import split_frontmatter, split_prompt_text
-from ._prompt_stack_targets import SnippetPaneTarget, XPromptBinding
+from ._prompt_stack_targets import (
+    MiniXPromptPaneTarget,
+    SnippetPaneTarget,
+    XPromptBinding,
+)
 
 
 @dataclass
@@ -26,11 +31,35 @@ class PromptStackItem:
     mode: str = "insert"
     last_height: int | None = None
     snippet_target: SnippetPaneTarget | None = None
+    mini_xprompt_target: MiniXPromptPaneTarget | None = None
+
+    def __post_init__(self) -> None:
+        if self.snippet_target is not None and self.mini_xprompt_target is not None:
+            raise ValueError("prompt stack item cannot have two auxiliary targets")
+
+    @property
+    def role(self) -> Literal["agent", "snippet", "mini_xprompt"]:
+        """Return the stack role this item currently occupies."""
+        if self.snippet_target is not None:
+            return "snippet"
+        if self.mini_xprompt_target is not None:
+            return "mini_xprompt"
+        return "agent"
 
     @property
     def is_snippet_pane(self) -> bool:
         """Return whether this item is the pane-scoped snippet draft."""
         return self.snippet_target is not None
+
+    @property
+    def is_mini_xprompt_pane(self) -> bool:
+        """Return whether this item is the pane-scoped mini-xprompt draft."""
+        return self.mini_xprompt_target is not None
+
+    @property
+    def is_auxiliary_pane(self) -> bool:
+        """Return whether this item is an auxiliary authoring target."""
+        return self.role != "agent"
 
 
 @dataclass
@@ -147,9 +176,47 @@ class PromptStackState(PromptStackBindingMixin):
         return self.snippet_item is not None
 
     @property
+    def mini_xprompt_index(self) -> int | None:
+        """The mounted index of the mini-xprompt pane, if present."""
+        for index, item in enumerate(self.items):
+            if item.is_mini_xprompt_pane:
+                return index
+        return None
+
+    @property
+    def mini_xprompt_item(self) -> PromptStackItem | None:
+        """The pinned bottom mini-xprompt item, if present."""
+        index = self.mini_xprompt_index
+        return self.items[index] if index is not None else None
+
+    @property
+    def has_mini_xprompt_pane(self) -> bool:
+        """Return whether the stack currently includes a mini-xprompt pane."""
+        return self.mini_xprompt_item is not None
+
+    @property
+    def auxiliary_index(self) -> int | None:
+        """The mounted index of the single auxiliary pane, if present."""
+        for index, item in enumerate(self.items):
+            if item.is_auxiliary_pane:
+                return index
+        return None
+
+    @property
+    def auxiliary_item(self) -> PromptStackItem | None:
+        """The pinned bottom auxiliary item, if present."""
+        index = self.auxiliary_index
+        return self.items[index] if index is not None else None
+
+    @property
+    def has_auxiliary_pane(self) -> bool:
+        """Return whether any auxiliary authoring pane is currently mounted."""
+        return self.auxiliary_item is not None
+
+    @property
     def agent_items(self) -> list[PromptStackItem]:
         """Prompt items that participate in launch, stash, and save-as payloads."""
-        return [item for item in self.items if not item.is_snippet_pane]
+        return [item for item in self.items if not item.is_auxiliary_pane]
 
     @property
     def agent_texts(self) -> list[str]:
@@ -168,6 +235,20 @@ class PromptStackState(PromptStackBindingMixin):
         if item is None or item.snippet_target is None:
             return False
         return item.text.strip() != (item.snippet_target.loaded_body or "")
+
+    @property
+    def mini_xprompt_is_dirty(self) -> bool:
+        """Return whether the mini-xprompt draft differs from its clean hash."""
+        item = self.mini_xprompt_item
+        if item is None or item.mini_xprompt_target is None:
+            return False
+        target = item.mini_xprompt_target
+        return target.draft_hash(item.text) != target.clean_hash
+
+    @property
+    def auxiliary_is_dirty(self) -> bool:
+        """Return whether the mounted auxiliary pane has unsaved edits."""
+        return self.snippet_is_dirty or self.mini_xprompt_is_dirty
 
     @property
     def is_effectively_empty(self) -> bool:
@@ -243,10 +324,10 @@ class PromptStackState(PromptStackBindingMixin):
     def insert_below(self, text: str = "", *, select: bool = True) -> PromptStackItem:
         """Insert a new item directly below the active item."""
         item = self._new_item(text)
-        snippet_index = self.snippet_index
+        auxiliary_index = self.auxiliary_index
         position = self.selected_index + 1
-        if snippet_index is not None:
-            position = min(position, snippet_index)
+        if auxiliary_index is not None:
+            position = min(position, auxiliary_index)
         self.items.insert(position, item)
         if select:
             self.selected_index = position
@@ -259,12 +340,12 @@ class PromptStackState(PromptStackBindingMixin):
     def append_bottom(self, text: str = "", *, select: bool = True) -> PromptStackItem:
         """Append a new item at the bottom of the stack (the ``g-`` keymap)."""
         item = self._new_item(text)
-        snippet_index = self.snippet_index
-        if snippet_index is None:
+        auxiliary_index = self.auxiliary_index
+        if auxiliary_index is None:
             self.items.append(item)
             position = len(self.items) - 1
         else:
-            position = snippet_index
+            position = auxiliary_index
             self.items.insert(position, item)
         if select:
             self.selected_index = position
@@ -276,8 +357,8 @@ class PromptStackState(PromptStackBindingMixin):
         self, text: str, target: SnippetPaneTarget
     ) -> PromptStackItem:
         """Append the single pinned bottom snippet pane and focus it."""
-        if self.snippet_item is not None:
-            raise ValueError("prompt stack already has a snippet pane")
+        if self.auxiliary_item is not None:
+            raise ValueError("prompt stack already has an auxiliary pane")
         item = self._new_item(text, snippet_target=target)
         self.items.append(item)
         self.selected_index = len(self.items) - 1
@@ -302,9 +383,45 @@ class PromptStackState(PromptStackBindingMixin):
             raise ValueError("prompt stack has no snippet pane")
         item.snippet_target = target
 
+    def append_mini_xprompt_pane(
+        self, text: str, target: MiniXPromptPaneTarget
+    ) -> PromptStackItem:
+        """Append the single pinned bottom mini-xprompt pane and focus it."""
+        if self.auxiliary_item is not None:
+            raise ValueError("prompt stack already has an auxiliary pane")
+        item = self._new_item(text, mini_xprompt_target=target)
+        self.items.append(item)
+        self.selected_index = len(self.items) - 1
+        return item
+
+    def remove_mini_xprompt_pane(self) -> PromptStackItem | None:
+        """Remove and return the mini-xprompt pane, leaving agent panes intact."""
+        index = self.mini_xprompt_index
+        if index is None:
+            return None
+        item = self.items.pop(index)
+        if self.selected_index > index:
+            self.selected_index -= 1
+        else:
+            self.selected_index = self._clamp(self.selected_index)
+        return item
+
+    def retarget_mini_xprompt_pane(self, target: MiniXPromptPaneTarget) -> None:
+        """Replace the mini-xprompt target without touching the draft body."""
+        item = self.mini_xprompt_item
+        if item is None:
+            raise ValueError("prompt stack has no mini-xprompt pane")
+        item.mini_xprompt_target = target
+
+    def remove_auxiliary_pane(self) -> PromptStackItem | None:
+        """Remove and return the mounted auxiliary pane, if any."""
+        if self.snippet_item is not None:
+            return self.remove_snippet_pane()
+        return self.remove_mini_xprompt_pane()
+
     def remove_selected(self) -> bool:
         """Remove the active item when another applicable item remains."""
-        if not self.selected_item.is_snippet_pane and self.agent_count <= 1:
+        if not self.selected_item.is_auxiliary_pane and self.agent_count <= 1:
             return False
         del self.items[self.selected_index]
         self.selected_index = self._clamp(self.selected_index)
@@ -312,10 +429,10 @@ class PromptStackState(PromptStackBindingMixin):
 
     def move_selected(self, delta: int) -> bool:
         """Cycle the active agent item by *delta*, keeping it selected."""
-        if len(self.items) <= 1 or self.selected_item.is_snippet_pane:
+        if len(self.items) <= 1 or self.selected_item.is_auxiliary_pane:
             return False
         target = (self.selected_index + delta) % len(self.items)
-        if self.items[target].is_snippet_pane:
+        if self.items[target].is_auxiliary_pane:
             return False
         if target == self.selected_index:
             return False
@@ -326,7 +443,7 @@ class PromptStackState(PromptStackBindingMixin):
 
     def split_selected(self) -> bool:
         """Canonically split the active item in place."""
-        if self.selected_item.is_snippet_pane:
+        if self.selected_item.is_auxiliary_pane:
             return False
         segments = split_prompt_text(self.selected_item.text)
         if len(segments) <= 1:
@@ -342,7 +459,7 @@ class PromptStackState(PromptStackBindingMixin):
         if not segments:
             segments = [""]
         index = self._clamp(index)
-        if self.items[index].is_snippet_pane:
+        if self.items[index].is_auxiliary_pane:
             return
         self.items[index].text = segments[0]
         additions = [self._new_item(segment) for segment in segments[1:]]
@@ -356,11 +473,13 @@ class PromptStackState(PromptStackBindingMixin):
         text: str,
         *,
         snippet_target: SnippetPaneTarget | None = None,
+        mini_xprompt_target: MiniXPromptPaneTarget | None = None,
     ) -> PromptStackItem:
         item = PromptStackItem(
             text=text,
             item_id=f"p{self._next_id}",
             snippet_target=snippet_target,
+            mini_xprompt_target=mini_xprompt_target,
         )
         self._next_id += 1
         return item

@@ -125,7 +125,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.selected_item.is_snippet_pane:
+        if self._stack.selected_item.is_auxiliary_pane:
             return
         text = self._stack.selected_item.text.strip()
         if not text:
@@ -161,7 +161,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.snippet_is_dirty:
+        if self._stack.auxiliary_is_dirty:
             self._confirm_discard_dirty_snippet(
                 self._stash_all_panes_after_snippet_guard
             )
@@ -194,7 +194,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
-        if self._stack.snippet_is_dirty:
+        if self._stack.auxiliary_is_dirty:
             self._confirm_discard_dirty_snippet(
                 lambda: self._stash_all_and_load_xprompt_markdown_after_snippet_guard(
                     markdown,
@@ -251,6 +251,11 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         if self._mode != "prompt":
             return
         self._sync_state_from_widgets()
+        if self._stack.selected_item.is_mini_xprompt_pane:
+            requester = getattr(self, "request_mini_xprompt_target_pane", None)
+            if callable(requester):
+                requester()
+            return
         # ``single_pane`` is captured before empty panes are filtered out and
         # kept only as context. Snippet mode is always available, with
         # ``snippet_body`` (the active pane only) as its source — so a multi-pane
@@ -259,7 +264,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
         single_pane = self._stack.agent_count == 1
         snippet_body = (
             ""
-            if self._stack.selected_item.is_snippet_pane
+            if self._stack.selected_item.is_auxiliary_pane
             else self._stack.selected_item.text.strip()
         )
         panes = self.capture_stashable_panes()

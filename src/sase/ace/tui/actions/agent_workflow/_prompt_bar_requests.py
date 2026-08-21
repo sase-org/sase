@@ -389,7 +389,7 @@ class PromptBarRequestsMixin:
         #    rather than crashing the selector.
         if origin_bar is not None:
             try:
-                local_xprompts = origin_bar.local_xprompts()
+                local_xprompts = origin_bar.local_xprompts(origin_text_area)
                 for name, xp in local_xprompts.items():
                     extra_prompts[name] = xprompt_to_workflow(xp)
             except Exception:
@@ -440,7 +440,10 @@ class PromptBarRequestsMixin:
             if not applied:
                 return "Prompt pane is no longer available - selection discarded"
             if result.inputs:
-                added = origin_bar.merge_frontmatter_inputs(result.inputs)
+                added = origin_bar.merge_frontmatter_inputs(
+                    result.inputs,
+                    target_text_area=origin_text_area,
+                )
                 origin_bar.register_inline_expansion(
                     origin_text_area,
                     origin_pane_id,
