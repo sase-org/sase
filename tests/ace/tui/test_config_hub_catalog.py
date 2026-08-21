@@ -30,6 +30,9 @@ _SESSION_PATH = (
 _CATALOG_PATH = (
     _ROOT / "src" / "sase" / "ace" / "tui" / "modals" / "config_hub_catalog.py"
 )
+_CENTER_CATALOG_PATH = (
+    _ROOT / "src" / "sase" / "ace" / "tui" / "modals" / "config_center_catalog.py"
+)
 
 
 def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
@@ -119,7 +122,7 @@ def test_config_subtab_order_omits_flags_when_rollout_is_off() -> None:
 
 
 def test_config_catalog_does_not_resolve_flags_at_import() -> None:
-    for path in (_SESSION_PATH, _CATALOG_PATH):
+    for path in (_SESSION_PATH, _CATALOG_PATH, _CENTER_CATALOG_PATH):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         assert not _module_calls_current_flags(tree), path
 

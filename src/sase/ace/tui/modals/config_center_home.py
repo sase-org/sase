@@ -17,6 +17,7 @@ from .config_center_catalog import (
     _TAB_SPECS,
     CenterTab,
     CenterTabSpec,
+    config_tab_description,
 )
 
 _HOME_ID = "admin-center-home"
@@ -91,7 +92,8 @@ def tab_description_text(
 ) -> Text:
     """Render the active-tab caption in its accent color."""
     spec = (specs or _TAB_BY_ID)[tab]
-    return Text(f"› {spec.description}", style=spec.accent)
+    description = config_tab_description() if spec.id == "config" else spec.description
+    return Text(f"› {description}", style=spec.accent)
 
 
 def _home_lead_text() -> Text:
@@ -188,8 +190,13 @@ class AdminCenterLandingRow(Horizontal):
             classes="admin-center-home-row-label",
             markup=False,
         )
+        description = (
+            config_tab_description()
+            if self._spec.id == "config"
+            else self._spec.description
+        )
         yield Static(
-            self._spec.description,
+            description,
             classes="admin-center-home-row-description",
         )
 

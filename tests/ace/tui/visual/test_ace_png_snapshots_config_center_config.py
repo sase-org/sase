@@ -14,6 +14,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.xprompt_browser_filter_input import BrowserFilterInput
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
+from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _build_view,
     _config_layers,
@@ -55,6 +56,29 @@ async def test_config_center_config_tab_png_snapshot(
             "config_center_config_tab_120x40",
             title="ACE SASE Admin Center — Config tab (populated)",
         )
+
+
+async def test_config_center_config_tab_flags_off_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
+
+    with override_flags(admin_center_flags=False):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await wait_for_startup(page)
+            await page.press("2")
+            await page.expect_state("artifacts_subtab", "patches")
+            await _open_config_modal(page)
+
+            ace_png_visual.assert_page_png(
+                page,
+                "config_center_config_tab_flags_off_120x40",
+                title="ACE SASE Admin Center — Config tab without Flags",
+            )
 
 
 async def test_config_center_config_empty_png_snapshot(

@@ -31,6 +31,27 @@ class CenterTabSpec:
     factory: PaneFactory
 
 
+_CONFIG_TAB_DESCRIPTION_WITH_FLAGS = (
+    "Browse flags, glossary, launch, memory, snippets, XPrompts, and settings."
+)
+_CONFIG_TAB_DESCRIPTION_WITHOUT_FLAGS = (
+    "Browse glossary, launch, memory, snippets, XPrompts, and settings."
+)
+
+
+def config_tab_description() -> str:
+    """Return the Config home-card description for this process snapshot.
+
+    Reads only the already-pinned feature-flag snapshot. Never called at
+    module import time.
+    """
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    if current_flags().enabled(FeatureFlag.admin_center_flags):
+        return _CONFIG_TAB_DESCRIPTION_WITH_FLAGS
+    return _CONFIG_TAB_DESCRIPTION_WITHOUT_FLAGS
+
+
 def _config_pane_factory(modal: ConfigCenterModal) -> Widget:
     from .config_hub_pane import ConfigHubPane
 
@@ -96,7 +117,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         1,
         "Config",
         "#00D7AF",
-        "Browse glossary, launch, memory, snippets, XPrompts, and settings.",
+        _CONFIG_TAB_DESCRIPTION_WITH_FLAGS,
         "ConfigHubPane",
         _config_pane_factory,
     ),

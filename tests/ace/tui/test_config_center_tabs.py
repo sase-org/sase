@@ -12,6 +12,8 @@ from textual.binding import Binding
 from textual.widgets import ContentSwitcher, Static
 
 from sase.ace.testing import AcePage, wait_for
+from sase.ace.tui.modals.config_center_catalog import config_tab_description
+from sase.ace.tui.modals.config_center_home import tab_description_text
 from sase.ace.tui.modals.config_center_modal import (
     _AdminCenterLanding,
     _AdminCenterLandingRow,
@@ -33,6 +35,7 @@ from sase.ace.tui.modals.config_center_modal import (
     validated_center_tab,
 )
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
+from sase.feature_flags import override_flags
 from tests.ace.tui._config_center_tabs_helpers import (
     _HostApp,
     _StubPane,
@@ -51,13 +54,22 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
         key=lambda tab: dict(_TAB_LABELS)[tab].casefold(),
     )
     assert [spec.description for spec in _TAB_SPECS] == [
-        "Browse glossary, launch, memory, snippets, XPrompts, and settings.",
+        "Browse flags, glossary, launch, memory, snippets, XPrompts, and settings.",
         "Inspect TUI activity, launch failures, and notification history.",
         "Follow procs, inspect live output, and manage running jobs.",
         "Manage projects and inspect their repositories and workspaces.",
         "Explore runners, projects, activity, and trends over time.",
         "Update SASE, plugins, and supported agent CLIs from one place.",
     ]
+
+
+def test_config_tab_description_follows_rollout_flag() -> None:
+    with override_flags(admin_center_flags=True):
+        assert "flags" in config_tab_description()
+        assert "flags" in tab_description_text("config").plain
+    with override_flags(admin_center_flags=False):
+        assert "flags" not in config_tab_description()
+        assert "flags" not in tab_description_text("config").plain
 
 
 def test_numbered_tab_strip_plain_text_and_click_ranges_without_selection() -> None:

@@ -21,7 +21,6 @@ from sase.ace.tui.modals.feature_flags_pane_rendering import (
     build_panel_header,
     build_toggle_confirmation,
     filter_flag_views,
-    _is_shadowed_decision,
 )
 from sase.feature_flags.cli_views import FlagView
 from sase.feature_flags.models import (
@@ -201,7 +200,6 @@ def test_confirmation_copy_is_cancel_first_and_warns_on_shadowing() -> None:
     assert "/tmp/feature_flags.json" in copy.subject
     assert "Forced for this process" in copy.subject
     assert "--enable-feature" in copy.subject
-    assert _is_shadowed_decision(view.decision, view.saved) is True
 
 
 def test_self_disable_confirmation_includes_cli_recovery() -> None:

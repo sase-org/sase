@@ -2507,6 +2507,52 @@ See [`docs/query_language.md`](query_language.md) for the full query syntax refe
 including boolean expressions, status shorthands, property filters, and searchable
 fields.
 
+## Config Flags pane
+
+Open **SASE Admin Center** with `#`, then Config > **01 Flags**. The pane is the
+keyboard-first control surface for every code-owned SASE feature flag. It shows
+effective state, kind, default, provenance, saved machine preference, description,
+removal bead, and removal horizon; it does not edit portable configuration files.
+
+With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
+
+```text
+01 Flags · 02 Glossary · 03 Launch · 04 Memory · 05 Misc · 06 Snippets · 07 XPrompts
+```
+
+Disable `admin_center_flags` to restore the six-child catalog numbered `01` Glossary
+through `06` XPrompts. `sase flag enable` and `sase flag disable` remain available
+either way; they are the recovery and automation surface when the pane is off.
+
+The pane uses the Admin Center list/detail layout: a header with registered/on/saved
+counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
+footer. Effective on/off and source are shown separately from saved on/off. When
+environment or root CLI `-f`/`-F` still wins, a yellow “forced for this process” warning
+explains that saving restarts ACE and AXE but will not take effect until that override
+is removed.
+
+| Key              | Action                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------- |
+| `/`              | Open an inline filter over key, description, kind, effective state, and provenance            |
+| `Esc`            | Close/clear the filter before closing Admin Center                                            |
+| `j` / `k`        | Move the rail; arrows, Home/End, and mouse clicks work the same way                           |
+| `Enter`/`Space`  | Open a cancel-first confirmation (`OFF -> ON` or `ON -> OFF`)                                 |
+| `r`              | Reload the catalog                                                                            |
+| `0` then `1`–`7` | Jump to a numbered Config child while Flags is visible (`1`–`6` when the rollout flag is off) |
+
+Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
+state path, any shadowing source, and that **ACE and AXE restart after active procs
+finish**. Confirming writes only the machine-state file, waits up to 60 seconds for
+tracked background procs, then performs one controlled ACE+AXE restart. A restart
+failure does not roll back the saved preference.
+
+Disabling `admin_center_flags` from its own row is supported: the confirmation says the
+Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
+as the recovery command.
+
+See [feature flags](configuration.md#feature_flags) for precedence, the state file, and
+the CLI contract.
+
 ## Global Keybindings
 
 These work on all tabs:
@@ -2559,11 +2605,12 @@ a hint character moves the selection there, `'` again returns to the previous po
 own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
-catalog is alphabetized as **01 Glossary · 02 Launch · 03 Memory · 04 Misc · 05 Snippets
-· 06 XPrompts**; `0` then `1`-`6` selects those children, while bare digits continue to
-belong to the active child or the Admin Center's top-level tabs. The Updates tab's Core
-sub-tab has no list at all, so `'` is a silent no-op there while Plugins and Agent CLIs
-jump normally.
+catalog is alphabetized as **01 Flags · 02 Glossary · 03 Launch · 04 Memory · 05 Misc ·
+06 Snippets · 07 XPrompts** when `admin_center_flags` is on, or **01 Glossary** through
+**06 XPrompts** when it is off; `0` then the matching digits selects those children,
+while bare digits continue to belong to the active child or the Admin Center's top-level
+tabs. The Updates tab's Core sub-tab has no list at all, so `'` is a silent no-op there
+while Plugins and Agent CLIs jump normally.
 
 ### Quit / Restart Menu
 

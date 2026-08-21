@@ -157,15 +157,16 @@ import/publication commands, and recovery.
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
-their data. Config contains the nested **Glossary**, **Launch**, **Memory**, **Misc**,
-**Snippets**, and **XPrompts** catalog, labeled `01` through `06` in that order. While
-home is visible, press `#` again to resume the last section that was successfully active
-in this ACE process. Before the first section visit, the repeated key leaves home
-unchanged and constructs no pane. Press `1`–`6` or click the numbered tab strip to enter
-a section. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a
-working section they wrap across the same tabs. Pane-local `[` / `]` keys switch
-sub-tabs or views where the active pane provides them, including Config's nested
-catalog.
+their data. Config's nested catalog is alphabetized. With the default-on
+`admin_center_flags` sunset flag it is **Flags**, **Glossary**, **Launch**, **Memory**,
+**Misc**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that flag
+omits Flags and numbers the remaining six children `01` through `06`. While home is
+visible, press `#` again to resume the last section that was successfully active in this
+ACE process. Before the first section visit, the repeated key leaves home unchanged and
+constructs no pane. Press `1`–`6` or click the numbered tab strip to enter a section.
+From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working section
+they wrap across the same tabs. Pane-local `[` / `]` keys switch sub-tabs or views where
+the active pane provides them, including Config's nested catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
@@ -191,10 +192,20 @@ other pane-local state are never carried between modal lifetimes.
 The Config tab answers four questions for every field — what value is effective, why
 (its provenance), where an edit will go, and whether it validates:
 
-The nested Config catalog is alphabetized as **01 Glossary**, **02 Launch**, **03
-Memory**, **04 Misc**, **05 Snippets**, and **06 XPrompts**. With the bundled prefix,
-press `0` and then `1`-`6` to open those children; remap the prefix with
-`ace.keymaps.config.select_subtab` without changing the visible default badges.
+The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
+default), it is **01 Flags**, **02 Glossary**, **03 Launch**, **04 Memory**, **05
+Misc**, **06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and
+then `1`-`7` to open those children. When the flag is off, the catalog is **01
+Glossary** through **06 XPrompts**, and `0` then `1`-`6` selects them. Remap the prefix
+with `ace.keymaps.config.select_subtab` without changing the visible default badges.
+
+**Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
+does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
+source. Enable and disable write a SASE-owned machine-state file under `SASE_HOME`
+(normally `~/.sase/feature_flags.json`) and then restart ACE and AXE so new processes
+see the saved value. See [feature_flags](#feature_flags) for precedence, corruption
+behavior, and the CLI equivalent, and the [Config Flags pane](ace.md#config-flags-pane)
+for layout, keys, confirmation, and self-disable recovery.
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with
   loaded/missing/invalid/read-only badges; the field tree is generated from the schema
@@ -1039,9 +1050,9 @@ accepted as a deprecated alias for `submit_primary`.
 **`config`** — Bindings active only while the Admin Center Config hub is focused. The
 available actions are:
 
-| Field           | Default | Description                                          |
-| --------------- | ------- | ---------------------------------------------------- |
-| `select_subtab` | `0`     | Arm `01`-`06` selection for a numbered Config child. |
+| Field           | Default | Description                                                                                      |
+| --------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `select_subtab` | `0`     | Arm numbered Config-child selection (`01`-`07` when Flags is visible, `01`-`06` when it is not). |
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is
 focused. The available actions are:
@@ -3660,9 +3671,12 @@ Source: `src/sase/default_config.yml`
 
 ### feature_flags
 
-`feature_flags` is the user and project override surface for code-owned SASE feature
-flags. Registry defaults live in `src/sase/feature_flags/registry.py`; the config block
-only overrides registered keys.
+`feature_flags` is the portable user and project override surface for code-owned SASE
+feature flags. Registry defaults live in `src/sase/feature_flags/registry.py`; the
+config block only overrides registered keys. It remains valid and lower-precedence than
+a saved machine preference. The Config **Flags** pane and `sase flag enable` /
+`sase flag disable` never edit this block, overlays, project-local `sase.yml`, or
+chezmoi source.
 
 ```yaml
 feature_flags:
@@ -3674,25 +3688,96 @@ description and default. Unknown keys are tolerated by the schema so downgraded 
 can still read a config written by a newer SASE, but the resolver warns and ignores
 unknown keys at runtime.
 
-Resolution order is registry default, user config, overlay configs, explicit in-process
-test overrides, `SASE_FEATURE_FLAGS`, then the root CLI options. Plugin config layers
-never flip first-party flag defaults. A local-config entry for any feature flag is
-ignored with a `scope_violation` warning: a feature flag cannot be set from the `local`
-config layer, because ACE disables project-local config and flags must resolve
-consistently across frontends.
+#### Saved machine preferences
+
+Persistent enable/disable choices live in a SASE-owned machine-state file
+`$SASE_HOME/feature_flags.json` (normally `~/.sase/feature_flags.json`), not in
+configuration. The file is a bounded JSON object of exact booleans keyed by registered
+flag names; equal-to-default values are still stored because enable and disable are
+durable user choices. Inspect the path with `sase flag show <key>` or the Flags pane
+detail card (`STATE`).
+
+```json
+{
+  "version": 1,
+  "flags": {
+    "admin_center_flags": true,
+    "ref_sync_gesture": false
+  }
+}
+```
+
+Missing state is an empty snapshot (every flag uses its registry/config default). A
+malformed, oversized, or unsupported whole file is not silently deleted or overwritten:
+reads return no preferences plus a diagnostic, mutations fail with the path and a
+recovery-oriented message, and registered flags still resolve from lower layers. Valid
+unknown keys written by a newer SASE are preserved across writes and ignored with a
+diagnostic so a temporary downgrade cannot destroy them.
+
+#### Resolution order
+
+Effective value is resolved in this order, later sources winning:
+
+```text
+registry default
+  < user config
+  < overlay config
+  < saved machine preference (SAVED)
+  < explicit in-process/test override
+  < SASE_FEATURE_FLAGS transport / legacy env
+  < root CLI -f/--enable-feature or -F/--disable-feature
+```
+
+Plugin config layers never flip first-party flag defaults. A local-config entry for any
+feature flag is ignored with a `scope_violation` warning: a feature flag cannot be set
+from the `local` config layer, because ACE disables project-local config and flags must
+resolve consistently across frontends.
+
+The Flags pane and `sase flag list` / `show` report **effective** state and **saved**
+state separately. Provenance `SAVED` means the machine-state file won. If environment or
+root CLI overrides still shadow the saved choice, the UI shows a “forced for this
+process” warning rather than pretending the toggle already controls this process. Saving
+still restarts ACE and AXE; the saved value takes effect once that higher source is
+removed.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
-(`sase -f ref_sync_gesture run "..."`). They outrank every config layer and an inherited
-`SASE_FEATURE_FLAGS` value, and they merge into `SASE_FEATURE_FLAGS` so launched agents
-and other child processes inherit the same overrides.
+(`sase -f ref_sync_gesture run "..."`). They outrank every config layer, a saved machine
+preference, and an inherited `SASE_FEATURE_FLAGS` value, and they merge into
+`SASE_FEATURE_FLAGS` so launched agents and other child processes inherit the same
+overrides.
 
 `SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
 `{"ref_sync_gesture":false}`. Malformed JSON, a non-object payload, or a non-boolean
 value is a startup error for that process. SASE-launched children inherit a resolved
 snapshot through the same variable, so `sase flag list` marks env provenance
 prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /
-`CLI:--disable-feature`).
+`CLI:--disable-feature`). After a successful save, SASE merges the chosen key into
+`SASE_FEATURE_FLAGS` so an ACE `execv` restart does not inherit the old pinned snapshot
+above the new saved value.
+
+#### Enable, disable, and restart
+
+```text
+sase flag enable <flag>
+sase flag disable <flag>
+```
+
+Both commands persist the choice in the machine-state file and, on success, restart AXE
+when it is already running. A stopped AXE daemon is left stopped. They never start a
+daemon the user had stopped, and they never signal an ACE session in another terminal —
+restart any separately running ACE yourself. Repeating an already-saved enable or
+disable is idempotent for the store but still retries that AXE restart. A restart
+failure does not roll back the saved preference: rich and JSON output distinguish
+`mutation` from `restart` so a partial success is safe to retry. Unknown flags are usage
+errors (exit `2`); store or restart failures use exit `1`. `--json` emits one versioned
+document with separate `mutation` and `restart` objects.
+
+From Config > Flags, a confirmed toggle uses the same mutation path, then waits for
+tracked background procs and performs one controlled ACE+AXE restart. Disabling
+`admin_center_flags` from its own row is supported: the pane disappears after restart,
+and `sase flag enable admin_center_flags` restores it. The CLI commands are not gated by
+that flag.
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
 hand. The command creates a task bead of type `flag`, prints the registry entry, and
@@ -3700,7 +3785,8 @@ gives the both-states test checklist. Kinds are `beta` (default off) and `sunset
 (default on); the registry default is derived from the kind. See
 [Beads](beads.md#flag-bead-lifecycle) for the removal lifecycle.
 
-Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`
+Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`,
+`src/sase/feature_flags/state.py`
 
 ### workspace
 
@@ -3953,7 +4039,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                        |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                   |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                            |
-| `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Overrides config-layer values. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides.                         |
+| `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Outranks config layers and a saved machine preference. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides. |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                                                                                                                                         |
 | `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                             |
 | `SASE_PYTEST_DIST`                    | xdist scheduler for the `just` pytest recipes: `worksteal` (default) or `loadfile` (fallback). Invalid values fail before worker-token acquisition; serial inline-snapshot modes ignore it.                                                                                                            |
@@ -4019,10 +4105,10 @@ subcommand level. Use the explicit `list` form when passing list options, such a
 These options are recognized only in the leading run of option tokens, before the first
 subcommand. They do not steal `-f`/`-F` from commands such as `sase bead list -f json`.
 
-| Flag                    | Values              | Default | Description                                                                                                                                                            |
-| ----------------------- | ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers and an inherited `SASE_FEATURE_FLAGS` value.  |
-| `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers and an inherited `SASE_FEATURE_FLAGS` value. |
+| Flag                    | Values              | Default | Description                                                                                                                                                                                         |
+| ----------------------- | ------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.  |
+| `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value. |
 
 ### `sase ace`
 
@@ -4832,11 +4918,18 @@ Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. 
 
 With no subcommand, `sase flag` defaults to `sase flag list`.
 
-| Form             | Flag or argument                                                                                                                                | Description                                                                  |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `sase flag list` | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, beads, and due state.    |
-| `sase flag show` | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, bead thresholds, diagnostics, and call sites. |
-| `sase flag new`  | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.             |
+| Form                | Flag or argument                                                                                                                                | Description                                                                                                                                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase flag disable` | `<key>`, `-j/--json`                                                                                                                            | Persistently disable a registered flag in `$SASE_HOME/feature_flags.json`. Restarts running AXE; a stopped daemon is left stopped. Restart any separately running ACE. Restart failure does not roll back the saved preference. |
+| `sase flag enable`  | `<key>`, `-j/--json`                                                                                                                            | Persistently enable a registered flag in `$SASE_HOME/feature_flags.json`. Same AXE restart, ACE notice, JSON envelope, and partial-success contract as `disable`.                                                               |
+| `sase flag list`    | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, saved vs effective state, beads, and due state.                                                                                                                             |
+| `sase flag new`     | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.                                                                                                                                                                |
+| `sase flag show`    | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, saved value, bead thresholds, diagnostics, and call sites.                                                                                                                                       |
+
+Unknown keys on `enable`/`disable` exit `2`. Store or AXE-restart failures exit `1`;
+JSON then has `"ok": false` with the preference still recorded under `mutation`.
+`--json` emits one versioned document with separate `mutation` and `restart` objects.
+Neither command edits portable config files.
 
 A non-empty human `sase flag list` ends with a compact statistics footer: how many flags
 were rendered and which kinds they use, how many resolve on versus off, how many

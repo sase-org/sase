@@ -11,10 +11,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_hub_catalog import config_panel_tabs
-from sase.ace.tui.modals.config_hub_pane import (
-    ConfigHubPane,
-    _config_hub_strip_thresholds,
-)
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from sase.ace.tui.modals.config_hub_session import (
     ConfigHubEntry,
     validated_config_subtab,
@@ -116,7 +113,7 @@ def _patch_hub_children(
 )
 def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> None:
     tabs = config_panel_tabs()
-    compact_below, micro_below = _config_hub_strip_thresholds(len(tabs))
+    compact_below, micro_below = (99, 73) if len(tabs) >= 7 else (86, 73)
     strip = PanelTabStrip(
         tabs,
         "flags",
@@ -621,13 +618,26 @@ async def test_embedded_launch_unchanged_close_does_not_refresh_indicators(
     assert close_calls == [True]
 
 
-def test_config_hub_strip_thresholds_grow_for_seven_labels() -> None:
-    compact_six, micro_six = _config_hub_strip_thresholds(6)
-    compact_seven, micro_seven = _config_hub_strip_thresholds(7)
-    assert compact_six == 86
-    assert micro_six == 73
-    assert compact_seven == 99
-    assert micro_seven == 73
+async def test_config_hub_strip_thresholds_grow_for_seven_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_hub_children(monkeypatch)
+    with override_flags(admin_center_flags=False):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(initial_tab="config")
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            assert hub._compact_below == 86
+            assert hub._micro_below == 73
+    with override_flags(admin_center_flags=True):
+        async with _HostApp().run_test() as pilot:
+            modal = ConfigCenterModal(initial_tab="config")
+            pilot.app.push_screen(modal)
+            await wait_for(pilot, lambda: modal._active_tab == "config")
+            hub = modal.query_one("#config", ConfigHubPane)
+            assert hub._compact_below == 99
+            assert hub._micro_below == 73
 
 
 async def test_flags_resume_falls_back_when_rollout_is_off(
