@@ -250,3 +250,35 @@ class TestWriteResultMarker:
             data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
             assert "commit_sha" not in data
             assert "commit_tree" not in data
+
+    def test_explicit_commit_cwd_overrides_ambient_working_directory(self) -> None:
+        """Resume/direct callers can attribute the marker to a checkpointed repo."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "docs: update plan"}
+            explicit_cwd = "/workspace/sase_7/sase/repos/plans"
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch("os.getcwd", return_value="/workspace/sase_7"),
+                patch(
+                    "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+                    return_value=1_700_000_000,
+                ) as resolve_created_at,
+            ):
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    "/tmp/plans.diff",
+                    "84aeb6a1",
+                    None,
+                    commit_cwd=explicit_cwd,
+                )
+
+            resolve_created_at.assert_called_once_with(explicit_cwd, "84aeb6a1")
+            latest = json.loads((Path(tmpdir) / "commit_result.json").read_text())
+            assert latest["cwd"] == explicit_cwd
+            assert latest["result"] == "84aeb6a1"
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert len(results) == 1
+            assert results[0]["cwd"] == explicit_cwd
+            assert results[0]["result"] == "84aeb6a1"
+            assert results[0]["committed_at"] == 1_700_000_000

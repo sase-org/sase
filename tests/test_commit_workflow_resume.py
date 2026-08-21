@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -155,6 +157,8 @@ def test_resume_replays_tracking_after_conflict_resolution(
     assert events == ["finalize", "after"]
     mock_append.assert_called_once()
     assert mock_marker.call_count == 2  # initial + final-with-entry_id
+    for call in mock_marker.call_args_list:
+        assert call.kwargs["commit_cwd"] == str(tmp_path)
     assert not (artifacts_dir / "commit_state.json").exists()
 
 
@@ -188,6 +192,7 @@ def test_resume_records_finalized_commit_sha_for_conflict_originated_dispatch(
     for call in mock_marker.call_args_list:
         assert call.kwargs["commit_sha"] == "c" * 40
         assert call.kwargs["commit_tree"] == "c" * 40
+        assert call.kwargs["commit_cwd"] == str(tmp_path)
 
 
 @patch(_PROVIDER_TARGET)
@@ -241,6 +246,7 @@ def test_resume_resolves_commit_sha_when_finalize_commit_unsupported(
         assert CommitWorkflow.resume() == RunResult.OK
 
     assert mock_marker.call_args.kwargs["commit_sha"] == "d" * 40
+    assert mock_marker.call_args.kwargs["commit_cwd"] == str(tmp_path)
 
 
 @patch(_PROVIDER_TARGET)
@@ -542,6 +548,7 @@ def test_resume_skips_already_completed_tracking_steps(
 
     # write_result_marker already done → only the final entry-id marker runs.
     assert mock_marker.call_count == 1
+    assert mock_marker.call_args.kwargs["commit_cwd"] == str(tmp_path)
     mock_append.assert_called_once()
     mock_refresh.assert_called_once_with(str(tmp_path), "feature", str(tmp_path))
 
@@ -698,3 +705,44 @@ def test_resume_detects_existing_patch_in_project_file(
         assert CommitWorkflow.resume() == RunResult.OK
 
     mock_cs.assert_not_called()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_attributes_markers_to_checkpointed_repo_not_process_cwd(
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A resume launched outside the checkpointed repo still records that repo."""
+    provider = _make_provider(head_subject="fix: bug")
+    provider.revision_id.return_value = "c" * 40
+    mock_get.return_value = provider
+
+    checkpoint_cwd = tmp_path / "plans"
+    launch_dir = tmp_path / "workspace"
+    checkpoint_cwd.mkdir()
+    launch_dir.mkdir()
+    monkeypatch.chdir(launch_dir)
+    assert os.getcwd() != str(checkpoint_cwd)
+
+    _save_checkpoint(cwd=str(checkpoint_cwd), payload={"message": "fix: bug"})
+
+    with patch(
+        "sase.workflows.commit.workflow.append_commits_entry",
+        return_value="42",
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    latest = json.loads((artifacts_dir / "commit_result.json").read_text())
+    assert latest["cwd"] == str(checkpoint_cwd)
+    assert latest["commit_sha"] == "c" * 40
+    assert latest["commit_tree"] == "c" * 40
+    assert latest["entry_id"] == "42"
+
+    results = json.loads((artifacts_dir / "commit_results.json").read_text())
+    assert len(results) == 1
+    assert results[0]["cwd"] == str(checkpoint_cwd)
+    assert results[0]["commit_sha"] == "c" * 40
+    assert results[0]["commit_tree"] == "c" * 40
+    assert results[0]["entry_id"] == "42"

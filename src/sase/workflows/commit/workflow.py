@@ -396,6 +396,7 @@ class CommitWorkflow(BaseWorkflow):
                 cs_name,
                 commit_sha=cp.commit_sha,
                 commit_tree=cp.commit_tree,
+                commit_cwd=cp.cwd,
             )
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
@@ -431,6 +432,7 @@ class CommitWorkflow(BaseWorkflow):
                     entry_id=entry_id,
                     commit_sha=cp.commit_sha,
                     commit_tree=cp.commit_tree,
+                    commit_cwd=cp.cwd,
                 )
                 cp.completed_steps.append("final_result_marker")
                 checkpoint_save(cp)

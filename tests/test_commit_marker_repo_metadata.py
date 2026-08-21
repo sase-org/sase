@@ -100,6 +100,55 @@ class TestWriteResultMarkerRepoMetadata:
         assert results[0]["diff_path"] == "/tmp/sidecar.diff"
         update_index.assert_not_called()
 
+    def test_explicit_sidecar_commit_cwd_ignores_ambient_primary_cwd(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        sidecar = primary / ".sase" / "sdd"
+        artifacts_dir.mkdir()
+        (primary / ".git").mkdir(parents=True)
+        (sidecar / ".git").mkdir(parents=True)
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "name": "agent-alpha",
+                    "workspace_dir": str(primary),
+                    "commit_diff_path": "/tmp/primary.diff",
+                    "commit_changespec_name": "primary_spec",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(primary)),
+            patch(
+                "sase.workflows.commit.commit_tracking."
+                "update_agent_artifact_index_for_marker_mutation"
+            ) as update_index,
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "docs: sidecar"},
+                "/tmp/sidecar.diff",
+                "def456",
+                "sidecar_spec",
+                commit_cwd=str(sidecar),
+            )
+
+        persisted = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert persisted["commit_diff_path"] == "/tmp/primary.diff"
+        assert persisted["commit_changespec_name"] == "primary_spec"
+        results = json.loads(
+            (artifacts_dir / "commit_results.json").read_text(encoding="utf-8")
+        )
+        assert results[0]["cwd"] == str(sidecar)
+        update_index.assert_not_called()
+
     def test_primary_subdirectory_commit_updates_primary_diff(
         self,
         tmp_path: Path,

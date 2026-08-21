@@ -413,6 +413,76 @@ def test_successful_conflict_resume_continues_same_stitch(
     assert payload["status"] == "success"
 
 
+@pytest.mark.parametrize("marker_matches_sidecar", [True, False])
+def test_resumed_sidecar_row_is_matched_by_exact_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    marker_matches_sidecar: bool,
+) -> None:
+    """A resumed sidecar row counts only when its cwd is that sidecar."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    sidecar = tmp_path / "plans"
+    sidecar.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty = {"repos": (_repo(sidecar, name="plans", kind="sibling"),)}
+    _patch_dirty(monkeypatch, repo, dirty)
+    calls: list[str] = []
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        calls.append("create")
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT, stderr="conflict\n")
+
+    def resume(
+        repo_arg: DirtyRepo,
+        _context: object,
+    ) -> StitchCommandResult:
+        calls.append("resume")
+        dirty["repos"] = ()
+        marker_cwd = str(sidecar) if marker_matches_sidecar else str(repo)
+        (artifacts / "commit_results.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "cwd": marker_cwd,
+                        "result": "ok",
+                        "commit_sha": "a" * 40,
+                        "commit_tree": "b" * 40,
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return StitchCommandResult(returncode=0, stdout="resumed\n")
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="resolved")
+
+    with override_flags(pluggable_finalizers=True):
+        _submit_commit(artifacts)
+        if marker_matches_sidecar:
+            result = _run(artifacts, provider)
+            assert calls == ["create", "resume"]
+            assert "resolved" in result.content
+            payload = json.loads((artifacts / "finalizer_result.json").read_text())
+            assert payload["status"] == "success"
+        else:
+            with pytest.raises(
+                BuiltinCommitFinalizerError,
+                match="no commit_results.json entry was recorded",
+            ):
+                _run(artifacts, provider)
+            assert calls == ["create", "resume"]
+
+
 def test_stale_checkpoint_after_conflict_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

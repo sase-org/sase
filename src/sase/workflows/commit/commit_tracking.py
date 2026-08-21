@@ -530,6 +530,7 @@ def write_result_marker(
     entry_id: str | None = None,
     commit_sha: str | None = None,
     commit_tree: str | None = None,
+    commit_cwd: str | os.PathLike[str] | None = None,
 ) -> None:
     """Write commit result to a marker file for xprompt post-steps.
 
@@ -537,6 +538,10 @@ def write_result_marker(
     ``result`` (which is a PR URL for ``create_pull_request`` and a diff path
     for ``create_proposal``), they are always the commit this run finalized,
     letting a later reader identify it without decoding ``method`` first.
+
+    ``commit_cwd`` is the repository identity recorded as ``cwd`` and used for
+    sidecar/external classification, commit-time lookup, and primary-metadata
+    ownership. Direct callers that omit it keep the ambient working directory.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
@@ -545,16 +550,16 @@ def write_result_marker(
     run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
-    commit_cwd = os.getcwd()
+    resolved_cwd = os.fspath(commit_cwd) if commit_cwd is not None else os.getcwd()
     workspace_dir = agent_workspace_dir(artifacts_dir)
-    repo_name = _external_repo_name_for_commit_cwd(commit_cwd, workspace_dir)
+    repo_name = _external_repo_name_for_commit_cwd(resolved_cwd, workspace_dir)
     if repo_name is None:
-        repo_name = _sdd_repo_name_for_commit_cwd(commit_cwd, workspace_dir)
+        repo_name = _sdd_repo_name_for_commit_cwd(resolved_cwd, workspace_dir)
 
     marker = {
         "method": method,
         "run_id": run_id,
-        "cwd": commit_cwd,
+        "cwd": resolved_cwd,
         "result": result,
         "commit_result": result,
         "message": payload.get("message", ""),
@@ -576,7 +581,7 @@ def write_result_marker(
         marker["commit_sha"] = commit_sha
     if commit_tree:
         marker["commit_tree"] = commit_tree
-    committed_at = _resolve_commit_created_at(commit_cwd, result)
+    committed_at = _resolve_commit_created_at(resolved_cwd, result)
     if committed_at is not None:
         marker["committed_at"] = committed_at
     marker_path = os.path.join(artifacts_dir, "commit_result.json")
@@ -587,7 +592,7 @@ def write_result_marker(
         artifacts_dir,
         diff_path,
         changespec_name,
-        commit_cwd=commit_cwd,
+        commit_cwd=resolved_cwd,
     )
 
 
