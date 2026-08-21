@@ -344,6 +344,47 @@ def test_session_and_durable_rows_dedup_and_exclude_across_overlay() -> None:
     assert host._effective_proc_projection().scope_conflict({"sase-update"}) is not None
 
 
+def test_session_worker_retains_reporter_output_on_completion() -> None:
+    host = _ProcHost()
+    completions: list[Any] = []
+
+    def body(reporter: Any) -> TrackedProcResult[None]:
+        reporter.phase("Doing work")
+        reporter.log("live line")
+        return TrackedProcResult(success=True, message="done")
+
+    submitted = host._submit_session_worker(
+        "sync",
+        body,
+        on_complete=completions.append,
+    )
+    assert submitted is not None
+
+    host.complete_session_worker()
+
+    assert len(completions) == 1
+    completion = completions[0]
+    assert completion.success is True
+    assert "live line" in completion.output
+    assert "==> Doing work" in completion.output
+    assert "OK: done" in completion.output
+
+
+def test_session_worker_logs_error_terminal_record() -> None:
+    host = _ProcHost()
+    completions: list[Any] = []
+
+    def body(_reporter: Any) -> TrackedProcResult[None]:
+        raise RuntimeError("exploded")
+
+    host._submit_session_worker("sync", body, on_complete=completions.append)
+    host.complete_session_worker()
+
+    assert completions[0].success is False
+    assert "exploded" in completions[0].output
+    assert "ERROR: exploded" in completions[0].output
+
+
 def test_session_overlay_never_registers_observer_or_writes_store(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

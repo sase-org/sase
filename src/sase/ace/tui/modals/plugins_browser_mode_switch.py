@@ -10,6 +10,7 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.config import load_merged_config
 from sase.mode_switch import execute_mode_switch, plan_mode_switch
@@ -155,10 +156,15 @@ class ModeSwitchActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_mode_switch_task(self, plan: SwitchPlan) -> None:
-        def task() -> TrackedProcResult[ModeSwitchResult]:
+        def task(reporter: SessionProcReporter) -> TrackedProcResult[ModeSwitchResult]:
             start = time.monotonic()
             try:
-                result = execute_mode_switch(plan)
+                reporter.phase("Switching install mode")
+                result = execute_mode_switch(
+                    plan,
+                    run_uv_fn=reporter.uv_runner(),
+                    run_command_fn=reporter.dev_command_runner(),
+                )
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False,
@@ -167,6 +173,7 @@ class ModeSwitchActionsMixin:
                 )
             elapsed = max(0.0, time.monotonic() - start)
             message = _mode_switch_success_message(result, elapsed)
+            reporter.log(message, stream="result")
             return TrackedProcResult(success=True, message=message, payload=result)
 
         submit = getattr(self.app, "_submit_session_worker", None)

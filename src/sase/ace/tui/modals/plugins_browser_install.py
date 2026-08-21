@@ -14,6 +14,7 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.ops.names import PLUGIN_INSTALL
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
@@ -451,14 +452,18 @@ class PluginInstallActionsMixin:
 
         count = len(names)
 
-        def task() -> TrackedProcResult[InstallManyOutcome]:
+        def task(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[InstallManyOutcome]:
             try:
-                outcome = self._execute_install_many(plan)
+                reporter.phase(f"Installing {count} marked plugin(s)")
+                outcome = self._execute_install_many(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = install_many_success_message(outcome)
+            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=True,
                 message=message,

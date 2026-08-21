@@ -38,6 +38,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
 )
+from tests.ace.tui._session_reporter import session_reporter
 
 
 async def test_updates_subtabs_cycle_and_gate_plugin_actions(
@@ -333,7 +334,9 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
             "_execute_agent_cli_updates",
             lambda *_args, **_kwargs: (result,),
         )
-        task_result = submitted["args"][1]()
+        task_result = submitted["args"][1](
+            session_reporter(proc_type="agent-cli-update")
+        )
         assert task_result.success is True
         assert task_result.payload == (result,)
 

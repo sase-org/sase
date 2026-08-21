@@ -31,6 +31,7 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
 from sase.ace.tui.modals.update_panel import UpdatePanel
 from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.ace.tui.update_preview_inputs import collect_update_preview_inputs
+from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.ace.tui.update_restart import restart_after_update
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.ace.update_scope import UpdateLeg
@@ -162,14 +163,18 @@ class UpdateRunActionsMixin:
     def _submit_scoped_update_task(self, preview: ComprehensiveUpdatePreview) -> bool:
         """Submit exactly one task claiming all update mutation scopes."""
 
-        def task() -> TrackedProcResult[ComprehensiveUpdateResult]:
+        def task(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[ComprehensiveUpdateResult]:
             uv_tool = None
             if UpdateLeg.SASE in preview.selected_legs:
                 from sase.ace.tui.modals.plugins_browser_loading import probe_uv_tool
 
                 uv_tool = probe_uv_tool()
-            result = run_scoped_update(preview, uv_tool)
+            result = run_scoped_update(preview, uv_tool, reporter=reporter)
             message = comprehensive_update_summary(result)
+            reporter.section("Summary")
+            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=not result.has_failures,
                 message=message,

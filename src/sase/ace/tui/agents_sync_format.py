@@ -41,6 +41,38 @@ def _agents_sync_outcome_changed(outcome: SyncOutcome) -> bool:
     )
 
 
+def agents_sync_outcome_line(outcome: SyncOutcome) -> str:
+    """Render one complete task-log line for a project outcome."""
+    if outcome.error:
+        return f"{outcome.project}: failed — {outcome.error}"
+    if outcome.skip_reason:
+        return f"{outcome.project}: skipped — {outcome.skip_reason}"
+
+    details: list[str] = []
+    if outcome.pulled:
+        details.append("pulled")
+    imported = outcome.integrated + outcome.refreshed
+    if imported:
+        details.append(f"imported {imported}")
+    exported = outcome.exported + outcome.export_refreshed
+    if exported:
+        details.append(f"exported {exported} legacy bundles")
+    hoods = outcome.hoods_published + outcome.hoods_refreshed
+    if hoods:
+        details.append(f"published {hoods} hoods / {outcome.runs_published} runs")
+    if outcome.committed:
+        details.append("committed")
+    if outcome.pushed:
+        details.append("pushed")
+    if outcome.push_attempts > 1:
+        details.append(f"{outcome.push_attempts} push attempts")
+    details.extend(outcome.diagnostics)
+    state = "synchronized" if _agents_sync_outcome_changed(outcome) else "current"
+    return f"{outcome.project}: {state}" + (
+        f" — {', '.join(details)}" if details else ""
+    )
+
+
 def summarize_agents_sync_outcomes(outcomes: Sequence[SyncOutcome]) -> str:
     """Return compact ordered counts for task and comprehensive summaries."""
     counts = {"synchronized": 0, "current": 0, "skipped": 0, "failed": 0}
@@ -57,6 +89,28 @@ def summarize_agents_sync_outcomes(outcomes: Sequence[SyncOutcome]) -> str:
     return ", ".join(parts) if parts else "no enabled repositories"
 
 
+def cached_agents_result_line(result: CachedIntegrationResult) -> str:
+    """Render one immutable cached-integration outcome."""
+    item = result.captured
+    label = captured_agent_hood_label(item)
+    disposition = result.disposition.replace("_", " ")
+    details: list[str] = []
+    hoods = result.hoods_imported + result.hoods_refreshed
+    if hoods:
+        noun = "hood" if hoods == 1 else "hoods"
+        details.append(f"{hoods} {noun}")
+    if result.runs_imported:
+        noun = "run" if result.runs_imported == 1 else "runs"
+        details.append(f"{result.runs_imported} {noun}")
+    if result.families_imported:
+        noun = "family" if result.families_imported == 1 else "families"
+        details.append(f"{result.families_imported} {noun}")
+    details.extend(result.diagnostics)
+    return f"{item.project}: {label} — {disposition}" + (
+        f" ({', '.join(details)})" if details else ""
+    )
+
+
 def summarize_cached_agents_results(
     results: Sequence[CachedIntegrationResult],
 ) -> str:
@@ -70,7 +124,9 @@ def summarize_cached_agents_results(
 
 
 __all__ = [
+    "agents_sync_outcome_line",
     "agents_sync_status_needs_attention",
+    "cached_agents_result_line",
     "captured_agent_hood_label",
     "summarize_cached_agents_results",
     "summarize_agents_sync_outcomes",

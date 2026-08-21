@@ -11,6 +11,7 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -269,12 +270,19 @@ class AgentCliBrowserActionsMixin:
     ) -> None:
         from . import plugins_browser_pane as pane_module
 
-        def task() -> TrackedProcResult[tuple[AgentCliUpdateResult, ...]]:
+        def task(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[tuple[AgentCliUpdateResult, ...]]:
+            reporter.phase("Updating agent CLIs")
             results = pane_module._execute_agent_cli_updates(
                 plan,
+                run_fn=reporter.command_runner(),
                 trigger=UpdateTrigger.ADMIN_CENTER,
             )
             message = _agent_cli_update_summary(results)
+            reporter.section("Results")
+            for result in results:
+                reporter.log(agent_cli_result_line(result), stream="result")
             failed = any(
                 result.status is UpdateResultStatus.FAILED for result in results
             )

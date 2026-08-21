@@ -235,7 +235,7 @@ def output_header(
     if chip is not None:
         out.append("  ")
         out.append_text(chip)
-    if task.command:
+    if task.command and not _command_already_logged(task):
         out.append("\n$ ", style="dim")
         out.append(command_display(task.command), style="dim")
     agent_name = _resolved_agent_name(task, agent_names)
@@ -309,6 +309,14 @@ def output_body(task: ObservedProc, cache: BodyCache) -> Text:
         out.append_text(_log_body(snapshot.lines, snapshot.trimmed_count))
     cache[task.proc_id] = (snapshot.version, static_text, out.copy())
     return out
+
+
+def _command_already_logged(task: ObservedProc) -> bool:
+    """Return whether the reporter already wrote ``$ command`` into the body."""
+    return any(
+        line.stream == "header" and line.text.startswith("$ ")
+        for line in task.log.snapshot().lines
+    )
 
 
 def _tail_at_cap(text: str) -> bool:

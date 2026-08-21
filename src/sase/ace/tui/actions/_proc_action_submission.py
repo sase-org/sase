@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable, Collection, Mapping, Sequence
+from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from sase.procs import ProcSubmitError
 from sase.project_display_names import humanize_cl_name
 
 from ..proc_observer import ObservedProc, ProcObserver, ProcProjection
+from ..session_proc_reporter import SessionProcReporter
 from ._proc_action_observer import ProcObserverActionsMixin
 from ._proc_action_types import (
     DurableSubmitWorkerResult,
@@ -197,7 +199,7 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
     def _submit_session_worker[T](
         self,
         proc_type: str,
-        body: Callable[[], TrackedProcResult[T]],
+        body: Callable[..., TrackedProcResult[T]],
         *,
         on_complete: Callable[[TrackedProcCompletion[T]], None] | None = None,
         display_name: str | None = None,
@@ -261,21 +263,30 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
             display_name=display_name or proc_type,
             dedup_key=dedup_key,
             exclusive_scopes=requested_scopes,
-            session_id=durable.session_id,
+            session_id=durable.session_id or getattr(self, "_proc_session_id", None),
             session_live=True,
         )
 
         def _wrapped() -> SessionWorkerResult[T]:
+            reporter = SessionProcReporter(proc_info)
             try:
-                result = body()
+                result = _invoke_session_worker_body(body, reporter)
             except Exception as exc:
                 log.exception("Session worker %s failed", proc_type)
+                reporter.log(str(exc), stream="stderr")
                 result = TrackedProcResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
                 )
-            return SessionWorkerResult(proc_info.proc_id, result, "")
+            if result.message:
+                marker = "OK" if result.success else "ERROR"
+                reporter.log(f"{marker}: {result.message}", stream="result")
+            return SessionWorkerResult(
+                proc_info.proc_id,
+                result,
+                proc_info.get_live_output(),
+            )
 
         self._session_completion_callbacks[proc_info.proc_id] = (
             on_complete,
@@ -307,3 +318,29 @@ class ProcSubmissionActionsMixin(ProcObserverActionsMixin):
             if requested_scopes and requested_scopes & proc_info.exclusive_scopes:
                 return proc_info
         return None
+
+
+def _invoke_session_worker_body[T](
+    body: Callable[..., TrackedProcResult[T]],
+    reporter: SessionProcReporter,
+) -> TrackedProcResult[T]:
+    """Call *body* with *reporter* when the callable accepts that argument."""
+    if _callable_accepts_reporter(body):
+        return body(reporter)
+    return body()
+
+
+def _callable_accepts_reporter(body: Callable[..., object]) -> bool:
+    try:
+        params = signature(body).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    for param in params:
+        if param.kind is Parameter.VAR_POSITIONAL:
+            return True
+        if param.kind in (
+            Parameter.POSITIONAL_ONLY,
+            Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            return True
+    return False

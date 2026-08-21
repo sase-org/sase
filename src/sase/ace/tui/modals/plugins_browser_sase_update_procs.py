@@ -10,6 +10,7 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.ace.tui.update_restart import (
     restart_after_update,
     restart_after_update_when_ready,
@@ -31,6 +32,8 @@ from .plugins_browser_dev_update import (
 from .plugins_browser_sase_update_summary import (
     SASE_UPDATE_NOOP_MESSAGE,
     combined_sase_update_success_message,
+    log_combined_update_result,
+    log_update_summary,
     managed_update_changed,
     sase_update_success_message,
 )
@@ -74,9 +77,13 @@ class SaseUpdateProcMixin:
         """Run the self-update engine in the shared tracked-proc system."""
         install = self._uv_tool
 
-        def proc() -> TrackedProcResult[UpdateSummary]:
+        def proc(reporter: SessionProcReporter) -> TrackedProcResult[UpdateSummary]:
             try:
-                summary, elapsed = self._run_sase_update_summary(install)
+                reporter.phase("Resolving sase update")
+                summary, elapsed = self._run_sase_update_summary(
+                    install,
+                    run_fn=reporter.uv_runner(),
+                )
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False,
@@ -84,6 +91,7 @@ class SaseUpdateProcMixin:
                     error=str(exc),
                 )
             message = sase_update_success_message(summary, elapsed)
+            log_update_summary(reporter, summary, message)
             return TrackedProcResult(
                 success=True,
                 message=message,
@@ -125,9 +133,13 @@ class SaseUpdateProcMixin:
     ) -> None:
         """Run a dev-update plan in the shared tracked-proc system."""
 
-        def proc() -> TrackedProcResult[DevUpdateResult]:
+        def proc(reporter: SessionProcReporter) -> TrackedProcResult[DevUpdateResult]:
             start = time.monotonic()
-            result = self._execute_dev_update(plan)
+            reporter.phase("Fetching editable checkouts")
+            result = self._execute_dev_update(
+                plan,
+                run=reporter.dev_command_runner(),
+            )
             append_dev_update_journal(plan, result)
             elapsed = max(0.0, time.monotonic() - start)
             if dev_update_failed(result):
@@ -141,6 +153,7 @@ class SaseUpdateProcMixin:
             message = dev_update_success_message(
                 result, subject=subject, elapsed=elapsed
             )
+            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=True,
                 message=message,
@@ -166,9 +179,15 @@ class SaseUpdateProcMixin:
         assert preview.plan is not None
         plan = preview.plan
 
-        def proc() -> TrackedProcResult[CombinedUpdateResult]:
+        def proc(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[CombinedUpdateResult]:
             start = time.monotonic()
-            dev_result = self._execute_dev_update(plan)
+            reporter.phase("Checking editable SASE checkouts")
+            dev_result = self._execute_dev_update(
+                plan,
+                run=reporter.dev_command_runner(),
+            )
             append_dev_update_journal(plan, dev_result)
             if dev_update_failed(dev_result):
                 reason = dev_update_failure_message(dev_result)
@@ -184,10 +203,12 @@ class SaseUpdateProcMixin:
                 )
 
             try:
+                reporter.phase("Resolving managed SASE packages")
                 managed_summary, _managed_elapsed = (
                     self._run_planned_sase_update_summary(
                         preview.managed_argv,
                         preview.managed_packages,
+                        run_fn=reporter.uv_runner(),
                     )
                 )
             except UvToolError as exc:
@@ -208,6 +229,7 @@ class SaseUpdateProcMixin:
                 elapsed=max(0.0, time.monotonic() - start),
             )
             message = combined_sase_update_success_message(result)
+            log_combined_update_result(reporter, result, message)
             return TrackedProcResult(success=True, message=message, payload=result)
 
         submit = getattr(self.app, "_submit_session_worker", None)

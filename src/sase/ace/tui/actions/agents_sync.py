@@ -21,9 +21,12 @@ from sase.agents_sync.models import (
 )
 
 from ..agents_sync_format import (
+    agents_sync_outcome_line,
+    cached_agents_result_line,
     summarize_cached_agents_results,
     summarize_agents_sync_outcomes,
 )
+from ..session_proc_reporter import SessionProcReporter
 from ._agents_sync_config import (
     DEFAULT_AGENTS_SYNC_CHECK_INTERVAL_SECONDS,
     DEFAULT_AGENTS_SYNC_RECOMPUTE_INTERVAL_SECONDS,
@@ -186,8 +189,14 @@ class AgentsSyncActionsMixin:
     def action_sync_agents(self) -> None:
         """Submit synchronization of every enabled agents repo as a tracked task."""
 
-        def task() -> TrackedProcResult[tuple[SyncOutcome, ...]]:
+        def task(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[tuple[SyncOutcome, ...]]:
+            reporter.phase("Synchronizing agents repositories")
             outcomes = sync_agents()
+            reporter.section("Agents repository results")
+            for outcome in outcomes:
+                reporter.log(agents_sync_outcome_line(outcome), stream="result")
             message = f"Agents repos: {summarize_agents_sync_outcomes(outcomes)}"
             failed = any(outcome.error for outcome in outcomes)
             return TrackedProcResult(
@@ -232,8 +241,14 @@ class AgentsSyncActionsMixin:
         if not captured_items:
             return
 
-        def task() -> TrackedProcResult[tuple[CachedIntegrationResult, ...]]:
+        def task(
+            reporter: SessionProcReporter,
+        ) -> TrackedProcResult[tuple[CachedIntegrationResult, ...]]:
+            reporter.phase("Importing cached incoming agent hoods")
             results = integrate_cached_agent_updates(captured_items)
+            reporter.section("Cached incoming hood results")
+            for result in results:
+                reporter.log(cached_agents_result_line(result), stream="result")
             message = "Cached agents: " + summarize_cached_agents_results(results)
             failed = any(not result.ok for result in results)
             return TrackedProcResult(

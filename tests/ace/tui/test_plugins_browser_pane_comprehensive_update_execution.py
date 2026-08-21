@@ -57,11 +57,13 @@ def test_run_scoped_update_continues_after_provider_failure(
 ) -> None:
     order: list[str] = []
 
-    def providers(_preview: Any) -> tuple[tuple[Any, ...], str | None]:
+    def providers(_preview: Any, **_kwargs: Any) -> tuple[tuple[Any, ...], str | None]:
         order.append("providers")
         return (), "provider failed"
 
-    def sase(_preview: Any, _uv_tool: object | None) -> ComprehensiveSaseUpdateResult:
+    def sase(
+        _preview: Any, _uv_tool: object | None, **_kwargs: Any
+    ) -> ComprehensiveSaseUpdateResult:
         order.append("sase")
         return ComprehensiveSaseUpdateResult(
             SaseUpdateResultStatus.ALREADY_CURRENT,
@@ -70,6 +72,7 @@ def test_run_scoped_update_continues_after_provider_failure(
 
     def agents(
         _preview: Any,
+        **_kwargs: Any,
     ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
         order.append("agents")
         return (
@@ -247,7 +250,7 @@ def test_run_scoped_update_records_unselected_sase_as_skipped(
     monkeypatch.setattr(
         "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
         "_execute_provider_leg",
-        lambda _preview: ((), None),
+        lambda _preview, **_kwargs: ((), None),
     )
     preview = ComprehensiveUpdatePreview(
         request=ComprehensiveUpdateRequest(("claude",), UpdateScope.PROVIDERS),
@@ -279,3 +282,99 @@ def test_scoped_summary_omits_unselected_legs() -> None:
     )
 
     assert comprehensive_update_summary(result) == "Cached agents: 1 applied"
+
+
+def test_run_scoped_update_threads_reporter_and_reports_legs_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.ace.tui._session_reporter import session_reporter
+
+    order: list[str] = []
+    reporters: list[object] = []
+    reporter = session_reporter(proc_type="comprehensive-update")
+
+    def providers(_preview: Any, **kwargs: Any) -> tuple[tuple[Any, ...], str | None]:
+        order.append("providers")
+        reporters.append(kwargs.get("reporter"))
+        kwargs["reporter"].phase("Updating agent CLIs")
+        return (), "provider failed"
+
+    def sase(
+        _preview: Any, _uv_tool: object | None, **kwargs: Any
+    ) -> ComprehensiveSaseUpdateResult:
+        order.append("sase")
+        reporters.append(kwargs.get("reporter"))
+        kwargs["reporter"].phase("Resolving sase update")
+        return ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.ALREADY_CURRENT,
+            "already current",
+        )
+
+    def agents(
+        _preview: Any, **kwargs: Any
+    ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
+        order.append("agents")
+        reporters.append(kwargs.get("reporter"))
+        kwargs["reporter"].phase("Importing cached incoming agent hoods")
+        return (
+            CachedIntegrationResult(_captured(), "applied", hoods_imported=1),
+        ), None
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
+        "_execute_provider_leg",
+        providers,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
+        "_execute_sase_leg",
+        sase,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_execution."
+        "_execute_agents_leg",
+        agents,
+    )
+    preview = ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude",)),
+        sase_preview=DevUpdatePreview(plan=None, subject="sase"),
+    )
+
+    result = run_scoped_update(preview, uv_tool=None, reporter=reporter)
+
+    assert order == ["providers", "sase", "agents"]
+    assert reporters == [reporter, reporter, reporter]
+    assert result.provider_error == "provider failed"
+    assert result.has_failures is True
+    output = reporter.proc.get_live_output()
+    assert "==> Updating agent CLIs" in output
+    assert "==> Resolving sase update" in output
+    assert "==> Importing cached incoming agent hoods" in output
+
+
+def test_provider_leg_uses_streaming_command_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.ace.tui._session_reporter import session_reporter
+
+    reporter = session_reporter(proc_type="comprehensive-update")
+    runners: list[object] = []
+
+    def execute(_plan: Any, **kwargs: Any) -> tuple[Any, ...]:
+        runners.append(kwargs.get("run_fn"))
+        return ()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.plugins_browser_pane._execute_agent_cli_updates",
+        execute,
+    )
+    preview = ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude",)),
+        sase_preview=None,
+        provider_plan=AgentCliNothingToUpdate(entries=(), all_clis=False),
+    )
+
+    _execute_provider_leg(preview, reporter=reporter)
+
+    assert runners and runners[0] is not None
+    assert reporter.proc.phase == "Updating agent CLIs"

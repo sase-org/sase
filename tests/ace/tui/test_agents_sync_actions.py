@@ -22,6 +22,7 @@ from sase.agents_sync.models import (
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
 )
+from tests.ace.tui._session_reporter import session_reporter as _reporter
 
 
 class _Indicator:
@@ -227,7 +228,7 @@ def test_manual_sync_uses_tracked_deduplicated_scope_and_refreshes_status(
         kwargs["duplicate_message"]
         == "An agents-repository synchronization is already running."
     )
-    task_result = args[1]()
+    task_result = args[1](_reporter())
     assert task_result.success is False
     assert task_result.payload == outcomes
     assert task_result.message == "Agents repos: 1 current, 1 failed"
@@ -271,7 +272,7 @@ def test_indicator_integration_captures_items_and_uses_no_network_api(
         kwargs["duplicate_message"]
         == "An agents-repository synchronization is already running."
     )
-    task_result = args[1]()
+    task_result = args[1](_reporter())
     assert calls == [(captured,)]
     assert task_result.success is True
     assert task_result.message == "Cached agents: 1 applied"

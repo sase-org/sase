@@ -181,6 +181,18 @@ def test_output_header_shows_the_chip_alone_without_an_agent_name() -> None:
     assert lines[agent_idx] == "agent  TESTING"
 
 
+def test_output_header_skips_command_already_logged_by_the_reporter() -> None:
+    row = _row(display_name="sase update", command=["uv", "tool", "upgrade", "sase"])
+    row.log.append("$ uv tool upgrade sase", stream="header")
+    row.log.append("Resolving packages", stream="stdout")
+
+    header = output_header(row, spinner_index=0)
+
+    assert header.plain.count("$ uv tool upgrade sase") == 0
+    body = output_body(row, {})
+    assert "$ uv tool upgrade sase" in body.plain
+
+
 def test_output_header_omits_agent_line_for_a_plain_row() -> None:
     plain = _row(display_name="sync sase-42", command=["sase", "bead", "work"])
     header = output_header(plain, spinner_index=0, agent_names={"p1": "acme--mon"})
