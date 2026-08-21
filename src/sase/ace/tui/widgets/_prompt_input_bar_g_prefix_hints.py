@@ -11,6 +11,8 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
     PromptGPrefixHintEntry,
 )
 
+_G_PREFIX_HINT_VISIBLE_ROWS = 11
+
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 else:
@@ -102,7 +104,12 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
     ) -> Text:
         """Build Rich text for the prompt prefix hint rows."""
         content = Text()
-        for index, entry in enumerate(entries):
+        visible_entries = entries
+        hidden_count = 0
+        if len(entries) > _G_PREFIX_HINT_VISIBLE_ROWS:
+            visible_entries = entries[: _G_PREFIX_HINT_VISIBLE_ROWS - 1]
+            hidden_count = len(entries) - len(visible_entries)
+        for index, entry in enumerate(visible_entries):
             content.append("  ")
             for key_index, key in enumerate((entry.key, *entry.aliases)):
                 if key_index:
@@ -114,8 +121,10 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
                 )
             content.append("   ")
             content.append(entry.label)
-            if index < len(entries) - 1:
+            if index < len(visible_entries) - 1 or hidden_count:
                 content.append("\n")
+        if hidden_count:
+            content.append(f"  ... +{hidden_count} more", style="dim")
         return content
 
     @staticmethod

@@ -39,9 +39,9 @@ class ArtifactsPatchesPane(
     RelationPanelHostMixin,
     ArtifactEntryNavigator,
     ArtifactsPaneLifecycle,
-    Horizontal,
+    Vertical,
 ):
-    """The existing Patch surface, hosted unchanged inside Artifacts."""
+    """The specialized Patch surface hosted inside the shared Artifacts chrome."""
 
     def __init__(
         self,
@@ -55,27 +55,28 @@ class ArtifactsPatchesPane(
         self.contract = contract
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="list-container"):
-            yield PatchInfoPanel(id="info-panel")
-            yield PatchList(id="list-panel")
-            yield RelationPanel(
-                id="patches-relation-panel",
-                classes="artifacts-relation-panel",
-            )
-        with Vertical(id="detail-container"):
-            profile = (
-                self.contract.query_profile
-                if self.contract is not None
-                else compiled_profile_for_builtin_pane("patches")
-            )
-            yield PatchFilterBar(id="patch-filter-bar", profile=profile)
-            with VerticalScroll(id="detail-scroll"):
-                yield PatchDetail(id="detail-panel")
-            yield TabQuickStart(
-                tab="artifacts",
-                id="patch-quickstart-panel",
-                classes="hidden",
-            )
+        profile = (
+            self.contract.query_profile
+            if self.contract is not None
+            else compiled_profile_for_builtin_pane("patches")
+        )
+        yield PatchFilterBar(id="patch-filter-bar", profile=profile)
+        with Horizontal(id="patch-panels"):
+            with Vertical(id="list-container"):
+                yield PatchInfoPanel(id="info-panel")
+                yield PatchList(id="list-panel")
+                yield RelationPanel(
+                    id="patches-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
+            with Vertical(id="detail-container"):
+                with VerticalScroll(id="detail-scroll"):
+                    yield PatchDetail(id="detail-panel")
+                yield TabQuickStart(
+                    tab="artifacts",
+                    id="patch-quickstart-panel",
+                    classes="hidden",
+                )
 
     def on_activate(self) -> None:
         """Restore focus to the PR surface after another pane owned it."""

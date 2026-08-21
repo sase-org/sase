@@ -38,12 +38,35 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g=   toggle frontmatter" in plain
         assert "gx   save as xprompt" in plain
         assert "g^X" not in plain
+        assert "... +" not in plain
         # Multi-pane and stash-open entries are absent on the bare g surface.
         assert "gs" not in plain
         assert "gS" not in plain
         assert "gj" not in plain
         assert "gp" not in plain
         assert "gP" not in plain
+
+
+async def test_bound_height_g_prefix_hints_show_remainder() -> None:
+    app = GPrefixHintApp(
+        "first\n---\nsecond",
+        stash_exists=True,
+        pinned_exists=True,
+    )
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = hint_panel(bar)
+
+        await pilot.press("escape", "g")
+        await pilot.pause()
+
+        plain = panel.render().plain
+        assert "g=   toggle frontmatter" in plain
+        assert "gs   stash all panes" not in plain
+        assert "gt   new snippet…" not in plain
+        assert "... +6 more" in plain
 
 
 async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
@@ -71,8 +94,11 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gx / ^G^X   save as xprompt" in plain
-        assert "^Gp   stashed prompts…" in plain
+        assert "^Gt   new snippet…" in plain
+        assert "^GT   snippets…" in plain
+        assert "^Gx / ^G^X   save as xprompt" not in plain
+        assert "^Gp   stashed prompts…" not in plain
+        assert "... +3 more" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert "^GP" not in plain
@@ -106,7 +132,10 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
-        assert "^Gx / ^G^X   save as xprompt" in plain
+        assert "^Gt   new snippet…" in plain
+        assert "^GT   snippets…" in plain
+        assert "^Gx / ^G^X   save as xprompt" not in plain
+        assert "... +2 more" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"

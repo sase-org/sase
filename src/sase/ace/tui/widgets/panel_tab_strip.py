@@ -66,6 +66,7 @@ class PanelTabStrip(Static):
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
         super().__init__(self._build_content(), **kwargs)
+        self.styles.width = "100%"
 
     def set_active_tab(self, active_tab: str | None) -> None:
         """Refresh the active tab indicator."""

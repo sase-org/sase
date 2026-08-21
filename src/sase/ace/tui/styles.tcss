@@ -118,6 +118,11 @@
     height: 1fr;
 }
 
+#patch-panels {
+    width: 100%;
+    height: 1fr;
+}
+
 #artifacts-files-subtabs {
     width: 100%;
     height: 1;
@@ -7563,6 +7568,8 @@ ProcsPane #procs-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
     margin-top: 1;
 }
 

@@ -12,7 +12,7 @@ from .entry_navigation import ArtifactEntryTarget
 from .patch_filter_bar import PatchFilterBar
 
 if TYPE_CHECKING:
-    from textual.containers import Horizontal as _MixinBase
+    from textual.containers import Vertical as _MixinBase
 else:
     _MixinBase = object
 

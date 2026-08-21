@@ -12,10 +12,7 @@ The vertical order is invariant for every pane:
 1. **Query bar** — always present on every pane whose contract has
    `PaneCapability.FILTER_SESSION`. Absent only on degraded panes and on providers that
    declare no fields. The bar is a permanent layout slot: pressing `/` never inserts or
-   removes rows. See [Query bar states](#query-bar-states). Patch's bar lives in its
-   detail column rather than this pane-top slot; that is the single documented exception
-   to this order (see
-   [Patch's contract-in/spec-out asymmetry](#patchs-contract-inspec-out-asymmetry)).
+   removes rows. See [Query bar states](#query-bar-states).
 2. **Identity/scope header** — built from the active `ArtifactsPaneContract`: the
    contract's icon/label on the contract's accent and the project scope. Built with
    `shell.build_shell_scope`. The committed query is **not** echoed here; it lives only
@@ -250,12 +247,10 @@ through `TabQuickStart` (`_actions/patch/_onboarding.py` shows/hides
 `#patch-quickstart-panel`); this phase treats that established mechanism as Patch's
 canonical empty surface rather than introducing a second one.
 
-The single documented exception to the [layout order](#layout-order) is **where**
-Patch's query bar lives: it sits at the top of the _detail_ column, not the top of the
-pane, because `ArtifactsPatchesPane` is a `Horizontal`. Relocating it to the shared
-pane-top slot would shift a very large number of PNG goldens across otherwise-unrelated
-suites (agents, axe, config center all screenshot the default Patch view) for no
-behavioral gain. Relocating the bar is separate work.
+Patch's query bar now occupies the same pane-top slot as every other `FILTER_SESSION`
+pane. The list/detail split stays specialized below that slot: Patch still owns
+`PatchInfoPanel`, `PatchList`, `PatchDetail`, grouping, saved query slots, and live
+query filtering rather than routing through the generic document/snapshot pipeline.
 
 A literal shared identity-header _row_ was deliberately not added to Patch's layout for
 the same golden-churn reason: `PatchInfoPanel` already carries Patch's identity and

@@ -11,9 +11,11 @@ import subprocess
 from collections.abc import Callable
 from typing import Any
 
+from rich.cells import cell_len
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.events import Resize
 from textual.widgets import Label, Static
 
 from ..actions.navigation.jump_hints import normalize_jump_key
@@ -130,6 +132,9 @@ class ProcsPane(
             event.stop()
             self.action_jump_to_entry()
 
+    def on_resize(self, _event: Resize) -> None:
+        self._update_hints()
+
     def _jump_target_count(self) -> int:
         return len(self._tasks)
 
@@ -175,11 +180,56 @@ class ProcsPane(
             action = "back" if self.jump_back_stack else "first"
             return f"JUMP ' {action}  <esc> cancel"
         agent_hint = self._monitor_jump_hint()
-        agent_token = f"{agent_hint}  " if agent_hint else ""
-        return (
-            "j/k: move  a: scope  d/D: dismiss  K: kill  e: edit  y: copy  "
-            f"{agent_token}': jump  ctrl+d/u, g/G: scroll  Tab: tab  Esc: close"
+        tokens = [
+            "j/k: move",
+            "a: scope",
+            "d/D: dismiss",
+            "K: kill",
+            "e: edit",
+            "y: copy",
+        ]
+        if agent_hint:
+            tokens.append(agent_hint)
+        tokens.extend(
+            (
+                "': jump",
+                "ctrl+d/u, g/G: scroll",
+                "Tab: tab",
+                "Esc: close",
+            )
         )
+        return self._fit_hints(tokens, protected={agent_hint, "': jump"})
+
+    def _hint_width(self) -> int:
+        try:
+            return max(0, int(self.query_one("#procs-hints", Static).size.width))
+        except Exception:
+            return max(0, int(self.size.width))
+
+    def _fit_hints(self, tokens: list[str], *, protected: set[str | None]) -> str:
+        width = self._hint_width()
+        full = "  ".join(tokens)
+        if width <= 0 or cell_len(full) <= width:
+            return full
+
+        visible = list(tokens)
+        protected = {token for token in protected if token}
+        while visible:
+            remove_at = None
+            for index in range(len(visible) - 1, -1, -1):
+                if visible[index] not in protected:
+                    remove_at = index
+                    break
+            if remove_at is None:
+                remove_at = len(visible) - 1
+            del visible[remove_at]
+            hidden = len(tokens) - len(visible)
+            marker = f"... +{hidden} more"
+            candidate = "  ".join([*visible, marker])
+            if cell_len(candidate) <= width:
+                return candidate
+
+        return f"... +{len(tokens)} more"
 
 
 __all__ = ["ProcsPane"]

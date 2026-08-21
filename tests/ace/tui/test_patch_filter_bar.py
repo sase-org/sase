@@ -287,6 +287,23 @@ async def test_clicking_idle_bar_opens_the_filter_session() -> None:
         assert bar._editing  # type: ignore[attr-defined]
 
 
+async def test_patch_query_bar_uses_pane_top_slot() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        pane = page.query_one_widget("#artifacts-patches-pane", ArtifactsPatchesPane)
+        bar = pane.query_one(PatchFilterBar)
+        split = page.query_one_widget("#patch-panels")
+        list_container = page.query_one_widget("#list-container")
+        detail_container = page.query_one_widget("#detail-container")
+
+        assert pane.children[0] is bar
+        assert pane.children[1] is split
+        assert list(split.children) == [list_container, detail_container]
+        assert bar.region.y < list_container.region.y
+        assert bar.region.y < detail_container.region.y
+
+
 async def test_action_patches_filters_is_scoped_to_patches_pane() -> None:
     async with AcePage(initial_tab="patches") as page:
         await page.press(page.artifacts_digit("beads"))

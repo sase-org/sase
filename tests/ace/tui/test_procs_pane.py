@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from rich.cells import cell_len
 from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import OptionList
@@ -43,6 +44,36 @@ def test_relative_time_formats_short_units() -> None:
     assert _relative_time(_NOW - timedelta(hours=2), now=_NOW) == "2h ago"
     assert _relative_time(_NOW - timedelta(days=4), now=_NOW) == "4d ago"
     assert _relative_time(_NOW + timedelta(seconds=1), now=_NOW) == "just now"
+
+
+def test_procs_hints_keep_key_jumps_and_mark_omitted_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = ProcsPane()
+    monkeypatch.setattr(pane, "_hint_width", lambda: 76)
+
+    hints = pane._fit_hints(
+        [
+            "j/k: move",
+            "a: scope",
+            "d/D: dismiss",
+            "K: kill",
+            "e: edit",
+            "y: copy",
+            "⏎: agent",
+            "': jump",
+            "ctrl+d/u, g/G: scroll",
+            "Tab: tab",
+            "Esc: close",
+        ],
+        protected={"⏎: agent", "': jump"},
+    )
+
+    assert cell_len(hints) <= 76
+    assert "⏎: agent" in hints
+    assert "': jump" in hints
+    assert "Esc: close" not in hints
+    assert "... +" in hints
 
 
 async def test_tasks_tab_lists_newest_first_and_renders_selected_output() -> None:
