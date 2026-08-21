@@ -40,7 +40,7 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%epic" not in insertions
     assert "%xprompts_enabled" in insertions
     assert "%approve" not in insertions
-    assert "%final" in insertions
+    assert "%final" not in insertions
 
 
 def test_auto_completes_from_name_and_advertises_alias() -> None:
@@ -106,12 +106,12 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
 
-def test_final_directive_name_is_public_after_surface_parity() -> None:
+def test_final_directive_name_is_hidden_from_generic_completion() -> None:
     f_candidates, _ = build_directive_completion_candidates("%f")
     final_candidates, _ = build_directive_completion_candidates("%final")
 
-    assert [candidate.insertion for candidate in f_candidates] == ["%final"]
-    assert [candidate.insertion for candidate in final_candidates] == ["%final"]
+    assert f_candidates == []
+    assert final_candidates == []
 
 
 def test_removed_tribe_spellings_are_absent_from_completion() -> None:
