@@ -52,6 +52,8 @@ class ModelsPanelDisplayOptionsMixin:
     if TYPE_CHECKING:
         _active_bucket: str | None
         _bucket_by_name: dict[str, BucketView]
+        _hidden_refresh_pending: bool
+        _host_visible: bool
         _jump_rendered_row_ids: tuple[str, ...] | None
         _row_by_id: dict[str, ModelsPanelDisplayRow]
         _top_rows: list[ModelsPanelDisplayRow]
@@ -336,6 +338,9 @@ class ModelsPanelDisplayOptionsMixin:
             self._updating_highlight = False
 
     def _replace_display(self, *, keep: str | None = None) -> None:
+        if not self._host_visible:
+            self._hidden_refresh_pending = True
+            return
         option_list = self.query_one("#models-panel-list", OptionList)
         self._sync_bucket_index()
         option_list.clear_options()

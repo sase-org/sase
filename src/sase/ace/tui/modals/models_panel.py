@@ -8,7 +8,12 @@ the original single-file implementation.
 
 from __future__ import annotations
 
+from typing import Any
+
+from textual.binding import Binding
 from textual.screen import ModalScreen
+from textual.timer import Timer
+from textual.widget import Widget
 from textual.worker import Worker
 
 from .config_commit import ConfigCommitOffer
@@ -64,6 +69,10 @@ from .models_panel_edit_helpers import (
 from .models_panel_history import ModelsPanelHistoryMixin
 from .models_panel_override import ModelsPanelOverrideMixin
 from .models_panel_providers import ModelsPanelProvidersMixin
+from .models_panel_provider_state import (
+    ProviderRoutingSnapshot,
+    load_provider_routing_snapshot,
+)
 from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
 from .models_panel_runner_limit_edit import build_runner_limit_commit_offer
 from .models_panel_threshold import ModelsPanelThresholdMixin
@@ -89,7 +98,12 @@ from .models_panel_rows import (
     RunnerLimitSettingRow,
 )
 from .models_panel_time import ResolvedOverrideUntil
-from .models_panel_types import ModelsPanelResult
+from .models_panel_types import (
+    LaunchPaneDisplayMode,
+    LaunchPaneHost,
+    LaunchPaneSessionState,
+    ModelsPanelResult,
+)
 
 _LEGACY_TEST_EXPORTS = (
     DURATION_CHOICE_CANCELLED,
@@ -100,7 +114,33 @@ _LEGACY_TEST_EXPORTS = (
 )
 
 
-class ModelsPanel(
+_LAUNCH_PANE_BINDINGS: list[Binding | tuple[str, str] | tuple[str, str, str]] = [
+    ("escape", "close", "Close"),
+    ("q", "close", "Close"),
+    ("j", "next_option", "Next"),
+    ("k", "prev_option", "Previous"),
+    ("down", "next_option", "Next"),
+    ("up", "prev_option", "Previous"),
+    ("ctrl+n", "next_option", "Next"),
+    ("ctrl+p", "prev_option", "Previous"),
+    ("apostrophe", "jump_to_entry", "Jump"),
+    ("l", "enter_bucket", "Open bucket"),
+    ("right", "enter_bucket", "Open bucket"),
+    ("h", "leave_bucket", "Back"),
+    ("left", "leave_bucket", "Back"),
+    ("o", "override", "Override"),
+    ("x", "clear", "Clear"),
+    ("e", "edit", "Edit"),
+    ("r", "reset", "Reset"),
+    ("H", "alias_history", "History"),
+    ("ctrl+e", "manage_default_effort", "Effort"),
+    ("ctrl+r", "manage_runner_limit", "Limit"),
+    ("p", "providers", "Providers"),
+    ("t", "tmux_agent", "tmux Agent"),
+]
+
+
+class _LaunchPaneBehavior(
     ModelsPanelDisplayMixin,
     ModelsPanelRunnerLimitMixin,
     ModelsPanelEffortMixin,
@@ -112,39 +152,33 @@ class ModelsPanel(
     ModelsPanelJumpMixin,
     ModelsPanelTmuxAgentMixin,
     OptionListNavigationMixin,
-    ModalScreen[ModelsPanelResult],
 ):
-    """View model aliases and manage temporary or persistent values."""
+    """Shared Launch Control content behavior.
+
+    ``LaunchPane`` mounts this behavior as a widget. ``ModelsPanel`` mixes in
+    the same behavior as the current standalone modal, preserving the old
+    screen lifecycle while the production route still exists.
+    """
 
     _option_list_id = "models-panel-list"
 
-    BINDINGS = [
-        ("escape", "close", "Close"),
-        ("q", "close", "Close"),
-        ("j", "next_option", "Next"),
-        ("k", "prev_option", "Previous"),
-        ("down", "next_option", "Next"),
-        ("up", "prev_option", "Previous"),
-        ("ctrl+n", "next_option", "Next"),
-        ("ctrl+p", "prev_option", "Previous"),
-        ("apostrophe", "jump_to_entry", "Jump"),
-        ("l", "enter_bucket", "Open bucket"),
-        ("right", "enter_bucket", "Open bucket"),
-        ("h", "leave_bucket", "Back"),
-        ("left", "leave_bucket", "Back"),
-        ("o", "override", "Override"),
-        ("x", "clear", "Clear"),
-        ("e", "edit", "Edit"),
-        ("r", "reset", "Reset"),
-        ("H", "alias_history", "History"),
-        ("ctrl+e", "manage_default_effort", "Effort"),
-        ("ctrl+r", "manage_runner_limit", "Limit"),
-        ("p", "providers", "Providers"),
-        ("t", "tmux_agent", "tmux Agent"),
-    ]
+    BINDINGS = _LAUNCH_PANE_BINDINGS
 
-    def __init__(self) -> None:
-        super().__init__()
+    def _init_launch_state(
+        self,
+        *,
+        host: LaunchPaneHost | None = None,
+        session_state: LaunchPaneSessionState | None = None,
+        display_mode: LaunchPaneDisplayMode = "standalone",
+        activate_on_mount: bool = True,
+    ) -> None:
+        self._host = host
+        self._session_state = session_state or LaunchPaneSessionState()
+        self._session_restore_pending = self._session_state.selected_row_id is not None
+        self._display_mode = display_mode
+        self._host_visible = activate_on_mount
+        self._hidden_refresh_pending = False
+        self._clock_timer: Timer | None = None
         self._changed = False
         self._default_effort: str | None = None
         self._effort_snapshot = EffectiveDefaultEffortSnapshot(
@@ -174,7 +208,7 @@ class ModelsPanel(
         self._top_rows: list[ModelsPanelDisplayRow] = []
         self._bucket_by_name: dict[str, BucketView] = {}
         self._row_by_id: dict[str, ModelsPanelDisplayRow] = {}
-        self._active_bucket: str | None = None
+        self._active_bucket: str | None = self._session_state.active_bucket
         self._jump_rendered_row_ids: tuple[str, ...] | None = None
         self._updating_highlight = False
         self._warning_toast_emitted = False
@@ -244,6 +278,118 @@ class ModelsPanel(
         self._clear_write_label = ""
         self._clear_write_keep = ""
 
+    @property
+    def display_mode(self) -> LaunchPaneDisplayMode:
+        """Return whether this pane is rendered standalone or embedded."""
+        return self._display_mode
+
+    def notify(self, *args: Any, **kwargs: Any) -> Any:
+        """Route standalone-pane toasts through the compatibility host.
+
+        Existing focused tests monkeypatch ``ModelsPanel.notify`` directly.
+        The standalone adapter still owns the screen, so pane notifications
+        deliberately pass through it while embedded panes notify normally.
+        """
+        if self._host is not None and self._host is not self:
+            host_notify = getattr(self._host, "notify", None)
+            if callable(host_notify):
+                return host_notify(*args, **kwargs)
+        return super().notify(*args, **kwargs)
+
+    def focus_default(self) -> None:
+        """Focus the browse list when the host activates this pane."""
+        try:
+            self.query_one("#models-panel-list").focus()
+        except Exception:
+            self.focus()
+
+    def on_center_tab_visibility_changed(self, active: bool) -> None:
+        """Receive cached-child visibility changes from an embedded host."""
+        self._host_visible = active
+        if active:
+            if self._hidden_refresh_pending and self.is_mounted:
+                self._replace_display(keep=self._session_preferred_row_id())
+                self._hidden_refresh_pending = False
+            self.focus_default()
+            self._update_context()
+
+    def _write_busy(self) -> bool:
+        return (
+            self._override_worker is not None
+            or self._clear_worker is not None
+            or self._effort_write_busy()
+            or self._runner_limit_write_busy()
+            or self._threshold_write_busy()
+            or self._provider_write_busy()
+        )
+
+    def can_deactivate(self) -> bool:
+        """Return whether the host may hide or switch away from Launch."""
+        if not self._write_busy():
+            return True
+        self.notify("An override update is still in progress.", severity="warning")
+        return False
+
+    def can_close(self) -> bool:
+        """Return whether the host may close the enclosing surface."""
+        return self.can_deactivate()
+
+    def _result(self) -> ModelsPanelResult:
+        return ModelsPanelResult(
+            changed=self._changed,
+            provider_routing_changed=self._provider_routing_changed,
+        )
+
+    def _request_close(self) -> None:
+        if self._host is not None:
+            self._host.request_launch_close(self._result())
+            return
+        self.remove()
+
+    def _mark_changed(
+        self,
+        *,
+        provider_routing_changed: bool = False,
+        agents_refresh: str | None = None,
+    ) -> None:
+        """Record a successful Launch mutation through one result seam."""
+        self._changed = True
+        if provider_routing_changed:
+            self._provider_routing_changed = True
+        if agents_refresh is not None:
+            self._request_agents_refresh(agents_refresh)
+
+    def _record_session_cursor(self) -> None:
+        """Persist the active Launch bucket and highlighted row identity."""
+        desired = self._session_state.selected_row_id
+        current = self._highlighted_row_id()
+        if (
+            self._session_restore_pending
+            and desired is not None
+            and current != desired
+            and desired not in self._row_by_id
+        ):
+            return
+        self._session_restore_pending = False
+        self._session_state.record_cursor(
+            active_bucket=self._active_bucket,
+            selected_row_id=current,
+        )
+
+    def _session_preferred_row_id(self) -> str | None:
+        return self._session_state.selected_row_id
+
+    def _host_override(self, name: str) -> Any | None:
+        """Return a monkeypatched standalone-host seam, if one exists."""
+        host = self._host
+        if host is None or host is self:
+            return None
+        class_attr = getattr(type(host), name, None)
+        if getattr(class_attr, "__launch_pane_forwarder__", False):
+            return None
+        candidate = getattr(host, name, None)
+        return candidate if callable(candidate) else None
+
     # These indirections deliberately resolve dependencies from this facade.
     # Besides keeping the mixins small, they preserve existing monkeypatch
     # points for downstream callers that imported the former monolithic module.
@@ -293,6 +439,12 @@ class ModelsPanel(
             get_use_chezmoi(),
         )
 
+    def _load_provider_routing_snapshot(self) -> ProviderRoutingSnapshot:
+        host_override = self._host_override("_load_provider_routing_snapshot")
+        if host_override is not None:
+            return host_override()
+        return load_provider_routing_snapshot(self._models_panel_now())
+
     def _models_panel_now(self) -> float:
         return _now()
 
@@ -312,6 +464,9 @@ class ModelsPanel(
     def _set_default_effort_override(
         self, effort: str, seconds: float | None
     ) -> TemporaryEffortOverride:
+        host_override = self._host_override("_set_default_effort_override")
+        if host_override is not None:
+            return host_override(effort, seconds)
         return set_effort_override(
             effort,
             seconds,
@@ -322,6 +477,9 @@ class ModelsPanel(
     def _set_default_effort_override_until(
         self, effort: str, expires_at: float
     ) -> TemporaryEffortOverride:
+        host_override = self._host_override("_set_default_effort_override_until")
+        if host_override is not None:
+            return host_override(effort, expires_at)
         return set_effort_override_until(
             effort,
             expires_at,
@@ -330,11 +488,17 @@ class ModelsPanel(
         )
 
     def _clear_default_effort_override(self) -> bool:
+        host_override = self._host_override("_clear_default_effort_override")
+        if host_override is not None:
+            return host_override()
         return clear_effort_override()
 
     def _set_runner_limit_override(
         self, limit: int, seconds: float | None
     ) -> TemporaryRunnerLimitOverride:
+        host_override = self._host_override("_set_runner_limit_override")
+        if host_override is not None:
+            return host_override(limit, seconds)
         return set_runner_limit_override(
             limit,
             seconds,
@@ -345,6 +509,9 @@ class ModelsPanel(
     def _set_runner_limit_override_until(
         self, limit: int, expires_at: float
     ) -> TemporaryRunnerLimitOverride:
+        host_override = self._host_override("_set_runner_limit_override_until")
+        if host_override is not None:
+            return host_override(limit, expires_at)
         return set_runner_limit_override_until(
             limit,
             expires_at,
@@ -353,6 +520,9 @@ class ModelsPanel(
         )
 
     def _clear_runner_limit_override(self) -> bool:
+        host_override = self._host_override("_clear_runner_limit_override")
+        if host_override is not None:
+            return host_override()
         return clear_runner_limit_override()
 
     def _build_alias_commit_offer(
@@ -395,6 +565,9 @@ class ModelsPanel(
         ModelsPanelOverrideMixin.on_worker_state_changed(self, event)
 
     def on_unmount(self) -> None:
+        if self._clock_timer is not None:
+            self._clock_timer.stop()
+            self._clock_timer = None
         self._cancel_config_commit_offer()
         self._cancel_effort_workers()
         self._cancel_runner_limit_workers()
@@ -403,3 +576,63 @@ class ModelsPanel(
         for worker in (self._override_worker, self._clear_worker):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
+
+
+class LaunchPane(_LaunchPaneBehavior, Widget):
+    """Reusable Launch Control content widget."""
+
+    BINDINGS = _LAUNCH_PANE_BINDINGS
+
+    def __init__(
+        self,
+        *,
+        host: LaunchPaneHost | None = None,
+        session_state: LaunchPaneSessionState | None = None,
+        display_mode: LaunchPaneDisplayMode = "standalone",
+        activate_on_mount: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        mode_class = (
+            "-launch-pane-embedded"
+            if display_mode == "embedded"
+            else "-launch-pane-standalone"
+        )
+        classes = kwargs.pop("classes", None)
+        kwargs["classes"] = " ".join(
+            part for part in (classes, mode_class) if isinstance(part, str) and part
+        )
+        super().__init__(**kwargs)
+        self._init_launch_state(
+            host=host,
+            session_state=session_state,
+            display_mode=display_mode,
+            activate_on_mount=activate_on_mount,
+        )
+
+
+class ModelsPanel(_LaunchPaneBehavior, ModalScreen[ModelsPanelResult]):
+    """Standalone modal compatibility host for Launch Control."""
+
+    BINDINGS = _LAUNCH_PANE_BINDINGS
+
+    def __init__(self, *, session_state: LaunchPaneSessionState | None = None) -> None:
+        super().__init__()
+        self._init_launch_state(
+            host=self,
+            session_state=session_state,
+            display_mode="standalone",
+            activate_on_mount=True,
+        )
+
+    def request_launch_close(self, result: ModelsPanelResult) -> None:
+        self.dismiss(result)
+
+
+__all__ = [
+    "LaunchPane",
+    "LaunchPaneDisplayMode",
+    "LaunchPaneHost",
+    "LaunchPaneSessionState",
+    "ModelsPanel",
+    "ModelsPanelResult",
+]

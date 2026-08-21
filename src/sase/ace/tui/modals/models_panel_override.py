@@ -123,6 +123,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
 
         def _on_runner_limit_action(self, result: RunnerLimitAction | None) -> None: ...
 
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
+
     def action_override(self) -> None:
         if self._override_worker is not None or self._clear_worker is not None:
             return
@@ -431,7 +438,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
             self.notify("Could not set override: invalid result", severity="error")
             return
         self.notify(f"{target_label} override: {label} {suffix}")
-        self._changed = True
+        self._mark_changed()
         self._refresh_rows(keep=keep or alias)
 
     def _on_clear_worker(self, event: Worker.StateChanged) -> None:
@@ -461,5 +468,5 @@ class ModelsPanelOverrideMixin(_MixinBase):
             self._refresh_rows(keep=keep or alias)
             return
         self.notify(f"Cleared override on {label}")
-        self._changed = True
+        self._mark_changed()
         self._refresh_rows(keep=keep or alias)

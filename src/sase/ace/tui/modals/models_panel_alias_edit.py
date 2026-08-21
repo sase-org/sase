@@ -116,6 +116,13 @@ class ModelsPanelAliasEditMixin(_MixinBase):
 
         def action_reset_big_epic_phase_threshold(self) -> None: ...
 
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
+
     def action_edit(self) -> None:
         selected = self._selected_row()
         if isinstance(selected, DefaultEffortSettingRow):
@@ -448,6 +455,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         self.notify(f"{verb} {target_label}{suffix}")
         # Persistent edits do not touch temporary overrides. Refresh the rows
         # so the configured/effective columns reflect the new value.
+        self._mark_changed()
         self._refresh_rows(keep=self._pending_edit_keep or outcome.alias)
         self._offer_commit_push(outcome)
 

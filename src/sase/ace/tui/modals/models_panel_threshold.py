@@ -45,6 +45,13 @@ class ModelsPanelThresholdMixin(_MixinBase):
             self, path: str
         ) -> ConfigCommitOffer | None: ...
 
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
+
     def action_edit_big_epic_phase_threshold(self) -> None:
         row = self._selected_row()
         if not isinstance(row, BigEpicPhaseThresholdSettingRow):
@@ -73,7 +80,7 @@ class ModelsPanelThresholdMixin(_MixinBase):
     def _on_big_epic_phase_threshold_edited(self, outcome: object | None) -> None:
         if not isinstance(outcome, BigEpicPhaseThresholdEditOutcome):
             return
-        self._changed = True
+        self._mark_changed()
         self._start_provider_snapshot_load(
             keep="setting:big_epic_phase_threshold",
             update_rows=True,

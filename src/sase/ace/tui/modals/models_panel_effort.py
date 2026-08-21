@@ -99,6 +99,13 @@ class ModelsPanelEffortMixin(_MixinBase):
             self, path: str
         ) -> ConfigCommitOffer | None: ...
 
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
+
     def _start_effort_snapshot_load(self) -> None:
         """Load configured/state data once, outside Textual's event loop."""
         worker = self._effort_snapshot_worker
@@ -278,6 +285,7 @@ class ModelsPanelEffortMixin(_MixinBase):
         if previous_override is not None:
             message += "; temporary override remains active"
         self.notify(message)  # type: ignore[attr-defined]
+        self._mark_changed()
         self._offer_default_effort_commit(outcome.applied.path)
 
     def _offer_default_effort_commit(self, path: str) -> None:
@@ -381,7 +389,7 @@ class ModelsPanelEffortMixin(_MixinBase):
         self.notify(  # type: ignore[attr-defined]
             f"Default effort override: @{override.effort} {suffix}"
         )
-        self._changed = True
+        self._mark_changed()
 
     def _on_effort_clear_worker(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -414,7 +422,7 @@ class ModelsPanelEffortMixin(_MixinBase):
         )
         if cleared:
             self.notify("Cleared default effort override")  # type: ignore[attr-defined]
-            self._changed = True
+            self._mark_changed()
         else:
             self.notify(  # type: ignore[attr-defined]
                 "No active default effort override", severity="warning"

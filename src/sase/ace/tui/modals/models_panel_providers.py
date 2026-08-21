@@ -38,6 +38,8 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _changed: bool
+        _hidden_refresh_pending: bool
+        _host_visible: bool
         _provider_disables: dict[str, TemporaryProviderDisable]
         _provider_routing_changed: bool
         _provider_snapshot: ProviderRoutingSnapshot
@@ -70,6 +72,15 @@ class ModelsPanelProvidersMixin(_MixinBase):
         def _update_context(self) -> None: ...
 
         def _emit_custom_builtin_shadow_warning(self) -> None: ...
+
+        def _session_preferred_row_id(self) -> str | None: ...
+
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
 
     def _initial_provider_snapshot(self) -> ProviderRoutingSnapshot:
         launch_rows = build_launch_model_setting_rows(
@@ -181,13 +192,17 @@ class ModelsPanelProvidersMixin(_MixinBase):
             # cursor; leave keep unset when the first-paint default is still
             # selected so launch-setting rows can become the new first row.
             preferred = self._visible_snapshot_keep(keep, current_highlight)
+            if preferred is None:
+                preferred = self._session_preferred_row_id()
             self._replace_display(keep=preferred)
-            self._emit_custom_builtin_shadow_warning()
-        elif self.is_mounted:  # type: ignore[attr-defined]
+            if self._host_visible:
+                self._emit_custom_builtin_shadow_warning()
+        elif self.is_mounted and self._host_visible:  # type: ignore[attr-defined]
             self._update_context()
+        elif self.is_mounted:  # type: ignore[attr-defined]
+            self._hidden_refresh_pending = True
         if signal_changes and routing_changed:
-            self._changed = True
-            self._provider_routing_changed = True
+            self._mark_changed(provider_routing_changed=True)
 
     def _on_provider_snapshot_worker_state(self, event: Worker.StateChanged) -> bool:
         if event.worker is not self._provider_snapshot_worker:
@@ -237,13 +252,11 @@ class ModelsPanelProvidersMixin(_MixinBase):
     ) -> None:
         selected = self._highlighted_row_id()  # type: ignore[attr-defined]
         self._apply_provider_snapshot(snapshot, keep=selected, update_rows=True)
-        self._changed = True
-        self._provider_routing_changed = True
+        self._mark_changed(provider_routing_changed=True)
 
     def _on_provider_modal_dismissed(self, changed: bool | None) -> None:
         if changed:
-            self._changed = True
-            self._provider_routing_changed = True
+            self._mark_changed(provider_routing_changed=True)
 
 
 __all__ = ["ModelsPanelProvidersMixin"]

@@ -99,6 +99,13 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
 
         def _request_agents_refresh(self, source: str) -> None: ...
 
+        def _mark_changed(
+            self,
+            *,
+            provider_routing_changed: bool = False,
+            agents_refresh: str | None = None,
+        ) -> None: ...
+
     def _start_runner_limit_snapshot_load(self) -> None:
         worker = self._runner_limit_snapshot_worker
         if worker is not None and not worker.is_finished:
@@ -273,8 +280,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         if previous_override is not None:
             message += "; temporary override remains active"
         self.notify(message)  # type: ignore[attr-defined]
-        self._changed = True
-        self._request_agents_refresh("models-runner-limit-config")
+        self._mark_changed(agents_refresh="models-runner-limit-config")
         self._offer_runner_limit_commit(outcome.applied.path)
 
     def _offer_runner_limit_commit(self, path: str) -> None:
@@ -379,8 +385,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         self.notify(  # type: ignore[attr-defined]
             f"Max running agents override: {override.limit} {suffix}"
         )
-        self._changed = True
-        self._request_agents_refresh("models-runner-limit-override")
+        self._mark_changed(agents_refresh="models-runner-limit-override")
 
     def _on_runner_limit_clear_worker(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -414,8 +419,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         )
         if cleared:
             self.notify("Cleared max-running-agents override")  # type: ignore[attr-defined]
-            self._changed = True
-            self._request_agents_refresh("models-runner-limit-clear")
+            self._mark_changed(agents_refresh="models-runner-limit-clear")
         else:
             self.notify(  # type: ignore[attr-defined]
                 "No active max-running-agents override", severity="warning"

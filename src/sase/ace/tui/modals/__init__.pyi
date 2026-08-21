@@ -163,6 +163,10 @@ from .mentor_review_models import MentorReviewData as MentorReviewData
 from .mentor_review_modal import MentorReviewModal as MentorReviewModal
 from .mentor_review_models import MentorRunResult as MentorRunResult
 from .model_picker_modal import ModelPickerModal as ModelPickerModal
+from .models_panel import LaunchPane as LaunchPane
+from .models_panel import LaunchPaneDisplayMode as LaunchPaneDisplayMode
+from .models_panel import LaunchPaneHost as LaunchPaneHost
+from .models_panel import LaunchPaneSessionState as LaunchPaneSessionState
 from .models_panel import ModelsPanel as ModelsPanel
 from .models_panel import ModelsPanelResult as ModelsPanelResult
 from .notification_modal import NotificationModal as NotificationModal

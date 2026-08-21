@@ -28,7 +28,6 @@ from .models_panel_rows import (
     ModelsPanelDisplayRow,
     RunnerLimitSettingRow,
 )
-from .models_panel_types import ModelsPanelResult
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -60,6 +59,7 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
         _active_bucket: str | None
         _bucket_by_name: dict[str, BucketView]
         _changed: bool
+        _clock_timer: Any
         _default_effort: str | None
         _effort_snapshot: Any
         _runner_limit_snapshot: Any
@@ -72,8 +72,12 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
         _clear_worker: Any
         _provider_routing_changed: bool
         _jump_rendered_row_ids: tuple[str, ...] | None
+        _host_visible: bool
         jump_mode_active: bool
         jump_back_stack: list[int]
+
+        @property
+        def display_mode(self) -> str: ...
 
         def jump_hints_by_key(self) -> dict[str, str]: ...
 
@@ -113,6 +117,14 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
 
         def _provider_write_busy(self) -> bool: ...
 
+        def can_close(self) -> bool: ...
+
+        def _request_close(self) -> None: ...
+
+        def _record_session_cursor(self) -> None: ...
+
+        def _session_preferred_row_id(self) -> str | None: ...
+
         def _load_models_panel_rows(
             self, views: list[AliasView]
         ) -> list[ModelsPanelDisplayRow]: ...
@@ -129,21 +141,22 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
 
     def on_mount(self) -> None:
         option_list = self.query_one("#models-panel-list", OptionList)
-        option_list.focus()
+        if self._host_visible:
+            option_list.focus()
         highlighted = option_list.highlighted
         if highlighted is None or self._option_is_disabled(option_list, highlighted):
-            self._set_highlighted_index(
-                option_list, self._first_enabled_option_index(option_list)
-            )
+            self._restore_highlight(option_list, self._session_preferred_row_id())
         self._update_context()
         self._emit_custom_builtin_shadow_warning()
         self._start_effort_snapshot_load()
         self._start_runner_limit_snapshot_load()
         self._start_provider_snapshot_load(update_rows=True)
-        self.set_interval(5.0, self._refresh_models_clock)
+        self._clock_timer = self.set_interval(5.0, self._refresh_models_clock)
 
     def _refresh_models_clock(self) -> None:
         """Advance captured countdowns without reading disk or state."""
+        if not self._host_visible:
+            return
         self._refresh_effort_clock()
         self._refresh_runner_limit_clock()
         self._refresh_provider_clock()
@@ -262,6 +275,7 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
             pass
         self._update_description_strip()
         self._sync_option_list_viewport()
+        self._record_session_cursor()
 
     def _update_description_strip(self) -> None:
         """Refresh the description strip for the currently highlighted row."""
@@ -279,6 +293,15 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
 
     def _models_panel_content_width(self) -> int:
         """Return the resolved content width shared by title/list/description/footer."""
+        if self.display_mode == "embedded":
+            container_width = self.size.width
+            try:
+                resolved = self.query_one("#models-panel-container").size.width
+                if resolved:
+                    container_width = resolved
+            except Exception:
+                pass
+            return max(1, int(container_width))
         container_width = min(_MODAL_WIDTH, int(self.size.width * 0.95))
         return max(1, container_width - _MODAL_CHROME_COLS)
 
@@ -309,12 +332,14 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
         )
         footer_budget = _FOOTER_CHROME_ROWS + footer_rows
 
-        available = (
+        max_height = (
             _MODAL_MAX_HEIGHT_ROWS
-            - _MODAL_CHROME_ROWS
-            - title_budget
-            - description_budget
-            - footer_budget
+            if self.display_mode == "standalone"
+            else max(_LIST_MIN_VIEWPORT_ROWS, int(self.size.height))
+        )
+        chrome_rows = _MODAL_CHROME_ROWS if self.display_mode == "standalone" else 0
+        available = (
+            max_height - chrome_rows - title_budget - description_budget - footer_budget
         )
         list_cap = max(_LIST_MIN_VIEWPORT_ROWS, min(_LIST_MAX_VIEWPORT_ROWS, available))
         option_list.styles.max_height = list_cap
@@ -375,24 +400,12 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
             except Exception:
                 pass
             self._sync_option_list_viewport()
+            self._record_session_cursor()
 
     def action_close(self) -> None:
-        if (
-            self._override_worker is not None
-            or self._clear_worker is not None
-            or self._effort_write_busy()
-            or self._runner_limit_write_busy()
-            or self._threshold_write_busy()
-            or self._provider_write_busy()
-        ):
-            self.notify("An override update is still in progress.", severity="warning")
+        if not self.can_close():
             return
-        self.dismiss(
-            ModelsPanelResult(
-                changed=self._changed,
-                provider_routing_changed=self._provider_routing_changed,
-            )
-        )
+        self._request_close()
 
     def action_cancel(self) -> None:
         """Alias for :meth:`action_close` (overrides the navigation mixin)."""
