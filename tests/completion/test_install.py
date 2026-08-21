@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.completion.install import (
     CompletionRefreshReport,
     ForeignInstallError,
+    InstallResult,
     RefreshShellOutcome,
     install_completion,
     list_shell_statuses,
@@ -217,6 +218,21 @@ def test_refresh_rewrites_every_stamped_shell(tmp_path: Path) -> None:
     assert {outcome.shell for outcome in report.outcomes} == {"bash", "zsh"}
     assert all(outcome.ok for outcome in report.outcomes)
     assert set(seen) == {"bash", "zsh"}
+
+
+def test_refresh_skips_zsh_registration_probe(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+    verify_fns: list[object] = []
+
+    def _installer(**kwargs: object) -> InstallResult:
+        verify_fn = kwargs.get("verify_fn")
+        assert callable(verify_fn)
+        verify_fns.append(verify_fn)
+        return _install(tmp_path, target=kwargs["target"], force=True)
+
+    report = _refresh_stamped_completions(install_fn=_installer)
+    assert report.outcomes[0].ok is True
+    assert verify_fns[0]() is None  # type: ignore[operator]
 
 
 def test_chezmoi_owned_stamp_refuses_local_takeover_without_force(

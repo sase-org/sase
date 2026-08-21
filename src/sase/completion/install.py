@@ -412,6 +412,11 @@ def list_shell_statuses(
     )
 
 
+def _skip_refresh_verify() -> str | None:
+    """Skip ``${_comps[sase]}`` probing during update-time refresh."""
+    return None
+
+
 def _refresh_stamped_completions(
     *,
     install_fn: Callable[..., InstallResult] | None = None,
@@ -435,10 +440,12 @@ def _refresh_stamped_completions(
             continue
         target_dir = Path(stamp.target).expanduser().parent
         try:
+            # fpath probing is first-install only; it false-fails disposable dirs.
             result = installer(
                 requested=stamp.shell,
                 force=True,
                 target=target_dir,
+                verify_fn=_skip_refresh_verify,
             )
         except Exception as exc:  # noqa: BLE001 - refresh must never abort update.
             outcomes.append(
