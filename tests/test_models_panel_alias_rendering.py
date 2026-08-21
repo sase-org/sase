@@ -1,6 +1,7 @@
 """Models panel alias-row and state rendering tests."""
 
 import pytest
+from rich.text import Text
 
 import sase.ace.tui.modals.models_panel as models_panel
 import sase.llm_provider.alias_view as alias_view_module
@@ -309,20 +310,102 @@ def test_state_tag_counts_sparing_members_as_available() -> None:
     assert _state_tag(view, now=0.0).plain == "configured · pool 2/2"
 
 
-def test_description_marks_sparing_member_with_soft_chip() -> None:
+def _style_covering(text: Text, fragment: str) -> str:
+    start = text.plain.index(fragment)
+    end = start + len(fragment)
+    styles = [
+        str(span.style) for span in text.spans if span.start < end and span.end > start
+    ]
+    assert styles, f"no span covers {fragment!r} in {text.plain!r}"
+    return " ".join(styles).lower()
+
+
+def test_description_renders_all_soft_pool_from_selected_state() -> None:
     view = make_alias_view(
         "pool",
         "user",
         configured=True,
         configured_value="claude/opus | codex/gpt-5.5",
         selector_mode="round_robin",
+        selector_members=make_pool_members((True, True), sparing=(True, True)),
+    )
+
+    text = _description_text_for_view(view)
+    assert (
+        text.plain.splitlines()[-1] == "pool: → ✓ claude/opus@medium · × codex/gpt-5.5"
+    )
+    assert " soft" not in text.plain
+    assert "#ffd75f" in _style_covering(text, "→ ")
+    assert "bold" in _style_covering(text, "→ ")
+    assert "#ffd75f" in _style_covering(text, "✓ claude/opus@medium")
+    assert "#ffd75f" in _style_covering(text, "× codex/gpt-5.5")
+
+
+def test_description_keeps_green_red_and_ambers_soft_members() -> None:
+    members = (
+        ModelAliasSelectorMember(
+            value="claude/opus@medium",
+            target="claude/opus",
+            effort="medium",
+            provider="claude",
+            available=True,
+            selected=True,
+        ),
+        ModelAliasSelectorMember(
+            value="codex/gpt-5.5",
+            target="codex/gpt-5.5",
+            effort=None,
+            provider="codex",
+            available=True,
+            sparing=True,
+        ),
+        ModelAliasSelectorMember(
+            value="gemini/gemini-2.5-pro",
+            target="gemini/gemini-2.5-pro",
+            effort=None,
+            provider="gemini",
+            available=False,
+        ),
+    )
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        configured_value=("claude/opus@medium | codex/gpt-5.5 | gemini/gemini-2.5-pro"),
+        selector_mode="round_robin",
+        selector_members=members,
+    )
+
+    text = _description_text_for_view(view)
+    assert text.plain.splitlines()[-1] == (
+        "pool: → ✓ claude/opus@medium · × codex/gpt-5.5 · × gemini/gemini-2.5-pro"
+    )
+    assert " soft" not in text.plain
+    assert "#87d787" in _style_covering(text, "→ ")
+    assert "#87d787" in _style_covering(text, "✓ claude/opus@medium")
+    assert "#ffd75f" in _style_covering(text, "× codex/gpt-5.5")
+    assert "#d78787" in _style_covering(text, "× gemini/gemini-2.5-pro")
+
+
+def test_description_dims_sparing_members_when_pool_is_suspended() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        override=make_override(),
+        selector_mode="round_robin",
         selector_members=make_pool_members((True, True), sparing=(True, False)),
     )
 
-    description = _description_text_for_view(view).plain
-    assert "✓ claude/opus@medium soft" in description
-    assert "✓ codex/gpt-5.5" in description
-    assert "×" not in description
+    text = _description_text_for_view(view)
+    assert text.plain.splitlines()[-1] == (
+        "pool (suspended by override): ✓ claude/opus@medium · ✓ codex/gpt-5.5"
+    )
+    assert "→" not in text.plain
+    assert " soft" not in text.plain
+    assert "dim" in _style_covering(text, "✓ claude/opus@medium")
+    assert "#ffd75f" in _style_covering(text, "✓ claude/opus@medium")
+    assert "#87d787" in _style_covering(text, "✓ codex/gpt-5.5")
 
 
 def test_state_tag_overridden_pool_keeps_override_chip() -> None:

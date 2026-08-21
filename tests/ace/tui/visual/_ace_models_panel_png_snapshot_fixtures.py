@@ -244,6 +244,50 @@ def override_views() -> list[AliasView]:
     ]
 
 
+def provider_soft_disabled_views() -> list[AliasView]:
+    """calm_views() with xsmall agreeing with a Codex soft-disable snapshot.
+
+    Gemini is CLI-unavailable (red ``×``). Codex is soft-disabled and selected
+    (amber ``→ ✓``), so the highlighted pool description shows both routing
+    states without a ``soft`` chip.
+    """
+    return [
+        _view(
+            "xsmall",
+            "role",
+            provider="codex",
+            model="gpt-5.5",
+            effort="high",
+            description=(
+                "Extra-small, lowest-cost alias load-balanced across a "
+                "fallback pool for the simplest direct tasks."
+            ),
+            selector_mode="round_robin",
+            selector_members=(
+                ModelAliasSelectorMember(
+                    value="gemini/gemini-2.5-pro",
+                    target="gemini/gemini-2.5-pro",
+                    effort=None,
+                    provider="gemini",
+                    available=False,
+                ),
+                ModelAliasSelectorMember(
+                    value="codex/gpt-5.5@high",
+                    target="codex/gpt-5.5",
+                    effort="high",
+                    provider="codex",
+                    available=True,
+                    selected=True,
+                    sparing=True,
+                ),
+            ),
+        )
+        if row.name == "xsmall"
+        else row
+        for row in calm_views()
+    ]
+
+
 def provider_disabled_views() -> list[AliasView]:
     disable = provider_disable(
         "codex", expires_at=FROZEN_NOW + 2_520.0, source="visual"

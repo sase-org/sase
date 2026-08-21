@@ -2814,13 +2814,15 @@ the tail is selected. After the last pool member, a `fallback:` separator introd
 last-resort rows. An ordered fallback labels candidates in priority order, marks the
 current winner, and never reads rotation state. The row's provider/model/effort badge is
 derived from that same selected member. Temporarily **hard**-disabled providers count as
-unavailable for this display. Soft-disabled providers stay selectable (shown as `soft`)
-and still count in `pool <available>/<total>`. If a temporary alias override targets a
-**hard**-disabled provider, the override is preserved but paused: the row shows the live
-fallback/pool target, the state tag says the override is paused, and the description
-names the disabled provider that must expire or be re-enabled before the override
-resumes. An active override whose provider remains available, including a soft-disabled
-one, still bypasses selector choice for the override's lifetime.
+unavailable for this display and render as a red `×`. Soft-disabled members stay
+selectable and still count in `pool <available>/<total>`: a selected one renders as
+amber `→ ✓ provider/model@effort`, and a spared one as amber `× provider/model@effort`,
+with no trailing `soft` chip. If a temporary alias override targets a **hard**-disabled
+provider, the override is preserved but paused: the row shows the live fallback/pool
+target, the state tag says the override is paused, and the description names the
+disabled provider that must expire or be re-enabled before the override resumes. An
+active override whose provider remains available, including a soft-disabled one, still
+bypasses selector choice for the override's lifetime.
 
 If a builtin size alias is mistakenly configured under
 `llm_provider.model_aliases.custom`, opening the panel emits one warning toast listing
@@ -2967,10 +2969,12 @@ Control title, alias routing rows, and the top-bar indicators without closing th
 so several providers can be managed in one pass. Unknown disable sources are shown as
 readable labels instead of being folded into the manual state.
 
-A sparing (soft) pool member still counts toward `pool <available>/<total>` and renders
-a `soft` chip; it remains selectable. Soft-disabled providers stay in the model picker
-(header labelled `soft`, rows dimmed one step) and in `%model` completion (annotated
-`soft` in the provenance column). Hard-disabled providers are still omitted from both.
+A sparing (soft) pool member still counts toward `pool <available>/<total>` and remains
+selectable. In the alias description it renders as amber `→ ✓ provider/model@effort`
+when selected or amber `× provider/model@effort` when skipped, with no `soft` chip.
+Soft-disabled providers stay in the model picker (header labelled `soft`, rows dimmed
+one step) and in `%model` completion (annotated `soft` in the provenance column).
+Hard-disabled providers are still omitted from both.
 
 ACE also shows active provider disables in a compact top-bar pill beside the model
 override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one

@@ -28,6 +28,7 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     pool_effort_views,
     provider_disable,
     provider_disabled_views,
+    provider_soft_disabled_views,
     provider_status,
     runner_limit_snapshot,
 )
@@ -584,7 +585,7 @@ async def test_models_panel_provider_soft_disabled_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    views = calm_views()
+    views = provider_soft_disabled_views()
     disable = provider_disable(
         "codex",
         expires_at=FROZEN_NOW + 2_520.0,
@@ -604,7 +605,12 @@ async def test_models_panel_provider_soft_disabled_png_snapshot(
                 active_disable=disable,
                 affected_aliases=("medium", "xsmall", "legacy_blog"),
             ),
-            provider_status("gemini", model_count=2, cli_available=False),
+            provider_status(
+                "gemini",
+                model_count=2,
+                cli_available=False,
+                affected_aliases=("xsmall",),
+            ),
         ),
         provider_disables={"codex": disable},
         alias_views=tuple(views),
@@ -621,6 +627,11 @@ async def test_models_panel_provider_soft_disabled_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(models_panel_provider_state, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(
+        models_panel,
+        "load_provider_routing_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
     monkeypatch.setattr(
         models_panel_providers,
         "load_provider_routing_snapshot",
@@ -642,10 +653,28 @@ async def test_models_panel_provider_soft_disabled_png_snapshot(
                 return False
             return "disabled providers: CODEX soft 42m" in title.content.plain
 
+        def pool_description_is_visible() -> bool:
+            try:
+                description = panel.query_one("#models-panel-description", Static)
+            except Exception:
+                return False
+            plain = description.content.plain
+            return (
+                "× gemini/gemini-2.5-pro" in plain
+                and "→ ✓ codex/gpt-5.5@high" in plain
+                and " soft" not in plain
+            )
+
         await wait_for_state(
             page,
             provider_line_is_visible,
             description="Launch Control soft provider disable title line",
+        )
+        _highlight_row(page, "xsmall")
+        await wait_for_state(
+            page,
+            pool_description_is_visible,
+            description="Launch Control soft-disabled pool description",
         )
         await wait_for_visual_idle(page)
 

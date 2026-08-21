@@ -200,27 +200,28 @@ def description_text_for_view(
                 else:
                     text.append(" · ", style="dim")
             if member.selected and not suspended:
-                arrow_style = (
-                    "bold #FFD75F"
-                    if not member.valid
-                    else f"bold {'#87D787' if member.available else '#D78787'}"
-                )
+                if not member.valid or member.sparing:
+                    arrow_style = _POOL_SOFT_STYLE
+                else:
+                    arrow_style = f"bold {'#87D787' if member.available else '#D78787'}"
                 text.append("→ ", style=arrow_style)
             if member.valid:
-                marker = "✓" if member.available else "×"
                 target = member.target
                 if member.effort:
                     target = f"{target}@{member.effort}"
-                color = (
-                    _POOL_AVAILABLE_STYLE
-                    if member.available
-                    else _POOL_UNAVAILABLE_STYLE
-                )
-                dimmed = suspended or not member.selected
-                style = f"dim {color}" if dimmed else color
-                text.append(f"{marker} {target}", style=style)
                 if member.sparing:
-                    text.append(" soft", style=_POOL_SOFT_STYLE)
+                    marker = "✓" if member.selected else "×"
+                    style = "dim #FFD75F" if suspended else _POOL_SOFT_STYLE
+                else:
+                    marker = "✓" if member.available else "×"
+                    color = (
+                        _POOL_AVAILABLE_STYLE
+                        if member.available
+                        else _POOL_UNAVAILABLE_STYLE
+                    )
+                    dimmed = suspended or not member.selected
+                    style = f"dim {color}" if dimmed else color
+                text.append(f"{marker} {target}", style=style)
             else:
                 style = (
                     "dim #FFD75F"
