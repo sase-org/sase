@@ -4820,8 +4820,8 @@ placeholder rows literal. A literal row counts as filled and leaves its original
 Set `ace.prompt_inputs.collect_raw_placeholders: false` to stop collecting raw tags on
 submit; declared frontmatter inputs are still collected. Set
 `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw tags literal when
-using `gx`, `gX`, or `gL` and mint no placeholder-derived `text` inputs; Jinja-variable
-inference for `gL` still runs. See
+using `gX`, `gL`, or a fresh `gx` extraction and mint no placeholder-derived `text`
+inputs; Jinja-variable inference for `gL` still runs. See
 [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion
 and naming rules.
 
@@ -4926,8 +4926,11 @@ that pane publishes the definition without binding the surrounding prompt stack.
 converts the active pane through a prefilled frontmatter ghost row and rewrites the pane
 to invoke the committed helper. Before `gX` opens the save preview, its xprompt version
 converts live `<label>` tags into required Jinja `text` inputs; switching that screen to
-snippet mode shows and saves the original active-pane body instead. `gx` and `gL`
-perform the same raw-placeholder conversion when they save a mini-xprompt or create a
+snippet mode shows and saves the original active-pane body instead. A fresh `gx`
+extraction applies the same raw-placeholder conversion to the copied origin-pane body
+before the mini pane opens and seeds the mini definition's inferred inputs. Raw
+placeholders typed later in the mini pane are saved as edited; the mini save review does
+not run another conversion pass. `gL` also applies the conversion when it creates a
 frontmatter-local helper. Set `ace.prompt_inputs.xprompt_placeholder_args: false` to
 disable these conversions while preserving `gL` Jinja-variable inference. `gw` only
 writes the currently bound definition—it does not reinterpret newly typed raw

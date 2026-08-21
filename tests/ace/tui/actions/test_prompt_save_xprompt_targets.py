@@ -13,6 +13,15 @@ import yaml  # type: ignore[import-untyped]
 from textual.pilot import Pilot
 from textual.widgets import Static
 
+from sase.ace.tui.actions.agent_workflow import (
+    _prompt_bar_save_xprompt as save_xprompt_mod,
+)
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import (
+    write_binding_sync,
+)
+from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
+    PromptBarSnippetPaneMixin,
+)
 from sase.ace.tui.modals import ConfirmActionModal, UnifiedXPromptSaveResult
 from sase.ace.tui.modals.mini_xprompt_name_modal import MiniXPromptNameResult
 from sase.ace.tui.modals.mini_xprompt_save_confirm_modal import (
@@ -26,12 +35,6 @@ from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameResult,
 )
 from sase.ace.tui.modals.snippet_save_confirm_modal import SnippetSaveConfirmModal
-from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
-    PromptBarSnippetPaneMixin,
-)
-from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import (
-    write_binding_sync,
-)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import (
     SourceFingerprint,
@@ -772,6 +775,55 @@ async def test_mini_xprompt_pane_config_save_writes_entry(
                 "content": "Check this",
             }
             assert not bar._stack.has_mini_xprompt_pane
+
+
+async def test_mini_xprompt_save_review_loads_disk_state_off_event_loop(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "review.md"
+    app = _SaveFlowApp("agent prompt")
+    entered = threading.Event()
+    release = threading.Event()
+    worker_threads: list[int] = []
+    loop_thread = threading.get_ident()
+    original = save_xprompt_mod._load_mini_xprompt_save_disk_state
+
+    def _slow_disk_state(target: object) -> object:
+        worker_threads.append(threading.get_ident())
+        entered.set()
+        release.wait(timeout=1.0)
+        return original(target)  # type: ignore[arg-type]
+
+    try:
+        with patch.object(
+            save_xprompt_mod,
+            "_load_mini_xprompt_save_disk_state",
+            side_effect=_slow_disk_state,
+        ):
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                bar = app.query_one(PromptInputBar)
+                await _open_mini_xprompt_pane(
+                    pilot,
+                    bar,
+                    path,
+                    body="draft body",
+                )
+
+                await pilot.press("enter")
+                await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+                assert worker_threads
+                assert worker_threads[0] != loop_thread
+
+                heartbeat = asyncio.Event()
+                asyncio.get_running_loop().call_soon(heartbeat.set)
+                await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+                assert bar._stack.has_mini_xprompt_pane
+
+                release.set()
+                await _wait_save_tasks(app)
+    finally:
+        release.set()
 
 
 async def test_mini_xprompt_pane_failed_write_keeps_draft(tmp_path: Path) -> None:

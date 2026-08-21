@@ -24,21 +24,17 @@ from tests.ace.tui._commits_pane_helpers import (
 
 
 async def _wait_for_commits_workers(page: AcePage, pane: CommitsPane) -> None:
-    for _ in range(10):
-        workers = [
-            worker
-            for worker in (pane._collection_worker, pane._diff_worker)
-            if worker is not None and not worker.is_finished
-        ]
-        if workers:
-            for worker in workers:
-                await worker.wait()
-            await page.pause()
-            continue
-        await page.pause()
-        if pane._collection_worker is None and pane._diff_worker is None:
-            return
-    raise AssertionError("commits workers did not settle")
+    workers = [
+        worker
+        for worker in (pane._collection_worker, pane._diff_worker)
+        if worker is not None and not worker.is_finished
+    ]
+    for worker in workers:
+        await worker.wait()
+    await page.wait_for(
+        lambda _state: pane._collection_worker is None and pane._diff_worker is None,
+        timeout=1.0,
+    )
 
 
 async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(

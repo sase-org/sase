@@ -123,14 +123,16 @@ class PromptInputBarMiniXPromptPaneMixin(_MixinBase):
             current = self._stack.mini_xprompt_item
             if current is None or current.mini_xprompt_target is None:
                 return False
+            draft_frontmatter = current.mini_xprompt_target.frontmatter
+            baseline_hash = mini_xprompt_draft_hash(frontmatter, body)
             target = self._mini_xprompt_target_from_result(
                 result,
-                frontmatter=current.mini_xprompt_target.frontmatter,
+                frontmatter=draft_frontmatter,
                 body=body,
                 loaded_markdown=loaded_markdown,
                 loaded_fingerprint=loaded_fingerprint,
                 destination_exists=destination_exists,
-                clean_hash=current.mini_xprompt_target.clean_hash,
+                clean_hash=baseline_hash,
             )
             self._stack.retarget_mini_xprompt_pane(target)
             self.focus_item(mini_index)

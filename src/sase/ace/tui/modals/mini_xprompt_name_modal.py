@@ -521,6 +521,17 @@ def _build_mini_xprompt_verdict(
     """Return the exact Enter behavior for one mini-name analysis."""
 
     reference = f"#{name}"
+    if destination_definition is not None and not destination_definition.is_compatible:
+        reason = destination_definition.incompatible_reason or "not a simple xprompt"
+        return _MiniXPromptNameVerdict(
+            kind="error",
+            message=(
+                f"Cannot open {reference} at "
+                f"{destination_definition.display_path}: {reason}"
+            ),
+            action=None,
+            can_open=False,
+        )
     if exact_definition is not None and not exact_definition.is_compatible:
         reason = exact_definition.incompatible_reason or "not a simple xprompt"
         return _MiniXPromptNameVerdict(

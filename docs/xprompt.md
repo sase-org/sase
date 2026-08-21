@@ -840,9 +840,9 @@ collection and launch the tags unchanged; declared
 [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive
 `sase run` does not collect raw placeholders.
 
-When an ACE draft is saved as an xprompt (`gX`, `Ctrl+G X`, or `Ctrl+G Ctrl+X` in
-xprompt mode, or the `gx` mini-xprompt save flow), live raw placeholders are converted
-before the save preview into required `text` inputs:
+When an ACE draft is saved through the whole-stack xprompt flow (`gX`, `Ctrl+G X`, or
+`Ctrl+G Ctrl+X` in xprompt mode), live raw placeholders are converted before the save
+preview into required `text` inputs:
 
 ```text
 Deploy <service> to <target file>
@@ -861,19 +861,22 @@ Deploy {{ service }} to {{ target_file }}
 ```
 
 The `gL` active-pane conversion applies the same rewrite when it creates a
-frontmatter-local xprompt. Generated names are Jinja-safe slugs allocated in document
-order; collisions receive `_2`, `_3`, and so on. During xprompt saves, a generated name
-that matches an authored input is reused instead of redeclared, preserving its type,
-default, and description. Both conversions reuse a matching undeclared Jinja variable.
-Repeated occurrences are substituted together, tags in literal zones remain untouched,
-and inserted values are not scanned again for more placeholders. Saving the same draft
-as a snippet keeps the original active-pane body rather than applying this xprompt-only
-conversion. Writing an already bound xprompt with `gw` saves the body as edited and does
-not perform a new conversion pass.
+frontmatter-local xprompt. A fresh `gx` mini-xprompt extraction applies it to the copied
+origin-pane body before the mini pane opens and seeds the mini definition's inferred
+inputs. Raw placeholders typed later in the mini pane are saved as edited; the mini save
+review does not run another conversion pass. Generated names are Jinja-safe slugs
+allocated in document order; collisions receive `_2`, `_3`, and so on. During xprompt
+saves, a generated name that matches an authored input is reused instead of redeclared,
+preserving its type, default, and description. All conversion paths reuse a matching
+undeclared Jinja variable. Repeated occurrences are substituted together, tags in
+literal zones remain untouched, and inserted values are not scanned again for more
+placeholders. Saving the same draft as a snippet keeps the original active-pane body
+rather than applying this xprompt-only conversion. Writing an already bound xprompt with
+`gw` saves the body as edited and does not perform a new conversion pass.
 
 Set `ace.prompt_inputs.xprompt_placeholder_args: false` to keep live raw placeholders
-literal during `gx`, `gX`, and `gL` and mint no placeholder-derived `text` inputs.
-Undeclared Jinja variables still become required `gL` inputs.
+literal during `gX`, `gL`, and fresh `gx` extraction and mint no placeholder-derived
+`text` inputs. Undeclared Jinja variables still become required `gL` inputs.
 
 ## Tags
 

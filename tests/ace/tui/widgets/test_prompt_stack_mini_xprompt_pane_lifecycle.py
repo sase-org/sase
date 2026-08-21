@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from sase.ace.tui.modals import ConfirmActionModal
 from sase.ace.tui.modals.mini_xprompt_name_modal import MiniXPromptNameResult
 from sase.ace.tui.modals.mini_xprompt_target_catalog import (
     MiniXPromptDestinationTarget,
@@ -260,6 +261,89 @@ async def test_mini_retarget_preserves_body_and_frontmatter(tmp_path: Path) -> N
         assert target is not None
         assert target.name == "new"
         assert target.frontmatter == frontmatter
+
+
+async def test_mini_retarget_identical_destination_remains_clean(
+    tmp_path: Path,
+) -> None:
+    frontmatter = "---\ndescription: Same\n---"
+    app = CaptureApp("agent prompt")
+
+    async with app.run_test(size=(90, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini(
+            pilot,
+            bar,
+            _name_result(tmp_path, name="old", action="edit"),
+            body="same body",
+            frontmatter=frontmatter,
+            destination_exists=True,
+        )
+        assert not bar._stack.mini_xprompt_is_dirty
+
+        assert bar.open_mini_xprompt_target_pane(
+            _name_result(tmp_path, name="new", action="edit"),
+            origin_pane_id=bar.active_text_area().id or "",
+            body="same body",
+            frontmatter=frontmatter,
+            loaded_markdown=f"{frontmatter}\n\nsame body\n",
+            loaded_fingerprint=None,
+            destination_exists=True,
+        )
+
+        assert bar.active_text() == "same body"
+        target = bar._stack.mini_xprompt_item.mini_xprompt_target
+        assert target is not None
+        assert target.name == "new"
+        assert target.frontmatter == frontmatter
+        assert not bar._stack.mini_xprompt_is_dirty
+
+
+async def test_clean_mini_retarget_to_different_destination_becomes_dirty_and_guards(
+    tmp_path: Path,
+) -> None:
+    old_frontmatter = "---\ndescription: Old\n---"
+    new_frontmatter = "---\ndescription: New\n---"
+    app = CaptureApp("agent prompt")
+
+    async with app.run_test(size=(90, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        await _open_mini(
+            pilot,
+            bar,
+            _name_result(tmp_path, name="old", action="edit"),
+            body="old body",
+            frontmatter=old_frontmatter,
+            destination_exists=True,
+        )
+        assert not bar._stack.mini_xprompt_is_dirty
+
+        assert bar.open_mini_xprompt_target_pane(
+            _name_result(tmp_path, name="new", action="edit"),
+            origin_pane_id=bar.active_text_area().id or "",
+            body="new body",
+            frontmatter=new_frontmatter,
+            loaded_markdown=f"{new_frontmatter}\n\nnew body\n",
+            loaded_fingerprint=None,
+            destination_exists=True,
+        )
+        await pilot.pause()
+
+        assert bar.active_text() == "old body"
+        target = bar._stack.mini_xprompt_item.mini_xprompt_target
+        assert target is not None
+        assert target.name == "new"
+        assert target.frontmatter == old_frontmatter
+        assert target.loaded_body == "new body"
+        assert bar._stack.mini_xprompt_is_dirty
+
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+
+        assert isinstance(app.screen, ConfirmActionModal)
+        assert bar._stack.has_mini_xprompt_pane
 
 
 async def test_mini_frontmatter_scope_isolated_from_agent_stack(

@@ -258,6 +258,62 @@ async def test_incompatible_exact_match_refuses_open(tmp_path: Path) -> None:
     assert results == []
 
 
+async def test_incompatible_selected_destination_refuses_fork_over_editable_effective(
+    tmp_path: Path,
+) -> None:
+    high = tmp_path / "high"
+    low = tmp_path / "low"
+    high_row = _row(high, names=frozenset({"review"}), precedence=0)
+    low_row = _row(low, names=frozenset({"review"}), precedence=10)
+    editable = _definition(
+        "review",
+        high / "review.md",
+        location_path=str(high),
+        precedence=0,
+    )
+    incompatible = _definition(
+        "review",
+        low / "review.md",
+        compatibility="incompatible",
+        effective=False,
+        location_path=str(low),
+        precedence=10,
+        reason="xprompt swarms cannot be opened as mini targets",
+    )
+    results: list[MiniXPromptNameResult | None] = []
+    app = _ModalApp()
+
+    async with app.run_test(size=(110, 30)) as pilot:
+        app.push_screen(
+            MiniXPromptNameModal(
+                MiniXPromptTargetCatalog(
+                    definitions=(editable, incompatible),
+                    destinations=(high_row, low_row),
+                ),
+                initial_name="review",
+            ),
+            results.append,
+        )
+        await pilot.pause(0.25)
+        modal = app.screen
+        assert isinstance(modal, MiniXPromptNameModal)
+        assert (
+            str(high)
+            in modal.query_one("#mini-xprompt-name-destination", Static).render().plain
+        )
+
+        await pilot.press("ctrl+n")
+        await pilot.pause(0.25)
+
+        verdict = modal.query_one("#mini-xprompt-name-verdict", Static).render().plain
+        assert "Cannot open #review at" in verdict
+        assert "xprompt swarms" in verdict
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert results == []
+
+
 async def test_prefix_order_tab_completion_and_match_navigation_keep_input_focus(
     tmp_path: Path,
     monkeypatch,

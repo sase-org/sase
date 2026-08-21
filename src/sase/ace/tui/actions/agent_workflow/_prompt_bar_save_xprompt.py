@@ -265,6 +265,13 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
             item_id=snapshot.item_id,
             changed=disk_state.changed_on_disk,
         )
+        refreshed_snapshot = self._mini_xprompt_pane_save_snapshot(
+            snapshot.bar,
+            event.origin_pane_id,
+        )
+        if refreshed_snapshot is None:
+            return
+        snapshot = refreshed_snapshot
 
         state = MiniXPromptSaveConfirmState(
             name=snapshot.target.name,

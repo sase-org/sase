@@ -1490,10 +1490,10 @@ ace:
     xprompt_placeholder_args: true
 ```
 
-| Field                      | Type | Default | Current behavior                                                                                                                                                                  |
-| -------------------------- | ---- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collect_raw_placeholders` | bool | `true`  | When true, submitting an ACE prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works. |
-| `xprompt_placeholder_args` | bool | `true`  | When false, `gx`, `gX`, and `gL` keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected.         |
+| Field                      | Type | Default | Current behavior                                                                                                                                                                           |
+| -------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `collect_raw_placeholders` | bool | `true`  | When true, submitting an ACE prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works.          |
+| `xprompt_placeholder_args` | bool | `true`  | When false, `gX`, `gL`, and fresh `gx` extraction keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected. |
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
 `%xprompts_enabled:false` regions are never collected. See
