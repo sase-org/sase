@@ -10,6 +10,7 @@ from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
+    FinalizerContextWire,
     FinalizerOutcomeEvidenceWire,
 )
 from sase.core.finalizer_facade import validate_finalizer_submission
@@ -92,30 +93,26 @@ def execute_commit_finalizer(
     artifacts = artifact_root(context.artifacts_dir)
     project_dir = resolve_finalizer_project_dir()
     state = prepare_commit_dirty_state(project_dir, artifacts)
-    if state.dirty_state.is_clean:
-        _raise_if_unpublished_machine_state(
-            state,
-            instance_id=instance.instance_id,
-            invoke_result=invoke_result,
-        )
-        return BuiltinCommitExecution(
-            invoke_result=invoke_result,
-            result=_success_result(
-                instance.instance_id,
-                attempts=(),
-                evidence=(),
-            ),
-        )
-
     dirty_before_decisions = state.dirty_state
     try:
-        root = finalizer_declaration.require_artifacts_dir(
-            context.artifacts_dir,
-            "finalizer declaration load",
+        envelope, accepted_context, host_records = _load_accepted_commit_declaration(
+            context.artifacts_dir
         )
-        accepted_context = finalizer_declaration.load_latest_finalizer_context(root)
-        envelope = _load_current_final_submission(context.artifacts_dir)
     except Exception as exc:
+        if state.dirty_state.is_clean and _is_missing_declaration(exc):
+            _raise_if_unpublished_machine_state(
+                state,
+                instance_id=instance.instance_id,
+                invoke_result=invoke_result,
+            )
+            return BuiltinCommitExecution(
+                invoke_result=invoke_result,
+                result=_success_result(
+                    instance.instance_id,
+                    attempts=(),
+                    evidence=(),
+                ),
+            )
         result = _failed_result(
             instance.instance_id,
             "missing_commit_declaration",
@@ -139,8 +136,74 @@ def execute_commit_finalizer(
     runner = stitch_runner or run_stitch_create
     resume = resume_runner or run_stitch_resume
     ledger_before_all = _load_commit_results(artifacts)
+    accepted_repos = _accepted_repos_from_host(
+        accepted_context,
+        host_records,
+        instance_id=instance.instance_id,
+    )
+    current_by_id = {
+        _repository_decision_id(repo): repo for repo in state.dirty_state.repos
+    }
+    extra_dirty = sorted(set(current_by_id) - set(obligation_by_id))
+    if extra_dirty:
+        raise BuiltinCommitFinalizerError(
+            "commit declaration is stale; unexpected dirty repository "
+            "obligation(s): " + ", ".join(extra_dirty),
+            result=_failed_result(
+                instance.instance_id,
+                "stale_commit_declaration",
+                "commit declaration is stale; unexpected dirty repository "
+                "obligation(s): " + ", ".join(extra_dirty),
+            ),
+            invoke_result=invoke_result,
+        )
 
-    for repo in _dirty_repos_in_context_order(state.dirty_state, decisions):
+    already_clean = tuple(
+        repo
+        for repo in accepted_repos
+        if _repository_decision_id(repo) not in current_by_id
+    )
+    if already_clean:
+        _reject_discarded_dirty_work(
+            DirtyState(
+                project_dir=state.dirty_state.project_dir,
+                repos=already_clean,
+                details="accepted",
+            ),
+            DirtyState(
+                project_dir=state.dirty_state.project_dir,
+                repos=(),
+                details="",
+            ),
+            artifacts=artifacts,
+            project_dir=project_dir,
+            instance_id=instance.instance_id,
+            attempts=attempts,
+            evidence=evidence,
+            invoke_result=current_result,
+            ledger_before=ledger_before_all,
+        )
+
+    if not accepted_repos and state.dirty_state.is_clean:
+        _raise_if_unpublished_machine_state(
+            state,
+            instance_id=instance.instance_id,
+            invoke_result=invoke_result,
+        )
+        return BuiltinCommitExecution(
+            invoke_result=invoke_result,
+            result=_success_result(
+                instance.instance_id,
+                attempts=(),
+                evidence=(),
+            ),
+        )
+
+    for repo in _dirty_repos_in_context_order(
+        state.dirty_state,
+        decisions,
+        accepted_context,
+    ):
         _reject_stale_repository_obligation(
             repo, obligation_by_id, instance.instance_id
         )
@@ -369,29 +432,93 @@ def _commit_decisions_for_instance(
     return {}
 
 
-def _load_current_final_submission(artifacts_dir: str | None) -> dict[str, Any]:
+def _is_missing_declaration(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    return code in {"missing_final_submission", "missing_final_context"}
+
+
+def _load_accepted_commit_declaration(
+    artifacts_dir: str | None,
+) -> tuple[
+    dict[str, Any],
+    FinalizerContextWire,
+    tuple[finalizer_declaration.HostRepositoryRecord, ...],
+]:
     root = finalizer_declaration.require_artifacts_dir(
         artifacts_dir,
         "finalizer declaration load",
     )
-    plan = finalizer_declaration.load_finalizer_plan(root)
-    context = finalizer_declaration.load_latest_finalizer_context(root)
-    submission = finalizer_declaration.load_latest_finalizer_submission(root)
-    envelope = finalizer_declaration.normalize_submission_envelope(
-        submission["submission"]
-    )
-    validate_finalizer_submission(plan, context, envelope)
-    finalizer_declaration.validate_provider_payloads(plan, context, envelope)
-    return envelope
+    with finalizer_declaration.hold_finalizer_declaration_lock(root):
+        plan = finalizer_declaration.load_finalizer_plan(root)
+        latest = finalizer_declaration.load_latest_finalizer_context(root)
+        submission = finalizer_declaration.load_latest_finalizer_submission(root)
+        context = finalizer_declaration.accepted_context_from_submission(
+            submission,
+            fallback=latest,
+        )
+        envelope = finalizer_declaration.normalize_submission_envelope(
+            submission["submission"]
+        )
+        validate_finalizer_submission(plan, context, envelope)
+        finalizer_declaration.validate_provider_payloads(plan, context, envelope)
+        host_records = finalizer_declaration.load_accepted_host_repositories(root)
+        return envelope, context, host_records
+
+
+def _accepted_repos_from_host(
+    accepted_context: FinalizerContextWire,
+    host_records: Sequence[finalizer_declaration.HostRepositoryRecord],
+    *,
+    instance_id: str,
+) -> tuple[DirtyRepo, ...]:
+    host_by_id = {record.obligation_id: record for record in host_records}
+    repos: list[DirtyRepo] = []
+    for obligation in accepted_context.obligations:
+        if obligation.kind != "repository":
+            continue
+        record = host_by_id.get(obligation.obligation_id)
+        if record is None:
+            raise BuiltinCommitFinalizerError(
+                "commit declaration is stale; missing host identity for "
+                f"repository obligation {obligation.obligation_id}",
+                result=_failed_result(
+                    instance_id,
+                    "stale_commit_declaration",
+                    "commit declaration is stale; missing host identity for "
+                    f"repository obligation {obligation.obligation_id}",
+                ),
+            )
+        repos.append(
+            DirtyRepo(
+                name=record.name,
+                path=record.path,
+                changed_files=tuple(obligation.paths),
+                kind=record.kind,  # type: ignore[arg-type]
+            )
+        )
+    return tuple(repos)
 
 
 def _dirty_repos_in_context_order(
     dirty_state: DirtyState,
     decisions: Mapping[str, Mapping[str, Any]],
+    accepted_context: FinalizerContextWire,
 ) -> list[DirtyRepo]:
     repos_by_id = {_repository_decision_id(repo): repo for repo in dirty_state.repos}
     ordered: list[DirtyRepo] = []
-    for repo_id in decisions:
+    for obligation in accepted_context.obligations:
+        if obligation.kind != "repository":
+            continue
+        repo_id = obligation.obligation_id
+        if repo_id not in decisions:
+            raise BuiltinCommitFinalizerError(
+                "commit declaration is stale; missing decision(s): " + repo_id,
+                result=_failed_result(
+                    "commit",
+                    "stale_commit_declaration",
+                    "commit declaration is stale; missing decision(s): " + repo_id,
+                ),
+            )
         repo = repos_by_id.get(repo_id)
         if repo is not None:
             ordered.append(repo)

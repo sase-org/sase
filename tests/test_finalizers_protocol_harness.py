@@ -88,7 +88,7 @@ def _patch_dirty(
         lambda _root: collect(str(repo)),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration.dirty_path_fingerprints",
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
         lambda _path: {"src/app.py": ("M", "content")},
     )
     monkeypatch.setattr(
@@ -105,11 +105,19 @@ def _patch_dirty(
     )
 
 
-def _submit_commit(artifacts: Path, *, action: str = "commit") -> None:
+def _submit_commit(
+    artifacts: Path,
+    *,
+    action: str = "commit",
+    reverse_repositories: bool = False,
+) -> None:
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     publication = publish_final_context(artifacts_dir=str(artifacts))
     manifest = deepcopy(publication.payload["manifest_template"])
-    for decision in manifest["payloads"][0]["payload"]["repositories"]:
+    repositories = manifest["payloads"][0]["payload"]["repositories"]
+    if reverse_repositories:
+        repositories.reverse()
+    for decision in repositories:
         decision["action"] = action
         if action == "commit":
             decision["message"] = "fix(final): reconcile commit declaration"
@@ -302,6 +310,84 @@ def test_sequential_multi_repo_kinds_and_protected_excludes(
     assert result.content == "done"
     assert [name for name, _excludes in calls] == ["main", "plans"]
     assert calls[0][1] == ("legacy.txt",)
+
+
+def test_reversed_manifest_still_executes_in_host_context_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty = {
+        "repos": (
+            _repo(repo, name="main", kind="main"),
+            _repo(linked, name="plans", kind="sibling"),
+        )
+    }
+    _patch_dirty(monkeypatch, repo, dirty)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.finalizers.commit.run_stitch_create",
+        _successful_stitch(artifacts, dirty, calls),
+    )
+
+    _submit_commit(artifacts, reverse_repositories=True)
+    result = _run(artifacts)
+
+    assert result.content == "done"
+    assert calls == ["main", "plans"]
+
+
+def test_reversed_manifest_first_host_repo_conflict_blocks_later(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty = {
+        "repos": (
+            _repo(repo, name="main"),
+            _repo(other, name="research", kind="sibling"),
+        )
+    }
+    _patch_dirty(monkeypatch, repo, dirty)
+    seen: list[str] = []
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        seen.append(repo_arg.name)
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT, stderr="conflict\n")
+
+    def resume(
+        repo_arg: DirtyRepo,
+        _context: object,
+    ) -> StitchCommandResult:
+        seen.append(f"resume:{repo_arg.name}")
+        return StitchCommandResult(returncode=EXIT_CODE_CONFLICT, stderr="still\n")
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="tried to repair")
+
+    _submit_commit(artifacts, reverse_repositories=True)
+    with pytest.raises(BuiltinCommitFinalizerError, match="second unresolved"):
+        _run(artifacts, provider)
+
+    assert seen == ["main", "resume:main"]
+    assert provider.invoke.call_count == 1
 
 
 def test_first_repo_conflict_blocks_later_dispatch(
@@ -523,7 +609,7 @@ def test_post_submit_edit_is_rejected_before_mutation(
     _patch_dirty(monkeypatch, repo, dirty)
     fingerprints = {"value": {"src/app.py": ("M", "content")}}
     monkeypatch.setattr(
-        "sase.finalizers.declaration.dirty_path_fingerprints",
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
         lambda _path: dict(fingerprints["value"]),
     )
     runner = MagicMock()

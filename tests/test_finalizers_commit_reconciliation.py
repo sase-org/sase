@@ -71,7 +71,7 @@ def _patch_commit_state(
         lambda _root: _dirty_state(repo, dirty=dirty["value"]),
     )
     monkeypatch.setattr(
-        "sase.finalizers.declaration.dirty_path_fingerprints",
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
         lambda _path: {"src/app.py": ("M", "content")},
     )
     monkeypatch.setattr(
@@ -203,3 +203,81 @@ def test_builtin_commit_refusal_fails_without_running_stitch(
     )
     assert aggregate["status"] == "refused"
     assert aggregate["instances"][0]["refusal_reason"] == "not mine"
+
+
+def test_post_submit_cleanup_fails_without_proven_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    dirty = {"value": True}
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    _patch_commit_state(monkeypatch, repo, dirty)
+    runner = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+
+    _persist_and_submit_commit(artifacts)
+    dirty["value"] = False
+    with pytest.raises(
+        BuiltinCommitFinalizerError,
+        match="vanished|discarded|attributable",
+    ):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    runner.assert_not_called()
+
+
+def test_stale_commit_results_do_not_prove_clean_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    dirty = {"value": True}
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    _patch_commit_state(monkeypatch, repo, dirty)
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "commit_results.json").write_text(
+        json.dumps(
+            [
+                {
+                    "cwd": str(repo),
+                    "result": "old",
+                    "commit_sha": "a" * 40,
+                    "commit_tree": "b" * 40,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    runner = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+
+    _persist_and_submit_commit(artifacts)
+    dirty["value"] = False
+    with pytest.raises(
+        BuiltinCommitFinalizerError,
+        match="vanished|discarded|attributable",
+    ):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    runner.assert_not_called()

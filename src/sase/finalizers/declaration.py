@@ -1,11 +1,23 @@
-"""Turn-bound finalizer declaration context and submission artifacts."""
+"""Turn-bound finalizer declaration context and submission artifacts.
+
+Context publication and submission acceptance share one lock order so a
+successful ``sase final submit`` cannot land against an already stale
+context:
+
+1. the in-process declaration mutex (threads in one interpreter)
+2. ``final_declaration.lock`` flock (separate processes)
+
+Both ``publish_final_context`` and ``submit_final_manifest`` take that
+pair for the whole critical section. Submit re-reads the on-disk context
+immediately before accepting so a lost race still fails closed.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-import fcntl
 import hashlib
 import json
 import os
@@ -23,24 +35,38 @@ from sase.core.finalizer_facade import (
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerContextWire,
-    FinalizerObligationWire,
-    FinalizerPayloadRequirementWire,
     FinalizerPlanWire,
     finalizer_context_from_dict,
     finalizer_wire_to_json_dict,
 )
 from sase.finalizers.declaration_format import format_context_pretty
+from sase.finalizers.declaration_store import (
+    FINAL_CONTEXT_HOST_FILENAME,
+    FINAL_DECLARATION_LOCK_FILENAME,
+    FINAL_SUBMISSION_HOST_FILENAME,
+    FinalizerDeclarationError,
+    HostRepositoryRecord,
+    accepted_context_from_submission,
+    acquire_declaration_locks,
+    build_context_requirements as _build_context_requirements,
+    host_repository_records as _host_repository_records,
+    load_accepted_host_repositories,
+    read_host_repository_file as _read_host_repository_file,
+    repository_obligation_id,
+    repository_state_digest,
+    write_host_repository_file as _write_host_repository_file,
+    write_json_atomic as _write_json_atomic,
+    write_text_atomic as _write_text_atomic,
+)
 from sase.finalizers.plan import (
     FinalizerPlanIntegrityError,
     authenticate_resolved_finalizer_plan,
 )
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
-from sase.llm_provider.commit_finalizer_git import dirty_path_fingerprints
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
-from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
+from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.commit_finalizer_prompting import append_response, merge_usage
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
-from sase.memory.locks import locked_file
 from sase.telemetry.metrics import (
     FINALIZER_RECOVERIES,
     FINALIZER_SELECTED,
@@ -63,14 +89,6 @@ MAX_FINAL_SUBMISSION_BYTES = 256 * 1024
 MAX_ATTEMPT_RECORDS = 50
 
 
-class FinalizerDeclarationError(RuntimeError):
-    """Raised when a finalizer declaration command cannot complete."""
-
-    def __init__(self, message: str, *, code: str) -> None:
-        super().__init__(message)
-        self.code = code
-
-
 @dataclass(frozen=True)
 class FinalContextPublication:
     """One published finalizer context artifact."""
@@ -82,6 +100,20 @@ class FinalContextPublication:
     @property
     def submission_required(self) -> bool:
         return _context_requires_submission(self.context)
+
+
+def _declaration_sync_hook(_point: str) -> None:
+    """Deterministic interleaving seam; production is a no-op."""
+
+
+@contextmanager
+def hold_finalizer_declaration_lock(root: Path) -> Iterator[None]:
+    """Hold the documented declaration lock order for *root*."""
+
+    _declaration_sync_hook("before_declaration_lock")
+    with acquire_declaration_locks(root):
+        _declaration_sync_hook("holding_declaration_lock")
+        yield
 
 
 def mint_finalizer_turn_nonce() -> str:
@@ -117,29 +149,35 @@ def publish_final_context(
     """Recompute, validate, and atomically publish the current finalizer context."""
 
     root = require_artifacts_dir(artifacts_dir, "sase final context")
-    plan = load_finalizer_plan(root)
-    run_id, agent_id, turn_nonce = _run_identity(root, "sase final context")
-    dirty_state = _collect_dirty_state(root)
-    requirements, obligations = _build_context_requirements(plan, dirty_state)
+    with hold_finalizer_declaration_lock(root):
+        plan = load_finalizer_plan(root)
+        run_id, agent_id, turn_nonce = _run_identity(root, "sase final context")
+        dirty_state = _collect_dirty_state(root)
+        requirements, obligations = _build_context_requirements(plan, dirty_state)
 
-    context = FinalizerContextWire(
-        schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
-        run_id=run_id,
-        agent_id=agent_id,
-        turn_nonce=turn_nonce,
-        plan_digest=plan.plan_digest,
-        requirements=requirements,
-        obligations=obligations,
-    )
-    context_digest = validate_finalizer_context(plan, context)
-    context = replace(context, context_digest=context_digest)
-    payload = _context_payload(plan, context)
-    _record_selected_metrics(payload)
-
-    path = root / FINAL_CONTEXT_FILENAME
-    with locked_file(root / f"{FINAL_CONTEXT_FILENAME}.lock", fcntl.LOCK_EX):
+        context = FinalizerContextWire(
+            schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
+            run_id=run_id,
+            agent_id=agent_id,
+            turn_nonce=turn_nonce,
+            plan_digest=plan.plan_digest,
+            requirements=requirements,
+            obligations=obligations,
+        )
+        context_digest = validate_finalizer_context(plan, context)
+        context = replace(context, context_digest=context_digest)
+        payload = _context_payload(plan, context)
+        _record_selected_metrics(payload)
+        host_records = _host_repository_records(dirty_state)
+        _declaration_sync_hook("before_context_write")
+        path = root / FINAL_CONTEXT_FILENAME
         _write_json_atomic(path, payload)
-    return FinalContextPublication(payload=payload, context=context, path=path)
+        _write_host_repository_file(
+            root / FINAL_CONTEXT_HOST_FILENAME,
+            context_digest=context_digest,
+            records=host_records,
+        )
+        return FinalContextPublication(payload=payload, context=context, path=path)
 
 
 def submit_final_manifest(
@@ -152,7 +190,7 @@ def submit_final_manifest(
     root = require_artifacts_dir(artifacts_dir, "sase final submit")
     content_digest = _safe_value_digest(manifest)
 
-    with locked_file(root / f"{FINAL_SUBMISSION_FILENAME}.lock", fcntl.LOCK_EX):
+    with hold_finalizer_declaration_lock(root):
         try:
             plan = load_finalizer_plan(root)
             context = load_latest_finalizer_context(root)
@@ -179,9 +217,28 @@ def submit_final_manifest(
             )
             raise wrapped from exc
 
+        _declaration_sync_hook("submit_after_validate")
+        current = load_latest_finalizer_context(root)
+        if current.context_digest != context.context_digest:
+            stale = FinalizerDeclarationError(
+                "finalizer context changed before the declaration could be accepted",
+                code="stale_final_context",
+            )
+            _append_attempt_record_locked(
+                root,
+                accepted=False,
+                code=stale.code,
+                message=str(stale),
+                content_digest=content_digest,
+            )
+            raise stale
+
+        _declaration_sync_hook("before_submit_accept")
+        host_records = _read_host_repository_file(root / FINAL_CONTEXT_HOST_FILENAME)
         submission_payload = {
             "schema_version": 1,
             "accepted_at": _now_iso(),
+            "accepted_context": finalizer_wire_to_json_dict(current),
             "submission": envelope,
             "validation": finalizer_wire_to_json_dict(validation),
         }
@@ -195,6 +252,11 @@ def submit_final_manifest(
             accepted_instances=tuple(validation.accepted_instances),
         )
         _write_json_atomic(root / FINAL_SUBMISSION_FILENAME, submission_payload)
+        _write_host_repository_file(
+            root / FINAL_SUBMISSION_HOST_FILENAME,
+            context_digest=current.context_digest or "",
+            records=host_records,
+        )
         return submission_payload
 
 
@@ -257,18 +319,19 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
     """Return whether the latest accepted submission satisfies the latest context."""
 
     root = require_artifacts_dir(artifacts_dir, "finalizer declaration check")
-    plan = load_finalizer_plan(root)
-    context = load_latest_finalizer_context(root)
-    if not _context_requires_submission(context):
+    with hold_finalizer_declaration_lock(root):
+        plan = load_finalizer_plan(root)
+        context = load_latest_finalizer_context(root)
+        if not _context_requires_submission(context):
+            return True
+        try:
+            submission = load_latest_finalizer_submission(root)
+            envelope = normalize_submission_envelope(submission["submission"])
+            validate_finalizer_submission(plan, context, envelope)
+            validate_provider_payloads(plan, context, envelope)
+        except Exception:
+            return False
         return True
-    try:
-        submission = load_latest_finalizer_submission(root)
-        envelope = normalize_submission_envelope(submission["submission"])
-        validate_finalizer_submission(plan, context, envelope)
-        validate_provider_payloads(plan, context, envelope)
-    except Exception:
-        return False
-    return True
 
 
 def ensure_final_declaration_or_recover(
@@ -383,128 +446,6 @@ def _collect_dirty_state(root: Path) -> DirtyState:
         resolve_finalizer_project_dir(),
         artifact_root=root,
     )
-
-
-def _build_context_requirements(
-    plan: FinalizerPlanWire,
-    dirty_state: DirtyState,
-) -> tuple[list[FinalizerPayloadRequirementWire], list[FinalizerObligationWire]]:
-    requirements: list[FinalizerPayloadRequirementWire] = []
-    obligations: list[FinalizerObligationWire] = []
-    repository_obligations: list[FinalizerObligationWire] | None = None
-
-    for entry in plan.entries:
-        if entry.provider_ref == "builtin@commit":
-            if repository_obligations is None:
-                repository_obligations = [
-                    _repository_obligation(repo) for repo in dirty_state.repos
-                ]
-                obligations.extend(repository_obligations)
-            trigger = "dirty_repository" if repository_obligations else "not_triggered"
-            requirements.append(
-                FinalizerPayloadRequirementWire(
-                    instance_id=entry.instance_id,
-                    trigger=trigger,
-                    submission_required=bool(repository_obligations),
-                    requirement_digest=finalizer_json_digest(
-                        {
-                            "instance_id": entry.instance_id,
-                            "trigger": trigger,
-                            "repositories": [
-                                {
-                                    "id": obligation.obligation_id,
-                                    "digest": obligation.digest,
-                                }
-                                for obligation in repository_obligations
-                            ],
-                        }
-                    ),
-                )
-            )
-            continue
-        if entry.provider_ref == "builtin@command":
-            requirements.append(
-                FinalizerPayloadRequirementWire(
-                    instance_id=entry.instance_id,
-                    trigger="always",
-                    submission_required=False,
-                    requirement_digest=finalizer_json_digest(
-                        {
-                            "instance_id": entry.instance_id,
-                            "trigger": "always",
-                            "submission_required": False,
-                        }
-                    ),
-                )
-            )
-            continue
-        requirements.append(
-            FinalizerPayloadRequirementWire(
-                instance_id=entry.instance_id,
-                trigger="provider_requested",
-                submission_required=True,
-                requirement_digest=finalizer_json_digest(
-                    {
-                        "instance_id": entry.instance_id,
-                        "trigger": "provider_requested",
-                    }
-                ),
-            )
-        )
-    return requirements, obligations
-
-
-def _repository_obligation(repo: DirtyRepo) -> FinalizerObligationWire:
-    repo_id = repository_obligation_id(repo)
-    paths = list(repo.changed_files)
-    state_digest = repository_state_digest(repo_id, repo, paths)
-    return FinalizerObligationWire(
-        obligation_id=repo_id,
-        kind="repository",
-        display_name=_repository_display_name(repo),
-        paths=paths,
-        digest=state_digest,
-    )
-
-
-def repository_obligation_id(repo: DirtyRepo) -> str:
-    raw = json.dumps(
-        {
-            "kind": repo.kind,
-            "name": repo.name,
-            "path": repo.path,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return f"repo-{hashlib.sha256(raw).hexdigest()[:12]}"
-
-
-def repository_state_digest(
-    repo_id: str,
-    repo: DirtyRepo,
-    paths: Sequence[str],
-) -> str:
-    fingerprints = dirty_path_fingerprints(repo.path)
-    return finalizer_json_digest(
-        {
-            "repo_id": repo_id,
-            "kind": repo.kind,
-            "name": repo.name,
-            "paths": list(paths),
-            "fingerprints": {
-                path: list(fingerprints[path]) for path in paths if path in fingerprints
-            },
-        }
-    )
-
-
-def _repository_display_name(repo: DirtyRepo) -> str:
-    if repo.kind == "main":
-        return "main"
-    if repo.name:
-        return f"{repo.kind}:{repo.name}"
-    return repo.kind
 
 
 def _context_payload(
@@ -912,7 +853,7 @@ def _record_attempt_best_effort(
 ) -> None:
     try:
         root = require_artifacts_dir(None, "sase final submit")
-        with locked_file(root / f"{FINAL_SUBMISSION_FILENAME}.lock", fcntl.LOCK_EX):
+        with hold_finalizer_declaration_lock(root):
             _append_attempt_record_locked(
                 root,
                 accepted=False,
@@ -936,44 +877,30 @@ def _raw_digest(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
-    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    _write_text_atomic(path, text)
-
-
-def _write_text_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        with tmp_path.open("w", encoding="utf-8") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_path, path)
-    finally:
-        try:
-            tmp_path.unlink()
-        except FileNotFoundError:
-            pass
-
-
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 __all__ = [
     "FINAL_CONTEXT_FILENAME",
+    "FINAL_CONTEXT_HOST_FILENAME",
+    "FINAL_DECLARATION_LOCK_FILENAME",
     "FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME",
     "FINAL_DECLARATION_RECOVERY_RESPONSE_FILENAME",
     "FINAL_SUBMISSION_ATTEMPTS_FILENAME",
     "FINAL_SUBMISSION_FILENAME",
+    "FINAL_SUBMISSION_HOST_FILENAME",
     "FinalContextPublication",
     "FinalizerDeclarationError",
+    "HostRepositoryRecord",
     "SASE_FINAL_TURN_NONCE_ENV",
+    "accepted_context_from_submission",
     "append_finalizer_end_turn_instructions",
     "ensure_final_declaration_or_recover",
     "final_submission_is_current",
     "format_context_pretty",
+    "hold_finalizer_declaration_lock",
+    "load_accepted_host_repositories",
     "load_finalizer_plan",
     "load_latest_finalizer_context",
     "load_latest_finalizer_submission",
