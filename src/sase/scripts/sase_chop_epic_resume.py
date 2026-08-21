@@ -50,6 +50,7 @@ from sase.core.agent_scan_facade import scan_agent_artifacts
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
+    AgentMetaWire,
     DoneMarkerWire,
 )
 from sase.core.paths import sase_projects_dir
@@ -126,13 +127,45 @@ def _member_is_live(record: AgentArtifactRecordWire) -> bool:
     )
 
 
-def _member_finished_at(done: DoneMarkerWire | None) -> datetime | None:
-    if done is None or done.finished_at is None:
+def _parse_finished_at_epoch(value: object) -> datetime | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         return None
     try:
-        return datetime.fromtimestamp(float(done.finished_at), get_timezone())
-    except (OSError, OverflowError, ValueError):
+        return datetime.fromtimestamp(float(value), get_timezone())
+    except (OSError, OverflowError, TypeError, ValueError):
         return None
+
+
+def _parse_finished_at_instant(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=get_timezone())
+    return parsed.astimezone(get_timezone())
+
+
+def _member_finished_at(
+    done: DoneMarkerWire | None,
+    meta: AgentMetaWire | None = None,
+) -> datetime | None:
+    """Return the stall clock for one clan member.
+
+    Production ``done.json`` writers historically omitted ``finished_at``.
+    ``agent_meta.json`` ``stopped_at`` is the durable fallback the runner
+    already records, so real failed phases can settle without waiting for
+    every historical marker to be rewritten.
+    """
+    if done is not None:
+        parsed = _parse_finished_at_epoch(done.finished_at)
+        if parsed is not None:
+            return parsed
+    if meta is not None:
+        return _parse_finished_at_instant(meta.stopped_at)
+    return None
 
 
 def _build_member(record: AgentArtifactRecordWire) -> EpicClanMember:
@@ -147,7 +180,7 @@ def _build_member(record: AgentArtifactRecordWire) -> EpicClanMember:
         outcome=done.outcome if done is not None else None,
         has_done_marker=record.has_done_marker,
         is_live=_member_is_live(record),
-        finished_at=_member_finished_at(done),
+        finished_at=_member_finished_at(done, meta),
     )
 
 

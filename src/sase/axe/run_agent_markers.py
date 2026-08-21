@@ -2,7 +2,7 @@
 
 import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
@@ -97,6 +97,7 @@ def build_done_marker(
     retry_error_category: str | None = None,
     repeat_stopped: bool = False,
     stopped_by: str | None = None,
+    finished_at: float | None = None,
 ) -> dict[str, Any]:
     """Build a done marker dict for writing to done.json."""
     marker: dict[str, Any] = {
@@ -109,6 +110,9 @@ def build_done_marker(
         "workspace_num": workspace_num,
         "workspace_dir": workspace_dir,
         "output_path": output_path,
+        "finished_at": (
+            datetime.now(UTC).timestamp() if finished_at is None else float(finished_at)
+        ),
     }
     if agent_name:
         marker["name"] = agent_name

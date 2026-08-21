@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import sase.scripts.sase_chop_epic_resume as epic_resume
 
 from tests._axe_chop_epic_resume_helpers import (
     FAILED_AT,
+    NOW,
     capture_canceled,
     capture_created,
     expected_counters,
@@ -328,3 +330,90 @@ def test_no_stalled_epics_is_a_quiet_pass(
     assert result.reason == "no_stall_changes"
     assert result.counters == expected_counters()
     assert created == []
+
+
+def test_unsettled_failure_is_not_gated(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    snapshot = make_snapshot(
+        make_failed_member(finished_at=NOW - timedelta(seconds=30)),
+        make_waiting_member(),
+    )
+    patch_epic_resume(monkeypatch, tmp_path, snapshots=[snapshot])
+    created = capture_created(monkeypatch)
+
+    result = epic_resume._run(make_runtime(tmp_path))
+
+    assert result.reason == "no_stall_changes"
+    assert result.counters == expected_counters(epics=1)
+    assert created == []
+    assert _state(tmp_path) == {}
+
+
+def test_live_handoff_member_is_not_gated(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    snapshot = make_snapshot(make_failed_member(), make_live_member())
+    patch_epic_resume(monkeypatch, tmp_path, snapshots=[snapshot])
+    created = capture_created(monkeypatch)
+
+    result = epic_resume._run(make_runtime(tmp_path))
+
+    assert result.reason == "no_stall_changes"
+    assert result.counters == expected_counters(epics=1)
+    assert created == []
+
+
+def test_unreadable_inventory_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    patch_epic_resume(monkeypatch, tmp_path, snapshots=[])
+    monkeypatch.setattr(
+        epic_resume,
+        "_enabled_project_stores",
+        lambda _log: (_ for _ in ()).throw(OSError("inventory unavailable")),
+    )
+    created = capture_created(monkeypatch)
+
+    result = epic_resume._run(make_runtime(tmp_path))
+
+    assert result.reason == "project_inventory_unavailable"
+    assert created == []
+    assert _state(tmp_path) == {}
+
+
+def test_unreadable_scan_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    patch_epic_resume(monkeypatch, tmp_path, snapshots=[])
+    monkeypatch.setattr(
+        epic_resume,
+        "_scan_epic_snapshots",
+        lambda _root: (_ for _ in ()).throw(OSError("scan unavailable")),
+    )
+    created = capture_created(monkeypatch)
+
+    result = epic_resume._run(make_runtime(tmp_path))
+
+    assert result.reason == "scan_unavailable"
+    assert created == []
+    assert _state(tmp_path) == {}
+
+
+def test_member_finished_at_falls_back_to_stopped_at() -> None:
+    from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
+
+    done = DoneMarkerWire(outcome="failed", finished_at=None)
+    meta = AgentMetaWire(stopped_at="2026-08-17T16:05:00+00:00")
+    parsed = epic_resume._member_finished_at(done, meta)
+    assert parsed is not None
+    assert parsed.astimezone(UTC) == datetime(2026, 8, 17, 16, 5, tzinfo=UTC)
+
+
+def test_member_finished_at_prefers_done_epoch() -> None:
+    from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
+
+    done = DoneMarkerWire(outcome="failed", finished_at=FAILED_AT.timestamp())
+    meta = AgentMetaWire(stopped_at="2026-08-17T23:00:00+00:00")
+    parsed = epic_resume._member_finished_at(done, meta)
+    assert parsed == FAILED_AT
