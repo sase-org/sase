@@ -390,9 +390,7 @@ def _dirty_repos_in_context_order(
 
 
 def _repository_decision_id(repo: DirtyRepo) -> str:
-    from sase.finalizers.declaration import repository_obligation_id
-
-    return repository_obligation_id(repo)
+    return finalizer_declaration.repository_obligation_id(repo)
 
 
 def _protected_baseline_paths(

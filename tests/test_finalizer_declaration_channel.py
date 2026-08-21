@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from copy import deepcopy
 import json
 import os
@@ -10,6 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.finalizers import declaration as declaration_module
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -26,6 +28,17 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult
 from sase.main.parser import create_parser
 from sase.xprompt.directives import PromptDirectives
+
+_COMMIT_DECLARATION_HELPERS = (
+    "load_finalizer_plan",
+    "load_latest_finalizer_context",
+    "load_latest_finalizer_submission",
+    "normalize_submission_envelope",
+    "repository_obligation_id",
+    "repository_state_digest",
+    "require_artifacts_dir",
+    "validate_provider_payloads",
+)
 
 
 def _prepare_agent_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -274,3 +287,41 @@ def test_handoff_skips_declaration_recovery(
 
     assert result is original
     provider.invoke.assert_not_called()
+
+
+def test_commit_consumes_exported_declaration_helpers() -> None:
+    exported = set(declaration_module.__all__)
+    missing_exports = [
+        name for name in _COMMIT_DECLARATION_HELPERS if name not in exported
+    ]
+    assert missing_exports == []
+
+    commit_path = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "sase"
+        / "finalizers"
+        / "commit.py"
+    )
+    tree = ast.parse(commit_path.read_text(encoding="utf-8"), filename=str(commit_path))
+    private_imports = [
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        and (node.module or "").endswith("finalizers.declaration")
+        for alias in node.names
+        if alias.name.startswith("_")
+    ]
+    assert private_imports == []
+
+    consumed = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "finalizer_declaration"
+    }
+    missing_consumers = [
+        name for name in _COMMIT_DECLARATION_HELPERS if name not in consumed
+    ]
+    assert missing_consumers == []
