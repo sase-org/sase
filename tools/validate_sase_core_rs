@@ -307,6 +307,8 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         module.validate_finalizer_instance_spec(instance)
         plan = module.resolve_finalizer_plan(plan_input)
         plan_digest = module.finalizer_plan_digest(plan)
+        validated = module.validate_finalizer_plan(plan)
+        authenticated = module.authenticate_finalizer_plan(plan, plan_digest)
     except Exception as exc:
         _error(f"finalizer plan probe failed: {exc}")
         return False
@@ -316,6 +318,9 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         return False
     if plan.get("plan_digest") != plan_digest:
         _error("finalizer plan digest probe did not match resolved plan")
+        return False
+    if validated != plan_digest or authenticated != plan_digest:
+        _error("finalizer plan authentication probe did not match resolved plan")
         return False
 
     context = {

@@ -14,7 +14,13 @@ from sase.core.finalizer_facade import (
     finalizer_instance_spec_digest as _finalizer_instance_spec_digest,
 )
 from sase.core.finalizer_facade import (
+    authenticate_finalizer_plan as _authenticate_finalizer_plan,
+)
+from sase.core.finalizer_facade import (
     finalizer_plan_digest as _finalizer_plan_digest,
+)
+from sase.core.finalizer_facade import (
+    validate_finalizer_plan as _validate_finalizer_plan,
 )
 from sase.core.finalizer_facade import (
     finalizer_provider_spec_digest as _finalizer_provider_spec_digest,
@@ -139,6 +145,7 @@ _PUBLIC_API_REFS = (
     _SkillManifestOwnershipPlan,
     _StitchCommandResult,
     _build_finalizer_inventory,
+    _authenticate_finalizer_plan,
     _auto_commit_done_plan_status_if_possible,
     _auto_commit_external_sdd_prompt_qa_if_possible,
     _auto_commit_separate_sdd_store_if_possible,
@@ -168,5 +175,6 @@ _PUBLIC_API_REFS = (
     _run_stitch_create,
     _sdk_worker_main,
     _validate_finalizer_instance_spec,
+    _validate_finalizer_plan,
     _validate_finalizer_provider_spec,
 )

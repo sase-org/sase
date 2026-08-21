@@ -2,16 +2,22 @@
 
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.plan import (
+    FINALIZER_PLAN_AUTHORITY_FILENAME,
     FINALIZER_PLAN_FILENAME,
     FinalizerPlanError,
+    FinalizerPlanIntegrityError,
     ResolvedFinalizerPlan,
+    authenticate_resolved_finalizer_plan,
     resolve_and_persist_finalizer_plan,
 )
 
 __all__ = [
+    "FINALIZER_PLAN_AUTHORITY_FILENAME",
     "FINALIZER_PLAN_FILENAME",
     "FinalizerPlanError",
+    "FinalizerPlanIntegrityError",
     "ResolvedFinalizerPlan",
+    "authenticate_resolved_finalizer_plan",
     "resolve_and_persist_finalizer_plan",
     "run_finalizers",
 ]

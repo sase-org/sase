@@ -16,6 +16,7 @@ from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
     FinalizerDiagnosticWire,
     FinalizerInstanceResultWire,
+    FinalizerPlanWire,
     finalizer_wire_to_json_dict,
 )
 from sase.finalizers.artifacts import write_finalizer_result
@@ -28,15 +29,21 @@ from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
+    FinalContextPublication,
+    FinalizerDeclarationError,
     ensure_final_declaration_or_recover,
     final_submission_is_current,
+    load_latest_finalizer_submission,
     publish_final_context,
 )
 from sase.finalizers.executor import (
     FinalizerExecutionContext,
     execute_non_commit_finalizer,
 )
-from sase.finalizers.plan import load_persisted_finalizer_plan
+from sase.finalizers.plan import (
+    FinalizerPlanIntegrityError,
+    authenticate_resolved_finalizer_plan,
+)
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
 from sase.llm_provider.types import ModelTier
 from sase.telemetry.metrics import FINALIZER_ATTEMPTS, FINALIZER_DURATION
@@ -75,15 +82,19 @@ def run_finalizers(
     if _should_skip_finalizers(artifacts_dir):
         return invoke_result
 
-    entries, plan_digest = _selected_entries(artifacts_dir)
+    try:
+        plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+    except FinalizerPlanIntegrityError as exc:
+        raise FinalizerControllerError(str(exc), code=exc.code) from exc
+    entries = _entries_from_plan(plan)
     if not entries:
         _write_aggregate_result(artifacts_dir, [], "success", cycles=0)
         return invoke_result
 
-    config = load_finalizer_config()
     context = FinalizerExecutionContext(
         artifacts_dir=artifacts_dir,
-        plan_digest=plan_digest,
+        plan_digest=plan.plan_digest,
+        selected=tuple(entry.instance_id for entry in plan.entries),
     )
     current_result = invoke_result
     results_by_id: dict[str, FinalizerInstanceResultWire] = {}
@@ -106,7 +117,10 @@ def run_finalizers(
         )
         for cycle in range(1, MAX_CONTROLLER_CYCLES + 1):
             cycles = cycle
+            plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+            entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
+            context = _bind_execution_context(artifacts_dir, plan, publication)
             pending = _pending_instance_ids(
                 entries,
                 publication.payload,
@@ -131,6 +145,10 @@ def run_finalizers(
                 instance_id = entry["instance_id"]
                 if instance_id not in pending:
                     continue
+                plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+                entries = _entries_from_plan(plan)
+                config = load_finalizer_config()
+                context = _bind_execution_context(artifacts_dir, plan, publication)
                 provider_ref = entry["provider_ref"]
                 instance = config.instances.get(instance_id)
                 if instance is None:
@@ -234,7 +252,10 @@ def run_finalizers(
                     "finalizer controller made no progress; no executor ran",
                     code="controller_no_progress",
                 )
+            plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+            entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
+            context = _bind_execution_context(artifacts_dir, plan, publication)
             if not _pending_instance_ids(
                 entries,
                 publication.payload,
@@ -248,6 +269,8 @@ def run_finalizers(
                 "without reaching a fixed point",
                 code="controller_cycle_limit",
             )
+    except FinalizerPlanIntegrityError as exc:
+        raise FinalizerControllerError(str(exc), code=exc.code) from exc
     except BuiltinCommitFinalizerError as exc:
         if exc.invoke_result is not None:
             current_result = exc.invoke_result
@@ -268,6 +291,8 @@ def run_finalizers(
         )
         raise
     except FinalizerControllerError as exc:
+        if exc.code == "plan_integrity_failed":
+            raise
         instance_id = active_instance_id or (
             entries[0]["instance_id"] if entries else "controller"
         )
@@ -283,6 +308,11 @@ def run_finalizers(
         )
         raise
     except Exception as exc:
+        if getattr(exc, "code", None) == "plan_integrity_failed":
+            raise FinalizerControllerError(
+                str(exc),
+                code="plan_integrity_failed",
+            ) from exc
         if not results_by_id or next(reversed(results_by_id.values())).status == (
             "success"
         ):
@@ -320,40 +350,51 @@ def _should_skip_finalizers(artifacts_dir: str | None) -> bool:
     return has_pending_handoff(artifacts_dir)
 
 
-def _selected_entries(
+def _entries_from_plan(plan: FinalizerPlanWire) -> tuple[dict[str, Any], ...]:
+    return tuple(
+        {
+            "instance_id": entry.instance_id,
+            "provider_ref": entry.provider_ref,
+            "resolved_index": entry.resolved_index,
+        }
+        for entry in plan.entries
+    )
+
+
+def _bind_execution_context(
     artifacts_dir: str | None,
-) -> tuple[tuple[dict[str, Any], ...], str | None]:
-    payload = load_persisted_finalizer_plan(artifacts_dir)
-    if not payload:
-        return (), None
-    plan = payload.get("plan")
-    if not isinstance(plan, dict):
-        return (), None
-    entries = plan.get("entries")
-    if not isinstance(entries, list):
-        return (), None
-    selected: list[dict[str, Any]] = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        instance_id = entry.get("instance_id")
-        provider_ref = entry.get("provider_ref")
-        if (
-            isinstance(instance_id, str)
-            and instance_id
-            and isinstance(provider_ref, str)
-            and provider_ref
-        ):
-            selected.append(
-                {
-                    "instance_id": instance_id,
-                    "provider_ref": provider_ref,
-                    "resolved_index": int(entry.get("resolved_index", len(selected))),
-                }
-            )
-    selected.sort(key=lambda item: int(item["resolved_index"]))
-    plan_digest = plan.get("plan_digest")
-    return tuple(selected), plan_digest if isinstance(plan_digest, str) else None
+    plan: FinalizerPlanWire,
+    publication: FinalContextPublication,
+) -> FinalizerExecutionContext:
+    payloads: dict[str, Any] = {}
+    if artifacts_dir:
+        try:
+            submission = load_latest_finalizer_submission(Path(artifacts_dir))
+        except FinalizerDeclarationError:
+            submission = None
+        raw = submission.get("submission") if isinstance(submission, Mapping) else None
+        items = raw.get("payloads") if isinstance(raw, Mapping) else None
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, Mapping):
+                    continue
+                instance_id = item.get("instance_id")
+                if isinstance(instance_id, str) and "payload" in item:
+                    payloads[instance_id] = item.get("payload")
+    return FinalizerExecutionContext(
+        artifacts_dir=artifacts_dir,
+        plan_digest=plan.plan_digest,
+        run_id=publication.context.run_id,
+        agent_id=publication.context.agent_id,
+        turn_nonce=publication.context.turn_nonce,
+        context_digest=publication.context.context_digest,
+        selected=tuple(entry.instance_id for entry in plan.entries),
+        accepted_payloads=payloads,
+        obligations=tuple(
+            finalizer_wire_to_json_dict(item)
+            for item in publication.context.obligations
+        ),
+    )
 
 
 def _ensure_current_declaration(

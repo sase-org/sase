@@ -300,6 +300,17 @@ def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
         def finalizer_plan_digest(self, _plan: dict[str, object]) -> str:
             return "sha256:plan"
 
+        def validate_finalizer_plan(self, plan: dict[str, object]) -> str:
+            return str(plan.get("plan_digest", "sha256:plan"))
+
+        def authenticate_finalizer_plan(
+            self, plan: dict[str, object], expected_digest: str
+        ) -> str:
+            digest = str(plan.get("plan_digest", "sha256:plan"))
+            if expected_digest != digest:
+                raise ValueError("expected plan digest does not match")
+            return digest
+
         def validate_finalizer_context(
             self, _plan: dict[str, object], _context: dict[str, object]
         ) -> str:

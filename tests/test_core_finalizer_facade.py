@@ -4,6 +4,7 @@ import pytest
 
 from sase.core.finalizer_facade import (
     aggregate_finalizer_outcomes,
+    authenticate_finalizer_plan,
     finalizer_context_digest,
     finalizer_json_digest,
     finalizer_plan_digest,
@@ -11,6 +12,7 @@ from sase.core.finalizer_facade import (
     finalizer_wire_schema_version,
     resolve_finalizer_plan,
     validate_finalizer_context,
+    validate_finalizer_plan,
     validate_finalizer_provider_spec,
     validate_finalizer_submission,
 )
@@ -64,6 +66,10 @@ def test_finalizer_facade_resolves_plan_and_validates_submission() -> None:
     assert finalizer_wire_schema_version() == FINALIZER_WIRE_SCHEMA_VERSION
     assert [entry.instance_id for entry in plan.entries] == ["commit"]
     assert plan.plan_digest == finalizer_plan_digest(plan)
+    assert validate_finalizer_plan(plan) == plan.plan_digest
+    assert authenticate_finalizer_plan(plan, plan.plan_digest) == plan.plan_digest
+    with pytest.raises(ValueError, match="expected plan digest"):
+        authenticate_finalizer_plan(plan, "0" * 64)
 
     context = FinalizerContextWire(
         schema_version=FINALIZER_WIRE_SCHEMA_VERSION,

@@ -365,6 +365,7 @@ def test_submit_invokes_external_provider_validate(
         provider_ref: str,
         _context: object,
         payload: object,
+        **_kwargs: object,
     ) -> None:
         seen.append((instance_id, provider_ref, payload))
 

@@ -1,20 +1,21 @@
 """Commit finalizer project resolution and skip tests."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from sase.finalizers.controller import run_finalizers
+from sase.finalizers.controller import FinalizerControllerError, run_finalizers
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.types import InvokeResult
 
 
-def test_finalizer_skips_when_worktree_clean(
+def test_forged_empty_plan_fails_closed_before_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Clean worktree means the generic controller does not re-invoke."""
+    """A forged empty plan is not treated as a successful no-op."""
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260511_120000")
     monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
     monkeypatch.setattr(
@@ -29,18 +30,23 @@ def test_finalizer_skips_when_worktree_clean(
     )
     provider = MagicMock()
 
-    result = run_finalizers(
-        provider=provider,
-        original_prompt="prompt",
-        invoke_result=InvokeResult(content="response"),
-        model_tier="large",
-        suppress_output=True,
-        model_override=None,
-        artifacts_dir=str(artifacts),
-    )
+    with pytest.raises(FinalizerControllerError, match="authority"):
+        run_finalizers(
+            provider=provider,
+            original_prompt="prompt",
+            invoke_result=InvokeResult(content="response"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
 
     provider.invoke.assert_not_called()
-    assert result.content == "response"
+    result = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert result["status"] == "failed"
+    assert result["diagnostics"][0]["code"] == "plan_integrity_failed"
 
 
 def test_finalizer_no_op_without_sase_agent_timestamp(

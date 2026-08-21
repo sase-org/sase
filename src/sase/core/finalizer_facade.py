@@ -68,6 +68,21 @@ def finalizer_plan_digest(plan: FinalizerPlanWire | dict[str, Any]) -> str:
     return str(binding(finalizer_wire_to_json_dict(plan)))
 
 
+def validate_finalizer_plan(plan: FinalizerPlanWire | dict[str, Any]) -> str:
+    binding = require_rust_binding("validate_finalizer_plan")
+    payload = plan if isinstance(plan, dict) else finalizer_wire_to_json_dict(plan)
+    return str(binding(payload))
+
+
+def authenticate_finalizer_plan(
+    plan: FinalizerPlanWire | dict[str, Any],
+    expected_digest: str,
+) -> str:
+    binding = require_rust_binding("authenticate_finalizer_plan")
+    payload = plan if isinstance(plan, dict) else finalizer_wire_to_json_dict(plan)
+    return str(binding(payload, expected_digest))
+
+
 def finalizer_context_digest(context: FinalizerContextWire | dict[str, Any]) -> str:
     binding = require_rust_binding("finalizer_context_digest")
     return str(binding(finalizer_wire_to_json_dict(context)))
@@ -115,6 +130,7 @@ def aggregate_finalizer_outcomes(
 
 __all__ = [
     "aggregate_finalizer_outcomes",
+    "authenticate_finalizer_plan",
     "finalizer_context_digest",
     "finalizer_instance_spec_digest",
     "finalizer_json_digest",
@@ -124,6 +140,7 @@ __all__ = [
     "resolve_finalizer_plan",
     "validate_finalizer_context",
     "validate_finalizer_instance_spec",
+    "validate_finalizer_plan",
     "validate_finalizer_provider_spec",
     "validate_finalizer_submission",
 ]

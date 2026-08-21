@@ -10,12 +10,20 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.core.finalizer_facade import resolve_finalizer_plan
+from sase.core.finalizer_facade import (
+    authenticate_finalizer_plan,
+    resolve_finalizer_plan,
+    validate_finalizer_plan,
+)
 from sase.core.finalizer_wire import (
+    FinalizerDiagnosticWire,
     FinalizerPlanWire,
+    finalizer_plan_from_dict,
     finalizer_wire_to_json_dict,
 )
+from sase.finalizers.artifacts import write_finalizer_result
 from sase.finalizers.config import (
+    FinalizerConfig,
     FinalizerConfigDiagnostic,
     load_finalizer_config,
 )
@@ -32,10 +40,25 @@ from sase.xprompt.directives import PromptDirectives
 
 
 FINALIZER_PLAN_FILENAME = "finalizer_plan.json"
+FINALIZER_PLAN_AUTHORITY_FILENAME = "finalizer_plan.authority.json"
+SASE_FINALIZER_PLAN_DIGEST_ENV = "SASE_FINALIZER_PLAN_DIGEST"
 
 
 class FinalizerPlanError(RuntimeError):
     """Raised when finalizer selection cannot be resolved before launch."""
+
+
+class FinalizerPlanIntegrityError(RuntimeError):
+    """Raised when the sealed plan cannot be authenticated for execution."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "plan_integrity_failed",
+    ) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -100,19 +123,142 @@ def resolve_and_persist_finalizer_plan(
     )
 
 
-def load_persisted_finalizer_plan(
+def authenticate_resolved_finalizer_plan(
     artifacts_dir: str | None,
-) -> Mapping[str, Any] | None:
-    """Load a previously persisted finalizer plan artifact."""
+    *,
+    config: FinalizerConfig | None = None,
+) -> FinalizerPlanWire:
+    """Return the host-owned sealed plan after rejecting artifact and config drift."""
 
+    try:
+        return _authenticate_resolved_finalizer_plan(
+            artifacts_dir,
+            config=config,
+        )
+    except FinalizerPlanIntegrityError as exc:
+        _write_plan_integrity_failure(artifacts_dir, str(exc))
+        raise
+
+
+def _authenticate_resolved_finalizer_plan(
+    artifacts_dir: str | None,
+    *,
+    config: FinalizerConfig | None,
+) -> FinalizerPlanWire:
     if not artifacts_dir:
-        return None
-    path = Path(artifacts_dir) / FINALIZER_PLAN_FILENAME
+        raise FinalizerPlanIntegrityError("finalizer plan authority is missing")
+    root = Path(artifacts_dir).expanduser().resolve(strict=False)
+    authority_payload = _require_plan_payload(
+        root / FINALIZER_PLAN_AUTHORITY_FILENAME,
+        "host-owned finalizer plan authority is missing",
+    )
+    visible_payload = _require_plan_payload(
+        root / FINALIZER_PLAN_FILENAME,
+        "model-visible finalizer plan artifact is missing",
+    )
+    expected = (os.environ.get(SASE_FINALIZER_PLAN_DIGEST_ENV) or "").strip() or None
+    authority = _strict_plan(authority_payload.get("plan"), expected_digest=expected)
+    visible = _strict_plan(visible_payload.get("plan"), expected_digest=None)
+    if finalizer_wire_to_json_dict(authority) != finalizer_wire_to_json_dict(visible):
+        raise FinalizerPlanIntegrityError(
+            "model-visible finalizer plan drifted from host-owned authority"
+        )
+    live_config = config if config is not None else load_finalizer_config()
+    _compare_live_configuration(authority, live_config)
+    return authority
+
+
+def _require_plan_payload(path: Path, missing_message: str) -> Mapping[str, Any]:
+    if not path.is_file():
+        raise FinalizerPlanIntegrityError(missing_message)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data if isinstance(data, Mapping) else None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FinalizerPlanIntegrityError(
+            f"finalizer plan artifact is malformed: {exc}"
+        ) from exc
+    if not isinstance(data, Mapping):
+        raise FinalizerPlanIntegrityError("finalizer plan artifact is malformed")
+    return data
+
+
+def _strict_plan(
+    raw: object,
+    *,
+    expected_digest: str | None,
+) -> FinalizerPlanWire:
+    if not isinstance(raw, Mapping):
+        raise FinalizerPlanIntegrityError("finalizer plan is malformed")
+    payload = dict(raw)
+    try:
+        if expected_digest is None:
+            validate_finalizer_plan(payload)
+        else:
+            authenticate_finalizer_plan(payload, expected_digest)
+        return finalizer_plan_from_dict(payload)
+    except FinalizerPlanIntegrityError:
+        raise
+    except Exception as exc:
+        raise FinalizerPlanIntegrityError(
+            f"finalizer plan failed authentication: {exc}"
+        ) from exc
+
+
+def _compare_live_configuration(
+    plan: FinalizerPlanWire,
+    config: FinalizerConfig,
+) -> None:
+    for entry in plan.entries:
+        live = config.instances.get(entry.instance_id)
+        if live is None:
+            raise FinalizerPlanIntegrityError(
+                f"sealed finalizer instance {entry.instance_id!r} is not configured"
+            )
+        live_wire = live.to_wire()
+        if live.provider_ref != entry.provider_ref:
+            raise FinalizerPlanIntegrityError(
+                f"live provider_ref for {entry.instance_id!r} drifted from the sealed plan"
+            )
+        if live.max_attempts != entry.policy.max_attempts:
+            raise FinalizerPlanIntegrityError(
+                f"live max_attempts for {entry.instance_id!r} drifted from the sealed plan"
+            )
+        if live.refusal != entry.policy.refusal:
+            raise FinalizerPlanIntegrityError(
+                f"live refusal policy for {entry.instance_id!r} drifted from the sealed plan"
+            )
+        if list(live.after) != list(entry.after):
+            raise FinalizerPlanIntegrityError(
+                f"live dependencies for {entry.instance_id!r} drifted from the sealed plan"
+            )
+        if live_wire.config_digest != entry.config_digest:
+            raise FinalizerPlanIntegrityError(
+                f"live configuration for {entry.instance_id!r} drifted from the sealed plan"
+            )
+        if live_wire.provenance_id != entry.provenance_id:
+            raise FinalizerPlanIntegrityError(
+                f"live provenance for {entry.instance_id!r} drifted from the sealed plan"
+            )
+
+
+def _write_plan_integrity_failure(artifacts_dir: str | None, message: str) -> None:
+    payload = {
+        "schema_version": 1,
+        "status": "failed",
+        "cycles": 0,
+        "instances": [],
+        "diagnostics": [
+            finalizer_wire_to_json_dict(
+                FinalizerDiagnosticWire(
+                    code="plan_integrity_failed",
+                    severity="error",
+                    message=message,
+                    instance_id=None,
+                )
+            )
+        ],
+    }
+    write_finalizer_result(artifacts_dir, payload)
 
 
 def _persist_plan(
@@ -142,8 +288,11 @@ def _persist_plan(
             for item in diagnostics
         ],
     }
+    authority_path = root / FINALIZER_PLAN_AUTHORITY_FILENAME
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
         _write_json_atomic(path, payload)
+        _write_json_atomic(authority_path, payload)
+    os.environ[SASE_FINALIZER_PLAN_DIGEST_ENV] = plan.plan_digest
     return path
 
 
@@ -178,9 +327,12 @@ def _provider_diagnostics_message(diagnostics: Sequence[Any]) -> str:
 
 
 __all__ = [
+    "FINALIZER_PLAN_AUTHORITY_FILENAME",
     "FINALIZER_PLAN_FILENAME",
     "FinalizerPlanError",
+    "FinalizerPlanIntegrityError",
     "ResolvedFinalizerPlan",
-    "load_persisted_finalizer_plan",
+    "SASE_FINALIZER_PLAN_DIGEST_ENV",
+    "authenticate_resolved_finalizer_plan",
     "resolve_and_persist_finalizer_plan",
 ]

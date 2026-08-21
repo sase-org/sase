@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -89,6 +89,11 @@ class FinalizerExecutionContext:
     plan_digest: str | None
     run_id: str | None = None
     agent_id: str | None = None
+    turn_nonce: str | None = None
+    context_digest: str | None = None
+    selected: tuple[str, ...] = ()
+    accepted_payloads: Mapping[str, Any] = field(default_factory=dict)
+    obligations: tuple[Mapping[str, Any], ...] = ()
 
 
 ProviderOperationRunner = Callable[
@@ -272,6 +277,8 @@ def validate_external_declaration_payload(
     provider_ref: str,
     context: FinalizerContextWire,
     payload: Any,
+    *,
+    selected: Sequence[str] | None = None,
 ) -> None:
     """Run the selected provider's validate operation for one declaration payload."""
 
@@ -290,6 +297,13 @@ def validate_external_declaration_payload(
         plan_digest=context.plan_digest,
         run_id=context.run_id,
         agent_id=context.agent_id,
+        turn_nonce=context.turn_nonce,
+        context_digest=context.context_digest,
+        selected=tuple(selected) if selected is not None else (instance_id,),
+        accepted_payloads={instance_id: dict(payload)},
+        obligations=tuple(
+            finalizer_wire_to_json_dict(item) for item in context.obligations
+        ),
     )
     providers = collect_finalizer_providers()
     provider = provider_records_by_ref(providers).get(provider_ref_key(provider_ref))
@@ -512,6 +526,19 @@ def _provider_request(
     context: FinalizerExecutionContext,
     operation: str,
 ) -> dict[str, Any]:
+    del config
+    if context.selected:
+        payloads = dict(context.accepted_payloads)
+        obligations = [dict(item) for item in context.obligations]
+        selected = list(context.selected)
+    else:
+        payloads = dict(context.accepted_payloads) or _load_accepted_payloads(
+            context.artifacts_dir
+        )
+        obligations = [dict(item) for item in context.obligations] or (
+            _load_host_obligations(context.artifacts_dir)
+        )
+        selected = list(context.selected)
     request: dict[str, Any] = {
         "schema_version": FINALIZER_WIRE_SCHEMA_VERSION,
         "operation": operation,
@@ -520,17 +547,13 @@ def _provider_request(
         "plan_digest": context.plan_digest,
         "run_id": context.run_id,
         "agent_id": context.agent_id,
+        "turn_nonce": context.turn_nonce,
+        "context_digest": context.context_digest,
         "config": dict(instance.config),
-        "selected": [
-            item.instance_id
-            for item in config.instances.values()
-            if item.instance_id in config.defaults
-        ],
+        "selected": selected,
     }
-    payloads = _load_accepted_payloads(context.artifacts_dir)
     if instance.instance_id in payloads:
         request["payload"] = payloads[instance.instance_id]
-    obligations = _load_host_obligations(context.artifacts_dir)
     if obligations:
         request["obligations"] = obligations
     return request

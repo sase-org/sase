@@ -27,11 +27,13 @@ from sase.core.finalizer_wire import (
     FinalizerPayloadRequirementWire,
     FinalizerPlanWire,
     finalizer_context_from_dict,
-    finalizer_plan_from_dict,
     finalizer_wire_to_json_dict,
 )
 from sase.finalizers.declaration_format import format_context_pretty
-from sase.finalizers.plan import load_persisted_finalizer_plan
+from sase.finalizers.plan import (
+    FinalizerPlanIntegrityError,
+    authenticate_resolved_finalizer_plan,
+)
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import dirty_path_fingerprints
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
@@ -370,25 +372,10 @@ def _run_identity(root: Path, command: str) -> tuple[str, str, str]:
 
 
 def load_finalizer_plan(root: Path) -> FinalizerPlanWire:
-    payload = load_persisted_finalizer_plan(str(root))
-    if not payload:
-        raise FinalizerDeclarationError(
-            "finalizer plan artifact is missing",
-            code="missing_finalizer_plan",
-        )
-    plan = payload.get("plan")
-    if not isinstance(plan, Mapping):
-        raise FinalizerDeclarationError(
-            "finalizer plan artifact is malformed",
-            code="malformed_finalizer_plan",
-        )
     try:
-        return finalizer_plan_from_dict(dict(plan))
-    except Exception as exc:
-        raise FinalizerDeclarationError(
-            f"finalizer plan artifact is invalid: {exc}",
-            code="malformed_finalizer_plan",
-        ) from exc
+        return authenticate_resolved_finalizer_plan(str(root))
+    except FinalizerPlanIntegrityError as exc:
+        raise FinalizerDeclarationError(str(exc), code=exc.code) from exc
 
 
 def _collect_dirty_state(root: Path) -> DirtyState:
@@ -722,7 +709,11 @@ def validate_provider_payloads(
 
             try:
                 validate_external_declaration_payload(
-                    instance_id, entry.provider_ref, context, payload
+                    instance_id,
+                    entry.provider_ref,
+                    context,
+                    payload,
+                    selected=tuple(item.instance_id for item in plan.entries),
                 )
             except FinalizerExecutionError as exc:
                 raise FinalizerDeclarationError(
