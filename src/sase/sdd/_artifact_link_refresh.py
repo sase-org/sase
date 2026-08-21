@@ -162,8 +162,12 @@ def _commit_changes(
         return False
     try:
         from sase.file_references import format_markdown_files_with_prettier
+        from sase.sdd._artifact_link_ignore import ensure_artifact_link_lock_gitignore
         from sase.sdd.files import commit_sdd_store_files
 
+        gitignore = ensure_artifact_link_lock_gitignore(repo_root)
+        if gitignore is not None:
+            changed_paths.append(gitignore)
         markdown_paths = [path for path in changed_paths if path.suffix == ".md"]
         if markdown_paths:
             format_markdown_files_with_prettier(markdown_paths)

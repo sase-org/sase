@@ -245,7 +245,9 @@ The write-back workflow runs in this order:
    does not repeat a `referenced-by/<provider>/` prefix, and the JSON is committed with
    the projection rather than written under `.sase/`.
 4. When the refresh changes files, SASE creates a local
-   `Update artifact link projections` commit and starts a detached push. A successful
+   `Update artifact link projections` commit and starts a detached push. The first
+   refresh in a sidecar also installs the rooted `/links/**/*.lock` ignore rule in that
+   same commit so lock sentinels never become a later lock-only cleanup. A successful
    refresh, including an idempotent no-op, acknowledges the request without waiting for
    that push to finish.
 

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from sase.artifact_cli.doctor import handle_doctor
+from sase.artifact_cli.link_health import ArtifactLinkHealthReport
 from sase.artifact_cli.listing import handle_list
 from sase.core.artifact_file_facade import (
     ArtifactFile,
@@ -234,6 +235,10 @@ def test_doctor_health_ignores_missing_source_paths(
         "sase.artifact_cli.doctor.inspect_artifact_file_index",
         lambda: _inspection(missing_source_path_ids=("artifact-id",)),
     )
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_link_health",
+        lambda *, fix=False: ArtifactLinkHealthReport(skipped=True),
+    )
 
     assert handle_doctor(argparse.Namespace(fix=False, verify=False)) == 0
     output = capsys.readouterr().out
@@ -271,6 +276,10 @@ def test_doctor_fix_then_verify_reports_changed_ids_and_health(
     monkeypatch.setattr(
         "sase.artifact_cli.doctor.verify_artifact_file_index",
         verify,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.doctor.inspect_artifact_link_health",
+        lambda *, fix=False: ArtifactLinkHealthReport(skipped=True),
     )
 
     assert handle_doctor(argparse.Namespace(fix=True, verify=True)) == 0

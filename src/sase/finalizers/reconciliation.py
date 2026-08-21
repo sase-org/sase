@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.llm_provider.commit_finalizer_git import (
     auto_commit_done_sdd_plan_status,
@@ -20,6 +21,9 @@ from sase.llm_provider.commit_finalizer_git import (
 )
 from sase.llm_provider.commit_finalizer_state import collect_dirty_state
 from sase.llm_provider.commit_finalizer_types import BeadStateSyncOutcome, DirtyState
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 _logger = logging.getLogger(__name__)
 
@@ -37,7 +41,9 @@ class PreparedCommitDirtyState:
     done_plan_auto_committed: bool = False
     sdd_prompt_qa_auto_committed: bool = False
     sdd_store_auto_committed: bool = False
+    artifact_links_auto_committed: bool = False
     bead_publication_error: str | None = None
+    artifact_link_publication_error: str | None = None
 
 
 def prepare_commit_dirty_state(
@@ -58,13 +64,59 @@ def prepare_commit_dirty_state(
         dirty_state,
         artifacts,
     )
+    dirty_state, links_auto_committed, link_publication_error = (
+        auto_commit_artifact_link_indexes_if_possible(
+            project_dir,
+            dirty_state,
+            artifacts,
+        )
+    )
     return PreparedCommitDirtyState(
         dirty_state=dirty_state,
         done_plan_auto_committed=done_auto_committed,
         sdd_prompt_qa_auto_committed=qa_auto_committed,
         sdd_store_auto_committed=bead_sync.committed,
+        artifact_links_auto_committed=links_auto_committed,
         bead_publication_error=bead_sync.publication_error,
+        artifact_link_publication_error=link_publication_error,
     )
+
+
+def auto_commit_artifact_link_indexes_if_possible(
+    project_dir: str,
+    dirty_state: DirtyState,
+    artifact_root: Path | None,
+) -> tuple[DirtyState, bool, str | None]:
+    """Commit machine-owned artifact-link indexes left by implicit reads."""
+
+    indexes, lock_only_roots = _artifact_link_dirty_candidates(dirty_state)
+    if not indexes and not lock_only_roots:
+        return dirty_state, False, None
+
+    try:
+        from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
+
+        store = _resolve_finalizer_sdd_store(project_dir)
+        extra: dict[Path, list[Path]] = {root: [] for root in lock_only_roots}
+        result = commit_artifact_link_indexes(
+            indexes,
+            store=store,
+            repo_roots=tuple(Path(repo.path) for repo in dirty_state.repos),
+            artifacts_dir=artifact_root,
+            extra_paths_by_root=extra or None,
+            verify_publication=True,
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to auto-commit artifact-link indexes during finalization",
+            exc_info=True,
+        )
+        return dirty_state, False, None
+
+    if not result.committed and not result.publication_error:
+        return dirty_state, False, None
+    refreshed = collect_dirty_state(project_dir, artifact_root=artifact_root)
+    return refreshed, result.committed, result.publication_error
 
 
 def auto_commit_done_plan_status_if_possible(
@@ -137,6 +189,7 @@ def clean_result_reason(
     done_plan_auto_committed: bool,
     sdd_prompt_qa_auto_committed: bool,
     sdd_store_auto_committed: bool,
+    artifact_links_auto_committed: bool = False,
 ) -> str:
     """Classify a clean commit outcome after machine-owned auto-commits."""
 
@@ -147,9 +200,65 @@ def clean_result_reason(
         auto_committed.append("sdd_prompt_qa")
     if sdd_store_auto_committed:
         auto_committed.append("sdd_store")
+    if artifact_links_auto_committed:
+        auto_committed.append("artifact_links")
     if not auto_committed:
         return "no_changes"
     return "auto_committed_" + "_and_".join(auto_committed)
+
+
+def _artifact_link_dirty_candidates(
+    dirty_state: DirtyState,
+) -> tuple[list[Path], list[Path]]:
+    """Return eligible link indexes and roots whose only link dirt is locks."""
+
+    from sase.sdd._artifact_link_files import (
+        ArtifactLinkRepoFileKind,
+        classify_artifact_link_repo_file,
+    )
+
+    indexes: list[Path] = []
+    lock_only_roots: list[Path] = []
+    for repo in dirty_state.repos:
+        repo_root = Path(repo.path)
+        has_index = False
+        has_lock = False
+        for rel in repo.changed_files:
+            path = repo_root / _porcelain_path(rel)
+            kind = classify_artifact_link_repo_file(path, repo_root)
+            if kind is ArtifactLinkRepoFileKind.INDEX:
+                indexes.append(path)
+                has_index = True
+            elif kind is ArtifactLinkRepoFileKind.LOCK:
+                has_lock = True
+        if has_lock and not has_index:
+            lock_only_roots.append(repo_root)
+    return indexes, lock_only_roots
+
+
+def _porcelain_path(relative: str) -> str:
+    raw = relative.strip()
+    if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
+        raw = raw[1:-1]
+    if " -> " in raw:
+        raw = raw.split(" -> ", 1)[1].strip().strip('"')
+    return raw
+
+
+def _resolve_finalizer_sdd_store(project_dir: str) -> SddStore | None:
+    """Resolve the workspace SDD store used by machine-owned auto-commits."""
+
+    from sase.sdd.store import (
+        SDD_STORAGE_SEPARATE_REPO,
+        SDD_STORAGE_SIDECAR_REPOS,
+        resolve_sdd_store,
+    )
+
+    workspace_num = _finalizer_workspace_num(project_dir)
+    store = resolve_sdd_store(project_dir, workspace_num)
+    if store.storage not in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS}:
+        return None
+    return store
 
 
 def _auto_commit_bead_state(
@@ -341,6 +450,7 @@ def _workspace_num_from_env() -> int | None:
 
 __all__ = [
     "PreparedCommitDirtyState",
+    "auto_commit_artifact_link_indexes_if_possible",
     "auto_commit_done_plan_status_if_possible",
     "auto_commit_external_sdd_prompt_qa_if_possible",
     "auto_commit_separate_sdd_store_if_possible",

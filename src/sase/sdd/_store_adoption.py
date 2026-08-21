@@ -289,12 +289,14 @@ def _same_artifact(left: Path, right: Path) -> bool:
 
 def _bootstrap_and_push(repo: Path) -> None:
     from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject
+    from sase.sdd._artifact_link_ignore import ensure_artifact_link_lock_gitignore
     from sase.sdd._bead_ignore import ensure_bead_store_gitignore
     from sase.sdd._commit import commit_sdd_files
     from sase.sdd.files import ensure_sdd_initialized
 
     ensure_sdd_initialized(repo)
     ensure_bead_store_gitignore(repo)
+    ensure_artifact_link_lock_gitignore(repo)
     beads_dir = repo / BEADS_DIRNAME_NON_VC
     if not beads_dir.is_dir():
         with BeadProject.init(repo, beads_dirname=BEADS_DIRNAME_NON_VC):

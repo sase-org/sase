@@ -12,6 +12,7 @@ from sase.sdd._bead_adoption import (
     adopt_bead_state,
     cleanup_plans_bead_state,
 )
+from sase.sdd._artifact_link_ignore import ensure_artifact_link_lock_gitignore
 from sase.sdd._bead_ignore import ensure_bead_store_gitignore
 from sase.sdd._commit import commit_sdd_files
 from sase.sdd._init_files import ensure_sdd_sidecar_initialized
@@ -26,6 +27,8 @@ from sase.sdd._store_records import (
     write_sdd_store_record,
 )
 from sase.sdd._store_types import (
+    AGENTS_SIDECAR_ROLE,
+    BEADS_SIDECAR_ROLE,
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
     SddSidecar,
@@ -302,14 +305,18 @@ def _seed_sidecars(
                 description=spec.description,
             )
         )
+        gitignore_changed = False
         if spec.role == "plans" and not split_beads:
-            gitignore = ensure_bead_store_gitignore(root, prefix="beads")
-            if gitignore is not None:
-                generated.append(gitignore)
+            if ensure_bead_store_gitignore(root, prefix="beads") is not None:
+                gitignore_changed = True
         elif spec.role == "beads":
-            gitignore = ensure_bead_store_gitignore(root, prefix="")
-            if gitignore is not None:
-                generated.append(gitignore)
+            if ensure_bead_store_gitignore(root, prefix="") is not None:
+                gitignore_changed = True
+        if spec.role not in {BEADS_SIDECAR_ROLE, AGENTS_SIDECAR_ROLE}:
+            if ensure_artifact_link_lock_gitignore(root) is not None:
+                gitignore_changed = True
+        if gitignore_changed:
+            generated.append(root / ".gitignore")
         committed = (
             publish_changes
             and bool(generated)

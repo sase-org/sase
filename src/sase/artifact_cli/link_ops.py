@@ -48,6 +48,11 @@ def handle_link_add(args: argparse.Namespace) -> int:
             "uses": 1,
         }
         outcome = store.upsert_row(row)
+        _persist_link_mutation(
+            store,
+            changed_indexes=tuple(outcome.get("changed_indexes") or ()),
+            beads_changed=bool(outcome.get("beads_changed")),
+        )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -112,6 +117,11 @@ def handle_link_rm(args: argparse.Namespace) -> int:
             args.target_ref,
             relation=None if not relation else str(relation),
         )
+        _persist_link_mutation(
+            store,
+            changed_indexes=removed.changed_indexes,
+            beads_changed=removed.beads_changed,
+        )
     except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -129,6 +139,29 @@ def handle_link_rm(args: argparse.Namespace) -> int:
 
 def _store() -> ArtifactLinkStore:
     return resolve_artifact_link_store()
+
+
+def _persist_link_mutation(
+    store: ArtifactLinkStore,
+    *,
+    changed_indexes: tuple[Any, ...],
+    beads_changed: bool,
+) -> None:
+    from pathlib import Path
+
+    from sase.sdd._artifact_link_commit import (
+        ArtifactLinkPersistError,
+        persist_artifact_link_graph_mutation,
+    )
+
+    try:
+        persist_artifact_link_graph_mutation(
+            store,
+            changed_indexes=tuple(Path(path) for path in changed_indexes),
+            beads_changed=beads_changed,
+        )
+    except ArtifactLinkPersistError as exc:
+        raise RuntimeError(exc.diagnostic) from exc
 
 
 def _cli_writable_relation(slug: str) -> str:

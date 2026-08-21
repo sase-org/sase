@@ -95,3 +95,29 @@ notes without deleting the original text.
 Historical schema-v1 `Referenced By` JSON sidecars must be migrated before graph reads.
 After artifact-link graduation, readers fail loudly on schema-v1 files instead of
 rewriting them implicitly.
+
+## Storage lifecycle
+
+Artifact-link truth lives in three places with different durability:
+
+| Path                                         | Role                                                                                    | Versioned?                                                                                                                               |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Sidecar `links/**/*.json`                    | Per-artifact schema-v2 index. This is the durable source used to rebuild the graph.     | Yes. Committed in the owning document sidecar.                                                                                           |
+| Sidecar `links/**/*.lock`                    | Zero-byte `flock` sentinel for one index. Synchronization state only; never graph data. | No. Ignored by `/links/**/*.lock`. Existing tracked empty sentinels may remain as compatibility residue; new locks are not added to VCS. |
+| `~/.sase/projects/<key>/artifact-links.json` | Rebuildable project-local aggregate plus its lock.                                      | No. Local SASE state, never a sidecar commit.                                                                                            |
+
+`sase artifact link add` and `rm` commit each sidecar they actually change once the
+graph mutation succeeds. One command that updates many indexes in the same repository
+still creates one `chore(artifact-links): persist link indexes` commit. Crossing
+repository boundaries is the lower bound on commit count: two document sidecars means
+two commits. Bead endpoints write `LinkAdded` / `LinkRemoved` events and fold into the
+existing bead-store commit and publication boundary rather than a document-sidecar file.
+A no-op upsert or removal creates no commit.
+
+Implicit agent `read` links accumulate during a run and are committed by the built-in
+commit finalizer even when the turn ends through a plan handoff and therefore has no
+final declaration. That pass peels only eligible link JSON (and the lock-ignore rule, on
+first use) out of each sidecar, leaving unrelated or pre-existing dirty paths for the
+normal declaration. Publication of a finalizer-created sidecar commit is verified
+synchronously so an ephemeral checkout cannot report success while holding the only
+copy.

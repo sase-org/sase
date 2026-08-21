@@ -139,7 +139,9 @@ def test_fresh_init_records_and_seeds_root_beads_sidecar(
         ".bead-mutation-lock.holder",
     ]
     assert not (clones["plans"] / "beads").exists()
-    assert not (clones["plans"] / ".gitignore").exists()
+    assert (clones["plans"] / ".gitignore").read_text().splitlines() == [
+        "/links/**/*.lock",
+    ]
 
 
 def test_migration_imports_pushes_cleans_and_reruns_without_new_commits(
@@ -160,7 +162,9 @@ def test_migration_imports_pushes_cleans_and_reruns_without_new_commits(
     assert (clones["beads"] / "events" / "manifest.json").is_file()
     assert not (clones["beads"] / "beads.db").exists()
     assert not (clones["plans"] / "beads").exists()
-    assert (clones["plans"] / ".gitignore").read_text() == "keep-this\n"
+    assert (clones["plans"] / ".gitignore").read_text() == (
+        "keep-this\n/links/**/*.lock\n"
+    )
     import_message = _git_output(clones["beads"], "log", "-1", "--format=%B")
     assert "Import bead state from acme/widget--plans@" in import_message
 

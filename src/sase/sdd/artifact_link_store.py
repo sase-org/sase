@@ -6,6 +6,7 @@ churn for callers while giving each responsibility a smaller home.
 """
 
 from sase.sdd._artifact_link_store_impl import (
+    ArtifactLinkRemoval,
     ArtifactLinkStore,
     resolve_artifact_link_project_key,
     resolve_artifact_link_store,
@@ -23,6 +24,7 @@ __all__ = [
     "ARTIFACT_LINK_AGGREGATE_FILENAME",
     "ARTIFACT_LINK_ROW_SCHEMA_VERSION",
     "NON_SIDECAR_KINDS",
+    "ArtifactLinkRemoval",
     "ArtifactLinkStore",
     "artifact_link_aggregate_path",
     "assembled_artifact_relations",

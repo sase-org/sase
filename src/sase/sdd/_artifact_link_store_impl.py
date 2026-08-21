@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 import fcntl
 from pathlib import Path
@@ -11,6 +11,7 @@ from typing import Any
 from sase.agents_sync.io import atomic_write_json
 from sase.core.rust import require_rust_binding
 from sase.memory.locks import locked_file
+from sase.sdd._artifact_link_files import artifact_link_lock_path
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
@@ -38,12 +39,31 @@ from sase.sdd.store import SddStore, document_sidecar_roles
 
 
 @dataclass(frozen=True)
+class ArtifactLinkRemoval:
+    """Rows dropped by :meth:`ArtifactLinkStore.remove_rows` plus commit inputs."""
+
+    rows: tuple[dict[str, Any], ...]
+    changed_indexes: tuple[Path, ...] = ()
+    beads_changed: bool = False
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        return iter(self.rows)
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __bool__(self) -> bool:
+        return bool(self.rows)
+
+
+@dataclass(frozen=True)
 class ArtifactLinkStore:
     """Kind-native adapter over sidecar ``links/`` JSON plus the aggregate."""
 
     project_key: str
     sidecar_roots: Mapping[str, Path]
     beads_dir: Path | None = None
+    sdd_store: SddStore | None = None
 
     def __post_init__(self) -> None:
         key = self.project_key.strip()
@@ -67,7 +87,12 @@ class ArtifactLinkStore:
         if beads_dir is not None:
             resolved = beads_dir.expanduser().resolve(strict=False)
             beads_dir = resolved if resolved.is_dir() else None
-        return cls(project_key=project_key, sidecar_roots=roots, beads_dir=beads_dir)
+        return cls(
+            project_key=project_key,
+            sidecar_roots=roots,
+            beads_dir=beads_dir,
+            sdd_store=store,
+        )
 
     def sidecar_root_for(self, artifact_ref: str) -> Path | None:
         """Return the sidecar root that should store *artifact_ref*, if any."""
@@ -91,21 +116,31 @@ class ArtifactLinkStore:
 
         validated = validate_artifact_link_row(row)
         outcome: dict[str, Any] | None = None
+        changed_indexes: list[Path] = []
         for ref in (validated["source_ref"], validated["target_ref"]):
             written = self._upsert_sidecar(ref, validated)
             if written is not None:
                 outcome = written
+                changed_indexes.extend(written.get("changed_indexes") or ())
+        beads_changed = False
         bead_written = self._upsert_bead(validated)
         if bead_written is not None:
             outcome = bead_written
+            beads_changed = str(bead_written.get("kind") or "") != "unchanged"
         elif self._is_aggregate_only(validated):
             outcome = self._upsert_aggregate_row(validated)
         rebuilt = self.rebuild_aggregate()
-        return outcome or {
-            "kind": "unchanged",
-            "row": validated,
-            "rows": list(rebuilt.get("rows", [])),
-        }
+        result = dict(
+            outcome
+            or {
+                "kind": "unchanged",
+                "row": validated,
+                "rows": list(rebuilt.get("rows", [])),
+            }
+        )
+        result["changed_indexes"] = tuple(dict.fromkeys(changed_indexes))
+        result["beads_changed"] = beads_changed
+        return result
 
     def remove_rows(
         self,
@@ -113,7 +148,7 @@ class ArtifactLinkStore:
         target_ref: str,
         *,
         relation: str | None = None,
-    ) -> tuple[dict[str, Any], ...]:
+    ) -> ArtifactLinkRemoval:
         """Remove edges between *source_ref* and *target_ref*.
 
         Without *relation*, every stored edge between the pair is removed.
@@ -128,20 +163,27 @@ class ArtifactLinkStore:
                 require_rust_binding("artifact_relation_lookup")(relation)["slug"]
             )
         dropped: list[dict[str, Any]] = []
+        changed_indexes: list[Path] = []
         for ref in (source, target):
-            dropped.extend(
-                self._remove_sidecar_rows(
-                    ref, source=source, target=target, relation=relation
-                )
+            removed, changed = self._remove_sidecar_rows(
+                ref, source=source, target=target, relation=relation
             )
-        dropped.extend(
-            self._remove_bead_rows(source=source, target=target, relation=relation)
+            dropped.extend(removed)
+            if changed is not None:
+                changed_indexes.append(changed)
+        bead_dropped = self._remove_bead_rows(
+            source=source, target=target, relation=relation
         )
+        dropped.extend(bead_dropped)
         dropped.extend(
             self._remove_aggregate_rows(source=source, target=target, relation=relation)
         )
         self.rebuild_aggregate()
-        return tuple(unique_rows(dropped))
+        return ArtifactLinkRemoval(
+            rows=tuple(unique_rows(dropped)),
+            changed_indexes=tuple(dict.fromkeys(changed_indexes)),
+            beads_changed=bool(bead_dropped),
+        )
 
     def load_artifact_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:
         """Return every stored row touching *artifact_ref*."""
@@ -210,9 +252,11 @@ class ArtifactLinkStore:
             return None
         canonical = canonicalize_artifact_link_ref(artifact_ref)
         path = sidecar_index_path(root, canonical)
-        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        with locked_file(artifact_link_lock_path(path), fcntl.LOCK_EX):
             index = read_artifact_link_index(path, artifact_ref=canonical)
             outcome = upsert_artifact_link_rows(index["rows"], incoming)
+            if str(outcome.get("kind") or "") == "unchanged" and path.is_file():
+                return {**outcome, "changed_indexes": ()}
             atomic_write_json(
                 path,
                 {
@@ -221,7 +265,7 @@ class ArtifactLinkStore:
                     "rows": outcome["rows"],
                 },
             )
-        return outcome
+        return {**outcome, "changed_indexes": (path,)}
 
     def _remove_sidecar_rows(
         self,
@@ -230,15 +274,15 @@ class ArtifactLinkStore:
         source: str,
         target: str,
         relation: str | None,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], Path | None]:
         root = self.sidecar_root_for(artifact_ref)
         if root is None:
-            return []
+            return [], None
         canonical = canonicalize_artifact_link_ref(artifact_ref)
         path = sidecar_index_path(root, canonical)
-        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        with locked_file(artifact_link_lock_path(path), fcntl.LOCK_EX):
             if not path.is_file():
-                return []
+                return [], None
             index = read_artifact_link_index(path, artifact_ref=canonical)
             kept: list[dict[str, Any]] = []
             dropped: list[dict[str, Any]] = []
@@ -256,7 +300,8 @@ class ArtifactLinkStore:
                         "rows": kept,
                     },
                 )
-        return dropped
+                return dropped, path
+        return dropped, None
 
     def _remove_aggregate_rows(
         self,

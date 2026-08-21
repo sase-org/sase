@@ -91,7 +91,7 @@ def execute_commit_finalizer(
     project_dir = resolve_finalizer_project_dir()
     state = prepare_commit_dirty_state(project_dir, artifacts)
     if state.dirty_state.is_clean:
-        _raise_if_unpublished_bead_state(
+        _raise_if_unpublished_machine_state(
             state,
             instance_id=instance.instance_id,
             invoke_result=invoke_result,
@@ -281,7 +281,7 @@ def execute_commit_finalizer(
             invoke_result=current_result,
         )
 
-    _raise_if_unpublished_bead_state(
+    _raise_if_unpublished_machine_state(
         state,
         instance_id=instance.instance_id,
         invoke_result=current_result,
@@ -298,7 +298,7 @@ def execute_commit_finalizer(
     )
 
 
-def _raise_if_unpublished_bead_state(
+def _raise_if_unpublished_machine_state(
     state: PreparedCommitDirtyState,
     *,
     instance_id: str,
@@ -306,17 +306,30 @@ def _raise_if_unpublished_bead_state(
     attempts: Sequence[FinalizerAttemptWire] = (),
     evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
 ) -> None:
-    if state.bead_publication_error is None:
+    if state.bead_publication_error is not None:
+        result = _failed_result(
+            instance_id,
+            "bead_state_unpublished",
+            state.bead_publication_error,
+            attempts=attempts,
+            evidence=evidence,
+        )
+        raise BuiltinCommitFinalizerError(
+            state.bead_publication_error,
+            result=result,
+            invoke_result=invoke_result,
+        )
+    if state.artifact_link_publication_error is None:
         return
     result = _failed_result(
         instance_id,
-        "bead_state_unpublished",
-        state.bead_publication_error,
+        "artifact_links_unpublished",
+        state.artifact_link_publication_error,
         attempts=attempts,
         evidence=evidence,
     )
     raise BuiltinCommitFinalizerError(
-        state.bead_publication_error,
+        state.artifact_link_publication_error,
         result=result,
         invoke_result=invoke_result,
     )

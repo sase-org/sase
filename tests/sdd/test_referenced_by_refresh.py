@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import subprocess
 
 from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
@@ -92,6 +93,7 @@ def test_refresh_referenced_by_dry_write_and_second_write_are_idempotent(
     assert written.changed_files == (
         "links/202608/example.md.json",
         "202608/example.md",
+        ".gitignore",
     )
     assert committed[0]["cause"] == "artifact_links"
     assert committed[0]["already_locked"] is True
@@ -205,6 +207,7 @@ def test_refresh_artifact_links_writes_v2_tables_after_plan_header(
     assert report.changed_files == (
         "links/202608/example.md.json",
         "202608/example.md",
+        ".gitignore",
     )
     content = document.read_text(encoding="utf-8")
     assert content.index("<!-- sase:links:start -->") > content.index("**PARENT:**")
@@ -276,3 +279,67 @@ def test_refresh_artifact_links_creates_binary_companion(
     assert content.startswith("# diagram.png\n\n![diagram.png](./diagram.png)")
     assert "This file is generated; do not hand-edit." in content
     assert "## Referenced By" in content
+
+
+def test_projection_refresh_commits_index_and_ignore_without_lock_residue(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"push_after_commit": False}},
+    )
+    monkeypatch.setattr(
+        "sase.sdd.referenced_by_refresh._pull_rebase_if_remote",
+        lambda _repo_root: None,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+    root = tmp_path / "plans"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=root,
+        check=True,
+    )
+    document = root / "202608" / "example.md"
+    document.parent.mkdir(parents=True)
+    document.write_text("# Example\n\nBody\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=root, check=True)
+    store = SddStore("sidecar_repos", root, root)
+
+    report = refresh_referenced_by(
+        store,
+        role="plans",
+        requests=(_request(),),
+        write=True,
+    )
+
+    assert report.ok and report.committed
+    names = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert "links/202608/example.md.json" in names
+    assert ".gitignore" in names
+    assert not any(name.endswith(".lock") for name in names)
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert status == ""
+    lock = root / "links" / "202608" / "example.md.lock"
+    assert lock.is_file()
+    assert "/links/**/*.lock" in (root / ".gitignore").read_text(encoding="utf-8")
