@@ -27,11 +27,13 @@ _STATUS_STYLES: dict[SkillTargetStatus, str] = {
     "current": "green",
     "stale": "yellow",
     "missing": "red",
+    "retired": "red",
 }
 _STATUS_ICONS: dict[SkillTargetStatus, str] = {
     "current": "✓",
     "stale": "⚠",
     "missing": "✗",
+    "retired": "−",
 }
 _PROVIDER_COLORS: dict[str, str] = {
     "claude": "#cc785c",
@@ -93,6 +95,7 @@ def _summary_panel(inventory: SkillsInventory) -> Panel:
             current=inventory.current_count,
             stale=inventory.stale_count,
             missing=inventory.missing_count,
+            retired=inventory.retired_count,
         ),
     )
     summary.add_row("Deploy mode", inventory.deploy_mode)
@@ -175,7 +178,7 @@ def _drift_panel(inventory: SkillsInventory) -> Panel | None:
         table.add_row(
             Text(target.status, style=_STATUS_STYLES[target.status]),
             Text(f"{target.provider}/{target.skill_name}"),
-            Text(str(target.path)),
+            Text(_target_path_display(target)),
         )
 
     extra_count = len(drift_targets) - _DRIFT_LIMIT
@@ -189,20 +192,31 @@ def _drift_panel(inventory: SkillsInventory) -> Panel | None:
     return Panel(table, title="Drift", border_style="yellow")
 
 
+def _target_path_display(target: SkillTargetEntry) -> str:
+    if target.status == "retired" and target.home_path is not None:
+        return f"{target.path} -> {target.home_path}"
+    return str(target.path)
+
+
 def _notes_panel() -> Panel:
     notes = Text()
-    notes.append("sase skill init --force refreshes generated skill files.\n")
+    notes.append(
+        "sase skill init --force refreshes generated skill files and removes retired managed skills.\n"
+    )
     notes.append("sase init skills remains an alias-compatible initializer.")
     return Panel(notes, title="Notes", border_style="dim")
 
 
-def _status_counts(*, current: int, stale: int, missing: int) -> Text:
+def _status_counts(*, current: int, stale: int, missing: int, retired: int) -> Text:
     text = Text()
     _append_count(text, current, "current", "current")
     text.append(", ", style="dim")
     _append_count(text, stale, "stale", "stale")
     text.append(", ", style="dim")
     _append_count(text, missing, "missing", "missing")
+    if retired:
+        text.append(", ", style="dim")
+        _append_count(text, retired, "retired", "retired")
     return text
 
 
@@ -211,6 +225,7 @@ def _status_tokens(source: SkillSourceEntry) -> Text:
         (source.current_count, "current"),
         (source.stale_count, "stale"),
         (source.missing_count, "missing"),
+        (source.retired_count, "retired"),
     ]
     visible: list[tuple[int, SkillTargetStatus]] = [
         (count, status) for count, status in parts if count > 0

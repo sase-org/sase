@@ -45,6 +45,8 @@ class ChezmoiDeployBehavior:
     print_nothing_to_commit: bool = True
     print_applying: bool = True
     print_apply_done: bool = True
+    delete_targets: tuple[Path, ...] = ()
+    delete_target_root: Path | None = None
 
 
 @dataclass
@@ -52,7 +54,9 @@ class _DeferredChezmoiDeploy:
     """Paths written while bare ``sase init`` defers chezmoi deployment."""
 
     paths: list[Path] = field(default_factory=list)
+    delete_targets: list[Path] = field(default_factory=list)
     chezmoi_home: Path = CHEZMOI_HOME
+    delete_target_root: Path | None = None
     commit_tags: dict[str, object] = field(default_factory=dict)
     include_runtime_commit_tags: bool = False
 
@@ -63,11 +67,17 @@ class _DeferredChezmoiDeploy:
         chezmoi_home: Path = CHEZMOI_HOME,
         commit_tags: dict[str, object] | None = None,
         include_runtime_commit_tags: bool = False,
+        delete_targets: Iterable[Path] = (),
+        delete_target_root: Path | None = None,
     ) -> None:
         new_paths = list(paths)
-        if not self.paths and new_paths:
+        new_delete_targets = list(delete_targets)
+        if not self.paths and (new_paths or new_delete_targets):
             self.chezmoi_home = chezmoi_home
         self.paths.extend(new_paths)
+        self.delete_targets.extend(new_delete_targets)
+        if delete_target_root is not None:
+            self.delete_target_root = delete_target_root
         if commit_tags:
             self.commit_tags.update(commit_tags)
         self.include_runtime_commit_tags = (
@@ -155,7 +165,8 @@ def deploy_to_chezmoi(
 ) -> int:
     """Stage, optionally commit/push, and apply chezmoi source changes."""
     paths = _unique_paths(written_paths)
-    if not paths:
+    delete_targets = _unique_paths(behavior.delete_targets)
+    if not paths and not delete_targets:
         return 0
     if behavior.no_commit:
         return 0
@@ -181,7 +192,7 @@ def deploy_to_chezmoi(
 
     try:
         with _chezmoi_deploy_lock(git_root, behavior.command_label):
-            return _deploy_to_chezmoi_locked(paths, behavior, git_root)
+            return _deploy_to_chezmoi_locked(paths, behavior, git_root, delete_targets)
     except LockTimeoutError as exc:
         print_chezmoi_deploy_lock_timeout(behavior.command_label, exc)
         return 1
@@ -191,6 +202,7 @@ def _deploy_to_chezmoi_locked(
     paths: tuple[Path, ...],
     behavior: ChezmoiDeployBehavior,
     git_root: Path,
+    delete_targets: tuple[Path, ...],
 ) -> int:
     for path in paths:
         if _missing_untracked_path(git_root, path):
@@ -209,7 +221,7 @@ def _deploy_to_chezmoi_locked(
     if staged.returncode == 0:
         if behavior.print_nothing_to_commit:
             print(f"\nNothing to commit in {git_root} (files identical to HEAD).")
-        if not behavior.apply_when_nothing_staged:
+        if not behavior.apply_when_nothing_staged and not delete_targets:
             return 0
     elif staged.returncode != 1:
         print(
@@ -287,6 +299,13 @@ def _deploy_to_chezmoi_locked(
     if behavior.no_apply:
         return 0
 
+    if delete_targets and not _delete_live_targets(
+        delete_targets,
+        root=behavior.delete_target_root or Path.home(),
+        command_label=behavior.command_label,
+    ):
+        return 1
+
     if behavior.print_applying:
         print("Applying chezmoi...")
     try:
@@ -309,6 +328,44 @@ def _deploy_to_chezmoi_locked(
     if behavior.print_apply_done:
         print("  Done.")
     return 0
+
+
+def _delete_live_targets(
+    targets: tuple[Path, ...],
+    *,
+    root: Path,
+    command_label: str,
+) -> bool:
+    root_resolved = root.resolve(strict=False)
+    for target in targets:
+        target_resolved = target.resolve(strict=False)
+        try:
+            target_resolved.relative_to(root_resolved)
+        except ValueError:
+            print(
+                f"{command_label}: refusing to delete live target outside "
+                f"{root_resolved}: {target}",
+                file=sys.stderr,
+            )
+            return False
+        try:
+            if target.exists():
+                target.unlink()
+            _prune_empty_dir(target.parent)
+        except OSError as exc:
+            print(
+                f"{command_label}: failed to delete live target {target}: {exc}",
+                file=sys.stderr,
+            )
+            return False
+    return True
+
+
+def _prune_empty_dir(path: Path) -> None:
+    try:
+        path.rmdir()
+    except OSError:
+        return
 
 
 @contextmanager
@@ -387,6 +444,8 @@ def defer_chezmoi_paths(
     chezmoi_home: Path = CHEZMOI_HOME,
     commit_tags: dict[str, object] | None = None,
     include_runtime_commit_tags: bool = False,
+    delete_targets: Iterable[Path] = (),
+    delete_target_root: Path | None = None,
 ) -> bool:
     """Record paths in the active deferral context.
 
@@ -400,6 +459,8 @@ def defer_chezmoi_paths(
         chezmoi_home=chezmoi_home,
         commit_tags=commit_tags,
         include_runtime_commit_tags=include_runtime_commit_tags,
+        delete_targets=delete_targets,
+        delete_target_root=delete_target_root,
     )
     return True
 
@@ -415,6 +476,8 @@ def deploy_deferred_chezmoi(deferred: _DeferredChezmoiDeploy) -> int:
             chezmoi_home=deferred.chezmoi_home,
             commit_tags=deferred.commit_tags,
             include_runtime_commit_tags=deferred.include_runtime_commit_tags,
+            delete_targets=tuple(deferred.delete_targets),
+            delete_target_root=deferred.delete_target_root,
             apply_when_nothing_staged=True,
             print_nothing_to_commit=False,
         ),

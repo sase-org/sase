@@ -47,6 +47,33 @@ class RenderedSkillTarget:
 
 
 @dataclass(frozen=True)
+class RenderedSkillDeploymentTarget:
+    """One generated skill target paired between chezmoi source and home."""
+
+    source_path: Path
+    home_path: Path
+    content: str
+    provider: str
+    skill_name: str
+
+    def source_target(self) -> RenderedSkillTarget:
+        return RenderedSkillTarget(
+            path=self.source_path,
+            content=self.content,
+            provider=self.provider,
+            skill_name=self.skill_name,
+        )
+
+    def home_target(self) -> RenderedSkillTarget:
+        return RenderedSkillTarget(
+            path=self.home_path,
+            content=self.content,
+            provider=self.provider,
+            skill_name=self.skill_name,
+        )
+
+
+@dataclass(frozen=True)
 class _RawRenderedSkillTarget:
     """One generated skill file target before Markdown formatting."""
 
@@ -276,6 +303,73 @@ def render_skill_targets(
     ]
 
 
+def render_skill_deployment_targets(
+    skill_xprompts: list[XPrompt],
+    *,
+    provider_filter: str | None,
+    get_target_providers: Callable[[bool | list[str]], list[str]],
+    get_provider_context: Callable[[str], dict[str, str]],
+    get_target_paths: Callable[[str, str, bool], list[Path]],
+    format_outputs: Callable[[Sequence[str]], list[str]],
+) -> list[RenderedSkillDeploymentTarget]:
+    """Render generated targets paired between chezmoi source and live home."""
+    raw_targets: list[tuple[Path, Path, _RawRenderedSkillTarget]] = []
+
+    for xprompt in skill_xprompts:
+        name = xprompt.skill_name
+        description = xprompt.description or ""
+        skill_field = xprompt.skill
+        if not skill_field or not name:
+            continue
+
+        target_providers = get_target_providers(skill_field)
+        if provider_filter:
+            target_providers = [p for p in target_providers if p == provider_filter]
+
+        for provider in target_providers:
+            context = get_provider_context(provider)
+            rendered_body, rendered_desc = _render_skill(
+                xprompt.content, description, context
+            )
+            output = _build_output(
+                name,
+                rendered_desc.strip(),
+                rendered_body,
+                log_skill_use=xprompt.log_skill_use,
+            )
+            source_paths = get_target_paths(provider, name, True)
+            home_paths = get_target_paths(provider, name, False)
+            for source_path, home_path in zip(source_paths, home_paths, strict=True):
+                raw_targets.append(
+                    (
+                        source_path,
+                        home_path,
+                        _RawRenderedSkillTarget(
+                            path=source_path,
+                            content=output,
+                            provider=provider,
+                            skill_name=name,
+                        ),
+                    )
+                )
+
+    formatted_outputs = format_outputs([target.content for _, _, target in raw_targets])
+    return [
+        RenderedSkillDeploymentTarget(
+            source_path=source_path,
+            home_path=home_path,
+            content=content,
+            provider=target.provider,
+            skill_name=target.skill_name,
+        )
+        for (source_path, home_path, target), content in zip(
+            raw_targets,
+            formatted_outputs,
+            strict=True,
+        )
+    ]
+
+
 def planned_skill_operation(
     target: RenderedSkillTarget,
 ) -> tuple[InitOperation, str] | None:
@@ -296,11 +390,31 @@ def summarize_skill_actions(operations: Sequence[InitOperation]) -> str:
     """Return a compact summary for generated skill actions."""
     if not operations:
         return "provider skill files are current"
-    operation_set = set(operations)
-    count = len(operations)
-    noun = "provider skill file" if count == 1 else "provider skill files"
+    writes = [operation for operation in operations if operation != "delete"]
+    deletes = [operation for operation in operations if operation == "delete"]
+    if not writes:
+        count = len(deletes)
+        noun = (
+            "retired provider skill file"
+            if count == 1
+            else "retired provider skill files"
+        )
+        return f"delete {count} {noun}"
+    operation_set = set(writes)
+    write_count = len(writes)
+    write_noun = "provider skill file" if write_count == 1 else "provider skill files"
     if operation_set == {"create"}:
-        return f"create {count} {noun}"
-    if operation_set == {"overwrite"}:
-        return f"overwrite {count} {noun}"
-    return f"refresh {count} {noun}"
+        summary = f"create {write_count} {write_noun}"
+    elif operation_set == {"overwrite"}:
+        summary = f"overwrite {write_count} {write_noun}"
+    else:
+        summary = f"refresh {write_count} {write_noun}"
+    if deletes:
+        delete_count = len(deletes)
+        delete_noun = (
+            "retired provider skill file"
+            if delete_count == 1
+            else "retired provider skill files"
+        )
+        summary = f"{summary}; delete {delete_count} {delete_noun}"
+    return summary

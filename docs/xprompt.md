@@ -1190,10 +1190,16 @@ source change and land it on the canonical branch before deploying, then run
 `sase skill init --force`: a chezmoi deploy is refused when `src/sase/xprompts/skills/`
 is dirty, when `HEAD` is not an ancestor of the canonical branch, or when it would move
 the destination off the source commit recorded in the provenance manifest — see
-[Commit Before Deploying](init.md#commit-before-deploying). When `use_chezmoi` is
-enabled, `sase skill init` commits, pushes, and applies the generated files unless
-passed `--no-commit`, `--no-push`, or `--no-apply`. Do not edit deployed `SKILL.md`
-files directly. `sase init skills` is a compatibility alias for `sase skill init`.
+[Commit Before Deploying](init.md#commit-before-deploying). The same manifest is also an
+ownership registry for generated source/live skill-file pairs. When a source is renamed,
+deleted, or no longer targets a provider, a full `sase skill init --force` deployment
+tombstones the retired pair, commits the source-side removal, deletes the live target
+immediately before `chezmoi apply --force`, and keeps the tombstone so an interrupted
+cleanup can be retried idempotently. When `use_chezmoi` is enabled, `sase skill init`
+commits, pushes, and applies the generated files unless passed `--no-commit`,
+`--no-push`, or `--no-apply`; those skip flags also leave retired live targets untouched
+for a later full deployment. Do not edit deployed `SKILL.md` files directly.
+`sase init skills` is a compatibility alias for `sase skill init`.
 
 Editing an existing skill source from the ACE TUI targets it like any other xprompt
 definition, and saving it offers `sase skill init` in place of a bare commit/push, since
@@ -1203,6 +1209,10 @@ that command already commits, pushes, and deploys for you — see
 Provider plugins declare where generated skills should be written. A source can target
 multiple providers, and a provider can have multiple filesystem targets. Built-in
 targets are:
+
+`sase skill list` reports retired managed targets as deletion drift, including both the
+chezmoi source path and the live home path that the next successful full deployment will
+remove.
 
 | Provider          | Skill target(s)                                     |
 | ----------------- | --------------------------------------------------- |

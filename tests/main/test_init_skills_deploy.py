@@ -561,3 +561,86 @@ def test_deploy_lock_timeout_returns_clear_error(
     err = capsys.readouterr().err
     assert "timed out waiting for exclusive chezmoi deploy lock after 0.25s" in err
     assert "/tmp/held.lock" in err
+
+
+def test_deploy_deletes_live_targets_immediately_before_apply(
+    tmp_path: Path,
+) -> None:
+    """Retired live targets are removed after push succeeds and before apply."""
+    home_root = tmp_path / "home"
+    live = home_root / ".claude" / "skills" / "sase_old" / "SKILL.md"
+    live.parent.mkdir(parents=True)
+    live.write_text("retired\n", encoding="utf-8")
+    apply_saw_deleted = False
+    base_handler = git_cmd_handler()
+
+    def handler(*a: Any, **kw: Any) -> MagicMock:
+        nonlocal apply_saw_deleted
+        cmd = a[0] if a else kw.get("cmd", [])
+        if cmd and cmd[0] == "chezmoi":
+            apply_saw_deleted = not live.exists()
+        return base_handler(*a, **kw)
+
+    with patch.object(_init_chezmoi_deploy.subprocess, "run", side_effect=handler):
+        rc = _init_chezmoi_deploy.deploy_to_chezmoi(
+            [
+                tmp_path
+                / "chezmoi"
+                / "home"
+                / "dot_claude"
+                / "skills"
+                / "sase_old"
+                / "SKILL.md"
+            ],
+            _init_chezmoi_deploy.ChezmoiDeployBehavior(
+                command_label="skill init",
+                commit_message="chore: regenerate skills via sase skill init",
+                auto_commit_type="skills",
+                chezmoi_home=tmp_path / "chezmoi" / "home",
+                delete_targets=(live,),
+                delete_target_root=home_root,
+            ),
+        )
+
+    assert rc == 0
+    assert apply_saw_deleted is True
+    assert not live.exists()
+    assert not live.parent.exists()
+
+
+def test_deploy_no_push_leaves_live_delete_targets_untouched(
+    tmp_path: Path,
+) -> None:
+    home_root = tmp_path / "home"
+    live = home_root / ".claude" / "skills" / "sase_old" / "SKILL.md"
+    live.parent.mkdir(parents=True)
+    live.write_text("retired\n", encoding="utf-8")
+
+    with patch.object(
+        _init_chezmoi_deploy.subprocess,
+        "run",
+        side_effect=git_cmd_handler(),
+    ):
+        rc = _init_chezmoi_deploy.deploy_to_chezmoi(
+            [
+                tmp_path
+                / "chezmoi"
+                / "home"
+                / "dot_claude"
+                / "skills"
+                / "sase_old"
+                / "SKILL.md"
+            ],
+            _init_chezmoi_deploy.ChezmoiDeployBehavior(
+                command_label="skill init",
+                commit_message="chore: regenerate skills via sase skill init",
+                auto_commit_type="skills",
+                chezmoi_home=tmp_path / "chezmoi" / "home",
+                no_push=True,
+                delete_targets=(live,),
+                delete_target_root=home_root,
+            ),
+        )
+
+    assert rc == 0
+    assert live.exists()

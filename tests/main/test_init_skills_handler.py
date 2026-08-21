@@ -91,6 +91,11 @@ def test_handler_dry_run_does_not_deploy(
     """--dry-run: no deploy even if use_chezmoi=True."""
     stub_skill_source(tmp_path, monkeypatch)
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler,
+        "CHEZMOI_HOME",
+        tmp_path / "chezmoi" / "home",
+    )
 
     deploy_mock = MagicMock()
     monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
@@ -149,6 +154,7 @@ def test_handler_yes_does_not_imply_force_or_allow_dirty(
         *,
         chezmoi_home: Path,
         force: bool,
+        **_kwargs: object,
     ) -> tuple[None, None]:
         del chezmoi_home
         force_values.append(force)
@@ -320,6 +326,11 @@ def test_handler_zero_written_does_not_deploy(
     )
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(
+        init_skills_handler,
+        "CHEZMOI_HOME",
+        tmp_path / "chezmoi" / "home",
+    )
 
     deploy_mock = MagicMock()
     monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)

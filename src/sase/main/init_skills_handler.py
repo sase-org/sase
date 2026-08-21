@@ -15,14 +15,21 @@ from sase.main._init_chezmoi_deploy import (
     deploy_to_chezmoi,
     print_chezmoi_deploy_lock_timeout,
 )
-from sase.main._init_skills_manifest import prepare_skill_manifest
+from sase.main._init_skills_manifest import (
+    ManagedSkillFile,
+    plan_skill_manifest_ownership,
+    prepare_skill_manifest,
+    retired_skill_files_with_drift,
+)
 from sase.main._init_skills_rendering import (
+    RenderedSkillDeploymentTarget,
     RenderedSkillTarget,
     SkillFrameTemplateError,
     format_skill_output as _format_skill_output_impl,
     format_skill_outputs as _format_skill_outputs_impl,
     format_unique_skill_outputs_batch as _format_unique_skill_outputs_batch_impl,
     planned_skill_operation as _planned_skill_operation_impl,
+    render_skill_deployment_targets as _render_skill_deployment_targets_impl,
     render_skill_targets as _render_skill_targets_impl,
     summarize_skill_actions as _summarize_skill_actions_impl,
 )
@@ -47,7 +54,12 @@ _PRETTIER_WARNING = (
     f"{_COMMAND_LABEL}: prettier not found on PATH; output may not match "
     "chezmoi CI formatting"
 )
+_DELETE_WARNING = (
+    "  Warning: retired generated skill exists, skipping delete "
+    "(not a TTY; use -f to force or -y to answer yes)"
+)
 _RenderedSkillTarget = RenderedSkillTarget
+_RenderedSkillDeploymentTarget = RenderedSkillDeploymentTarget
 
 
 def _all_providers() -> list[str]:
@@ -58,6 +70,11 @@ def _all_providers() -> list[str]:
 def _registered_provider_names() -> tuple[str, ...]:
     """Return registered provider names in registry order."""
     return tuple(_all_providers())
+
+
+def registered_provider_names() -> tuple[str, ...]:
+    """Return registered provider names in registry order."""
+    return _registered_provider_names()
 
 
 def _provider_validation_error(provider: str | None) -> str | None:
@@ -214,6 +231,25 @@ def _render_skill_targets(
     )
 
 
+def _render_skill_deployment_targets(
+    skill_xprompts: list[XPrompt],
+    *,
+    provider_filter: str | None,
+    use_prettier: bool,
+) -> list[RenderedSkillDeploymentTarget]:
+    """Render selected generated skill targets paired for source/home deploy."""
+    return _render_skill_deployment_targets_impl(
+        skill_xprompts,
+        provider_filter=provider_filter,
+        get_target_providers=_get_target_providers,
+        get_provider_context=_provider_context,
+        get_target_paths=_get_target_paths,
+        format_outputs=lambda outputs: _format_skill_outputs(
+            outputs, use_prettier=use_prettier
+        ),
+    )
+
+
 def render_skill_targets(
     skill_xprompts: list[XPrompt],
     *,
@@ -226,6 +262,20 @@ def render_skill_targets(
         skill_xprompts,
         provider_filter=provider_filter,
         use_chezmoi=use_chezmoi,
+        use_prettier=use_prettier,
+    )
+
+
+def render_skill_deployment_targets(
+    skill_xprompts: list[XPrompt],
+    *,
+    provider_filter: str | None,
+    use_prettier: bool,
+) -> list[RenderedSkillDeploymentTarget]:
+    """Render selected generated skill targets paired for source/home deploy."""
+    return _render_skill_deployment_targets(
+        skill_xprompts,
+        provider_filter=provider_filter,
         use_prettier=use_prettier,
     )
 
@@ -247,6 +297,46 @@ def planned_skill_operation(
 def _summarize_skill_actions(actions: tuple[InitAction, ...]) -> str:
     """Return a compact summary for generated skill actions."""
     return _summarize_skill_actions_impl([action.operation for action in actions])
+
+
+def _retired_delete_action(
+    entry: ManagedSkillFile,
+    *,
+    chezmoi_home: Path,
+    home_root: Path,
+) -> InitAction:
+    """Return the preview action for one retired managed skill file."""
+    source_path = entry.source_path(chezmoi_home)
+    home_path = entry.home_path(home_root)
+    return InitAction(
+        path=source_path,
+        operation="delete",
+        detail=f"{entry.provider}/{entry.skill_name} -> {home_path}",
+    )
+
+
+def _delete_retired_source(
+    entry: ManagedSkillFile,
+    *,
+    chezmoi_home: Path,
+) -> bool:
+    """Delete the chezmoi source side of one retired generated skill."""
+    source_path = entry.source_path(chezmoi_home)
+    try:
+        if source_path.exists():
+            source_path.unlink()
+        _prune_empty_dir(source_path.parent)
+    except OSError as exc:
+        print(f"  Warning: could not delete {source_path}: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
+def _prune_empty_dir(path: Path) -> None:
+    try:
+        path.rmdir()
+    except OSError:
+        return
 
 
 def _prompt_overwrite(target: Path, new_content: str) -> bool:
@@ -290,6 +380,52 @@ def _prompt_overwrite(target: Path, new_content: str) -> bool:
             )
 
 
+def _prompt_delete_retired(
+    entry: ManagedSkillFile,
+    *,
+    chezmoi_home: Path,
+    home_root: Path,
+) -> bool:
+    """Interactively prompt for deleting one retired managed source/live pair."""
+    source_path = entry.source_path(chezmoi_home)
+    home_path = entry.home_path(home_root)
+    while True:
+        try:
+            answer = (
+                input(
+                    f"  {source_path} is retired; live target {home_path}. Delete? [y/n/d] "
+                )
+                .strip()
+                .lower()
+            )
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return False
+
+        if answer == "y":
+            return True
+        if answer == "n":
+            return False
+        if answer == "d":
+            from .init_preview import preview_console, render_plan_diff
+
+            render_plan_diff(
+                preview_console(sys.stdout),
+                InitPlan(
+                    command="skills",
+                    label="Skills",
+                    summary="",
+                    actions=(
+                        _retired_delete_action(
+                            entry,
+                            chezmoi_home=chezmoi_home,
+                            home_root=home_root,
+                        ),
+                    ),
+                ),
+            )
+
+
 def _skill_deploy_commit_tags(source_commit: str | None) -> dict[str, object]:
     tags: dict[str, object] = {}
     if source_commit:
@@ -305,6 +441,7 @@ def _deploy_to_chezmoi(
     args: argparse.Namespace,
     *,
     source_commit: str | None = None,
+    delete_targets: Sequence[Path] = (),
 ) -> int:
     """Stage, commit, push, and ``chezmoi apply`` after writing skill files.
 
@@ -336,6 +473,8 @@ def _deploy_to_chezmoi(
             chezmoi_missing_is_error=False,
             git_missing_suffix=", skipping deploy",
             not_repo_suffix=", skipping deploy",
+            delete_targets=tuple(delete_targets),
+            delete_target_root=Path.home(),
         ),
     )
 
@@ -388,13 +527,43 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
 
     use_prettier = _prettier_available()
     try:
-        targets = _render_skill_targets(
-            skill_xprompts,
-            provider_filter=provider_filter,
-            use_chezmoi=use_chezmoi,
-            use_prettier=use_prettier,
-        )
-    except SkillFrameTemplateError as exc:
+        if use_chezmoi:
+            deployment_targets = _render_skill_deployment_targets(
+                skill_xprompts,
+                provider_filter=provider_filter,
+                use_prettier=use_prettier,
+            )
+            targets = [target.source_target() for target in deployment_targets]
+            ownership_plan, ownership_error = plan_skill_manifest_ownership(
+                deployment_targets,
+                chezmoi_home=CHEZMOI_HOME,
+                home_root=Path.home(),
+                provider_filter=provider_filter,
+                registered_providers=_registered_provider_names(),
+            )
+            if ownership_error is not None:
+                return InitPlan(
+                    command="skills",
+                    label="Skills",
+                    summary="cannot plan generated skill files until the manifest is fixed",
+                    actions=(),
+                    blockers=(ownership_error,),
+                )
+            assert ownership_plan is not None
+            retired_entries = retired_skill_files_with_drift(
+                ownership_plan.retired_entries,
+                chezmoi_home=CHEZMOI_HOME,
+                home_root=Path.home(),
+            )
+        else:
+            targets = _render_skill_targets(
+                skill_xprompts,
+                provider_filter=provider_filter,
+                use_chezmoi=use_chezmoi,
+                use_prettier=use_prettier,
+            )
+            retired_entries = ()
+    except (SkillFrameTemplateError, ValueError) as exc:
         return InitPlan(
             command="skills",
             label="Skills",
@@ -416,6 +585,15 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
                 detail=detail,
                 new_content=target.content,
             )
+        )
+    if use_chezmoi:
+        actions.extend(
+            _retired_delete_action(
+                entry,
+                chezmoi_home=CHEZMOI_HOME,
+                home_root=Path.home(),
+            )
+            for entry in retired_entries
         )
 
     warnings: list[str] = []
@@ -472,19 +650,41 @@ def run_init_skills(args: argparse.Namespace) -> int:
             print(f"{_COMMAND_LABEL}: {error}", file=sys.stderr)
         return 1
 
-    if not skill_xprompts:
-        print("No skill source entries found.")
-        return 0
-
     use_prettier = _prettier_available()
     try:
-        targets = _render_skill_targets(
-            skill_xprompts,
-            provider_filter=provider_filter,
-            use_chezmoi=use_chezmoi,
-            use_prettier=use_prettier,
-        )
-    except SkillFrameTemplateError as exc:
+        if use_chezmoi:
+            deployment_targets = _render_skill_deployment_targets(
+                skill_xprompts,
+                provider_filter=provider_filter,
+                use_prettier=use_prettier,
+            )
+            targets = [target.source_target() for target in deployment_targets]
+            ownership_plan, ownership_error = plan_skill_manifest_ownership(
+                deployment_targets,
+                chezmoi_home=CHEZMOI_HOME,
+                home_root=Path.home(),
+                provider_filter=provider_filter,
+                registered_providers=_registered_provider_names(),
+            )
+            if ownership_error is not None:
+                print(f"{_COMMAND_LABEL}: {ownership_error}", file=sys.stderr)
+                return 1
+            assert ownership_plan is not None
+            retired_entries = retired_skill_files_with_drift(
+                ownership_plan.retired_entries,
+                chezmoi_home=CHEZMOI_HOME,
+                home_root=Path.home(),
+            )
+        else:
+            targets = _render_skill_targets(
+                skill_xprompts,
+                provider_filter=provider_filter,
+                use_chezmoi=use_chezmoi,
+                use_prettier=use_prettier,
+            )
+            deployment_targets = []
+            retired_entries = ()
+    except (SkillFrameTemplateError, ValueError) as exc:
         print(f"{_COMMAND_LABEL}: {exc}", file=sys.stderr)
         return 1
     if targets and not use_prettier:
@@ -507,6 +707,15 @@ def run_init_skills(args: argparse.Namespace) -> int:
                     detail=detail,
                     new_content=target.content,
                 )
+            )
+        if use_chezmoi:
+            preview_actions.extend(
+                _retired_delete_action(
+                    entry,
+                    chezmoi_home=CHEZMOI_HOME,
+                    home_root=Path.home(),
+                )
+                for entry in retired_entries
             )
         render_plan_diff(
             preview_console(sys.stdout),
@@ -533,13 +742,17 @@ def run_init_skills(args: argparse.Namespace) -> int:
 
     has_changes = any(
         _planned_skill_operation(target) is not None for target in targets
-    )
+    ) or bool(retired_entries)
     manifest_write = None
     if use_chezmoi and not dry_run:
         manifest_write, manifest_error = prepare_skill_manifest(
             skill_xprompts,
             chezmoi_home=CHEZMOI_HOME,
             force=force,
+            current_targets=deployment_targets,
+            provider_filter=provider_filter,
+            registered_providers=_registered_provider_names(),
+            home_root=Path.home(),
         )
         if manifest_error is not None:
             print(f"{_COMMAND_LABEL}: {manifest_error}", file=sys.stderr)
@@ -563,9 +776,11 @@ def run_init_skills(args: argparse.Namespace) -> int:
             return 1
 
     written = 0
+    deleted = 0
     skipped = 0
     unchanged = 0
     written_paths: list[Path] = []
+    live_delete_targets: list[Path] = []
 
     for target in targets:
         planned = _planned_skill_operation(target)
@@ -596,6 +811,38 @@ def run_init_skills(args: argparse.Namespace) -> int:
         written += 1
         written_paths.append(target.path)
 
+    if use_chezmoi:
+        for entry in retired_entries:
+            source_path = entry.source_path(CHEZMOI_HOME)
+            home_path = entry.home_path(Path.home())
+            if dry_run:
+                print(f"  delete: {source_path} -> {home_path}")
+                continue
+
+            if not force and not assume_yes:
+                if not is_tty:
+                    print(
+                        f"{_DELETE_WARNING}: {source_path} -> {home_path}",
+                        file=sys.stderr,
+                    )
+                    skipped += 1
+                    continue
+                if not _prompt_delete_retired(
+                    entry,
+                    chezmoi_home=CHEZMOI_HOME,
+                    home_root=Path.home(),
+                ):
+                    skipped += 1
+                    continue
+
+            if not _delete_retired_source(entry, chezmoi_home=CHEZMOI_HOME):
+                skipped += 1
+                continue
+            print(f"  deleted: {source_path}")
+            deleted += 1
+            written_paths.append(source_path)
+            live_delete_targets.append(home_path)
+
     if manifest_changed and skipped == 0 and manifest_write is not None:
         manifest_content = manifest_write.content
         assert manifest_content is not None
@@ -607,10 +854,16 @@ def run_init_skills(args: argparse.Namespace) -> int:
     if dry_run:
         print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
     else:
-        print(f"\nWritten: {written}, Skipped: {skipped}, Unchanged: {unchanged}")
+        if deleted:
+            print(
+                f"\nWritten: {written}, Deleted: {deleted}, "
+                f"Skipped: {skipped}, Unchanged: {unchanged}"
+            )
+        else:
+            print(f"\nWritten: {written}, Skipped: {skipped}, Unchanged: {unchanged}")
 
     exit_code = 0
-    if use_chezmoi and not dry_run and written_paths:
+    if use_chezmoi and not dry_run and (written_paths or live_delete_targets):
         source_commit = manifest_write.source_commit if manifest_write else None
         commit_tags = _skill_deploy_commit_tags(source_commit)
         if defer_chezmoi_paths(
@@ -618,6 +871,8 @@ def run_init_skills(args: argparse.Namespace) -> int:
             chezmoi_home=CHEZMOI_HOME,
             commit_tags=commit_tags,
             include_runtime_commit_tags=True,
+            delete_targets=live_delete_targets,
+            delete_target_root=Path.home(),
         ):
             exit_code = 0
         else:
@@ -625,6 +880,7 @@ def run_init_skills(args: argparse.Namespace) -> int:
                 written_paths,
                 args,
                 source_commit=source_commit,
+                delete_targets=live_delete_targets,
             )
 
     if deploy_lock_stack is not None:

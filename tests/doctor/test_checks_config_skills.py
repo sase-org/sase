@@ -75,3 +75,14 @@ def test_config_skills_applied_advises_skill_init_when_source_missing(
     assert check.status == "WARN"
     assert check.data["source_missing_count"] == 1
     assert any("sase skill init --force" in step for step in check.next_steps)
+
+
+def test_config_skills_applied_warns_for_retired_targets(tmp_path: Path) -> None:
+    check = check_config_skills_applied(
+        use_chezmoi=True,
+        inventory=AppliedSkillsInventory(targets=(_target(tmp_path, "retired"),)),
+    )
+
+    assert check.status == "WARN"
+    assert check.data["retired_count"] == 1
+    assert any("remove retired generated skills" in step for step in check.next_steps)

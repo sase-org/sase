@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import argparse
 from io import StringIO
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from sase.main import init_skills_handler
+from sase.main._init_skills_manifest import (
+    SKILLS_MANIFEST_FILENAME,
+    ManagedSkillFile,
+    _SkillDeployManifest,
+)
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 from sase.main.init_skills_handler import (
@@ -19,6 +25,7 @@ from sase.main.init_skills_handler import (
 )
 from tests.main.init_skills_handler_helpers import (
     make_args,
+    stub_manifest_git,
     stub_claude_skill_target,
 )
 
@@ -26,6 +33,11 @@ from tests.main.init_skills_handler_helpers import (
 class _TtyStringIO(StringIO):
     def isatty(self) -> bool:
         return True
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _onboarding_args() -> argparse.Namespace:
@@ -228,3 +240,96 @@ def test_onboarding_confirmed_skills_apply_uses_force(
     assert exit_code == 0
     assert target.read_text(encoding="utf-8") != "stale skill\n"
     prompt_mock.assert_not_called()
+
+
+def _write_retired_manifest_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, Path]:
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    home_root = tmp_path / "home"
+    source = chezmoi_home / "dot_claude" / "skills" / "sase_old" / "SKILL.md"
+    live = home_root / ".claude" / "skills" / "sase_old" / "SKILL.md"
+    _write(source, "retired source\n")
+    _write(live, "retired live\n")
+    manifest = chezmoi_home / SKILLS_MANIFEST_FILENAME
+    manifest.write_text(
+        _SkillDeployManifest(
+            source_commit="2" * 40,
+            xprompt_set_sha256="old-hash",
+            deployed_at="2026-07-28T12:00:00Z",
+            managed_files=(
+                ManagedSkillFile(
+                    provider="claude",
+                    skill_name="sase_old",
+                    source_relpath="dot_claude/skills/sase_old/SKILL.md",
+                    home_relpath=".claude/skills/sase_old/SKILL.md",
+                    state="active",
+                ),
+            ),
+        ).to_json(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "get_all_xprompts", lambda project="": {})
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+    monkeypatch.setattr(Path, "home", lambda: home_root)
+    stub_manifest_git(monkeypatch, tmp_path, incoming="2" * 40, ancestors=set())
+    return source, live, manifest
+
+
+def test_force_deletes_retired_source_and_defers_live_target_to_deploy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, live, manifest = _write_retired_manifest_fixture(tmp_path, monkeypatch)
+    deploy_mock = MagicMock(return_value=0)
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    exit_code = run_init_skills(make_args(force=True))
+
+    assert exit_code == 0
+    assert not source.exists()
+    assert not source.parent.exists()
+    assert live.exists()
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert payload["managed_files"][0]["state"] == "retired"
+    deploy_mock.assert_called_once()
+    assert deploy_mock.call_args.kwargs["delete_targets"] == [live]
+
+
+def test_non_tty_retired_delete_is_skipped_and_manifest_remains_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source, live, manifest = _write_retired_manifest_fixture(tmp_path, monkeypatch)
+    before = manifest.read_text(encoding="utf-8")
+    monkeypatch.setattr(init_skills_handler.sys, "stdin", StringIO())
+    deploy_mock = MagicMock(return_value=0)
+    monkeypatch.setattr(init_skills_handler, "_deploy_to_chezmoi", deploy_mock)
+
+    exit_code = run_init_skills(make_args(force=False, yes=False))
+
+    assert exit_code == 0
+    assert source.exists()
+    assert live.exists()
+    assert manifest.read_text(encoding="utf-8") == before
+    deploy_mock.assert_not_called()
+
+
+def test_dry_run_reports_retired_delete_without_mutating(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source, live, _manifest = _write_retired_manifest_fixture(tmp_path, monkeypatch)
+
+    exit_code = run_init_skills(make_args(dry_run=True))
+
+    assert exit_code == 0
+    assert source.exists()
+    assert live.exists()
+    out = capsys.readouterr().out
+    assert f"delete: {source} -> {live}" in out

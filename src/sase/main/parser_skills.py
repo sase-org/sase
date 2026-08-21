@@ -41,7 +41,10 @@ def register_skills_parser(subparsers: argparse._SubParsersAction) -> None:
             "sources are uncommitted, when HEAD is not an ancestor of the "
             "canonical branch, or when it would move the destination off the "
             "source commit recorded in the provenance manifest. Preview with "
-            "--diff or --dry-run while iterating. "
+            "--diff or --dry-run while iterating. The manifest also records "
+            "SASE-owned generated skill files, so a full deployment removes "
+            "retired managed skills after the source change is committed and "
+            "pushed. "
             "`sase init skills` is a compatibility alias for `sase skill init`."
         ),
     )

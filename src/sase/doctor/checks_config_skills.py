@@ -89,6 +89,7 @@ def _applied_skills_data(
         "stale_count": inventory.stale_count,
         "missing_count": inventory.missing_count,
         "source_missing_count": inventory.source_missing_count,
+        "retired_count": inventory.retired_count,
         "prettier_available": inventory.prettier_available,
         "targets": tuple(_applied_skill_row(target) for target in inventory.targets),
     }
@@ -121,11 +122,16 @@ def _applied_skill_next_steps(
             "Run `chezmoi apply` to update live home skill files from the chezmoi source."
         )
     if any(
-        target.status == "source_missing" or target.source_status != "current"
+        target.status != "retired"
+        and (target.status == "source_missing" or target.source_status != "current")
         for target in drift
     ):
         steps.append(
             "Run `sase skill init --force`, then `chezmoi apply`, if generated source skill files are stale or missing."
+        )
+    if any(target.status == "retired" for target in drift):
+        steps.append(
+            "Run a full `sase skill init --force` deployment to remove retired generated skills."
         )
     return tuple(steps)
 

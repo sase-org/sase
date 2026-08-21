@@ -11,6 +11,11 @@ import pytest
 from rich.console import Console
 
 from sase.main import init_skills_handler, skills_handler
+from sase.main._init_skills_manifest import (
+    SKILLS_MANIFEST_FILENAME,
+    ManagedSkillFile,
+    _SkillDeployManifest,
+)
 from sase.main.init_skills_handler import _get_target_path, run_init_skills
 from sase.main.parser import create_parser
 from sase.skills.cli_list import _render_skills_inventory
@@ -541,3 +546,58 @@ def test_skills_list_table_renders_compact_status_tokens(
     assert "✓ 1" in text
     assert "⚠ 1" in text
     assert "✗ 1" in text
+
+
+def test_skills_inventory_reports_retired_deletion_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    home_root = tmp_path / "home"
+    source = chezmoi_home / "dot_claude" / "skills" / "sase_old" / "SKILL.md"
+    live = home_root / ".claude" / "skills" / "sase_old" / "SKILL.md"
+    _write(source, "retired source\n")
+    _write(live, "retired live\n")
+    (chezmoi_home / SKILLS_MANIFEST_FILENAME).write_text(
+        _SkillDeployManifest(
+            source_commit="2" * 40,
+            xprompt_set_sha256="old-hash",
+            deployed_at="2026-07-28T12:00:00Z",
+            managed_files=(
+                ManagedSkillFile(
+                    provider="claude",
+                    skill_name="sase_old",
+                    source_relpath="dot_claude/skills/sase_old/SKILL.md",
+                    home_relpath=".claude/skills/sase_old/SKILL.md",
+                    state="retired",
+                ),
+            ),
+        ).to_json(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
+    monkeypatch.setattr(init_skills_handler, "get_all_xprompts", lambda project="": {})
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(
+        init_skills_handler, "registered_provider_names", lambda: ("claude",)
+    )
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _command: None)
+    monkeypatch.setattr(Path, "home", lambda: home_root)
+
+    inventory = build_skills_inventory(use_chezmoi=True, use_prettier=False)
+
+    assert inventory.source_count == 1
+    assert inventory.retired_count == 1
+    assert inventory.drift_targets[0].status == "retired"
+    assert inventory.drift_targets[0].path == source
+    assert inventory.drift_targets[0].home_path == live
+
+    output = StringIO()
+    console = Console(file=output, force_terminal=False, color_system=None, width=160)
+    _render_skills_inventory(inventory, console=console)
+    text = output.getvalue()
+    assert "/sase_old" in text
+    assert "retired" in text
+    assert str(source) in text
+    assert str(live) in text

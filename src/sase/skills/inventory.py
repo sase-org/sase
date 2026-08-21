@@ -7,10 +7,17 @@ from pathlib import Path
 from typing import Literal
 
 from sase.main import init_skills_handler
+from sase.main._init_skills_manifest import (
+    ManagedSkillFile,
+    plan_skill_manifest_ownership,
+    retired_skill_files_with_drift,
+)
 from sase.xprompt.models import XPrompt
 
-SkillTargetStatus = Literal["current", "stale", "missing"]
-AppliedSkillTargetStatus = Literal["current", "stale", "missing", "source_missing"]
+SkillTargetStatus = Literal["current", "stale", "missing", "retired"]
+AppliedSkillTargetStatus = Literal[
+    "current", "stale", "missing", "source_missing", "retired"
+]
 SkillDeployMode = Literal["home", "chezmoi"]
 
 
@@ -22,6 +29,7 @@ class SkillTargetEntry:
     provider: str
     skill_name: str
     status: SkillTargetStatus
+    home_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +58,10 @@ class SkillSourceEntry:
     @property
     def missing_count(self) -> int:
         return _count_status(self.targets, "missing")
+
+    @property
+    def retired_count(self) -> int:
+        return _count_status(self.targets, "retired")
 
 
 @dataclass(frozen=True)
@@ -91,6 +103,10 @@ class SkillsInventory:
     @property
     def missing_count(self) -> int:
         return self._status_count("missing")
+
+    @property
+    def retired_count(self) -> int:
+        return self._status_count("retired")
 
     @property
     def drift_targets(self) -> tuple[SkillTargetEntry, ...]:
@@ -146,6 +162,10 @@ class AppliedSkillsInventory:
         return self._status_count("source_missing")
 
     @property
+    def retired_count(self) -> int:
+        return self._status_count("retired")
+
+    @property
     def drift_targets(self) -> tuple[AppliedSkillTargetEntry, ...]:
         return tuple(target for target in self.targets if target.status != "current")
 
@@ -166,12 +186,34 @@ def build_skills_inventory(
         use_prettier = init_skills_handler.prettier_available()
 
     xprompts, placement_errors = init_skills_handler.load_skill_sources()
-    rendered_targets = init_skills_handler.render_skill_targets(
-        xprompts,
-        provider_filter=provider_filter,
-        use_chezmoi=use_chezmoi,
-        use_prettier=use_prettier,
-    )
+    retired_entries: tuple[ManagedSkillFile, ...] = ()
+    if use_chezmoi:
+        deployment_targets = init_skills_handler.render_skill_deployment_targets(
+            xprompts,
+            provider_filter=provider_filter,
+            use_prettier=use_prettier,
+        )
+        rendered_targets = [target.source_target() for target in deployment_targets]
+        ownership_plan, _ownership_error = plan_skill_manifest_ownership(
+            deployment_targets,
+            chezmoi_home=init_skills_handler.CHEZMOI_HOME,
+            home_root=Path.home(),
+            provider_filter=provider_filter,
+            registered_providers=init_skills_handler.registered_provider_names(),
+        )
+        if ownership_plan is not None:
+            retired_entries = retired_skill_files_with_drift(
+                ownership_plan.retired_entries,
+                chezmoi_home=init_skills_handler.CHEZMOI_HOME,
+                home_root=Path.home(),
+            )
+    else:
+        rendered_targets = init_skills_handler.render_skill_targets(
+            xprompts,
+            provider_filter=provider_filter,
+            use_chezmoi=use_chezmoi,
+            use_prettier=use_prettier,
+        )
 
     targets_by_skill: dict[str, list[SkillTargetEntry]] = {}
     for rendered in rendered_targets:
@@ -183,14 +225,42 @@ def build_skills_inventory(
                 status=_target_status(rendered),
             )
         )
+    for entry in retired_entries:
+        targets_by_skill.setdefault(entry.skill_name, []).append(
+            SkillTargetEntry(
+                path=entry.source_path(init_skills_handler.CHEZMOI_HOME),
+                home_path=entry.home_path(Path.home()),
+                provider=entry.provider,
+                skill_name=entry.skill_name,
+                status="retired",
+            )
+        )
 
-    sources = tuple(
+    current_sources = [
         _source_entry(
             xprompt,
             provider_filter=provider_filter,
             targets=tuple(targets_by_skill.get(xprompt.skill_name or xprompt.name, ())),
         )
         for xprompt in xprompts
+    ]
+    current_names = {source.name for source in current_sources}
+    retired_sources_by_name: dict[str, SkillSourceEntry] = {}
+    for entry in retired_entries:
+        if (
+            entry.skill_name in current_names
+            or entry.skill_name in retired_sources_by_name
+        ):
+            continue
+        retired_sources_by_name[entry.skill_name] = _retired_source_entry(
+            entry,
+            targets_by_skill[entry.skill_name],
+        )
+    sources = tuple(
+        sorted(
+            [*current_sources, *retired_sources_by_name.values()],
+            key=lambda source: source.name,
+        )
     )
     return SkillsInventory(
         sources=sources,
@@ -211,32 +281,50 @@ def build_applied_skills_inventory(
         use_prettier = init_skills_handler.prettier_available()
 
     xprompts, _placement_errors = init_skills_handler.load_skill_sources()
-    source_targets = init_skills_handler.render_skill_targets(
+    deployment_targets = init_skills_handler.render_skill_deployment_targets(
         xprompts,
         provider_filter=provider_filter,
-        use_chezmoi=True,
         use_prettier=use_prettier,
     )
-    home_targets = init_skills_handler.render_skill_targets(
-        xprompts,
+    ownership_plan, _ownership_error = plan_skill_manifest_ownership(
+        deployment_targets,
+        chezmoi_home=init_skills_handler.CHEZMOI_HOME,
+        home_root=Path.home(),
         provider_filter=provider_filter,
-        use_chezmoi=False,
-        use_prettier=use_prettier,
+        registered_providers=init_skills_handler.registered_provider_names(),
     )
-
-    targets = tuple(
-        AppliedSkillTargetEntry(
-            source_path=source.path,
-            home_path=home.path,
-            provider=source.provider,
-            skill_name=source.skill_name,
-            status=_applied_target_status(source.path, home.path),
-            source_status=_target_status(source),
+    retired_entries: tuple[ManagedSkillFile, ...] = ()
+    if ownership_plan is not None:
+        retired_entries = retired_skill_files_with_drift(
+            ownership_plan.retired_entries,
+            chezmoi_home=init_skills_handler.CHEZMOI_HOME,
+            home_root=Path.home(),
         )
-        for source, home in zip(source_targets, home_targets, strict=True)
+
+    targets = [
+        AppliedSkillTargetEntry(
+            source_path=target.source_path,
+            home_path=target.home_path,
+            provider=target.provider,
+            skill_name=target.skill_name,
+            status=_applied_target_status(target.source_path, target.home_path),
+            source_status=_target_status(target.source_target()),
+        )
+        for target in deployment_targets
+    ]
+    targets.extend(
+        AppliedSkillTargetEntry(
+            source_path=entry.source_path(init_skills_handler.CHEZMOI_HOME),
+            home_path=entry.home_path(Path.home()),
+            provider=entry.provider,
+            skill_name=entry.skill_name,
+            status="retired",
+            source_status="retired",
+        )
+        for entry in retired_entries
     )
     return AppliedSkillsInventory(
-        targets=targets,
+        targets=tuple(targets),
         provider_filter=provider_filter,
         prettier_available=use_prettier,
     )
@@ -256,6 +344,20 @@ def _source_entry(
         source_path=xprompt.source_path or "-",
         providers=providers,
         targets=targets,
+    )
+
+
+def _retired_source_entry(
+    entry: ManagedSkillFile,
+    targets: list[SkillTargetEntry],
+) -> SkillSourceEntry:
+    return SkillSourceEntry(
+        name=entry.skill_name,
+        reference_name=f"skill/{entry.skill_name}",
+        description="Retired generated skill",
+        source_path=entry.source_relpath,
+        providers=(entry.provider,),
+        targets=tuple(targets),
     )
 
 
