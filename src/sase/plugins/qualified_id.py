@@ -35,16 +35,44 @@ def parse_plugin_qualified_id(value: str) -> tuple[str, str]:
     return match.group("plugin"), match.group("id")
 
 
+def canonical_plugin_prefix(plugin: str) -> str:
+    """Return the packaging-normalized plugin/distribution prefix.
+
+    ``builtin`` is preserved as the literal builtin prefix, including mixed-case
+    spellings. Installed distribution names use PEP 503 canonicalization so
+    mixed-case, hyphen, underscore, and dot variants compare equal.
+    """
+
+    if plugin.casefold() == BUILTIN_PLUGIN_PREFIX:
+        return BUILTIN_PLUGIN_PREFIX
+    # Imported lazily: sase.version's package init is not a leaf and would
+    # otherwise cycle back through config.file_hooks into this module.
+    from sase.version._utils import normalize_distribution_name
+
+    return normalize_distribution_name(plugin)
+
+
+def canonical_plugin_qualified_id(value: str) -> str:
+    """Return ``<plugin>@<id>`` with a packaging-normalized plugin prefix."""
+
+    plugin, spec_id = parse_plugin_qualified_id(value)
+    return f"{canonical_plugin_prefix(plugin)}@{spec_id}"
+
+
 def plugin_qualified_id_matches(plugin: str, *, builtin: bool, package: str) -> bool:
     """Return whether a resolved provider satisfies a declared *plugin* prefix."""
-    if plugin == _BUILTIN_PLUGIN_PREFIX:
+    if plugin.casefold() == _BUILTIN_PLUGIN_PREFIX:
         return builtin
-    return not builtin and package == plugin
+    return not builtin and canonical_plugin_prefix(package) == canonical_plugin_prefix(
+        plugin
+    )
 
 
 __all__ = [
     "BUILTIN_PLUGIN_PREFIX",
     "PluginQualifiedIdError",
+    "canonical_plugin_prefix",
+    "canonical_plugin_qualified_id",
     "parse_plugin_qualified_id",
     "plugin_qualified_id_matches",
 ]

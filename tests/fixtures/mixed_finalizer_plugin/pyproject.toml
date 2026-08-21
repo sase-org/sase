@@ -1,0 +1,8 @@
+[project]
+name = "Mixed.Case_Finalizers"
+version = "1.0.0"
+description = "Mixed-case distribution fixture for finalizer provider identity tests"
+requires-python = ">=3.11"
+
+[project.entry-points.sase_finalizers]
+audit = "mixed_case_finalizers:provider"

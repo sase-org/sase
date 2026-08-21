@@ -25,6 +25,7 @@ from sase.finalizers.providers import (
     diagnose_finalizer_providers,
     diagnostic_to_json,
     provider_records_by_ref,
+    provider_ref_key,
     redact_config,
 )
 
@@ -158,6 +159,10 @@ def build_finalizer_inventory(
         else frozenset()
     )
     provider_map = provider_records_by_ref(providers)
+    configured_refs = {
+        provider_ref_key(instance.provider_ref)
+        for instance in config.instances.values()
+    }
     return {
         "schema_version": FINALIZER_CLI_JSON_SCHEMA_VERSION,
         "defaults": list(config.defaults),
@@ -190,8 +195,8 @@ def build_finalizer_inventory(
                 "capabilities": list(provider.capabilities),
                 "load_status": provider.load_status,
                 "load_error": provider.load_error,
-                "configured": provider.provider_ref
-                in {instance.provider_ref for instance in config.instances.values()},
+                "configured": provider_ref_key(provider.provider_ref)
+                in configured_refs,
             }
             for provider in providers
         ],
@@ -230,7 +235,11 @@ def _instance_view(
         diagnostic_to_json(item)
         for item in diagnostics
         if item.instance_id == instance.instance_id
-        or item.provider_ref == instance.provider_ref
+        or (
+            item.provider_ref is not None
+            and provider_ref_key(item.provider_ref)
+            == provider_ref_key(instance.provider_ref)
+        )
     )
     health = (
         "error"
@@ -337,8 +346,16 @@ def _provider_for_instance(
     view: Mapping[str, Any],
     instance: Mapping[str, Any],
 ) -> Mapping[str, Any] | None:
+    instance_ref = instance["provider_ref"]
+    if not isinstance(instance_ref, str):
+        return None
+    instance_key = provider_ref_key(instance_ref)
     for provider in view["providers"]:
-        if provider["provider_ref"] == instance["provider_ref"]:
+        provider_ref = provider["provider_ref"]
+        if (
+            isinstance(provider_ref, str)
+            and provider_ref_key(provider_ref) == instance_key
+        ):
             return provider
     return None
 

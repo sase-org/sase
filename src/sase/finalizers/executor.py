@@ -37,6 +37,7 @@ from sase.finalizers.providers import (
     fatal_provider_diagnostics,
     parse_command_finalizer_config,
     provider_records_by_ref,
+    provider_ref_key,
 )
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 
@@ -189,7 +190,9 @@ def execute_plugin_finalizer(
     """Execute an external finalizer through the isolated worker protocol."""
 
     providers = collect_finalizer_providers()
-    provider = provider_records_by_ref(providers).get(instance.provider_ref)
+    provider = provider_records_by_ref(providers).get(
+        provider_ref_key(instance.provider_ref)
+    )
     if provider is None:
         return _failed_result(
             instance.instance_id,
@@ -278,7 +281,9 @@ def validate_external_declaration_payload(
         )
     config = load_finalizer_config()
     instance = config.instances.get(instance_id)
-    if instance is None or instance.provider_ref != provider_ref:
+    if instance is None or provider_ref_key(instance.provider_ref) != provider_ref_key(
+        provider_ref
+    ):
         raise FinalizerExecutionError(f"unknown finalizer instance {instance_id!r}")
     exec_context = FinalizerExecutionContext(
         artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
@@ -287,7 +292,7 @@ def validate_external_declaration_payload(
         agent_id=context.agent_id,
     )
     providers = collect_finalizer_providers()
-    provider = provider_records_by_ref(providers).get(provider_ref)
+    provider = provider_records_by_ref(providers).get(provider_ref_key(provider_ref))
     if provider is None:
         raise FinalizerExecutionError(
             f"finalizer provider {provider_ref!r} is not installed"
@@ -609,7 +614,10 @@ def _validate_provider_result(
             f"provider operation {operation!r} returned operation "
             f"{result.get('operation')!r}"
         )
-    if result.get("provider_ref") != instance.provider_ref:
+    result_provider_ref = result.get("provider_ref")
+    if not isinstance(result_provider_ref, str) or provider_ref_key(
+        result_provider_ref
+    ) != provider_ref_key(instance.provider_ref):
         raise FinalizerExecutionError(
             f"provider operation {operation!r} returned provider "
             f"{result.get('provider_ref')!r}"

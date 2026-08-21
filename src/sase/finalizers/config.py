@@ -16,6 +16,10 @@ from sase.core.finalizer_wire import (
     FinalizerPlanInputWire,
     FinalizerSelectorOpWire,
 )
+from sase.plugins.qualified_id import (
+    PluginQualifiedIdError,
+    canonical_plugin_qualified_id,
+)
 
 
 _INSTANCE_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
@@ -337,6 +341,10 @@ class _MutableFinalizerConfig:
                     )
                 )
                 continue
+            try:
+                provider_ref = canonical_plugin_qualified_id(provider_ref)
+            except PluginQualifiedIdError:
+                pass
             if provider_ref not in _BUILTIN_PROVIDER_REFS and "@" not in provider_ref:
                 self.diagnostics.append(
                     FinalizerConfigDiagnostic(

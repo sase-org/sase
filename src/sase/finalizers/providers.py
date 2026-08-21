@@ -14,6 +14,8 @@ from sase.plugins.inventory import PluginInventory, collect_plugin_inventory
 from sase.plugins.qualified_id import (
     BUILTIN_PLUGIN_PREFIX,
     PluginQualifiedIdError,
+    canonical_plugin_prefix,
+    canonical_plugin_qualified_id,
     parse_plugin_qualified_id,
 )
 from sase.plugins.required import resolve_required_plugins
@@ -120,7 +122,9 @@ def collect_finalizer_providers(
             continue
         records.append(
             FinalizerProviderRecord(
-                provider_ref=f"{entry.package}@{entry.name}",
+                provider_ref=_canonical_provider_ref_for_entry(
+                    package=entry.package, name=entry.name
+                ),
                 provider_id=entry.name,
                 package=entry.package,
                 version=entry.version,
@@ -135,14 +139,40 @@ def collect_finalizer_providers(
     return tuple(records)
 
 
+def canonical_provider_ref(value: str) -> str:
+    """Return the packaging-normalized provider ref.
+
+    The distribution segment uses PEP 503 canonicalization except for the
+    literal ``builtin`` prefix. Raw metadata names stay on
+    :attr:`FinalizerProviderRecord.package` for display and provenance.
+    """
+
+    return canonical_plugin_qualified_id(value)
+
+
+def provider_ref_key(value: str) -> str:
+    """Return a lookup key for *value*, preserving syntactically invalid refs."""
+
+    try:
+        return canonical_provider_ref(value)
+    except PluginQualifiedIdError:
+        return value
+
+
+def _canonical_provider_ref_for_entry(*, package: str, name: str) -> str:
+    """Build a provider ref from raw entry-point metadata."""
+
+    return f"{canonical_plugin_prefix(package)}@{name}"
+
+
 def provider_records_by_ref(
     providers: Sequence[FinalizerProviderRecord],
 ) -> dict[str, FinalizerProviderRecord]:
-    """Return first-provider-wins records keyed by provider ref."""
+    """Return first-provider-wins records keyed by canonical provider ref."""
 
     by_ref: dict[str, FinalizerProviderRecord] = {}
     for provider in providers:
-        by_ref.setdefault(provider.provider_ref, provider)
+        by_ref.setdefault(provider_ref_key(provider.provider_ref), provider)
     return by_ref
 
 
@@ -287,12 +317,15 @@ def _diagnose_instance_provider(
                 provider_ref=provider_ref,
             ),
         )
-    provider = providers_by_ref.get(provider_ref)
+    plugin = canonical_plugin_prefix(plugin)
+    canonical_ref = f"{plugin}@{provider_id}"
+    provider = providers_by_ref.get(canonical_ref)
     if provider is None:
         same_provider = [
             item
             for item in providers
-            if item.provider_id == provider_id and item.package != plugin
+            if item.provider_id == provider_id
+            and canonical_plugin_prefix(item.package) != plugin
         ]
         if same_provider:
             packages = ", ".join(sorted(item.package for item in same_provider))
@@ -337,15 +370,16 @@ def _duplicate_provider_ref_diagnostics(
     seen: set[str] = set()
     duplicates: list[FinalizerProviderDiagnostic] = []
     for provider in providers:
-        if provider.provider_ref not in seen:
-            seen.add(provider.provider_ref)
+        key = provider_ref_key(provider.provider_ref)
+        if key not in seen:
+            seen.add(key)
             continue
         duplicates.append(
             FinalizerProviderDiagnostic(
                 severity="error",
                 code="duplicate_provider",
-                message=f"duplicate finalizer provider {provider.provider_ref!r}",
-                provider_ref=provider.provider_ref,
+                message=f"duplicate finalizer provider {key!r}",
+                provider_ref=key,
             )
         )
     return tuple(duplicates)
@@ -413,7 +447,7 @@ def _external_prefixes(
             continue
         if plugin.casefold() == BUILTIN_PLUGIN_PREFIX:
             continue
-        prefixes.add(normalize_distribution_name(plugin))
+        prefixes.add(canonical_plugin_prefix(plugin))
     return frozenset(prefixes)
 
 
@@ -608,11 +642,13 @@ __all__ = [
     "FINALIZER_ENTRY_POINT_GROUP",
     "FinalizerProviderDiagnostic",
     "FinalizerProviderRecord",
+    "canonical_provider_ref",
     "collect_finalizer_providers",
     "diagnose_finalizer_providers",
     "diagnostic_to_json",
     "fatal_provider_diagnostics",
     "parse_command_finalizer_config",
     "provider_records_by_ref",
+    "provider_ref_key",
     "redact_config",
 ]

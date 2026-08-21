@@ -6,6 +6,7 @@ import pytest
 
 from sase.plugins.qualified_id import (
     PluginQualifiedIdError,
+    canonical_plugin_qualified_id,
     parse_plugin_qualified_id,
     plugin_qualified_id_matches,
 )
@@ -62,3 +63,20 @@ def test_plugin_qualified_id_matches_installed_package() -> None:
     assert not plugin_qualified_id_matches(
         "sase-research-artifacts", builtin=True, package="sase"
     )
+
+
+def test_plugin_qualified_id_matches_packaging_equivalent_names() -> None:
+    assert plugin_qualified_id_matches(
+        "Example_Finalizers", builtin=False, package="Example.Finalizers"
+    )
+    assert plugin_qualified_id_matches(
+        "example-finalizers", builtin=False, package="Example_Finalizers"
+    )
+
+
+def test_canonical_plugin_qualified_id_normalizes_distribution_segment() -> None:
+    assert (
+        canonical_plugin_qualified_id("Example_Finalizers@audit")
+        == "example-finalizers@audit"
+    )
+    assert canonical_plugin_qualified_id("Builtin@commit") == "builtin@commit"
