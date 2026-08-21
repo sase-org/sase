@@ -23,7 +23,6 @@ class FeatureFlag(StrEnum):
 
     coder_inherits_planner_chat = "coder_inherits_planner_chat"
     completion_refresh_on_update = "completion_refresh_on_update"
-    epic_resume_gate = "epic_resume_gate"
     pluggable_finalizers = "pluggable_finalizers"
     plugin_catalog_scoped_latest = "plugin_catalog_scoped_latest"
     prettier_enabled = "prettier_enabled"
@@ -49,15 +48,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "while the generator soaks."
         ),
         bead="sase-qg",
-    ),
-    FeatureFlag.epic_resume_gate: FeatureFlagDefinition(
-        key=FeatureFlag.epic_resume_gate,
-        kind="beta",
-        description=(
-            "Opt-in beta: the epic_resume chop raises an EpicResume gate "
-            "when a failed phase agent stalls an epic."
-        ),
-        bead="sase-qh",
     ),
     FeatureFlag.pluggable_finalizers: FeatureFlagDefinition(
         key=FeatureFlag.pluggable_finalizers,

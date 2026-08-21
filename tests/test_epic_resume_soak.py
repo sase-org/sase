@@ -1,4 +1,4 @@
-"""Operational soak for epic_resume_gate against real artifacts and gates."""
+"""Operational soak for unconditional EpicResume stall gating."""
 
 from __future__ import annotations
 
@@ -10,8 +10,6 @@ import pytest
 
 from sase.axe.run_agent_runner_finalize import write_error_done_marker
 from sase.bead.epic_resume_launch import build_epic_resume_argv
-from sase.feature_flags import current_flags, override_flags
-from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, apply_feature_flags_env
 from sase.xprompt.workflow_models import WorkflowExecutionError
 
 from tests._epic_resume_soak_helpers import (
@@ -175,25 +173,6 @@ def test_live_resume_cancels_the_pending_production_gate(
     assert (_kind_dir() / request_id / "cancellation.json").is_file()
 
 
-def test_flag_off_creates_no_gate(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    gate_home: Path,
-) -> None:
-    del gate_home
-    beads_dir, epic_id, failed_id, waiting_id = init_stalled_epic(tmp_path)
-    plant_settled_stall(
-        epic_id=epic_id,
-        failed_bead_id=failed_id,
-        waiting_bead_id=waiting_id,
-    )
-
-    result = run_chop(tmp_path, monkeypatch, beads_dir, flag_enabled=False)
-
-    assert result.reason == "flag_disabled"
-    assert load_epic_resume_requests() == []
-
-
 def test_fakey_failed_phase_gates_after_settle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -225,15 +204,6 @@ def test_fakey_failed_phase_gates_after_settle(
     assert len(requests) == 1
     assert requests[0]["payload"]["failed_members"][0]["agent_name"] == f"{epic_id}.1"
     assert requests[0]["payload"]["resume_argv"] == build_epic_resume_argv(epic_id)
-
-
-def test_axe_child_env_inherits_enabled_epic_resume_gate() -> None:
-    with override_flags(epic_resume_gate=True):
-        env: dict[str, str] = {}
-        apply_feature_flags_env(current_flags(), env)
-        payload = json.loads(env[SASE_FEATURE_FLAGS_ENV])
-
-    assert payload["epic_resume_gate"] is True
 
 
 def _fail_phase_with_fakey(

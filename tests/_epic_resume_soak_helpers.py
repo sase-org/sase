@@ -14,7 +14,6 @@ from sase.artifacts import create_artifacts_directory
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.core.paths import sase_projects_dir
-from sase.feature_flags import override_flags
 from sase.notification_gates.paths import interaction_requests_dir
 from sase.scripts._bead_gate_projects import ProjectInventory
 
@@ -146,7 +145,6 @@ def run_chop(
     beads_dir: Path,
     *,
     settle_seconds: int = 120,
-    flag_enabled: bool = True,
 ) -> Any:
     monkeypatch.setattr(
         epic_resume,
@@ -159,8 +157,7 @@ def run_chop(
     monkeypatch.setattr(
         epic_resume, "get_epic_resume_settle_seconds", lambda: settle_seconds
     )
-    with override_flags(epic_resume_gate=flag_enabled):
-        return epic_resume._run(make_runtime(tmp_path))
+    return epic_resume._run(make_runtime(tmp_path))
 
 
 def load_epic_resume_requests() -> list[dict[str, Any]]:

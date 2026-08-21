@@ -936,7 +936,7 @@ axe:
           script: sase_chop_epic_resume
           timeout: "2m"
           description: |-
-            Raise one human gate per epic stalled by a failed phase agent (beta, behind epic_resume_gate)
+            Raise one human gate per epic stalled by a failed phase agent
 
             Scans enabled projects every five minutes for epic clans with a failed member, no live member, and a
             failure old enough to have settled past bead.epic_resume.settle_seconds, then offers exactly one
@@ -944,8 +944,7 @@ axe:
             --yes-to-all as a detached leased proc. An epic with an in-flight resume launch is deferred instead of
             re-gated. Once a stall's gate is answered or dismissed, that exact failed-member set never gates again;
             only a new failure or a newer clan generation re-gates. The gate is canceled when the epic resumes or
-            closes, and lane state is pruned for epics that no longer exist. Disabled by default while the
-            detector soaks against real epics; enable with the epic_resume_gate feature flag.
+            closes, and lane state is pruned for epics that no longer exist.
         - name: plugins_required
           script: sase_chop_plugins_required
           timeout: "2m"
@@ -1301,8 +1300,7 @@ bead:
     # this count the chop does nothing.
     stale_cleanup_min_beads: 10
   # Volume controls for the epic_resume chop, which raises an EpicResume gate
-  # when a failed phase agent stalls an epic. Off by default; enable the
-  # epic_resume_gate feature flag to opt in.
+  # when a failed phase agent stalls an epic.
   epic_resume:
     # Seconds the newest clan-member failure must sit before the epic_resume
     # chop treats the epic as stalled. Guards against gating on a handoff

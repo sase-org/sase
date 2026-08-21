@@ -35,20 +35,6 @@ def _state(tmp_path: Path) -> dict[str, Any]:
     return payload
 
 
-def test_flag_disabled_creates_no_gate(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    snapshot = make_snapshot(make_failed_member(), make_waiting_member())
-    patch_epic_resume(monkeypatch, tmp_path, snapshots=[snapshot], flag_enabled=False)
-    created = capture_created(monkeypatch)
-
-    result = epic_resume._run(make_runtime(tmp_path))
-
-    assert result.reason == "flag_disabled"
-    assert created == []
-    assert _state(tmp_path) == {}
-
-
 def test_stall_raises_exactly_one_gate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

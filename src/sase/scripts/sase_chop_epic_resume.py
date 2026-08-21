@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Raise and reconcile one EpicResume gate per epic stalled by a failed phase.
 
-Behind the beta ``epic_resume_gate`` feature flag. Each pass scans enabled
-projects for epic clans (``clan_tribe == "epic"``), evaluates
-:func:`sase.bead.epic_stall_policy.stalled_epic` for the newest clan
+Each pass scans enabled projects for epic clans (``clan_tribe == "epic"``),
+evaluates :func:`sase.bead.epic_stall_policy.stalled_epic` for the newest clan
 generation of each, and offers exactly one gate per settled stall. A
 fingerprint over the failed-member roster keys lane state so an answered or
 dismissed stall never re-gates until a genuinely new failure occurs; the gate
@@ -55,7 +54,6 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.time import get_timezone
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.notification_gates.durability import file_lock
 from sase.scripts._bead_gate_projects import (
     ProjectInventory as _ProjectInventory,
@@ -434,8 +432,6 @@ def _summary(
 def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuilder:
     if runtime.context.dry_run:
         return _summary(runtime, reason="dry_run")
-    if not current_flags().enabled(FeatureFlag.epic_resume_gate):
-        return _summary(runtime, reason="flag_disabled")
 
     try:
         inventory = _coerce_project_inventory(_enabled_project_stores(runtime.log))

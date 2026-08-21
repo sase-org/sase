@@ -448,12 +448,11 @@ gate without waiting for the next hourly housekeeping tick.
 The five-minute `epic_resume` chop raises one human-only `EpicResume` gate for an epic
 agent clan that has a failed member, no live member, and whose newest failure has sat
 for at least [`bead.epic_resume.settle_seconds`](configuration.md#bead) — the same stall
-an owner used to notice by eye in ACE as a clan row like `(FAILED) [W8 F1] sase-p1`. It
-is behind the `epic_resume_gate` beta [feature flag](configuration.md#feature_flags) and
-does nothing while that flag is off. The notification lands in the `Beads` panel with
-`bead`, `epic`, and `resume` tags. Its preview names the epic and its title, lists each
-failed agent with its phase bead and finish time, counts the phases still waiting, and
-shows the exact `sase bead work <epic_id> --yes-to-all` command the option will run.
+an owner used to notice by eye in ACE as a clan row like `(FAILED) [W8 F1] sase-p1`. The
+notification lands in the `Beads` panel with `bead`, `epic`, and `resume` tags. Its
+preview names the epic and its title, lists each failed agent with its phase bead and
+finish time, counts the phases still waiting, and shows the exact
+`sase bead work <epic_id> --yes-to-all` command the option will run.
 
 The gate offers one branch, **Resume epic**, which submits that command as a detached
 leased proc, reusing an already in-flight resume instead of double-launching. Dismissing

@@ -95,14 +95,6 @@ def make_snapshot(
     )
 
 
-class _FakeFlags:
-    def __init__(self, enabled: bool) -> None:
-        self._enabled = enabled
-
-    def enabled(self, _flag: object) -> bool:
-        return self._enabled
-
-
 def patch_epic_resume(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -113,7 +105,6 @@ def patch_epic_resume(
     epic_title: str = "Raise an EpicResume gate",
     remaining_phase_count: int = 1,
     resolve_info: Callable[[Path, str], epic_resume._EpicInfo] | None = None,
-    flag_enabled: bool = True,
     now: datetime = NOW,
     settle_seconds: int = SETTLE_SECONDS,
     gate_state: str | dict[str, str] = "pending",
@@ -139,7 +130,6 @@ def patch_epic_resume(
     monkeypatch.setattr(
         epic_resume, "get_epic_resume_settle_seconds", lambda: settle_seconds
     )
-    monkeypatch.setattr(epic_resume, "current_flags", lambda: _FakeFlags(flag_enabled))
 
     default_resolver = resolve_info or (
         lambda _beads_dir, _epic_id: epic_resume._EpicInfo(
