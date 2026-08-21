@@ -14,8 +14,10 @@ if TYPE_CHECKING:
     from .config_transaction import (
         ConfigTransactionConflict as ConfigTransactionConflict,
     )
+    from .glossary_panel import GlossaryPanel as GlossaryPanel
     from .input_item_modal import InputItemModal as InputItemModal
     from .local_xprompt_name_modal import LocalXPromptNameModal as LocalXPromptNameModal
+    from .memory_panel import MemoryPanel as MemoryPanel
     from .mini_xprompt_name_modal import (
         MiniXPromptNameModal as MiniXPromptNameModal,
     )
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
     from .snippet_save_confirm_modal import (
         SnippetSaveConfirmState as SnippetSaveConfirmState,
     )
+    from .snippets_panel import SnippetsPanel as SnippetsPanel
     from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
 
 _LAZY_EXPORTS = {

@@ -9,6 +9,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.config_edit_modal import ConfigEditModal
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
 from tests.ace.tui._config_pane_widget_helpers import (
     _open_config_pane,
     _patch_loaders,
@@ -87,7 +88,7 @@ async def test_config_pane_filter_updates_title_match_count(
         assert "matching 1 /" in pane._title_text()
 
 
-async def test_config_filter_accepts_brackets_and_tab_switches_main_tab(
+async def test_config_filter_brackets_cycle_subtabs_and_tab_switches_main_tab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_loaders(monkeypatch)
@@ -98,14 +99,16 @@ async def test_config_filter_accepts_brackets_and_tab_switches_main_tab(
         pane.action_focus_filter()
         filter_input = pane.query_one("#config-filter-input", Input)
         await page.wait_for(lambda _s: filter_input.has_focus)
+        hub = modal.query_one(ConfigHubPane)
 
         await page.press("left_square_bracket", "right_square_bracket")
-        await page.wait_for(lambda _s: filter_input.value == "[]")
+        await page.wait_for(lambda _s: hub._active_subtab == "misc")
+        assert filter_input.value == ""
         assert modal._active_tab == "config"
 
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
-        assert filter_input.value == "[]"
+        assert filter_input.value == ""
         assert page.app.current_tab == "artifacts"
 
 

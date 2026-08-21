@@ -13,6 +13,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -47,9 +48,12 @@ async def test_saved_query_picker_png_snapshot(
                 }.items()
             }
         }
+        page.app.query_string = '"visual"'
+        page.app.parsed_query = page.app._parse_patch_query('"visual"')
 
         await page.press("asterisk")
         await page.expect_modal("SavedQueryPickerModal")
+        await wait_for_svg_contains(page, "active")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Saved PR Queries")

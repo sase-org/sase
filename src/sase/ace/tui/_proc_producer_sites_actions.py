@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sase.ace.tui._proc_producer_site import _ProcProducerSite, _site
+from sase.ace.tui._proc_producer_site import ProcProducerSite, site
 
 
-ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
-    _site(
+ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
+    site(
         "patch.durable",
         "src/sase/ace/tui/actions/patch_durable.py",
         "submit_patch_operation",
@@ -20,7 +20,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("ace:patch:{project}:{name}",),
         optimistic_ui="start toast; hook reset; optional mail on accept",
     ),
-    _site(
+    site(
         "axe.bgcmd",
         "src/sase/ace/tui/actions/axe_bgcmd.py",
         "_start_bgcmd",
@@ -34,7 +34,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("axe-slot:{slot}",),
         optimistic_ui="mark slot pending",
     ),
-    _site(
+    site(
         "monitor.stop",
         "src/sase/ace/tui/actions/agents/_monitor_stop_flow.py",
         "_do_stop_monitor",
@@ -47,7 +47,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="monitor.stop",
         concurrency_keys=("monitor:{id}",),
     ),
-    _site(
+    site(
         "agent.launch",
         "src/sase/ace/tui/actions/agent_durable.py",
         "submit_agent_launch",
@@ -61,7 +61,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("ace:launch:{workflow}",),
         optimistic_ui="launch-result delta; agent refresh",
     ),
-    _site(
+    site(
         "agent.cleanup",
         "src/sase/ace/tui/actions/agent_durable.py",
         "submit_agent_cleanup",
@@ -75,7 +75,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("ace:cleanup:{proc_type}:{identity}",),
         optimistic_ui="agents refresh",
     ),
-    _site(
+    site(
         "agent.directive",
         "src/sase/ace/tui/actions/agent_durable.py",
         "submit_agent_directive",
@@ -89,7 +89,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("ace:agent-directive:{artifacts_dir}",),
         optimistic_ui="optimistic fields; guarded rollback",
     ),
-    _site(
+    site(
         "agent.revert.preview",
         "src/sase/ace/tui/actions/agents/_revert.py",
         "_submit_revert_preview",
@@ -102,7 +102,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="agent.revert-preview",
         restart_recovery="not durable; preview is session-local",
     ),
-    _site(
+    site(
         "agent.revert.execute",
         "src/sase/ace/tui/actions/agent_durable.py",
         "submit_agent_revert",
@@ -115,7 +115,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="agent.revert",
         concurrency_keys=("ace:agent-revert:execute:{key}",),
     ),
-    _site(
+    site(
         "agent.revert.bulk_preview",
         "src/sase/ace/tui/actions/agents/_revert.py",
         "_submit_bulk_revert_preview",
@@ -128,7 +128,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="agent.revert-preview",
         restart_recovery="not durable; preview is session-local",
     ),
-    _site(
+    site(
         "bead.mutate",
         "src/sase/ace/tui/actions/_artifacts_beads_common.py",
         "_submit_beads_task",
@@ -143,7 +143,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         optimistic_ui="pane refresh",
         restart_recovery="not durable; session-local bead mutation",
     ),
-    _site(
+    site(
         "bead.issue",
         "src/sase/ace/tui/actions/_artifacts_beads_issue_mutations.py",
         "_submit_bead_issue_mutation",
@@ -156,7 +156,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="bead.issue",
         restart_recovery="not durable; session-local issue mutation",
     ),
-    _site(
+    site(
         "glossary.write",
         "src/sase/ace/tui/modals/glossary_panel_actions.py",
         "_submit_glossary_write",
@@ -171,7 +171,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         optimistic_ui="reselect term; toast; config commit offer",
         restart_recovery="not durable; session-local glossary write",
     ),
-    _site(
+    site(
         "snippet.write",
         "src/sase/ace/tui/modals/snippets_panel_actions.py",
         "_submit_snippet_write",
@@ -186,7 +186,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         optimistic_ui="reselect trigger; toast; session overlay; post-write offer",
         restart_recovery="not durable; session-local snippet write",
     ),
-    _site(
+    site(
         "memory.write",
         "src/sase/ace/tui/modals/memory_panel_actions.py",
         "_submit_memory_write",
@@ -201,7 +201,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         optimistic_ui="reselect note; toast; unpublished mark; publish offer",
         restart_recovery="not durable; session-local memory write",
     ),
-    _site(
+    site(
         "memory.publish",
         "src/sase/ace/tui/modals/memory_panel_publish_actions.py",
         "_submit_memory_publish",
@@ -216,7 +216,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         optimistic_ui="clear unpublished badge; toast",
         restart_recovery="not durable; session-local memory publish",
     ),
-    _site(
+    site(
         "bead.issue_open",
         "src/sase/ace/tui/actions/_artifacts_beads_issue_actions.py",
         "_submit_beads_issue_open",
@@ -229,7 +229,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="bead.issue-open",
         restart_recovery="not durable; browser open is session-local",
     ),
-    _site(
+    site(
         "notify.state",
         "src/sase/ace/tui/modals/notification_modal_action_support.py",
         "_submit_notification_state_task",
@@ -242,7 +242,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="notify.apply-state",
         concurrency_keys=("notification-state",),
     ),
-    _site(
+    site(
         "notify.gate",
         "src/sase/ace/tui/actions/agents/_notification_gate_execution.py",
         "submit_gate_execution_task",
@@ -255,7 +255,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="gate.answer",
         concurrency_keys=("notification-gate:{id}",),
     ),
-    _site(
+    site(
         "notify.gate_action",
         "src/sase/ace/tui/actions/agents/_notification_gate_actions.py",
         "run_command",
@@ -268,7 +268,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="gate.act",
         concurrency_keys=("gate-action:{id}:{operation}",),
     ),
-    _site(
+    site(
         "notify.question",
         "src/sase/ace/tui/actions/agents/_notification_question_modal.py",
         "_submit_question_response_task",
@@ -281,7 +281,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="question.response",
         restart_recovery="not durable; session-local notification response",
     ),
-    _site(
+    site(
         "notify.plan_gate",
         "src/sase/ace/tui/actions/agents/_notification_plan_gate.py",
         "submit_neutral_plan_response",
@@ -294,7 +294,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plan.gate",
         restart_recovery="not durable; session-local plan response",
     ),
-    _site(
+    site(
         "notify.launch_approval",
         "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
         "_submit_launch_approval_task",
@@ -307,7 +307,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="launch.approval",
         concurrency_keys=("launch-approval:{id}",),
     ),
-    _site(
+    site(
         "notify.legacy_epic",
         "src/sase/ace/tui/actions/agents/_notification_modals.py",
         "_submit_legacy_epic_launch_task",
@@ -321,7 +321,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("legacy-epic-launch:{notification_id}",),
         restart_recovery="not durable; session-local launch preparation",
     ),
-    _site(
+    site(
         "agents.sync",
         "src/sase/ace/tui/actions/agents_sync.py",
         "action_sync_agents",
@@ -335,7 +335,7 @@ ACTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("agents-sync",),
         restart_recovery="not durable; session-local agents sync",
     ),
-    _site(
+    site(
         "agents.cached",
         "src/sase/ace/tui/actions/agents_sync.py",
         "action_integrate_cached_agents",

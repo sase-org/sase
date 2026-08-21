@@ -30,6 +30,7 @@ from sase.core.finalizer_wire import (
     finalizer_plan_from_dict,
     finalizer_wire_to_json_dict,
 )
+from sase.finalizers.declaration_format import format_context_pretty
 from sase.finalizers.plan import load_persisted_finalizer_plan
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import dirty_path_fingerprints
@@ -335,59 +336,6 @@ def ensure_final_declaration_or_recover(
             os.environ.pop(SASE_FINAL_TURN_NONCE_ENV, None)
         else:
             os.environ[SASE_FINAL_TURN_NONCE_ENV] = previous_nonce
-
-
-def format_context_pretty(payload: Mapping[str, Any]) -> str:
-    """Render a compact human-readable finalizer context."""
-
-    context = payload.get("context")
-    if not isinstance(context, Mapping):
-        return "No finalizer context available."
-    lines = [
-        f"Finalizer context: {context.get('context_digest', '<unknown>')}",
-        f"Run: {context.get('run_id', '<unknown>')}",
-        f"Agent: {context.get('agent_id', '<unknown>')}",
-        "",
-        "Selected instances:",
-    ]
-    selected = payload.get("selected_instances")
-    if isinstance(selected, list) and selected:
-        for item in selected:
-            if not isinstance(item, Mapping):
-                continue
-            required = "required" if item.get("submission_required") else "none"
-            lines.append(
-                "  - "
-                f"{item.get('instance_id', '<unknown>')} "
-                f"({item.get('provider_ref', '<unknown>')}; submission: {required}; "
-                f"trigger: {item.get('trigger', '<unknown>')})"
-            )
-    else:
-        lines.append("  - none")
-
-    obligations = context.get("obligations")
-    lines.extend(["", "Repository obligations:"])
-    repo_obligations = (
-        [
-            item
-            for item in obligations
-            if isinstance(item, Mapping) and item.get("kind") == "repository"
-        ]
-        if isinstance(obligations, list)
-        else []
-    )
-    if not repo_obligations:
-        lines.append("  - none")
-    for item in repo_obligations:
-        lines.append(
-            f"  - {item.get('obligation_id', '<unknown>')} "
-            f"{item.get('display_name', '')}".rstrip()
-        )
-        paths = item.get("paths")
-        if isinstance(paths, list):
-            for path in paths:
-                lines.append(f"      {path}")
-    return "\n".join(lines)
 
 
 def _require_artifacts_dir(value: str | None, command: str) -> Path:

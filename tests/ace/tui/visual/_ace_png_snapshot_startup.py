@@ -18,6 +18,7 @@ from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from sase.config.loading import load_default_config
+from sase.llm_provider import launch_default_peek
 from sase.memory.read_log import MemoryReadEvent
 from sase.skills.use_log import SkillUseEvent
 
@@ -190,6 +191,12 @@ def patch_startup_loaders(
     def _fake_peek_active_temporary_override(*_args: Any, **_kwargs: Any) -> None:
         return None
 
+    def _fake_peek_launch_default_change_token(
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> tuple[str]:
+        return ("visual-launch-default",)
+
     def _fake_build_launch_model_setting_snapshot(
         field: Any, *_args: Any, **_kwargs: Any
     ) -> LaunchModelSettingSnapshot:
@@ -288,6 +295,16 @@ def patch_startup_loaders(
         _fake_peek_active_temporary_override,
     )
     monkeypatch.setattr(
+        launch_default_peek,
+        "peek_launch_default_change_token",
+        _fake_peek_launch_default_change_token,
+    )
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "peek_launch_default_change_token",
+        _fake_peek_launch_default_change_token,
+    )
+    monkeypatch.setattr(
         llm_override_indicator,
         "build_launch_model_setting_snapshot",
         _fake_build_launch_model_setting_snapshot,
@@ -312,6 +329,40 @@ def patch_startup_loaders(
         llm_override_indicator.resolve_effective_default_provider_model
         is _fake_resolve_effective_default_provider_model
     ), "LLM provider resolver patch did not bind — visual snapshot may re-leak state"
+    assert (
+        temporary_override.resolve_effective_default_provider_model
+        is _fake_resolve_effective_default_provider_model
+    ), (
+        "LLM temporary-override resolver patch did not bind — visual snapshot may re-leak state"
+    )
+    assert (
+        temporary_override.get_active_temporary_override
+        is _fake_get_active_temporary_override
+    ), (
+        "LLM temporary-override reader patch did not bind — visual snapshot may re-leak state"
+    )
+    assert (
+        llm_override_indicator.build_launch_model_setting_snapshot
+        is _fake_build_launch_model_setting_snapshot
+    ), (
+        "LLM launch-default snapshot patch did not bind — visual snapshot may re-leak state"
+    )
+    assert (
+        launch_default_peek.peek_launch_default_change_token
+        is _fake_peek_launch_default_change_token
+    ), (
+        "LLM launch-default module token patch did not bind — visual snapshot may re-leak state"
+    )
+    assert (
+        llm_override_indicator.peek_launch_default_change_token
+        is _fake_peek_launch_default_change_token
+    ), "LLM launch-default token patch did not bind — visual snapshot may re-leak state"
+    assert (
+        llm_override_indicator.peek_active_temporary_override
+        is _fake_peek_active_temporary_override
+    ), (
+        "LLM temporary-override peek patch did not bind — visual snapshot may re-leak state"
+    )
 
 
 async def wait_for_startup(page: AcePage) -> None:

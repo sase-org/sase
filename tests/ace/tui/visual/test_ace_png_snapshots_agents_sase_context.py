@@ -28,6 +28,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -479,8 +480,14 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         panel = page.app.screen.query_one("#zoom-metadata-panel", AgentPromptPanel)
-        await page.wait_for(
-            lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")
+        await wait_for_state(
+            page,
+            lambda: (
+                "Phase plan" in (metadata := (renderable_to_text(panel.content) or ""))
+                and "▸ ARTIFACTS · resolving…" not in metadata
+                and "▸ MEMORY · resolving…" not in metadata
+            ),
+            description="phase-family PLAN plus resolved ARTIFACTS and MEMORY lanes",
         )
         await wait_for_visual_idle(page)
 

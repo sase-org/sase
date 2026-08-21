@@ -220,6 +220,18 @@ async def test_config_center_plugins_long_update_preview_png_snapshot(
         pane.action_update()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
+        await page.wait_for(lambda _s: len(modal.query("#plugin-action-commits")) > 0)
+        await page.wait_for(
+            lambda _s: len(modal.query("#plugin-action-commits-body")) > 0
+        )
+        await page.wait_for(
+            lambda _s: (
+                "github — 40 incoming commits"
+                in _render(
+                    modal.query_one("#plugin-action-commits-body", Static).content
+                )
+            )
+        )
         scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
         await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
         await page.wait_for(lambda _s: scroll.border_subtitle == "ctrl+d/u scroll")

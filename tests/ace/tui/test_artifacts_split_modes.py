@@ -161,6 +161,6 @@ async def test_patch_list_content_width_obeys_split_cap() -> None:
 async def test_clicking_split_badge_cycles_forward() -> None:
     async with AcePage(initial_tab="patches") as page:
         assert page.app.artifacts_split_mode == "even"
-        await page.click("#artifacts-split-badge")
+        await page.click("#artifacts-split-badge", offset=(1, 0))
         await page.pause()
         assert page.app.artifacts_split_mode == "wide"

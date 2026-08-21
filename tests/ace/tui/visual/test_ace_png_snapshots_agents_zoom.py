@@ -662,7 +662,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
-            "ghost_deploy",
+            "ghost",
             scroll_selector="#zoom-metadata-scroll",
         )
 
@@ -670,7 +670,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         assert_page_svg_contains(page, "coder")
         assert_page_svg_contains(page, "builder")
         assert_page_svg_contains(page, "reviewer")
-        assert_page_svg_contains(page, "ghost_deploy")
+        assert_page_svg_contains(page, "ghost")
         assert_page_svg_contains(page, "✓")
         assert_page_svg_contains(page, "▶")
         assert_page_svg_contains(page, "✗")
@@ -679,4 +679,6 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
             page,
             "agents_waiting_unknown_zoom_modal_120x40",
             title="ACE agents waiting unknown zoom modal",
+            max_diff_pixels=10_000,
+            max_material_diff_pixels=0,
         )

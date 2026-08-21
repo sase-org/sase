@@ -125,7 +125,7 @@ def _sibling_commit_instruction() -> str:
     return instruction
 
 
-def _result_changed_files(dirty_state: DirtyState) -> list[str]:
+def result_changed_files(dirty_state: DirtyState) -> list[str]:
     if len(dirty_state.repos) == 1 and dirty_state.repos[0].kind == "main":
         return list(dirty_state.repos[0].changed_files)
 
@@ -158,7 +158,7 @@ def failure_message(
     max_passes: int,
     no_progress_passes: int = 0,
 ) -> str:
-    changed_files = _result_changed_files(dirty_state)
+    changed_files = result_changed_files(dirty_state)
     listed_files = ", ".join(changed_files[:10]) or "(unable to list changed files)"
     if len(changed_files) > 10:
         listed_files += f", ... ({len(changed_files)} total)"

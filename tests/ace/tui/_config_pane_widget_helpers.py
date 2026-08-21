@@ -10,6 +10,8 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
+from sase.ace.tui.modals.config_hub_pane import ConfigHubPane
+from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.config.inventory import build_config_inventory, config_field_model
 from tests.test_config_pane import _fixture_layers, _fixture_schema
@@ -54,10 +56,16 @@ async def _open_config_pane(
     *,
     session_state: AdminCenterSessionState | None = None,
 ) -> ConfigPane:
-    modal = ConfigCenterModal(initial_tab="config", session_state=session_state)
+    modal = ConfigCenterModal(
+        session_state=session_state,
+        config_entry=ConfigHubEntry(subtab="misc"),
+    )
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#config")))
-    pane = modal.query_one("#config", ConfigPane)
+    hub = modal.query_one("#config", ConfigHubPane)
+    await page.wait_for(lambda _s: hub._active_subtab == "misc")
+    await page.wait_for(lambda _s: bool(modal.query("#misc")))
+    pane = modal.query_one("#misc", ConfigPane)
     await page.wait_for(lambda _s: bool(pane._node_by_path))
     return pane

@@ -543,6 +543,7 @@ def test_fakey_monitor_holds_capacity_across_handoff_and_followup(
                 "name": "watcher--m0",
                 "pid": supervisor.pid,
                 "agent_family": "watcher",
+                "agent_family_role": "monitor",
                 "monitor_id": "mon-1",
             },
         )

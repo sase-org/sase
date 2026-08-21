@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sase.ace.tui._proc_producer_site import _ProcProducerSite, _site
+from sase.ace.tui._proc_producer_site import ProcProducerSite, site
 
 
-UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
-    _site(
+UPDATE_PRODUCERS: tuple[ProcProducerSite, ...] = (
+    site(
         "plugin.update",
         "src/sase/ace/tui/modals/plugins_browser_update.py",
         "_submit_update_task",
@@ -19,7 +19,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plugin.update",
         concurrency_keys=("plugin-update:{name}",),
     ),
-    _site(
+    site(
         "plugin.install",
         "src/sase/ace/tui/modals/plugins_browser_install.py",
         "_submit_install_task",
@@ -32,7 +32,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plugin.install",
         concurrency_keys=("plugin-install:{name}",),
     ),
-    _site(
+    site(
         "plugin.install_many",
         "src/sase/ace/tui/modals/plugins_browser_install.py",
         "_submit_install_many_task",
@@ -45,7 +45,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plugin.install",
         restart_recovery="not durable; session-local plugin install batch",
     ),
-    _site(
+    site(
         "plugin.uninstall",
         "src/sase/ace/tui/modals/plugins_browser_uninstall.py",
         "_submit_uninstall_task",
@@ -58,7 +58,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plugin.uninstall",
         concurrency_keys=("plugin-uninstall:{name}",),
     ),
-    _site(
+    site(
         "plugin.mode_switch",
         "src/sase/ace/tui/modals/plugins_browser_mode_switch.py",
         "_submit_mode_switch_task",
@@ -71,7 +71,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="plugin.mode-switch",
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "plugin.sase_update",
         "src/sase/ace/tui/modals/plugins_browser_sase_update_procs.py",
         "_submit_sase_update_proc",
@@ -85,7 +85,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "plugin.dev_update",
         "src/sase/ace/tui/modals/plugins_browser_sase_update_procs.py",
         "_submit_dev_update_proc",
@@ -99,7 +99,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "plugin.combined_update",
         "src/sase/ace/tui/modals/plugins_browser_sase_update_procs.py",
         "_submit_combined_update_proc",
@@ -113,7 +113,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "plugin.agent_cli_update",
         "src/sase/ace/tui/modals/plugins_browser_agent_clis_actions.py",
         "_submit_agent_cli_update_task",
@@ -127,7 +127,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("agent-cli-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "update.preview",
         "src/sase/ace/tui/actions/update_run.py",
         "_submit_update_preview_proc",
@@ -141,7 +141,7 @@ UPDATE_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         concurrency_keys=("update-preview",),
         restart_recovery="not durable; session-local update workflow",
     ),
-    _site(
+    site(
         "update.scoped",
         "src/sase/ace/tui/actions/update_run.py",
         "_submit_scoped_update_task",

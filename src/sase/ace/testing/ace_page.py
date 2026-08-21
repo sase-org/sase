@@ -324,9 +324,17 @@ class AcePage:
 
         await settle_helpers.pause_until_cpu_idle(self._pilot)
 
-    async def click(self, selector: str) -> None:
+    async def click(
+        self,
+        selector: str,
+        *,
+        offset: tuple[int, int] | None = None,
+    ) -> None:
         """Click a widget by CSS selector."""
-        await self._pilot.click(selector)
+        if offset is None:
+            await self._pilot.click(selector)
+        else:
+            await self._pilot.click(selector, offset=offset)
 
     @property
     def state(self) -> dict[str, Any]:

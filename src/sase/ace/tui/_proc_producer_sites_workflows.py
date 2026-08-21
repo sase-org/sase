@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sase.ace.tui._proc_producer_site import _ProcProducerSite, _site
+from sase.ace.tui._proc_producer_site import ProcProducerSite, site
 
 
-WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
-    _site(
+WORKFLOW_PRODUCERS: tuple[ProcProducerSite, ...] = (
+    site(
         "xprompt.commit",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
         "_submit_xprompt_commit_task",
@@ -19,7 +19,7 @@ WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="git.commit",
         concurrency_keys=("{noun}-commit:{git_root}:{rel_path}",),
     ),
-    _site(
+    site(
         "xprompt.post_write",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
         "_submit_post_write_action",
@@ -31,7 +31,7 @@ WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         identifiers=("rel_path",),
         result_kind="git.commit",
     ),
-    _site(
+    site(
         "config.commit",
         "src/sase/ace/tui/modals/config_commit.py",
         "submit_config_commit_task",
@@ -44,7 +44,7 @@ WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="git.commit",
         concurrency_keys=("config-commit:{git_root}:{rel_path}",),
     ),
-    _site(
+    site(
         "prompt.stash",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash.py",
         "_submit_prompt_stash_persist_task",
@@ -57,7 +57,7 @@ WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="prompt.stash",
         restart_recovery="not a durable proc; session-local stash persist",
     ),
-    _site(
+    site(
         "commits.fetch",
         "src/sase/ace/tui/widgets/artifacts/commits_pane.py",
         "fetch_commits",
@@ -70,7 +70,7 @@ WORKFLOW_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         result_kind="commit.fetch",
         restart_recovery="not durable; pane fetch is session-local",
     ),
-    _site(
+    site(
         "ace.ref_sync",
         "src/sase/ace/tui/widgets/_artifact_ref_sync.py",
         "_start_artifact_ref_sync",

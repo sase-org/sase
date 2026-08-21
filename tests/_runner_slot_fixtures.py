@@ -42,6 +42,7 @@ def record(
         agent_meta=AgentMetaWire(
             pid=int(meta["pid"]),
             agent_family=meta.get("agent_family"),
+            agent_family_role=meta.get("agent_family_role"),
             agent_family_parallel=bool(meta.get("agent_family_parallel", False)),
             parent_timestamp=meta.get("parent_timestamp"),
             monitor_id=meta.get("monitor_id"),

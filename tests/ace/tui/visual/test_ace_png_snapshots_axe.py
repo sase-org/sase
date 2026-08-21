@@ -8,6 +8,7 @@ Description, chop-run, and layout snapshots live in the neighboring
 from __future__ import annotations
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
@@ -21,11 +22,23 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def _pin_axe_output_top(page: AcePage) -> None:
+    page.app._axe_pinned_to_bottom = False
+    scroll = page.app.query_one("#axe-output-scroll", VerticalScroll)
+    scroll.scroll_to(y=0, animate=False, immediate=True)
+    await wait_for_state(
+        page,
+        lambda: int(scroll.scroll_y) == 0,
+        description="AXE output scroll pinned to top",
+    )
 
 
 async def test_axe_selected_row_png_snapshot(
@@ -122,6 +135,7 @@ async def test_axe_chop_overrun_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await _pin_axe_output_top(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -142,6 +156,7 @@ async def test_axe_chop_overrun_narrow_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        await _pin_axe_output_top(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

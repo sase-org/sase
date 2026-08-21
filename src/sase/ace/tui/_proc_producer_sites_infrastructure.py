@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from sase.ace.tui._proc_producer_site import _ProcProducerSite, _site
+from sase.ace.tui._proc_producer_site import ProcProducerSite, site
 
 
-INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
-    _site(
+INFRASTRUCTURE: tuple[ProcProducerSite, ...] = (
+    site(
         "infra.submit_durable",
         "src/sase/ace/tui/actions/_proc_action_submission.py",
         "_submit_durable_proc",
@@ -17,7 +17,7 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
         "",
         restart_recovery="submit only; observer decodes typed result envelope",
     ),
-    _site(
+    site(
         "infra.submit_session",
         "src/sase/ace/tui/actions/_proc_action_submission.py",
         "_submit_session_worker",
@@ -28,7 +28,7 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
         "",
         restart_recovery="session-local worker; not durable",
     ),
-    _site(
+    site(
         "infra.proc_observer",
         "src/sase/ace/tui/proc_observer.py",
         "ProcObserver",
@@ -39,7 +39,7 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
         "",
         restart_recovery="read-only durable proc projection",
     ),
-    _site(
+    site(
         "infra.observer_completion",
         "src/sase/ace/tui/actions/_proc_action_completion.py",
         "_apply_proc_observer_snapshot",

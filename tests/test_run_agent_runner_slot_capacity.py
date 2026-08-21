@@ -75,7 +75,13 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
 
 
 def test_running_monitor_occupying_last_slot_parks_new_launch(tmp_path: Path) -> None:
-    monitor = artifact(tmp_path, "20260812120000", 500, monitor_id="mon-1")
+    monitor = artifact(
+        tmp_path,
+        "20260812120000",
+        500,
+        agent_family_role="monitor",
+        monitor_id="mon-1",
+    )
     newcomer = artifact(tmp_path, "20260812120001", 501)
 
     def scan() -> list[AgentArtifactRecordWire]:
@@ -108,7 +114,13 @@ def test_running_monitor_occupying_last_slot_parks_new_launch(tmp_path: Path) ->
 
 
 def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:
-    monitor = artifact(tmp_path, "20260812120000", 500, monitor_id="mon-1")
+    monitor = artifact(
+        tmp_path,
+        "20260812120000",
+        500,
+        agent_family_role="monitor",
+        monitor_id="mon-1",
+    )
     waiter = artifact(tmp_path, "20260812120001", 501)
     monitor_alive = True
 

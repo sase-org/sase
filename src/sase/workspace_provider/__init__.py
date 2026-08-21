@@ -365,3 +365,8 @@ def __getattr__(name: str) -> object:
 
 def __dir__() -> list[str]:
     return lazy_dir(globals(), _LAZY_EXPORTS)
+
+
+# Symvision cannot see Python's package-level lazy hook lookup.
+_PACKAGE_GETATTR = __getattr__
+_PACKAGE_DIR = __dir__

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.app import _MIN_BGCMD_LIST_WIDTH
@@ -12,11 +13,42 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _widget_plain(page: AcePage, selector: str) -> str:
+    rendered = page.app.query_one(selector).render()
+    return rendered.plain if hasattr(rendered, "plain") else str(rendered)
+
+
+def _axe_long_label_summary_populated(page: AcePage) -> bool:
+    try:
+        text = "\n".join(
+            (
+                _widget_plain(page, "#axe-status-section"),
+                _widget_plain(page, "#axe-output-section"),
+            )
+        )
+    except Exception:
+        return False
+    return all(part in text for part in ("review_pipeline", "success", "1.0s"))
+
+
+async def _pin_axe_output_top(page: AcePage) -> None:
+    page.app._axe_pinned_to_bottom = False
+    scroll = page.app.query_one("#axe-output-scroll", VerticalScroll)
+    scroll.styles.overflow_y = "hidden"
+    scroll.scroll_to(y=0, animate=False, immediate=True)
+    await wait_for_state(
+        page,
+        lambda: int(scroll.scroll_y) == 0,
+        description="AXE output scroll pinned to top",
+    )
 
 
 async def test_axe_long_label_widening_png_snapshot(
@@ -43,6 +75,12 @@ async def test_axe_long_label_widening_png_snapshot(
         # only the footer so the dashboard golden stays focused on layout.
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         footer.update_axe_bindings(axe_current_view=page.app._axe_current_view)
+        await wait_for_state(
+            page,
+            lambda: _axe_long_label_summary_populated(page),
+            description="populated AXE long-label status summary",
+        )
+        await _pin_axe_output_top(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -66,7 +104,12 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        await page.expect_screen_not_contains("IDLE")
+        await wait_for_state(
+            page,
+            lambda: _axe_long_label_summary_populated(page),
+            description="populated AXE long-label status summary",
+        )
+        await _pin_axe_output_top(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

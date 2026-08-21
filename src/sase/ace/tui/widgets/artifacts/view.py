@@ -78,7 +78,7 @@ class ArtifactsView(Vertical):
     def compose(self) -> ComposeResult:
         with Horizontal(id="artifacts-header"):
             yield Static(id="artifacts-split-spacer")
-            yield PanelTabStrip(
+            tabs = PanelTabStrip(
                 self._panel_tabs(),
                 self._current_subtab,
                 show_numbers=True,
@@ -86,6 +86,8 @@ class ArtifactsView(Vertical):
                 reflow_to_fit=True,
                 id="artifacts-subtabs",
             )
+            tabs.styles.width = "1fr"
+            yield tabs
             yield ArtifactsSplitBadge(id="artifacts-split-badge")
         with ContentSwitcher(
             initial=self._pane_id(self._current_subtab),

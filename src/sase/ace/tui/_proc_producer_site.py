@@ -14,7 +14,7 @@ CallKind = Literal[
 
 
 @dataclass(frozen=True, slots=True)
-class _ProcProducerSite:
+class ProcProducerSite:
     """One inventoried ACE submit site or related infrastructure entry."""
 
     site_id: str
@@ -33,7 +33,7 @@ class _ProcProducerSite:
     restart_recovery: str
 
 
-def _site(
+def site(
     site_id: str,
     source_path: str,
     function: str,
@@ -49,8 +49,8 @@ def _site(
     concurrency_keys: tuple[str, ...] = (),
     optimistic_ui: str = "none",
     restart_recovery: str = "replay from durable result envelope",
-) -> _ProcProducerSite:
-    return _ProcProducerSite(
+) -> ProcProducerSite:
+    return ProcProducerSite(
         site_id=site_id,
         source_path=source_path,
         function=function,

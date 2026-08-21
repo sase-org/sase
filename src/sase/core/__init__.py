@@ -31,17 +31,18 @@ from typing import TYPE_CHECKING
 from sase._lazy_exports import lazy_dir, lazy_getattr
 
 _LAZY_EXPORTS = {
-    "changespec_name_to_branch": (
-        "sase.core.changespec",
-        "changespec_name_to_branch",
+    # Legacy compatibility aliases retained for older callers.
+    "changespec_name_to_branch": (  # legacy compatibility alias
+        "sase.core.changespec",  # legacy compatibility module path
+        "changespec_name_to_branch",  # legacy compatibility alias
     ),
-    "changespec_name_to_branch_with_suffix": (
-        "sase.core.changespec",
-        "changespec_name_to_branch_with_suffix",
+    "changespec_name_to_branch_with_suffix": (  # legacy compatibility alias
+        "sase.core.changespec",  # legacy compatibility module path
+        "changespec_name_to_branch_with_suffix",  # legacy compatibility alias
     ),
-    "get_workspace_directory_for_changespec": (
-        "sase.core.changespec",
-        "get_workspace_directory_for_changespec",
+    "get_workspace_directory_for_changespec": (  # legacy compatibility alias
+        "sase.core.changespec",  # legacy compatibility module path
+        "get_workspace_directory_for_changespec",  # legacy compatibility alias
     ),
     "get_next_suffix_number": ("sase.core.patch", "get_next_suffix_number"),
     "get_workspace_directory_for_patch": (
@@ -110,8 +111,8 @@ _LAZY_EXPORTS = {
 
 
 __all__ = [
-    "changespec_name_to_branch",
-    "changespec_name_to_branch_with_suffix",
+    "changespec_name_to_branch",  # legacy compatibility alias
+    "changespec_name_to_branch_with_suffix",  # legacy compatibility alias
     "copy_to_system_clipboard",
     "ensure_sase_directory",
     "generate_timestamp",
@@ -126,7 +127,7 @@ __all__ = [
     "get_sase_directory",
     "get_timezone",
     "get_vendored_tool",
-    "get_workspace_directory_for_patch",
+    "get_workspace_directory_for_changespec",  # legacy compatibility alias
     "get_workspace_directory_for_patch",
     "has_suffix",
     "make_safe_filename",
@@ -146,10 +147,11 @@ __all__ = [
 ]
 
 if TYPE_CHECKING:
+    # Legacy compatibility aliases retained for older callers.
     from sase.core.changespec import (
         changespec_name_to_branch,
         changespec_name_to_branch_with_suffix,
-        get_workspace_directory_for_changespec,
+        get_workspace_directory_for_changespec,  # legacy compatibility alias
     )
     from sase.core.clipboard import copy_to_system_clipboard
     from sase.core.glossary_facade import (
@@ -196,3 +198,8 @@ def __getattr__(name: str) -> object:
 
 def __dir__() -> list[str]:
     return lazy_dir(globals(), _LAZY_EXPORTS)
+
+
+# Symvision cannot see Python's package-level lazy hook lookup.
+_PACKAGE_GETATTR = __getattr__
+_PACKAGE_DIR = __dir__

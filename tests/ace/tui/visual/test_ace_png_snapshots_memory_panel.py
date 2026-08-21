@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.memory_panel import MemoryPanel
+from sase.ace.tui.modals.memory_panel import MemoryPanel, MemoryPane
 from tests.ace.tui.modals.memory_panel_test_helpers import (
     install_fixed_load,
     memory_note,
@@ -64,9 +64,18 @@ def _empty_setup(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _panel_ready(page: AcePage) -> bool:
+def _panel_pane(page: AcePage) -> MemoryPane | None:
     screen = page.app.screen
-    return isinstance(screen, MemoryPanel) and not screen._loading
+    if isinstance(screen, MemoryPanel):
+        return screen.pane
+    if isinstance(screen, MemoryPane):
+        return screen
+    return None
+
+
+def _panel_ready(page: AcePage) -> bool:
+    pane = _panel_pane(page)
+    return pane is not None and not pane._loading
 
 
 @pytest.mark.parametrize(
@@ -104,9 +113,9 @@ async def test_memory_panel_populated_png_snapshot(
         await wait_for_state(
             page,
             lambda: (
-                isinstance(page.app.screen, MemoryPanel)
-                and page.app.screen._current_note == "sase/memory/hub_child.md"
-                and page.app.screen._trail == ["sase/memory/agent_hood.md"]
+                (pane := _panel_pane(page)) is not None
+                and pane._current_note == "sase/memory/hub_child.md"
+                and pane._trail == ["sase/memory/agent_hood.md"]
             ),
             description="followed CHILDREN chip to hub_child",
         )

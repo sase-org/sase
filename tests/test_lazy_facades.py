@@ -15,7 +15,7 @@ _CASES = (
         "generate_timestamp",
         "sase.core.time",
         (
-            "sase.core.changespec",
+            "sase.core.changespec",  # legacy compatibility module path
             "sase.core.clipboard",
             "sase.core.glossary_facade",
             "sase.core.patch",
@@ -93,15 +93,17 @@ def test_package_facades_are_lazy_and_cache_exports(
 
 
 def test_core_lazy_facade_preserves_legacy_changespec_export() -> None:
+    """The package facade keeps the legacy compatibility alias importable."""
+
     source = textwrap.dedent(
         """
         import sase.core
+        # legacy compatibility alias
         from sase.core import get_workspace_directory_for_changespec
 
-        assert (
-            sase.core.get_workspace_directory_for_changespec
-            is get_workspace_directory_for_changespec
-        )
+        legacy = sase.core.get_workspace_directory_for_changespec  # legacy compatibility alias
+        assert legacy is get_workspace_directory_for_changespec  # legacy compatibility alias
+        # legacy compatibility alias
         assert "get_workspace_directory_for_changespec" in dir(sase.core)
         """
     )
