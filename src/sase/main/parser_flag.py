@@ -48,7 +48,20 @@ def register_flag_parser(subparsers: argparse._SubParsersAction) -> None:
             "List every registered feature flag: the key chip, kind, default, "
             "effective value, source layer, bead id and status, and the "
             "removal countdown. Inherited SASE_FEATURE_FLAGS values are marked "
-            "ENV so a long-running detached process cannot hide an override."
+            "ENV so a long-running detached process cannot hide an override.\n"
+            "\n"
+            "A non-empty listing ends with a compact statistics footer: how "
+            "many flags were rendered and which kinds they use, how many "
+            "resolve on versus off, how many decisions came from a layer "
+            "above the registry default, and whether any loaded removal bead "
+            "is soon or due. Homogeneous kind or on/off values fold into the "
+            "count head. For example:\n"
+            "\n"
+            "  3 flags · 2 beta  1 sunset · 2 on  1 off · 1 overridden · "
+            "⧗ 1 soon  ⧗ 1 due\n"
+            "\n"
+            "`--json` keeps the versioned machine contract and does not "
+            "include this footer."
         ),
         epilog=("examples:\n  sase flag list\n  sase flag list --json"),
     )

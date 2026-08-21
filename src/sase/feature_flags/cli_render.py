@@ -8,7 +8,15 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV
-from sase.feature_flags.models import FeatureFlagDecision, FeatureFlagDiagnostic
+from sase.feature_flags.models import (
+    FeatureFlagDecision,
+    FeatureFlagDiagnostic,
+    FlagKind,
+)
+
+FLAG_KIND_STYLE = "italic"
+FLAG_ENABLED_STYLE = "bold green"
+FLAG_DISABLED_STYLE = "bold"
 
 
 def resolve_console(console: Console | None) -> Console:
@@ -21,6 +29,19 @@ def resolve_console(console: Console | None) -> Console:
 def on_off(value: bool) -> str:
     """Render a boolean flag value the way the CLI spells it."""
     return "on" if value else "off"
+
+
+def kind_text(kind: FlagKind) -> Text:
+    """Render a flag kind with the shared list and footer treatment."""
+    return Text(kind, style=FLAG_KIND_STYLE)
+
+
+def enabled_text(enabled: bool) -> Text:
+    """Render an effective on/off value with the shared list and footer treatment."""
+    return Text(
+        on_off(enabled),
+        style=FLAG_ENABLED_STYLE if enabled else FLAG_DISABLED_STYLE,
+    )
 
 
 def source_text(decision: FeatureFlagDecision) -> Text:
@@ -54,6 +75,11 @@ def render_diagnostics(
 
 
 __all__ = [
+    "FLAG_DISABLED_STYLE",
+    "FLAG_ENABLED_STYLE",
+    "FLAG_KIND_STYLE",
+    "enabled_text",
+    "kind_text",
     "on_off",
     "render_diagnostics",
     "resolve_console",

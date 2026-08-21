@@ -18,10 +18,16 @@ from sase.core import time as core_time
 from sase.feature_flags.beads import FlagBeadSnapshot
 from sase.feature_flags.cli_json import diagnostic_json, flag_view_json
 from sase.feature_flags.cli_render import (
+    enabled_text,
+    kind_text,
     on_off,
     render_diagnostics,
     resolve_console,
     source_text,
+)
+from sase.feature_flags.cli_summary import (
+    flag_list_summary_line,
+    summarize_flag_views,
 )
 from sase.feature_flags.cli_views import FlagView, flag_views
 from sase.feature_flags.models import (
@@ -92,6 +98,8 @@ def _render_list(
     for view in views:
         console.print(_list_row(view, today=today, release=release))
     render_diagnostics(diagnostics, console)
+    console.print()
+    console.print(flag_list_summary_line(summarize_flag_views(views)))
 
 
 def _list_row(
@@ -104,14 +112,11 @@ def _list_row(
     line = Text()
     line.append_text(flag_key_chip(key))
     line.append("  ")
-    line.append(view.definition.kind, style="italic")
+    line.append_text(kind_text(view.definition.kind))
     line.append("  ")
     line.append(f"default={on_off(view.definition.default)}")
     line.append("  ")
-    line.append(
-        on_off(view.decision.enabled),
-        style="bold green" if view.decision.enabled else "bold",
-    )
+    line.append_text(enabled_text(view.decision.enabled))
     line.append("  ")
     line.append_text(source_text(view.decision))
     line.append("  ")

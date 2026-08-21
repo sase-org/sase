@@ -4881,6 +4881,18 @@ With no subcommand, `sase flag` defaults to `sase flag list`.
 | `sase flag show` | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, bead thresholds, diagnostics, and call sites. |
 | `sase flag new`  | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.             |
 
+A non-empty human `sase flag list` ends with a compact statistics footer: how many flags
+were rendered and which kinds they use, how many resolve on versus off, how many
+decisions came from a layer above the registry default, and whether any loaded removal
+bead is soon or due. Homogeneous kind or on/off values fold into the count head. For
+example:
+
+```text
+3 flags · 2 beta  1 sunset · 2 on  1 off · 1 overridden · ⧗ 1 soon  ⧗ 1 due
+```
+
+`--json` keeps schema version 1 and does not include this footer.
+
 `new` requires a SASE-managed checkout because the registry lives in this source tree.
 `--when-enabled`, `--when-disabled`, and `--remove-when` are required and each accepts
 `@<path>`. `-k/--kind` is `beta` (default; off) or `sunset` (on). There is no `--scope`.
