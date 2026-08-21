@@ -52,6 +52,12 @@ from .glossary_preview_render import (
     glossary_definition_position,
     glossary_source_path,
 )
+from .numbered_link_keys import (
+    NUMBERED_LINK_BINDING,
+    arm_numbered_link,
+    clear_numbered_link_prefix,
+    handle_numbered_link_key,
+)
 
 
 class _GlossaryFilterInput(FilterInput):
@@ -101,14 +107,7 @@ class GlossaryPane(
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
-        *(
-            (
-                str(number),
-                f"follow_relation_number({number})",
-                f"Follow relation {number}",
-            )
-            for number in range(1, 10)
-        ),
+        NUMBERED_LINK_BINDING,
     ]
 
     def __init__(
@@ -151,6 +150,7 @@ class GlossaryPane(
         self._chip_entries: tuple[GlossaryEntry, ...] = ()
         self._chip_outbound_count = 0
         self._chip_cursor: int | None = None
+        self._pending_numbered_link = False
         self._trail: list[str] = []
         self._write_busy = False
         self._pending_delete_term: str | None = None
@@ -161,7 +161,14 @@ class GlossaryPane(
 
         if handle_config_hub_subtab_select_key(self, event):
             return
+        if handle_numbered_link_key(
+            self, event, follow=self.action_follow_relation_number
+        ):
+            return
         super().on_key(event)
+
+    def action_arm_numbered_link(self) -> None:
+        arm_numbered_link(self)
 
     def compose(self) -> ComposeResult:
         self._accent = glossary_card_accent(self.app.current_theme)
@@ -189,6 +196,7 @@ class GlossaryPane(
         self._start_initial_load()
 
     def on_unmount(self) -> None:
+        clear_numbered_link_prefix(self)
         if self._debouncer is not None:
             self._debouncer.cancel()
         for worker in (self._load_worker, self._project_worker):
@@ -221,6 +229,7 @@ class GlossaryPane(
             self._update_header()
             self._update_footer()
             return
+        clear_numbered_link_prefix(self)
         if self._debouncer is not None:
             self._debouncer.cancel()
 

@@ -63,6 +63,18 @@ class MemoryPanel(ModalScreen[None]):
         self._catalog_pane().on_center_tab_visibility_changed(active)
 
     @property
+    def _loading(self) -> bool:
+        return self.pane._loading
+
+    @property
+    def _current_note(self) -> str | None:
+        return self.pane._current_note
+
+    @property
+    def _trail(self) -> list[str]:
+        return self.pane._trail
+
+    @property
     def _initial_note(self) -> str | None:
         return self.pane._initial_note
 

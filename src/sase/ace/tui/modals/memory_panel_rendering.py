@@ -32,6 +32,7 @@ from sase.notifications.models import format_relative_time
 from sase.xprompt.highlight_theme import derive_argument_color
 
 from .glossary_preview_render import build_numbered_chip_rows
+from .numbered_link_keys import NUMBERED_LINK_CHIP_PREFIX
 
 _COLOR_LABEL = "dim"
 _BADGE_FOREGROUND = "#1a1a1a"
@@ -323,6 +324,7 @@ def build_note_card_meta(
         ),
         focused_number=focused_link_number,
         accent=accent,
+        shortcut_prefix=NUMBERED_LINK_CHIP_PREFIX,
     )
     if chip_rows is not None:
         sections.append(chip_rows)

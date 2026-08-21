@@ -155,10 +155,12 @@ def glossary_help_bindings(
 ) -> list[tuple[str, str]]:
     """Return effective Glossary panel keys and descriptions for help surfaces."""
 
-    return [
-        (key_display_name(getattr(keymaps, action)), description)
-        for action, description in _GLOSSARY_BINDING_META
-    ]
+    bindings: list[tuple[str, str]] = []
+    for action, description in _GLOSSARY_BINDING_META:
+        bindings.append((key_display_name(getattr(keymaps, action)), description))
+        if action == "follow_relation":
+            bindings.append((">1-9", "Follow numbered chip"))
+    return bindings
 
 
 def build_memory_bindings(keymaps: MemoryPanelKeymaps) -> list[Binding]:
@@ -180,10 +182,12 @@ def memory_help_bindings(
 ) -> list[tuple[str, str]]:
     """Return effective Memory panel keys and descriptions for help surfaces."""
 
-    return [
-        (key_display_name(getattr(keymaps, action)), description)
-        for action, description in _MEMORY_BINDING_META
-    ]
+    bindings: list[tuple[str, str]] = []
+    for action, description in _MEMORY_BINDING_META:
+        bindings.append((key_display_name(getattr(keymaps, action)), description))
+        if action == "follow_link":
+            bindings.append((">1-9", "Follow numbered chip"))
+    return bindings
 
 
 def build_snippet_bindings(keymaps: SnippetPanelKeymaps) -> list[Binding]:

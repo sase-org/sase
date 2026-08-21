@@ -2,8 +2,10 @@
 
 from sase.ace.tui.keymaps import (
     footer_key_display,
+    glossary_help_bindings,
     key_display_name,
     load_keymap_registry,
+    memory_help_bindings,
 )
 from sase.ace.tui.modals.help_modal.bindings import (
     agents_bindings,
@@ -331,7 +333,7 @@ def test_help_modal_lists_glossary_panel() -> None:
         assert ("gG / Ctrl+G G", "Open from prompt") in pairs
         assert "Glossary Panel" in names
         assert ("j / k", "Move through terms") in pairs
-        assert ("1-9", "Follow numbered chip") in pairs
+        assert (">1-9", "Follow numbered chip") in pairs
         assert ("Esc", "Close and restore prompt") in pairs
         for _name, bindings in sections:
             if _name != "Glossary Panel":
@@ -355,7 +357,7 @@ def test_help_modal_lists_memory_panel() -> None:
         assert ("j / k", "Move through notes") in pairs
         assert ("Ctrl+P", "Pick a scope") in pairs
         assert ("I", "Publish unpublished") in pairs
-        assert ("1-9", "Follow numbered chip") in pairs
+        assert (">1-9", "Follow numbered chip") in pairs
         assert ("Esc", "Close and restore prompt") in pairs
         for _name, bindings in sections:
             if _name != "Memory Panel":
@@ -363,6 +365,12 @@ def test_help_modal_lists_memory_panel() -> None:
             for key, description in bindings:
                 assert len(key) <= 16, key
                 assert len(description) <= 32, description
+
+
+def test_panel_scoped_help_lists_prefixed_chip_shortcut() -> None:
+    reg = load_keymap_registry({})
+    assert (">1-9", "Follow numbered chip") in glossary_help_bindings(reg.glossary)
+    assert (">1-9", "Follow numbered chip") in memory_help_bindings(reg.memory)
 
 
 def test_help_modal_lists_snippets_panel() -> None:

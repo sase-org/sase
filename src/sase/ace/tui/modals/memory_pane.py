@@ -65,6 +65,12 @@ from .memory_panel_state import (
 )
 from .memory_panel_travel import MemoryPanelTravelMixin
 from .memory_panel_view import MemoryPanelViewMixin
+from .numbered_link_keys import (
+    NUMBERED_LINK_BINDING,
+    arm_numbered_link,
+    clear_numbered_link_prefix,
+    handle_numbered_link_key,
+)
 
 
 @dataclass
@@ -119,14 +125,7 @@ class MemoryPane(
     BINDINGS = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
-        *(
-            (
-                str(number),
-                f"follow_link_number({number})",
-                f"Follow link {number}",
-            )
-            for number in range(1, 10)
-        ),
+        NUMBERED_LINK_BINDING,
     ]
 
     def __init__(
@@ -173,6 +172,7 @@ class MemoryPane(
         self._chip_notes: tuple[MemoryNote, ...] = ()
         self._chip_parent_count = 0
         self._chip_cursor: int | None = None
+        self._pending_numbered_link = False
         self._trail: list[str] = []
         self._write_busy = False
         self._unpublished_scopes: set[str] = set()
@@ -184,7 +184,12 @@ class MemoryPane(
 
         if handle_config_hub_subtab_select_key(self, event):
             return
+        if handle_numbered_link_key(self, event, follow=self.action_follow_link_number):
+            return
         super().on_key(event)
+
+    def action_arm_numbered_link(self) -> None:
+        arm_numbered_link(self)
 
     def compose(self) -> ComposeResult:
         self._accent = memory_card_accent(self.app.current_theme)
@@ -214,6 +219,7 @@ class MemoryPane(
 
     def on_unmount(self) -> None:
         self._closed = True
+        clear_numbered_link_prefix(self)
         if self._debouncer is not None:
             self._debouncer.cancel()
         for worker in (
@@ -241,8 +247,10 @@ class MemoryPane(
     def on_center_tab_visibility_changed(self, active: bool) -> None:
         """Stop stealing focus while a host is showing another child."""
         self._host_visible = active
-        if active:
-            self.focus_default()
+        if not active:
+            clear_numbered_link_prefix(self)
+            return
+        self.focus_default()
 
     def action_close(self) -> None:
         if self._host is not None:

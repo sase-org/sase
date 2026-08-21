@@ -105,11 +105,12 @@ def build_relation_chip_rows(
     *,
     focused_number: int | None,
     accent: str,
+    shortcut_prefix: str = "",
 ) -> RenderableType | None:
     """Build the numbered SEE ALSO / REFERENCED BY chip rows.
 
     Numbering is continuous across both rows -- SEE ALSO starts at 1 and
-    REFERENCED BY continues from ``len(outbound) + 1`` -- so a digit
+    REFERENCED BY continues from ``len(outbound) + 1`` -- so a numbered
     shortcut is never ambiguous. A row with no members is omitted rather
     than rendered empty. Returns ``None`` when both rows are empty.
     """
@@ -120,6 +121,7 @@ def build_relation_chip_rows(
         ),
         focused_number=focused_number,
         accent=accent,
+        shortcut_prefix=shortcut_prefix,
     )
 
 
@@ -128,15 +130,18 @@ def build_numbered_chip_rows(
     *,
     focused_number: int | None,
     accent: str,
+    shortcut_prefix: str = "",
 ) -> RenderableType | None:
     """Build labeled numbered chip rows with continuous numbering.
 
     Empty groups are omitted rather than rendered empty. Numbering is
-    continuous across the rendered rows so a digit shortcut is never
+    continuous across the rendered rows so a numbered shortcut is never
     ambiguous. Returns ``None`` when every group is empty. Glossary
     ``SEE ALSO`` / ``REFERENCED BY`` chips and Memory ``PARENT`` /
     ``CHILDREN`` chips share this renderer so the two surfaces cannot
-    drift visually.
+    drift visually. *shortcut_prefix* is prepended to each chip number
+    (``>1 name``); callers such as Snippets and the compact glossary
+    preview leave it empty.
     """
     rows: list[tuple[str, Text]] = []
     next_number = 1
@@ -151,6 +156,7 @@ def build_numbered_chip_rows(
                     start=next_number,
                     focused_number=focused_number,
                     accent=accent,
+                    shortcut_prefix=shortcut_prefix,
                 ),
             )
         )
@@ -171,13 +177,14 @@ def _numbered_chips(
     start: int,
     focused_number: int | None,
     accent: str,
+    shortcut_prefix: str = "",
 ) -> Text:
     text = Text()
     for offset, name in enumerate(names):
         number = start + offset
         _append_chip(
             text,
-            f"{number} {name}",
+            f"{shortcut_prefix}{number} {name}",
             accent=accent,
             focused=number == focused_number,
         )

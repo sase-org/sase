@@ -1,7 +1,7 @@
 """Relation-chip travel for the Glossary panel.
 
 The panel's second navigation axis: the numbered SEE ALSO / REFERENCED BY chip
-cursor, follow-by-digit jumps, and the bounded breadcrumb trail that `travel
+cursor, ``>`` then digit jumps, and the bounded breadcrumb trail that `travel
 back` walks. Chip *rendering* lives in
 :mod:`sase.ace.tui.modals.glossary_panel_view`.
 """

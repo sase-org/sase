@@ -1,7 +1,7 @@
 """Parent/child chip travel for the Memory panel.
 
 The panel's second navigation axis: the numbered PARENT / CHILDREN chip
-cursor, follow-by-digit jumps, and the bounded breadcrumb trail that
+cursor, ``>`` then digit jumps, and the bounded breadcrumb trail that
 `travel back` walks. Chip *rendering* lives in
 :mod:`sase.ace.tui.modals.memory_panel_view`.
 """

@@ -21,6 +21,7 @@ from sase.ace.tui.modals.glossary_preview_render import (
     build_relation_chip_rows,
     glossary_source_display,
 )
+from sase.ace.tui.modals.numbered_link_keys import NUMBERED_LINK_CHIP_PREFIX
 from sase.core.glossary_facade import GlossaryEntry
 from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
 
@@ -124,7 +125,11 @@ def build_definition_card_meta(
         sections.append(grid)
 
     relation_rows = build_relation_chip_rows(
-        outbound, inbound, focused_number=focused_relation_number, accent=accent
+        outbound,
+        inbound,
+        focused_number=focused_relation_number,
+        accent=accent,
+        shortcut_prefix=NUMBERED_LINK_CHIP_PREFIX,
     )
     if relation_rows is not None:
         sections.append(relation_rows)

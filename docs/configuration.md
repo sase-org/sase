@@ -1099,7 +1099,9 @@ commas:
 | `help`                     | `question_mark` | Open the panel-scoped help overlay.                              |
 
 Like gate and statistics keys, glossary keys are scoped to the panel and may overlap
-app-level bindings.
+app-level bindings. `>` then `1`–`9` follows a numbered relation chip; that prefix is a
+fixed pane key, not a configurable `ace.keymaps.glossary` field. On the embedded Admin
+Center Config sub-tab, bare digits remain top-level Admin Center tab selectors.
 
 **`memory`** — Bindings active only inside the [Memory panel](ace.md#memory-panel), the
 browse-and-edit surface opened from a prompt pane with `gm` or `Ctrl+G m`. A value may
@@ -1134,7 +1136,10 @@ list more than one key, separated by commas:
 | `help`               | `question_mark` | Open the panel-scoped help overlay.                                 |
 
 Like gate, statistics, and glossary keys, memory keys are scoped to the panel and may
-overlap app-level bindings.
+overlap app-level bindings. `>` then `1`–`9` follows a numbered parent or child chip;
+that prefix is a fixed pane key, not a configurable `ace.keymaps.memory` field. On the
+embedded Admin Center Config sub-tab, bare digits remain top-level Admin Center tab
+selectors.
 
 **`snippets`** — Bindings active only inside the
 [Snippets panel](ace.md#snippets-panel), the browse-and-edit surface opened from a

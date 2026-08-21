@@ -100,7 +100,7 @@ async def test_memory_panel_populated_png_snapshot(
         page.app.push_screen(MemoryPanel(initial_note="sase/memory/agent_hood.md"))
         await page.expect_modal("MemoryPanel")
         await wait_for_state(page, lambda: _panel_ready(page), description="panel load")
-        await page.press("1")
+        await page.press(">", "1")
         await wait_for_state(
             page,
             lambda: (

@@ -69,7 +69,7 @@ class MemoryPanelHelpModal(ModalScreen[None]):
         note.append(
             "\nfollow_link ships as enter,l, but only l currently follows a chip: "
             "the note list holds focus and consumes Enter for its own selection "
-            "action, so Enter does nothing in this panel. Use l or a chip number.",
+            "action, so Enter does nothing in this panel. Use l or >1-9.",
             style="dim",
         )
         return Group(text, note)

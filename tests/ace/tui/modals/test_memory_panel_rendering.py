@@ -117,7 +117,7 @@ def test_note_card_meta_renders_parent_and_children_chips() -> None:
     text = capture.get()
 
     assert "PARENT" in text
-    assert "1 hub" in text
+    assert ">1 hub" in text
     assert "CHILDREN" not in text
 
 
@@ -130,6 +130,7 @@ def test_memory_panel_help_documents_enter_does_not_follow() -> None:
 
     assert "only l currently follows a chip" in text
     assert "Enter does nothing in this panel" in text
+    assert ">1-9" in text
 
 
 def test_panel_header_shows_unpublished_badge() -> None:

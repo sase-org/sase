@@ -46,9 +46,9 @@ async def test_relation_chip_numbering_is_continuous_across_both_rows(
         meta = panel_static_text(panel, "glossary-panel-card-meta")
         assert "SEE ALSO" in meta
         assert "REFERENCED BY" in meta
-        assert "1 Beta" in meta
-        assert "2 Gamma" in meta
-        assert "3 Delta" in meta
+        assert ">1 Beta" in meta
+        assert ">2 Gamma" in meta
+        assert ">3 Delta" in meta
 
 
 async def test_digit_follows_referenced_by_chip_when_see_also_empty(
@@ -76,9 +76,10 @@ async def test_digit_follows_referenced_by_chip_when_see_also_empty(
             "CCC Ref",
         ]
 
-        await pilot.press("2")
+        await pilot.press(">", "2")
         await wait_for(pilot, lambda: panel._current_term == "CCC Ref")
         assert panel._trail == ["AAA Leaf"]
+        assert panel._pending_numbered_link is False
 
 
 async def test_tab_moves_chip_cursor_and_wraps(
@@ -177,3 +178,80 @@ async def test_reverse_references_make_inbound_only_term_reachable(
         assert panel._current_term == "Leaf"
         assert panel._chip_outbound_count == 0
         assert [entry.term for entry in panel._chip_entries] == ["Referencer"]
+
+
+async def test_bare_digit_does_not_follow_relation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = project_ref("sase", "sase")
+    entries = (
+        glossary_entry(0, "AAA Leaf"),
+        glossary_entry(1, "BBB Ref"),
+        glossary_entry(2, "CCC Ref"),
+    )
+    snapshot = project_snapshot(
+        ref, entries, reverse_references={0: ("BBB Ref", "CCC Ref")}
+    )
+    install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPane()
+    app = GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        assert panel._current_term == "AAA Leaf"
+
+        await pilot.press("2")
+        await pilot.pause()
+
+        assert panel._current_term == "AAA Leaf"
+        assert panel._trail == []
+        assert panel._pending_numbered_link is False
+
+
+async def test_filter_input_keeps_prefix_and_digits_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = project_ref("sase", "sase")
+    entries = (
+        glossary_entry(0, "AAA Leaf"),
+        glossary_entry(1, "BBB Ref"),
+    )
+    snapshot = project_snapshot(ref, entries, reverse_references={0: ("BBB Ref",)})
+    install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPane()
+    app = GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press("slash")
+        await wait_for(pilot, lambda: panel._filter_input().display)
+        await pilot.press(">", "1")
+        assert panel._filter_input().value == ">1"
+        assert panel._trail == []
+        assert panel._pending_numbered_link is False
+
+
+async def test_hiding_pane_clears_pending_numbered_link(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = project_ref("sase", "sase")
+    entries = (
+        glossary_entry(0, "AAA Leaf"),
+        glossary_entry(1, "BBB Ref"),
+    )
+    snapshot = project_snapshot(ref, entries, reverse_references={0: ("BBB Ref",)})
+    install_fixed_load(monkeypatch, (ref,), {"sase": snapshot})
+
+    panel = GlossaryPane()
+    app = GlossaryPanelTestApp(panel)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(pilot, lambda: not panel._loading)
+        await pilot.press(">")
+        assert panel._pending_numbered_link is True
+        panel.on_center_tab_visibility_changed(False)
+        assert panel._pending_numbered_link is False
+        panel.on_center_tab_visibility_changed(True)
+        await pilot.press("1")
+        await pilot.pause()
+        assert panel._current_term == "AAA Leaf"
+        assert panel._trail == []

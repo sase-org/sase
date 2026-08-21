@@ -5338,17 +5338,18 @@ Two navigation axes stay synchronized:
   `no terms matched: <pattern>`.
 - **Relational.** The definition card carries numbered `SEE ALSO` chips (outbound
   references from this definition) and `REFERENCED BY` chips (inbound terms that mention
-  this one). Numbering is continuous across both rows so `1`–`9` is never ambiguous.
+  this one). Numbering is continuous across both rows so `>1`–`>9` is never ambiguous.
   `Tab` / `Shift+Tab` move a chip cursor, and `l` follows the focused chip — or chip ①
-  when none is focused. `1`–`9` jump straight to a numbered chip without moving the chip
-  cursor first. Following moves the term-list cursor to the target, pushes the previous
-  term onto a trail bounded at 32 entries, and clears an active filter when the target
-  is hidden. `h` or `Backspace` walks back. A non-empty trail renders as
-  `TRAIL  A › B › C` above the footer.
+  when none is focused. `>` then `1`–`9` jumps straight to a numbered chip without
+  moving the chip cursor first. Following moves the term-list cursor to the target,
+  pushes the previous term onto a trail bounded at 32 entries, and clears an active
+  filter when the target is hidden. `h` or `Backspace` walks back. A non-empty trail
+  renders as `TRAIL  A › B › C` above the footer. On the embedded Admin Center Config
+  sub-tab, bare `1`–`9` remain top-level Admin Center tab selectors.
 
 `follow_relation` ships as `enter,l`, but only `l` currently follows a chip: the term
 list holds focus and consumes `Enter` for its own selection action, so `Enter` does
-nothing in this panel. Use `l` or a chip number.
+nothing in this panel. Use `l` or `>1`–`>9`.
 
 `p` and `P` cycle the enabled-project ring. The ring is every enabled project that has a
 glossary configured, plus the project you opened from even when it has none — so `a` can
@@ -5379,9 +5380,9 @@ exists. Always-available keys live in `?` and in this guide.
 Most keys named above are remappable under
 [`ace.keymaps.glossary`](configuration.md#acekeymaps); see
 [Remapping Glossary Panel Keys](#remapping-glossary-panel-keys). Three sets are fixed
-and are not part of that scope: `Esc` and `q` (close), the `1`–`9` relation-chip
-shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
-list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
+and are not part of that scope: `Esc` and `q` (close), the `>` then `1`–`9`
+relation-chip shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys
+the underlying list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 <a id="memory-panel"></a>
 
@@ -5414,15 +5415,16 @@ Two navigation axes stay synchronized:
   still visible. An empty result reads `no notes matched: <pattern>`.
 - **Relational.** The note card carries a numbered `PARENT` chip (omitted when the
   parent is `AGENTS.md` rather than another memory note) and numbered `CHILDREN` chips,
-  numbered continuously so `1`–`9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
-  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `1`–`9`
-  jump straight to a numbered chip. Following pushes the previous note onto a trail
-  bounded at 32 entries and clears an active filter when the target is hidden. `h` or
-  `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
-  footer.
+  numbered continuously so `>1`–`>9` is never ambiguous. `Tab` / `Shift+Tab` move a chip
+  cursor, and `l` follows the focused chip -- or chip ① when none is focused. `>` then
+  `1`–`9` jumps straight to a numbered chip. Following pushes the previous note onto a
+  trail bounded at 32 entries and clears an active filter when the target is hidden. `h`
+  or `Backspace` walks back. A non-empty trail renders as `TRAIL  a › b › c` above the
+  footer. On the embedded Admin Center Config sub-tab, bare `1`–`9` remain top-level
+  Admin Center tab selectors.
 
 `follow_link` ships as `enter,l`, but only `l` currently follows a chip: the note rail
-holds focus and consumes `Enter` for its own selection action. Use `l` or a chip number.
+holds focus and consumes `Enter` for its own selection action. Use `l` or `>1`–`>9`.
 
 The note card also shows a badge row (`TIER 1 · always loaded` / `TIER 2`, plus
 `GENERATED`, `SHADOWS HOME`, `ORPHANED`, and `INVALID` when they apply), the
@@ -5484,9 +5486,9 @@ in `?` and in this guide.
 Most keys named above are remappable under
 [`ace.keymaps.memory`](configuration.md#acekeymaps); see
 [Remapping Memory Panel Keys](#remapping-memory-panel-keys). Three sets are fixed and
-are not part of that scope: `Esc` and `q` (close), the `1`–`9` link-chip shortcuts, and
-the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying list widget
-supplies alongside the configurable `j`/`k`/`g`/`G`.
+are not part of that scope: `Esc` and `q` (close), the `>` then `1`–`9` link-chip
+shortcuts, and the `↑`/`↓`/`Home`/`End`/`PageUp`/`PageDown` cursor keys the underlying
+list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 <a id="snippets-panel"></a>
 
