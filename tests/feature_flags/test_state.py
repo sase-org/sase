@@ -34,6 +34,23 @@ BETA_KEY = "epic_resume_gate"
 SUNSET_KEY = "prettier_enabled"
 
 
+@pytest.fixture(autouse=True)
+def _registered_test_flags(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep state-facade coverage independent of the live flag lifecycle."""
+
+    test_definitions = definitions(
+        demo_flag(BETA_KEY),
+        demo_flag(SUNSET_KEY, kind="sunset"),
+    )
+    monkeypatch.setattr(
+        "sase.feature_flags.registry.feature_flag_definitions",
+        lambda: test_definitions,
+    )
+    monkeypatch.setattr(
+        snapshot_mod, "feature_flag_definitions", lambda: test_definitions
+    )
+
+
 def _state_file() -> Path:
     return Path(feature_flag_state_path())
 

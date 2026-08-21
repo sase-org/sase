@@ -67,6 +67,11 @@ from sase.ace.tui.util.artifact_ref_syntax import (
     ArtifactRefStyledSpan as _ArtifactRefStyledSpan,
 )
 from sase.feature_flags.cli_summary import FlagListSummary as _FlagListSummary
+from sase.feature_flags.state import (
+    SavedFeatureFlagSetOutcome as _SavedFeatureFlagSetOutcome,
+)
+from sase.feature_flags.state import SavedFeatureFlagState as _SavedFeatureFlagState
+from sase.feature_flags.state import feature_flag_state_path as _feature_flag_state_path
 from sase.core.finalizer_wire import (
     finalizer_selector_op_from_dict as _finalizer_selector_op_from_dict,
 )
@@ -129,6 +134,8 @@ _PUBLIC_API_REFS = (
     _FinalizerSubmissionPayloadWire,
     _FlagListSummary,
     _ModelsPanel,
+    _SavedFeatureFlagSetOutcome,
+    _SavedFeatureFlagState,
     _SkillManifestOwnershipPlan,
     _StitchCommandResult,
     _build_finalizer_inventory,
@@ -140,6 +147,7 @@ _PUBLIC_API_REFS = (
     _config_subtab_specs,
     _execute_command_finalizer,
     _execute_plugin_finalizer,
+    _feature_flag_state_path,
     _final_submission_is_current,
     _finalizer_attempt_from_dict,
     _finalizer_context_digest,
