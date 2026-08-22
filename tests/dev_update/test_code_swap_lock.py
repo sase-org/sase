@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+from pathlib import Path
+
+import pytest
 
 from sase.core.paths import sase_subdir
 from sase.dev_update import code_swap_lock as lock_mod
@@ -96,6 +100,7 @@ def test_dead_holder_sidecar_is_ignored(monkeypatch) -> None:
 
 def test_disable_env_var_makes_locks_noops(monkeypatch) -> None:
     monkeypatch.setenv(ENV_DISABLE_CODE_SWAP_LOCK, "1")
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, "1")
 
     with code_swap_writer_lock() as writer:
         with code_swap_reader_lock(
@@ -104,6 +109,7 @@ def test_disable_env_var_makes_locks_noops(monkeypatch) -> None:
         ) as reader:
             assert writer.acquired is True
             assert reader.acquired is True
+            assert lock_mod._ENV_CODE_SWAP_LOCK_FD not in os.environ
 
     assert code_swap_readers_active() is None
 
@@ -167,6 +173,100 @@ def test_advisory_warning_disabled_by_env_var(monkeypatch) -> None:
     with code_swap_advisory_reader_lock(op="agent.runner", command=("tg",)):
         monkeypatch.setenv(ENV_DISABLE_CODE_SWAP_LOCK, "1")
         assert code_swap_advisory_warning() is None
+
+
+def test_reader_adopts_matching_handoff_fd(monkeypatch) -> None:
+    lock_path = sase_subdir("locks") / "code-swap.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o666)
+    os.set_inheritable(fd, True)
+    fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, str(fd))
+    closed = False
+    try:
+        with code_swap_reader_lock(
+            op="bead.work",
+            command=("sase", "bead", "work", "plan.md"),
+        ) as lock:
+            assert lock.acquired is True
+            assert lock_mod._ENV_CODE_SWAP_LOCK_FD not in os.environ
+            assert os.get_inheritable(fd) is False
+            active = code_swap_readers_active()
+            assert active is not None
+            assert "sase bead work" in active
+            assert f"pid {os.getpid()}" in active
+            with code_swap_writer_lock() as writer:
+                assert writer.acquired is False
+        closed = True
+        with pytest.raises(OSError):
+            os.fstat(fd)
+        assert code_swap_readers_active() is None
+        with code_swap_writer_lock() as writer:
+            assert writer.acquired is True
+    finally:
+        if not closed:
+            os.close(fd)
+
+
+def test_reader_ignores_malformed_handoff_fd(monkeypatch) -> None:
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, "not-an-fd")
+    with code_swap_reader_lock(
+        op="bead.work",
+        command=("sase", "bead", "work", "plan.md"),
+    ) as lock:
+        assert lock.acquired is True
+        assert lock_mod._ENV_CODE_SWAP_LOCK_FD not in os.environ
+        active = code_swap_readers_active()
+        assert active is not None
+        assert "sase bead work" in active
+        assert f"pid {os.getpid()}" in active
+    assert code_swap_readers_active() is None
+
+
+def test_reader_ignores_closed_handoff_fd_without_closing_unrelated(
+    monkeypatch, tmp_path: Path
+) -> None:
+    canary = os.open(tmp_path / "canary", os.O_RDWR | os.O_CREAT, 0o666)
+    stale = os.open(tmp_path / "stale", os.O_RDWR | os.O_CREAT, 0o666)
+    stale_fd = stale
+    os.close(stale)
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, str(stale_fd))
+    try:
+        with code_swap_reader_lock(
+            op="bead.work",
+            command=("sase", "bead", "work", "plan.md"),
+        ) as lock:
+            assert lock.acquired is True
+            assert lock_mod._ENV_CODE_SWAP_LOCK_FD not in os.environ
+            os.fstat(canary)
+            active = code_swap_readers_active()
+            assert active is not None
+            assert f"pid {os.getpid()}" in active
+        os.fstat(canary)
+        assert code_swap_readers_active() is None
+    finally:
+        os.close(canary)
+
+
+def test_reader_ignores_unrelated_handoff_fd(monkeypatch, tmp_path: Path) -> None:
+    unrelated = os.open(tmp_path / "unrelated", os.O_RDWR | os.O_CREAT, 0o666)
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, str(unrelated))
+    try:
+        with code_swap_reader_lock(
+            op="bead.work",
+            command=("sase", "bead", "work", "plan.md"),
+        ) as lock:
+            assert lock.acquired is True
+            assert lock_mod._ENV_CODE_SWAP_LOCK_FD not in os.environ
+            os.fstat(unrelated)
+            active = code_swap_readers_active()
+            assert active is not None
+            assert "sase bead work" in active
+            assert f"pid {os.getpid()}" in active
+        os.fstat(unrelated)
+        assert code_swap_readers_active() is None
+    finally:
+        os.close(unrelated)
 
 
 def test_advisory_reader_still_removed_from_a_dead_pid(monkeypatch) -> None:

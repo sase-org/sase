@@ -6,8 +6,11 @@ editable checkout while ``sase bead work`` is running from that same checkout.
 Direct ``sase bead work`` stays fail-fast: a process that has already imported
 editable SASE modules must not wait across a swap. Host-owned epic launches
 wait in ``code_swap_guarded_exec.py`` (executed by filename, not as a
-package import) and then exec a fresh ``sase bead work`` while the shared
-lock remains held.
+package import). The bootstrap owns the shared lock while waiting, then execs
+a fresh ``sase bead work`` and publishes the held descriptor for exactly one
+handoff. :func:`code_swap_reader_lock` adopts that descriptor, restores
+close-on-exec, and releases it when launch orchestration finishes. The handoff
+marker must not survive into agent execution.
 
 There is still a small residual race for unguarded readers: a process that
 starts while a swap is already in progress can import torn modules before it
@@ -36,6 +39,10 @@ from sase.core.paths import sase_subdir
 _logger = logging.getLogger(__name__)
 
 ENV_DISABLE_CODE_SWAP_LOCK = "SASE_DISABLE_CODE_SWAP_LOCK"
+# Private bootstrap-to-reader contract. ``code_swap_guarded_exec.py`` cannot
+# import this module, so it duplicates the string; it authorizes exactly one
+# exec handoff and must be consumed before any agent runner is spawned.
+_ENV_CODE_SWAP_LOCK_FD = "SASE_CODE_SWAP_LOCK_FD"
 _GUARDED_EXEC_SEPARATOR = "--"
 _GUARDED_EXEC_BOOTSTRAP = Path(__file__).with_name("code_swap_guarded_exec.py")
 
@@ -54,14 +61,24 @@ def code_swap_reader_lock(
     op: str,
     command: Sequence[str] | None = None,
 ) -> Iterator[_CodeSwapLockResult]:
-    """Take a non-blocking shared lock for a running source-tree reader."""
+    """Take a non-blocking shared lock for a running source-tree reader.
+
+    A guarded launch may hand off an already-held descriptor through a private
+    environment marker. This function always consumes that marker. A matching
+    open descriptor becomes this context's sole owned lock; an absent,
+    malformed, closed, or mismatched marker falls back to opening the lock
+    file and never closes an unrelated descriptor.
+    """
+    raw_handoff_fd = os.environ.pop(_ENV_CODE_SWAP_LOCK_FD, None)
     if _lock_disabled():
         yield _CodeSwapLockResult(acquired=True)
         return
 
     lock_path = _lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = _open_lock_file(lock_path)
+    fd = _adopt_handoff_lock_fd(raw_handoff_fd, lock_path)
+    if fd is None:
+        fd = _open_lock_file(lock_path)
     holder_path: Path | None = None
     try:
         if not _try_lock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB):
@@ -219,6 +236,34 @@ def _holders_dir() -> Path:
 
 def _lock_disabled() -> bool:
     return os.environ.get(ENV_DISABLE_CODE_SWAP_LOCK) == "1"
+
+
+def _adopt_handoff_lock_fd(raw: str | None, lock_path: Path) -> int | None:
+    """Return the inherited lock fd when *raw* names this lock, else None.
+
+    Never closes *raw*: a malformed, closed, or mismatched value may identify
+    an unrelated descriptor that this process must keep.
+    """
+    if raw is None:
+        return None
+    try:
+        fd = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if fd <= 0:
+        return None
+    try:
+        fd_stat = os.fstat(fd)
+        lock_stat = lock_path.stat()
+    except OSError:
+        return None
+    if (fd_stat.st_dev, fd_stat.st_ino) != (lock_stat.st_dev, lock_stat.st_ino):
+        return None
+    try:
+        os.set_inheritable(fd, False)
+    except OSError:
+        return None
+    return fd
 
 
 def _open_lock_file(path: Path) -> int:

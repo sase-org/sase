@@ -3,6 +3,11 @@
 This file is executed by filename, not with ``python -m``. That keeps the
 editable ``sase`` package out of the waiting process. Direct ``sase bead
 work`` stays fail-fast; only the host-owned epic launcher uses this path.
+
+The bootstrap owns the lock while waiting. Immediately before exec it
+publishes the held descriptor through ``SASE_CODE_SWAP_LOCK_FD`` for exactly
+one handoff into ``sase bead work``. The reader must consume that marker and
+restore close-on-exec; the marker must not survive into agent execution.
 """
 
 from __future__ import annotations
@@ -12,6 +17,9 @@ import os
 import sys
 
 _DISABLE_ENV = "SASE_DISABLE_CODE_SWAP_LOCK"
+# Duplicated from ``code_swap_lock._ENV_CODE_SWAP_LOCK_FD``: this file cannot
+# import the sase package. Authorizes exactly one bootstrap-to-reader handoff.
+_ENV_CODE_SWAP_LOCK_FD = "SASE_CODE_SWAP_LOCK_FD"
 _WAITING_MESSAGE = "sase: waiting for the source-tree swap to finish before launching"
 
 
@@ -28,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sase: could not acquire the code-swap lock: {exc}", file=sys.stderr)
         return 1
     try:
-        os.set_inheritable(fd, True)
+        _publish_handoff_fd(fd)
         return _exec(command)
     finally:
         try:
@@ -85,6 +93,11 @@ def _lock_shared_blocking(fd: int) -> None:
             return
         except InterruptedError:
             continue
+
+
+def _publish_handoff_fd(fd: int) -> None:
+    os.set_inheritable(fd, True)
+    os.environ[_ENV_CODE_SWAP_LOCK_FD] = str(fd)
 
 
 def _exec(command: list[str]) -> int:
