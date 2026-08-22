@@ -31,6 +31,31 @@ from tests.test_core_facade._agent_cleanup_helpers import (
 )
 
 
+def _require_schema_4_cleanup_binding() -> None:
+    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
+    if not all(
+        hasattr(rust_module, name)
+        for name in ("plan_agent_cleanup", "agent_cleanup_wire_schema_version")
+    ):
+        pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
+    assert int(rust_module.agent_cleanup_wire_schema_version()) == (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION
+    )
+    assert AGENT_CLEANUP_WIRE_SCHEMA_VERSION == 4
+
+
+def _fail_if_python_cleanup_planner_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _python_must_not_run(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError(
+            "schema-4 rust cleanup path fell back to the Python planner"
+        )
+
+    monkeypatch.setattr(
+        "sase.core.agent_cleanup_facade.plan_agent_cleanup_python",
+        _python_must_not_run,
+    )
+
+
 def test_plan_agent_cleanup_uses_rust_binding_when_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -98,13 +123,12 @@ def test_plan_agent_cleanup_falls_back_when_binding_schema_is_stale(
 
 
 @pytest.mark.parametrize("scenario", _SCENARIOS)
-def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
-    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
-    if not all(
-        hasattr(rust_module, name)
-        for name in ("plan_agent_cleanup", "agent_cleanup_wire_schema_version")
-    ):
-        pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
+def test_rust_cleanup_planner_matches_python_reference(
+    scenario: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _require_schema_4_cleanup_binding()
+    _fail_if_python_cleanup_planner_runs(monkeypatch)
 
     agents, request = scenario()
     targets = agents_to_cleanup_targets(agents)
@@ -124,13 +148,10 @@ def test_rust_cleanup_planner_matches_python_reference(scenario: Any) -> None:
 )
 def test_rust_and_python_planners_agree_on_clan_sequential_family(
     scenario: Any,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
-    if not all(
-        hasattr(rust_module, name)
-        for name in ("plan_agent_cleanup", "agent_cleanup_wire_schema_version")
-    ):
-        pytest.skip("sase_core_rs is too old (no plan_agent_cleanup).")
+    _require_schema_4_cleanup_binding()
+    _fail_if_python_cleanup_planner_runs(monkeypatch)
 
     agents, request = scenario()
     targets = agents_to_cleanup_targets(agents)
