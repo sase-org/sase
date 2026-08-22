@@ -21,6 +21,7 @@ import tempfile
 import time
 import tomllib
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -49,6 +50,9 @@ _DEPENDENCY_LINE_RE = re.compile(
     r"(?P<suffix>(?:\s*;[^\"']*)?(?P=quote)\s*,?\s*(?:#.*)?(?:\r?\n)?)$"
 )
 _TRANSIENT_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
+_CANONICAL_PYPI_SIMPLE_REGISTRIES = frozenset(
+    {"https://pypi.org/simple", "https://pypi.org/simple/"}
+)
 _CORE_REFRESH_FIELDS = frozenset({"version", "sdist", "wheels"})
 _TRANSITIVE_REFRESH_FIELDS = frozenset(
     {
@@ -638,13 +642,63 @@ def _validate_pypi_artifact(
         )
 
 
+def _redact_url_credentials(value: str) -> str:
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError:
+        return value
+    if parsed.username is None and parsed.password is None:
+        return value
+    hostname = parsed.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    try:
+        port = "" if parsed.port is None else f":{parsed.port}"
+    except ValueError:
+        port = ""
+    netloc = f"<credentials>@{hostname}{port}"
+    return urllib.parse.urlunsplit(
+        (
+            parsed.scheme,
+            netloc,
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
+
+
+def _safe_source_description(source: object) -> str:
+    if not isinstance(source, dict):
+        return repr(source)
+    parts = []
+    for key, value in sorted(source.items()):
+        if isinstance(value, str):
+            parts.append(f"{key}={_redact_url_credentials(value)!r}")
+        else:
+            parts.append(f"{key}={value!r}")
+    return "{" + ", ".join(parts) + "}"
+
+
+def _is_canonical_pypi_source(source: object) -> bool:
+    if not isinstance(source, dict):
+        return False
+    registry = source.get("registry")
+    return (
+        isinstance(registry, str)
+        and registry in _CANONICAL_PYPI_SIMPLE_REGISTRIES
+        and set(source) == {"registry"}
+    )
+
+
 def _validate_transitive_refresh_artifacts(package: dict[str, Any]) -> None:
     package_name = _package_name(package)
     package_version = _lock_package_version(package)
     source = package.get("source")
-    if not isinstance(source, dict) or source.get("registry") != "https://pypi.org/simple/":
+    if not _is_canonical_pypi_source(source):
         raise LockRefreshError(
-            f"uv.lock package {package_name} is not a PyPI registry package"
+            f"uv.lock package {package_name} is not a canonical PyPI registry "
+            f"package: source={_safe_source_description(source)}"
         )
 
     saw_artifact = False

@@ -140,6 +140,7 @@ def _asttokens_package(
     digest: str,
     *,
     extra_lines: str = "",
+    source: str = 'source = { registry = "https://pypi.org/simple/" }',
 ) -> str:
     extra = extra_lines
     if extra and not extra.endswith("\n"):
@@ -148,7 +149,7 @@ def _asttokens_package(
 [[package]]
 name = "asttokens"
 version = "{version}"
-source = {{ registry = "https://pypi.org/simple/" }}
+{source}
 {extra}sdist = {{ url = "https://files.example/asttokens-{version}.tar.gz", hash = "sha256:{digest}-sdist", size = 10 }}
 wheels = [
     {{ url = "https://files.example/asttokens-{version}-py3-none-any.whl", hash = "sha256:{digest}-wheel", size = 10 }},
@@ -164,6 +165,7 @@ def _lock_text_with_asttokens(
     asttokens_digest: str = "old",
     asttokens_direct: bool = False,
     asttokens_extra_lines: str = "",
+    asttokens_source: str = 'source = { registry = "https://pypi.org/simple/" }',
     project_version: str = "0.16.0",
 ) -> str:
     header, rest = _lock_text(version, specifier).split("\n\n", 1)
@@ -181,7 +183,7 @@ def _lock_text_with_asttokens(
         )
     return (
         f"{header}\n\n"
-        f"{_asttokens_package(asttokens_version, asttokens_digest, extra_lines=asttokens_extra_lines)}\n"
+        f"{_asttokens_package(asttokens_version, asttokens_digest, extra_lines=asttokens_extra_lines, source=asttokens_source)}\n"
         f"{rest}"
     )
 
@@ -210,6 +212,7 @@ def _write_project_with_asttokens(
     asttokens_direct: bool = False,
     asttokens_version: str = "3.0.0",
     asttokens_extra_lines: str = "",
+    asttokens_source: str = 'source = { registry = "https://pypi.org/simple/" }',
 ) -> tuple[Path, Path]:
     pyproject = root / "pyproject.toml"
     uv_lock = root / "uv.lock"
@@ -222,6 +225,7 @@ def _write_project_with_asttokens(
             asttokens_direct=asttokens_direct,
             asttokens_version=asttokens_version,
             asttokens_extra_lines=asttokens_extra_lines,
+            asttokens_source=asttokens_source,
         ),
         encoding="utf-8",
     )
@@ -252,6 +256,7 @@ def _asttokens_refresh_lock_runner(
     asttokens_digest: str = "new",
     asttokens_direct: bool = False,
     asttokens_extra_lines: str = "",
+    asttokens_source: str = 'source = { registry = "https://pypi.org/simple/" }',
     project_version: str = "0.16.0",
 ):
     def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
@@ -264,6 +269,7 @@ def _asttokens_refresh_lock_runner(
                 asttokens_digest=asttokens_digest,
                 asttokens_version=asttokens_version,
                 asttokens_extra_lines=asttokens_extra_lines,
+                asttokens_source=asttokens_source,
                 project_version=project_version,
             ),
             encoding="utf-8",
@@ -592,7 +598,7 @@ def test_reconciliation_mode_rejects_non_pypi_source_rewrite(
     assert code == tool.EXIT_COULD_NOT_DETERMINE
     assert pyproject.read_text(encoding="utf-8") == before_pyproject
     assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
-    assert "is not a PyPI registry package" in capsys.readouterr().err
+    assert "is not a canonical PyPI registry package" in capsys.readouterr().err
 
 
 def test_reconciliation_mode_rejects_unexpected_transitive_metadata_field(
