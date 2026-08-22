@@ -11,9 +11,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.finalizers.commit import BuiltinCommitFinalizerError
+from sase.finalizers.commit import BuiltinCommitFinalizerError, StitchCommandResult
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.declaration import (
+    FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
     publish_final_context,
     submit_final_manifest,
@@ -23,6 +24,7 @@ from sase.finalizers.reconciliation import prepare_commit_dirty_state
 from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
+from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
 from sase.sdd.artifact_link_store import (
@@ -516,3 +518,154 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
     assert "chore(artifact-links): persist link indexes" in _run_git(
         plans, "log", "-1", "--pretty=%s"
     )
+
+
+def _append_commit_result(artifacts: Path, repo_path: str, sha: str, tree: str) -> None:
+    path = artifacts / "commit_results.json"
+    payload: list[dict[str, str]] = []
+    if path.is_file():
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(loaded, list):
+            payload = [item for item in loaded if isinstance(item, dict)]
+    payload.append(
+        {
+            "cwd": repo_path,
+            "result": sha,
+            "commit_sha": sha,
+            "commit_tree": tree,
+        }
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _commit_remaining_stitch(
+    repo: DirtyRepo,
+    message: str,
+    excludes: tuple[str, ...],
+    context: object,
+) -> StitchCommandResult:
+    excluded = set(excludes)
+    to_commit = [
+        path
+        for path in finalizer_git.git_changed_files(repo.path)
+        if path not in excluded
+    ]
+    if not to_commit:
+        return StitchCommandResult(returncode=1, stderr="nothing to commit\n")
+    added = subprocess.run(
+        ["git", "add", "--", *to_commit],
+        cwd=repo.path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if added.returncode != 0:
+        return StitchCommandResult(
+            returncode=added.returncode,
+            stdout=added.stdout,
+            stderr=added.stderr,
+        )
+    committed = subprocess.run(
+        ["git", "commit", "-q", "-m", message],
+        cwd=repo.path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if committed.returncode != 0:
+        return StitchCommandResult(
+            returncode=committed.returncode,
+            stdout=committed.stdout,
+            stderr=committed.stderr,
+        )
+    sha = _run_git(Path(repo.path), "rev-parse", "HEAD").strip()
+    tree = _run_git(Path(repo.path), "rev-parse", "HEAD^{tree}").strip()
+    artifacts_dir = getattr(context, "artifacts_dir", None)
+    if artifacts_dir:
+        _append_commit_result(Path(artifacts_dir), repo.path, sha, tree)
+    return StitchCommandResult(returncode=0, stdout=f"{sha}\n")
+
+
+def test_executor_commits_mixed_report_after_artifact_link_auto_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mixed sidecar: auto-commit the link index, then stitch the report."""
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    main = _create_primary(tmp_path)
+    plans = _create_sidecar(tmp_path, "plans")
+    _set_finalizer_env(monkeypatch, main)
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
+    monkeypatch.setenv(SASE_FINAL_TURN_NONCE_ENV, "nonce-1")
+    monkeypatch.setenv(LINKED_REPOS_JSON_ENV, "[]")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store", lambda *_args: _sdd_store(plans)
+    )
+    _record_reads(plans, "plan:202608/one.md")
+    report = plans / "202608" / "report.md"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text("# mixed report\n", encoding="utf-8")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    stitch_calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        context: object,
+    ) -> StitchCommandResult:
+        stitch_calls.append((repo_arg.name, repo_arg.changed_files))
+        return _commit_remaining_stitch(repo_arg, message, excludes, context)
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(artifacts),
+    )
+    publication = publish_final_context(artifacts_dir=str(artifacts))
+    manifest = deepcopy(publication.payload["manifest_template"])
+    repositories = manifest["payloads"][0]["payload"]["repositories"]
+    assert repositories, "plans sidecar should be a commit obligation"
+    for decision in repositories:
+        decision["action"] = "commit"
+        decision["message"] = "docs: add mixed reconciliation report"
+    submit_final_manifest(manifest, artifacts_dir=str(artifacts))
+
+    result = run_finalizers(
+        provider=MagicMock(),
+        original_prompt="do work",
+        invoke_result=InvokeResult(content="done"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(artifacts),
+    )
+
+    assert result.content == "done"
+    assert len(stitch_calls) == 1
+    assert any(path.endswith("report.md") for path in stitch_calls[0][1])
+    assert not any(path.endswith(".json") for path in stitch_calls[0][1])
+    assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "success"
+    subjects = _run_git(plans, "log", "--pretty=%s")
+    assert "chore(artifact-links): persist link indexes" in subjects
+    assert "docs: add mixed reconciliation report" in subjects
+    tracked = _run_git(plans, "ls-files")
+    assert "links/202608/one.md.json" in tracked
+    assert "202608/report.md" in tracked
+    assert _run_git(plans, "status", "--porcelain", "--untracked-files=all") == ""
+    markers = json.loads(
+        (artifacts / "commit_results.json").read_text(encoding="utf-8")
+    )
+    plans_cwd = str(plans.expanduser().resolve())
+    matching = [item for item in markers if item.get("cwd") == plans_cwd]
+    assert len(matching) >= 2

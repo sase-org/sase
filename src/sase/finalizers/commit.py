@@ -50,12 +50,17 @@ from sase.finalizers.commit_validation import (
 )
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
-from sase.finalizers.reconciliation import prepare_commit_dirty_state
+from sase.finalizers.reconciliation import (
+    pre_reconciliation_dirty_state,
+    pre_reconciliation_fingerprints,
+    prepare_commit_dirty_state,
+    reject_unproven_reconciliation_transition,
+)
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
-from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
+from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
@@ -91,13 +96,15 @@ def execute_commit_finalizer(
 
     artifacts = artifact_root(context.artifacts_dir)
     project_dir = resolve_finalizer_project_dir()
-    # Snapshot before machine-owned reconciliation so auto-commits can prove
-    # accepted repos that became clean. Stitch checks use a later snapshot so
-    # they still require their own markers.
+    # Snapshot the ledger and dirty worktree before machine-owned
+    # reconciliation so auto-commits can prove accepted repos without making
+    # the declaration look stale. Stitch checks use a later snapshot so they
+    # still require their own markers.
     ledger_before_reconciliation = _load_commit_results(artifacts)
     state = prepare_commit_dirty_state(project_dir, artifacts)
     ledger_after_reconciliation = _load_commit_results(artifacts)
     dirty_before_decisions = state.dirty_state
+    dirty_before_reconciliation = pre_reconciliation_dirty_state(state)
     try:
         envelope, accepted_context, host_records = _load_accepted_commit_declaration(
             context.artifacts_dir
@@ -142,6 +149,15 @@ def execute_commit_finalizer(
     }
     decisions = _commit_decisions_for_instance(envelope, instance.instance_id)
     current_result = invoke_result
+    for repo in dirty_before_reconciliation.repos:
+        _reject_stale_repository_obligation(
+            repo,
+            obligation_by_id,
+            instance.instance_id,
+            attempt=_peek_attempt(ledger),
+            ledger=ledger,
+            fingerprints=pre_reconciliation_fingerprints(state, repo),
+        )
     ordered = _dirty_repos_in_context_order(
         state.dirty_state,
         decisions,
@@ -149,14 +165,6 @@ def execute_commit_finalizer(
         attempt=_peek_attempt(ledger),
         ledger=ledger,
     )
-    for repo in ordered:
-        _reject_stale_repository_obligation(
-            repo,
-            obligation_by_id,
-            instance.instance_id,
-            attempt=_peek_attempt(ledger),
-            ledger=ledger,
-        )
     attempt_id: int | None = None
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
@@ -183,6 +191,17 @@ def execute_commit_finalizer(
             ),
             invoke_result=invoke_result,
         )
+    reject_unproven_reconciliation_transition(
+        dirty_before_reconciliation,
+        state.dirty_state,
+        fingerprints_before=state.fingerprints_before,
+        artifacts=artifacts,
+        ledger_before=ledger_before_reconciliation,
+        instance_id=instance.instance_id,
+        attempt=_peek_attempt(ledger),
+        ledger=ledger,
+        invoke_result=invoke_result,
+    )
 
     already_clean = tuple(
         repo

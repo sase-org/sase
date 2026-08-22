@@ -271,8 +271,11 @@ def repository_state_digest(
     repo_id: str,
     repo: DirtyRepo,
     paths: Sequence[str],
+    fingerprints: Mapping[str, tuple[str, str | None]] | None = None,
 ) -> str:
-    fingerprints = dirty_path_fingerprints(repo.path)
+    resolved = (
+        fingerprints if fingerprints is not None else dirty_path_fingerprints(repo.path)
+    )
     return finalizer_json_digest(
         {
             "repo_id": repo_id,
@@ -280,7 +283,7 @@ def repository_state_digest(
             "name": repo.name,
             "paths": list(paths),
             "fingerprints": {
-                path: list(fingerprints[path]) for path in paths if path in fingerprints
+                path: list(resolved[path]) for path in paths if path in resolved
             },
         }
     )

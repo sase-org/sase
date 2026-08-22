@@ -170,6 +170,7 @@ def reject_stale_repository_obligation(
     *,
     attempt: int = 1,
     ledger: InstanceLedger | None = None,
+    fingerprints: Mapping[str, tuple[str, str | None]] | None = None,
 ) -> None:
     repo_id = repository_decision_id(repo)
     obligation = obligation_by_id.get(repo_id)
@@ -200,6 +201,7 @@ def reject_stale_repository_obligation(
         repo_id,
         repo,
         list(repo.changed_files),
+        fingerprints=fingerprints,
     )
     if current != expected:
         if ledger is not None:

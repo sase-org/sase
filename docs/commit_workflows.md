@@ -699,13 +699,26 @@ reachable between the before/after `HEAD`:
    footer lost to a rewrite the run itself performed, independent of whether the message
    still carries it.
 
-`builtin@commit` snapshots that ledger before machine-owned reconciliation (bead,
-plan-status, Q&A, and artifact-link auto-commits). When an accepted dirty repository
-becomes clean because preparation committed it, the newly written marker is compared
-against the pre-reconciliation ledger so the transition is attributable. Ordinary
-`sase stitch create` checks still use a post-reconciliation snapshot, so they require
-their own new marker. An unchanged or stale marker, a marker for a different checkout, a
-clean transition with no new marker, or unpublished machine-owned state still fails
+`builtin@commit` snapshots that ledger — and the dirty worktree fingerprints — before
+machine-owned reconciliation (bead, plan-status, Q&A, and artifact-link auto-commits).
+Declaration staleness is checked against that pre-reconciliation snapshot: accepted
+obligation IDs and whole-repository digests must still match what `/sase_final`
+submitted. Ordinary `sase stitch create` checks still use a post-reconciliation
+snapshot, so they require their own new marker.
+
+When preparation auto-commits machine-owned paths, the post-reconciliation transition
+must be attributable before remaining declared work is stitched:
+
+- If an accepted dirty repository becomes fully clean, a new checkout-matching
+  `commit_results.json` marker must prove the auto-commit.
+- If preparation commits only some paths and the same repository stays dirty (mixed
+  machine-owned indexes plus user-authored documents), those removed paths must be
+  covered by a new checkout-matching marker, remaining declared paths must keep their
+  pre-reconciliation fingerprints, and newly dirty paths are rejected.
+
+An unchanged or stale marker, a marker for a different checkout, a clean or mixed
+transition with no new marker, a residual path whose fingerprint changed after submit,
+an unexpected dirty path or repository, or unpublished machine-owned state still fails
 closed.
 
 When none of those hold, evidence distinguishes two reasons:
