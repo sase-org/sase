@@ -97,16 +97,17 @@ def _build_epic_work_plan(
     source: sqlite3.Connection | str | Path,
     epic_id: str,
 ) -> EpicWorkPlan:
-    """Compute a wave-partitioned plan to work non-closed phase children.
+    """Compute a wave-partitioned plan to work an epic's authored phases.
 
     Non-closed phase children are layered Kahn-style: wave 0 is every phase
     whose in-epic non-closed blockers are all already satisfied (closed);
     wave *k* is every phase whose remaining in-epic non-closed blockers fall
-    in waves < *k*.
+    in waves < *k*. An epic with authored phases that are all closed returns a
+    land-only plan with no phase waves.
 
     Raises:
         EpicPlanError: If the epic does not exist, is not a plan-type bead,
-            or has no non-closed phase children.
+            or has no authored phase children.
         _CrossEpicBlockerError: If a phase depends on an out-of-epic blocker
             that is not closed.
         _CycleError: If the open phases form a dependency cycle.

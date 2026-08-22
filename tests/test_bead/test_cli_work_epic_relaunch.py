@@ -20,6 +20,7 @@ from sase.bead.work import (
 
 from .cli_work_helpers import (
     FakeLaunchResult,
+    bead_wait_lines,
     epic_clan_declaration,
     make_args,
     seed_diamond,
@@ -426,6 +427,196 @@ def test_work_all_running_epic_is_idempotent_without_mutation(
         assert all(
             project.show(phase_id).status is Status.OPEN for phase_id in phase_ids
         )
+
+
+def test_work_all_closed_epic_launches_only_missing_lander(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A retry after every authored phase closed launches only the land agent."""
+    epic_id, phase_ids = seed_diamond(project_dir)
+    land_name = f"{epic_id}.land"
+    with BeadProject(project_dir) as project:
+        project.mark_ready_to_work(epic_id)
+        for index, phase_id in enumerate(phase_ids):
+            project.update(
+                phase_id,
+                status=Status.IN_PROGRESS.value,
+                assignee=f"completed-phase-{index}",
+            )
+        project.close(phase_ids)
+        prior_phase_state = {
+            phase_id: (
+                project.show(phase_id).status,
+                project.show(phase_id).assignee,
+                project.show(phase_id).closed_at,
+            )
+            for phase_id in phase_ids
+        }
+
+        captured: dict[str, Any] = {}
+        original_preclaim = BeadProject.preclaim_epic_work
+
+        def fake_preclaim(
+            self: BeadProject,
+            active_epic_id: str,
+            phase_assignments: list[tuple[str, str]],
+            land_agent_name: str | None,
+        ) -> Any:
+            captured["preclaim_epic"] = active_epic_id
+            captured["phase_assignments"] = tuple(phase_assignments)
+            captured["land_agent_name"] = land_agent_name
+            return original_preclaim(
+                self,
+                active_epic_id,
+                phase_assignments,
+                land_agent_name,
+            )
+
+        def fake_launch(
+            query: str,
+            *,
+            segment_extra_env: tuple[dict[str, str], ...],
+            expected_names: set[str],
+            launch_context: Any,
+        ) -> list[FakeLaunchResult]:
+            captured["query"] = query
+            captured["segment_extra_env"] = segment_extra_env
+            captured["expected_names"] = expected_names
+            captured["launch_context"] = launch_context
+            return [FakeLaunchResult()]
+
+        monkeypatch.setattr(BeadProject, "preclaim_epic_work", fake_preclaim)
+        monkeypatch.setattr(
+            "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+            lambda *_args, **_kwargs: False,
+        )
+        monkeypatch.setattr(
+            "sase.bead.cli_work_handler.launch_bead_work_agents",
+            fake_launch,
+        )
+
+        result = launch_epic_bead_work(
+            project,
+            epic_id,
+            dry_run=False,
+            yes=True,
+            yes_to_all=False,
+            no_push=False,
+        )
+
+        assert result.launch_state == "launched"
+        assert result.launched_agent_names == (land_name,)
+        assert result.preserved_agent_names == ()
+        assert captured["preclaim_epic"] == epic_id
+        assert captured["phase_assignments"] == ()
+        assert captured["land_agent_name"] == land_name
+        assert captured["expected_names"] == {land_name}
+        assert len(captured["segment_extra_env"]) == 1
+        assert captured["segment_extra_env"][0][SASE_BEAD_ID_ENV] == epic_id
+
+        query = captured["query"]
+        assert query.count("\n---\n") == 0
+        assert "#bd/work_phase_bead" not in query
+        assert f"#bd/land_epic:{epic_id}" in query
+        assert f"%id({land_name}, bead={epic_id})" in query
+        assert epic_clan_declaration(epic_id) in query
+        assert "%w:" not in query
+        assert bead_wait_lines(query) == [
+            f"%w(bead={phase_id})" for phase_id in phase_ids
+        ]
+
+        epic = project.show(epic_id)
+        assert (epic.status, epic.assignee) == (Status.IN_PROGRESS, land_name)
+        for phase_id in phase_ids:
+            phase = project.show(phase_id)
+            assert (
+                phase.status,
+                phase.assignee,
+                phase.closed_at,
+            ) == prior_phase_state[phase_id]
+
+    out = capsys.readouterr().out
+    assert "0 phase agent(s) in 0 wave(s) plus 1 land agent" in out
+    assert "Launched 1 agents" in out
+
+
+def test_work_all_closed_epic_preserves_matching_live_lander_without_mutation(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A live land-only retry is an idempotent no-op."""
+    epic_id, phase_ids = seed_diamond(project_dir)
+    land_name = f"{epic_id}.land"
+    with BeadProject(project_dir) as project:
+        for index, phase_id in enumerate(phase_ids):
+            project.update(
+                phase_id,
+                status=Status.IN_PROGRESS.value,
+                assignee=f"completed-phase-{index}",
+            )
+        project.close(phase_ids)
+        prior_phase_state = {
+            phase_id: (
+                project.show(phase_id).status,
+                project.show(phase_id).assignee,
+                project.show(phase_id).closed_at,
+            )
+            for phase_id in phase_ids
+        }
+
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(fake_home, land_name, bead_id=epic_id)
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setattr(
+        BeadProject,
+        "mark_ready_to_work",
+        lambda *_args, **_kwargs: pytest.fail("must not mark ready"),
+    )
+    monkeypatch.setattr(
+        BeadProject,
+        "preclaim_epic_work",
+        lambda *_args, **_kwargs: pytest.fail("must not preclaim"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        lambda *_args, **_kwargs: pytest.fail("must not checkpoint"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.prepare_selected_bead_work_force_reuse",
+        lambda *_args, **_kwargs: pytest.fail("must not clean up"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("must not launch"),
+    )
+
+    with BeadProject(project_dir) as project:
+        result = launch_epic_bead_work(
+            project,
+            epic_id,
+            dry_run=False,
+            yes=True,
+            yes_to_all=False,
+            no_push=False,
+        )
+
+        assert result.launch_state == "already_running"
+        assert result.launched_agent_names == ()
+        assert result.preserved_agent_names == (land_name,)
+        epic = project.show(epic_id)
+        assert epic.status is Status.OPEN
+        assert epic.assignee == ""
+        assert epic.is_ready_to_work is False
+        for phase_id in phase_ids:
+            phase = project.show(phase_id)
+            assert (
+                phase.status,
+                phase.assignee,
+                phase.closed_at,
+            ) == prior_phase_state[phase_id]
 
 
 def test_work_relaunch_after_failure_joins_existing_epic_clan(

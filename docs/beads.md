@@ -1801,7 +1801,8 @@ epic-tier plan beads, launch standalone task beads, or run an ordered mix of tho
 targets. Each target is treated as a plan file when it ends in `.md`, contains a path
 separator, or names an existing file; other targets are bead IDs whose type selects the
 epic or task path. Epic modes run one agent per non-closed, non-delegated phase plus a
-final land agent. Task mode runs exactly one deterministic worker; see
+final land agent; a retry with authored phases that are all already closed launches only
+the land agent. Task mode runs exactly one deterministic worker; see
 [Standalone Task Workflow](#standalone-task-workflow) for its full lifecycle.
 
 Multiple targets use shell-`&&` style sequencing: SASE finishes each target before
@@ -1888,9 +1889,12 @@ Once an epic bead exists, the shared launch path:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If
    the plan is already marked `is_ready_to_work`, the command treats the run as a retry
-   and schedules any remaining non-closed phases. A phase that owns a non-closed child
-   plan/epic is delegated work already in flight and is skipped until that child closes
-   or is removed; retries therefore do not launch a duplicate phase agent.
+   and schedules any remaining non-closed phases. If the epic has authored phase
+   children but every one is already closed, the retry schedules zero phase agents and
+   still launches or recovers `<epic_id>.land`; an epic with no authored phase children
+   remains invalid. A phase that owns a non-closed child plan/epic is delegated work
+   already in flight and is skipped until that child closes or is removed; retries
+   therefore do not launch a duplicate phase agent.
 2. On a confirmed launch, force-reuses the deterministic bead-work names —
    `<epic_id>.<N>` (for each open phase), `<epic_id>.land` (for the land agent), and the
    legacy `<epic_id>` land-agent name — by wiping any prior owner of those names,
@@ -1917,8 +1921,9 @@ Once an epic bead exists, the shared launch path:
    ready.
 4. Builds a Kahn-wave schedule from the epic's schedulable open phase children,
    respecting dependencies and excluding delegated phases with an open child plan/epic.
-   When every remaining phase is delegated, only the land agent is launched and remains
-   parked behind the phase beads.
+   When every remaining phase is delegated, or when no non-closed phase remains on a
+   retry, only the land agent is launched and remains parked behind the phase beads that
+   have not closed yet.
 5. Associates each rendered worker with exactly one bead in its `%id`: the first phase
    uses its full agent name plus `bead=<phase-id>` beside the separate clan declaration,
    later phases combine their suffix, `clan=<epic-id>`, and `bead=<phase-id>`, and the

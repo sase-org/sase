@@ -6,12 +6,21 @@ import sqlite3
 
 import pytest
 
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.model import PhaseSize, Status
 from sase.bead.work import (
     _CrossEpicBlockerError,
     _CycleError,
+    EPIC_CLAN_SUMMARY_SCRIPT,
     EpicPlanError,
+    SASE_BEAD_ID_ENV,
+    SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
+    SASE_EPIC_CLAN_TRIBE_ENV,
+    SASE_EPIC_PLAN_REF_ENV,
+    SASE_PHASE_BEAD_ID_ENV,
     _build_epic_work_plan,
+    epic_work_segment_env,
     _plan_from_payload,
     render_multi_prompt,
 )
@@ -314,6 +323,65 @@ class TestClosedBlockers:
         assert "%w:e1.p2" in rendered
         assert "#bd/land_epic:e1" in rendered
 
+    def test_all_closed_phases_return_and_render_land_only_plan(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase("p1", status=Status.CLOSED),
+                phase("p2", status=Status.CLOSED),
+            ],
+        )
+
+        plan = _build_epic_work_plan(conn, "e1")
+
+        assert plan.total_phase_count == 2
+        assert plan.phase_bead_ids == ("p1", "p2")
+        assert plan.waves == ()
+        assert plan.land_waits_on == ()
+        assert plan.land_agent_name == "e1.land"
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+        assert rendered.count("\n---\n") == 0
+        assert "%id(!e1.land, bead=e1)" in rendered
+        assert (
+            "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)" in rendered
+        )
+        assert "%model:@large" in rendered
+        assert "#bd/work_phase_bead" not in rendered
+        assert "%w:" not in rendered
+        assert "%w(bead=p1)" in rendered
+        assert "%w(bead=p2)" in rendered
+        assert rendered.splitlines()[-1] == "#bd/land_epic:e1"
+
+        joined = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            declare_clan=False,
+        )
+        assert "%clan" not in joined
+        assert "%id(!land, clan=e1, bead=e1)" in joined
+
+        envs = epic_work_segment_env(plan, plan_ref="sdd/plans/e1.md")
+        assert envs == (
+            {
+                SASE_BEAD_ID_ENV: "e1",
+                SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_CLAN_TRIBE_ENV: "epic",
+                SASE_EPIC_PLAN_REF_ENV: "sdd/plans/e1.md",
+                SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV: EPIC_CLAN_SUMMARY_SCRIPT,
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            },
+        )
+        assert SASE_PHASE_BEAD_ID_ENV not in envs[0]
+
     def test_out_of_epic_closed_blocker_is_accepted(
         self, conn: sqlite3.Connection
     ) -> None:
@@ -545,13 +613,7 @@ class TestEpicValidation:
         with pytest.raises(EpicPlanError):
             _build_epic_work_plan(conn, "p1")
 
-    def test_no_open_phases_raises(self, conn: sqlite3.Connection) -> None:
-        seed(
-            conn,
-            [
-                epic("e1"),
-                phase("p1", status=Status.CLOSED),
-            ],
-        )
-        with pytest.raises(EpicPlanError, match="no non-closed phase children"):
+    def test_no_phase_children_raises(self, conn: sqlite3.Connection) -> None:
+        seed(conn, [epic("e1")])
+        with pytest.raises(EpicPlanError, match="no authored phase children"):
             _build_epic_work_plan(conn, "e1")
