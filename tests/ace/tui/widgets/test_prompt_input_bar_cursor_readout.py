@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.ace.tui.widgets._prompt_input_bar_stack_rendering import (
-    _PromptStackSeparator,
+from sase.ace.tui.widgets._prompt_input_bar_stack_separator import (
+    PromptStackSeparator,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
@@ -94,7 +94,7 @@ async def test_multi_pane_parked_separators_carry_readout_active_does_not() -> N
     async with app.run_test(size=(80, 30)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
-        separators = list(app.query(_PromptStackSeparator))
+        separators = list(app.query(PromptStackSeparator))
         assert len(separators) == len(bar._stack.items) == 3
 
         with_readout = [sep for sep in separators if sep.position is not None]
@@ -111,8 +111,8 @@ async def test_focus_item_moves_the_readout() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         items = bar._stack.items
-        sep_0 = app.query_one(f"#{bar._sep_id(items[0])}", _PromptStackSeparator)
-        sep_2 = app.query_one(f"#{bar._sep_id(items[2])}", _PromptStackSeparator)
+        sep_0 = app.query_one(f"#{bar._sep_id(items[0])}", PromptStackSeparator)
+        sep_2 = app.query_one(f"#{bar._sep_id(items[2])}", PromptStackSeparator)
         assert sep_2.position is None
         assert sep_0.position is not None
 
@@ -143,7 +143,7 @@ async def test_parked_position_is_truthful_across_focus_round_trip() -> None:
         bar.focus_item(0)
         await pilot.pause()
 
-        sep_1 = app.query_one(f"#{bar._sep_id(items[1])}", _PromptStackSeparator)
+        sep_1 = app.query_one(f"#{bar._sep_id(items[1])}", PromptStackSeparator)
         assert sep_1.position == (1, 4)
 
 
@@ -229,7 +229,7 @@ async def test_narrow_terminal_separator_drops_readout_keeps_agent_label() -> No
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         items = bar._stack.items
-        sep_0 = app.query_one(f"#{bar._sep_id(items[0])}", _PromptStackSeparator)
+        sep_0 = app.query_one(f"#{bar._sep_id(items[0])}", PromptStackSeparator)
         assert sep_0.position is not None  # the model still has a position
 
         rendered = sep_0.render()
@@ -248,7 +248,7 @@ async def test_set_position_is_a_noop_when_unchanged() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         items = bar._stack.items
-        separator = app.query_one(f"#{bar._sep_id(items[0])}", _PromptStackSeparator)
+        separator = app.query_one(f"#{bar._sep_id(items[0])}", PromptStackSeparator)
 
         calls = []
         original_refresh = separator.refresh
