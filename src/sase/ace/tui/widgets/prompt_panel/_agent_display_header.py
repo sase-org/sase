@@ -49,7 +49,7 @@ from ._agent_display_header_metadata import (
 )
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
-from ._agent_model_section import MODEL_SECTION_ID, ResponsiveModelSection
+from ._agent_shell_section import SHELL_SECTION_ID, ResponsiveShellSection
 from ._agent_output_variables import append_agent_output_variables_section
 from ._agent_page_section import (
     AGENT_PAGE_SECTION_ID,
@@ -192,7 +192,7 @@ def build_header_text(
     meta_fields = metadata.meta_fields
     page_section = metadata.page_section
     wait_section = metadata.wait_section
-    model_section = metadata.model_section
+    shell_section = metadata.shell_section
 
     append_runner_queue_section(header_text, agent, queue_selection)
 
@@ -393,7 +393,7 @@ def build_header_text(
             int,
             ResponsiveAgentPageSection
             | ResponsiveBeadSection
-            | ResponsiveModelSection
+            | ResponsiveShellSection
             | ResponsivePlanSection
             | ResponsiveSlowToolCallsSection
             | ResponsiveWaitSection,
@@ -405,9 +405,9 @@ def build_header_text(
     if wait_section is not None and WAIT_SECTION_ID in responsive_ranges:
         start, end = responsive_ranges[WAIT_SECTION_ID]
         responsive_sections.append((start, end, wait_section))
-    if model_section is not None and MODEL_SECTION_ID in responsive_ranges:
-        start, end = responsive_ranges[MODEL_SECTION_ID]
-        responsive_sections.append((start, end, model_section))
+    if shell_section is not None and SHELL_SECTION_ID in responsive_ranges:
+        start, end = responsive_ranges[SHELL_SECTION_ID]
+        responsive_sections.append((start, end, shell_section))
     if bead_section is not None and "BEAD" in responsive_ranges:
         start, end = responsive_ranges["BEAD"]
         responsive_sections.append((start, end, bead_section))

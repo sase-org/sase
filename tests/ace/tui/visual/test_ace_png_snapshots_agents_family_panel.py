@@ -56,6 +56,8 @@ def _family_agents(
     member_count: int,
     with_content: bool,
     with_monitor: bool = False,
+    monitor_command: str = "just check-full",
+    monitor_reason: str = "Full-suite verification before landing",
 ) -> list[Agent]:
     assert member_count >= 2
     root_dir = tmp_path / "family-plan"
@@ -147,9 +149,9 @@ def _family_agents(
                 monitor_state="completed",
                 monitor_start_status="MONITORING",
                 monitor_stop_status="MONITORED",
-                monitor_command="just check-full",
+                monitor_command=monitor_command,
                 monitor_cwd="/workspace/sase",
-                monitor_reason="Full-suite verification before landing",
+                monitor_reason=monitor_reason,
                 monitor_next_action="Report pass/fail to the user.",
                 monitor_exit_code=1,
                 monitor_timeout_seconds=2700.0,
@@ -356,6 +358,56 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
             lambda _state: (
                 page.app._agents[page.app.current_idx].identity == container_identity
             )
+        )
+
+
+async def test_family_panel_shells_monitor_metadata_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_family_agents(
+            tmp_path,
+            member_count=2,
+            with_content=False,
+            with_monitor=True,
+            monitor_command=(
+                "just check-full --include visual --include slow "
+                "--include every-family-shell-metadata-case"
+            ),
+            monitor_reason=(
+                "Full-suite verification before landing the family shell "
+                "metadata renderer"
+            ),
+        ),
+    )
+
+    async with AcePage(
+        query='"visual-family"',
+        size=(120, 40),
+        patches=patches(),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        container = page.app._agents[page.app.current_idx]
+        assert container.is_family_container_row is True
+        assert_page_svg_contains(page, "Shells:")
+        assert_page_svg_contains(page, "⚙")
+        assert_page_svg_contains(page, "why")
+        assert_page_svg_contains(page, "Full-suite")
+        assert_page_svg_contains(page, "verification")
+        assert_page_svg_contains(page, "FAMILY MEMBERS")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_panel_shells_monitor_120x40",
+            title="ACE family panel shell metadata with monitor",
         )
 
 

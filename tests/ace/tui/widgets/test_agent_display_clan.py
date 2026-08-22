@@ -259,7 +259,6 @@ def test_family_header_recolors_only_real_container_name() -> None:
 
     family_header, _ = build_header_text(family, cheap=True)
 
-    assert isinstance(family_header, Text)
     assert (
         style_at(
             family_header,

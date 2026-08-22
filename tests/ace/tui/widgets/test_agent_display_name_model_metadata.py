@@ -45,6 +45,19 @@ def _family_member(
     )
 
 
+def _monitor_member(**overrides: object) -> Agent:
+    return _family_member(
+        "--mon",
+        "monitor",
+        monitor_command=(
+            "just check-full --include visual --include slow --include every "
+            "--with-extra-long-monitor-command"
+        ),
+        monitor_reason="Full-suite verification before landing",
+        **overrides,
+    )
+
+
 def _family(root: Agent, *members: Agent) -> Agent:
     root.followup_agents = list(members)
     return root
@@ -157,8 +170,8 @@ class TestAgentModelMetadata:
         assert "Model: CLAUDE(opus) @ xhigh ← @medium\n" in header.plain
 
 
-class TestFamilyModelMetadata:
-    def test_family_container_header_shows_one_lane_per_member_in_order(self) -> None:
+class TestFamilyShellMetadata:
+    def test_family_container_header_shows_one_lane_per_shell_in_order(self) -> None:
         agent = _family(
             _family_root(model="opus", llm_provider="claude", reasoning_effort="xhigh"),
             _family_member("--code", "code", model="sonnet", llm_provider="claude"),
@@ -169,11 +182,12 @@ class TestFamilyModelMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert header.plain.count("Model: ") == 1
-        assert "Model: --plan     · CLAUDE(opus) @ xhigh\n" in header.plain
-        assert "       --code     · CLAUDE(sonnet)\n" in header.plain
-        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
-        model_index = header.plain.index("Model:")
+        assert "Model:" not in header.plain
+        assert header.plain.count("Shells: ") == 1
+        assert "Shells: --plan     · CLAUDE(opus) @ xhigh\n" in header.plain
+        assert "        --code     · CLAUDE(sonnet)\n" in header.plain
+        assert "        --reviewer · CODEX(gpt-5.2)\n" in header.plain
+        model_index = header.plain.index("Shells:")
         code_index = header.plain.index("--code")
         reviewer_index = header.plain.index("--reviewer")
         assert model_index < code_index < reviewer_index
@@ -201,11 +215,24 @@ class TestFamilyModelMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Model: --plan     · CLAUDE(opus) @ xhigh ← @large\n" in header.plain
-        assert "       --code     · CLAUDE(sonnet) @ high ← @medium\n" in header.plain
-        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
+        assert "Shells: --plan     · CLAUDE(opus) @ xhigh ← @large\n" in header.plain
+        assert "        --code     · CLAUDE(sonnet) @ high ← @medium\n" in header.plain
+        assert "        --reviewer · CODEX(gpt-5.2)\n" in header.plain
 
-    def test_model_still_sits_between_auto_and_xprompts_for_family_row(self) -> None:
+    def test_mixed_family_header_shows_monitor_shell_without_model_leak(self) -> None:
+        agent = _family(
+            _family_root(model="opus", llm_provider="claude"),
+            _monitor_member(model="sonnet", llm_provider="claude"),
+        )
+
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
+        assert "        --mon  · ⚙ why\n" in header.plain
+        assert "          ↳ Full-suite verification before landing\n" in header.plain
+        assert "CLAUDE(sonnet)" not in header.plain
+
+    def test_shells_still_sits_between_auto_and_xprompts_for_family_row(self) -> None:
         agent = _family(
             _family_root(approve=True, model="opus", llm_provider="claude"),
             _family_member("--code", "code", model="sonnet", llm_provider="claude"),
@@ -217,7 +244,7 @@ class TestFamilyModelMetadata:
         header, _ = build_header_text(agent, cheap=False, summary=summary)
 
         auto_index = header.plain.index("Auto:")
-        model_index = header.plain.index("Model:")
+        model_index = header.plain.index("Shells:")
         xprompts_index = header.plain.index("Xprompts:")
         assert auto_index < model_index < xprompts_index
 
@@ -229,15 +256,20 @@ class TestFamilyModelMetadata:
         assert header.plain.count("Model: ") == 1
         assert "Model: CLAUDE(opus)\n" in header.plain
 
-    def test_family_projection_below_two_members_falls_back_to_single_line(
+    def test_family_partial_projection_still_uses_shells_label(
         self,
     ) -> None:
-        agent = _family_root(model="opus", llm_provider="claude")
+        agent = _family(
+            _family_root(model="opus", llm_provider="claude"),
+            _family_member("--code", "code", model=None, llm_provider=None),
+        )
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert header.plain.count("Model: ") == 1
-        assert "Model: CLAUDE(opus)\n" in header.plain
+        assert "Model:" not in header.plain
+        assert header.plain.count("Shells: ") == 1
+        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
+        assert "        --code · default\n" in header.plain
 
     def test_family_header_is_renderable_with_full_lane_block_in_plain(self) -> None:
         agent = _family(
@@ -248,8 +280,8 @@ class TestFamilyModelMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert isinstance(header, AgentHeaderRenderable)
-        assert "Model: --plan · CLAUDE(opus)\n" in header.plain
-        assert "       --code · CLAUDE(sonnet)\n" in header.plain
+        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
+        assert "        --code · CLAUDE(sonnet)\n" in header.plain
 
 
 class TestAgentAutoApproveMetadata:

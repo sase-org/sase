@@ -38,11 +38,11 @@ from ._helpers import (
     project_display_label,
     should_render_agent_detail_model,
 )
-from ._agent_model_section import (
-    MODEL_LANE_LIMIT,
-    MODEL_SECTION_ID,
-    ResponsiveModelSection,
-    build_family_model_lanes,
+from ._agent_shell_section import (
+    SHELL_LANE_LIMIT,
+    SHELL_SECTION_ID,
+    ResponsiveShellSection,
+    build_family_shell_lanes,
 )
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
@@ -77,7 +77,7 @@ class _AgentMetadataFields:
     meta_fields: list[tuple[str, str]]
     page_section: ResponsiveAgentPageSection | None
     wait_section: ResponsiveWaitSection | None
-    model_section: ResponsiveModelSection | None
+    shell_section: ResponsiveShellSection | None
 
 
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
@@ -260,16 +260,24 @@ def _append_wait_field(
     return section
 
 
-def _append_model_fields(
+def _append_shell_or_model_fields(
     text: Text,
     agent: Agent,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
-) -> ResponsiveModelSection | None:
-    """Append the ``Model:`` field, expanding to per-member lanes for families."""
-    if not should_render_agent_detail_model(agent):
-        return None
-    lanes = build_family_model_lanes(agent)
-    if not lanes:
+) -> ResponsiveShellSection | None:
+    """Append family ``Shells:`` lanes or a concrete-shell ``Model:`` field."""
+    if agent.is_family_container_row:
+        lanes = build_family_shell_lanes(agent)
+        section = ResponsiveShellSection(
+            lanes=lanes[:SHELL_LANE_LIMIT],
+            hidden_count=max(0, len(lanes) - SHELL_LANE_LIMIT),
+        )
+        start = len(text)
+        text.append_text(section.logical_text)
+        if responsive_ranges is not None:
+            responsive_ranges[SHELL_SECTION_ID] = (start, len(text))
+        return section
+    if should_render_agent_detail_model(agent):
         append_model_field(
             text,
             agent.model,
@@ -277,16 +285,7 @@ def _append_model_fields(
             agent.reasoning_effort,
             agent.model_alias,
         )
-        return None
-    section = ResponsiveModelSection(
-        lanes=lanes[:MODEL_LANE_LIMIT],
-        hidden_count=max(0, len(lanes) - MODEL_LANE_LIMIT),
-    )
-    start = len(text)
-    text.append_text(section.logical_text)
-    if responsive_ranges is not None:
-        responsive_ranges[MODEL_SECTION_ID] = (start, len(text))
-    return section
+    return None
 
 
 def _append_retry_fields(text: Text, agent: Agent) -> None:
@@ -377,7 +376,7 @@ def append_agent_metadata_fields(
     )
 
     _append_auto_approve_field(text, agent)
-    model_section = _append_model_fields(text, agent, responsive_ranges)
+    shell_section = _append_shell_or_model_fields(text, agent, responsive_ranges)
 
     if not cheap and summary is not None:
         from ._agent_xprompts import append_agent_xprompts_section
@@ -414,7 +413,7 @@ def append_agent_metadata_fields(
     )
     _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
-    return _AgentMetadataFields(meta_fields, page_section, wait_section, model_section)
+    return _AgentMetadataFields(meta_fields, page_section, wait_section, shell_section)
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:

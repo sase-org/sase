@@ -10,16 +10,16 @@ from rich.text import Span, Text
 
 from ._agent_page_section import ResponsiveAgentPageSection
 from ._agent_bead_section import ResponsiveBeadSection
-from ._agent_model_section import ResponsiveModelSection
 from ._agent_plan_section import ResponsivePlanSection
+from ._agent_shell_section import ResponsiveShellSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import ResponsiveWaitSection
 
 type ResponsiveHeaderSection = (
     ResponsiveAgentPageSection
     | ResponsiveBeadSection
-    | ResponsiveModelSection
     | ResponsivePlanSection
+    | ResponsiveShellSection
     | ResponsiveSlowToolCallsSection
     | ResponsiveWaitSection
 )
