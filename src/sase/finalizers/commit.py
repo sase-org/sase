@@ -20,16 +20,15 @@ from sase.finalizers.commit_declaration import (
     reject_stale_repository_obligation as _reject_stale_repository_obligation,
     repository_decision_id as _repository_decision_id,
 )
+from sase.finalizers.commit_dispatch import (
+    dispatch_commit_decisions as _dispatch_commit_decisions,
+    peek_attempt as _peek_attempt,
+    preflight_attempt as _preflight_attempt,
+)
 from sase.finalizers.commit_repair import (
     load_commit_results as _load_commit_results,
-    marker_evidence as _marker_evidence,
-    marker_matches_repo as _marker_matches_repo,
-    new_commit_markers as _new_commit_markers,
-    record_stitch_artifacts as _record_stitch_artifacts,
-    resolve_commit_conflict as _resolve_commit_conflict,
     run_stitch_create,
     run_stitch_resume,
-    stitch_failure_message as _stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitExecution,
@@ -38,18 +37,16 @@ from sase.finalizers.commit_types import (
     StitchCommandResult,
     StitchRunner,
     failed_result as _failed_result,
-    refused_result as _refused_result,
     success_result as _success_result,
 )
 from sase.finalizers.commit_validation import (
     protected_baseline_paths,
     raise_if_unpublished_machine_state as _raise_if_unpublished_machine_state,
-    reconcile_commit_file_hooks as _reconcile_commit_file_hooks,
     reject_discarded_dirty_work as _reject_discarded_dirty_work,
     unexpected_remaining_paths,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
-from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
+from sase.finalizers.ledger import InstanceLedger
 from sase.finalizers.reconciliation import (
     pre_reconciliation_dirty_state,
     pre_reconciliation_fingerprints,
@@ -62,7 +59,6 @@ from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
 from sase.llm_provider.commit_finalizer_types import DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
-from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
 _COMMIT_PROVIDER_REF = "builtin@commit"
 
@@ -165,7 +161,6 @@ def execute_commit_finalizer(
         attempt=_peek_attempt(ledger),
         ledger=ledger,
     )
-    attempt_id: int | None = None
     attempts: list[FinalizerAttemptWire] = []
     evidence: list[FinalizerOutcomeEvidenceWire] = []
     runner = stitch_runner or run_stitch_create
@@ -244,166 +239,32 @@ def execute_commit_finalizer(
             ),
         )
 
-    for repo in ordered:
-        decision = decisions[_repository_decision_id(repo)]
-        action = str(decision.get("action"))
-        if action == "refuse":
-            reason = str(decision.get("reason", "")).strip()
-            result = _refused_result(
-                instance.instance_id,
-                reason,
-                attempt=_preflight_attempt(ledger),
-            )
-            raise BuiltinCommitFinalizerError(
-                f"commit finalizer refused dirty repository {repo.name}: {reason}",
-                result=result,
-                invoke_result=current_result,
-            )
-        if attempt_id is None:
-            try:
-                attempt_id = (
-                    ledger.consume_before_execute() if ledger is not None else 1
-                )
-            except FinalizerBudgetError as exc:
-                raise BuiltinCommitFinalizerError(
-                    str(exc),
-                    result=_failed_result(
-                        instance.instance_id,
-                        "attempt_budget_exhausted",
-                        str(exc),
-                        attempts=[
-                            FinalizerAttemptWire(
-                                attempt=_preflight_attempt(ledger),
-                                status="failed",
-                                diagnostic_code="attempt_budget_exhausted",
-                            )
-                        ],
-                    ),
-                    invoke_result=current_result,
-                ) from exc
-            attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
-        consumed_attempt = attempt_id
-
-        message = str(decision.get("message", "")).strip()
-        protected = _protected_baseline_paths(artifacts, repo.path)
-        before_markers = _load_commit_results(artifacts)
-        stitch = runner(repo, message, protected, context)
-        _record_stitch_artifacts(
-            context,
-            instance.instance_id,
-            consumed_attempt,
-            stitch,
-            label=repo.name,
-        )
-        if stitch.timed_out or stitch.stdout_truncated or stitch.stderr_truncated:
-            code = "stitch_timeout" if stitch.timed_out else "stitch_output_cap"
-            message_text = f"sase stitch create {code} for {repo.name}"
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code=code,
-            )
-            result = _failed_result(
-                instance.instance_id,
-                code,
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-        if stitch.returncode == EXIT_CODE_CONFLICT:
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code="commit_conflict",
-            )
-            current_result = _resolve_commit_conflict(
-                repo,
-                context,
-                provider=provider,
-                invoke_result=current_result,
-                model_tier=model_tier,
-                suppress_output=suppress_output,
-                model_override=model_override,
-                options=options,
-                resume_runner=resume,
-                attempts=attempts,
-                evidence=evidence,
-                before_markers=before_markers,
-                attempt_id=consumed_attempt,
-            )
-        elif stitch.returncode != 0:
-            message_text = _stitch_failure_message(repo, stitch)
-            attempts[0] = FinalizerAttemptWire(
-                attempt=consumed_attempt,
-                status="failed",
-                diagnostic_code="stitch_failed",
-            )
-            result = _failed_result(
-                instance.instance_id,
-                "stitch_failed",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-
-        markers = _new_commit_markers(before_markers, _load_commit_results(artifacts))
-        repo_markers = [
-            marker for marker in markers if _marker_matches_repo(marker, repo)
-        ]
-        if not repo_markers:
-            message_text = (
-                f"sase stitch create completed for {repo.name}, but no "
-                "commit_results.json entry was recorded"
-            )
-            result = _failed_result(
-                instance.instance_id,
-                "missing_commit_result",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-        evidence.extend(_marker_evidence(repo_markers[-1]))
-        _reconcile_commit_file_hooks(
-            repo,
-            repo_markers[-1],
-            workspace_dir=project_dir,
-        )
-
-        remaining = _unexpected_remaining_paths(repo.path, protected)
-        if remaining:
-            message_text = (
-                f"sase stitch create left uncommitted attributable paths in "
-                f"{repo.name}: " + ", ".join(remaining)
-            )
-            result = _failed_result(
-                instance.instance_id,
-                "dirty_after_stitch",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
-
-        state = prepare_commit_dirty_state(project_dir, artifacts)
+    dispatched = _dispatch_commit_decisions(
+        ordered,
+        decisions,
+        state=state,
+        context=context,
+        instance_id=instance.instance_id,
+        artifacts=artifacts,
+        project_dir=project_dir,
+        provider=provider,
+        invoke_result=current_result,
+        model_tier=model_tier,
+        suppress_output=suppress_output,
+        model_override=model_override,
+        options=options,
+        stitch_runner=runner,
+        resume_runner=resume,
+        ledger=ledger,
+        prepare_dirty_state=prepare_commit_dirty_state,
+        protected_path_resolver=_protected_baseline_paths,
+        unexpected_path_resolver=_unexpected_remaining_paths,
+    )
+    current_result = dispatched.invoke_result
+    state = dispatched.state
+    attempt_id = dispatched.attempt_id
+    attempts = dispatched.attempts
+    evidence = dispatched.evidence
 
     _reject_discarded_dirty_work(
         dirty_before_decisions,
@@ -461,18 +322,6 @@ def execute_commit_finalizer(
             evidence=evidence,
         ),
     )
-
-
-def _preflight_attempt(ledger: InstanceLedger | None) -> int:
-    if ledger is None:
-        return 1
-    return ledger.allocate_attempt()
-
-
-def _peek_attempt(ledger: InstanceLedger | None) -> int:
-    if ledger is None:
-        return 1
-    return ledger.next_attempt
 
 
 def _protected_baseline_paths(
