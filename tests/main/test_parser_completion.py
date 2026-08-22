@@ -8,6 +8,7 @@ from sase.completion.candidates.providers import shipped_kinds
 from sase.main.parser import create_parser, default_list_delegation_notice
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
     flat_help,
     help_subcommand_rows,
     parser_for,
@@ -106,13 +107,13 @@ def test_completion_child_help_documents_short_aliases() -> None:
 
     assert "-j, --json" in list_help
     assert "-j, --json" in spec_help
-    assert "-o, --output FILE" in spec_help
-    assert "-o, --output FILE" in bash_help
-    assert "-o, --output FILE" in fish_help
-    assert "-o, --output FILE" in zsh_help
+    assert_metavar_option_documented(spec_help, "-o", "--output", "FILE")
+    assert_metavar_option_documented(bash_help, "-o", "--output", "FILE")
+    assert_metavar_option_documented(fish_help, "-o", "--output", "FILE")
+    assert_metavar_option_documented(zsh_help, "-o", "--output", "FILE")
     assert "-d, --dry-run" in install_help
     assert "-f, --force" in install_help
-    assert "-t, --target DIR" in install_help
+    assert_metavar_option_documented(install_help, "-t", "--target", "DIR")
     assert "complete -o default" in bash_help
     assert "__sase_cmd" in fish_help
     assert "fpath" in zsh_help

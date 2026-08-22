@@ -11,7 +11,11 @@ import pytest
 from sase.agent.pending_handoff import PIPE_PENDING_MARKER
 from sase.main.parser import create_parser
 from sase.main.pipe_handler import handle_pipe_command
-from tests.main.parser_help_helpers import flat_help, parser_for
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
+    flat_help,
+    parser_for,
+)
 
 
 def _write_meta(artifacts_dir: Path, **fields: Any) -> None:
@@ -51,9 +55,9 @@ def test_pipe_help_documents_flags_example_and_turn_warning() -> None:
     assert "This ends your turn" in help_text
     assert "-f, --fresh" in help_text
     assert "-j, --json" in help_text
-    assert "-m, --model" in help_text
-    assert "-n, --name" in help_text
-    assert "-r, --reason" in help_text
+    assert_metavar_option_documented(help_text, "-m", "--model", "MODEL")
+    assert_metavar_option_documented(help_text, "-n", "--name", "TOKEN")
+    assert_metavar_option_documented(help_text, "-r", "--reason", "TEXT")
     assert "sase pipe 'implement the approved plan'" in help_text
     args = create_parser().parse_args(
         ["pipe", "do the rest", "-f", "-j", "-m", "opus", "-n", "review", "-r", "why"]

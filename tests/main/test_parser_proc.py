@@ -6,6 +6,7 @@ import pytest
 
 from sase.main.parser import _DEFAULT_LIST_GROUP_DEST, create_parser
 from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
     flat_help,
     help_subcommand_rows,
     parser_for,
@@ -108,7 +109,7 @@ def test_proc_run_help_documents_command_and_examples() -> None:
     assert "--detached" not in run_help
     assert "attribution, not delegation" in run_help
     assert "sase proc run -- just check" in run_help
-    assert "-N, --shell" in run_help
+    assert_metavar_option_documented(run_help, "-N", "--shell", "NAME")
     assert "named proc shell" in run_help
     assert "sase proc run -N build -- just check" in run_help
 

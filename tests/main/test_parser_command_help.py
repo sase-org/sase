@@ -204,9 +204,9 @@ def test_pipe_help_documents_prompt_flags_and_turn_warning() -> None:
     assert "This ends your turn" in pipe_help
     assert "-f, --fresh" in pipe_help
     assert "-j, --json" in pipe_help
-    assert "-m, --model" in pipe_help
-    assert "-n, --name" in pipe_help
-    assert "-r, --reason" in pipe_help
+    _assert_metavar_option_documented(pipe_help, "-m", "--model", "MODEL")
+    _assert_metavar_option_documented(pipe_help, "-n", "--name", "TOKEN")
+    _assert_metavar_option_documented(pipe_help, "-r", "--reason", "TEXT")
     assert args.prompt == "continue the work"
     assert args.name == "review"
 
@@ -255,10 +255,12 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "long-term memory markdown file" in memory_read_help
     assert "falling back to ~/sase/memory/" in memory_read_help
     assert "flat note name such as generated_skills.md" in memory_read_help
-    assert "--reason REASON" in memory_read_help
+    _assert_metavar_option_documented(memory_read_help, "-r", "--reason", "REASON")
     assert "Need generated skill context" in memory_read_help
     assert "Identical to `sase memory show`" in memory_read_help
-    assert "-f, --format" in memory_show_help
+    _assert_metavar_option_documented(
+        memory_show_help, "-f", "--format", "{json,markdown,rich}"
+    )
     assert "records no audit event" in memory_show_help
     assert "must use" in memory_show_help
     assert "--evidence EVIDENCE" in memory_write_help

@@ -37,6 +37,23 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+_RICH_BORDERS = frozenset("│╭╮╯╰┌┐┘└┃━─┏┓┗┛┡┩┳┻╋┠┨┯┷")
+
+
+def _collapsed_render(text: str) -> str:
+    """Drop wrap whitespace and Rich table borders so folded paths stay comparable."""
+    return "".join(
+        char for char in text if not char.isspace() and char not in _RICH_BORDERS
+    )
+
+
+def _assert_rendered_path(text: str, path: Path) -> None:
+    needle = _collapsed_render(str(path))
+    assert needle in _collapsed_render(text), (
+        f"path was not present even after collapsing wrap chrome: {path}"
+    )
+
+
 def _stub_skill_sources(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -599,5 +616,25 @@ def test_skills_inventory_reports_retired_deletion_drift(
     text = output.getvalue()
     assert "/sase_old" in text
     assert "retired" in text
-    assert str(source) in text
-    assert str(live) in text
+    _assert_rendered_path(text, source)
+    _assert_rendered_path(text, live)
+
+
+def test_rendered_path_assertion_tolerates_wrap_and_rejects_absence() -> None:
+    wrapped = (
+        "│ retired  claude/sase_old  /var/tmp/pytest-of-runner/long/"
+        "chezmoi/home/dot_claude/skills/sase_old/ │\n"
+        "│                           SKILL.md ->                        │\n"
+        "│                           /var/tmp/pytest-of-runner/long/"
+        "home/.claude/skills/sase_old/SKILL.md    │"
+    )
+    source = Path(
+        "/var/tmp/pytest-of-runner/long/chezmoi/home/dot_claude/skills/"
+        "sase_old/SKILL.md"
+    )
+    live = Path("/var/tmp/pytest-of-runner/long/home/.claude/skills/sase_old/SKILL.md")
+
+    _assert_rendered_path(wrapped, source)
+    _assert_rendered_path(wrapped, live)
+    with pytest.raises(AssertionError, match="collapsing wrap chrome"):
+        _assert_rendered_path(wrapped, Path("/tmp/missing/sase_old/SKILL.md"))
