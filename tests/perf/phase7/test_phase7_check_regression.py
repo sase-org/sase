@@ -118,6 +118,35 @@ class TestLoadBaseline:
         assert override_anchor.rust_slowdown_factor_override == pytest.approx(1.6)
         assert "runner IO variance" in override_anchor.rust_slowdown_factor_reason
 
+    def test_persistent_query_keystroke_override_documents_hosted_evidence(
+        self,
+    ) -> None:
+        factor, anchors, raw = load_baseline(DEFAULT_BASELINE_PATH)
+        assert factor == pytest.approx(1.4)
+        spec = next(
+            a
+            for a in anchors
+            if a.anchor_id
+            == "evaluate_query_many.synthetic_1000_specs.persistent_query_keystroke"
+        )
+        assert spec.must_beat_python is True
+        assert spec.rust_slowdown_factor_override == pytest.approx(2.90)
+        reason = spec.rust_slowdown_factor_reason
+        for token in (
+            "32532695452",
+            "32558460537",
+            "32568874089",
+            "178.28",
+            "184.36",
+            "147.07",
+            "193.44",
+            "must_beat_python",
+            "Revisit",
+        ):
+            assert token in reason, token
+        override = raw["tolerance"]["per_anchor_rust_slowdown_factors"][spec.anchor_id]
+        assert override["rust_slowdown_factor"] == pytest.approx(2.90)
+
     def test_rejects_unknown_schema_version(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
         bad.write_text(
@@ -194,6 +223,49 @@ class TestCheckAnchor:
         assert any(
             "per-anchor rust_slowdown_factor" in n for n in override_result.notes
         )
+
+    def test_persistent_query_override_covers_hosted_max_and_fails_material_regression(
+        self,
+    ) -> None:
+        _, anchors, _ = load_baseline(DEFAULT_BASELINE_PATH)
+        spec = next(
+            a
+            for a in anchors
+            if a.anchor_id
+            == "evaluate_query_many.synthetic_1000_specs.persistent_query_keystroke"
+        )
+        hosted_max_s = 184.36e-6
+        python_s = 5300e-6
+
+        hosted = _check_anchor(
+            spec=spec,
+            rust_med=hosted_max_s,
+            py_med=python_s,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+        assert hosted.passed
+        assert hosted.rust_slowdown_factor_used == pytest.approx(2.90)
+
+        doubled = _check_anchor(
+            spec=spec,
+            rust_med=hosted_max_s * 2,
+            py_med=python_s,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+        assert not doubled.passed
+        assert any("absolute floor" in failure for failure in doubled.failures)
+
+        rust_loses = _check_anchor(
+            spec=spec,
+            rust_med=hosted_max_s,
+            py_med=hosted_max_s * 0.5,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+        assert not rust_loses.passed
+        assert any("must_beat_python" in failure for failure in rust_loses.failures)
 
     def test_fails_when_must_beat_python_and_rust_loses(self) -> None:
         spec = _make_spec(must_beat_python=True)
