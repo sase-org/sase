@@ -197,16 +197,16 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Parent: `AGENTS.md`
-- Lines: 98
-- Approx. tokens: 1409
+- Lines: 110
+- Approx. tokens: 1635
 
 ## Statistics
 
 - Total notes: 17
 - Short notes: 8
 - Long notes: 9
-- Total lines: 1071
-- Total approx. tokens: 13102
+- Total lines: 1083
+- Total approx. tokens: 13328
 
 ## Commands
 

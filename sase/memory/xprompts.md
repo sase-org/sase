@@ -39,12 +39,21 @@ grammar.
 | `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(parent, suffix)` plan-family child                     |
 | `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                    |
 | `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                  |
+| `%final[:ops]`           |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords               |
 | `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                      |
 | `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                |
 | `%hide`                  | `%h`   | Hidden row                                                                            |
 | `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
+
+`%final` is repeatable. Colon and parenthesized forms accept only selector operations:
+lowercase instance slugs add, `!name` removes, and `none` clears removable defaults.
+Comma-separated and repeated operations replay left to right on top of configured
+defaults, then the host orders the selected set by each instance's configured `after`
+dependencies. Required instances cannot be removed by `none` or `!name`. Bare `%final`
+is an empty selector and fails at launch. Prompt text can only select configured
+instances.
 
 Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named agent,
 `%id(<id>, tribe=<tribe>)` for an explicitly named agent, or
@@ -90,9 +99,12 @@ injects the no-direct-commit rule.
 current branch's Patch, and suffixes duplicates with `_<N>`. `#sync` syncs/rebases and
 launches conflict help; `#git:<ref>` checks out a ref and reports the diff.
 
-**Rule:** Agents never create git commits, branches, or PRs directly. The
-provider-neutral finalizer asks the runtime to use `/sase_git_commit` -> `sase commit`,
-honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`, and `SASE_BUG_ID`. Use
-`gh` only for GitHub API/PR reads when needed.
+**Rule:** Agents never create git commits, branches, or PRs directly. Host-owned
+finalizers run after the model returns. Finish with `/sase_final`, which reads
+`sase final context` and submits one `sase final submit` manifest when a payload is
+required. The default `builtin@commit` instance dispatches accepted decisions through
+`sase stitch create`, honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`,
+and `SASE_BUG_ID`. Intentional plan/monitor/pipe/questions handoffs skip declaration.
+Use `gh` only for GitHub API/PR reads when needed.
 
 Typical project-task prompt: `#gh:sase %auto #pr:my_change <task text>`.
