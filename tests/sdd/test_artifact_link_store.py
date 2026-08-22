@@ -349,6 +349,135 @@ def test_file_file_row_persists_in_the_aggregate(
     assert rows[0]["source_ref"] == "file:explicit:0123456789abcdef01234567"
 
 
+def test_bead_load_includes_aggregate_only_incoming_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("Left", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": tmp_path / "plans"},
+            beads_dir=project.beads_dir,
+        )
+        (tmp_path / "plans").mkdir(exist_ok=True)
+        store.upsert_row(
+            _row(
+                source="agent:alice.athena.reviewer",
+                relation="cites",
+                target=f"bead:{issue.id}",
+                origin="prompt_ref",
+                description="Prompt citation of the bead.",
+                uses=3,
+            )
+        )
+
+        rows = store.load_artifact_rows(f"bead:{issue.id}")
+        assert len(rows) == 1
+        assert rows[0]["source_ref"] == "agent:alice.athena.reviewer"
+        assert rows[0]["uses"] == 3
+
+
+def test_bead_owned_rows_skip_a_second_bead_store_reduction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        left = project.create("Left", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": tmp_path / "plans"},
+            beads_dir=project.beads_dir,
+        )
+        (tmp_path / "plans").mkdir(exist_ok=True)
+        owned = _row(
+            source=f"bead:{left.id}",
+            relation="implements",
+            target="plan:202608/a.md",
+            description="lands the approved CLI design",
+        )
+        calls = {"list": 0}
+        real = ArtifactLinkStore._list_bead_issues
+
+        def counting(self: ArtifactLinkStore) -> tuple[object, ...]:
+            calls["list"] += 1
+            return real(self)
+
+        monkeypatch.setattr(ArtifactLinkStore, "_list_bead_issues", counting)
+        rows = store.load_artifact_rows(
+            f"bead:{left.id}",
+            bead_owned_rows=(owned,),
+        )
+        assert calls["list"] == 0
+        assert rows[0]["target_ref"] == "plan:202608/a.md"
+        store.load_artifact_rows(f"bead:{left.id}")
+        assert calls["list"] == 1
+
+
+def test_bead_merge_includes_sidecar_and_deduplicates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("Left", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": tmp_path / "plans"},
+            beads_dir=project.beads_dir,
+        )
+        (tmp_path / "plans").mkdir(exist_ok=True)
+        sidecar = _row(
+            source="plan:202608/a.md",
+            relation="related",
+            target=f"bead:{issue.id}",
+            description="plan sidecar row",
+        )
+        store.upsert_row(sidecar)
+        owned = _row(
+            source=f"bead:{issue.id}",
+            relation="related",
+            target="plan:202608/a.md",
+            description="bead owned duplicate",
+        )
+        rows = store.load_artifact_rows(
+            f"bead:{issue.id}",
+            bead_owned_rows=(owned,),
+        )
+        related = [row for row in rows if row["relation"] == "related"]
+        assert len(related) == 1
+        assert related[0]["description"] == "bead owned duplicate"
+
+
+def test_missing_sidecar_root_is_not_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": tmp_path / "missing-plans"},
+    )
+    assert store.load_artifact_rows("plan:202608/a.md") == ()
+
+
+def test_malformed_sidecar_index_is_fail_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    index_path = _plan_index(tmp_path, "a.md")
+    index_path.parent.mkdir(parents=True)
+    index_path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises((json.JSONDecodeError, RuntimeError)):
+        store.load_artifact_rows("plan:202608/a.md")
+
+
 def test_upsert_canonicalizes_historical_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

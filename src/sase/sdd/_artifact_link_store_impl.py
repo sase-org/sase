@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 import fcntl
 from pathlib import Path
@@ -22,7 +22,6 @@ from sase.sdd._artifact_link_store_support import (
     pair_matches,
     read_artifact_link_index,
     read_json_object,
-    row_has_bead_endpoint,
     row_touches,
     sidecar_index_path,
     sidecar_kind_for_role,
@@ -31,10 +30,7 @@ from sase.sdd._artifact_link_store_support import (
     validate_artifact_link_row,
     writes_sidecar_json,
 )
-from sase.sdd.referenced_by_index import (
-    REFERENCED_BY_LINKS_DIR,
-    referenced_by_index_schema_version,
-)
+from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
 from sase.sdd.store import SddStore, document_sidecar_roles
 
 
@@ -185,10 +181,22 @@ class ArtifactLinkStore:
             beads_changed=bool(bead_dropped),
         )
 
-    def load_artifact_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:
-        """Return every stored row touching *artifact_ref*."""
+    def load_artifact_rows(
+        self,
+        artifact_ref: str,
+        *,
+        bead_owned_rows: Sequence[Mapping[str, Any]] | None = None,
+    ) -> tuple[dict[str, Any], ...]:
+        """Return every stored row touching *artifact_ref*.
+
+        When *bead_owned_rows* is supplied for a ``bead:`` ref, those rows are
+        treated as the authoritative bead-owned neighborhood and the bead
+        event store is not reduced again.
+        """
 
         canonical = canonicalize_artifact_link_ref(artifact_ref)
+        if bead_owned_rows is not None and kind_of_ref(canonical) == BEAD_KIND:
+            return self._merge_bead_neighborhood(canonical, bead_owned_rows)
         root = self.sidecar_root_for(canonical)
         if root is not None:
             index = read_artifact_link_index(
@@ -228,8 +236,12 @@ class ArtifactLinkStore:
         collected = list(self._iter_sidecar_rows())
         collected.extend(self._iter_bead_rows())
         for row in self.load_aggregate().get("rows", []):
+            # Bead-sourced rows are rebuilt from the event store. Keep
+            # aggregate-only incoming rows whose source is not a bead,
+            # notably ``agent:`` citations and audited reads of a bead.
             if self._is_aggregate_only(row) and not (
-                self.beads_dir is not None and row_has_bead_endpoint(row)
+                self.beads_dir is not None
+                and kind_of_ref(str(row.get("source_ref") or "")) == BEAD_KIND
             ):
                 collected.append(row)
         return {
@@ -429,11 +441,31 @@ class ArtifactLinkStore:
         extra = [
             row for row in self._iter_sidecar_rows() if row_touches(row, artifact_ref)
         ]
+        extra.extend(self._aggregate_only_rows_touching(artifact_ref))
         return rows_touching_bead(
             self._list_bead_issues(),
             issue_id,
             extra_rows=extra,
         )
+
+    def _merge_bead_neighborhood(
+        self,
+        artifact_ref: str,
+        bead_owned_rows: Sequence[Mapping[str, Any]],
+    ) -> tuple[dict[str, Any], ...]:
+        collected = [dict(row) for row in bead_owned_rows]
+        collected.extend(
+            row for row in self._iter_sidecar_rows() if row_touches(row, artifact_ref)
+        )
+        collected.extend(self._aggregate_only_rows_touching(artifact_ref))
+        return tuple(unique_rows(collected))
+
+    def _aggregate_only_rows_touching(self, artifact_ref: str) -> list[dict[str, Any]]:
+        return [
+            dict(row)
+            for row in self.load_aggregate().get("rows", [])
+            if self._is_aggregate_only(row) and row_touches(row, artifact_ref)
+        ]
 
     def _iter_bead_rows(self) -> Iterable[dict[str, Any]]:
         if self.beads_dir is None:
@@ -466,13 +498,6 @@ class ArtifactLinkStore:
             if not links_root.is_dir():
                 continue
             for path in sorted(links_root.rglob("*.json")):
-                schema = referenced_by_index_schema_version(path)
-                if schema is None:
-                    continue
-                if schema != ARTIFACT_LINK_ROW_SCHEMA_VERSION:
-                    raise RuntimeError(
-                        f"unsupported schema-v{schema} artifact link index: {path}"
-                    )
                 relative = path.relative_to(links_root).as_posix()
                 if not relative.endswith(".json"):
                     continue

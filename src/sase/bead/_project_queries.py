@@ -26,11 +26,15 @@ class BeadProjectQueryMixin:
         issue_id = self.resolve_id(issue_id)
         return rust_beads.show(self.beads_dir, issue_id)
 
-    def show_issue_detail(self, issue_id: str) -> BeadIssueDetailSnapshot:
+    def show_issue_detail(
+        self, issue_id: str, *, include_links: bool = True
+    ) -> BeadIssueDetailSnapshot:
         """Resolve one issue and its detail relationships in one store read."""
         from sase.core import bead_read_facade as rust_beads
 
-        return rust_beads.show_issue_detail(self.beads_dir, issue_id)
+        return rust_beads.show_issue_detail(
+            self.beads_dir, issue_id, include_links=include_links
+        )
 
     def resolve_id(self, issue_id: str) -> str:
         """Return the canonical full ID for a full or shorthand bead ID."""

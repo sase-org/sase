@@ -81,6 +81,36 @@ def test_read_facade_matches_bead_project_queries(
         project.__exit__()
 
 
+def test_read_facade_show_issue_detail_can_skip_link_projection(
+    tmp_path: Path,
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+    from sase.sdd.artifact_link_beads import add_bead_endpoint_link
+
+    with BeadProject.init(tmp_path) as project:
+        left = project.create("Left", IssueType.PLAN)
+        right = project.create("Right", IssueType.PLAN)
+        add_bead_endpoint_link(
+            project.beads_dir,
+            issue_id=left.id,
+            target_ref=f"bead:{right.id}",
+            relation="related",
+            description="shares the same rendering contract",
+            origin="manual",
+            now="2026-08-22T14:10:00Z",
+        )
+        enabled = rust_beads.show_issue_detail(project.beads_dir, left.id)
+        disabled = rust_beads.show_issue_detail(
+            project.beads_dir, left.id, include_links=False
+        )
+
+    assert enabled.artifact_links
+    assert enabled.artifact_links[0].created_at == "2026-08-22T14:10:00Z"
+    assert disabled.artifact_links == ()
+    assert disabled.issue.links
+
+
 def test_read_facade_missing_issue_raises_key_error(
     bead_store: tuple[BeadProject, Path, dict[str, Issue]],
 ) -> None:

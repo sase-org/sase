@@ -20,6 +20,35 @@ from sase.core.rust import require_rust_binding
 
 
 @dataclass(frozen=True)
+class BeadArtifactLinkRow:
+    """One provenance-bearing bead-owned artifact-link neighborhood row."""
+
+    source_ref: str
+    relation: str
+    target_ref: str
+    description: str
+    origin: str
+    created_by: str
+    created_at: str
+    uses: int = 1
+
+    def as_row_dict(self) -> dict[str, Any]:
+        """Return the v2 aggregate-row shape used by :class:`ArtifactLinkStore`."""
+
+        return {
+            "schema_version": 2,
+            "source_ref": self.source_ref,
+            "relation": self.relation,
+            "target_ref": self.target_ref,
+            "description": self.description,
+            "origin": self.origin,
+            "created_by": self.created_by,
+            "created_at": self.created_at,
+            "uses": self.uses,
+        }
+
+
+@dataclass(frozen=True)
 class BeadIssueDetailSnapshot:
     """Relationships resolved from one Rust bead-store snapshot."""
 
@@ -28,6 +57,7 @@ class BeadIssueDetailSnapshot:
     children: tuple[Issue, ...]
     depends_on: tuple[Issue | None, ...]
     blocks: tuple[Issue, ...]
+    artifact_links: tuple[BeadArtifactLinkRow, ...] = ()
 
 
 def show(beads_dir: Path | str, issue_id: str) -> Issue:
@@ -40,10 +70,17 @@ def show(beads_dir: Path | str, issue_id: str) -> Issue:
     return issue_from_dict(payload)
 
 
-def show_issue_detail(beads_dir: Path | str, issue_id: str) -> BeadIssueDetailSnapshot:
+def show_issue_detail(
+    beads_dir: Path | str,
+    issue_id: str,
+    *,
+    include_links: bool = True,
+) -> BeadIssueDetailSnapshot:
     binding = require_rust_binding("bead_show_issue_detail")
     try:
-        payload: dict[str, Any] = binding(str(beads_dir), issue_id)
+        payload: dict[str, Any] = binding(
+            str(beads_dir), issue_id, include_links=include_links
+        )
     except ValueError as exc:
         _raise_key_error_for_missing_issue(issue_id, exc)
         raise
@@ -59,6 +96,29 @@ def show_issue_detail(beads_dir: Path | str, issue_id: str) -> BeadIssueDetailSn
             for issue in payload["depends_on"]
         ),
         blocks=tuple(issues_from_list(payload["blocks"])),
+        artifact_links=tuple(
+            _artifact_link_row_from_dict(row)
+            for row in payload.get("artifact_links") or ()
+        ),
+    )
+
+
+def _artifact_link_row_from_dict(payload: object) -> BeadArtifactLinkRow:
+    row = payload if isinstance(payload, dict) else {}
+    uses_raw = row.get("uses", 1)
+    try:
+        uses = int(uses_raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        uses = 1
+    return BeadArtifactLinkRow(
+        source_ref=str(row.get("source_ref") or ""),
+        relation=str(row.get("relation") or ""),
+        target_ref=str(row.get("target_ref") or ""),
+        description=str(row.get("description") or ""),
+        origin=str(row.get("origin") or ""),
+        created_by=str(row.get("created_by") or ""),
+        created_at=str(row.get("created_at") or ""),
+        uses=uses if uses > 0 else 1,
     )
 
 
@@ -197,6 +257,7 @@ def _raise_key_error_for_missing_issue(issue_id: str, exc: ValueError) -> None:
 
 
 __all__ = [
+    "BeadArtifactLinkRow",
     "BeadIssueDetailSnapshot",
     "blocked",
     "doctor",

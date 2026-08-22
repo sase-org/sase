@@ -30,7 +30,15 @@ def test_show_parser_defaults_to_full_without_overwriting_bare_bead_default() ->
     parser = create_parser()
 
     assert parser.parse_args(["bead", "show", "sase-64"]).format == "full"
+    assert parser.parse_args(["bead", "show", "sase-64"]).no_links is False
     assert parser.parse_args(["bead"]).format == "compact"
+
+
+@pytest.mark.parametrize("flag", ["--no-links", "-N"])
+def test_show_parser_accepts_no_links_aliases(flag: str) -> None:
+    args = create_parser().parse_args(["bead", "show", "sase-64", flag])
+
+    assert args.no_links is True
 
 
 def test_show_parser_rejects_unknown_format() -> None:

@@ -224,15 +224,6 @@ def pair_matches(
     return str(row.get("relation") or "") == relation
 
 
-def row_has_bead_endpoint(row: Mapping[str, Any]) -> bool:
-    """Return whether either endpoint in a row is a bead."""
-
-    source = str(row.get("source_ref") or "")
-    target = str(row.get("target_ref") or "")
-    prefix = f"{BEAD_KIND}:"
-    return source.startswith(prefix) or target.startswith(prefix)
-
-
 def row_touches(row: Mapping[str, Any], artifact_ref: str) -> bool:
     """Return whether a row touches an artifact reference."""
 

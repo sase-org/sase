@@ -6782,7 +6782,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "986ebe04e4a9940f",
+            "description_digest": "50fd2924cb576cdd",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -6830,6 +6830,18 @@
                   "--format"
                 ],
                 "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "no_links",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-N",
+                  "--no-links"
+                ],
+                "takes_value": false
               },
               {
                 "choices": [

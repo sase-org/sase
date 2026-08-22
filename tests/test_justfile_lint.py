@@ -16,6 +16,7 @@ def _clean_sase_core_env() -> dict[str, str]:
     env = os.environ.copy()
     env.pop("SASE_CORE_DIR", None)
     env.pop("SASE_CORE_WHEEL", None)
+    env.pop("SASE_ALLOW_STALE_CORE", None)
     env.pop("SASE_LINKED_REPO_SASE_CORE_DIR", None)
     env.pop("SASE_LINKED_REPO_SASE_CORE_PRIMARY_DIR", None)
     env.pop("SASE_SIBLING_REPO_SASE_CORE_DIR", None)

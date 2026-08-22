@@ -62,5 +62,6 @@
     "source": "self",
     "path": "plans/alpha.md",
     "from": null
-  }
+  },
+  "artifact_links": []
 }

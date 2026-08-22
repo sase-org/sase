@@ -1562,16 +1562,16 @@ sase bead search auth --type plan --tier epic
 ### `sase bead show <id>`
 
 Display complete details for an issue including status, type, task type, tier, parent
-lineage, dependencies, blockers, description, the rendered task-type body block, notes,
-Patch metadata, model, linked plan path, artifact references, external issue reference,
-creator, and the hosted page URL when one resolves locally. A typed task prints a
-`Task type` row and appends the spec's body template below the description. When the
-type is unknown on this machine, the raw field pairs print under a
-`(not installed on this machine)` header instead. An `EXTERNAL` section (`Ref: <value>`)
-appears only when the bead has an external reference set via `-x/--external-ref`. The
-`CREATED BY` block localizes an agent's durable global name and links to its hosted
-agents-sidecar page when that URL resolves. A human-created bead shows the creator's
-email without a link. `sase bead list --format full` and
+lineage, dependencies, blockers, typed artifact links, description, the rendered
+task-type body block, notes, Patch metadata, model, linked plan path, artifact
+references, external issue reference, creator, and the hosted page URL when one resolves
+locally. A typed task prints a `Task type` row and appends the spec's body template
+below the description. When the type is unknown on this machine, the raw field pairs
+print under a `(not installed on this machine)` header instead. An `EXTERNAL` section
+(`Ref: <value>`) appears only when the bead has an external reference set via
+`-x/--external-ref`. The `CREATED BY` block localizes an agent's durable global name and
+links to its hosted agents-sidecar page when that URL resolves. A human-created bead
+shows the creator's email without a link. `sase bead list --format full` and
 `sase bead search --format full` share the same `CREATED BY` block but never resolve or
 print the hosted-agent link — only `sase bead show` does. Compact
 `sase bead list`/`sase bead search` rows never show the creator at all. Closed beads
@@ -1596,14 +1596,52 @@ longer each re-probe `git remote` and re-merge sidecar config from scratch), thi
 target — including beads with `refs`, which previously paid the repo-inventory cost
 twice.
 
+Typed artifact relationships appear after parent/children/dependency blocks and before
+description and notes. They are not scheduling edges: `DEPENDS ON` and `BLOCKS` stay
+backed only by `sase bead dep`. Full output shows every link that touches the bead,
+including links stored on another bead, document-sidecar rows, and aggregate-only
+automatic citations or audited reads. Each row is described from the displayed bead's
+perspective using the relation registry: outgoing directed edges keep their authored
+slug, incoming directed edges use the registered inverse, and undirected `related` edges
+stay symmetric.
+
+```text
+LINKS (2)
+  → implements · plan:202608/link-aware-bead-show.md
+    Lands the approved CLI design.
+    manual · added 2026-08-22T14:10:00Z by alice.athena.worker
+  ↔ related · bead:sase-a1
+    Shares the same rendering contract.
+    migrated · added 2026-08-20T09:00:00Z by alice
+
+REFERENCED BY (1)
+  ← cited-by · agent:alice.athena.reviewer
+    Prompt citation of bead:sase-b2.
+    prompt citation · 3 uses · added 2026-08-22T15:00:00Z by alice.athena.reviewer
+```
+
+`LINKS` holds `manual`, `migrated`, and any other non-automatic origin. `REFERENCED BY`
+holds `prompt_ref` and `read` origins with friendly labels (`prompt citation`,
+`audited read`) and accumulated use counts. Unknown legacy origin values print as raw
+labels. Identity and provenance rows stay atomic; link reasons wrap with the same
+`--wrap` budget as description prose. Missing optional sidecars mean there are no
+external rows. A present but malformed or unsupported link index fails loudly and prints
+a hint to rerun with `--no-links`. Stored `issue.refs` remain a separate `REFS` section.
+
 `full` is the default detail block. `compact` prints the same single row as
-`sase bead list`. `json` emits a single-bead envelope with `issue`, `ancestors`,
-`children`, `depends_on`, `blocks`, and `plan`, plus `page_url` when a hosted page URL
-resolves and `created_by_url` when the creator's hosted agent page resolves; every
-relationship reference includes a `resolved` flag and fixed null-valued fields for
-unresolved IDs. The `issue.size` key is always present and is `null` for a bead with no
-stored size. The `issue.external_ref` key is always present and is an empty string for a
-bead with no external reference set. `sase bead list --format json` and
+`sase bead list` and never expands artifact links. `json` emits a single-bead envelope
+with `issue`, `ancestors`, `children`, `depends_on`, `blocks`, `plan`, and an additive
+`artifact_links` array, plus `page_url` when a hosted page URL resolves and
+`created_by_url` when the creator's hosted agent page resolves; every relationship
+reference includes a `resolved` flag and fixed null-valued fields for unresolved IDs.
+Each `artifact_links` row includes both stored endpoints, the stored and
+perspective-aware relations, direction (`outgoing`, `incoming`, or `symmetric`),
+counterpart ref, reason, origin, actor, timestamp, and uses. The existing `issue.links`
+outbound storage projection remains unchanged by default. `--no-links` omits both human
+link sections, the top-level `artifact_links` array, and `issue.links`. The `issue.size`
+key is always present and is `null` for a bead with no stored size. The
+`issue.external_ref` key is always present and is an empty string for a bead with no
+external reference set. `sase bead list --format json` and
 `sase bead search --format json` include the same `external_ref` key on every issue.
 
 `--format full` renders a semantically colored, syntax-highlighted detail block
@@ -1643,12 +1681,13 @@ structured relationship rows, plan paths, refs, and the title row are left unwra
 sase bead show sase-64 --wrap auto
 ```
 
-| Flag           | Values                             | Description                                                                 |
-| -------------- | ---------------------------------- | --------------------------------------------------------------------------- |
-| `-c, --color`  | `auto`, `always`, `never`          | Color mode; now applies to `--format full` too                              |
-| `-f, --format` | `compact`, `json`, `full`          | Output format; defaults to `full`                                           |
-| `-s, --style`  | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto`                       |
-| `-w, --wrap`   | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `markdown.print_width` (`88`) |
+| Flag             | Values                             | Description                                                                  |
+| ---------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `-c, --color`    | `auto`, `always`, `never`          | Color mode; now applies to `--format full` too                               |
+| `-f, --format`   | `compact`, `json`, `full`          | Output format; defaults to `full`                                            |
+| `-N, --no-links` | flag                               | Skip artifact-link resolution; omit LINKS, REFERENCED BY, and JSON link data |
+| `-s, --style`    | `auto`, `plain`, `rich`            | Styling level for `--format full`; defaults to `auto`                        |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | Prose wrap width for full output; defaults to `markdown.print_width` (`88`)  |
 
 ### `sase bead snooze <id> [<id2> ...]`
 

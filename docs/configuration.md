@@ -4793,10 +4793,14 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 
 #### `sase bead show`
 
-| Flag           | Values                    | Default    | Description   |
-| -------------- | ------------------------- | ---------- | ------------- |
-| `id`           | string                    | (required) | Issue ID      |
-| `-f, --format` | `compact`, `json`, `full` | `full`     | Output format |
+| Flag             | Values                             | Default     | Description                                                              |
+| ---------------- | ---------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| `id`             | string                             | (required)  | Issue ID                                                                 |
+| `-c, --color`    | `auto`, `always`, `never`          | `auto`      | Color mode; applies to `--format full` and compact                       |
+| `-f, --format`   | `compact`, `json`, `full`          | `full`      | Output format. Compact never expands artifact links                      |
+| `-N, --no-links` | flag                               | off         | Skip artifact-link neighborhood resolution and omit link sections / JSON |
+| `-s, --style`    | `auto`, `plain`, `rich`            | `auto`      | Styling level for `--format full`                                        |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | print width | Prose wrap width for description, notes, link reasons, and evidence      |
 
 #### `sase bead open`
 

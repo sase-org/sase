@@ -5,10 +5,12 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
+from sase.bead.cli_detail_links import BeadLinkView
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.core.bead_read_facade import BeadArtifactLinkRow
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,9 @@ class IssueDetail:
     depends_on: tuple[IssueRef, ...]
     blocks: tuple[IssueRef, ...]
     plan: PlanLink | None
+    artifact_links: tuple[BeadLinkView, ...] = ()
+    bead_owned_artifact_links: tuple[BeadArtifactLinkRow, ...] = ()
+    include_links: bool = True
 
 
 @dataclass(frozen=True)
@@ -103,11 +108,16 @@ class IssueDetailIndex:
         )
 
 
-def resolve_issue_detail(view: BeadProject, issue: Issue | str) -> IssueDetail:
+def resolve_issue_detail(
+    view: BeadProject,
+    issue: Issue | str,
+    *,
+    include_links: bool = True,
+) -> IssueDetail:
     """Resolve every relationship needed by the text and JSON detail views."""
     if hasattr(view, "show_issue_detail"):
         issue_id = issue if isinstance(issue, str) else issue.id
-        snapshot = view.show_issue_detail(issue_id)
+        snapshot = _show_issue_detail(view, issue_id, include_links=include_links)
         resolved_issue = snapshot.issue
         ancestors = _ancestor_refs_from_snapshot(resolved_issue, snapshot.ancestors)
         phases = tuple(
@@ -139,14 +149,26 @@ def resolve_issue_detail(view: BeadProject, issue: Issue | str) -> IssueDetail:
             depends_on=dependencies,
             blocks=blocks,
             plan=_resolve_plan_link(resolved_issue, ancestors),
+            bead_owned_artifact_links=getattr(snapshot, "artifact_links", ()),
+            include_links=include_links,
         )
 
     if isinstance(issue, str):
         issue = view.show(issue)
-    return _resolve_issue_detail_legacy(view, issue)
+    return _resolve_issue_detail_legacy(view, issue, include_links=include_links)
 
 
-def _resolve_issue_detail_legacy(view: BeadProject, issue: Issue) -> IssueDetail:
+def _show_issue_detail(view: BeadProject, issue_id: str, *, include_links: bool) -> Any:
+    method = view.show_issue_detail
+    try:
+        return method(issue_id, include_links=include_links)
+    except TypeError:
+        return method(issue_id)
+
+
+def _resolve_issue_detail_legacy(
+    view: BeadProject, issue: Issue, *, include_links: bool = True
+) -> IssueDetail:
     ancestors = _parent_lineage(view, issue)
     children = view.get_epic_children(issue.id)
     phases = tuple(
@@ -178,6 +200,7 @@ def _resolve_issue_detail_legacy(view: BeadProject, issue: Issue) -> IssueDetail
 
     return IssueDetail(
         issue=issue,
+        include_links=include_links,
         ancestors=ancestors,
         phases=phases,
         child_epics=child_epics,

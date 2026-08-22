@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import sase
+from sase.bead.cli_detail_links import BeadLinkView
 from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
 from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.flag_due import flag_removal_due
@@ -21,10 +22,15 @@ def render_issue_detail_json(
     *,
     created_by_url: str | None = None,
     page_url: str | None = None,
+    include_links: bool | None = None,
 ) -> str:
     """Render a stable single-bead JSON envelope."""
+    emit_links = detail.include_links if include_links is None else include_links
+    issue_payload = issue_to_wire_dict(detail.issue)
+    if not emit_links:
+        issue_payload.pop("links", None)
     envelope: dict[str, object] = {
-        "issue": issue_to_wire_dict(detail.issue),
+        "issue": issue_payload,
         "ancestors": [
             ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.ancestors
         ],
@@ -42,11 +48,31 @@ def render_issue_detail_json(
         "blocks": [ref_to_wire_dict(ref.issue_id, ref.issue) for ref in detail.blocks],
         "plan": _plan_to_wire_dict(detail.plan),
     }
+    if emit_links:
+        envelope["artifact_links"] = [
+            _artifact_link_to_wire_dict(view) for view in detail.artifact_links
+        ]
     if created_by_url:
         envelope["created_by_url"] = created_by_url
     if page_url:
         envelope["page_url"] = page_url
     return json.dumps(envelope, indent=2) + "\n"
+
+
+def _artifact_link_to_wire_dict(view: BeadLinkView) -> dict[str, object]:
+    return {
+        "source_ref": view.source_ref,
+        "target_ref": view.target_ref,
+        "relation": view.relation,
+        "displayed_relation": view.displayed_relation,
+        "direction": view.direction,
+        "counterpart_ref": view.counterpart_ref,
+        "reason": view.reason,
+        "origin": view.origin,
+        "actor": view.actor,
+        "timestamp": view.timestamp,
+        "uses": view.uses,
+    }
 
 
 def issue_to_wire_dict(issue: Issue) -> dict[str, object]:

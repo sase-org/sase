@@ -21,6 +21,7 @@ from sase.bead.cli_detail_json import (
     ref_to_wire_dict,
     render_issue_detail_json,
 )
+from sase.bead.cli_detail_links import BeadLinkView, uses_label
 from sase.bead.cli_detail_prose import highlight_prose
 from sase.bead.cli_detail_resolution import (
     IssueDetail,
@@ -312,6 +313,16 @@ def render_issue_detail(
                     f"{palette.accent(f'[{blocked.status.value.upper()}]', blocked_status.cli_style)}"
                 )
 
+    if detail.include_links:
+        lines.extend(
+            _render_artifact_link_section_lines(
+                detail.artifact_links,
+                palette=palette,
+                style=style,
+                wrap=wrap,
+            )
+        )
+
     description_lines = _description_and_task_type_lines(issue, style=style, wrap=wrap)
     if description_lines:
         lines.extend(["", palette.section("DESCRIPTION"), *description_lines])
@@ -372,14 +383,6 @@ def render_issue_detail(
             )
         )
 
-    if issue.links:
-        lines.extend(["", palette.section("LINKS")])
-        for link in issue.links:
-            lines.append(
-                f"  {palette.label(link.relation)}  "
-                f"{palette.path(link.target_ref)}  {link.description}"
-            )
-
     if issue.refs:
         from sase.artifact_ref_lists import (
             ArtifactRefListEntry,
@@ -403,6 +406,63 @@ def render_issue_detail(
         )
 
     return "\n".join(lines) + "\n"
+
+
+def _render_artifact_link_section_lines(
+    views: tuple[BeadLinkView, ...],
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    """Render LINKS and REFERENCED BY from one projected neighborhood."""
+
+    links = tuple(view for view in views if view.section == "links")
+    referenced = tuple(view for view in views if view.section == "referenced_by")
+    lines: list[str] = []
+    if links:
+        lines.extend(["", palette.section(f"LINKS ({len(links)})")])
+        for view in links:
+            lines.extend(
+                _render_artifact_link_entry(
+                    view, palette=palette, style=style, wrap=wrap
+                )
+            )
+    if referenced:
+        lines.extend(["", palette.section(f"REFERENCED BY ({len(referenced)})")])
+        for view in referenced:
+            lines.extend(
+                _render_artifact_link_entry(
+                    view, palette=palette, style=style, wrap=wrap
+                )
+            )
+    return lines
+
+
+def _render_artifact_link_entry(
+    view: BeadLinkView,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    lines = [
+        f"  {palette.separator(view.glyph)} {palette.label(view.displayed_relation)} "
+        f"{palette.separator('·')} {palette.path(view.counterpart_ref)}"
+    ]
+    if view.reason:
+        lines.extend(_prose_lines(view.reason, style=style, wrap=wrap, indent="    "))
+    added = view.timestamp if view.timestamp.strip() else None
+    actor = view.actor if view.actor.strip() else None
+    added_text = added if added is not None else palette.placeholder("(unknown)")
+    actor_text = actor if actor is not None else palette.placeholder("(unknown)")
+    origin_text = view.origin_label or palette.placeholder("(unknown)")
+    provenance = [origin_text]
+    if view.section == "referenced_by":
+        provenance.append(uses_label(view.uses))
+    provenance.append(f"added {added_text} by {actor_text}")
+    lines.append(f"    {palette.separator(' · '.join(provenance))}")
+    return lines
 
 
 def _description_and_task_type_lines(

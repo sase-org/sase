@@ -350,12 +350,15 @@ def register_bead_show_parser(
         description=(
             "Show one bead's full detail block: status, type, tier, owner, "
             "assignee, model, phase size, parent lineage, children, "
-            "dependencies, blockers, description, notes, Patch, and the "
-            "linked plan. --format compact prints the same single row as "
-            "'sase bead list'; --format json adds the resolved parent, child, "
-            "dependency, blocker, and plan graph as machine-readable data. "
+            "dependencies, blockers, typed artifact links, description, notes, "
+            "Patch, and the linked plan. --format compact prints the same "
+            "single row as 'sase bead list' and never expands artifact links; "
+            "--format json adds the resolved parent, child, dependency, "
+            "blocker, plan graph, and artifact_links array as machine-readable "
+            "data. --no-links skips neighborhood resolution and omits both "
+            "human link sections and JSON artifact-link fields. "
             "--color now applies to --format full as well as compact. "
-            "DESCRIPTION, NOTES, and +1 evidence prose wrap at "
+            "DESCRIPTION, NOTES, link reasons, and +1 evidence prose wrap at "
             f"{default_wrap_width} columns by default without breaking "
             "URLs or inline code spans."
         ),
@@ -364,6 +367,7 @@ def register_bead_show_parser(
             "  sase bead show sase-64\n"
             "  sase bead show sase-64 --format compact\n"
             "  sase bead show sase-64 --format json\n"
+            "  sase bead show sase-64 --no-links\n"
             "  sase bead show sase-64 --style rich --color always\n"
             "  sase bead show sase-64 --wrap auto"
         ),
@@ -382,6 +386,16 @@ def register_bead_show_parser(
         choices=["compact", "json", "full"],
         default="full",
         help="Output format: compact, json, or full (default: full)",
+    )
+    parser.add_argument(
+        "-N",
+        "--no-links",
+        action="store_true",
+        help=(
+            "Skip artifact-link neighborhood resolution and omit LINKS / "
+            "REFERENCED BY (and the JSON artifact_links array plus issue.links). "
+            "Compact format never expands links, with or without this option"
+        ),
     )
     parser.add_argument(
         "-s",

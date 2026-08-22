@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
 from sase.bead.cli_dep_render import resolve_color
@@ -18,6 +19,11 @@ from sase.bead.cli_detail import (
     resolve_bead_page_url,
     resolve_issue_detail,
 )
+from sase.bead.cli_detail_links import (
+    NO_LINKS_RECOVERY_HINT,
+    assemble_bead_link_neighborhood,
+)
+from sase.bead.cli_detail_resolution import IssueDetail
 from sase.bead.cli_detail_style import DetailStyle, resolve_detail_style
 from sase.bead.cli_query_render import (
     compact_size_column as _compact_size_column,
@@ -252,14 +258,19 @@ def _issue_created_in_window(
 
 
 def handle_bead_show(args: argparse.Namespace) -> None:
+    include_links = not bool(getattr(args, "no_links", False))
     with get_read_view() as view:
         try:
             detail = None
             if args.format == "compact":
                 issue = view.show(args.id)
             else:
-                detail = resolve_issue_detail(view, args.id)
+                detail = resolve_issue_detail(
+                    view, args.id, include_links=include_links
+                )
                 issue = detail.issue
+                if include_links:
+                    detail = _with_artifact_link_neighborhood(detail)
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)
             sys.exit(1)
@@ -291,6 +302,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                             else None
                         ),
                         page_url=resolve_bead_page_url(issue.id),
+                        include_links=include_links,
                     ),
                     end="",
                 )
@@ -316,6 +328,20 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 )
             case _:
                 raise AssertionError(f"unknown show format: {args.format}")
+
+
+def _with_artifact_link_neighborhood(detail: IssueDetail) -> IssueDetail:
+    try:
+        views = assemble_bead_link_neighborhood(
+            bead_id=detail.issue.id,
+            bead_owned_rows=detail.bead_owned_artifact_links,
+            fallback_issue=detail.issue,
+        )
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        print(f"Hint: {NO_LINKS_RECOVERY_HINT}.", file=sys.stderr)
+        sys.exit(1)
+    return replace(detail, artifact_links=views)
 
 
 def handle_bead_search(args: argparse.Namespace) -> None:
