@@ -96,13 +96,16 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # (median of three runs on this host). That is inside the 30 s serial budget the plan
 # sets; the next candidate should still displace an entry rather than raise this cap.
 #
-# Re-curated to 53 on 2026-08-21 for `test_core_finalizer_facade.py`, the guard
-# for the Python facade over the Rust finalizer protocol binding. It is a compact
-# cross-boundary contract for plan resolution, submission validation, and outcome
-# aggregation; import edges do not express the Rust wire compatibility invariant.
-# The whole 53-entry set measured 48.5 s under the command above on this host.
+# Re-curated to 53 on 2026-08-22 by keeping `test_core_finalizer_facade.py`,
+# the compact cross-boundary finalizer protocol guard, and displacing
+# `test_xprompt_workflow_schema.py`: changes to the workflow JSON schema or
+# checked-in workflow YAML already fire the `src-data-asset` full-suite rule,
+# and the test remains in the exhaustive lane. The timezone-display audit keeps
+# its repo-wide coverage but prefilters files that cannot contain one of the
+# clock attribute names before AST parsing. The whole 53-entry set measured
+# 27.0 s under the command above on this host.
 _MANIFEST_ENTRY_BUDGET = 53
-_MEASURED_SERIAL_COST = "48.5 serial seconds across 53 entries"
+_MEASURED_SERIAL_COST = "27.0 serial seconds across 53 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

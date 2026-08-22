@@ -51,4 +51,3 @@ tests/test_validate_sase_core_rs_environment_tool.py
 tests/test_validate_sase_core_rs_tool.py
 tests/test_validate_sase_core_rs_version_tool.py
 tests/test_validate_test_environment_tool.py
-tests/test_xprompt_workflow_schema.py

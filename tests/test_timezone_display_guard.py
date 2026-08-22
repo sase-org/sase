@@ -18,6 +18,7 @@ _ALLOWED_CLOCK_DISPLAY_SITES = frozenset(
         "core/time.py:_system_timezone",
     }
 )
+_CLOCK_ATTR_NAMES = ("now", "astimezone", "fromtimestamp")
 
 
 def test_no_system_clock_display_sites() -> None:
@@ -25,6 +26,8 @@ def test_no_system_clock_display_sites() -> None:
     violations: list[str] = []
     for path in sorted(_SRC_ROOT.rglob("*.py")):
         source = path.read_text(encoding="utf-8")
+        if not any(name in source for name in _CLOCK_ATTR_NAMES):
+            continue
         lines = source.splitlines()
         parents = _ast_parents(ast.parse(source, filename=str(path)))
         relpath = path.relative_to(_SRC_ROOT).as_posix()
