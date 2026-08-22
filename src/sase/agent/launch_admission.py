@@ -106,6 +106,8 @@ class _AdmissionEngine:
     agent_dispatcher: _UnitDispatcher | None = None
     proc_dispatcher: _UnitDispatcher | None = None
     poll_seconds: float = POLL_SECONDS
+    source_cwd: str | None = None
+    safe_inputs: dict[str, Any] = field(default_factory=dict)
     results: list[AgentLaunchResult] = field(default_factory=list)
     _waiting_since: dict[str, float] = field(default_factory=dict)
     _next_seq: int = 1
@@ -183,16 +185,7 @@ class _AdmissionEngine:
             waited = list(action.get("waited_outcomes") or [])
             self._journal(logical_id, "checking", waited_outcomes=waited)
             unit = _unit(self.plan, logical_id)
-            evaluator = self.condition_evaluator or _evaluate_launch_condition
-            verdict, message = evaluator(
-                unit,
-                waited,
-                {
-                    "logical_unit": logical_id,
-                    "selected_project": self.plan.selected_project,
-                    "waited_outcomes": waited,
-                },
-            )
+            verdict, message = self._evaluate_condition(unit, waited)
             phase = {
                 "eligible": "eligible",
                 "skipped": "skipped",
@@ -252,6 +245,16 @@ class _AdmissionEngine:
             )
             return
         if kind == "fail_check":
+            recovered = self._recover_condition(logical_id)
+            if recovered is not None:
+                verdict, message = recovered
+                phase = {
+                    "eligible": "eligible",
+                    "skipped": "skipped",
+                    "condition_error": "condition_error",
+                }.get(verdict, "condition_error")
+                self._journal(logical_id, phase, message=message or verdict)
+                return
             self._journal(
                 logical_id,
                 "condition_error",
@@ -269,6 +272,39 @@ class _AdmissionEngine:
             identity = str(action.get("identity") or logical_id)
             self._journal(logical_id, "launched", identity=identity)
 
+    def _evaluate_condition(
+        self,
+        unit: LaunchUnitWire,
+        waited: list[dict[str, Any]],
+    ) -> tuple[str, str | None]:
+        evaluator = self.condition_evaluator or _evaluate_launch_condition
+        return evaluator(unit, waited, self._condition_context(unit.logical_id, waited))
+
+    def _recover_condition(self, logical_id: str) -> tuple[str, str | None] | None:
+        from sase.agent.launch_condition_runtime import recover_launch_condition
+
+        return recover_launch_condition(
+            self.admission_dir / UNITS_DIRNAME / logical_id,
+            cancelled=self.cancelled,
+        )
+
+    def _condition_context(
+        self,
+        logical_id: str,
+        waited: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return {
+            "logical_unit": logical_id,
+            "selected_project": self.plan.selected_project,
+            "waited_outcomes": waited,
+            "safe_inputs": dict(self.safe_inputs),
+            "source_cwd": self.source_cwd,
+            "admission_dir": str(self.admission_dir),
+            "work_dir": str(self.admission_dir / UNITS_DIRNAME / logical_id),
+            "cancelled": self.cancelled,
+            "supervise": self.condition_evaluator is None,
+        }
+
     def _cancel_open_units(self) -> None:
         states = self._states()
         for unit in self.plan.units:
@@ -282,6 +318,12 @@ class _AdmissionEngine:
                 "cancelled",
             }:
                 continue
+            if phase == "checking":
+                cancel_path = (
+                    self.admission_dir / UNITS_DIRNAME / unit.logical_id / "cancel"
+                )
+                cancel_path.parent.mkdir(parents=True, exist_ok=True)
+                cancel_path.write_text("1\n", encoding="utf-8")
             identity = state.get("identity")
             fingerprint = state.get("fingerprint")
             self._journal(
@@ -390,6 +432,8 @@ def dispatch_typed_launch_request(
                 agent_dispatcher=agent_dispatcher,
                 proc_dispatcher=proc_dispatcher,
                 cancelled=cancelled or (lambda: False),
+                source_cwd=_request_source_cwd(data),
+                safe_inputs=_request_safe_inputs(data),
             )
             progress = engine.run(until_blocked=until_blocked)
         finally:
@@ -438,6 +482,8 @@ def run_coordinator_in_bundle(
                 admission_dir=root,
                 request_id=str(data.get("request_id") or ""),
                 cancelled=stop,
+                source_cwd=_request_source_cwd(data),
+                safe_inputs=_request_safe_inputs(data),
             )
             progress = engine.run(until_blocked=False)
         finally:
@@ -490,17 +536,29 @@ def _evaluate_launch_condition(
     waited_outcomes: list[dict[str, Any]],
     context: Mapping[str, Any],
 ) -> tuple[str, str | None]:
-    """Default condition hook; Phase 4 replaces this with the sandbox."""
+    """Sandbox ``unit.condition`` and return a durable admission verdict."""
 
-    if unit.condition is None:
-        return "eligible", None
-    try:
-        from sase.agent.launch_condition_runtime import (  # type: ignore[import-not-found]
-            evaluate_launch_condition as hooked,
-        )
-    except ImportError:
-        return "condition_error", "condition_evaluator_unavailable"
-    return hooked(unit, waited_outcomes, context)
+    from sase.agent.launch_condition_runtime import evaluate_launch_condition
+
+    return evaluate_launch_condition(unit, waited_outcomes, context)
+
+
+def _request_source_cwd(data: Mapping[str, Any]) -> str | None:
+    dispatch = data.get("dispatch")
+    if not isinstance(dispatch, Mapping):
+        return None
+    cwd = dispatch.get("cwd")
+    return None if cwd is None else str(cwd)
+
+
+def _request_safe_inputs(data: Mapping[str, Any]) -> dict[str, Any]:
+    raw = data.get("safe_inputs")
+    if isinstance(raw, Mapping):
+        return {str(key): value for key, value in raw.items()}
+    request = data.get("launch_request")
+    if isinstance(request, Mapping) and isinstance(request.get("inputs"), Mapping):
+        return {str(key): value for key, value in request["inputs"].items()}
+    return {}
 
 
 def _dispatch_agent_unit(

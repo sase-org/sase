@@ -17,6 +17,7 @@ from sase.core.agent_launch_wire import (
     LaunchFanoutSlotWire,
     LaunchPlanWire,
     LaunchUnitResultWire,
+    LaunchUnitWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
     launch_admission_summary_from_dict,
@@ -220,6 +221,65 @@ def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
     return str(binding(agent_launch_wire_to_json_dict(agent)))
 
 
+def classify_condition_status(
+    *,
+    exit_code: int | None = None,
+    signal: int | None = None,
+    timed_out: bool = False,
+    exec_error: bool = False,
+    cancelled: bool = False,
+) -> str:
+    """Return ``eligible`` / ``skipped`` / ``condition_error`` for a predicate."""
+
+    binding = require_rust_binding("classify_condition_status")
+    return str(
+        binding(
+            exit_code,
+            signal,
+            timed_out,
+            exec_error,
+            cancelled,
+        )
+    )
+
+
+def sanitize_condition_inputs(value: Any) -> dict[str, Any]:
+    """Drop secret-like keys and non-scalar values from condition inputs."""
+
+    binding = require_rust_binding("sanitize_condition_inputs")
+    payload = binding(value)
+    return dict(payload) if isinstance(payload, dict) else {}
+
+
+def build_condition_context(
+    unit: LaunchUnitWire,
+    waited: list[dict[str, Any]],
+    *,
+    selected_project: str | None = None,
+    safe_inputs: dict[str, Any] | None = None,
+    share_workspace: bool = False,
+) -> dict[str, Any]:
+    """Build the versioned ``SASE_CONDITION_CONTEXT`` payload."""
+
+    binding = require_rust_binding("build_condition_context")
+    payload = binding(
+        agent_launch_wire_to_json_dict(unit),
+        waited,
+        selected_project,
+        safe_inputs or {},
+        share_workspace,
+    )
+    return dict(payload)
+
+
+def evaluate_launch_condition(request: dict[str, Any]) -> dict[str, Any]:
+    """Run the sandboxed `%if` evaluator and return its durable result."""
+
+    binding = require_rust_binding("evaluate_launch_condition")
+    payload = binding(request)
+    return dict(payload)
+
+
 class LaunchTimestampBatchAllocator:
     """Allocate monotonically unique launch timestamps for one fan-out."""
 
@@ -269,6 +329,9 @@ __all__ = [
     "_allocate_launch_timestamp_batch",
     "admission_unit_results",
     "agent_unit_dispatch_prompt",
+    "build_condition_context",
+    "classify_condition_status",
+    "evaluate_launch_condition",
     "next_admission_actions",
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
@@ -277,6 +340,7 @@ __all__ = [
     "reconcile_admission_journal",
     "reserve_launch_timestamp_batch",
     "safe_launch_name",
+    "sanitize_condition_inputs",
     "spawn_prepared_agent_process",
     "summarize_admission",
 ]
