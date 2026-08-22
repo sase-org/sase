@@ -12,10 +12,11 @@ import pytest
 
 from sase.artifact_cli.create import handle_create
 from sase.config.file_hooks import FileHookConfig, FileHookFilters
-from sase.file_hooks.audit import list_file_hook_audits
+from sase.file_hooks.audit import file_hooks_root, list_file_hook_audits
 from sase.file_hooks.engine import dispatch_file_hook_events
 from sase.file_hooks.producer import (
     capture_artifact_source,
+    produce_artifact_file_hook,
     produce_commit_file_hooks,
     reconcile_commit_file_hooks,
 )
@@ -55,7 +56,11 @@ def _commit(repo: Path, message: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-def _research_highlights_hook(command: str = "true") -> FileHookConfig:
+def _research_highlights_hook(
+    command: str = "true",
+    *,
+    producers: tuple[str, ...] | None = None,
+) -> FileHookConfig:
     return FileHookConfig(
         name="research-highlights",
         description="Render new research reports into Highlights PDFs.",
@@ -67,6 +72,7 @@ def _research_highlights_hook(command: str = "true") -> FileHookConfig:
             path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
             agent_name_globs=("!research.*.cld", "!research.*.cdx"),
             ops=("ADD",),
+            producers=producers,  # type: ignore[arg-type]
         ),
         source_layer="user",
     )
@@ -148,6 +154,60 @@ def _stub_spawn(
         wrapped,
     )
     return spawned
+
+
+def test_committed_only_hook_skips_artifact_and_reuses_commit_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace, research = _materialize_research_workspace(tmp_path)
+    _configure_research_agent(monkeypatch, tmp_path, workspace)
+    hook = _research_highlights_hook(producers=("commit", "sdd", "finalizer"))
+    _install_hook(monkeypatch, hook)
+    spawned = _stub_spawn(monkeypatch)
+    source = research / _REPORT
+    stored = tmp_path / "finalizer_integrity_and_capabilities-ad048d84997e.md"
+    stored.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    captured = capture_artifact_source(source)
+    assert captured is not None
+
+    artifact = produce_artifact_file_hook(captured, stored)
+    assert artifact.outcome == "no_match"
+    assert artifact.producer == "artifact"
+    assert artifact.batch_path is None
+    assert artifact.matched_hook_names == ()
+    assert spawned == []
+    assert list((file_hooks_root() / "batches").glob("*.json")) == []
+
+    (research / _DRAFT).unlink()
+    sha = _commit(research, "add consolidated report")
+    commit = produce_commit_file_hooks(
+        repo_root=research,
+        commit_sha=sha,
+        sidecar_role="research",
+        agent_name="research.0v.final",
+        workspace_dir=workspace,
+        producer="commit",
+        hooks=[hook],
+    )
+    assert commit.outcome == "batch_dispatched"
+    assert commit.matched_hook_names == ("research-highlights",)
+    assert len(spawned) == 1
+    payload = json.loads(Path(commit.batch_path or "").read_text(encoding="utf-8"))
+    assert [run["rel_path"] for run in payload["runs"]] == [_REPORT]
+    assert [run["abs_path"] for run in payload["runs"]] == [str(source)]
+
+    reused = reconcile_commit_file_hooks(
+        repo_root=research,
+        commit_sha=sha,
+        workspace_dir=workspace,
+        sidecar_role="research",
+        agent_name="research.0v.final",
+    )
+    assert reused.outcome == "batch_already_present"
+    assert reused.producer == "finalizer"
+    assert reused.batch_path == commit.batch_path
+    assert len(spawned) == 1
 
 
 def test_artifact_create_dispatches_consolidated_research_report(

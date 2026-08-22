@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import logging
 import os
 import re
-from typing import Any, cast, Literal, TYPE_CHECKING
+from typing import Any, cast, get_args, Literal, TYPE_CHECKING
 
 from sase.config.core import (
     current_config_token,
@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 FileHookOp = Literal["ADD", "MODIFY", "REMOVE"]
 FILE_HOOK_OPS: frozenset[FileHookOp] = frozenset({"ADD", "MODIFY", "REMOVE"})
+FileHookProducer = Literal["artifact", "commit", "sdd", "finalizer", "dispatch"]
+FILE_HOOK_PRODUCERS: frozenset[FileHookProducer] = frozenset(get_args(FileHookProducer))
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _DURATION_RE = re.compile(r"^([0-9]+)(ms|s|m|h)$")
 _DURATION_MULTIPLIERS = {
@@ -57,6 +59,7 @@ _FILE_HOOK_FILTER_KEYS = frozenset(
         "agent_name_globs",
         "ops",
         "causes",
+        "producers",
     }
 )
 _MISSING = object()
@@ -76,6 +79,7 @@ class FileHookFilters:
     agent_name_globs: tuple[str, ...] | None = None
     ops: tuple[FileHookOp, ...] | None = None
     causes: tuple[str, ...] | None = None
+    producers: tuple[FileHookProducer, ...] | None = None
 
     def __post_init__(self) -> None:
         """Validate values supplied directly as well as parsed YAML entries."""
@@ -84,6 +88,11 @@ class FileHookFilters:
             if unknown_ops:
                 joined = ", ".join(sorted(unknown_ops))
                 raise ValueError(f"unknown operation(s): {joined}")
+        if self.producers is not None:
+            unknown_producers = set(self.producers) - FILE_HOOK_PRODUCERS
+            if unknown_producers:
+                joined = ", ".join(sorted(unknown_producers))
+                raise ValueError(f"unknown producer(s): {joined}")
 
 
 @dataclass(frozen=True)
@@ -190,6 +199,20 @@ def _optional_ops(value: object, field: str) -> tuple[FileHookOp, ...] | None:
     return cast(tuple[FileHookOp, ...], raw_ops)
 
 
+def _optional_producers(
+    value: object,
+    field: str,
+) -> tuple[FileHookProducer, ...] | None:
+    raw_producers = _optional_string_tuple(value, field)
+    if raw_producers is None:
+        return None
+    unknown_producers = set(raw_producers) - FILE_HOOK_PRODUCERS
+    if unknown_producers:
+        joined = ", ".join(sorted(unknown_producers))
+        raise ValueError(f"'{field}' contains unknown producer(s): {joined}")
+    return cast(tuple[FileHookProducer, ...], raw_producers)
+
+
 def _parse_file_hook_filters(
     value: object,
     *,
@@ -236,6 +259,10 @@ def _parse_file_hook_filters(
         causes=_optional_string_tuple(
             raw_filters.get("causes"),
             "filters.causes",
+        ),
+        producers=_optional_producers(
+            raw_filters.get("producers"),
+            "filters.producers",
         ),
     )
 
@@ -506,14 +533,28 @@ def _glob_matches(patterns: tuple[str, ...], value: str) -> bool:
     return glob.globmatch(value, patterns, flags=flags)
 
 
-def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
-    """Return whether all configured hook filters accept one event."""
+def hook_matches_event(
+    hook: FileHookConfig,
+    event: FileHookEvent,
+    *,
+    producer: FileHookProducer | None = None,
+) -> bool:
+    """Return whether all configured hook filters accept one event.
+
+    ``producer`` is the dispatch identity for this attempt. Omitting
+    ``filters.producers`` matches every producer. An explicit list is AND-ed
+    with the other dimensions and requires a known producer.
+    """
     filters = hook.filters
     if filters.projects is not None and event.project not in filters.projects:
         return False
     if filters.sidecars is not None and event.sidecar_role not in filters.sidecars:
         return False
     if filters.ops is not None and event.op not in filters.ops:
+        return False
+    if filters.producers is not None and (
+        producer is None or producer not in filters.producers
+    ):
         return False
     if event.cause != "user" and event.cause not in (filters.causes or ()):
         return False
@@ -533,22 +574,26 @@ def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
 def match_events(
     hooks: list[FileHookConfig],
     events: list[FileHookEvent],
+    *,
+    producer: FileHookProducer | None = None,
 ) -> list[PlannedRun]:
     """Return matched hook/event pairs in hook order, then event order."""
     return [
         PlannedRun(hook=hook, event=event)
         for hook in hooks
         for event in events
-        if hook_matches_event(hook, event)
+        if hook_matches_event(hook, event, producer=producer)
     ]
 
 
 __all__ = [
     "FILE_HOOK_OPS",
+    "FILE_HOOK_PRODUCERS",
     "FileHookConfig",
     "FileHookEvent",
     "FileHookFilters",
     "FileHookOp",
+    "FileHookProducer",
     "PlannedRun",
     "get_all_file_hooks",
     "get_file_hook_diagnostics",

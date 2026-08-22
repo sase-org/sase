@@ -48,6 +48,7 @@ def _hook(
     agent_name_globs: tuple[str, ...] | None = None,
     ops: tuple[str, ...] | None = None,
     causes: tuple[str, ...] | None = None,
+    producers: tuple[str, ...] | None = None,
 ) -> FileHookConfig:
     return FileHookConfig(
         name="test-hook",
@@ -61,6 +62,7 @@ def _hook(
             agent_name_globs=agent_name_globs,
             ops=ops,  # type: ignore[arg-type]
             causes=causes,
+            producers=producers,  # type: ignore[arg-type]
         ),
     )
 
@@ -172,6 +174,7 @@ def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
                         ],
                         "ops": ["ADD"],
                         "causes": ["referenced_by"],
+                        "producers": ["commit", "sdd", "finalizer"],
                     },
                 }
             ],
@@ -193,6 +196,7 @@ def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
     assert filters.agent_name_globs == ("!research.*.cld", "!research.*.cdx")
     assert filters.ops == ("ADD",)
     assert filters.causes == ("referenced_by",)
+    assert filters.producers == ("commit", "sdd", "finalizer")
 
 
 def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
@@ -316,6 +320,11 @@ def test_loader_rejects_use_with_mismatched_plugin_prefix(
 def test_file_hook_filters_validate_direct_operation_names() -> None:
     with pytest.raises(ValueError, match="unknown operation"):
         FileHookFilters(ops=("CREATE",))  # type: ignore[arg-type]
+
+
+def test_file_hook_filters_validate_direct_producer_names() -> None:
+    with pytest.raises(ValueError, match="unknown producer"):
+        FileHookFilters(producers=("copy",))  # type: ignore[arg-type]
 
 
 def test_loader_warns_and_skips_invalid_and_duplicate_entries(
@@ -491,6 +500,7 @@ def test_path_and_agent_name_filters_are_anded() -> None:
         ("agent_name_globs", ["research.*"]),
         ("ops", ["ADD"]),
         ("causes", ["referenced_by"]),
+        ("producers", ["commit"]),
     ],
 )
 def test_loader_rejects_legacy_top_level_filter_fields(
@@ -582,6 +592,11 @@ def test_loader_rejects_malformed_filters_and_nested_values(
                     "command": "run",
                     "filters": {"ops": ["CREATE"]},
                 },
+                {
+                    "name": "bad-producer",
+                    "command": "run",
+                    "filters": {"producers": ["copy"]},
+                },
             ],
             strategy="replace",
         )
@@ -598,6 +613,7 @@ def test_loader_rejects_malformed_filters_and_nested_values(
     assert "'filters' must be a mapping" in caplog.text
     assert "'filters.path_globs' must be a list of strings" in caplog.text
     assert "'filters.ops' contains unknown operation(s): CREATE" in caplog.text
+    assert "'filters.producers' contains unknown producer(s): copy" in caplog.text
 
 
 def test_project_sidecar_and_op_filters_and_unrestricted_defaults() -> None:
@@ -632,6 +648,62 @@ def test_non_user_causes_are_opt_in_while_user_still_matches() -> None:
         _event("report.md", cause="referenced_by"),
     )
     assert hook_matches_event(referenced_by, _event("report.md", cause="user"))
+
+
+@pytest.mark.parametrize(
+    "producer",
+    ["artifact", "commit", "sdd", "finalizer", "dispatch"],
+)
+def test_omitted_producers_filter_matches_every_producer(producer: str) -> None:
+    hook = _hook()
+
+    assert hook_matches_event(hook, _event("report.md"), producer=producer)
+
+
+def test_explicit_producers_filter_is_anded_with_other_dimensions() -> None:
+    hook = _hook(producers=("commit", "sdd", "finalizer"), ops=("ADD",))
+    event = _event("report.md")
+
+    assert hook_matches_event(hook, event, producer="commit")
+    assert hook_matches_event(hook, event, producer="sdd")
+    assert hook_matches_event(hook, event, producer="finalizer")
+    assert not hook_matches_event(hook, event, producer="artifact")
+    assert not hook_matches_event(hook, event, producer="dispatch")
+    assert not hook_matches_event(hook, event)
+    assert not hook_matches_event(
+        hook,
+        _event("report.md", op="MODIFY"),
+        producer="commit",
+    )
+
+
+def test_match_events_applies_producer_filter() -> None:
+    restricted = _hook(producers=("commit", "finalizer"))
+    unrestricted = FileHookConfig(
+        name="unrestricted",
+        description=None,
+        command="check-two",
+        timeout_seconds=120,
+        filters=FileHookFilters(),
+    )
+    events = [_event("one.md")]
+
+    assert [
+        (run.hook.name, run.event.rel_path)
+        for run in match_events(
+            [restricted, unrestricted],
+            events,
+            producer="artifact",
+        )
+    ] == [("unrestricted", "one.md")]
+    assert [
+        (run.hook.name, run.event.rel_path)
+        for run in match_events(
+            [restricted, unrestricted],
+            events,
+            producer="commit",
+        )
+    ] == [("test-hook", "one.md"), ("unrestricted", "one.md")]
 
 
 def test_match_events_returns_hook_order_then_event_order() -> None:

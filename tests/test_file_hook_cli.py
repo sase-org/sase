@@ -21,7 +21,10 @@ from sase.main.file_hook_handler import (
 from sase.main.parser import create_parser, default_list_delegation_notice
 
 
-def _hook() -> FileHookConfig:
+def _hook(
+    *,
+    producers: tuple[str, ...] | None = None,
+) -> FileHookConfig:
     return FileHookConfig(
         name="research-highlights",
         description="Render new research reports.",
@@ -33,6 +36,7 @@ def _hook() -> FileHookConfig:
             path_globs=("20*/**/*.md", "!20*/*/*__*.md"),
             agent_name_globs=("!research.*.cld", "!research.*.cdx"),
             ops=("ADD",),
+            producers=producers,  # type: ignore[arg-type]
         ),
         source_layer="user",
     )
@@ -95,7 +99,7 @@ def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
 
     payload = json.loads(capsys.readouterr().out)
     assert code == 0
-    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 3
+    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 4
     assert payload["count"] == 1
     entry = payload["file_hooks"][0]
     assert entry["source_layer"] == "user"
@@ -111,6 +115,7 @@ def test_file_hook_list_json_is_versioned(capsys: Any) -> None:
     assert entry["filters"]["projects"] == ["sase"]
     assert entry["filters"]["sidecars"] == ["research"]
     assert entry["filters"]["ops"] == ["ADD"]
+    assert entry["filters"]["producers"] is None
     assert "filters" in entry
     assert "path_globs" not in entry
     assert "agent_name_globs" not in entry
@@ -142,8 +147,37 @@ def test_file_hook_list_renders_all_fields() -> None:
     assert "agent_name_globs: !research.*.cld," in rendered
     assert "!research.*.cdx" in rendered
     assert "ops: ADD" in rendered
+    assert "producers: *" in rendered
     assert "120s" in rendered
     assert "user" in rendered
+
+
+def test_file_hook_list_renders_and_serializes_producers(capsys: Any) -> None:
+    stream = io.StringIO()
+    console = Console(file=stream, width=180, no_color=True)
+    hook = _hook(producers=("commit", "sdd", "finalizer"))
+
+    rendered_code = _handle_file_hook_list_command(
+        argparse.Namespace(json=False),
+        console=console,
+        hooks_fn=lambda: [hook],
+    )
+    json_code = _handle_file_hook_list_command(
+        argparse.Namespace(json=True),
+        hooks_fn=lambda: [hook],
+    )
+
+    rendered = stream.getvalue()
+    payload = json.loads(capsys.readouterr().out)
+    assert rendered_code == 0
+    assert json_code == 0
+    assert "producers: commit, sdd, finalizer" in rendered
+    assert payload["schema_version"] == FILE_HOOK_LIST_JSON_SCHEMA_VERSION == 4
+    assert payload["file_hooks"][0]["filters"]["producers"] == [
+        "commit",
+        "sdd",
+        "finalizer",
+    ]
 
 
 def test_file_hook_list_empty_state() -> None:

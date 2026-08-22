@@ -487,6 +487,14 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Optional non-user event causes this hook accepts in addition to user commits."
+        },
+        "producers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["artifact", "commit", "sdd", "finalizer", "dispatch"]
+          },
+          "description": "Optional file-hook producer identities; omitted means every producer."
         }
       }
     },

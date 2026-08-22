@@ -2748,6 +2748,7 @@ file_hooks:
       path_globs: ["20*/**/*.md", "!20*/*/*__*.md"]
       agent_name_globs: ["!research.*.cld", "!research.*.cdx"]
       ops: [ADD]
+      producers: [commit, sdd, finalizer]
     timeout: 120s
 ```
 
@@ -2782,12 +2783,15 @@ Filter fields under `filters`:
 | `filters.agent_name_globs` | list[string] | no       | all agents     | SASE agent-name globs matched against the agent that produced the event; `!` prefixes a veto exclusion. |
 | `filters.ops`              | list[string] | no       | all operations | Any subset of `ADD`, `MODIFY`, and `REMOVE`.                                                            |
 | `filters.causes`           | list[string] | no       | none           | Non-user event causes to accept in addition to ordinary user commits; currently `artifact_links`.       |
+| `filters.producers`        | list[string] | no       | all producers  | Any subset of `artifact`, `commit`, `sdd`, `finalizer`, and `dispatch`.                                 |
 
 Matching semantics:
 
-- **Event sources.** Hooks receive files from commits created by `sase stitch create`,
-  commits written through the SDD sidecar commit path, and `sase artifact create`
-  (treated as `ADD`).
+- **Event sources.** Hooks receive files from commits created by `sase stitch create`
+  (producer `commit`), commits written through the SDD sidecar commit path (producer
+  `sdd`), and `sase artifact create` (producer `artifact`, treated as `ADD`). Finalizer
+  reconciliation re-derives a commit's events (producer `finalizer`). Direct engine
+  dispatch uses producer `dispatch`.
 - **Ops.** Commit operations come from `git diff --name-status`; renames split into
   `REMOVE` plus `ADD`, root-commit files are `ADD`, and unknown status letters fold to
   `MODIFY`.
@@ -2810,12 +2814,20 @@ Matching semantics:
   from recursively triggering ordinary document-processing hooks.
 - **Filters.** All configured dimensions are AND-ed. `filters.projects` compares
   alias-resolved, user-facing project names, never ProjectSpec keys. `filters.sidecars`
-  compares sidecar role names. A project-local `sase/sase.yml` declaration without
-  `filters.projects` is automatically scoped to the detected project.
+  compares sidecar role names. `filters.producers` compares the dispatch producer
+  identity; omitting it matches every producer. A project-local `sase/sase.yml`
+  declaration without `filters.projects` is automatically scoped to the detected
+  project.
 - **Execution.** Runs are post-write and non-gating. Hook configuration, matching,
   persistence, spawn, or command failures never fail or block an artifact copy or a
   commit. Each matched command runs with the absolute path appended as a shell-quoted
   final argument and reports success or failure through a SASE notification.
+- **Artifact store paths.** Artifact events match against the original
+  repository-relative path, but the detached command receives the durable stored copy.
+  That copy is content-addressed and may use a digest-suffixed basename such as
+  `<stem>-<sha256-prefix>.md`. Hooks whose output identity depends on the input basename
+  should set `filters.producers` to the committed-file producers (`commit`, `sdd`,
+  `finalizer`) so they do not run against the stored copy.
 - **Producer audits.** Every configured-event dispatch attempt persists a bounded record
   under the file-hook state root (`audit/`) before returning. That record explains a
   filter miss, a dispatched or already-present batch, or a producer failure without
@@ -2840,8 +2852,8 @@ Hook names must remain unique across the effective list; invalid or duplicate en
 are warned about and skipped. Unknown `file_hooks` keys are rejected the same way, so a
 hook carrying one is skipped with a warning rather than silently losing that filter.
 Filter fields at the hook top level are no longer accepted; move `projects`, `sidecars`,
-`path_globs`, `agent_name_globs`, `ops`, and `causes` under `filters`. Note that `globs`
-was renamed to `filters.path_globs`; the old key is not accepted.
+`path_globs`, `agent_name_globs`, `ops`, `causes`, and `producers` under `filters`. Note
+that `globs` was renamed to `filters.path_globs`; the old key is not accepted.
 
 Source: `src/sase/config/file_hooks.py`, `src/sase/file_hooks/engine.py`,
 `src/sase/file_hooks/audit.py`, `src/sase/file_hooks/producer.py`,
@@ -4983,15 +4995,15 @@ example:
 ### `sase file-hook`
 
 With no subcommand, `sase file-hook` delegates to `sase file-hook list`. The list shows
-each valid effective hook's name, description, command, project/sidecar/glob/operation
-filters, timeout, and contributing config source. Invalid and duplicate hooks are
-already excluded with configuration warnings, so this is the runtime-effective view
-rather than a raw config dump.
+each valid effective hook's name, description, command,
+project/sidecar/producer/glob/operation filters, timeout, and contributing config
+source. Invalid and duplicate hooks are already excluded with configuration warnings, so
+this is the runtime-effective view rather than a raw config dump.
 
 | Form                            | Flag          | Description                                                                                         |
 | ------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
 | `sase file-hook list`           | —             | Render the effective hook table.                                                                    |
-| `sase file-hook list --json`    | `-j, --json`  | Emit machine-readable hook records.                                                                 |
+| `sase file-hook list --json`    | `-j, --json`  | Emit machine-readable hook records (`schema_version: 4`, including `filters.producers`).            |
 | `sase file-hook history`        | `-n, --limit` | Show recent producer audits (dispatched, unmatched, or failed). Default 20; `0` means all retained. |
 | `sase file-hook history --json` | `-j, --json`  | Emit machine-readable producer audits.                                                              |
 | `sase file-hook show AUDIT_ID`  | `-j, --json`  | Show one producer audit by exact id or unique prefix.                                               |

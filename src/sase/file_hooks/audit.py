@@ -14,6 +14,7 @@ import threading
 from typing import Any, Literal
 from uuid import uuid4
 
+from sase.config.file_hooks import FILE_HOOK_PRODUCERS, FileHookProducer
 from sase.core.paths import sase_subdir
 from sase.core.time import get_timezone
 
@@ -28,8 +29,6 @@ FileHookDispatchOutcome = Literal[
     "batch_dispatched",
     "producer_error",
 ]
-FileHookProducer = Literal["artifact", "commit", "sdd", "finalizer", "dispatch"]
-
 _ERROR_MESSAGE_LIMIT = 500
 _SECRET_RE = re.compile(
     r"(?i)\b(password|secret|token|api[_-]?key|authorization|bearer)\b\s*[:=]\s*\S+"
@@ -129,7 +128,7 @@ def _coerce_outcome(value: object) -> FileHookDispatchOutcome:
 
 
 def _coerce_producer(value: object) -> FileHookProducer:
-    if value in {"artifact", "commit", "sdd", "finalizer", "dispatch"}:
+    if value in FILE_HOOK_PRODUCERS:
         return value  # type: ignore[return-value]
     return "dispatch"
 
@@ -320,6 +319,7 @@ def load_file_hook_audit(audit_id: str) -> FileHookDispatchResult:
 
 __all__ = [
     "AUDIT_SCHEMA_VERSION",
+    "FILE_HOOK_PRODUCERS",
     "FILE_HOOK_STATE_DIRS",
     "FileHookAuditAmbiguousError",
     "FileHookAuditNotFoundError",

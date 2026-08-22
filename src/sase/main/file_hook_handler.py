@@ -22,7 +22,7 @@ from sase.file_hooks.audit import (
 )
 
 
-FILE_HOOK_LIST_JSON_SCHEMA_VERSION = 3
+FILE_HOOK_LIST_JSON_SCHEMA_VERSION = 4
 FILE_HOOK_HISTORY_JSON_SCHEMA_VERSION = 1
 
 
@@ -35,6 +35,7 @@ def _filter_text(hook: FileHookConfig) -> Text:
         ("path_globs", filters.path_globs),
         ("agent_name_globs", filters.agent_name_globs),
         ("ops", filters.ops),
+        ("producers", filters.producers),
     )
     for index, (label, values) in enumerate(rows):
         if index:

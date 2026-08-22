@@ -52,9 +52,10 @@ def _batch_payload(
     events: Sequence[CapturedFileEvent],
     hooks: Sequence[FileHookConfig],
     commit_sha: str | None,
+    producer: FileHookProducer,
 ) -> dict[str, object]:
     matching_events = [event.matching_event() for event in events]
-    planned = match_events(list(hooks), matching_events)
+    planned = match_events(list(hooks), matching_events, producer=producer)
     captured_by_match = {event.matching_event(): event for event in events}
     runs: list[dict[str, object]] = []
     for index, planned_run in enumerate(planned):
@@ -219,6 +220,7 @@ def dispatch_file_hook_events(
         planned = match_events(
             configured,
             [event.matching_event() for event in captured],
+            producer=producer,
         )
         if not planned:
             return finish("no_match")
@@ -232,6 +234,7 @@ def dispatch_file_hook_events(
             events=captured,
             hooks=configured,
             commit_sha=commit_sha,
+            producer=producer,
         )
         created = atomic_create_json(batch_path, payload)
         if not created:
