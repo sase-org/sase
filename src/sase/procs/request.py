@@ -25,6 +25,7 @@ class ProcSubmitRequest:
     label: str
     cwd: str | Path
     origin: str
+    command: Sequence[str] | None = None
     proc_id: str | None = None
     kind: str = COMMAND_PROC_KIND
     session_id: str | None = None
@@ -59,11 +60,16 @@ def proc_request_fingerprint(
     cwd: str,
     argv: Sequence[str],
 ) -> str:
-    """Return a stable fingerprint, unique per unnamed submit unless provided."""
+    """Return a stable fingerprint, unique per unnamed submit unless provided.
+
+    When *request* carries a logical ``command``, that value is fingerprinted
+    instead of the execution ``argv`` so bootstrap wrappers do not fork a
+    new identity for the same work.
+    """
     if request.request_fingerprint:
         return request.request_fingerprint
     payload = {
-        "argv": list(argv),
+        "argv": _logical_argv(request, argv),
         "concurrency_keys": sorted(set(request.concurrency_keys)),
         "cwd": cwd,
         "idle_timeout_seconds": request.idle_timeout_seconds,
@@ -101,6 +107,7 @@ def request_sidecar_payload(
             str(request.artifacts_dir) if request.artifacts_dir is not None else None
         ),
         "argv": list(argv),
+        "command": _logical_argv(request, argv),
         "cwd": cwd,
         "env": dict(request.env) if request.env is not None else None,
         "followup": dict(request.followup) if request.followup is not None else None,
@@ -120,6 +127,12 @@ def request_sidecar_payload(
             else None
         ),
     }
+
+
+def _logical_argv(request: ProcSubmitRequest, argv: Sequence[str]) -> list[str]:
+    if request.command is None:
+        return list(argv)
+    return [str(part) for part in request.command]
 
 
 __all__ = [

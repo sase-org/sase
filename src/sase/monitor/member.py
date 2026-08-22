@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
@@ -36,6 +37,7 @@ def create_monitor_member(
     idle_timeout_seconds: float = 0.0,
     starter_agent: str | None = None,
     next_model: str | None = None,
+    execution_argv: Sequence[str] | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -89,6 +91,8 @@ def create_monitor_member(
         meta["monitor_next_model"] = next_model
     if starter_agent:
         meta["monitor_starter_agent"] = starter_agent
+    if execution_argv:
+        meta["monitor_execution_argv"] = [str(part) for part in execution_argv]
     for key in ("agent_clan", "agent_clan_generation"):
         value = base_meta.get(key)
         if value:

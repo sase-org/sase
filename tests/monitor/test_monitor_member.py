@@ -92,6 +92,49 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["monitor_state"] == "running"
     assert meta["monitor_settled"] is False
     assert meta["monitor_request_fingerprint"] == "sha256:test"
+    assert "monitor_execution_argv" not in meta
+
+
+def test_create_monitor_member_persists_execution_argv() -> None:
+    artifacts_dir = create_monitor_member(
+        "proj",
+        {"name": "acme--0", "agent_family": "acme"},
+        lane="acme",
+        suffix="--mon",
+        prev_artifacts_timestamp="20260812120000",
+        workspace_num=0,
+        monitor_id="abc123def456",
+        command="sase bead work plan.md --yes-to-all",
+        cwd="/work/acme",
+        label="Epic launch · plan",
+        reason="Launch the approved epic from plan.md",
+        next_action=None,
+        start_status="EPIC APPROVED",
+        stop_status="EPIC CREATED",
+        timeout_seconds=30.0,
+        tail_lines=200,
+        next_output="tail",
+        request_fingerprint="sha256:test",
+        execution_argv=[
+            "/usr/bin/python",
+            "bootstrap.py",
+            "--",
+            "sase",
+            "bead",
+            "work",
+        ],
+    )
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_command"] == "sase bead work plan.md --yes-to-all"
+    assert meta["monitor_execution_argv"] == [
+        "/usr/bin/python",
+        "bootstrap.py",
+        "--",
+        "sase",
+        "bead",
+        "work",
+    ]
 
 
 def test_create_monitor_member_omits_next_action_when_none() -> None:

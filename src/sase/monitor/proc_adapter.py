@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -46,6 +47,22 @@ MONITOR_FOLLOWUP_KIND = "monitor"
 def compile_monitor_argv(command: str) -> list[str]:
     """Compile a monitor command string to explicit argv."""
     return [*MONITOR_ARGV_PREFIX, command]
+
+
+def monitor_proc_argv(
+    command: str,
+    *,
+    execution_argv: Sequence[str] | None = None,
+) -> list[str]:
+    """Return the argv the proc supervisor should exec for a monitor.
+
+    Host-owned epic launches pass an explicit execution argv (the
+    code-swap bootstrap). Other monitors keep the historical ``/bin/sh -c``
+    form of *command*.
+    """
+    if execution_argv:
+        return [str(part) for part in execution_argv]
+    return compile_monitor_argv(command)
 
 
 def proc_shell_owns(
@@ -405,6 +422,7 @@ __all__ = [
     "MONITOR_FOLLOWUP_KIND",
     "MONITOR_PROC_ORIGIN",
     "compile_monitor_argv",
+    "monitor_proc_argv",
     "overlay_proc_on_monitor",
     "proc_shell_owns",
     "settle_monitor_artifacts",

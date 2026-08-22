@@ -15,7 +15,11 @@ import pytest
 
 from sase.ace.hooks.processes import is_process_running
 from sase.monitor.followup import FollowupLaunchResult
-from sase.monitor.supervise import run_supervisor
+from sase.monitor.supervise import (
+    _execution_argv,
+    _popen_monitored_command,
+    run_supervisor,
+)
 from sase.monitor.transaction import MONITOR_GO_MARKER
 from sase.notifications.store import load_notifications
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
@@ -158,6 +162,63 @@ def _run_supervisor_subprocess(
     if completed.returncode == _SUPERVISOR_DRIVER_SETUP_FAILURE:
         pytest.fail(f"supervisor driver setup failed: {completed.stderr}")
     return completed
+
+
+def test_execution_argv_reconstructs_bootstrap_from_persisted_meta() -> None:
+    argv = [sys.executable, "code_swap_guarded_exec.py", "lock", "--", "sase"]
+    assert _execution_argv({"monitor_execution_argv": argv}) == argv
+    assert _execution_argv({}) is None
+    assert _execution_argv({"monitor_execution_argv": []}) is None
+
+
+def test_popen_monitored_command_uses_persisted_execution_argv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_popen(*args: object, **kwargs: object) -> object:
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    argv = [sys.executable, "-c", "pass"]
+    _popen_monitored_command(
+        {"monitor_execution_argv": argv},
+        command="sase bead work plan.md --yes-to-all",
+        cwd=str(tmp_path),
+        output_pipe=object(),  # type: ignore[arg-type]
+        command_env={"PATH": "/bin"},
+    )
+    assert recorded["args"] == (argv,)
+    kwargs = recorded["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["shell"] is False
+    assert kwargs["cwd"] == str(tmp_path)
+
+
+def test_popen_monitored_command_keeps_shell_form_without_execution_argv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    recorded: dict[str, object] = {}
+
+    def fake_popen(*args: object, **kwargs: object) -> object:
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+        return object()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    _popen_monitored_command(
+        {},
+        command="true",
+        cwd=str(tmp_path),
+        output_pipe=object(),  # type: ignore[arg-type]
+        command_env={},
+    )
+    assert recorded["args"] == ("true",)
+    kwargs = recorded["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["shell"] is True
 
 
 def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(

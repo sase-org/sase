@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import select
 import shlex
+import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +22,16 @@ from sase.bead.epic_launch import (
     finish_epic_launch,
     resolve_epic_launch_project,
     start_epic_launch_monitor,
+)
+from sase.dev_update.code_swap_lock import (
+    code_swap_writer_lock,
+    guarded_exec_argv,
+    logical_argv_from_guarded_exec,
+)
+from sase.procs.request import (
+    ProcSubmitRequest,
+    proc_request_fingerprint,
+    request_sidecar_payload,
 )
 from sase.workspace_provider.lease import OperationalLease
 from sase.workspace_provider.ownership import (
@@ -221,13 +235,14 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     )
     release.assert_not_called()
     request = start_monitor.call_args.args[0]
-    assert request.command == (
-        "sase bead work "
-        f"{shlex.quote(str(plan))} "
-        "--yes-to-all --artifacts-dir "
-        f"{shlex.quote(str(tmp_path / 'artifacts'))} "
-        "--cl-name demo --expect-prompt-snapshot"
+    logical = build_epic_launch_argv(
+        plan,
+        artifacts_dir=tmp_path / "artifacts",
+        cl_name="demo",
     )
+    assert request.command == shlex.join(logical)
+    assert list(request.execution_argv) == guarded_exec_argv(logical)
+    assert logical_argv_from_guarded_exec(list(request.execution_argv)) == logical
     assert request.cwd == str(lease.checkout_dir)
     assert request.project_name == "sase"
     assert request.lane == "planner"
@@ -293,10 +308,13 @@ def _start_epic_launch_monitor_request(
     tmp_path: Path,
     *,
     agent_meta: dict[str, object],
+    plan: Path | None = None,
+    artifacts: Path | None = None,
+    cl_name: str | None = None,
 ) -> object:
-    plan = tmp_path / "child epic.md"
-    artifacts = tmp_path / "artifacts"
-    artifacts.mkdir()
+    plan = plan if plan is not None else tmp_path / "child epic.md"
+    artifacts = artifacts if artifacts is not None else tmp_path / "artifacts"
+    artifacts.mkdir(exist_ok=True)
     (artifacts / "agent_meta.json").write_text(
         json.dumps(agent_meta) + "\n",
         encoding="utf-8",
@@ -321,6 +339,7 @@ def _start_epic_launch_monitor_request(
             project="sase",
             host_action_data={"agent_name": "sase-m6.6"},
             artifacts_dir=artifacts,
+            cl_name=cl_name,
         )
 
     assert submitted is monitor
@@ -367,18 +386,14 @@ def test_start_epic_launch_monitor_falls_back_to_leased_proc_when_lane_missing(
         cl_name="demo",
     )
     request = submit_via_lease.call_args.args[0]
-    assert list(request.argv) == [
-        "sase",
-        "bead",
-        "work",
-        str(plan),
-        "--yes-to-all",
-        "--artifacts-dir",
-        str(tmp_path / "artifacts"),
-        "--cl-name",
-        "demo",
-        "--expect-prompt-snapshot",
-    ]
+    logical = build_epic_launch_argv(
+        plan,
+        artifacts_dir=tmp_path / "artifacts",
+        cl_name="demo",
+    )
+    assert list(request.command) == logical
+    assert list(request.argv) == guarded_exec_argv(logical)
+    assert logical_argv_from_guarded_exec(list(request.argv)) == logical
     assert request.label == "Epic launch · auth rewrite"
     assert request.cwd == str(lease.checkout_dir)
     assert request.origin == "telegram"
@@ -412,6 +427,29 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
         {"pending", "running", "settling"}
     )
     assert read_tasks.call_args.kwargs["kind"] == {"command", "detached"}
+    acquire.assert_not_called()
+
+
+def test_start_epic_launch_monitor_fallback_deduplicates_guarded_argv(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "plans" / "epic.md"
+    existing = SimpleNamespace(
+        task_id="existing",
+        command=guarded_exec_argv(
+            ["sase", "bead", "work", "plans/epic.md", "--yes-to-all"]
+        ),
+        cwd=str(tmp_path),
+        tags=["epic", "launch"],
+    )
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[existing]),
+        patch("sase.workspace_provider.lease.acquire_operational_lease") as acquire,
+    ):
+        submitted = start_epic_launch_monitor(plan, project="sase")
+
+    assert submitted is existing
     acquire.assert_not_called()
 
 
@@ -544,3 +582,222 @@ def test_work_command_linking_side_effects_are_best_effort(tmp_path: Path) -> No
             cl_name="demo",
             result=result,
         )
+
+
+def test_epic_launch_proc_fingerprint_uses_logical_command_not_bootstrap() -> None:
+    logical = ["sase", "bead", "work", "/tmp/epic.md", "--yes-to-all"]
+    first = ProcSubmitRequest(
+        argv=guarded_exec_argv(logical),
+        command=logical,
+        label="Epic launch · epic",
+        cwd="/tmp",
+        origin="api",
+        project="sase",
+        tags=["epic", "launch"],
+    )
+    second = ProcSubmitRequest(
+        argv=[
+            "/other/python",
+            "/other/code_swap_guarded_exec.py",
+            "/other/code-swap.lock",
+            "--",
+            *logical,
+        ],
+        command=logical,
+        label="Epic launch · epic",
+        cwd="/tmp",
+        origin="api",
+        project="sase",
+        tags=["epic", "launch"],
+    )
+    kwargs = {"proc_id": "p1", "cwd": "/tmp"}
+    assert proc_request_fingerprint(
+        first, argv=list(first.argv), **kwargs
+    ) == proc_request_fingerprint(second, argv=list(second.argv), **kwargs)
+
+
+def test_epic_launch_sidecar_persists_execution_argv_and_logical_command() -> None:
+    logical = ["sase", "bead", "work", "/tmp/epic.md", "--yes-to-all"]
+    execution = guarded_exec_argv(logical)
+    request = ProcSubmitRequest(
+        argv=execution,
+        command=logical,
+        label="Epic launch · epic",
+        cwd="/tmp",
+        origin="api",
+    )
+    payload = request_sidecar_payload(
+        request,
+        proc_id="p1",
+        argv=execution,
+        cwd="/tmp",
+        log_path="/tmp/p1.log",
+        fingerprint="sha256:test",
+    )
+    assert payload["argv"] == execution
+    assert payload["command"] == logical
+    reconstructed = logical_argv_from_guarded_exec(payload["argv"])
+    assert reconstructed == logical
+
+
+def test_monitor_and_fallback_proc_share_guarded_execution_argv(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "auth rewrite.md"
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "planner", "agent_family": "planner"}) + "\n",
+        encoding="utf-8",
+    )
+    logical = build_epic_launch_argv(
+        plan,
+        artifacts_dir=artifacts,
+        cl_name="demo",
+    )
+    execution = guarded_exec_argv(logical)
+    monitor_request = _start_epic_launch_monitor_request(
+        tmp_path,
+        agent_meta={"name": "planner", "agent_family": "planner"},
+        plan=plan,
+        artifacts=artifacts,
+        cl_name="demo",
+    )
+    lease = _fake_lease(tmp_path)
+    task = SimpleNamespace(task_id="k7m2xyz", kind="command", session_id=None)
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
+        patch(
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ),
+        patch("sase.workspace_provider.lease.release_operational_lease"),
+        patch(
+            "sase.workspace_provider.lease.submit_via_lease",
+            return_value=task,
+        ) as submit_via_lease,
+    ):
+        start_epic_launch_monitor(
+            plan,
+            project="sase",
+            artifacts_dir=artifacts,
+            cl_name="demo",
+            origin="telegram",
+        )
+    fallback_request = submit_via_lease.call_args.args[0]
+    assert list(monitor_request.execution_argv) == execution
+    assert shlex.split(monitor_request.command) == logical
+    assert list(fallback_request.argv) == execution
+    assert list(fallback_request.command) == logical
+
+
+def test_host_epic_launch_waits_out_writer_then_runs_bead_work_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = tmp_path / "approved.md"
+    plan.write_text("# epic\n", encoding="utf-8")
+    marker = tmp_path / "created.json"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_sase = fake_bin / "sase"
+    fake_sase.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env python3",
+                "import json, pathlib, sys",
+                f"path = pathlib.Path({str(marker)!r})",
+                "path.write_text(json.dumps(sys.argv))",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fake_sase.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}{os.pathsep}{os.environ['PATH']}")
+
+    logical = build_epic_launch_argv(plan, artifacts_dir=tmp_path / "artifacts")
+    execution = guarded_exec_argv(logical)
+    monitor = SimpleNamespace(
+        monitor_id="m7k2xyz",
+        monitor_state="running",
+        command=shlex.join(logical),
+    )
+    lease = _fake_lease(tmp_path)
+    captured: dict[str, object] = {}
+
+    def fake_start_monitor(request: object) -> object:
+        captured["request"] = request
+        proc = subprocess.Popen(
+            list(request.execution_argv),  # type: ignore[attr-defined]
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        captured["proc"] = proc
+        return monitor
+
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
+        patch(
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ),
+        patch("sase.workspace_provider.lease.release_operational_lease"),
+        patch("sase.monitor.start.start_monitor", side_effect=fake_start_monitor),
+        code_swap_writer_lock() as writer,
+    ):
+        assert writer.acquired is True
+        submitted = start_epic_launch_monitor(
+            plan,
+            project="sase",
+            host_action_data={"agent_name": "planner"},
+            artifacts_dir=tmp_path / "artifacts",
+        )
+        assert submitted is monitor
+        proc = captured["proc"]
+        assert isinstance(proc, subprocess.Popen)
+        try:
+            line = _readline_until(
+                proc, "waiting for the source-tree swap to finish", timeout=5.0
+            )
+            assert line is not None
+            assert proc.poll() is None
+            assert not marker.exists()
+            assert plan.read_text(encoding="utf-8") == "# epic\n"
+        except BaseException:
+            proc.kill()
+            proc.wait(timeout=5)
+            raise
+
+    assert proc.wait(timeout=10) == 0
+    payload = json.loads(marker.read_text(encoding="utf-8"))
+    assert payload[0].endswith("sase")
+    assert payload[1:4] == ["bead", "work", str(plan)]
+    request = captured["request"]
+    assert request.command == shlex.join(logical)  # type: ignore[attr-defined]
+    assert list(request.execution_argv) == execution  # type: ignore[attr-defined]
+
+
+def _readline_until(
+    proc: subprocess.Popen[str], needle: str, *, timeout: float
+) -> str | None:
+    stream = proc.stdout
+    if stream is None:
+        return None
+    deadline = time.monotonic() + timeout
+    buf = ""
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        ready, _, _ = select.select([stream], [], [], max(0.0, remaining))
+        if not ready:
+            continue
+        chunk = stream.readline()
+        if chunk == "":
+            return None
+        buf += chunk
+        if needle in buf:
+            return buf
+    return None

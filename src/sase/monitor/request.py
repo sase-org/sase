@@ -8,6 +8,7 @@ next to each other, away from the process/claim machinery that acts on them.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 
@@ -53,6 +54,7 @@ class StartMonitorRequest:
     next_output: str = DEFAULT_NEXT_OUTPUT
     inherit_lane_workspace_claim: bool = True
     transfer_claim_from_pid: int | None = None
+    execution_argv: Sequence[str] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -77,6 +79,8 @@ def monitor_request_fingerprint(
 
     Two starts with the same fingerprint are the same request, so a replay
     can return the existing monitor instead of raising a conflict.
+    ``execution_argv`` is omitted on purpose: bootstrap machinery must not
+    change whether two host-owned epic launches are the same request.
     """
     payload = {
         "command": request.command,

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,7 @@ from .proc_adapter import (
     MONITOR_FOLLOWUP_KIND,
     MONITOR_PROC_ORIGIN,
     compile_monitor_argv,
+    monitor_proc_argv,
 )
 from .request import (
     DEFAULT_REASON,
@@ -198,6 +200,7 @@ def _start_monitor_locked(
         next_output=request.next_output,
         request_fingerprint=request_fingerprint,
         starter_agent=lane_start.starter_agent,
+        execution_argv=request.execution_argv,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -242,7 +245,17 @@ def _start_monitor_locked(
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
-                argv=compile_monitor_argv(request.command),
+                argv=(
+                    monitor_proc_argv(
+                        request.command,
+                        execution_argv=request.execution_argv,
+                    )
+                    if request.execution_argv
+                    else compile_monitor_argv(request.command)
+                ),
+                command=(
+                    shlex.split(request.command) if request.execution_argv else None
+                ),
                 label=label,
                 cwd=request.cwd,
                 origin=MONITOR_PROC_ORIGIN,

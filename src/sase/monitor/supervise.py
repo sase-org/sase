@@ -195,17 +195,12 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             # artifacts and must not leak into the monitored command.
             command_env.pop("SASE_ARTIFACTS_DIR", None)
             try:
-                child = subprocess.Popen(
-                    command,
-                    shell=True,
+                child = _popen_monitored_command(
+                    meta,
+                    command=command,
                     cwd=cwd,
-                    stdin=subprocess.DEVNULL,
-                    stdout=cast(Any, output_pipe),
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                    close_fds=True,
-                    text=False,
-                    env=command_env,
+                    output_pipe=output_pipe,
+                    command_env=command_env,
                 )
             except (OSError, ValueError) as exc:
                 error = f"could not start command: {_one_line(exc)}"
@@ -262,6 +257,45 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             timeout_kind=timeout_kind,
         )
     return 0 if monitor_state in {"completed", "stopped"} else 1
+
+
+def _popen_monitored_command(
+    meta: dict[str, Any],
+    *,
+    command: str,
+    cwd: str,
+    output_pipe: BoundedLogPipe,
+    command_env: dict[str, str],
+) -> subprocess.Popen[bytes]:
+    execution_argv = _execution_argv(meta)
+    if execution_argv is not None:
+        args: str | list[str] = execution_argv
+        shell = False
+    else:
+        args = command
+        shell = True
+    return subprocess.Popen(
+        args,
+        shell=shell,
+        cwd=cwd,
+        stdin=subprocess.DEVNULL,
+        stdout=cast(Any, output_pipe),
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+        text=False,
+        env=command_env,
+    )
+
+
+def _execution_argv(meta: dict[str, Any]) -> list[str] | None:
+    raw = meta.get("monitor_execution_argv")
+    if not isinstance(raw, list) or not raw:
+        return None
+    argv = [str(part) for part in raw]
+    if not all(argv):
+        return None
+    return argv
 
 
 def _write_start_acknowledgement(artifacts_dir: str, meta: dict[str, Any]) -> None:

@@ -2,12 +2,17 @@
 
 The lock prevents ``sase dev update`` from fast-forwarding and reinstalling the
 editable checkout while ``sase bead work`` is running from that same checkout.
-Both sides are fail-fast because a waiting reader may already have imported
-pre-swap modules, and a waiting writer would stall ACE.
 
-There is still a small residual race: a reader that starts while a swap is
-already in progress can import torn modules before it reaches this lock. Fully
-closing that requires re-execing readers and is intentionally out of scope.
+Direct ``sase bead work`` stays fail-fast: a process that has already imported
+editable SASE modules must not wait across a swap. Host-owned epic launches
+wait in ``code_swap_guarded_exec.py`` (executed by filename, not as a
+package import) and then exec a fresh ``sase bead work`` while the shared
+lock remains held.
+
+There is still a small residual race for unguarded readers: a process that
+starts while a swap is already in progress can import torn modules before it
+reaches this lock. The guarded epic-launch bootstrap is the re-exec path
+for that host-owned case.
 """
 
 from __future__ import annotations
@@ -31,6 +36,8 @@ from sase.core.paths import sase_subdir
 _logger = logging.getLogger(__name__)
 
 ENV_DISABLE_CODE_SWAP_LOCK = "SASE_DISABLE_CODE_SWAP_LOCK"
+_GUARDED_EXEC_SEPARATOR = "--"
+_GUARDED_EXEC_BOOTSTRAP = Path(__file__).with_name("code_swap_guarded_exec.py")
 
 
 @dataclass(frozen=True)
@@ -165,6 +172,41 @@ def code_swap_advisory_warning() -> str | None:
         f"{len(holders)} agent runner(s) are running from this checkout and a "
         "swap now can break their deferred imports."
     )
+
+
+def guarded_exec_argv(command: Sequence[str]) -> list[str]:
+    """Build argv that waits for the shared lock, then execs *command*.
+
+    The returned process imports no editable SASE modules until the lock is
+    held. Direct ``sase bead work`` callers must not use this path: they
+    stay fail-fast through :func:`code_swap_reader_lock`.
+    """
+    parts = [str(part) for part in command]
+    if not parts or not parts[0]:
+        raise ValueError("guarded exec requires a non-empty command")
+    return [
+        sys.executable,
+        str(_GUARDED_EXEC_BOOTSTRAP.resolve()),
+        str(_lock_path()),
+        _GUARDED_EXEC_SEPARATOR,
+        *parts,
+    ]
+
+
+def logical_argv_from_guarded_exec(argv: Sequence[str]) -> list[str]:
+    """Return the logical command wrapped by :func:`guarded_exec_argv`.
+
+    An unguarded argv is returned unchanged so callers can accept both the
+    historical ``sase bead work ...`` form and the bootstrap wrapper.
+    """
+    parts = [str(part) for part in argv]
+    try:
+        separator = parts.index(_GUARDED_EXEC_SEPARATOR)
+    except ValueError:
+        return parts
+    if separator >= 2 and Path(parts[1]).name == _GUARDED_EXEC_BOOTSTRAP.name:
+        return parts[separator + 1 :]
+    return parts
 
 
 def _lock_path() -> Path:

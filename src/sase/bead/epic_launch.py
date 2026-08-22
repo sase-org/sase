@@ -142,12 +142,12 @@ def start_epic_launch_monitor(
     if existing := _active_epic_launch_for_plan(resolved_plan):
         return existing
 
-    argv = build_epic_launch_argv(
+    logical_argv, execution_argv = _epic_launch_command_pair(
         plan_file,
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
     )
-    command = shlex.join(argv)
+    command = shlex.join(logical_argv)
     label = f"Epic launch · {Path(plan_file).stem}"
     with log_file_lock(procs_dir() / _EPIC_LAUNCH_SUBMIT_LOCK):
         if existing := _active_epic_launch_for_plan(resolved_plan):
@@ -169,6 +169,7 @@ def start_epic_launch_monitor(
                     record = start_monitor(
                         StartMonitorRequest(
                             command=command,
+                            execution_argv=execution_argv,
                             reason=(
                                 f"Launch the approved epic from {Path(plan_file).name}"
                             ),
@@ -281,13 +282,15 @@ def _submit_epic_launch_task(
 
     if existing := _active_epic_launch_for_plan(resolved_plan):
         return existing
+    logical_argv, execution_argv = _epic_launch_command_pair(
+        plan_file,
+        artifacts_dir=artifacts_dir,
+        cl_name=cl_name,
+    )
     return submit_via_lease(
         ProcSubmitRequest(
-            argv=build_epic_launch_argv(
-                plan_file,
-                artifacts_dir=artifacts_dir,
-                cl_name=cl_name,
-            ),
+            argv=execution_argv,
+            command=logical_argv,
             label=label,
             cwd=str(lease.checkout_dir),
             origin=origin,
@@ -315,11 +318,34 @@ def _active_epic_launch_for_plan(plan_file: Path) -> Proc | None:
     ):
         if not set(_EPIC_LAUNCH_TAGS).issubset(task.tags):
             continue
-        if len(task.command) < 4 or task.command[:3] != ["sase", "bead", "work"]:
+        logical = _logical_epic_launch_argv(task.command or task.argv)
+        if len(logical) < 4 or logical[:3] != ["sase", "bead", "work"]:
             continue
-        if _resolved_plan_path(task.command[3], cwd=task.cwd) == plan_file:
+        if _resolved_plan_path(logical[3], cwd=task.cwd) == plan_file:
             return task
     return None
+
+
+def _epic_launch_command_pair(
+    plan_file: str | Path,
+    *,
+    artifacts_dir: str | Path | None,
+    cl_name: str | None,
+) -> tuple[list[str], list[str]]:
+    from sase.dev_update.code_swap_lock import guarded_exec_argv
+
+    logical_argv = build_epic_launch_argv(
+        plan_file,
+        artifacts_dir=artifacts_dir,
+        cl_name=cl_name,
+    )
+    return logical_argv, guarded_exec_argv(logical_argv)
+
+
+def _logical_epic_launch_argv(command: list[str]) -> list[str]:
+    from sase.dev_update.code_swap_lock import logical_argv_from_guarded_exec
+
+    return logical_argv_from_guarded_exec(command)
 
 
 def _resolved_plan_path(plan_file: str | Path, *, cwd: str | Path) -> Path:

@@ -33,6 +33,17 @@ def test_fingerprint_changes_when_successor_model_differs() -> None:
     assert inherit == blank
 
 
+def test_fingerprint_ignores_execution_argv() -> None:
+    shared = {"lane": "acme", "label": "just check-full"}
+    plain = monitor_request_fingerprint(_request(), **shared)
+    guarded = monitor_request_fingerprint(
+        _request(execution_argv=["/usr/bin/python", "bootstrap.py", "--", "just"]),
+        **shared,
+    )
+
+    assert plain == guarded
+
+
 def test_fingerprint_is_stable_for_the_same_successor_model() -> None:
     first = monitor_request_fingerprint(
         _request(next_model="@small"), lane="acme", label="just check-full"
