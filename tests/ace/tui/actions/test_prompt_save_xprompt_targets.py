@@ -14,7 +14,7 @@ from textual.pilot import Pilot
 from textual.widgets import Static
 
 from sase.ace.tui.actions.agent_workflow import (
-    _prompt_bar_save_xprompt as save_xprompt_mod,
+    _prompt_bar_save_xprompt_mini as mini_xprompt_save_mod,
 )
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_targets import (
     write_binding_sync,
@@ -786,7 +786,7 @@ async def test_mini_xprompt_save_review_loads_disk_state_off_event_loop(
     release = threading.Event()
     worker_threads: list[int] = []
     loop_thread = threading.get_ident()
-    original = save_xprompt_mod._load_mini_xprompt_save_disk_state
+    original = mini_xprompt_save_mod.load_mini_xprompt_save_disk_state
 
     def _slow_disk_state(target: object) -> object:
         worker_threads.append(threading.get_ident())
@@ -796,8 +796,8 @@ async def test_mini_xprompt_save_review_loads_disk_state_off_event_loop(
 
     try:
         with patch.object(
-            save_xprompt_mod,
-            "_load_mini_xprompt_save_disk_state",
+            mini_xprompt_save_mod,
+            "load_mini_xprompt_save_disk_state",
             side_effect=_slow_disk_state,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -844,7 +844,7 @@ async def test_mini_xprompt_pane_failed_write_keeps_draft(tmp_path: Path) -> Non
         await _wait_save_tasks(app)
         await pilot.pause()
         with patch(
-            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt._write_mini_xprompt_sync",
+            "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_mini.write_mini_xprompt_sync",
             side_effect=RuntimeError("boom"),
         ):
             await pilot.press("enter")
