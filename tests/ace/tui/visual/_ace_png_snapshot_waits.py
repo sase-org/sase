@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable
 import hashlib
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from sase.ace.testing import AcePage
 
@@ -65,6 +66,9 @@ _VISUAL_DEBOUNCERS = (
     "_agent_detail_debouncer",
     "_axe_detail_debouncer",
 )
+# Last focus seen while normalizing caret caches. Used so a blurred TextArea
+# is compositor-repainted once after it loses focus, not on every idle cycle.
+_VISUAL_CURSOR_FOCUS: WeakKeyDictionary[Any, bool] = WeakKeyDictionary()
 _VISUAL_CONVERGENCE_TITLE = "ACE visual convergence probe"
 _VISUAL_CONVERGED_SVG_ATTR = "_sase_visual_converged_svg"
 _VISUAL_STABLE_FRAME_COUNT = 5
@@ -121,34 +125,48 @@ def _clear_transient_button_state(page: AcePage) -> None:
 def _disable_cursor_blink(page: AcePage) -> bool:
     from textual.widgets import Input, TextArea
 
-    focused_cursor_refreshed = False
+    queued_repaint = False
     for screen in page.app.screen_stack:
         for widget in screen.walk_children():
-            if isinstance(widget, (Input, TextArea)):
-                widget.cursor_blink = False
-                # Setting cursor_blink=False only forces the cursor visible
-                # when Textual's watcher observes a value transition after the
-                # blink timer is mounted. A focused input that blurred while
-                # blinking was already disabled can therefore retain
-                # _cursor_visible=False indefinitely. Normalize both the timer
-                # and visibility on every convergence cycle.
-                widget._pause_blink(visible=widget.has_focus)
-                if widget.has_focus:
-                    if isinstance(widget, TextArea):
-                        # TextArea's render-line cache key only includes
-                        # cursor visibility while blinking is enabled. If a
-                        # caret-free line was cached before this helper
-                        # disabled blinking, refresh() alone can keep reusing
-                        # it forever. Clear that stale line before repainting.
-                        widget._line_cache.clear()
-                    # The cursor visibility reactive can be correct before a
-                    # starved compositor has painted the focused row. Force a
-                    # repaint and tell the caller to drain it before sampling;
-                    # otherwise convergence can accept a caret-free cached
-                    # compositor frame while this refresh is merely queued.
+            if not isinstance(widget, (Input, TextArea)):
+                continue
+            widget.cursor_blink = False
+            # Setting cursor_blink=False only forces the cursor visible
+            # when Textual's watcher observes a value transition after the
+            # blink timer is mounted. A focused input that blurred while
+            # blinking was already disabled can therefore retain
+            # _cursor_visible=False indefinitely. Normalize both the timer
+            # and visibility from current focus on every convergence cycle.
+            widget._pause_blink(visible=widget.has_focus)
+            focused = widget.has_focus
+            if isinstance(widget, TextArea):
+                # TextArea's render-line cache key only includes cursor
+                # visibility while blinking is enabled. After this helper
+                # disables blinking, a line cached with the opposite caret
+                # state is reused forever: a focused caret stays painted on a
+                # now-blurred editor, and a caret-free line hides the caret
+                # on a now-focused editor. refresh() without clearing that
+                # cache is a no-op. Repaint a blurred editor once after we
+                # drop a stale cache so the compositor cannot keep the old
+                # strip; later idle cycles skip that refresh.
+                last_focus = _VISUAL_CURSOR_FOCUS.get(widget)
+                had_cache = bool(widget._line_cache)
+                if had_cache:
+                    widget._line_cache.clear()
+                blurred_stale_cache = (
+                    had_cache and not focused and last_focus is not False
+                )
+                if focused or blurred_stale_cache:
                     widget.refresh()
-                    focused_cursor_refreshed = True
-    return focused_cursor_refreshed
+                    queued_repaint = True
+                _VISUAL_CURSOR_FOCUS[widget] = focused
+            elif focused:
+                # Input has no line cache; still force a focused caret
+                # repaint so a starved compositor cannot sample a
+                # caret-free frame while this refresh is merely queued.
+                widget.refresh()
+                queued_repaint = True
+    return queued_repaint
 
 
 def _pending_visual_work(
@@ -223,10 +241,10 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 30.0) -> None:
         await page.pause()
         _clear_transient_button_state(page)
         if _disable_cursor_blink(page):
-            # The refresh requested above must reach the compositor before its
-            # frame is sampled. Under contention, exporting immediately can
-            # repeatedly observe the old caret-free compositor even though the
-            # cursor reactive itself is already visible.
+            # The refresh requested above must reach the compositor before
+            # its frame is sampled. Under contention, exporting immediately
+            # can reuse a line cached with the opposite caret state even
+            # though _cursor_visible already matches focus.
             await page.pause()
         pending = _pending_visual_work(page)
 

@@ -6,6 +6,8 @@ import asyncio
 from typing import Any, cast
 
 import pytest
+from textual.app import App, ComposeResult
+from textual.widgets import Button, Input, TextArea
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
@@ -17,6 +19,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
+from tests.ace.tui.visual._ace_png_snapshot_waits import _disable_cursor_blink
 
 
 class _Worker:
@@ -335,3 +338,155 @@ def test_pending_visual_work_reports_running_and_scheduled_animations() -> None:
         "running:(17, 'scroll_y')",
         "scheduled:(23, 'opacity')",
     ]
+
+
+class _CursorCacheApp(App[None]):
+    """Tiny app that can hold a focused caret and a blurred editor cache."""
+
+    CSS = "TextArea { width: 40; height: 5; } Input { height: 3; }"
+
+    def compose(self) -> ComposeResult:
+        yield TextArea(
+            "hello world",
+            id="editor",
+            show_line_numbers=False,
+            highlight_cursor_line=False,
+        )
+        yield Input(id="other")
+        yield Button("OK", id="ok")
+
+
+class _CursorCachePage:
+    def __init__(self, app: App[None], pilot: Any) -> None:
+        self.app = app
+        self._pilot = pilot
+
+    async def pause(self, delay: float | None = None) -> None:
+        if delay is None:
+            await self._pilot.pause()
+        else:
+            await self._pilot.pause(delay)
+
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        return self.app.export_screenshot(title=title, simplify=simplify)
+
+
+def _copy_line_cache(text_area: TextArea) -> dict[object, object]:
+    return {key: text_area._line_cache[key] for key in text_area._line_cache.keys()}
+
+
+def _restore_line_cache(text_area: TextArea, snapshot: dict[object, object]) -> None:
+    text_area._line_cache.clear()
+    for key, strip in snapshot.items():
+        text_area._line_cache[key] = strip
+
+
+def _textarea_caret_cells(text_area: TextArea) -> list[str]:
+    theme = text_area._theme
+    cursor_style = None if theme is None else theme.cursor_style
+    if cursor_style is None or cursor_style.bgcolor is None:
+        return []
+    hits: list[str] = []
+    for segment in text_area.render_line(0)._segments:
+        style = segment.style
+        if style is not None and style.bgcolor == cursor_style.bgcolor:
+            hits.append(segment.text)
+    return hits
+
+
+def _focused_only_disable_cursor_blink(page: Any) -> bool:
+    """Pre-repair helper: invalidate only the currently focused widget."""
+    from textual.widgets import Input, TextArea
+
+    focused_cursor_refreshed = False
+    for screen in page.app.screen_stack:
+        for widget in screen.walk_children():
+            if not isinstance(widget, (Input, TextArea)):
+                continue
+            widget.cursor_blink = False
+            widget._pause_blink(visible=widget.has_focus)
+            if widget.has_focus:
+                if isinstance(widget, TextArea):
+                    widget._line_cache.clear()
+                widget.refresh()
+                focused_cursor_refreshed = True
+    return focused_cursor_refreshed
+
+
+async def _paint_focused_editor_cache(
+    editor: TextArea, pilot: Any
+) -> dict[object, object]:
+    editor.focus()
+    editor.cursor_blink = False
+    editor._pause_blink(visible=True)
+    editor._line_cache.clear()
+    await pilot.pause()
+    editor.render_line(0)
+    snapshot = _copy_line_cache(editor)
+    assert _textarea_caret_cells(editor)
+    return snapshot
+
+
+@pytest.mark.asyncio
+async def test_visual_idle_clears_stale_cursor_on_blurred_textarea() -> None:
+    app = _CursorCacheApp()
+    async with app.run_test(size=(40, 16)) as pilot:
+        editor = app.query_one("#editor", TextArea)
+        ok_button = app.query_one("#ok", Button)
+        stale_cursor_cache = await _paint_focused_editor_cache(editor, pilot)
+
+        ok_button.focus()
+        await pilot.pause()
+        assert not editor.has_focus
+        _restore_line_cache(editor, stale_cursor_cache)
+        assert _textarea_caret_cells(editor)
+
+        page = _CursorCachePage(app, pilot)
+        # Confirm-dialog style: a Button holds focus, so the old
+        # focused-only invalidation never clears the background editor.
+        assert _focused_only_disable_cursor_blink(page) is False
+        assert _textarea_caret_cells(editor)
+
+        _restore_line_cache(editor, stale_cursor_cache)
+        assert _disable_cursor_blink(page) is True
+        assert _textarea_caret_cells(editor) == []
+
+        _restore_line_cache(editor, stale_cursor_cache)
+        await wait_for_visual_idle(cast(Any, page), timeout=2.0)
+
+        assert not editor.has_focus
+        assert editor._draw_cursor is False
+        assert _textarea_caret_cells(editor) == []
+
+
+@pytest.mark.asyncio
+async def test_visual_idle_repaints_focused_textarea_cursor() -> None:
+    app = _CursorCacheApp()
+    async with app.run_test(size=(40, 16)) as pilot:
+        editor = app.query_one("#editor", TextArea)
+        ok_button = app.query_one("#ok", Button)
+
+        ok_button.focus()
+        editor.cursor_blink = False
+        editor._pause_blink(visible=False)
+        editor._line_cache.clear()
+        await pilot.pause()
+        editor.render_line(0)
+        caret_free_cache = _copy_line_cache(editor)
+        assert _textarea_caret_cells(editor) == []
+
+        editor.focus()
+        editor.cursor_blink = False
+        editor._pause_blink(visible=True)
+        await pilot.pause()
+        _restore_line_cache(editor, caret_free_cache)
+        assert editor.has_focus
+        assert editor._draw_cursor is True
+        assert _textarea_caret_cells(editor) == []
+
+        page = _CursorCachePage(app, pilot)
+        await wait_for_visual_idle(cast(Any, page), timeout=2.0)
+
+        assert editor.has_focus
+        assert editor._draw_cursor is True
+        assert _textarea_caret_cells(editor)
