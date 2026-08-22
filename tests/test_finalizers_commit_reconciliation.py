@@ -57,6 +57,45 @@ def _dirty_state(repo: Path, *, dirty: bool) -> DirtyState:
     )
 
 
+def _repo(
+    path: Path,
+    *,
+    name: str = "main",
+    kind: str = "main",
+    changed_files: tuple[str, ...] = ("src/app.py",),
+) -> DirtyRepo:
+    return DirtyRepo(
+        name=name,
+        path=str(path),
+        changed_files=changed_files,
+        kind=kind,  # type: ignore[arg-type]
+    )
+
+
+def _dirty_repos(project_dir: Path, repos: tuple[DirtyRepo, ...]) -> DirtyState:
+    return DirtyState(
+        project_dir=str(project_dir),
+        repos=repos,
+        details="dirty" if repos else "",
+    )
+
+
+def _changed_files_for(path: str, repos: tuple[DirtyRepo, ...]) -> list[str]:
+    for repo in repos:
+        if repo.path == path:
+            return list(repo.changed_files)
+    return []
+
+
+def _fingerprints_for(
+    path: str, repos: tuple[DirtyRepo, ...]
+) -> dict[str, tuple[str, str]]:
+    files = _changed_files_for(path, repos)
+    if not files:
+        return {"src/app.py": ("M", "content")}
+    return dict.fromkeys(files, ("M", "content"))
+
+
 def _patch_commit_state(
     monkeypatch: pytest.MonkeyPatch,
     repo: Path,
@@ -86,6 +125,54 @@ def _patch_commit_state(
     )
 
 
+def _patch_multi_repo_state(
+    monkeypatch: pytest.MonkeyPatch,
+    project_dir: Path,
+    dirty: dict[str, tuple[DirtyRepo, ...]],
+) -> None:
+    monkeypatch.setattr(
+        "sase.finalizers.commit.resolve_finalizer_project_dir",
+        lambda: str(project_dir),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _dirty_repos(project_dir, dirty["repos"]),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
+        lambda path: _fingerprints_for(path, dirty["repos"]),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit.git_changed_files",
+        lambda path: _changed_files_for(path, dirty["repos"]),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.commit.prepare_commit_dirty_state",
+        lambda _project_dir, _artifacts: PreparedCommitDirtyState(
+            dirty_state=_dirty_repos(project_dir, dirty["repos"]),
+        ),
+    )
+
+
+def _write_commit_results(artifacts: Path, markers: list[dict[str, str]]) -> None:
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "commit_results.json").write_text(
+        json.dumps(markers),
+        encoding="utf-8",
+    )
+
+
+def _marker(
+    cwd: Path, *, sha: str, tree: str, result: str | None = None
+) -> dict[str, str]:
+    return {
+        "cwd": str(cwd),
+        "result": result if result is not None else sha,
+        "commit_sha": sha,
+        "commit_tree": tree,
+    }
+
+
 def _persist_and_submit_commit(
     artifacts: Path,
     *,
@@ -99,13 +186,13 @@ def _persist_and_submit_commit(
     )
     publication = publish_final_context(artifacts_dir=str(artifacts))
     manifest = publication.payload["manifest_template"]
-    decision = manifest["payloads"][0]["payload"]["repositories"][0]
-    decision["action"] = action
-    if action == "commit":
-        decision["message"] = message
-    else:
-        decision.pop("message", None)
-        decision["reason"] = reason
+    for decision in manifest["payloads"][0]["payload"]["repositories"]:
+        decision["action"] = action
+        if action == "commit":
+            decision["message"] = message
+        else:
+            decision.pop("message", None)
+            decision["reason"] = reason
     submit_final_manifest(manifest, artifacts_dir=str(artifacts))
 
 
@@ -270,6 +357,206 @@ def test_stale_commit_results_do_not_prove_clean_transition(
         BuiltinCommitFinalizerError,
         match="vanished|discarded|attributable",
     ):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    runner.assert_not_called()
+
+
+def test_reconciliation_auto_commit_updates_marker_and_skips_sidecar_stitch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """0ak: auto-committing a plans sidecar must prove the already-clean repo."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty: dict[str, tuple[DirtyRepo, ...]] = {
+        "repos": (
+            _repo(repo),
+            _repo(
+                plans,
+                name="plans",
+                kind="sibling",
+                changed_files=("links/202608/one.md.json",),
+            ),
+        )
+    }
+    _patch_multi_repo_state(monkeypatch, repo, dirty)
+    _write_commit_results(
+        artifacts,
+        [_marker(plans, sha="a" * 40, tree="b" * 40, result="old")],
+    )
+    calls: list[str] = []
+
+    def prepare(_project_dir: str, _artifacts: Path) -> PreparedCommitDirtyState:
+        remaining = tuple(item for item in dirty["repos"] if item.name != "plans")
+        dirty["repos"] = remaining
+        payload = json.loads((artifacts / "commit_results.json").read_text())
+        for index, item in enumerate(payload):
+            if item.get("cwd") == str(plans):
+                payload[index] = _marker(plans, sha="c" * 40, tree="d" * 40)
+                break
+        else:
+            payload.append(_marker(plans, sha="c" * 40, tree="d" * 40))
+        (artifacts / "commit_results.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
+        return PreparedCommitDirtyState(
+            dirty_state=_dirty_repos(repo, remaining),
+            artifact_links_auto_committed=True,
+        )
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        del message, excludes
+        calls.append(repo_arg.name)
+        dirty["repos"] = tuple(
+            item for item in dirty["repos"] if item.path != repo_arg.path
+        )
+        payload = json.loads((artifacts / "commit_results.json").read_text())
+        payload.append(_marker(Path(repo_arg.path), sha="e" * 40, tree="f" * 40))
+        (artifacts / "commit_results.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
+        return StitchCommandResult(returncode=0, stdout="ok\n")
+
+    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
+
+    _persist_and_submit_commit(artifacts)
+    result = run_finalizers(
+        provider=MagicMock(),
+        original_prompt="do work",
+        invoke_result=InvokeResult(content="done"),
+        model_tier="large",
+        suppress_output=True,
+        model_override=None,
+        artifacts_dir=str(artifacts),
+    )
+
+    assert result.content == "done"
+    assert calls == ["main"]
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "success"
+
+
+def test_reconciliation_marker_for_other_checkout_does_not_prove_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty: dict[str, tuple[DirtyRepo, ...]] = {
+        "repos": (
+            _repo(
+                plans,
+                name="plans",
+                kind="sibling",
+                changed_files=("links/202608/one.md.json",),
+            ),
+        )
+    }
+    _patch_multi_repo_state(monkeypatch, repo, dirty)
+    _write_commit_results(
+        artifacts,
+        [_marker(plans, sha="a" * 40, tree="b" * 40, result="old")],
+    )
+    runner = MagicMock()
+
+    def prepare(_project_dir: str, _artifacts: Path) -> PreparedCommitDirtyState:
+        dirty["repos"] = ()
+        payload = json.loads((artifacts / "commit_results.json").read_text())
+        payload.append(_marker(repo, sha="c" * 40, tree="d" * 40))
+        (artifacts / "commit_results.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
+        return PreparedCommitDirtyState(
+            dirty_state=_dirty_repos(repo, ()),
+            artifact_links_auto_committed=True,
+        )
+
+    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+
+    _persist_and_submit_commit(artifacts)
+    with pytest.raises(
+        BuiltinCommitFinalizerError,
+        match="vanished|discarded|attributable",
+    ):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    runner.assert_not_called()
+
+
+def test_unpublished_artifact_links_fail_after_proven_auto_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    artifacts = tmp_path / "artifacts"
+    _prepare_agent_env(monkeypatch, artifacts, repo)
+    dirty: dict[str, tuple[DirtyRepo, ...]] = {
+        "repos": (
+            _repo(
+                plans,
+                name="plans",
+                kind="sibling",
+                changed_files=("links/202608/one.md.json",),
+            ),
+        )
+    }
+    _patch_multi_repo_state(monkeypatch, repo, dirty)
+    runner = MagicMock()
+
+    def prepare(_project_dir: str, _artifacts: Path) -> PreparedCommitDirtyState:
+        dirty["repos"] = ()
+        _write_commit_results(artifacts, [_marker(plans, sha="c" * 40, tree="d" * 40)])
+        return PreparedCommitDirtyState(
+            dirty_state=_dirty_repos(repo, ()),
+            artifact_links_auto_committed=True,
+            artifact_link_publication_error=(
+                "ERROR: chore(artifact-links): persist link indexes was committed "
+                "locally but NOT published.\n  unpublished artifact-link commit(s): 1"
+            ),
+        )
+
+    monkeypatch.setattr("sase.finalizers.commit.prepare_commit_dirty_state", prepare)
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+
+    _persist_and_submit_commit(artifacts)
+    with pytest.raises(BuiltinCommitFinalizerError, match="NOT published"):
         run_finalizers(
             provider=MagicMock(),
             original_prompt="do work",

@@ -699,6 +699,15 @@ reachable between the before/after `HEAD`:
    footer lost to a rewrite the run itself performed, independent of whether the message
    still carries it.
 
+`builtin@commit` snapshots that ledger before machine-owned reconciliation (bead,
+plan-status, Q&A, and artifact-link auto-commits). When an accepted dirty repository
+becomes clean because preparation committed it, the newly written marker is compared
+against the pre-reconciliation ledger so the transition is attributable. Ordinary
+`sase stitch create` checks still use a post-reconciliation snapshot, so they require
+their own new marker. An unchanged or stale marker, a marker for a different checkout, a
+clean transition with no new marker, or unpublished machine-owned state still fails
+closed.
+
 When none of those hold, evidence distinguishes two reasons:
 
 - `head_not_advanced` — `HEAD` never moved. No commit exists anywhere in the repo's

@@ -94,7 +94,12 @@ def execute_commit_finalizer(
 
     artifacts = artifact_root(context.artifacts_dir)
     project_dir = resolve_finalizer_project_dir()
+    # Snapshot before machine-owned reconciliation so auto-commits can prove
+    # accepted repos that became clean. Stitch checks use a later snapshot so
+    # they still require their own markers.
+    ledger_before_reconciliation = _load_commit_results(artifacts)
     state = prepare_commit_dirty_state(project_dir, artifacts)
+    ledger_after_reconciliation = _load_commit_results(artifacts)
     dirty_before_decisions = state.dirty_state
     try:
         envelope, accepted_context, host_records = _load_accepted_commit_declaration(
@@ -160,7 +165,6 @@ def execute_commit_finalizer(
     evidence: list[FinalizerOutcomeEvidenceWire] = []
     runner = stitch_runner or run_stitch_create
     resume = resume_runner or run_stitch_resume
-    ledger_before_all = _load_commit_results(artifacts)
     accepted_repos = _accepted_repos_from_host(
         accepted_context,
         host_records,
@@ -206,7 +210,7 @@ def execute_commit_finalizer(
             attempts=attempts,
             evidence=evidence,
             invoke_result=current_result,
-            ledger_before=ledger_before_all,
+            ledger_before=ledger_before_reconciliation,
         )
 
     if not accepted_repos and state.dirty_state.is_clean:
@@ -394,7 +398,7 @@ def execute_commit_finalizer(
         attempts=attempts,
         evidence=evidence,
         invoke_result=current_result,
-        ledger_before=ledger_before_all,
+        ledger_before=ledger_after_reconciliation,
     )
 
     if not state.dirty_state.is_clean:
