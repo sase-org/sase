@@ -333,6 +333,13 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
+        --epic-symbol "sase-s6(AgentUnitWire)" \
+        --epic-symbol "sase-s6(LaunchConditionWire)" \
+        --epic-symbol "sase-s6(LaunchPlanDiagnosticWire)" \
+        --epic-symbol "sase-s6(LaunchUnitWire)" \
+        --epic-symbol "sase-s6(ProcUnitWire)" \
+        --epic-symbol "sase-s6(WaitTargetWire)" \
+        --epic-symbol "sase-s6(plan_typed_launch_units)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

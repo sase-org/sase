@@ -91,10 +91,13 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == [
+            "agent=",
             "bead=",
             "priority=",
+            "proc=",
             "runners=",
             "time=",
+            "unit=",
             "ship",
             "coder",
         ]
@@ -121,7 +124,16 @@ async def test_wait_arg_completion_excludes_selected_keyword_in_paren_form() -> 
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["bead=", "priority=", "runners=", "planner", "coder"]
+        ] == [
+            "agent=",
+            "bead=",
+            "priority=",
+            "proc=",
+            "runners=",
+            "unit=",
+            "planner",
+            "coder",
+        ]
 
 
 async def test_wait_arg_completion_excludes_selected_keyword_to_cursor_right() -> None:
@@ -248,8 +260,8 @@ async def test_wait_paren_empty_clause_offers_documented_bead_keyword() -> None:
         insertions = [
             candidate.insertion for candidate in ta._file_completion_candidates
         ]
-        assert insertions[:3] == ["bead=", "priority=", "runners="]
-        bead = ta._file_completion_candidates[0]
+        assert insertions[:5] == ["agent=", "bead=", "priority=", "proc=", "runners="]
+        bead = ta._file_completion_candidates[1]
         assert directive_arg_metadata(bead).description == (
             "Wait until this bead is closed"
         )

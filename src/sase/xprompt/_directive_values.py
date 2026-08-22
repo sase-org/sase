@@ -85,6 +85,21 @@ def resolve_wait_bead_args(wait_bead_args: list[str]) -> list[str]:
     return resolved
 
 
+def resolve_wait_identifier_args(kind: str, raw_args: list[str]) -> list[str]:
+    """Validate and deduplicate typed wait identifier values."""
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for raw_arg in raw_args:
+        if not raw_arg or re.fullmatch(r"\S+", raw_arg) is None:
+            raise DirectiveError(
+                f"'%wait({kind}=...)' requires a non-empty, whitespace-free value"
+            )
+        if raw_arg not in seen:
+            seen.add(raw_arg)
+            resolved.append(raw_arg)
+    return resolved
+
+
 def resolve_launch_bead_id(expanded_args: dict[str, str]) -> str | None:
     """Validate the optional ``bead=`` keyword on ``%id``."""
     if "bead" not in expanded_args:

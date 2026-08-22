@@ -102,10 +102,13 @@ def test_failure_degradation_retains_static_directive_rows(tmp_path: Path) -> No
         rows = lsp.complete("%wait(")
 
     assert [row.insertion for row in rows] == [
+        "agent=",
         "bead=",
         "priority=",
+        "proc=",
         "runners=",
         "time=",
+        "unit=",
     ]
 
 

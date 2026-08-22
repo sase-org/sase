@@ -312,6 +312,17 @@ def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     assert directives.wait_priority == 3
 
 
+def test_wait_typed_keywords_are_preserved() -> None:
+    prompt = "%wait(agent=reviewer, proc=build, unit=unit-2)\nDo work"
+
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.wait == ["reviewer"]
+    assert directives.wait_procs == ["build"]
+    assert directives.wait_units == ["unit-2"]
+
+
 def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
     with patch(
         "sase.agent.names.is_agent_name_template",
@@ -374,7 +385,8 @@ def test_wait_unknown_keyword_raises() -> None:
         DirectiveError,
         match=(
             r"Unsupported keyword on %wait: foo=\. "
-            r"Only bead=, priority=, runners=, and time= are supported\."
+            r"Only agent=, bead=, priority=, proc=, runners=, time=, "
+            r"and unit= are supported\."
         ),
     ):
         extract_prompt_directives(prompt)

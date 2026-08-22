@@ -12,9 +12,11 @@ from sase.core.agent_launch_wire import (
     AgentLaunchRequestWire,
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
+    LaunchPlanWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
     launch_fanout_plan_from_dict,
+    launch_plan_from_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -145,6 +147,22 @@ def plan_agent_launch_fanout(
     return launch_fanout_plan_from_dict(dict(payload))
 
 
+def plan_typed_launch_units(
+    prompt: str,
+    *,
+    launch_kind: str | None = None,
+    selected_project: str | None = None,
+) -> LaunchPlanWire:
+    """Return a pure typed Agent/Proc launch graph for *prompt*."""
+
+    from sase.xprompt.code_value import reject_disabled_code_directives
+
+    reject_disabled_code_directives(prompt)
+    binding = require_rust_binding("plan_typed_launch_units")
+    payload = binding(prompt, launch_kind, selected_project)
+    return launch_plan_from_dict(dict(payload))
+
+
 class LaunchTimestampBatchAllocator:
     """Allocate monotonically unique launch timestamps for one fan-out."""
 
@@ -194,6 +212,7 @@ __all__ = [
     "_allocate_launch_timestamp_batch",
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
+    "plan_typed_launch_units",
     "prepare_agent_launch",
     "reserve_launch_timestamp_batch",
     "safe_launch_name",

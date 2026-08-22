@@ -33,6 +33,8 @@ class _CollectedDirectives:
     seen: dict[str, str] = field(default_factory=dict)
     seen_source: dict[str, str] = field(default_factory=dict)
     seen_multi: dict[str, list[str]] = field(default_factory=dict)
+    wait_unit_args: list[str] = field(default_factory=list)
+    wait_proc_args: list[str] = field(default_factory=list)
     wait_bead_args: list[str] = field(default_factory=list)
     wait_time_args: list[str] = field(default_factory=list)
     wait_runners_args: list[str] = field(default_factory=list)
@@ -111,7 +113,15 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         continue
                     positional_args = raw_args
                 if name == "wait":
-                    supported_keys = {"bead", "priority", "runners", "time"}
+                    supported_keys = {
+                        "agent",
+                        "bead",
+                        "priority",
+                        "proc",
+                        "runners",
+                        "time",
+                        "unit",
+                    }
                     unknown_keys = sorted(
                         key for key in named_args if key not in supported_keys
                     )
@@ -119,9 +129,15 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Only bead=, priority=, runners=, and time= are "
-                            "supported."
+                            "Only agent=, bead=, priority=, proc=, runners=, "
+                            "time=, and unit= are supported."
                         )
+                    if "agent" in named_args:
+                        positional_args.append(named_args["agent"])
+                    if "unit" in named_args:
+                        collected.wait_unit_args.append(named_args["unit"])
+                    if "proc" in named_args:
+                        collected.wait_proc_args.append(named_args["proc"])
                     if "bead" in named_args:
                         collected.wait_bead_args.append(named_args["bead"])
                     if "time" in named_args:

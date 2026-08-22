@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 AGENT_LAUNCH_WIRE_SCHEMA_VERSION = 1
+LAUNCH_PLAN_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,96 @@ class LaunchFanoutPlanWire:
     slots: list[LaunchFanoutSlotWire] = field(default_factory=list)
     requires_sequential_naming_wait: bool = False
     fanout_sleep_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
+class WaitTargetWire:
+    """One typed wait edge in an approved launch plan."""
+
+    kind: str
+    logical_id: str | None = None
+    source: str | None = None
+    name: str | None = None
+    identifier: str | None = None
+    bead_id: str | None = None
+    value: str | None = None
+
+
+@dataclass(frozen=True)
+class LaunchConditionWire:
+    """Admission predicate attached to one logical launch unit."""
+
+    code: Any
+    cwd: str | None = None
+    context_fields: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AgentUnitWire:
+    """Agent payload inside a typed launch unit."""
+
+    prompt: str
+    identity: str | None = None
+    identity_explicit: bool = False
+    model: str | None = None
+    reasoning_effort: str | None = None
+    bead_id: str | None = None
+    hidden: bool = False
+    auto_enabled: bool = False
+    auto_mode: str | None = None
+    finalizers: list[str] = field(default_factory=list)
+    wait_runners: int | None = None
+    wait_priority: int | None = None
+
+
+@dataclass(frozen=True)
+class ProcUnitWire:
+    """Stand-alone proc payload inside a typed launch unit."""
+
+    code: Any
+    shell_name: str | None = None
+    label: str | None = None
+    timeout: str | None = None
+    idle_timeout: str | None = None
+    cwd: str | None = None
+    workspace: bool = False
+    workspace_explicit: bool = False
+    selected_project: str | None = None
+
+
+@dataclass(frozen=True)
+class LaunchUnitWire:
+    """One stable logical Agent-or-Proc unit in a typed launch plan."""
+
+    logical_id: str
+    source_order: int
+    payload: AgentUnitWire | ProcUnitWire
+    waits: list[WaitTargetWire] = field(default_factory=list)
+    condition: LaunchConditionWire | None = None
+
+
+@dataclass(frozen=True)
+class LaunchPlanDiagnosticWire:
+    """Stable typed launch-plan diagnostic."""
+
+    code: str
+    severity: str
+    message: str
+    source_span: tuple[int, int] | None = None
+    logical_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LaunchPlanWire:
+    """Pure typed launch graph prepared before approval."""
+
+    schema_version: int
+    launch_kind: str
+    selected_project: str | None
+    content_digest: str
+    units: list[LaunchUnitWire] = field(default_factory=list)
+    approval_preview: list[str] = field(default_factory=list)
+    diagnostics: list[LaunchPlanDiagnosticWire] = field(default_factory=list)
 
 
 def agent_launch_wire_to_json_dict(record: Any) -> Any:
@@ -184,14 +275,156 @@ def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
     )
 
 
+def launch_plan_from_dict(data: dict[str, Any]) -> LaunchPlanWire:
+    return LaunchPlanWire(
+        schema_version=int(data["schema_version"]),
+        launch_kind=str(data["launch_kind"]),
+        selected_project=(
+            None
+            if data.get("selected_project") is None
+            else str(data["selected_project"])
+        ),
+        units=[_launch_unit_from_dict(dict(unit)) for unit in data.get("units", [])],
+        approval_preview=[str(line) for line in data.get("approval_preview", [])],
+        content_digest=str(data["content_digest"]),
+        diagnostics=[
+            _launch_plan_diagnostic_from_dict(dict(row))
+            for row in data.get("diagnostics", [])
+        ],
+    )
+
+
+def _launch_unit_from_dict(data: dict[str, Any]) -> LaunchUnitWire:
+    return LaunchUnitWire(
+        logical_id=str(data["logical_id"]),
+        source_order=int(data["source_order"]),
+        waits=[_wait_target_from_dict(dict(wait)) for wait in data.get("waits", [])],
+        condition=(
+            None
+            if data.get("condition") is None
+            else _launch_condition_from_dict(dict(data["condition"]))
+        ),
+        payload=_launch_unit_payload_from_dict(dict(data["payload"])),
+    )
+
+
+def _launch_unit_payload_from_dict(
+    data: dict[str, Any],
+) -> AgentUnitWire | ProcUnitWire:
+    kind = str(data.get("kind") or "")
+    if kind == "agent":
+        return AgentUnitWire(
+            prompt=str(data["prompt"]),
+            identity=None if data.get("identity") is None else str(data["identity"]),
+            identity_explicit=bool(data.get("identity_explicit", False)),
+            model=None if data.get("model") is None else str(data["model"]),
+            reasoning_effort=(
+                None
+                if data.get("reasoning_effort") is None
+                else str(data["reasoning_effort"])
+            ),
+            bead_id=None if data.get("bead_id") is None else str(data["bead_id"]),
+            hidden=bool(data.get("hidden", False)),
+            auto_enabled=bool(data.get("auto_enabled", False)),
+            auto_mode=None if data.get("auto_mode") is None else str(data["auto_mode"]),
+            finalizers=[str(item) for item in data.get("finalizers", [])],
+            wait_runners=(
+                None if data.get("wait_runners") is None else int(data["wait_runners"])
+            ),
+            wait_priority=(
+                None
+                if data.get("wait_priority") is None
+                else int(data["wait_priority"])
+            ),
+        )
+    if kind == "proc":
+        return ProcUnitWire(
+            code=_code_value_from_dict(dict(data["code"])),
+            shell_name=(
+                None if data.get("shell_name") is None else str(data["shell_name"])
+            ),
+            label=None if data.get("label") is None else str(data["label"]),
+            timeout=None if data.get("timeout") is None else str(data["timeout"]),
+            idle_timeout=(
+                None if data.get("idle_timeout") is None else str(data["idle_timeout"])
+            ),
+            cwd=None if data.get("cwd") is None else str(data["cwd"]),
+            workspace=bool(data.get("workspace", False)),
+            workspace_explicit=bool(data.get("workspace_explicit", False)),
+            selected_project=(
+                None
+                if data.get("selected_project") is None
+                else str(data["selected_project"])
+            ),
+        )
+    raise ValueError(f"unknown launch unit payload kind: {kind!r}")
+
+
+def _launch_condition_from_dict(data: dict[str, Any]) -> LaunchConditionWire:
+    return LaunchConditionWire(
+        code=_code_value_from_dict(dict(data["code"])),
+        cwd=None if data.get("cwd") is None else str(data["cwd"]),
+        context_fields=[str(item) for item in data.get("context_fields", [])],
+    )
+
+
+def _wait_target_from_dict(data: dict[str, Any]) -> WaitTargetWire:
+    return WaitTargetWire(
+        kind=str(data["kind"]),
+        logical_id=None if data.get("logical_id") is None else str(data["logical_id"]),
+        source=None if data.get("source") is None else str(data["source"]),
+        name=None if data.get("name") is None else str(data["name"]),
+        identifier=None if data.get("identifier") is None else str(data["identifier"]),
+        bead_id=None if data.get("bead_id") is None else str(data["bead_id"]),
+        value=None if data.get("value") is None else str(data["value"]),
+    )
+
+
+def _launch_plan_diagnostic_from_dict(data: dict[str, Any]) -> LaunchPlanDiagnosticWire:
+    span = data.get("source_span")
+    return LaunchPlanDiagnosticWire(
+        code=str(data["code"]),
+        severity=str(data["severity"]),
+        message=str(data["message"]),
+        source_span=(
+            (int(span[0]), int(span[1]))
+            if isinstance(span, (list, tuple)) and len(span) == 2
+            else None
+        ),
+        logical_id=None if data.get("logical_id") is None else str(data["logical_id"]),
+    )
+
+
+def _code_value_from_dict(data: dict[str, Any]) -> Any:
+    from sase.xprompt.code_value import CodeValue
+
+    info = data.get("info_string")
+    return CodeValue(
+        source=str(data.get("source") or ""),
+        language=str(data.get("language") or "bash"),
+        info_string=str(info) if isinstance(info, str) else None,
+        digest=str(data.get("digest") or ""),
+        preview=str(data.get("preview") or ""),
+    )
+
+
 __all__ = [
     "AGENT_LAUNCH_WIRE_SCHEMA_VERSION",
     "AgentLaunchPreparedWire",
     "AgentLaunchRequestWire",
+    "AgentUnitWire",
+    "LaunchConditionWire",
     "LaunchFanoutPlanWire",
     "LaunchFanoutSlotWire",
+    "LaunchPlanDiagnosticWire",
+    "LaunchPlanWire",
+    "LaunchUnitWire",
+    "LAUNCH_PLAN_WIRE_SCHEMA_VERSION",
+    "ProcUnitWire",
+    "WaitTargetWire",
     "WorkspaceClaimRequestWire",
     "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",
     "launch_fanout_plan_from_dict",
+    "launch_plan_from_dict",
 ]

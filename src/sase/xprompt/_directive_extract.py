@@ -30,6 +30,7 @@ from ._directive_values import (
     resolve_reasoning_effort,
     resolve_wait_agent_args,
     resolve_wait_bead_args,
+    resolve_wait_identifier_args,
     resolve_wait_priority_args,
     resolve_wait_templates,
     resolve_wait_runners_args,
@@ -51,6 +52,7 @@ def extract_prompt_directives(
     process_references: Callable[[str], str],
 ) -> tuple[str, PromptDirectives]:
     """Extract ``%id`` directives from a prompt."""
+    original_prompt = prompt
     if "%" not in prompt:
         return prompt, PromptDirectives()
 
@@ -77,7 +79,9 @@ def extract_prompt_directives(
     prompt = protect_disabled_regions(prompt, disabled_regions)
 
     collected = collect_prompt_directive_matches(prompt)
-    if_code, proc_code = _owned_code_values(owned_scan, collected)
+    if_code, proc_code, proc_options = _owned_code_values(
+        original_prompt, owned_scan, collected
+    )
     if not collected.regions_to_remove and if_code is None and proc_code is None:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
         if strip_disabled_markers:
@@ -102,6 +106,12 @@ def extract_prompt_directives(
         collected.seen["id"] = get_next_auto_name()
 
     resolve_wait_agent_args(collected.seen_multi)
+    wait_units = resolve_wait_identifier_args(
+        "unit", [process_references(arg) for arg in collected.wait_unit_args]
+    )
+    wait_procs = resolve_wait_identifier_args(
+        "proc", [process_references(arg) for arg in collected.wait_proc_args]
+    )
     wait_beads = resolve_wait_bead_args(collected.wait_bead_args)
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners = resolve_wait_runners_args(collected.wait_runners_args)
@@ -224,6 +234,8 @@ def extract_prompt_directives(
         repeat_count=repeat_count,
         tribe=tribe,
         wait=expanded_multi.get("wait", []),
+        wait_units=wait_units,
+        wait_procs=wait_procs,
         wait_beads=wait_beads,
         wait_duration=wait_duration,
         wait_until=wait_until,
@@ -232,7 +244,7 @@ def extract_prompt_directives(
         final=expanded_multi.get("final", []),
         if_code=if_code,
         proc_code=proc_code,
-        proc_options=collected.proc_options,
+        proc_options=proc_options,
     )
 
     cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
@@ -243,9 +255,10 @@ def extract_prompt_directives(
 
 
 def _owned_code_values(
+    prompt: str,
     owned_scan: CodeDirectiveScan,
     collected: object,
-) -> tuple[CodeValue | None, CodeValue | None]:
+) -> tuple[CodeValue | None, CodeValue | None, dict[str, str]]:
     from sase.xprompt._exceptions import DirectiveError
 
     if_spans = [item for item in owned_scan.directives if item.name == "if"]
@@ -257,7 +270,49 @@ def _owned_code_values(
         raise DirectiveError("Only one %proc is allowed per launch unit.")
     if_code = if_spans[0].code if if_spans else None
     proc_code = proc_spans[0].code if proc_spans else collected_proc
-    return if_code, proc_code
+    proc_options = dict(getattr(collected, "proc_options", {}))
+    if proc_spans:
+        proc_options.update(_owned_proc_options(prompt, proc_spans[0].span))
+    return if_code, proc_code, proc_options
+
+
+def _owned_proc_options(prompt: str, span: tuple[int, int]) -> dict[str, str]:
+    from sase.xprompt._exceptions import DirectiveError
+
+    from ._parsing import find_matching_paren_for_args, parse_args
+
+    start, end = span
+    header_end = prompt.find("::", start, end)
+    if header_end < 0:
+        return {}
+    header = prompt[start:header_end].strip()
+    if not header.startswith("%proc("):
+        return {}
+    paren_start = prompt.find("(", start, header_end)
+    paren_end = find_matching_paren_for_args(prompt, paren_start)
+    if paren_start < 0 or paren_end is None or paren_end > header_end:
+        return {}
+    try:
+        positional_args, named_args = parse_args(
+            prompt[paren_start + 1 : paren_end],
+            reject_duplicate_named_args=True,
+        )
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    supported_keys = {"timeout", "idle_timeout", "cwd", "workspace", "label"}
+    body_keys = {"bash", "python"}
+    unknown = sorted(key for key in named_args if key not in supported_keys | body_keys)
+    if unknown:
+        keys = ", ".join(f"{key}=" for key in unknown)
+        raise DirectiveError(
+            f"Unsupported keyword on %proc: {keys}. Only bash=, python=, "
+            "timeout=, idle_timeout=, cwd=, workspace=, and label= are supported."
+        )
+    if any(arg for arg in positional_args) or body_keys & named_args.keys():
+        raise DirectiveError(
+            "%proc cannot combine a parenthesized body with a fenced body."
+        )
+    return {key: value for key, value in named_args.items() if key in supported_keys}
 
 
 def _remove_directive_regions(

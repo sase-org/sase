@@ -50,6 +50,23 @@ def test_flag_on_paren_proc_is_literal_and_stripped() -> None:
     assert directives.proc_code.language == "bash"
 
 
+def test_flag_on_fenced_proc_preserves_options() -> None:
+    prompt = '%proc(timeout="20m", label="Scoped")::\n```bash\njust check\n```\n'
+    with override_flags(typed_launch_units=True):
+        cleaned, directives = extract_prompt_directives(prompt)
+    assert cleaned == ""
+    assert directives.proc_code is not None
+    assert directives.proc_code.source == "just check\n"
+    assert directives.proc_options == {"timeout": "20m", "label": "Scoped"}
+
+
+def test_fenced_proc_rejects_parenthesized_body() -> None:
+    prompt = '%proc("just check")::\n```bash\njust test\n```\n'
+    with override_flags(typed_launch_units=True):
+        with pytest.raises(DirectiveError, match="parenthesized body"):
+            extract_prompt_directives(prompt)
+
+
 def test_literal_percent_hash_frontmatter_and_jinja_inside_owned_fence() -> None:
     body = "%model:opus\n#work\n---\n{{ name }}\n$(echo hi)\n``` inner"
     prompt = f"%if::\n```python\n{body}\n```\nLaunch"
