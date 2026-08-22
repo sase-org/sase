@@ -304,14 +304,17 @@ def test_commit_consumes_exported_declaration_helpers() -> None:
     ]
     assert missing_exports == []
 
-    commit_path = (
+    declaration_consumer_path = (
         Path(__file__).resolve().parents[1]
         / "src"
         / "sase"
         / "finalizers"
-        / "commit.py"
+        / "commit_declaration.py"
     )
-    tree = ast.parse(commit_path.read_text(encoding="utf-8"), filename=str(commit_path))
+    tree = ast.parse(
+        declaration_consumer_path.read_text(encoding="utf-8"),
+        filename=str(declaration_consumer_path),
+    )
     private_imports = [
         alias.name
         for node in ast.walk(tree)

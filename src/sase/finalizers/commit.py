@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-import json
-import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
-    FinalizerContextWire,
     FinalizerOutcomeEvidenceWire,
 )
-from sase.core.finalizer_facade import validate_finalizer_submission
 from sase.finalizers.config import ConfiguredFinalizerInstance
-from sase.finalizers import declaration as finalizer_declaration
+from sase.finalizers.commit_declaration import (
+    accepted_repos_from_host as _accepted_repos_from_host,
+    commit_decisions_for_instance as _commit_decisions_for_instance,
+    dirty_repos_in_context_order as _dirty_repos_in_context_order,
+    is_missing_declaration as _is_missing_declaration,
+    load_accepted_commit_declaration as _load_accepted_commit_declaration,
+    reject_stale_repository_obligation as _reject_stale_repository_obligation,
+    repository_decision_id as _repository_decision_id,
+)
 from sase.finalizers.commit_repair import (
     load_commit_results as _load_commit_results,
     marker_evidence as _marker_evidence,
@@ -37,32 +41,25 @@ from sase.finalizers.commit_types import (
     refused_result as _refused_result,
     success_result as _success_result,
 )
+from sase.finalizers.commit_validation import (
+    protected_baseline_paths,
+    raise_if_unpublished_machine_state as _raise_if_unpublished_machine_state,
+    reconcile_commit_file_hooks as _reconcile_commit_file_hooks,
+    reject_discarded_dirty_work as _reject_discarded_dirty_work,
+    unexpected_remaining_paths,
+)
 from sase.finalizers.executor import FinalizerExecutionContext
 from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
-from sase.finalizers.reconciliation import (
-    PreparedCommitDirtyState,
-    prepare_commit_dirty_state,
-)
+from sase.finalizers.reconciliation import prepare_commit_dirty_state
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
-from sase.llm_provider.commit_finalizer_baseline import (
-    BASELINE_FILENAME,
-    FINALIZER_BASELINE_FILENAME,
-)
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
-from sase.llm_provider.commit_finalizer_git import (
-    discarded_dirty_work_evidence,
-    discarded_dirty_work_message,
-    git_changed_files,
-    normalize_path,
-    split_pre_existing_changed_files,
-)
+from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
 _COMMIT_PROVIDER_REF = "builtin@commit"
-_logger = logging.getLogger(__name__)
 
 
 def execute_commit_finalizer(
@@ -447,137 +444,6 @@ def execute_commit_finalizer(
     )
 
 
-def _raise_if_unpublished_machine_state(
-    state: PreparedCommitDirtyState,
-    *,
-    instance_id: str,
-    invoke_result: InvokeResult,
-    attempts: Sequence[FinalizerAttemptWire] = (),
-    evidence: Sequence[FinalizerOutcomeEvidenceWire] = (),
-) -> None:
-    if state.bead_publication_error is not None:
-        result = _failed_result(
-            instance_id,
-            "bead_state_unpublished",
-            state.bead_publication_error,
-            attempts=attempts,
-            evidence=evidence,
-        )
-        raise BuiltinCommitFinalizerError(
-            state.bead_publication_error,
-            result=result,
-            invoke_result=invoke_result,
-        )
-    if state.artifact_link_publication_error is None:
-        return
-    result = _failed_result(
-        instance_id,
-        "artifact_links_unpublished",
-        state.artifact_link_publication_error,
-        attempts=attempts,
-        evidence=evidence,
-    )
-    raise BuiltinCommitFinalizerError(
-        state.artifact_link_publication_error,
-        result=result,
-        invoke_result=invoke_result,
-    )
-
-
-def _commit_decisions_for_instance(
-    envelope: Mapping[str, Any],
-    instance_id: str,
-) -> dict[str, Mapping[str, Any]]:
-    payloads = envelope.get("payloads")
-    if not isinstance(payloads, list):
-        return {}
-    for item in payloads:
-        if not isinstance(item, Mapping) or item.get("instance_id") != instance_id:
-            continue
-        payload = item.get("payload")
-        if not isinstance(payload, Mapping):
-            return {}
-        repositories = payload.get("repositories")
-        if not isinstance(repositories, list):
-            return {}
-        decisions: dict[str, Mapping[str, Any]] = {}
-        for decision in repositories:
-            if not isinstance(decision, Mapping):
-                continue
-            repo_id = decision.get("repo_id")
-            if isinstance(repo_id, str):
-                decisions[repo_id] = decision
-        return decisions
-    return {}
-
-
-def _is_missing_declaration(exc: Exception) -> bool:
-    code = getattr(exc, "code", None)
-    return code in {"missing_final_submission", "missing_final_context"}
-
-
-def _load_accepted_commit_declaration(
-    artifacts_dir: str | None,
-) -> tuple[
-    dict[str, Any],
-    FinalizerContextWire,
-    tuple[finalizer_declaration.HostRepositoryRecord, ...],
-]:
-    root = finalizer_declaration.require_artifacts_dir(
-        artifacts_dir,
-        "finalizer declaration load",
-    )
-    with finalizer_declaration.hold_finalizer_declaration_lock(root):
-        plan = finalizer_declaration.load_finalizer_plan(root)
-        latest = finalizer_declaration.load_latest_finalizer_context(root)
-        submission = finalizer_declaration.load_latest_finalizer_submission(root)
-        context = finalizer_declaration.accepted_context_from_submission(
-            submission,
-            fallback=latest,
-        )
-        envelope = finalizer_declaration.normalize_submission_envelope(
-            submission["submission"]
-        )
-        validate_finalizer_submission(plan, context, envelope)
-        finalizer_declaration.validate_provider_payloads(plan, context, envelope)
-        host_records = finalizer_declaration.load_accepted_host_repositories(root)
-        return envelope, context, host_records
-
-
-def _accepted_repos_from_host(
-    accepted_context: FinalizerContextWire,
-    host_records: Sequence[finalizer_declaration.HostRepositoryRecord],
-    *,
-    instance_id: str,
-) -> tuple[DirtyRepo, ...]:
-    host_by_id = {record.obligation_id: record for record in host_records}
-    repos: list[DirtyRepo] = []
-    for obligation in accepted_context.obligations:
-        if obligation.kind != "repository":
-            continue
-        record = host_by_id.get(obligation.obligation_id)
-        if record is None:
-            raise BuiltinCommitFinalizerError(
-                "commit declaration is stale; missing host identity for "
-                f"repository obligation {obligation.obligation_id}",
-                result=_failed_result(
-                    instance_id,
-                    "stale_commit_declaration",
-                    "commit declaration is stale; missing host identity for "
-                    f"repository obligation {obligation.obligation_id}",
-                ),
-            )
-        repos.append(
-            DirtyRepo(
-                name=record.name,
-                path=record.path,
-                changed_files=tuple(obligation.paths),
-                kind=record.kind,  # type: ignore[arg-type]
-            )
-        )
-    return tuple(repos)
-
-
 def _preflight_attempt(ledger: InstanceLedger | None) -> int:
     if ledger is None:
         return 1
@@ -590,281 +456,21 @@ def _peek_attempt(ledger: InstanceLedger | None) -> int:
     return ledger.next_attempt
 
 
-def _dirty_repos_in_context_order(
-    dirty_state: DirtyState,
-    decisions: Mapping[str, Mapping[str, Any]],
-    accepted_context: FinalizerContextWire,
-    *,
-    attempt: int = 1,
-    ledger: InstanceLedger | None = None,
-) -> list[DirtyRepo]:
-    repos_by_id = {_repository_decision_id(repo): repo for repo in dirty_state.repos}
-    ordered: list[DirtyRepo] = []
-    for obligation in accepted_context.obligations:
-        if obligation.kind != "repository":
-            continue
-        repo_id = obligation.obligation_id
-        if repo_id not in decisions:
-            raise BuiltinCommitFinalizerError(
-                "commit declaration is stale; missing decision(s): " + repo_id,
-                result=_failed_result(
-                    "commit",
-                    "stale_commit_declaration",
-                    "commit declaration is stale; missing decision(s): " + repo_id,
-                ),
-            )
-        repo = repos_by_id.get(repo_id)
-        if repo is not None:
-            ordered.append(repo)
-    missing = sorted(set(repos_by_id) - set(decisions))
-    if missing:
-        if ledger is not None:
-            attempt = ledger.allocate_attempt()
-        raise BuiltinCommitFinalizerError(
-            "commit declaration is stale; missing decision(s): " + ", ".join(missing),
-            result=_failed_result(
-                "commit",
-                "stale_commit_declaration",
-                "commit declaration is stale; missing decision(s): "
-                + ", ".join(missing),
-                attempts=[
-                    FinalizerAttemptWire(
-                        attempt=attempt,
-                        status="failed",
-                        diagnostic_code="stale_commit_declaration",
-                    )
-                ],
-            ),
-        )
-    return ordered
-
-
-def _repository_decision_id(repo: DirtyRepo) -> str:
-    return finalizer_declaration.repository_obligation_id(repo)
-
-
 def _protected_baseline_paths(
     artifacts: Path | None, repo_path: str
 ) -> tuple[str, ...]:
-    if artifacts is None:
-        return ()
-    baseline = _load_baseline_fingerprints(artifacts, repo_path)
-    if not baseline:
-        return ()
-    changed = git_changed_files(repo_path)
-    _still, pre_existing = split_pre_existing_changed_files(
+    return protected_baseline_paths(
+        artifacts,
         repo_path,
-        changed,
-        baseline,
+        get_changed_files=git_changed_files,
     )
-    return tuple(sorted(pre_existing))
-
-
-def _load_baseline_fingerprints(
-    artifacts: Path,
-    repo_path: str,
-) -> dict[str, tuple[str, str | None]]:
-    normalized_repo = normalize_path(repo_path)
-    records = _read_finalizer_baseline_records(artifacts)
-    if records is None:
-        return _read_legacy_baseline(artifacts, normalized_repo)
-    for record in records:
-        if normalize_path(str(record.get("path", ""))) != normalized_repo:
-            continue
-        raw = record.get("fingerprints")
-        if isinstance(raw, Mapping):
-            return _normalize_fingerprints(raw)
-    return {}
-
-
-def _read_finalizer_baseline_records(
-    artifacts: Path,
-) -> list[Mapping[str, Any]] | None:
-    try:
-        payload = json.loads(
-            (artifacts / FINALIZER_BASELINE_FILENAME).read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != 1:
-        return None
-    records = payload.get("repositories")
-    if not isinstance(records, list):
-        return None
-    return [item for item in records if isinstance(item, Mapping)]
-
-
-def _read_legacy_baseline(
-    artifacts: Path,
-    normalized_repo: str,
-) -> dict[str, tuple[str, str | None]]:
-    try:
-        payload = json.loads(
-            (artifacts / BASELINE_FILENAME).read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(payload, Mapping):
-        return {}
-    raw = payload.get(normalized_repo)
-    return _normalize_fingerprints(raw) if isinstance(raw, Mapping) else {}
-
-
-def _normalize_fingerprints(
-    raw: Mapping[str, Any],
-) -> dict[str, tuple[str, str | None]]:
-    normalized: dict[str, tuple[str, str | None]] = {}
-    for path, value in raw.items():
-        if (
-            isinstance(path, str)
-            and isinstance(value, list)
-            and len(value) == 2
-            and isinstance(value[0], str)
-            and (value[1] is None or isinstance(value[1], str))
-        ):
-            normalized[path] = (value[0], value[1])
-    return normalized
 
 
 def _unexpected_remaining_paths(repo_path: str, protected: Sequence[str]) -> list[str]:
-    protected_set = set(protected)
-    return [path for path in git_changed_files(repo_path) if path not in protected_set]
-
-
-def _marker_commit_sha(marker: Mapping[str, Any]) -> str | None:
-    for key in ("commit_sha", "result"):
-        value = marker.get(key)
-        if isinstance(value, str) and value.strip() and not value.startswith("http"):
-            return value
-    return None
-
-
-def _reconcile_commit_file_hooks(
-    repo: DirtyRepo,
-    marker: Mapping[str, Any],
-    *,
-    workspace_dir: str,
-) -> None:
-    """Ensure the deterministic commit batch exists after a verified marker."""
-    try:
-        from sase.agent.identity import resolve_local_agent_name
-        from sase.file_hooks.producer import reconcile_commit_file_hooks
-
-        sidecar_role = repo.name if repo.kind == "sdd" else None
-        reconcile_commit_file_hooks(
-            repo_root=repo.path,
-            commit_sha=_marker_commit_sha(marker),
-            workspace_dir=workspace_dir,
-            sidecar_role=sidecar_role,
-            agent_name=resolve_local_agent_name(),
-        )
-    except Exception:
-        _logger.warning(
-            "File-hook finalizer reconciliation failed; continuing",
-            exc_info=True,
-        )
-
-
-def _reject_stale_repository_obligation(
-    repo: DirtyRepo,
-    obligation_by_id: Mapping[str, Any],
-    instance_id: str,
-    *,
-    attempt: int = 1,
-    ledger: InstanceLedger | None = None,
-) -> None:
-    repo_id = _repository_decision_id(repo)
-    obligation = obligation_by_id.get(repo_id)
-    if obligation is None:
-        if ledger is not None:
-            attempt = ledger.allocate_attempt()
-        raise BuiltinCommitFinalizerError(
-            f"commit declaration is stale; repository {repo.name} is not in "
-            "the accepted context",
-            result=_failed_result(
-                instance_id,
-                "stale_commit_declaration",
-                f"commit declaration is stale; repository {repo.name} is not "
-                "in the accepted context",
-                attempts=[
-                    FinalizerAttemptWire(
-                        attempt=attempt,
-                        status="failed",
-                        diagnostic_code="stale_commit_declaration",
-                    )
-                ],
-            ),
-        )
-    expected = getattr(obligation, "digest", None)
-    if not isinstance(expected, str) or not expected:
-        return
-    current = finalizer_declaration.repository_state_digest(
-        repo_id,
-        repo,
-        list(repo.changed_files),
-    )
-    if current != expected:
-        if ledger is not None:
-            attempt = ledger.allocate_attempt()
-        raise BuiltinCommitFinalizerError(
-            f"commit declaration is stale; repository {repo.name} changed after submit",
-            result=_failed_result(
-                instance_id,
-                "stale_commit_declaration",
-                f"commit declaration is stale; repository {repo.name} changed "
-                "after submit",
-                attempts=[
-                    FinalizerAttemptWire(
-                        attempt=attempt,
-                        status="failed",
-                        diagnostic_code="stale_commit_declaration",
-                    )
-                ],
-            ),
-        )
-
-
-def _reject_discarded_dirty_work(
-    before: DirtyState,
-    after: DirtyState,
-    *,
-    artifacts: Path | None,
-    project_dir: str,
-    instance_id: str,
-    attempts: Sequence[FinalizerAttemptWire],
-    evidence: Sequence[FinalizerOutcomeEvidenceWire],
-    invoke_result: InvokeResult,
-    ledger_before: Sequence[Mapping[str, Any]],
-) -> None:
-    discarded = discarded_dirty_work_evidence(
-        before,
-        after,
-        artifacts_dir=str(artifacts) if artifacts is not None else None,
-    )
-    proven = {
-        normalize_path(str(marker.get("cwd", "")))
-        for marker in _new_commit_markers(
-            ledger_before, _load_commit_results(artifacts)
-        )
-        if marker.get("cwd")
-    }
-    remaining = tuple(
-        item for item in discarded if normalize_path(item.repo_path) not in proven
-    )
-    if not remaining:
-        return
-    message_text = discarded_dirty_work_message(remaining)
-    result = _failed_result(
-        instance_id,
-        "dirty_work_discarded",
-        message_text,
-        attempts=attempts,
-        evidence=evidence,
-    )
-    raise BuiltinCommitFinalizerError(
-        message_text,
-        result=result,
-        invoke_result=invoke_result,
+    return unexpected_remaining_paths(
+        repo_path,
+        protected,
+        get_changed_files=git_changed_files,
     )
 
 
