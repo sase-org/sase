@@ -133,6 +133,24 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         " · ".join(summary),
         "",
     ]
+    typed_plan = request.get("typed_plan")
+    if isinstance(typed_plan, Mapping):
+        digest = str(
+            typed_plan.get("content_digest") or request.get("plan_digest") or ""
+        )
+        preview_lines = [
+            str(line)
+            for line in typed_plan.get("approval_preview") or []
+            if str(line).strip()
+        ]
+        if digest or preview_lines:
+            lines.extend(["## Typed launch plan", ""])
+            if digest:
+                lines.append(f"digest `{digest[:12]}`")
+                lines.append("")
+            for line in preview_lines:
+                lines.append(f"- {line}")
+            lines.append("")
     for ordinal, (slot, clan_annotation) in enumerate(
         zip(slots, clan_annotations, strict=True),
         start=1,

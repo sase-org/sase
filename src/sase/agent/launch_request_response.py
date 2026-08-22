@@ -114,6 +114,11 @@ def dispatch_approved_launch_request(
     original_cwd = Path.cwd()
     try:
         os.chdir(cwd_path)
+        typed_plan = data.get("typed_plan")
+        if isinstance(typed_plan, dict) and typed_plan.get("units"):
+            from sase.agent.launch_admission import dispatch_typed_launch_request
+
+            return dispatch_typed_launch_request(response_dir, data)
         from sase.agent import launcher as launcher_mod
 
         results = launcher_mod.launch_agents_from_cwd(prompt)

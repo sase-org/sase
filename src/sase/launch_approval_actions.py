@@ -192,10 +192,14 @@ def _execute_neutral_launch_approval_response(
                 str(command_result.get("dispatch_error") or "launch dispatch failed"),
             )
         launched_count = int(command_result.get("launched_count") or 0)
-        message = (
-            f"Launch approved and dispatched {launched_count} agent"
-            f"{'s' if launched_count != 1 else ''}"
-        )
+        summary = command_result.get("admission_summary")
+        if isinstance(summary, dict):
+            message = _admission_message(summary, launched_count)
+        else:
+            message = (
+                f"Launch approved and dispatched {launched_count} agent"
+                f"{'s' if launched_count != 1 else ''}"
+            )
     elif option_id == "reject":
         message = "Feedback received" if feedback else "Launch rejected"
     else:  # The registered executor normally rejects this first.
@@ -243,6 +247,18 @@ def launch_context_from_notification(
         host_action_data={
             str(key): str(value) for key, value in notification.action_data.items()
         },
+    )
+
+
+def _admission_message(summary: dict[str, Any], launched_count: int) -> str:
+    total = int(summary.get("total") or 0)
+    skipped = int(summary.get("skipped") or 0)
+    condition_errors = int(summary.get("condition_errors") or 0)
+    launch_errors = int(summary.get("launch_errors") or 0)
+    return (
+        f"Launch admitted: {launched_count} launched, {skipped} skipped, "
+        f"{condition_errors} condition error(s), {launch_errors} launch error(s)"
+        f" (total {total})"
     )
 
 

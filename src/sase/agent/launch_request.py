@@ -27,6 +27,7 @@ from sase.agent.launch_request_planning import (
     preview_context as _preview_context,
     requester_context as _requester_context,
 )
+from sase.agent.launch_admission import stop_launch_admission
 from sase.agent.launch_request_response import (
     cancel_launch_approval_request,
     dispatch_approved_launch_request,
@@ -74,7 +75,7 @@ def create_launch_approval_request(
     source = source_surface or _default_source_surface()
     prompt = str(normalized["prompt"])
     max_slots = int(normalized["max_slots"])
-    _preview_prompt, plan = _build_preview_plan(prompt)
+    preview_prompt, plan = _build_preview_plan(prompt)
     slot_count = len(plan.slots)
     if slot_count > max_slots:
         raise LaunchRequestError(
@@ -97,6 +98,19 @@ def create_launch_approval_request(
         "cwd": str(Path.cwd()),
         "prompt": prompt,
     }
+    typed_plan = _typed_plan_payload(preview_prompt, context)
+    if typed_plan is not None:
+        request["typed_plan"] = typed_plan
+        request["plan_digest"] = typed_plan.get("content_digest")
+        request["plan_schema_version"] = typed_plan.get("schema_version")
+        slot_count = len(typed_plan.get("units") or [])
+        request["slot_count"] = slot_count
+        if slot_count > max_slots:
+            raise LaunchRequestError(
+                "max_slots_exceeded",
+                "max_slots",
+                f"launch request plans {slot_count} slot(s), max_slots is {max_slots}",
+            )
 
     from sase.notification_gates.models import GateError
     from sase.notification_gates.service import create_gate
@@ -135,6 +149,28 @@ def create_launch_approval_request(
     )
 
 
+def _typed_plan_payload(prompt: str, context: Any) -> dict[str, Any] | None:
+    from sase.core.agent_launch_facade import plan_typed_launch_units
+    from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
+    from sase.xprompt.code_value import typed_launch_units_enabled
+    from sase.xprompt.directives import DirectiveError
+
+    if not typed_launch_units_enabled():
+        return None
+    selected_project = getattr(context, "project_name", None)
+    try:
+        plan = plan_typed_launch_units(
+            prompt,
+            launch_kind="multi_prompt",
+            selected_project=selected_project,
+        )
+    except DirectiveError as exc:
+        raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
+    except (TypeError, ValueError) as exc:
+        raise LaunchRequestError("invalid_request", "typed_plan", str(exc)) from exc
+    return dict(agent_launch_wire_to_json_dict(plan))
+
+
 def running_agent_context_requires_launch_approval() -> bool:
     """Return whether this process is running inside an agent context."""
     return bool(os.environ.get("SASE_AGENT"))
@@ -166,5 +202,6 @@ __all__ = [
     "launch_gate_command_script",
     "read_launch_request",
     "running_agent_context_requires_launch_approval",
+    "stop_launch_admission",
     "wait_for_launch_approval",
 ]

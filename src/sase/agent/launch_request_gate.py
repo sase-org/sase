@@ -47,6 +47,27 @@ def execute_launch_gate_command(
                 "dispatch_status": "launched",
                 "launched_count": dispatch.launched_count,
             }
+            if dispatch.plan_digest:
+                result["plan_digest"] = dispatch.plan_digest
+            if dispatch.summary is not None:
+                result["admission_complete"] = bool(dispatch.admission_complete)
+                result["admission_summary"] = {
+                    "total": dispatch.summary.total,
+                    "eligible": dispatch.summary.eligible,
+                    "launched": dispatch.summary.launched,
+                    "skipped": dispatch.summary.skipped,
+                    "condition_errors": dispatch.summary.condition_errors,
+                    "launch_errors": dispatch.summary.launch_errors,
+                }
+            if dispatch.unit_results:
+                result["unit_results"] = [
+                    {
+                        "logical_id": item.logical_id,
+                        "outcome": item.outcome,
+                        **({"message": item.message} if item.message else {}),
+                    }
+                    for item in dispatch.unit_results
+                ]
     elif option_id == "reject":
         result = {"action": "reject"}
         feedback = raw_input.get("feedback")
@@ -87,6 +108,49 @@ def launch_gate_spec(
             "dispatch_status": {"enum": ["launched", "failed"]},
             "launched_count": {"type": "integer", "minimum": 0},
             "dispatch_error": {"type": "string"},
+            "plan_digest": {"type": "string"},
+            "admission_complete": {"type": "boolean"},
+            "admission_summary": {
+                "type": "object",
+                "required": [
+                    "total",
+                    "eligible",
+                    "launched",
+                    "skipped",
+                    "condition_errors",
+                    "launch_errors",
+                ],
+                "properties": {
+                    "total": {"type": "integer", "minimum": 0},
+                    "eligible": {"type": "integer", "minimum": 0},
+                    "launched": {"type": "integer", "minimum": 0},
+                    "skipped": {"type": "integer", "minimum": 0},
+                    "condition_errors": {"type": "integer", "minimum": 0},
+                    "launch_errors": {"type": "integer", "minimum": 0},
+                },
+                "additionalProperties": False,
+            },
+            "unit_results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["logical_id", "outcome"],
+                    "properties": {
+                        "logical_id": {"type": "string"},
+                        "outcome": {
+                            "enum": [
+                                "eligible",
+                                "launched",
+                                "skipped",
+                                "condition_error",
+                                "launch_error",
+                            ]
+                        },
+                        "message": {"type": "string"},
+                    },
+                    "additionalProperties": False,
+                },
+            },
         },
         "allOf": [
             {

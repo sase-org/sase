@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.agent_launch_wire import (
+    LaunchAdmissionSummaryWire,
+    LaunchUnitResultWire,
+)
 
 LAUNCH_REQUEST_SCHEMA_VERSION = 1
 
@@ -58,9 +62,15 @@ class LaunchRequestOutcome:
 class ApprovedLaunchDispatchResult:
     request_id: str
     results: list[AgentLaunchResult]
+    summary: LaunchAdmissionSummaryWire | None = None
+    unit_results: tuple[LaunchUnitResultWire, ...] = ()
+    plan_digest: str | None = None
+    admission_complete: bool = True
 
     @property
     def launched_count(self) -> int:
+        if self.summary is not None:
+            return int(self.summary.launched)
         return len(self.results)
 
 

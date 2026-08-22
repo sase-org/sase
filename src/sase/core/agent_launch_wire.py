@@ -12,6 +12,7 @@ from typing import Any
 
 AGENT_LAUNCH_WIRE_SCHEMA_VERSION = 1
 LAUNCH_PLAN_WIRE_SCHEMA_VERSION = 1
+LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -161,6 +162,27 @@ class LaunchUnitWire:
 
 
 @dataclass(frozen=True)
+class LaunchUnitResultWire:
+    """Terminal result for one logical launch unit."""
+
+    logical_id: str
+    outcome: str
+    message: str | None = None
+
+
+@dataclass(frozen=True)
+class LaunchAdmissionSummaryWire:
+    """Batch admission counts reported after coordinator progress."""
+
+    total: int
+    eligible: int
+    launched: int
+    skipped: int
+    condition_errors: int
+    launch_errors: int
+
+
+@dataclass(frozen=True)
 class LaunchPlanDiagnosticWire:
     """Stable typed launch-plan diagnostic."""
 
@@ -191,9 +213,95 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         return [agent_launch_wire_to_json_dict(item) for item in record]
     if isinstance(record, dict):
         return {str(k): agent_launch_wire_to_json_dict(v) for k, v in record.items()}
+    from sase.xprompt.code_value import CodeValue
+
+    if isinstance(record, CodeValue):
+        data: dict[str, Any] = {
+            "schema_version": 1,
+            "source": record.source,
+            "language": record.language,
+            "digest": record.digest,
+            "preview": record.preview,
+        }
+        if record.info_string is not None:
+            data["info_string"] = record.info_string
+        return data
+    if isinstance(record, AgentUnitWire):
+        agent_payload = asdict(record)
+        agent_payload["kind"] = "agent"
+        return agent_launch_wire_to_json_dict(agent_payload)
+    if isinstance(record, ProcUnitWire):
+        proc_payload: dict[str, Any] = {
+            "kind": "proc",
+            "code": agent_launch_wire_to_json_dict(record.code),
+            "workspace": record.workspace,
+            "workspace_explicit": record.workspace_explicit,
+        }
+        if record.shell_name is not None:
+            proc_payload["shell_name"] = record.shell_name
+        if record.label is not None:
+            proc_payload["label"] = record.label
+        if record.timeout is not None:
+            proc_payload["timeout"] = record.timeout
+        if record.idle_timeout is not None:
+            proc_payload["idle_timeout"] = record.idle_timeout
+        if record.cwd is not None:
+            proc_payload["cwd"] = record.cwd
+        if record.selected_project is not None:
+            proc_payload["selected_project"] = record.selected_project
+        return proc_payload
+    if isinstance(record, LaunchConditionWire):
+        condition = {
+            "code": agent_launch_wire_to_json_dict(record.code),
+            "context_fields": list(record.context_fields),
+        }
+        if record.cwd is not None:
+            condition["cwd"] = record.cwd
+        return condition
+    if isinstance(record, WaitTargetWire):
+        return _wait_target_to_json_dict(record)
+    if isinstance(record, LaunchPlanWire):
+        return {
+            "schema_version": record.schema_version,
+            "launch_kind": record.launch_kind,
+            "selected_project": record.selected_project,
+            "units": [agent_launch_wire_to_json_dict(unit) for unit in record.units],
+            "approval_preview": list(record.approval_preview),
+            "content_digest": record.content_digest,
+            "diagnostics": [
+                agent_launch_wire_to_json_dict(item) for item in record.diagnostics
+            ],
+        }
+    if isinstance(record, LaunchUnitWire):
+        unit: dict[str, Any] = {
+            "logical_id": record.logical_id,
+            "source_order": record.source_order,
+            "waits": [agent_launch_wire_to_json_dict(wait) for wait in record.waits],
+            "payload": agent_launch_wire_to_json_dict(record.payload),
+        }
+        if record.condition is not None:
+            unit["condition"] = agent_launch_wire_to_json_dict(record.condition)
+        return unit
     if hasattr(record, "__dataclass_fields__"):
-        return asdict(record)
+        return agent_launch_wire_to_json_dict(asdict(record))
     return record
+
+
+def _wait_target_to_json_dict(wait: WaitTargetWire) -> dict[str, Any]:
+    data: dict[str, Any] = {"kind": wait.kind}
+    if wait.logical_id is not None:
+        data["logical_id"] = wait.logical_id
+    if wait.source is not None:
+        data["source"] = wait.source
+    if wait.name is not None:
+        data["name"] = wait.name
+    if wait.identifier is not None:
+        data["identifier"] = wait.identifier
+    if wait.bead_id is not None:
+        data["bead_id"] = wait.bead_id
+    if wait.value is not None:
+        data["value"] = wait.value
+    return data
 
 
 def _workspace_claim_request_from_dict(
@@ -408,16 +516,40 @@ def _code_value_from_dict(data: dict[str, Any]) -> Any:
     )
 
 
+def launch_unit_result_from_dict(data: dict[str, Any]) -> LaunchUnitResultWire:
+    return LaunchUnitResultWire(
+        logical_id=str(data["logical_id"]),
+        outcome=str(data["outcome"]),
+        message=None if data.get("message") is None else str(data["message"]),
+    )
+
+
+def launch_admission_summary_from_dict(
+    data: dict[str, Any],
+) -> LaunchAdmissionSummaryWire:
+    return LaunchAdmissionSummaryWire(
+        total=int(data.get("total") or 0),
+        eligible=int(data.get("eligible") or 0),
+        launched=int(data.get("launched") or 0),
+        skipped=int(data.get("skipped") or 0),
+        condition_errors=int(data.get("condition_errors") or 0),
+        launch_errors=int(data.get("launch_errors") or 0),
+    )
+
+
 __all__ = [
     "AGENT_LAUNCH_WIRE_SCHEMA_VERSION",
     "AgentLaunchPreparedWire",
     "AgentLaunchRequestWire",
     "AgentUnitWire",
+    "LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION",
+    "LaunchAdmissionSummaryWire",
     "LaunchConditionWire",
     "LaunchFanoutPlanWire",
     "LaunchFanoutSlotWire",
     "LaunchPlanDiagnosticWire",
     "LaunchPlanWire",
+    "LaunchUnitResultWire",
     "LaunchUnitWire",
     "LAUNCH_PLAN_WIRE_SCHEMA_VERSION",
     "ProcUnitWire",
@@ -425,6 +557,8 @@ __all__ = [
     "WorkspaceClaimRequestWire",
     "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",
+    "launch_admission_summary_from_dict",
     "launch_fanout_plan_from_dict",
     "launch_plan_from_dict",
+    "launch_unit_result_from_dict",
 ]

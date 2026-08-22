@@ -5,18 +5,24 @@ from __future__ import annotations
 from collections.abc import Callable
 import fcntl
 from pathlib import Path
+from typing import Any
 
 from sase.core.agent_launch_wire import (
     AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
     AgentLaunchPreparedWire,
     AgentLaunchRequestWire,
+    AgentUnitWire,
+    LaunchAdmissionSummaryWire,
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
     LaunchPlanWire,
+    LaunchUnitResultWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
+    launch_admission_summary_from_dict,
     launch_fanout_plan_from_dict,
     launch_plan_from_dict,
+    launch_unit_result_from_dict,
 )
 from sase.core.rust import require_rust_binding
 
@@ -163,6 +169,57 @@ def plan_typed_launch_units(
     return launch_plan_from_dict(dict(payload))
 
 
+def reconcile_admission_journal(
+    entries: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Replay journal entries into the latest per-unit admission state."""
+
+    binding = require_rust_binding("reconcile_admission_journal")
+    payload = binding(entries)
+    return {str(key): dict(value) for key, value in dict(payload).items()}
+
+
+def next_admission_actions(
+    plan: LaunchPlanWire,
+    states: dict[str, dict[str, Any]],
+    wait_facts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return the next durable admission actions for *plan*."""
+
+    binding = require_rust_binding("next_admission_actions")
+    payload = binding(agent_launch_wire_to_json_dict(plan), states, wait_facts)
+    return [dict(item) for item in payload]
+
+
+def summarize_admission(
+    plan: LaunchPlanWire,
+    states: dict[str, dict[str, Any]],
+) -> LaunchAdmissionSummaryWire:
+    """Count terminal admission outcomes without collapsing error classes."""
+
+    binding = require_rust_binding("summarize_admission")
+    payload = binding(agent_launch_wire_to_json_dict(plan), states)
+    return launch_admission_summary_from_dict(dict(payload))
+
+
+def admission_unit_results(
+    plan: LaunchPlanWire,
+    states: dict[str, dict[str, Any]],
+) -> list[LaunchUnitResultWire]:
+    """Return terminal per-unit results currently recorded in *states*."""
+
+    binding = require_rust_binding("admission_unit_results")
+    payload = binding(agent_launch_wire_to_json_dict(plan), states)
+    return [launch_unit_result_from_dict(dict(item)) for item in payload]
+
+
+def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
+    """Rebuild an agent launch prompt from a typed unit without waits or %if."""
+
+    binding = require_rust_binding("agent_unit_dispatch_prompt")
+    return str(binding(agent_launch_wire_to_json_dict(agent)))
+
+
 class LaunchTimestampBatchAllocator:
     """Allocate monotonically unique launch timestamps for one fan-out."""
 
@@ -210,11 +267,16 @@ def plan_fake_fanout(
 __all__ = [
     "LaunchTimestampBatchAllocator",
     "_allocate_launch_timestamp_batch",
+    "admission_unit_results",
+    "agent_unit_dispatch_prompt",
+    "next_admission_actions",
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
     "plan_typed_launch_units",
     "prepare_agent_launch",
+    "reconcile_admission_journal",
     "reserve_launch_timestamp_batch",
     "safe_launch_name",
     "spawn_prepared_agent_process",
+    "summarize_admission",
 ]
