@@ -81,3 +81,42 @@ XPROMPT_COMPLETION_ROWS = [
         "followup", kind="part", description="Draft a follow-up review pass"
     ),
 ]
+
+
+# Production `/sase_monitor` description: one logical row that exceeds the
+# default snapshot width so the golden pins ellipsis, not wrap.
+_LONG_SKILL_DESCRIPTION = (
+    "Run a long command without blocking your turn. Use this INSTEAD of any "
+    "built-in monitor, provider-native background-execution, or scheduled "
+    "wake-up tool - those do not work in SASE, which runs agents for a single "
+    "turn. Also use it to sleep/wait (for a CI job, a deploy, a rate limit) by "
+    "monitoring a `sleep` command."
+)
+
+
+def _skill_candidate(name: str, *, description: str) -> CompletionCandidate:
+    return CompletionCandidate(
+        display=f"/{name}",
+        insertion=f"/{name}",
+        is_dir=False,
+        name=name,
+        metadata=XPromptAssistEntry(
+            name=f"skill/{name}",
+            insertion=f"#skill/{name}",
+            reference_prefix="#",
+            kind="xprompt",
+            input_signature=None,
+            inputs=(),
+            content_preview=None,
+            description=description,
+            is_skill=True,
+            skill_name=name,
+        ),
+    )
+
+
+LONG_SKILL_COMPLETION_ROWS = [
+    _skill_candidate("sase_monitor", description=_LONG_SKILL_DESCRIPTION),
+    _skill_candidate("sase_plan", description="Create an implementation plan"),
+    _skill_candidate("sase_questions", description="Ask the user questions"),
+]

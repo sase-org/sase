@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from typing import Any
 
 COMPLETION_PANEL_MAX_HEIGHT = 10
-"""Mirror of the ``max-height`` for ``#prompt-completion`` in styles.tcss."""
+"""Mirror of the ``max-height`` for ``#prompt-completion`` in styles.tcss.
+
+That selector also pins ``text-wrap: nowrap`` with ellipsis overflow so this
+row budget stays equal to the rendered panel height.
+"""
 
 COMPLETION_PANEL_BORDER_ROWS = 2
 """Top and bottom border rows the completion panel spends on its frame."""

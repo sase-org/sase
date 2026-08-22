@@ -61,7 +61,9 @@ else:
 # Mirror styles.tcss for #prompt-completion. The panel reserves a border-box
 # height capped by max-height, plus its one-row bottom margin. The border and
 # max-height mirrors live in file_completion so the row budget and the height
-# reservation cannot drift apart.
+# reservation cannot drift apart. CSS keeps text-wrap: nowrap with ellipsis
+# overflow so wrapped descriptions cannot allocate extra visual rows that
+# _content_line_count and _reserved_panel_rows would miss.
 _PANEL_MARGIN_ROWS = 1
 _JINJA_PANEL_MAX_HEIGHT = 5
 
@@ -388,4 +390,9 @@ def _clear_jinja_panel_classes(panel: Static) -> None:
 
 
 def _content_line_count(content: Text) -> int:
+    """Count explicit newline-delimited rows in *content*.
+
+    The ``#prompt-completion`` CSS must keep wrapping disabled; a wrapped
+    visual row would make this count under-reserve the prompt bar.
+    """
     return len(content.plain.splitlines()) if content.plain else 0

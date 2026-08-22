@@ -3705,6 +3705,8 @@ PromptInputBar.mini-xprompt-mode.mini-xprompt-dirty {
 }
 
 PromptInputBar #prompt-completion {
+    /* Wrapping must stay disabled: _content_line_count and
+       _reserved_panel_rows treat each explicit newline as one visual row. */
     width: 100%;
     height: auto;
     max-height: 10;
@@ -3713,6 +3715,8 @@ PromptInputBar #prompt-completion {
     color: $text;
     padding: 0 1;
     margin: 0 0 1 0;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 PromptInputBar #prompt-completion.hidden {
