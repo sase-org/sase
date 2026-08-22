@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -11,7 +13,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.artifact_cli.create import handle_create
-from sase.config.file_hooks import FileHookConfig, FileHookFilters
+from sase.config.file_hooks import FileHookConfig, FileHookFilters, _load_file_hooks
+from sase.config.layers import ConfigLayer
 from sase.file_hooks.audit import file_hooks_root, list_file_hook_audits
 from sase.file_hooks.engine import dispatch_file_hook_events
 from sase.file_hooks.producer import (
@@ -38,8 +41,6 @@ _DRAFT = (
 
 
 def _git(repo: Path, *args: str) -> str:
-    import subprocess
-
     result = subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -132,6 +133,64 @@ def _install_hook(
         "sase.file_hooks.engine.get_all_file_hooks",
         lambda: [hook],
     )
+
+
+def _install_research_highlights_use(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    command: str,
+) -> list[FileHookConfig]:
+    layers = [
+        ConfigLayer(
+            name="user",
+            path=None,
+            exists=True,
+            list_strategy="replace",
+            data={
+                "file_hooks": [
+                    {
+                        "use": "sase-research-artifacts@research-highlights",
+                        "command": command,
+                    }
+                ]
+            },
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token",
+        lambda: ("research-highlights-e2e",),
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    return _load_file_hooks()
+
+
+def _bob_dry_run(md_file: Path, bob_dir: Path) -> str:
+    bob_dir.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            "bob",
+            "highlights",
+            "create",
+            "--include-id",
+            "--dry-run",
+            "--bob-dir",
+            str(bob_dir),
+            str(md_file),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def _dry_run_field(output: str, key: str) -> str:
+    prefix = f"{key}: "
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line.removeprefix(prefix)
+    raise AssertionError(f"bob dry-run output missing {key!r}:\n{output}")
 
 
 def _stub_spawn(
@@ -401,3 +460,108 @@ def test_injected_persistence_failure_notifies_without_gating_commit(
         if notification.sender == "file-hooks"
     ]
     assert notifications and is_error(notifications[0])
+
+
+def test_installed_provider_skips_artifact_and_reuses_commit_batch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    pytest.importorskip("sase_research_artifacts")
+    workspace, research = _materialize_research_workspace(tmp_path)
+    _configure_research_agent(monkeypatch, tmp_path, workspace)
+    hooks = _install_research_highlights_use(monkeypatch, command="true")
+    if not hooks:
+        pytest.skip("research-highlights provider did not resolve")
+    hook = hooks[0]
+    if hook.filters.producers != ("commit", "sdd", "finalizer"):
+        pytest.skip("installed plugin does not restrict producers")
+    assert hook.name == "research-highlights"
+    assert hook.command == "true"
+    assert hook.filters.sidecars == ("research",)
+    assert hook.filters.ops == ("ADD",)
+    spawned = _stub_spawn(monkeypatch)
+    source = research / _REPORT
+
+    args = argparse.Namespace(
+        path=str(source),
+        label=None,
+        kind=None,
+        move=False,
+        bead=None,
+    )
+    assert handle_create(args) == 0
+    created = capsys.readouterr().out
+    stored_line = next(
+        line for line in created.splitlines() if line.startswith("path: ")
+    )
+    stored = Path(stored_line.removeprefix("path: "))
+    assert stored.is_file()
+    assert stored.name.startswith(f"{source.stem}-")
+    assert stored.suffix == ".md"
+    digest = stored.stem.removeprefix(f"{source.stem}-")
+    assert len(digest) == 12
+    assert digest.isalnum()
+    audits = list_file_hook_audits()
+    assert audits[0].outcome == "no_match"
+    assert audits[0].producer == "artifact"
+    assert audits[0].matched_hook_names == ()
+    assert audits[0].batch_path is None
+    assert spawned == []
+    assert list((file_hooks_root() / "batches").glob("*.json")) == []
+
+    (research / _DRAFT).unlink()
+    sha = _commit(research, "add consolidated report")
+    commit = produce_commit_file_hooks(
+        repo_root=research,
+        commit_sha=sha,
+        sidecar_role="research",
+        agent_name="research.0v.final",
+        workspace_dir=workspace,
+        producer="commit",
+    )
+    assert commit.outcome == "batch_dispatched"
+    assert commit.matched_hook_names == ("research-highlights",)
+    assert len(spawned) == 1
+    payload = json.loads(Path(commit.batch_path or "").read_text(encoding="utf-8"))
+    assert [run["rel_path"] for run in payload["runs"]] == [_REPORT]
+    assert [run["abs_path"] for run in payload["runs"]] == [str(source)]
+    assert source.name == Path(payload["runs"][0]["abs_path"]).name
+
+    reused = reconcile_commit_file_hooks(
+        repo_root=research,
+        commit_sha=sha,
+        workspace_dir=workspace,
+        sidecar_role="research",
+        agent_name="research.0v.final",
+    )
+    assert reused.outcome == "batch_already_present"
+    assert reused.producer == "finalizer"
+    assert reused.batch_path == commit.batch_path
+    assert len(spawned) == 1
+
+
+@pytest.mark.skipif(shutil.which("bob") is None, reason="bob CLI not installed")
+def test_bob_dry_run_canonical_report_has_no_digest_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    bob_dir = tmp_path / "bob"
+    monkeypatch.setenv("BOB_DIR", str(bob_dir))
+    report = tmp_path / "canonical_highlights_probe.md"
+    report.write_text("# Canonical Highlights probe\n", encoding="utf-8")
+    digest_copy = tmp_path / "canonical_highlights_probe-ad048d84997e.md"
+    digest_copy.write_text(report.read_text(encoding="utf-8"), encoding="utf-8")
+
+    canonical = _bob_dry_run(report, bob_dir)
+    assert _dry_run_field(canonical, "pdf").endswith("canonical_highlights_probe.pdf")
+    assert _dry_run_field(canonical, "id") == "canonical_highlights_probe"
+    assert "writes: none" in canonical
+
+    suffixed = _bob_dry_run(digest_copy, bob_dir)
+    assert _dry_run_field(suffixed, "pdf").endswith(
+        "canonical_highlights_probe-ad048d84997e.pdf"
+    )
+    assert _dry_run_field(suffixed, "id") == "canonical_highlights_probe-ad048d84997e"
+    assert "writes: none" in suffixed
+    assert list(bob_dir.rglob("*.pdf")) == []
