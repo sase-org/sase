@@ -104,8 +104,17 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # its repo-wide coverage but prefilters files that cannot contain one of the
 # clock attribute names before AST parsing. The whole 53-entry set measured
 # 27.0 s under the command above on this host.
-_MANIFEST_ENTRY_BUDGET = 53
-_MEASURED_SERIAL_COST = "27.0 serial seconds across 53 entries"
+#
+# Re-curated to 54 on 2026-08-22 (sase-s1.6) when
+# `test_ratchet_core_window_source_normalization.py` split the canonical-PyPI
+# trailing-slash equivalence tests out of `test_ratchet_core_window_tool.py`.
+# The added path redistributes the same tools/ ratchet guard already in the
+# set: `tools/ratchet_core_window` is not a node in the import graph, so a
+# source-spelling-only lock rewrite is otherwise invisible to scoped
+# selection. The whole 54-entry set measured 26.9 s under the command above
+# on this host, still inside the 30 s serial budget.
+_MANIFEST_ENTRY_BUDGET = 54
+_MEASURED_SERIAL_COST = "26.9 serial seconds across 54 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
