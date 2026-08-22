@@ -19,12 +19,21 @@ from sase.plan_gate import (
 
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
+    plan_host_archive_stub,  # noqa: F401
     write_plan,
 )
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 
 
-def test_plan_action_api_executes_selected_approval_options(gate_home: Path) -> None:
+@pytest.fixture(autouse=True)
+def _stub_host_archive(stub_host_plan_archive: Path) -> Path:
+    return stub_host_plan_archive
+
+
+def test_plan_action_api_executes_selected_approval_options(
+    gate_home: Path,
+    stub_host_plan_archive: Path,
+) -> None:
     gate = create_plan_approval_gate(
         write_plan(gate_home, "action-api.md", VALID_TALE_PLAN),
         "action-api",
@@ -46,6 +55,9 @@ def test_plan_action_api_executes_selected_approval_options(gate_home: Path) -> 
                 "action": "approve",
                 "commit_plan": True,
                 "run_coder": False,
+                "plan_archive_owner": "host",
+                "plan_archive_state": "archived",
+                "saved_plan_path": str(stub_host_plan_archive),
             },
         }
     ]
@@ -86,6 +98,7 @@ def test_plan_action_api_filters_protocol_overrides_for_tale_preset(
 
 def test_plan_action_api_filters_coder_options_for_commit_preset(
     gate_home: Path,
+    stub_host_plan_archive: Path,
 ) -> None:
     gate = create_plan_approval_gate(
         write_plan(gate_home, "action-commit.md", VALID_TALE_PLAN),
@@ -105,6 +118,9 @@ def test_plan_action_api_filters_coder_options_for_commit_preset(
         "action": "approve",
         "commit_plan": True,
         "run_coder": False,
+        "plan_archive_owner": "host",
+        "plan_archive_state": "archived",
+        "saved_plan_path": str(stub_host_plan_archive),
     }
 
 

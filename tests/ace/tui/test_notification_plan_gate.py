@@ -30,6 +30,9 @@ from sase.notification_gates import paths
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
 from sase.plan_gate import create_plan_approval_gate
+from tests._plan_gate_fixtures import (  # noqa: F401
+    plan_host_archive_stub,
+)
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
@@ -241,6 +244,7 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     commit_plan: bool,
     expected_option_ids: list[str],
     expected_status: str,
+    stub_host_plan_archive: Path,
 ) -> None:
     plan = gate_home / f"{choice}.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
@@ -257,6 +261,8 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
 
     assert submitted is True
     assert getattr(app.completion, "success", False) is True
+    if commit_plan:
+        assert stub_host_plan_archive.is_file()
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     assert response["selected_option_ids"] == expected_option_ids
     assert [item["id"] for item in response["option_results"]] == expected_option_ids
@@ -267,6 +273,7 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
 
 def test_neutral_tale_submission_merges_shared_and_per_option_inputs(
     gate_home: Path,
+    stub_host_plan_archive: Path,
 ) -> None:
     """A declared option_inputs mapping merges over the shared input_data.
 

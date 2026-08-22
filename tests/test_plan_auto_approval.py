@@ -16,8 +16,16 @@ from sase.main.plan_approve_handler import (
 )
 from sase.notification_gates.models import GateError
 
+from tests._plan_gate_fixtures import (  # noqa: F401
+    plan_host_archive_stub,
+)
 from tests.conftest import redirect_sase_home
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
+
+
+@pytest.fixture(autouse=True)
+def _stub_host_archive(stub_host_plan_archive: Path) -> Path:
+    return stub_host_plan_archive
 
 
 def _plan_gate_bundle(sase_home: Path, tier: str, session_id: str) -> Path:
@@ -28,7 +36,9 @@ def _plan_gate_bundle(sase_home: Path, tier: str, session_id: str) -> Path:
 
 
 def test_handle_plan_approval_auto_approve(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stub_host_plan_archive: Path,
 ) -> None:
     """Bare auto approval uses the recommended tale extras preset."""
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
@@ -41,7 +51,10 @@ def test_handle_plan_approval_auto_approve(
         result = handle_plan_approval(str(plan), "session-123")
     _plan_gate_bundle(sase_home, "tale", "session-123")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=str(plan), commit_plan=True
+        action="approve",
+        plan_file=str(plan),
+        commit_plan=True,
+        saved_plan_path=str(stub_host_plan_archive),
     )
 
 
@@ -71,7 +84,9 @@ def test_handle_plan_approval_auto_epic_skips_notification(
 
 
 def test_handle_plan_approval_auto_tale_skips_notification(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stub_host_plan_archive: Path,
 ) -> None:
     """Plan-specific auto-tale enters the auto-approval action path."""
     plan = tmp_path / "plan.md"
@@ -85,7 +100,10 @@ def test_handle_plan_approval_auto_tale_skips_notification(
 
     _plan_gate_bundle(sase_home, "tale", "session-123")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=str(plan), commit_plan=True
+        action="approve",
+        plan_file=str(plan),
+        commit_plan=True,
+        saved_plan_path=str(stub_host_plan_archive),
     )
 
 
@@ -110,7 +128,10 @@ def test_invalid_auto_epic_does_not_consume_pending_action(tmp_path: Path) -> No
 
 @pytest.mark.parametrize("auto_action", ["approve", "tale", "epic"])
 def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
-    auto_action: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    auto_action: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stub_host_plan_archive: Path,
 ) -> None:
     """A pending plan unblocks when auto-approve is enabled after notification."""
     from sase.notifications import load_notifications, pending_actions
@@ -135,10 +156,6 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
             "sase.plan_approval_actions.prepare_epic_launch",
             return_value=SimpleNamespace(monitor_id="mon-waiting-auto"),
         ),
-        # This fixture's action data names no project, so archiving cannot
-        # run; its failure report is out of scope for the notification
-        # assertions below.
-        patch("sase._plan_archive_approval.report_plan_archive_failure"),
     ):
         result = handle_plan_approval(
             plan_file,
@@ -151,6 +168,9 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
         action="epic" if auto_action == "epic" else "approve",
         plan_file=plan_file,
         commit_plan=True,
+        saved_plan_path=(
+            None if auto_action == "epic" else str(stub_host_plan_archive)
+        ),
     )
     assert get_auto_action.call_count == 3
     if auto_action == "epic":
@@ -220,7 +240,9 @@ def test_handle_plan_approval_killed_check_wins_over_waiting_auto_approve(
 
 
 def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stub_host_plan_archive: Path,
 ) -> None:
     """Auto-approval dismisses a stale Telegram plan keyboard via shared state.
 
@@ -261,7 +283,10 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
 
     _plan_gate_bundle(sase_home, "tale", "session-xyz")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=plan_file, commit_plan=True
+        action="approve",
+        plan_file=plan_file,
+        commit_plan=True,
+        saved_plan_path=str(stub_host_plan_archive),
     )
     store = pending_actions.read_pending_action_store()
     assert store["actions"]["abcdef01"]["state"] == "already_handled"

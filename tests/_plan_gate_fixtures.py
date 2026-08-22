@@ -51,3 +51,15 @@ def write_plan(root: Path, name: str, content: str) -> Path:
     path = root / name
     path.write_text(content, encoding="utf-8")
     return path
+
+
+@pytest.fixture(name="stub_host_plan_archive")
+def plan_host_archive_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Publish a host-owned archive path without resolving a real project."""
+    saved = tmp_path / "host-archived-plan.md"
+    saved.write_text("# archived\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        lambda *_args, **_kwargs: str(saved),
+    )
+    return saved

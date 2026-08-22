@@ -22,6 +22,9 @@ from sase.plan_gate import (
 )
 from sase.notifications import pending_actions
 
+from tests._plan_gate_fixtures import (  # noqa: F401
+    plan_host_archive_stub,
+)
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
@@ -186,7 +189,10 @@ def test_e2e_custom_gate_with_restart_verify_reject_query(
     assert output["selected_option_ids"] == ["restart", "verify"]
 
 
-def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
+def test_e2e_tale_plan_gate_structure_and_branches(
+    gate_home: Path,
+    stub_host_plan_archive: Path,
+) -> None:
     """Verify tale plan gate has correct branches, group submit, and runner protocol."""
     tale_path = _write_plan(gate_home, "tale.md", VALID_TALE_PLAN)
     result = create_plan_approval_gate(
@@ -237,6 +243,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
     assert runner_proto["action"] == "approve"
     assert runner_proto["run_coder"] is True
     assert runner_proto["commit_plan"] is True
+    assert runner_proto["saved_plan_path"] == str(stub_host_plan_archive)
 
 
 def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
