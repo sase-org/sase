@@ -68,10 +68,11 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 [uv](https://docs.astral.sh/uv/), `git`, a text editor (`$EDITOR`, falling back to
 `nvim` then `vim`), and one authenticated agent CLI: Claude Code, Codex, Antigravity CLI
 (`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
-SASE never auto-detects Muse or Grok from `PATH`, because those executable names are
-generic. Select Muse explicitly. Grok can be selected explicitly or reached through the
-shipped `@xsmall`, `@small`, and `@medium` model-alias pools, or as the last candidate
-in the `@large` and `@xlarge` fallbacks, when Grok Build is installed.
+SASE's default provider autodetection never selects Muse or Grok from `PATH`, because
+those executable names are generic. Select Muse explicitly. Model-alias routing is a
+separate mechanism: it can select Grok through the shipped `@xsmall`, `@small`, and
+`@medium` pools, or as the last candidate in the `@large` and `@xlarge` fallbacks, when
+Grok Build is installed.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github

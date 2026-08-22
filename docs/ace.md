@@ -4334,8 +4334,8 @@ For the Tale and Commit choices, SASE publishes the reviewed plan to the archive
 the approval response is made terminal. The response carries a canonical `plan:`
 reference, so a coder launched from a different numbered workspace resolves the same
 archived plan without depending on the approver's checkout path. If publication fails,
-approval fails without consuming the proposal: it remains pending and can be retried
-after the archive problem is fixed.
+SASE does not write the terminal response. The PlanApproval notification remains
+actionable and can be retried after the archive problem is fixed.
 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending
 proposals, recent approvals, and inferred rejected archived plans; run

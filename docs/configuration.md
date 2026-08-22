@@ -3731,9 +3731,12 @@ can still read a config written by a newer SASE, but the resolver warns and igno
 unknown keys at runtime.
 
 The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
-the experimental `%if` and `%proc` parser contract and the corresponding completion
-rows. Current public launch surfaces capture and strip those directives but do not yet
-execute their condition or process units; see
+the experimental `%if` and `%proc` parser, completion, and launch-plan contract. Direct
+operator launches from `sase run` and ACE capture and strip those directives but do not
+perform typed admission. Launches routed through LaunchApproval freeze the typed plan
+before review; after approval, the admission coordinator resolves waits and evaluates
+`%if` before dispatching eligible agent units. Native `%proc` dispatch is not yet
+available; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences
@@ -4027,13 +4030,14 @@ Grok Build uses
 `grok --prompt-file /dev/stdin --output-format streaming-messages-json --permission-mode bypassPermissions --model <model> --cwd <cwd> --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader`
 and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is a
 generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
-deprecated regex tool, so Grok never participates in autodetection like Muse; it is
-reached by explicit selection (see [llm_provider.provider](#llm_provider) above) or
-automatically whenever the `grok` CLI is installed: through the shipped `@xsmall`,
-`@small`, and `@medium` round-robin pools, or as the last candidate in the `@large` and
-`@xlarge` ordered fallbacks (behind Claude and Codex). Grok's `grok-4.6` model accepts
-only `low`/`medium`/`high`/`xhigh` for `--effort`; see
-[LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
+deprecated regex tool. Like Muse, Grok never participates in default-provider
+autodetection. It is reached by explicit selection (see
+[llm_provider.provider](#llm_provider) above) or by the separate model-alias router: the
+shipped `@xsmall`, `@small`, and `@medium` round-robin pools and the last candidate in
+the `@large` and `@xlarge` ordered fallbacks can select it whenever a `grok` executable
+is available. Routing checks executable presence, while `sase doctor` performs the Grok
+Build identity probe. Grok's `grok-4.6` model accepts only `low`/`medium`/`high`/`xhigh`
+for `--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
 

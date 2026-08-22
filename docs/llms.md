@@ -179,10 +179,11 @@ provider = get_provider("claude")  # Explicit provider name
    `muse` and `grok` deliberately omit one, because `muse` and `grok` are both generic
    executable names and autodetect only checks `PATH` presence. Muse is reachable only
    by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
-   never participates in autodetection either, but it is reached automatically by the
-   shipped `@xsmall`/`@small`/`@medium` load-balanced pools, or as the last candidate in
-   the `@large` and `@xlarge` ordered fallbacks, whenever the `grok` CLI is installed
-   (see [Grok Build Integration](#grok-build-integration)).
+   never participates in default-provider autodetection either. Model-alias routing is
+   separate: the shipped `@xsmall`/`@small`/`@medium` load-balanced pools and the last
+   candidate in the `@large` and `@xlarge` ordered fallbacks can select Grok whenever a
+   `grok` executable is available (see
+   [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
 
@@ -827,13 +828,15 @@ The `GrokProvider` invokes xAI's Grok Build CLI (`grok`).
 Grok publishes `llm_autodetect_cli_name` but deliberately no `llm_autodetect_priority`,
 so it never appears in autodetect candidates: `grok` is a generic executable name shared
 with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
-deprecated, unrelated `grok` regex tool. Reach Grok with `llm_provider.provider: grok`,
-`%model:grok/grok-4.6`, by pointing `SASE_GROK_PATH` at the binary, or automatically
-whenever the `grok` CLI is installed: through the shipped `@xsmall`/`@small`/`@medium`
-load-balanced pools, or as the last candidate in the `@large` and `@xlarge` ordered
-fallbacks (behind Claude and Codex). When a `grok` on `PATH` does not identify itself as
-Grok Build, `sase doctor` reports a distinct wrong-binary advisory instead of silently
-launching it.
+deprecated, unrelated `grok` regex tool. Select the provider with
+`llm_provider.provider: grok` or `%model:grok/grok-4.6`; set `SASE_GROK_PATH` when you
+also need to choose the executable. Separately, the shipped `@xsmall`/`@small`/`@medium`
+load-balanced pools and the last candidate in the `@large` and `@xlarge` ordered
+fallbacks (behind Claude and Codex) can select Grok whenever a `grok` executable is
+available. Routing checks executable presence only; it does not verify the binary's
+identity. Run `sase doctor` before launching: its `grok --version` probe reports a
+distinct wrong-binary advisory, after which you should point `SASE_GROK_PATH` at the
+`@xai-official/grok` binary.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
 

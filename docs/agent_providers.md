@@ -148,15 +148,20 @@ Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-co
 
 ## Grok Build
 
-xAI's Grok Build CLI (`grok`). SASE never auto-detects it, because the executable name
-`grok` collides with `grok-dev` (a stale community CLI that also uses `~/.grok/`) and
-with Homebrew's deprecated, unrelated `grok` regex tool. Select it explicitly with
-`llm_provider.provider: grok`, `%model:grok/grok-4.6`, or `SASE_GROK_PATH`, or reach it
-automatically whenever the `grok` CLI is installed: through the shipped
-`@xsmall`/`@small`/`@medium` load-balanced pools, or as the last candidate in the
-`@large` and `@xlarge` ordered fallbacks (behind Claude and Codex). If a `grok` on
-`PATH` does not identify itself as Grok Build, `sase doctor` reports it as a distinct,
-actionable finding rather than silently launching the wrong binary.
+xAI's Grok Build CLI (`grok`). Default provider autodetection never selects it, because
+the executable name collides with `grok-dev` (a stale community CLI that also uses
+`~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Select the
+provider explicitly with `llm_provider.provider: grok` or `%model:grok/grok-4.6`; use
+`SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
+separate: whenever a `grok` executable is available, the shipped
+`@xsmall`/`@small`/`@medium` load-balanced pools can select it, as can the last
+candidate in the `@large` and `@xlarge` ordered fallbacks (behind Claude and Codex).
+
+Routing availability checks only whether the executable exists; it does not verify that
+the binary is Grok Build. Run `sase doctor` before launching. Its bounded
+`grok --version` probe reports a distinct, actionable identity-mismatch finding; point
+`SASE_GROK_PATH` at the `@xai-official/grok` binary before continuing if that warning
+appears.
 
 ### Install
 

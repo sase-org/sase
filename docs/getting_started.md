@@ -69,11 +69,12 @@ spending time on an agent run.
 Start with a read-only task in SASE's managed `home` project. Use one launch form: the
 normal form when SASE can auto-detect an installed provider CLI, or the explicit form
 when Muse Code or Grok Build is your provider. SASE never auto-detects `muse` or `grok`
-from PATH because both are generic executable names; select them explicitly with a
-provider/model directive. Grok Build can still be reached automatically through the
-shipped `@xsmall`, `@small`, and `@medium` pools, or as the last `@xlarge` fallback
-candidate, when its CLI is installed. The `@large` fallback also uses Grok as its last
-candidate:
+from PATH because both are generic executable names; this is about default provider
+selection. Select either explicitly with a provider/model directive. Grok Build can
+still be reached automatically through the shipped `@xsmall`, `@small`, and `@medium`
+pools, or as the last `@xlarge` fallback candidate; `@large` also uses Grok as its last
+candidate. Alias routing checks for an available `grok` executable but does not verify
+its identity, so resolve any Grok identity warning from `sase doctor` before launching:
 
 ```bash
 # Auto-detected providers:
