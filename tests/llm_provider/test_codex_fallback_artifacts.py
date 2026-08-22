@@ -66,7 +66,7 @@ def test_codex_primary_turn_appends_tool_artifacts_with_generic_finalizer(
 
     assert result.content == "primary reply"
     assert len(prompts) == 1
-    assert "/sase_final" in prompts[0]
+    assert prompts[0] == "primary prompt"
 
     records = [
         json.loads(line)

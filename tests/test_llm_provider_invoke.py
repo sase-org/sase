@@ -225,8 +225,8 @@ def test_invoke_agent_execution_provider_override_preserves_requested_metadata(
 
     get_provider.assert_called_once_with("fakey")
     submitted_prompt = provider.invoke.call_args.args[0]
-    assert submitted_prompt.startswith("prompt")
-    assert "/sase_final" in submitted_prompt
+    assert submitted_prompt == "prompt"
+    assert (artifacts / "test_prompt.md").read_text(encoding="utf-8") == "prompt"
     assert provider.invoke.call_args.kwargs == {
         "model_tier": "large",
         "suppress_output": True,

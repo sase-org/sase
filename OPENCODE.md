@@ -211,6 +211,19 @@ discussions.
 IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
 way than by using `/sase_repo`!
 
+#### 1.7.3 SASE Final Declaration
+
+Before your final response in this normal SASE turn, use your `/sase_final` skill as the
+last action. It will call `sase final context`, inspect any selected finalizers and
+repository obligations, and submit one atomic declaration with `sase final submit` when
+the host requires one.
+
+After a successful `sase final submit`, do not make more file or repository changes in
+this turn. If the declaration command reports validation errors, repair the manifest and
+resubmit before returning when possible. Intentional handoff commands such as plan,
+monitor, pipe, and questions terminate the runner mechanically and do not need a final
+declaration.
+
 ### 1.8 Task Bead Types (task_types)
 
 Every task bead can carry a `task_type` drawn from this project's catalog.

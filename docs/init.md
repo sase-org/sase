@@ -250,8 +250,9 @@ When `use_chezmoi: true`, the home files are written to the chezmoi source tree.
 command can then commit those home changes and run `chezmoi apply --force`;
 `--no-commit` does not disable that home deployment path.
 
-The generated `sase/memory/sase.md` summarizes workspace naming and linked repositories.
-The generated long-term `sase/memory/sase_artifacts.md` note owns artifact-reference and
+The generated `sase/memory/sase.md` summarizes workspace naming, linked repositories,
+and the `/sase_final` terminal-action contract for end-of-turn declarations. The
+generated long-term `sase/memory/sase_artifacts.md` note owns artifact-reference and
 indexed-file workflow guidance. The generated long-term `sase/memory/sase_beads.md` note
 provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a child
 size-scale note. Top-level project-only long notes are listed in Tier 2 of managed agent

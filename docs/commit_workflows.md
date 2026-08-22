@@ -609,21 +609,25 @@ command success and checkpoint persistence has at-least-once execution semantics
 
 For SASE-launched agent sessions, the normal path is the host-owned finalizer controller
 in `src/sase/finalizers/controller.py` with the bundled `builtin@commit` provider in
-`src/sase/finalizers/commit.py`. The finalizer plan is resolved before the model turn,
-the host asks for `/sase_final` only when selected finalizers need a turn-bound
-declaration, and the controller runs after a successful provider invocation. This path
-is deliberately outside any one runtime's native hook system, so Claude, Codex,
-Antigravity (`agy`), Qwen, OpenCode, Muse Code, and provider plugins share the same
-behavior.
+`src/sase/finalizers/commit.py`. The finalizer plan is resolved before the model turn.
+Generated agent instructions tell the model to use `/sase_final` as its last normal
+action; the skill exits early when no payload is required. If a required declaration is
+missing or stale after the normal response, the host opens one bounded recovery turn
+that explicitly requests `/sase_final`. The controller runs after a successful provider
+invocation. This path is deliberately outside any one runtime's native hook system, so
+Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Muse Code, and provider plugins
+share the same behavior.
 
 **Flow:**
 
 1. Resolve the selected `finalizers` plan. Omitting `%final` selects configured
    defaults, `%final:none` clears removable defaults, `%final:lint` adds a configured
    instance, `%final:!commit` removes one, and required instances cannot be removed.
-2. Publish `final_context.json` for the active turn when selected finalizers need model
-   input. `/sase_final` reads `sase final context -f json` and submits one manifest with
-   `sase final submit`.
+2. Generated agent instructions ask for `/sase_final` as the last normal action.
+   `/sase_final` reads `sase final context -f json`, exits early when no payload is
+   required, and otherwise submits one manifest with `sase final submit`. If that
+   required submission is missing or stale, the host spends one recovery turn that
+   explicitly requests `/sase_final` again.
 3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
    `commit` decision with a Conventional Commit message or one `refuse` decision with a
    nonblank reason.

@@ -496,4 +496,5 @@ def test_custom_sase_template_round_trips_into_agents(
         "sase/memory/task_types.md",
     )
     assert "Custom SASE frame." in agents
+    assert "/sase_final" not in agents
     assert plan_memory().actions == ()

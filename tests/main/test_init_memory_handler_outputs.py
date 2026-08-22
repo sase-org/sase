@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sase.amd.constants import PROVIDER_SHIM_FILES
 from sase.main import init_memory_handler
 from sase.main.init_memory.roots import read_memory_directory_map_bytes
 from sase.memory.inventory import stats_for_text
@@ -20,6 +21,22 @@ from tests.main.init_memory_handler_helpers import (
     short_note,
     write,
 )
+
+_FINAL_DECLARATION_MARKERS = (
+    "/sase_final",
+    "sase final context",
+    "sase final submit",
+    "do not make more file or repository changes",
+    "repair the manifest",
+    "plan, monitor, pipe, and questions",
+)
+
+
+def _assert_final_declaration_contract(text: str) -> None:
+    flat = single_line(text)
+    assert "SASE Final Declaration" in text
+    for marker in _FINAL_DECLARATION_MARKERS:
+        assert marker in flat
 
 
 def test_init_memory_non_project_initializes_home_only_without_project_git(
@@ -197,6 +214,33 @@ def test_init_memory_project_memory_includes_workspace_section(
     )
     assert plan_warning in single_line(project_memory)
     assert "/sase_plan" not in home_memory
+
+
+def test_init_memory_includes_final_declaration_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+
+    assert run_handler() == 0
+
+    for root in (project_root, home_root):
+        memory = (root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
+        _assert_final_declaration_contract(memory)
+        agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+        _assert_final_declaration_contract(agents)
+        for filename in PROVIDER_SHIM_FILES:
+            assert (root / filename).read_text(encoding="utf-8") == agents
 
 
 def test_init_memory_project_memory_uses_managed_checkout_marker_name(

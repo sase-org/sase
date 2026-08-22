@@ -22,8 +22,9 @@ Each non-README note declares its tier in YAML frontmatter:
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
 provider instruction file status. Initialization always generates the short
-`sase/memory/sase.md` workspace note and the short `sase/memory/task_types.md` catalog
-note (agent-creatable types, their `when_to_use` text, and field names). For
+`sase/memory/sase.md` workspace note — workspace naming, linked repositories, and the
+`/sase_final` terminal-action contract — and the short `sase/memory/task_types.md`
+catalog note (agent-creatable types, their `when_to_use` text, and field names). For
 SASE-managed project repositories it additionally generates
 `sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
 `sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`

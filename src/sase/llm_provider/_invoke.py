@@ -159,16 +159,12 @@ def invoke_agent(
     )
     if finalizer_plan is not None and artifacts_dir:
         from sase.axe.run_agent_helpers import update_meta_field
-        from sase.finalizers.declaration import (
-            append_finalizer_end_turn_instructions,
-        )
 
         update_meta_field(
             artifacts_dir,
             "finalizers",
             finalizer_plan.agent_meta_projection(),
         )
-        query = append_finalizer_end_turn_instructions(query)
     model_override = result_directives.model
     model_alias_overrides = dict(result_directives.model_alias_overrides)
     if model_alias_overrides and artifacts_dir:

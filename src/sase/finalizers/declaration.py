@@ -121,24 +121,6 @@ def mint_finalizer_turn_nonce() -> str:
     return nonce
 
 
-def append_finalizer_end_turn_instructions(prompt: str) -> str:
-    """Append end-of-turn final-declaration instructions to a provider prompt."""
-
-    block = """## SASE Final Declaration
-
-Before your final response in this normal SASE turn, use your `/sase_final` skill as
-the last action. It will call `sase final context`, inspect any selected finalizers and
-repository obligations, and submit one atomic declaration with `sase final submit` when
-the host requires one.
-
-After a successful `sase final submit`, do not make more file or repository changes in
-this turn. If the declaration command reports validation errors, repair the manifest
-and resubmit before returning when possible. Intentional handoff commands such as plan,
-monitor, pipe, and questions terminate the runner mechanically and do not need a final
-declaration."""
-    return f"{prompt.rstrip()}\n\n{block}\n"
-
-
 def publish_final_context(
     *,
     artifacts_dir: str | None = None,
@@ -416,7 +398,6 @@ __all__ = [
     "HostRepositoryRecord",
     "SASE_FINAL_TURN_NONCE_ENV",
     "accepted_context_from_submission",
-    "append_finalizer_end_turn_instructions",
     "ensure_final_declaration_or_recover",
     "final_submission_is_current",
     "format_context_pretty",

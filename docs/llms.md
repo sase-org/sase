@@ -192,13 +192,17 @@ the active project workspace through the active VCS provider and checks configur
 linked repositories as Git worktrees at their resolved `workspace_dir`. Repositories
 opened through `/sase_repo` are enforced like the main workspace.
 
-When dirty enforced work requires model input, the host asks the agent to use
-`/sase_final` as its last normal action. The submitted declaration gives each dirty
-repository exactly one `commit` decision with a Conventional Commit message or one
-`refuse` decision with a nonblank reason, and accepted commit decisions dispatch through
-the appropriate stitch workflow. A narrow generated SDD plan closeout, where the only
-enforced change is one markdown file's frontmatter `status: wip` becoming
-`status: done`, is committed directly with a `SASE_TYPE=sdd` commit.
+Normal turns learn the terminal action from generated agent instructions in
+`sase/memory/sase.md` (inlined into `AGENTS.md`): use `/sase_final` as the last normal
+action. The skill publishes context and exits early when no payload is required. If a
+required declaration is missing or stale after the normal response, the host opens one
+bounded recovery turn that explicitly asks the agent to use `/sase_final`. The submitted
+declaration gives each dirty repository exactly one `commit` decision with a
+Conventional Commit message or one `refuse` decision with a nonblank reason, and
+accepted commit decisions dispatch through the appropriate stitch workflow. A narrow
+generated SDD plan closeout, where the only enforced change is one markdown file's
+frontmatter `status: wip` becoming `status: done`, is committed directly with a
+`SASE_TYPE=sdd` commit.
 
 When an artifacts directory is available, the host writes generic artifacts such as
 `final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and

@@ -181,6 +181,7 @@ def test_invocation_persists_plan_and_uses_generic_controller(
     get_provider.return_value = provider
     beta_controller.side_effect = lambda **kwargs: kwargs["invoke_result"]
     preprocess.return_value = _PreprocessResult(prompt="processed")
+    (tmp_path / "agent_meta.json").write_text("{}", encoding="utf-8")
 
     result = invoke_agent(
         "raw",
@@ -191,8 +192,11 @@ def test_invocation_persists_plan_and_uses_generic_controller(
 
     assert result.content == "response"
     beta_controller.assert_called_once()
-    assert "/sase_final" in provider.invoke.call_args.args[0]
+    assert provider.invoke.call_args.args[0] == "processed"
+    assert (tmp_path / "test_prompt.md").read_text(encoding="utf-8") == "processed"
     assert (tmp_path / FINALIZER_PLAN_FILENAME).is_file()
+    meta = json.loads((tmp_path / "agent_meta.json").read_text(encoding="utf-8"))
+    assert meta["finalizers"]["selected"] == ["commit"]
 
 
 def _config_with_lint() -> ConfigLayer:

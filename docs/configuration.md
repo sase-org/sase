@@ -541,6 +541,11 @@ rendered instruction/memory structure is validated before any file is written. G
 agent documents are numbered automatically, so custom `AGENTS.template.md` headings
 should not carry their own numbers.
 
+The packaged `sase.md` template includes the `/sase_final` terminal-action contract. A
+custom `memory.sase_template` is a full-body override and may replace that default
+prose; the host recovery turn remains the correctness fallback whenever a declaration is
+actually required.
+
 Home initialization uses convention-based files instead of the project-local path keys.
 Put `AGENTS.template.md`, `AGENTS.minimal.template.md`, `memory-sase.template.md`, or
 `memory-README.template.md` directly in `~/.config/sase/`; with `use_chezmoi: true`, put
@@ -1947,8 +1952,11 @@ and select an instance. Plugin-contributed config layers cannot activate finaliz
 
 Use `sase final list`, `sase final show <instance>`, and `sase final doctor` to inspect
 effective policy, provider provenance, and diagnostics. During an active agent turn,
-`/sase_final` uses `sase final context -f json` and `sase final submit` to publish the
-one turn-bound declaration required by selected finalizers. The host executes and
+generated agent instructions tell the model to finish with `/sase_final`. That skill
+uses `sase final context -f json` and `sase final submit` to publish the one turn-bound
+declaration required by selected finalizers, and it returns after reading context when
+no payload is required. If a required submission is missing or stale, the host opens one
+bounded recovery turn that explicitly requests `/sase_final`. The host executes and
 verifies finalizers after the model returns.
 
 The built-in `builtin@commit` provider checks the main workspace, configured linked Git
