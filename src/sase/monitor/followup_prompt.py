@@ -15,6 +15,7 @@ as defense in depth and to keep persisted prompts readable.
 
 from __future__ import annotations
 
+from sase.llm_provider.config import format_model_directive_value
 from sase.xprompt._disabled_regions import wrap_disabled_region
 
 #: Values for ``--next-output`` / ``monitor_next_output``.
@@ -137,14 +138,21 @@ def _routing_prefix(
     starter_name: str | None,
     model: str | None,
     reasoning_effort: str | None,
+    next_model: str | None = None,
 ) -> str:
     lines: list[str] = []
     if starter_name:
         lines.append(f"#fork:{starter_name}")
-    if model:
-        lines.append(f"%model:{model}")
-    if reasoning_effort:
-        lines.append(f"%effort:{reasoning_effort}")
+    selected = next_model.strip() if isinstance(next_model, str) else ""
+    if selected:
+        # Explicit --model replaces inherited routing; alias defaults and an
+        # optional @effort ride on the %model expression, matching sase pipe.
+        lines.append(f"%model:{format_model_directive_value(selected)}")
+    else:
+        if model:
+            lines.append(f"%model:{model}")
+        if reasoning_effort:
+            lines.append(f"%effort:{reasoning_effort}")
     return "".join(f"{line}\n" for line in lines)
 
 
@@ -172,6 +180,7 @@ def compose_followup_prompt(
     output_log_path: str | None = None,
     model: str | None = None,
     reasoning_effort: str | None = None,
+    next_model: str | None = None,
     workspace_degraded_reason: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
@@ -181,7 +190,9 @@ def compose_followup_prompt(
     ``reasoning_effort`` (the lane's newest member's routing, inherited onto
     this monitor member) become ``%model:`` / ``%effort:`` prefix directives
     so the follow-up launches with the same routing as the starter; both are
-    stripped before the model sees the prompt.
+    stripped before the model sees the prompt. A nonempty ``next_model``
+    (the ``sase monitor start --model`` selection) replaces that inherited
+    pair with a single formatted ``%model:`` expression instead.
 
     ``next_output`` controls how much retained output is embedded:
     ``"tail"`` (default) embeds the last ``tail_lines`` lines, fenced and
@@ -245,7 +256,7 @@ def compose_followup_prompt(
         ]
     )
     body = wrap_disabled_region("\n".join(sections))
-    prefix = _routing_prefix(starter_name, model, reasoning_effort)
+    prefix = _routing_prefix(starter_name, model, reasoning_effort, next_model)
     return f"{prefix}\n{body}" if prefix else body
 
 

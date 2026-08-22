@@ -93,6 +93,7 @@ class MonitorRecord:
     monitor_state: MonitorState
     idle_timeout_seconds: float = 0.0
     next_action: str | None = None
+    next_model: str | None = None
     next_output: str = DEFAULT_NEXT_OUTPUT
     pid: int | None = None
     exit_code: int | None = None
@@ -199,6 +200,7 @@ class MonitorRecord:
             monitor_state=monitor_state,
             idle_timeout_seconds=meta.monitor_idle_timeout_seconds or 0.0,
             next_action=meta.monitor_next_action or None,
+            next_model=meta.monitor_next_model or None,
             next_output=meta.monitor_next_output or DEFAULT_NEXT_OUTPUT,
             pid=meta.pid,
             exit_code=exit_code,

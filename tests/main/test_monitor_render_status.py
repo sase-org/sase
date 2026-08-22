@@ -123,6 +123,7 @@ def test_json_envelope_includes_status_label_accent_and_schema_v2() -> None:
     assert monitor["status_label"] == "TESTING"
     assert monitor["status_accent"] == _TESTING_ACCENT
     assert monitor["monitor_state"] == "running"
+    assert monitor["next_model"] is None
 
     done = monitor_list_json([_record(monitor_state="failed", settled=True)], scope={})[
         "monitors"

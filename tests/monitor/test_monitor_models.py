@@ -126,6 +126,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
         monitor_idle_timeout_seconds=10.0,
         monitor_tail_lines=200,
         monitor_state="running",
+        monitor_next_model="@small",
         pid=4242,
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))
@@ -139,6 +140,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
     assert record.pid == 4242
     assert record.exit_code is None
     assert record.idle_timeout_seconds == 10.0
+    assert record.next_model == "@small"
 
 
 def test_from_record_prefers_done_marker_over_running_meta() -> None:

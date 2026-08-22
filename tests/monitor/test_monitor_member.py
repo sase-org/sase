@@ -42,6 +42,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         label="just check-full",
         reason="verify the refactor",
         next_action="Fix anything the check reported.",
+        next_model="@small",
         start_status="MONITORING",
         stop_status="MONITORED",
         timeout_seconds=2700.0,
@@ -81,6 +82,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["monitor_label"] == "just check-full"
     assert meta["monitor_reason"] == "verify the refactor"
     assert meta["monitor_next_action"] == "Fix anything the check reported."
+    assert meta["monitor_next_model"] == "@small"
     assert meta["monitor_start_status"] == "MONITORING"
     assert meta["monitor_stop_status"] == "MONITORED"
     assert meta["monitor_timeout_seconds"] == 2700.0
@@ -118,6 +120,7 @@ def test_create_monitor_member_omits_next_action_when_none() -> None:
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert "monitor_next_action" not in meta
+    assert "monitor_next_model" not in meta
     assert "monitor_idle_timeout_seconds" not in meta
     assert "agent_clan" not in meta
     assert "agent_clan_generation" not in meta

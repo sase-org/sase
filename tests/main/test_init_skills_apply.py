@@ -271,6 +271,9 @@ def _write_retired_manifest_fixture(
         encoding="utf-8",
     )
     monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler, "skill_source_integrity_error", lambda: None
+    )
     monkeypatch.setattr(init_skills_handler, "get_all_xprompts", lambda project="": {})
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: True)
     monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", chezmoi_home)

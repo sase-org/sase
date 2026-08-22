@@ -115,6 +115,7 @@ def launch_followup_agent(
         "output_log_path": str(monitor_log_path(artifacts_dir)),
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
+        "next_model": _clean_str(meta.get("monitor_next_model")),
     }
     raw_workspace_num = meta.get("workspace_num")
     raw_workspace_dir = str(meta.get("workspace_dir") or "")

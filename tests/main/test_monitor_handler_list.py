@@ -197,6 +197,7 @@ def test_list_json_envelope_is_stable(
     assert monitor["status_label"] == "MONITORING"
     assert monitor["status_accent"] == "#F8AD08"
     assert monitor["status_bucket"] == "Running"
+    assert monitor["next_model"] is None
     assert monitor["is_terminal"] is False
 
 

@@ -228,6 +228,7 @@ class AgentMetaWire:
     monitor_settled: bool = False
     monitor_idle_timeout_seconds: float | None = None
     monitor_next_output: str | None = None
+    monitor_next_model: str | None = None
     monitor_request_fingerprint: str | None = None
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None

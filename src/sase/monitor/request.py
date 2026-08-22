@@ -47,6 +47,7 @@ class StartMonitorRequest:
     lane: str | None = None
     label: str | None = None
     next_action: str | None = None
+    next_model: str | None = None
     tail_lines: int = DEFAULT_TAIL_LINES
     idle_timeout_seconds: float = 0.0
     next_output: str = DEFAULT_NEXT_OUTPUT
@@ -85,6 +86,7 @@ def monitor_request_fingerprint(
         "label": label,
         "lane": lane,
         "next_action": request.next_action or None,
+        "next_model": request.next_model or None,
         "next_output": request.next_output,
         "project_name": request.project_name,
         "reason": request.reason,

@@ -67,6 +67,10 @@ _MISSING_STOP_STATUS = (
     "command finishes (past tense, e.g. TESTED), and pair it with -s/--start-status (e.g. "
     "TESTING). Max 20 characters."
 )
+_MODEL_WITHOUT_NEXT = (
+    "sase monitor start: -m/--model requires -n/--next -- no follow-up agent would "
+    "consume the model selection"
+)
 
 _TIMEOUT_RE = re.compile(r"^(\d+(?:\.\d+)?)([smh]?)$")
 _TIMEOUT_UNIT_SECONDS = {"s": 1.0, "m": 60.0, "h": 3600.0}
@@ -210,6 +214,12 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print(_MISSING_STOP_STATUS, file=sys.stderr)
         return 2
 
+    next_action = getattr(args, "next", None)
+    next_model = _optional_text(getattr(args, "model", None))
+    if next_model and not _optional_text(next_action):
+        print(_MODEL_WITHOUT_NEXT, file=sys.stderr)
+        return 2
+
     try:
         raw_timeout = (
             getattr(args, "timeout", None) or f"{int(DEFAULT_TIMEOUT_SECONDS)}s"
@@ -261,7 +271,8 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         project_name=project_name,
         lane=explicit_agent,
         label=getattr(args, "label", None),
-        next_action=getattr(args, "next", None),
+        next_action=next_action,
+        next_model=next_model,
         start_status=start_status,
         stop_status=stop_status,
         tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
@@ -522,6 +533,14 @@ def _format_seconds(seconds: float) -> str:
     if seconds == int(seconds):
         return f"{int(seconds)}s"
     return f"{seconds}s"
+
+
+def _optional_text(value: object) -> str | None:
+    """Return a stripped string, or ``None`` when *value* is blank."""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _start_command(args: argparse.Namespace) -> str:

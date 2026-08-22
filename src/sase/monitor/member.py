@@ -35,6 +35,7 @@ def create_monitor_member(
     request_fingerprint: str,
     idle_timeout_seconds: float = 0.0,
     starter_agent: str | None = None,
+    next_model: str | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -84,6 +85,8 @@ def create_monitor_member(
         meta["monitor_idle_timeout_seconds"] = idle_timeout_seconds
     if next_action:
         meta["monitor_next_action"] = next_action
+    if next_model:
+        meta["monitor_next_model"] = next_model
     if starter_agent:
         meta["monitor_starter_agent"] = starter_agent
     for key in ("agent_clan", "agent_clan_generation"):

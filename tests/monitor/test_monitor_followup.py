@@ -45,6 +45,7 @@ def _promote_and_start_monitor(
     monkeypatch: pytest.MonkeyPatch,
     *,
     settle_starter: bool = True,
+    next_model: str | None = None,
 ) -> tuple[str, str, str]:
     """Return ``(monitor_dir, starter_dir, project_file)`` from a real promotion.
 
@@ -94,6 +95,7 @@ def _promote_and_start_monitor(
         stop_status="MONITORED",
         lane="acme",
         next_action="Report that it finished.",
+        next_model=next_model,
     )
     record = start_monitor(request)
     if settle_starter:
@@ -194,6 +196,40 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     # Persisted to disk too, not just the in-memory dict.
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_agent"] == "acme--1"
+
+
+def test_launch_followup_agent_uses_explicit_next_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch, next_model="@small"
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_next_model"] == "@small"
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert captured["prompt"].startswith("#fork:acme--0\n%model:@small\n\n")
+    assert "%effort:high" not in captured["prompt"]
+    assert "%model:claude-sonnet-5" not in captured["prompt"]
 
 
 def test_launch_followup_agent_repairs_a_meta_workspace_num_mismatch(

@@ -198,6 +198,8 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "-t 20m -- just check-full\n"
             "  sase monitor start -s DEPLOYING -S DEPLOYED -n 'confirm the "
             "deploy succeeded' -- ./deploy.sh\n"
+            "  sase monitor start -s TESTING -S TESTED -n 'fix failures' "
+            "-m '@small' -- just check-full\n"
             "  sase monitor start -s TESTING -S TESTED --json -- just "
             "check-full"
         ),
@@ -257,6 +259,17 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TEXT",
         help="Short row label (default: derived from the command)",
+    )
+    start_parser.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help=(
+            "Model or alias for the follow-up agent (opus, opus@high, sonnet, "
+            "codex/gpt-5). Requires -n/--next. Default: inherit the starter's "
+            "model"
+        ),
     )
     start_parser.add_argument(
         "-n",

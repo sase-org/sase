@@ -130,7 +130,36 @@ def test_show_json_envelope_is_stable(
     assert payload["monitor"]["monitor_id"] == "aaabbbcccddd"
     assert payload["monitor"]["exit_code"] == 3
     assert payload["monitor"]["status_bucket"] == "Failed"
+    assert payload["monitor"]["next_model"] is None
     assert payload["output"] == "boom\n"
+
+
+def test_show_includes_followup_model_in_detail_and_json(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An explicit successor model is auditable in show markdown and JSON."""
+    artifacts_dir = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        next_action="Fix failures.",
+        monitor_next_model="@small",
+    )
+    patch_project_records(monkeypatch, [artifacts_dir])
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd"]) == 0
+    out = capsys.readouterr().out
+    assert "Next action" in out
+    assert "Fix failures." in out
+    assert "Next model" in out
+    assert "@small" in out
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["monitor"]["next_action"] == "Fix failures."
+    assert payload["monitor"]["next_model"] == "@small"
 
 
 def test_show_renders_a_dropped_followup_error(

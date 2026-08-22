@@ -193,6 +193,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "is_terminal": record.is_terminal,
         "settled": record.settled,
         "next_action": record.next_action,
+        "next_model": record.next_model,
         "pid": record.pid,
         "exit_code": record.exit_code,
         "elapsed_seconds": _duration_seconds(record),
@@ -346,6 +347,8 @@ def monitor_detail(record: MonitorRecord) -> Panel:
     ]
     if record.next_action:
         rows.append(("Next action", Text(record.next_action)))
+    if record.next_model:
+        rows.append(("Next model", Text(record.next_model)))
     rows.extend(
         [
             ("Started", Text(_relative_start(record))),

@@ -303,3 +303,62 @@ def test_start_rejects_empty_and_multiline_status_labels(
         == 2
     )
     assert "-S/--stop-status" in capsys.readouterr().err
+
+
+def test_start_rejects_model_without_next(capsys: pytest.CaptureFixture[str]) -> None:
+    """A nonempty ``-m/--model`` is a usage error when no follow-up action exists."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+                "-m",
+                "@small",
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "-m/--model requires -n/--next" in err
+
+
+def test_start_treats_blank_model_as_omission(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Whitespace-only ``--model`` is omitted, so it does not require ``--next``."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+                "-m",
+                "   ",
+            ]
+        )
+        == 2
+    )
+    err = capsys.readouterr().err
+    assert "-m/--model requires -n/--next" not in err
+    assert "SASE_AGENT_NAME is unset" in err

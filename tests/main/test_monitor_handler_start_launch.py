@@ -414,3 +414,63 @@ def test_start_json_envelope_is_stable(
     assert payload["monitor"]["stop_status"] == "TESTED"
     assert payload["monitor"]["status_label"] == "TESTING"
     assert payload["monitor"]["status_accent"] == "#6FC4FF"
+    assert payload["monitor"]["next_model"] is None
+
+
+def test_start_json_includes_explicit_followup_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--model`` is persisted and shown in the start JSON envelope."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    pin_project(monkeypatch)
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30",
+            "-a",
+            "acme",
+            "-C",
+            str(tmp_path),
+            "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
+            "-n",
+            "Fix failures.",
+            "-m",
+            "@small",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["monitor"]["next_action"] == "Fix failures."
+    assert payload["monitor"]["next_model"] == "@small"
+    meta = json.loads(
+        Path(payload["monitor"]["artifacts_dir"], "agent_meta.json").read_text()
+    )
+    assert meta["monitor_next_model"] == "@small"

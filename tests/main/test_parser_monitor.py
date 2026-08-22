@@ -52,6 +52,10 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert_metavar_option_documented(start_help, "-r", "--reason", "TEXT")
     assert_metavar_option_documented(start_help, "-t", "--timeout", "DURATION")
     assert_metavar_option_documented(start_help, "-n", "--next", "TEXT")
+    assert_metavar_option_documented(start_help, "-m", "--model", "MODEL")
+    assert "Requires -n/--next" in start_help
+    assert "inherit the starter's model" in start_help
+    assert "-m '@small'" in start_help
     assert "(default: 1h)" in start_help
     assert "(default: 'run command')" in start_help
     assert "sase monitor start -s TESTING -S TESTED -- just check-full" in start_help
@@ -115,6 +119,8 @@ def test_monitor_start_parses_without_optional_policy_flags() -> None:
     assert args.reason is None
     assert args.timeout is None
     assert args.monitor_command is None
+    assert args.model is None
+    assert args.next is None
 
 
 def test_monitor_stop_id_is_optional() -> None:
@@ -180,6 +186,7 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
         ("-C", "--cwd"),
         ("-i", "--idle-timeout"),
         ("-L", "--label"),
+        ("-m", "--model"),
         ("-n", "--next"),
         ("-r", "--reason"),
         ("-s", "--start-status"),
@@ -274,3 +281,39 @@ def test_monitor_start_does_not_retain_the_old_lane_short_option() -> None:
         )
 
     assert exit_info.value.code == 2
+
+
+def test_monitor_start_parses_model_short_and_long_flags() -> None:
+    """``-m/--model`` binds the successor model expression without resolving it."""
+    parser = create_parser()
+    via_long = parser.parse_args(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-n",
+            "fix failures",
+            "--model",
+            "@small",
+        ]
+    )
+    via_short = parser.parse_args(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-n",
+            "fix failures",
+            "-m",
+            "opus@high",
+        ]
+    )
+    blank = parser.parse_args(
+        ["monitor", "start", "-c", "true", "-n", "fix failures", "-m", "  "]
+    )
+
+    assert via_long.model == "@small"
+    assert via_short.model == "opus@high"
+    assert blank.model == "  "

@@ -189,6 +189,7 @@ def _start_monitor_locked(
         label=label,
         reason=request.reason,
         next_action=request.next_action,
+        next_model=request.next_model,
         start_status=request.start_status,
         stop_status=request.stop_status,
         timeout_seconds=request.timeout_seconds,
@@ -269,6 +270,7 @@ def _start_monitor_locked(
                 followup={
                     "kind": MONITOR_FOLLOWUP_KIND,
                     "next_action": request.next_action,
+                    "next_model": request.next_model,
                     "next_output": request.next_output,
                     "tail_lines": request.tail_lines,
                 },
@@ -313,6 +315,7 @@ def _start_monitor_locked(
         next_output=request.next_output,
         monitor_state="running",
         next_action=request.next_action or None,
+        next_model=request.next_model or None,
         pid=proc.pid or claim_holder.get("pid"),
         supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,

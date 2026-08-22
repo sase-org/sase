@@ -13102,7 +13102,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "076adb65014057c7",
+            "description_digest": "f4549f3bb3c30d8c",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -13199,6 +13199,18 @@
                 "strings": [
                   "-L",
                   "--label"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "model",
+                "hidden": false,
+                "kind": "model",
+                "repeatable": false,
+                "strings": [
+                  "-m",
+                  "--model"
                 ],
                 "takes_value": true
               },

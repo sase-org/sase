@@ -17,6 +17,7 @@ import pytest
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorRecord
+from sase.monitor.request import monitor_request_fingerprint
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from tests.monitor._fixtures import (
     make_starter_agent,
@@ -135,6 +136,64 @@ def test_start_monitor_rejects_same_command_with_changed_request(
 
     with pytest.raises(MonitorAlreadyRunningError, match="same command"):
         start_monitor(request)
+
+
+def test_start_monitor_rejects_same_command_with_different_next_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A different successor model is a new request, not an idempotent replay."""
+    from sase.monitor import store as store_module
+
+    shared = {
+        "command": "just check-full",
+        "reason": "verify",
+        "timeout_seconds": 2700.0,
+        "cwd": str(tmp_path),
+        "project_name": "proj",
+        "start_status": "MONITORING",
+        "stop_status": "MONITORED",
+        "lane": "acme",
+        "label": "just check-full",
+        "next_action": "Fix failures.",
+    }
+    existing_request = StartMonitorRequest(**shared, next_model="@small")
+    conflicting = StartMonitorRequest(**shared, next_model="opus@high")
+    existing_fingerprint = monitor_request_fingerprint(
+        existing_request, lane="acme", label="just check-full"
+    )
+    requested_fingerprint = monitor_request_fingerprint(
+        conflicting, lane="acme", label="just check-full"
+    )
+    assert existing_fingerprint != requested_fingerprint
+
+    existing = MonitorRecord(
+        monitor_id="aaa",
+        member_agent_name="acme--mon",
+        lane="acme",
+        project_name="proj",
+        artifacts_dir="/some/dir",
+        timestamp="20260812120000",
+        command="just check-full",
+        cwd=str(tmp_path),
+        reason="verify",
+        label="just check-full",
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=2700.0,
+        tail_lines=200,
+        monitor_state="running",
+        next_action="Fix failures.",
+        next_model="@small",
+        request_fingerprint=existing_fingerprint,
+    )
+    monkeypatch.setattr(
+        store_module,
+        "monitor_blocking_start_for_lane",
+        lambda project_name, lane: existing,
+    )
+
+    with pytest.raises(MonitorAlreadyRunningError, match="same command"):
+        start_monitor(conflicting)
 
 
 def test_start_monitor_rejects_identical_replay_of_lost_monitor(

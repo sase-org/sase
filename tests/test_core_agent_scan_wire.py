@@ -557,6 +557,7 @@ def test_monitor_marker_fields_round_trip() -> None:
                         "monitor_settled": True,
                         "monitor_idle_timeout_seconds": 600.0,
                         "monitor_next_output": "tail",
+                        "monitor_next_model": "@small",
                         "monitor_request_fingerprint": "sha256:deadbeef",
                     },
                     done={
@@ -585,6 +586,7 @@ def test_monitor_marker_fields_round_trip() -> None:
     assert record.agent_meta.monitor_settled is True
     assert record.agent_meta.monitor_idle_timeout_seconds == 600.0
     assert record.agent_meta.monitor_next_output == "tail"
+    assert record.agent_meta.monitor_next_model == "@small"
     assert record.agent_meta.monitor_request_fingerprint == "sha256:deadbeef"
     assert record.done is not None
     assert record.done.monitor_state == "completed"
@@ -601,6 +603,7 @@ def test_monitor_marker_fields_round_trip() -> None:
     assert meta_payload["monitor_settled"] is True
     assert meta_payload["monitor_idle_timeout_seconds"] == 600.0
     assert meta_payload["monitor_next_output"] == "tail"
+    assert meta_payload["monitor_next_model"] == "@small"
     assert meta_payload["monitor_request_fingerprint"] == "sha256:deadbeef"
     done_payload = payload["records"][0]["done"]
     assert done_payload["monitor_state"] == "completed"
@@ -679,6 +682,7 @@ def test_monitor_marker_fields_default_for_older_records() -> None:
     assert record.agent_meta.monitor_settled is False
     assert record.agent_meta.monitor_idle_timeout_seconds is None
     assert record.agent_meta.monitor_next_output is None
+    assert record.agent_meta.monitor_next_model is None
     assert record.agent_meta.monitor_request_fingerprint is None
     assert record.done is not None
     assert record.done.monitor_state is None
