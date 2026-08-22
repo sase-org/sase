@@ -41,8 +41,10 @@ _CACHE_TTL_SECONDS = 300.0
 _CACHE_EMPTY_TTL_SECONDS = 60.0
 _CACHE_MAX_ENTRIES = 256
 
-FamilyPreviewCacheKey = tuple[
+FamilyPreviewMemberToken = tuple[
     str,
+    str | None,
+    str | None,
     str | None,
     str | None,
     str | None,
@@ -51,7 +53,10 @@ FamilyPreviewCacheKey = tuple[
     str | None,
     str | None,
     str | None,
+    str | None,
+    int | None,
 ]
+FamilyPreviewCacheKey = tuple[str, tuple[FamilyPreviewMemberToken, ...]]
 
 
 class _FamilyPreviewCache:
@@ -134,6 +139,15 @@ def _family_plan_preview_cache_key(agent: Agent) -> FamilyPreviewCacheKey | None
         return None
     return (
         name,
+        tuple(_family_member_token(row) for row in _family_resolution_order(agent)),
+    )
+
+
+def _family_member_token(agent: Agent) -> FamilyPreviewMemberToken:
+    return (
+        agent.agent_name or "",
+        agent.raw_suffix,
+        agent.parent_timestamp,
         agent.plan_path,
         agent.archived_plan_path,
         agent.sdd_plan_path,
@@ -142,6 +156,8 @@ def _family_plan_preview_cache_key(agent: Agent) -> FamilyPreviewCacheKey | None
         agent.plan_action,
         agent.epic_bead_id,
         agent.phase_bead_id,
+        agent.workspace_dir,
+        agent.effective_workspace_num,
     )
 
 
@@ -173,11 +189,11 @@ def warm_family_plan_previews(
     """Resolve uncached/expired family previews off the event loop.
 
     Opens one :class:`BeadIssueLookupSession` for the whole batch. Resolves
-    each family's root entry first, then its concrete members in order,
-    taking the first non-empty result (see the epic design's "Preview
-    resolution" section). Never raises: one bad plan file or bead store must
-    not lose the rest of the batch. Returns a key-indexed mapping of every
-    key resolved this call, so the caller can decide what changed.
+    each family's concrete members newest first, then the root as a
+    compatibility fallback, taking the first non-empty result. Never raises:
+    one bad plan file or bead store must not lose the rest of the batch.
+    Returns a key-indexed mapping of every key resolved this call, so the
+    caller can decide what changed.
     """
     resolved: dict[FamilyPreviewCacheKey, AgentFamilyPlanPreview | None] = {}
     with BeadIssueLookupSession() as lookup_session:
@@ -214,10 +230,12 @@ def _resolve_family_plan_preview(
 
 
 def _family_resolution_order(agent: Agent) -> tuple[Agent, ...]:
-    ordered = [agent]
-    for member in concrete_family_member_rows(agent):
-        if member is not agent:
-            ordered.append(member)
+    members = concrete_family_member_rows(agent)
+    if len(members) <= 1:
+        return members or (agent,)
+    ordered = list(reversed(members))
+    if all(member is not agent for member in ordered):
+        ordered.append(agent)
     return tuple(ordered)
 
 
@@ -247,6 +265,7 @@ def _preview_from_enrichment(
 __all__ = [
     "FAMILY_PREVIEW_CACHE_MISS",
     "FamilyPreviewCacheKey",
+    "FamilyPreviewMemberToken",
     "cached_family_plan_preview",
     "should_resolve_family_plan_preview",
     "warm_family_plan_previews",

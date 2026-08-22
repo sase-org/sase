@@ -154,7 +154,8 @@ def _resolve_one_family(
     plan_cache: dict[str, AgentFamilyPlanPreview],
     lookup_session: BeadIssueLookupSession,
 ) -> AgentFamilyPlanPreview:
-    for member in members:
+    ordered = _family_resolution_order(members)
+    for member in ordered:
         for raw_path in _plan_path_candidates(member):
             preview = _preview_from_plan_path(
                 raw_path,
@@ -163,7 +164,18 @@ def _resolve_one_family(
             )
             if not preview.is_empty:
                 return preview
-    return _resolve_bead_preview(members, lookup_session=lookup_session)
+    return _resolve_bead_preview(ordered, lookup_session=lookup_session)
+
+
+def _family_resolution_order(
+    members: Sequence[_FamilyPlanMember],
+) -> tuple[_FamilyPlanMember, ...]:
+    if len(members) <= 1:
+        return tuple(members)
+    return (
+        *sorted(members[1:], key=lambda member: member.timestamp, reverse=True),
+        members[0],
+    )
 
 
 def _plan_path_candidates(member: _FamilyPlanMember) -> tuple[str, ...]:

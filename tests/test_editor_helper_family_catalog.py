@@ -353,3 +353,94 @@ def test_editor_helper_family_catalog_root_then_member_uses_child_plan(
     assert family["detail"] == (
         "tale · Complete common words from the middle of a word"
     )
+
+
+def test_editor_helper_family_catalog_newer_member_plan_beats_root_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rejected = tmp_path / "inspectable_monitor_indicator.md"
+    rejected.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Inspectable monitor indicator\n"
+        "goal: Rejected first proposal.\n"
+        "size: small\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    accepted = tmp_path / "monitor_kill_lifecycle.md"
+    accepted.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Monitor kill lifecycle\n"
+        "goal: Accepted replacement proposal.\n"
+        "size: small\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    by_target = _catalog_by_target(
+        monkeypatch,
+        [
+            _family_record(
+                "20260816010101",
+                "monitoring",
+                suffix="--plan",
+                plan_path=str(rejected),
+            ),
+            _family_record(
+                "20260816010102",
+                "monitoring",
+                suffix="--code",
+                parent_timestamp="20260816010101",
+                plan_path=str(accepted),
+            ),
+        ],
+    )
+
+    family = by_target[("family", "monitoring")]
+    assert family["member_count"] == 2
+    assert family["detail"] == "tale · Monitor kill lifecycle"
+
+
+def test_editor_helper_family_catalog_malformed_newer_plan_falls_back_to_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fallback = tmp_path / "inspectable_monitor_indicator.md"
+    fallback.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Inspectable monitor indicator\n"
+        "goal: First proposal.\n"
+        "size: small\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    broken = tmp_path / "monitor_kill_lifecycle.md"
+    broken.write_text("not frontmatter\n", encoding="utf-8")
+    by_target = _catalog_by_target(
+        monkeypatch,
+        [
+            _family_record(
+                "20260816010101",
+                "monitoring",
+                suffix="--plan",
+                plan_path=str(fallback),
+            ),
+            _family_record(
+                "20260816010102",
+                "monitoring",
+                suffix="--code",
+                parent_timestamp="20260816010101",
+                plan_path=str(broken),
+            ),
+        ],
+    )
+
+    family = by_target[("family", "monitoring")]
+    assert family["member_count"] == 2
+    assert family["detail"] == "tale · Inspectable monitor indicator"

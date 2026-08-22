@@ -73,6 +73,25 @@ class TestFamilyPlanPreviewCacheKey:
             second
         )
 
+    def test_changes_when_a_concrete_member_is_attached(self, tmp_path: Path) -> None:
+        replacement = write_plan(
+            tmp_path / "replacement.md",
+            "Implement the accepted replacement",
+        )
+        root = _family_root(workspace_dir=str(tmp_path))
+        before = _family_plan_preview_cache_key(root)
+
+        root.followup_agents.append(
+            _family_member(
+                raw_suffix="20260822101010",
+                parent_timestamp=root.raw_suffix,
+                plan_path=str(replacement),
+                workspace_dir=str(tmp_path),
+            )
+        )
+
+        assert before != _family_plan_preview_cache_key(root)
+
 
 class TestShouldResolveFamilyPlanPreview:
     def test_false_for_non_family_row(self) -> None:
@@ -199,6 +218,79 @@ class TestWarmFamilyPlanPreviews:
         assert preview is not None
         assert preview.kind == "tale"
         assert preview.title == "Associated plan metadata"
+
+    def test_newest_concrete_member_plan_wins_over_root_plan(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        rejected = write_plan(
+            tmp_path / "inspectable_monitor_indicator.md",
+            "Rejected first proposal",
+            title="Inspectable monitor indicator",
+        )
+        accepted = write_plan(
+            tmp_path / "monitor_kill_lifecycle.md",
+            "Accepted replacement proposal",
+            title="Monitor kill lifecycle",
+        )
+        code = _family_member(
+            agent_name="fam--code",
+            raw_suffix="20260822101010",
+            parent_timestamp="20260822100000",
+            plan_path=str(accepted),
+            workspace_dir=str(tmp_path),
+        )
+        root = _family_root(
+            agent_name="fam--plan",
+            raw_suffix="20260822100000",
+            plan_chain_root=True,
+            plan_path=str(rejected),
+            workspace_dir=str(tmp_path),
+            followup_agents=[code],
+        )
+
+        changed = warm_family_plan_previews([root])
+        key = _family_plan_preview_cache_key(root)
+
+        assert key is not None
+        preview = changed[key]
+        assert preview is not None
+        assert preview.title == "Monitor kill lifecycle"
+
+    def test_malformed_newer_member_plan_falls_back_to_root_plan(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        root_plan = write_plan(
+            tmp_path / "inspectable_monitor_indicator.md",
+            "First proposal",
+            title="Inspectable monitor indicator",
+        )
+        broken = tmp_path / "monitor_kill_lifecycle.md"
+        broken.write_text("not frontmatter\n", encoding="utf-8")
+        code = _family_member(
+            agent_name="fam--code",
+            raw_suffix="20260822101010",
+            parent_timestamp="20260822100000",
+            plan_path=str(broken),
+            workspace_dir=str(tmp_path),
+        )
+        root = _family_root(
+            agent_name="fam--plan",
+            raw_suffix="20260822100000",
+            plan_chain_root=True,
+            plan_path=str(root_plan),
+            workspace_dir=str(tmp_path),
+            followup_agents=[code],
+        )
+
+        changed = warm_family_plan_previews([root])
+        key = _family_plan_preview_cache_key(root)
+
+        assert key is not None
+        preview = changed[key]
+        assert preview is not None
+        assert preview.title == "Inspectable monitor indicator"
 
     def test_caches_none_when_nothing_resolves(self, tmp_path: Path) -> None:
         agent = _family_root(workspace_dir=str(tmp_path))
