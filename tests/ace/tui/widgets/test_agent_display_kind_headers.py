@@ -67,10 +67,10 @@ def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> 
     )
 
     for header in (cheap, full):
-        assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY MEMBERS")
+        assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY SHELLS")
         assert header.plain.startswith("FAMILY\nName:")
         assert header.plain.index("Name:") < header.plain.index("Fold:")
-        assert header.plain.index("Fold:") < header.plain.index("FAMILY MEMBERS")
+        assert header.plain.index("Fold:") < header.plain.index("FAMILY SHELLS")
         assert "family" not in _section_ids(header)
         assert _section_ids(header)[0] == "members"
 
@@ -88,8 +88,8 @@ def test_family_member_header_opens_with_agent_shell(
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
     assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "FAMILY MEMBERS · 1 · alpha" in header.plain
-    prefix, _, _ = header.plain.partition("FAMILY MEMBERS")
+    assert "FAMILY SHELLS · 1 · alpha" in header.plain
+    prefix, _, _ = header.plain.partition("FAMILY SHELLS")
     assert "FAMILY\n" not in prefix
     assert "family" not in _section_ids(header)
     assert "agent-shell" not in _section_ids(header)

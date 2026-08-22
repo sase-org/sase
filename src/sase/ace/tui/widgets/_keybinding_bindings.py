@@ -281,20 +281,24 @@ class KeybindingBindingsMixin:
             # while its supervised command is still running.
             if marked_count == 0 and not panel_focused and not group_focused:
                 bindings.append((x, "stop monitor"))
+            if (
+                not panel_focused
+                and not group_focused
+                and family_roster_container(agent) is not None
+            ):
+                bindings.append(("0-9", "shell"))
             return bindings
 
-        if (
-            not panel_focused
-            and not group_focused
-            and (
-                agent.is_clan_container
-                or agent.is_family_container_row
+        if not panel_focused and not group_focused:
+            if agent.is_clan_container:
+                bindings.append(("0-9", "member"))
+            elif (
+                agent.is_family_container_row
                 or family_roster_container(agent) is not None
-            )
-        ):
-            bindings.append(("0-9", "member"))
-        elif not panel_focused and not group_focused and lane_neighbor_jump_available:
-            bindings.append(("0-9", "neighbor"))
+            ):
+                bindings.append(("0-9", "shell"))
+            elif lane_neighbor_jump_available:
+                bindings.append(("0-9", "neighbor"))
 
         if agent.is_clan_container:
             if marked_count == 0 and not panel_focused and not group_focused:

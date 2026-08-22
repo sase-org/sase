@@ -46,7 +46,12 @@ class AgentFooterDisplayMixin:
         if self.current_tab != "agents":
             return
         if pending_digit := getattr(self, "_member_jump_pending_digit", None):
-            footer_widget.update_member_jump_bindings(pending_digit)
+            noun_resolver = getattr(self, "_roster_jump_noun", None)
+            container_resolver = getattr(self, "_selected_member_jump_container", None)
+            noun = "member"
+            if callable(noun_resolver) and callable(container_resolver):
+                noun = noun_resolver(container_resolver())
+            footer_widget.update_member_jump_bindings(pending_digit, noun=noun)
         elif getattr(self, "_fold_mode_active", False):
             scale_resolver = getattr(self, "_selected_summary_fold_scale", None)
             fold_scale = scale_resolver() if callable(scale_resolver) else None

@@ -157,6 +157,16 @@ def _is_workflow_aggregate_row(agent: Agent) -> bool:
     )
 
 
+def _shell_links(row: Agent) -> tuple[Agent, ...]:
+    """Return both loaded child collections in their already-normalized order."""
+    return (*row.runtime_children, *row.followup_agents)
+
+
+def _is_excluded_family_shell(row: Agent) -> bool:
+    """Return whether *row* is scaffolding rather than a concrete family shell."""
+    return row.is_synthetic_planner or row.agent_family_parallel
+
+
 def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return concrete agents represented by one non-container row.
 
@@ -193,14 +203,8 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
     return (agent,)
 
 
-def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return the ordered real rows represented by a family container.
-
-    Plan workflow roots are aggregate rows.  When their concrete main agent
-    step is loaded, that step owns the planner phase; otherwise the root stays
-    as the compatibility fallback.  Rename-on-attach roots remain real first
-    members for families that do not have a concrete planner step.
-    """
+def _family_shell_anchors(agent: Agent) -> tuple[Agent, ...]:
+    """Return the ordered agent-shell chain before nested monitors are inserted."""
     planner = _concrete_planner_child(agent)
     candidates: list[Agent] = []
     if planner is not None:
@@ -210,11 +214,92 @@ def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
 
     candidates.extend(_concrete_continuations(agent.runtime_children, planner))
     candidates.extend(_concrete_continuations(agent.followup_agents, planner))
-    return _dedupe_rows(candidates)
+    return _dedupe_by_identity(candidates)
+
+
+def _expand_nested_monitor_shells(
+    container: Agent,
+    anchors: Sequence[Agent],
+) -> tuple[Agent, ...]:
+    """Insert nested monitor shells immediately after their causal starter.
+
+    Traverses both ``runtime_children`` and ``followup_agents`` because loaded
+    shapes expose overlapping but not always identical links. Dedupes by
+    durable row identity, cycle-guards by object identity, and keeps each
+    collection's already-normalized order rather than sorting by timestamp.
+    Later agent-shell continuations stay in the anchor sequence; their
+    monitors are not stolen while walking an earlier starter.
+    """
+    result: list[Agent] = []
+    walked_ids: set[int] = set()
+    emitted: set[tuple[AgentType, str, str | None]] = set()
+    anchor_identities = {row.identity for row in anchors}
+
+    def emit(row: Agent) -> None:
+        if id(row) in walked_ids:
+            return
+        walked_ids.add(id(row))
+        if row.identity in emitted or _is_excluded_family_shell(row):
+            return
+        emitted.add(row.identity)
+        result.append(row)
+        walk_monitors(row)
+
+    def walk_monitors(row: Agent) -> None:
+        for child in _shell_links(row):
+            child_id = id(child)
+            if child_id in walked_ids:
+                continue
+            if child.identity in emitted:
+                walked_ids.add(child_id)
+                continue
+            if _is_excluded_family_shell(child):
+                walked_ids.add(child_id)
+                continue
+            if child.is_monitor:
+                emit(child)
+                continue
+            if child.identity in anchor_identities:
+                continue
+            walked_ids.add(child_id)
+            walk_monitors(child)
+
+    if container.identity not in anchor_identities:
+        walk_monitors(container)
+    for anchor in anchors:
+        emit(anchor)
+    return tuple(result)
+
+
+def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return ordered concrete family shells: agent shells and nested monitors.
+
+    Plan workflow roots are aggregate rows. When their concrete main agent
+    step is loaded, that step owns the planner phase; otherwise the root stays
+    as the compatibility fallback. Rename-on-attach roots remain the first
+    real shell for families that do not have a concrete planner step.
+
+    A monitor nested under any family shell is included immediately after its
+    causal starter. Synthetic planners, non-agent workflow steps, and
+    parallel-family rows stay excluded. The walk is a pure in-memory
+    projection: linear in the loaded family subtree, cycle-safe, and
+    identity-deduped.
+    """
+    return _expand_nested_monitor_shells(agent, _family_shell_anchors(agent))
+
+
+def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return ordered concrete agent shells represented by a family container.
+
+    Monitor proc shells are omitted so agent, runner, status, and completion
+    counts stay agent-only. See :func:`concrete_family_shell_rows` for the
+    roster sequence that includes them.
+    """
+    return tuple(row for row in concrete_family_shell_rows(agent) if not row.is_monitor)
 
 
 def family_roster_container(agent: Agent) -> Agent | None:
-    """Return the container row whose FAMILY MEMBERS roster lists ``agent``.
+    """Return the container row whose FAMILY SHELLS roster lists ``agent``.
 
     Container rows render their own roster and are never members of another
     row's roster, so they resolve to ``None``.
@@ -311,6 +396,7 @@ def _concrete_continuations(
         and not row.is_workflow_step_child
         and not row.is_synthetic_planner
         and not row.agent_family_parallel
+        and not row.is_monitor
     )
 
 
@@ -326,6 +412,17 @@ def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
     return tuple(ordered)
 
 
+def _dedupe_by_identity(rows: Sequence[Agent]) -> tuple[Agent, ...]:
+    ordered: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for row in rows:
+        if row.identity in seen:
+            continue
+        seen.add(row.identity)
+        ordered.append(row)
+    return tuple(ordered)
+
+
 __all__ = [
     "ConcreteAgentStatus",
     "MonitorLaneCounts",
@@ -333,6 +430,7 @@ __all__ = [
     "agent_row_is_in_flight",
     "concrete_agent_statuses",
     "concrete_family_member_rows",
+    "concrete_family_shell_rows",
     "family_member_status_buckets",
     "family_roster_container",
     "is_sequential_family_container",

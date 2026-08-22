@@ -14,7 +14,7 @@ from ...agent_completion import agent_wait_status_maps_for_app
 from ...models._agent_clan_sections import clan_section_member_rows
 from ...models.agent import Agent, wait_display_agent
 from ...models.agent_family_members import (
-    concrete_family_member_rows,
+    concrete_family_shell_rows,
     family_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
@@ -196,7 +196,7 @@ def agent_hint_render_cache_key(
         if roster_container is not None:
             member_states = tuple(
                 (member.identity, member.display_status)
-                for member in concrete_family_member_rows(roster_container)
+                for member in concrete_family_shell_rows(roster_container)
             )
             agent_state_digest = _digest_parts(agent, member_states)
         else:

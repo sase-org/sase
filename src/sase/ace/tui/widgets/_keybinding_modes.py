@@ -275,13 +275,18 @@ class KeybindingModesMixin:
             mode_label="COLLAPSE" if collapse_only else "FOLDS",
         )
 
-    def update_member_jump_bindings(self, first_digit: str) -> None:
-        """Show a buffered member digit and its completion/cancel hints."""
+    def update_member_jump_bindings(
+        self,
+        first_digit: str,
+        *,
+        noun: str = "member",
+    ) -> None:
+        """Show a buffered roster digit and its completion/cancel hints."""
         bindings = [
             ("0-9", "second digit"),
             ("<esc>", "cancel"),
         ]
-        self._update_display(bindings, mode_label=f"member {first_digit}▁")
+        self._update_display(bindings, mode_label=f"{noun} {first_digit}▁")
 
     def update_bead_issue_bindings(self) -> None:
         """Update bindings to show Beads external-issue mode options."""

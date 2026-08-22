@@ -8,7 +8,7 @@ from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_family_members import (
-    concrete_family_member_rows,
+    concrete_family_shell_rows,
     family_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
@@ -94,13 +94,39 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             return None
         return jump_map
 
+    def _roster_jump_noun(
+        self,
+        container: SelectedMemberJumpContainer | None,
+    ) -> str:
+        """Return the user-facing noun for one selected roster's digits."""
+        if container is None or not isinstance(container, Agent):
+            return "member"
+        if container.is_clan_container:
+            return "member"
+        if (
+            container.is_family_container_row
+            or family_roster_container(container) is not None
+        ):
+            return "shell"
+        return "neighbor"
+
+    def _roster_jump_label(
+        self,
+        container: SelectedMemberJumpContainer | None,
+    ) -> str:
+        """Return the stale-map subject for one selected roster."""
+        return f"{self._roster_jump_noun(container).capitalize()} roster"
+
     def _update_member_jump_footer(self, first_digit: str) -> None:
         """Show the pending two-digit indicator without rebuilding detail."""
         try:
             from ...widgets import KeybindingFooter
 
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            footer.update_member_jump_bindings(first_digit)
+            footer.update_member_jump_bindings(
+                first_digit,
+                noun=self._roster_jump_noun(self._selected_member_jump_container()),
+            )
         except Exception:
             pass
 
@@ -169,14 +195,14 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if container.is_family_container_row:
             return any(
                 member.identity == target_identity
-                for member in concrete_family_member_rows(container)
+                for member in concrete_family_shell_rows(container)
             )
         roster_container = family_roster_container(container)
         if roster_container is None:
             return False
         return any(
             member.identity == target_identity and member.identity != container.identity
-            for member in concrete_family_member_rows(roster_container)
+            for member in concrete_family_shell_rows(roster_container)
         )
 
     def _member_jump_target(
@@ -191,18 +217,28 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             None,
         )
         if target is None:
-            self._notify_member_jump(f"No member {number}")
+            self._notify_member_jump(f"No {self._roster_jump_noun(container)} {number}")
             return None
         if not self._current_member_target_is_valid(container, target):
-            subject = "Member roster" if target.role == "member" else "Neighbor list"
+            if target.role == "neighbor":
+                subject = "Neighbor list"
+            else:
+                subject = self._roster_jump_label(container)
             self._notify_member_jump(f"{subject} changed; jump cancelled")
             return None
         return target
 
-    def _activate_member_jump_target(self, target: _MemberJumpTargetLike) -> None:
+    def _activate_member_jump_target(
+        self,
+        target: _MemberJumpTargetLike,
+        *,
+        subject: str = "Member",
+    ) -> None:
         """Jump to a current target, or revive a dismissed neighbor."""
         if target.role != "dismissed":
-            self._reveal_agent_row(target.member_identity)
+            if target.role == "neighbor":
+                subject = "Neighbor"
+            self._reveal_agent_row(target.member_identity, subject=subject)
             return
 
         dismissed_resolver = getattr(self, "_active_dismissed_agent_objects", None)
@@ -250,12 +286,17 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 container is None
                 or self._member_jump_container_identity(container) != pending_container
             ):
-                self._notify_member_jump("Member selection changed; jump cancelled")
+                self._notify_member_jump(
+                    f"{self._roster_jump_noun(container).capitalize()} "
+                    "selection changed; jump cancelled"
+                )
                 self._refresh_member_jump_footer_after_action()
                 return True
             jump_map = self._member_jump_map_for(container)
             if jump_map is None:
-                self._notify_member_jump("Member roster changed; jump cancelled")
+                self._notify_member_jump(
+                    f"{self._roster_jump_label(container)} changed; jump cancelled"
+                )
                 self._refresh_member_jump_footer_after_action()
                 return True
             target = self._member_jump_target(
@@ -264,7 +305,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 f"{pending_digit}{key}",
             )
             if target is not None:
-                self._activate_member_jump_target(target)
+                self._activate_member_jump_target(
+                    target,
+                    subject=self._roster_jump_noun(container).capitalize(),
+                )
             self._refresh_member_jump_footer_after_action()
             return True
 
@@ -279,7 +323,9 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
 
         jump_map = self._member_jump_map_for(container)
         if jump_map is None or not jump_map.targets:
-            self._notify_member_jump("Member roster is not ready")
+            self._notify_member_jump(
+                f"{self._roster_jump_label(container)} is not ready"
+            )
             return True
         if len(jump_map.targets[0].number) == 2:
             self._member_jump_pending_digit = key  # type: ignore[attr-defined]
@@ -291,7 +337,10 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
 
         target = self._member_jump_target(container, jump_map, key)
         if target is not None:
-            self._activate_member_jump_target(target)
+            self._activate_member_jump_target(
+                target,
+                subject=self._roster_jump_noun(container).capitalize(),
+            )
         return True
 
     def _refresh_member_jump_footer_after_action(self) -> None:

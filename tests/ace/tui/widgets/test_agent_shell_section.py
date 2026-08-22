@@ -38,13 +38,16 @@ def _family_root(
 def _family_member(
     role_suffix: str, agent_family_role: str, **overrides: object
 ) -> Agent:
-    return make_agent(
-        agent_family=_FAMILY_NAME,
-        agent_family_role=agent_family_role,
-        parent_timestamp=_ROOT_SUFFIX,
-        role_suffix=role_suffix,
-        **overrides,
-    )
+    values: dict[str, object] = {
+        "agent_family": _FAMILY_NAME,
+        "agent_family_role": agent_family_role,
+        "agent_name": f"{_FAMILY_NAME}{role_suffix}",
+        "parent_timestamp": _ROOT_SUFFIX,
+        "raw_suffix": f"{_ROOT_SUFFIX}{role_suffix}",
+        "role_suffix": role_suffix,
+    }
+    values.update(overrides)
+    return make_agent(**values)
 
 
 def _monitor_member(**overrides: object) -> Agent:
@@ -177,6 +180,35 @@ def test_mixed_agent_and_monitor_family_keeps_shell_order_and_alignment() -> Non
     assert len(dot_positions) == 1
 
 
+def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
+    root = _family_root(model="opus", llm_provider="claude")
+    coder = _family_member("--code", "code", model="sonnet", llm_provider="claude")
+    monitor = _monitor_member()
+    review = _family_member(
+        "--reviewer", "reviewer", model="gpt-5.2", llm_provider="codex"
+    )
+    monitor.parent_timestamp = coder.raw_suffix
+    root.followup_agents = [coder, review]
+    root.runtime_children = [coder, review]
+    coder.followup_agents = [monitor]
+    coder.runtime_children = [monitor]
+
+    lanes = build_family_shell_lanes(root)
+
+    assert [type(lane) for lane in lanes] == [
+        _AgentShellLane,
+        _AgentShellLane,
+        _MonitorShellLane,
+        _AgentShellLane,
+    ]
+    assert [lane.label for lane in lanes] == [
+        "--plan",
+        "--code",
+        "--mon",
+        "--reviewer",
+    ]
+
+
 def test_monitor_lane_never_renders_stale_model_metadata() -> None:
     agent = _family(
         _family_root(model="opus", llm_provider="claude"),
@@ -262,7 +294,7 @@ def test_cap_renders_twelve_lanes_plus_tail() -> None:
     lines = section.logical_text.plain.splitlines()
 
     assert len(lines) == SHELL_LANE_LIMIT + 1
-    assert lines[-1].strip() == "… +3 more shells (see FAMILY MEMBERS)"
+    assert lines[-1].strip() == "… +3 more shells (see FAMILY SHELLS)"
 
 
 def test_gutter_tracks_widest_label_only() -> None:

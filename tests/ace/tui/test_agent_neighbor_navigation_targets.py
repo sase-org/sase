@@ -139,7 +139,7 @@ def test_top_level_family_lane_offers_its_dotted_hood_mates() -> None:
     modal = app.pushed_screens[0]
     assert isinstance(modal, AgentNeighborModal)
     # The lane's own member row stays listed individually here; the NEIGHBORS
-    # panel section folds it into the FAMILY MEMBERS tail instead.
+    # panel section folds it into the FAMILY SHELLS tail instead.
     assert [choice.agent_name for choice in modal._choices] == [
         "fam--code",
         "fam.helper",

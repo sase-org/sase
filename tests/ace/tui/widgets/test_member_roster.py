@@ -292,7 +292,7 @@ def test_entry_limit_keeps_total_heading_and_emits_configured_tails() -> None:
         entry_limit=2,
         hidden_tail_label="neighbors",
         hidden_tail_hint="zz / za to show more",
-        extra_tail="… +3 also listed under FAMILY MEMBERS",
+        extra_tail="… +3 also listed under FAMILY SHELLS",
     )
 
     assert "▸ ❖ NEIGHBORS · 5\n" in text.plain
@@ -301,7 +301,7 @@ def test_entry_limit_keeps_total_heading_and_emits_configured_tails() -> None:
     assert ".member-2" not in text.plain
     assert tuple(target.number for target in jump_map.targets) == ("0", "1")
     assert "… +3 more neighbors (zz / za to show more)\n" in text.plain
-    assert "… +3 also listed under FAMILY MEMBERS\n" in text.plain
+    assert "… +3 also listed under FAMILY SHELLS\n" in text.plain
 
 
 def test_group_labels_render_once_per_run_without_section_markers() -> None:

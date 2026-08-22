@@ -98,6 +98,11 @@ async def test_member_jump_footer_shows_pending_digit_and_completion_hints() -> 
             " member 1▁  <esc> cancel · 0-9 second digit"
         )
 
+        footer.update_member_jump_bindings("1", noun="shell")
+        assert footer._last_bindings_signature[0] == (
+            " shell 1▁  <esc> cancel · 0-9 second digit"
+        )
+
 
 async def test_numbered_member_binding_is_conditional_on_container_rows() -> None:
     app = _Host()
@@ -128,8 +133,10 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
         )
 
         assert ("0-9", "member") in footer._compute_agent_bindings(clan)
-        assert ("0-9", "member") in footer._compute_agent_bindings(family)
+        assert ("0-9", "shell") in footer._compute_agent_bindings(family)
+        assert ("0-9", "member") not in footer._compute_agent_bindings(family)
         assert ("0-9", "member") not in footer._compute_agent_bindings(regular)
+        assert ("0-9", "shell") not in footer._compute_agent_bindings(regular)
         assert ("0-9", "neighbor") in footer._compute_agent_bindings(
             regular,
             lane_neighbor_jump_available=True,

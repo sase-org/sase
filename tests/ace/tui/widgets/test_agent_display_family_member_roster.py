@@ -1,4 +1,4 @@
-"""Tests for the FAMILY MEMBERS roster on family-member detail panels."""
+"""Tests for the FAMILY SHELLS roster on family-member detail panels."""
 
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
     assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "FAMILY\n" not in header.plain.split("FAMILY MEMBERS", 1)[0]
-    assert "▾ ❖ FAMILY MEMBERS · 1 · alpha" in header.plain
+    assert "FAMILY\n" not in header.plain.split("FAMILY SHELLS", 1)[0]
+    assert "▾ ❖ FAMILY SHELLS · 1 · alpha" in header.plain
     entries = family_roster_entries(root, exclude=child)
     assert [entry.label for entry in entries] == ["--plan"]
     assert [entry.identity for entry in entries] == [root.identity]
@@ -121,13 +121,13 @@ def test_plan_workflow_family_member_panels_list_each_other() -> None:
         member_jump_map_publisher=coder_published.append,
     )
 
-    assert "FAMILY MEMBERS" in planner_header.plain
+    assert "FAMILY SHELLS" in planner_header.plain
     assert "--code" in planner_header.plain
     assert [target.member_identity for target in planner_published[0].targets] == [
         coder.identity
     ]
 
-    assert "FAMILY MEMBERS" in coder_header.plain
+    assert "FAMILY SHELLS" in coder_header.plain
     assert "--plan" in coder_header.plain
     assert [target.member_identity for target in coder_published[0].targets] == [
         planner.identity
@@ -197,7 +197,7 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         member_jump_map_publisher=published.append,
     )
 
-    assert "FAMILY MEMBERS" in header.plain
+    assert "FAMILY SHELLS" in header.plain
     jump_map = published[0]
     assert jump_map.container_identity == member1.identity
     assert [target.number for target in jump_map.targets] == ["0", "1"]
@@ -246,10 +246,153 @@ def test_family_roster_labels_monitor_members() -> None:
 
     entries = family_roster_entries(root)
 
-    assert [(entry.label, entry.kind, entry.status) for entry in entries] == [
-        ("--0", "AGENT (0)", "DONE"),
-        ("--mon", "MONITOR", "MONITORING"),
+    assert [
+        (entry.label, entry.kind, entry.status, entry.model, entry.effective_bucket)
+        for entry in entries
+    ] == [
+        ("--0", "AGENT (0)", "DONE", "default", "Done"),
+        ("--mon", "⚙ MONITOR", "MONITORING", "just check", "Running"),
     ]
+    header, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
+    assert "FAMILY SHELLS · 2\n" in header.plain
+    assert "⚙ MONITOR" in header.plain
+    assert "just check" in header.plain
+    assert "shell" not in header.plain.split("⚙ MONITOR", 1)[1].split("\n", 1)[0]
+
+
+def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=started,
+        stop_time=started + timedelta(minutes=1),
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+        model="claude/opus",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=started + timedelta(minutes=1),
+        stop_time=started + timedelta(minutes=2),
+        raw_suffix="20260812090100",
+        parent_timestamp=root.raw_suffix,
+        agent_name="alpha--code",
+        agent_family="alpha",
+        agent_family_role="code",
+        role_suffix="--code",
+        model="codex/gpt-5",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="MONITORED",
+        start_time=started + timedelta(minutes=2),
+        stop_time=started + timedelta(minutes=3),
+        raw_suffix="20260812090200",
+        parent_timestamp=coder.raw_suffix,
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m123",
+        monitor_state="completed",
+        monitor_command="just check-full --every-target\nand a second line",
+    )
+    review = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="RUNNING",
+        start_time=started + timedelta(minutes=3),
+        raw_suffix="20260812090300",
+        parent_timestamp=root.raw_suffix,
+        agent_name="alpha--review",
+        agent_family="alpha",
+        agent_family_role="review",
+        role_suffix="--review",
+        model="claude/sonnet",
+    )
+    root.followup_agents = [coder, review]
+    root.runtime_children = [coder, review]
+    coder.followup_agents = [monitor]
+    coder.runtime_children = [monitor]
+    coder.family_container = root
+    monitor.family_container = root
+    review.family_container = root
+
+    entries = family_roster_entries(root)
+    assert [entry.label for entry in entries] == [
+        "--0",
+        "--code",
+        "--mon",
+        "--review",
+    ]
+    assert entries[2].kind == "⚙ MONITOR"
+    assert entries[2].model == "just check-full --every-target"
+    assert entries[2].effective_bucket == "Done"
+
+    sibling_entries = family_roster_entries(root, exclude=monitor)
+    assert [entry.label for entry in sibling_entries] == ["--0", "--code", "--review"]
+
+    published = []
+    header, _ = build_header_text(
+        monitor,
+        cheap=True,
+        lane_fold_level=FoldLevel.EXPANDED,
+        member_jump_map_publisher=published.append,
+    )
+    assert "▾ ❖ FAMILY SHELLS · 3 · alpha" in header.plain
+    assert [target.member_identity for target in published[0].targets] == [
+        root.identity,
+        coder.identity,
+        review.identity,
+    ]
+
+
+def test_family_roster_monitor_descriptor_falls_back_to_command() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=started,
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+    )
+    unlabeled = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING",
+        start_time=started + timedelta(minutes=1),
+        raw_suffix="20260812090100",
+        parent_timestamp=root.raw_suffix,
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m-unlabeled",
+        monitor_state="running",
+    )
+    root.followup_agents = [unlabeled]
+
+    assert family_roster_entries(root)[1].model == "command"
+    unlabeled.monitor_command = "  pytest -q  "
+    assert family_roster_entries(root)[1].model == "pytest -q"
 
 
 def test_member_panel_stays_on_agent_scale_across_fold_levels(
@@ -298,7 +441,7 @@ def test_row_without_family_container_renders_no_roster() -> None:
 
     header, _ = build_header_text(lone, cheap=True)
 
-    assert "FAMILY MEMBERS" not in header.plain
+    assert "FAMILY SHELLS" not in header.plain
 
 
 def test_container_panel_output_is_unchanged_by_member_roster_support(
@@ -315,7 +458,7 @@ def test_container_panel_output_is_unchanged_by_member_roster_support(
     )
 
     assert "Fold: 1/2\n" in header.plain
-    assert "▾ ❖ FAMILY MEMBERS · 2\n" in header.plain
+    assert "▾ ❖ FAMILY SHELLS · 2\n" in header.plain
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,

@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentList
@@ -129,6 +130,7 @@ def _family_agents(
             "✓ lint (ruff)\nFAILED tests/ace/tui/test_x.py::test_y\n",
             encoding="utf-8",
         )
+        starter = rows[-1]
         mon_started = _STARTED + timedelta(minutes=member_count * 2)
         rows.append(
             Agent(
@@ -139,7 +141,7 @@ def _family_agents(
                 start_time=mon_started,
                 stop_time=mon_started + timedelta(minutes=1),
                 raw_suffix="20260718131200-family-mon",
-                parent_timestamp=root.raw_suffix,
+                parent_timestamp=starter.raw_suffix,
                 artifacts_dir=str(mon_dir),
                 role_suffix="--mon",
                 agent_name=f"{_FAMILY_NAME}--mon",
@@ -149,6 +151,7 @@ def _family_agents(
                 monitor_state="completed",
                 monitor_start_status="MONITORING",
                 monitor_stop_status="MONITORED",
+                monitor_label="just check",
                 monitor_command=monitor_command,
                 monitor_cwd="/workspace/sase",
                 monitor_reason=monitor_reason,
@@ -297,7 +300,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         member_targets = {target.member_identity for target in member_jump_map.targets}
         assert member.identity not in member_targets
 
-        assert_page_svg_contains(page, "FAMILY MEMBERS")
+        assert_page_svg_contains(page, "FAMILY SHELLS")
         assert_page_svg_contains(page, "AGENT SHELL")
         ace_png_visual.assert_page_png(
             page,
@@ -338,12 +341,12 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
         await page.press("1")
         assert page.app._member_jump_pending_digit == "1"
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "member 1▁")
+        assert_page_svg_contains(page, "shell 1▁")
         assert_page_svg_contains(page, "second digit")
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_pending_digit_120x40",
-            title="ACE family panel pending member digit",
+            title="ACE family panel pending shell digit",
         )
 
         await page.press("0")
@@ -398,17 +401,48 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
 
         container = page.app._agents[page.app.current_idx]
         assert container.is_family_container_row is True
+        shells = concrete_family_shell_rows(container)
+        assert [shell.is_monitor for shell in shells] == [False, False, True]
+        monitor = shells[2]
+        assert monitor.parent_timestamp != container.raw_suffix
+        jump_map = page.app._member_jump_maps[container.identity]
+        assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
+        assert jump_map.targets[2].member_identity == monitor.identity
         assert_page_svg_contains(page, "Shells:")
         assert_page_svg_contains(page, "⚙")
         assert_page_svg_contains(page, "why")
         assert_page_svg_contains(page, "Full-suite")
         assert_page_svg_contains(page, "verification")
-        assert_page_svg_contains(page, "FAMILY MEMBERS")
+        assert_page_svg_contains(page, "FAMILY SHELLS")
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_shells_monitor_120x40",
             title="ACE family panel shell metadata with monitor",
         )
+
+        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
+        for _ in range(20):
+            if panel.active_section_identity == "members":
+                break
+            await page.press("ctrl+j")
+        assert panel.active_section_identity == "members"
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "--plan")
+        assert_page_svg_contains(page, "--mon")
+        assert_page_svg_contains(page, "⚙ MONITOR")
+        assert_page_svg_contains(page, "just check")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_panel_shells_monitor_roster_120x40",
+            title="ACE family panel FAMILY SHELLS roster with monitor",
+        )
+
+        await page.press("2")
+        await page.wait_for(
+            lambda _state: page.app._agents[page.app.current_idx].is_monitor
+        )
+        assert page.app._agents[page.app.current_idx].identity == monitor.identity
 
 
 async def test_family_conversation_monitor_phase_png_snapshot(

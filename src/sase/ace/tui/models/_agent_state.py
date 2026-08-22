@@ -374,7 +374,7 @@ class AgentState:
         repr=False,
     )
 
-    # Family container row whose FAMILY MEMBERS roster lists this row. Runtime
+    # Family container row whose FAMILY SHELLS roster lists this row. Runtime
     # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``
     # and dataclass eq/repr (and the repr-based hint digest) would recurse.

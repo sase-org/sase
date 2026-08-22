@@ -4,18 +4,21 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_family_members import (
     MonitorLaneCounts,
     _concrete_agent_rows,
     concrete_agent_statuses,
     concrete_family_member_rows,
+    concrete_family_shell_rows,
     family_member_status_buckets,
     is_sequential_family_container,
     monitor_lane_counts,
     monitor_row_is_settled,
     panel_monitor_lane_counts,
 )
+from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 _STARTED = datetime(2026, 7, 19, 9, 0, 0)
 
@@ -271,7 +274,8 @@ def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
     monitor.monitor_state = "running"
     root.followup_agents = [monitor]
 
-    assert concrete_family_member_rows(root) == (root, monitor)
+    assert concrete_family_shell_rows(root) == (root, monitor)
+    assert concrete_family_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
@@ -291,8 +295,122 @@ def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:
     root.followup_agents = [monitor]
 
     assert root.is_monitor is False
-    assert concrete_family_member_rows(root) == (root, monitor)
+    assert concrete_family_shell_rows(root) == (root, monitor)
+    assert concrete_family_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
+def test_nested_monitor_follows_mid_family_continuation() -> None:
+    root = _agent("alpha--0", role="root")
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=1,
+    )
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-nested",
+        monitor_state="running",
+    )
+    review = _agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        start_offset=2,
+    )
+    root.runtime_children = [coder, review]
+    root.followup_agents = [coder, review]
+    coder.runtime_children = [monitor]
+    coder.followup_agents = [monitor]
+
+    assert concrete_family_shell_rows(root) == (root, coder, monitor, review)
+    assert concrete_family_member_rows(root) == (root, coder, review)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [
+        root,
+        coder,
+        review,
+    ]
+
+
+def test_shell_projection_dedupes_overlapping_links_and_identity() -> None:
+    root = _agent("alpha--0", role="root")
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=1,
+    )
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-overlap",
+        monitor_state="running",
+    )
+    alias = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-overlap",
+        monitor_state="running",
+    )
+    alias.raw_suffix = monitor.raw_suffix
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    coder.runtime_children = [monitor]
+    coder.followup_agents = [alias]
+
+    assert concrete_family_shell_rows(root) == (root, coder, monitor)
+    assert concrete_family_member_rows(root) == (root, coder)
+
+
+def test_shell_projection_terminates_on_cycles() -> None:
+    root = _agent("alpha--0", role="root")
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=1,
+    )
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-cycle",
+        monitor_state="running",
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    coder.runtime_children = [monitor]
+    monitor.runtime_children = [root]
+
+    assert concrete_family_shell_rows(root) == (root, coder, monitor)
+
+
+def test_attach_family_containers_reaches_nested_monitor_without_rerooting() -> None:
+    root = _agent("alpha--0", role="root")
+    root.plan_chain_root = True
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=1,
+    )
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-attach",
+        monitor_state="completed",
+        stop_offset=5,
+    )
+
+    _apply_status_overrides([root, coder, monitor])
+    ordered = sort_and_reorder([root, coder, monitor], [])
+
+    assert root in ordered
+    assert coder.family_container is root
+    assert monitor.family_container is root
+    assert monitor in coder.runtime_children
+    assert monitor not in root.runtime_children
 
 
 def test_stopped_non_final_family_member_projects_done() -> None:

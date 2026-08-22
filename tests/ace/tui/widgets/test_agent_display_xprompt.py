@@ -361,8 +361,11 @@ class TestAgentXPromptRendering:
         root.role_suffix = "--0"
         root.agent_family_role = "root"
         root.plan_chain_root = False
+        root.raw_suffix = "20240101142345-root"
         followup.role_suffix = "--bar"
         followup.agent_family_role = "bar"
+        followup.raw_suffix = "20240101142345-bar"
+        followup.parent_timestamp = root.raw_suffix
         root.followup_agents = [followup]
 
         panel = FakePromptPanel()
@@ -388,8 +391,11 @@ class TestAgentXPromptRendering:
         root.role_suffix = "--0"
         root.agent_family_role = "root"
         root.plan_chain_root = False
+        root.raw_suffix = "20240101142345-root"
         followup.role_suffix = "--bar"
         followup.agent_family_role = "bar"
+        followup.raw_suffix = "20240101142345-bar"
+        followup.parent_timestamp = root.raw_suffix
         root.followup_agents = [followup]
 
         panel = FakePromptPanel()

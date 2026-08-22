@@ -8,18 +8,22 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.monitor_state import MONITOR_GLYPH
+
+from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_family_members import (
-    concrete_family_member_rows as family_member_rows,
+    concrete_family_shell_rows as family_shell_rows,
     family_member_status_buckets,
+    monitor_row_is_settled,
 )
-from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
     FAMILY_FOLD_SCALE,
     FoldScale,
     effective_fold_level,
 )
-from ._agent_display_content import get_phase_label
+from ...models.fold_state import FoldLevel
+from ._agent_display_content import MONITOR_PHASE_LABEL, get_phase_label
 from ._fold_language import append_fold_section_heading
 from ._member_roster import (
     MemberJumpMap,
@@ -30,7 +34,10 @@ from ._member_roster import (
 from ._member_roster_digest import agent_roster_digest, agent_roster_duration
 
 FAMILY_IDENTITY_COLOR = "#00AFFF"
-_FAMILY_ROSTER_TITLE = "FAMILY MEMBERS"
+_FAMILY_ROSTER_TITLE = "FAMILY SHELLS"
+_MONITOR_DESCRIPTOR_MAX_CHARS = 40
+_MONITOR_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
+_MONITOR_COMMAND_FALLBACK = "command"
 
 
 def effective_family_fold_level(
@@ -64,6 +71,30 @@ def append_family_fold_heading(
     )
 
 
+def _monitor_roster_descriptor(member: Agent) -> str:
+    """Return a bounded one-line monitor descriptor for the roster model slot."""
+    label = first_meaningful_line(
+        member.monitor_label or "",
+        max_chars=_MONITOR_DESCRIPTOR_MAX_CHARS,
+    )
+    if label:
+        return label
+    command = first_meaningful_line(
+        member.monitor_command or "",
+        max_chars=_MONITOR_DESCRIPTOR_MAX_CHARS,
+    )
+    return command or _MONITOR_COMMAND_FALLBACK
+
+
+def _monitor_roster_bucket(member: Agent) -> str:
+    """Return the agent-status bucket used to style one monitor roster row."""
+    if member.monitor_state in _MONITOR_FAILURE_STATES:
+        return "Failed"
+    if monitor_row_is_settled(member):
+        return "Done"
+    return "Running"
+
+
 def family_roster_entries(
     agent: Agent,
     *,
@@ -72,16 +103,31 @@ def family_roster_entries(
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt a family chain into shared numbered roster entries."""
     family_name = agent.presented_agent_name or ""
-    members = family_member_rows(agent)
-    buckets = family_member_status_buckets(members)
+    shells = family_shell_rows(agent)
+    agent_shells = tuple(shell for shell in shells if not shell.is_monitor)
+    agent_buckets = {
+        shell.identity: bucket
+        for shell, bucket in zip(
+            agent_shells,
+            family_member_status_buckets(agent_shells),
+            strict=True,
+        )
+    }
     entries: list[MemberRosterEntry] = []
-    for member, bucket in zip(members, buckets, strict=True):
+    for member in shells:
         if exclude is not None and (
             member is exclude or member.identity == exclude.identity
         ):
             continue
-        phase_label = get_phase_label(member)
-        kind = "agent" if phase_label == "AGENT" else phase_label
+        if member.is_monitor:
+            kind = f"{MONITOR_GLYPH} {MONITOR_PHASE_LABEL}"
+            model = _monitor_roster_descriptor(member)
+            bucket = _monitor_roster_bucket(member)
+        else:
+            phase_label = get_phase_label(member)
+            kind = "agent" if phase_label == "AGENT" else phase_label
+            model = member.model or "default"
+            bucket = agent_buckets[member.identity]
         entries.append(
             MemberRosterEntry(
                 identity=member.identity,
@@ -95,7 +141,7 @@ def family_roster_entries(
                 kind=kind,
                 status=member.display_status,
                 effective_bucket=bucket,
-                model=member.model or "default",
+                model=model,
                 duration=agent_roster_duration(member, now=now),
                 digest=agent_roster_digest(member),
             )
@@ -128,6 +174,7 @@ def append_family_member_roster(
         section_fold_overrides=section_fold_overrides,
         fold_scale=fold_scale,
         numbering=numbering,
+        hidden_tail_label="shells",
         heading_suffix=heading_suffix,
     )
 
@@ -158,7 +205,7 @@ __all__ = [
     "append_family_member_roster",
     "effective_family_fold_level",
     "family_member_label",
-    "family_member_rows",
     "family_roster_entries",
     "family_roster_heading_suffix",
+    "family_shell_rows",
 ]

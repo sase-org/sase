@@ -1,7 +1,7 @@
 """Final agent ordering helpers for the TUI agent list."""
 
 from .agent import Agent, AgentType
-from .agent_family_members import concrete_family_member_rows
+from .agent_family_members import concrete_family_shell_rows
 
 
 def get_status_priority(status: str) -> int:
@@ -226,10 +226,14 @@ def _attach_runtime_children(
 
 
 def _attach_family_containers(rows: list[Agent]) -> None:
-    """Point each concrete family member at the container row that lists it."""
+    """Point each concrete family shell at the container row that lists it.
+
+    Nested monitors keep their immediate rendered-tree parent (the starter)
+    and only gain this roster back-pointer.
+    """
     for row in rows:
         if not row.is_family_container_row:
             continue
-        for member in concrete_family_member_rows(row):
+        for member in concrete_family_shell_rows(row):
             if member is not row:
                 member.family_container = row

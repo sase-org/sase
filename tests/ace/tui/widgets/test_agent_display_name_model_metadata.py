@@ -36,13 +36,16 @@ def _family_root(
 def _family_member(
     role_suffix: str, agent_family_role: str, **overrides: object
 ) -> Agent:
-    return make_agent(
-        agent_family=_FAMILY_NAME,
-        agent_family_role=agent_family_role,
-        parent_timestamp=_ROOT_SUFFIX,
-        role_suffix=role_suffix,
-        **overrides,
-    )
+    values: dict[str, object] = {
+        "agent_family": _FAMILY_NAME,
+        "agent_family_role": agent_family_role,
+        "agent_name": f"{_FAMILY_NAME}{role_suffix}",
+        "parent_timestamp": _ROOT_SUFFIX,
+        "raw_suffix": f"{_ROOT_SUFFIX}{role_suffix}",
+        "role_suffix": role_suffix,
+    }
+    values.update(overrides)
+    return make_agent(**values)
 
 
 def _monitor_member(**overrides: object) -> Agent:

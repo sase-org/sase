@@ -42,12 +42,12 @@ def test_family_roster_numbers_real_chain_rows_in_order(
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
     assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
-    assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY MEMBERS")
+    assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY SHELLS")
     assert header.plain.startswith("FAMILY\nName:")
     assert header.plain.index("Name:") < header.plain.index("Fold: 1/2\n")
-    assert header.plain.index("Fold: 1/2\n") < header.plain.index("FAMILY MEMBERS")
-    assert "▾ ❖ FAMILY MEMBERS · 2\n" in header.plain
-    assert header.plain.index("FAMILY MEMBERS") < header.plain.index("OUTPUT VARIABLES")
+    assert header.plain.index("Fold: 1/2\n") < header.plain.index("FAMILY SHELLS")
+    assert "▾ ❖ FAMILY SHELLS · 2\n" in header.plain
+    assert header.plain.index("FAMILY SHELLS") < header.plain.index("OUTPUT VARIABLES")
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,

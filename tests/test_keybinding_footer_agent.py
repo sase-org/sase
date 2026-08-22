@@ -210,7 +210,7 @@ def test_keybinding_footer_clan_advertises_clan_fork() -> None:
     )
 
 
-def test_keybinding_footer_family_member_advertises_member_digits() -> None:
+def test_keybinding_footer_family_member_advertises_shell_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--plan"
@@ -230,8 +230,9 @@ def test_keybinding_footer_family_member_advertises_member_digits() -> None:
 
     bindings = footer._compute_agent_bindings(child)
 
-    assert ("0-9", "member") in bindings
-    assert ("0-9", "member") not in footer._compute_agent_bindings(
+    assert ("0-9", "shell") in bindings
+    assert ("0-9", "member") not in bindings
+    assert ("0-9", "shell") not in footer._compute_agent_bindings(
         child,
         group_focused=True,
     )
@@ -443,6 +444,23 @@ def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
     bindings = footer._compute_agent_bindings(agent)
 
     assert ("x", "stop monitor") in bindings
+    assert ("0-9", "shell") not in bindings
+
+
+def test_keybinding_footer_running_family_monitor_advertises_shell_digits() -> None:
+    footer = KeybindingFooter()
+    root = _make_agent()
+    root.agent_name = "alpha--0"
+    root.agent_family = "alpha"
+    root.plan_chain_root = True
+    root.role_suffix = "--0"
+    monitor = _monitor_agent(monitor_state="running")
+    monitor.family_container = root
+
+    bindings = footer._compute_agent_bindings(monitor)
+
+    assert ("x", "stop monitor") in bindings
+    assert ("0-9", "shell") in bindings
 
 
 def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:

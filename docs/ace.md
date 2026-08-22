@@ -959,20 +959,20 @@ or grouping folds before focus moves.
 
 When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
 each numbered row, up to 100 targets. A sase agent is a multi-member family container or
-a single agent; sase-agent panels number their `FAMILY MEMBERS` roster (when present)
-and then their `NEIGHBORS` section from one continuous ladder. A selected family
-**member** row numbers its enclosing family's `FAMILY MEMBERS` roster the same way,
-listing every sibling except itself from the same ladder; a member row owns no sase
-agent, so it has no `NEIGHBORS` rows to follow the roster. Documents with at most ten
-numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key
-values `00`–`99` and show any remaining entries as an unnumbered count. After the first
-digit of a two-key jump, press `Esc` to cancel or any non-digit key to cancel and
-continue with that key's normal action. A successful jump expands only the target's
-ancestor chain, switches tribe panels when needed, and participates in the normal
-`Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent instead
-of jumping, exactly as `<enter>` does in the `~` chooser. If the roster or the neighbor
-relationship changed since the panel was drawn, the jump is cancelled with a warning
-rather than landing somewhere stale.
+a single agent; sase-agent panels number their `FAMILY SHELLS` roster (when present) and
+then their `NEIGHBORS` section from one continuous ladder. A selected family **shell**
+row numbers its enclosing family's `FAMILY SHELLS` roster the same way, listing every
+sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
+`NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
+`0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
+show any remaining entries as an unnumbered count. After the first digit of a two-key
+jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's
+normal action. A successful jump expands only the target's ancestor chain, switches
+tribe panels when needed, and participates in the normal `Ctrl+O` jump-back history. A
+digit on a dismissed neighbor revives that agent instead of jumping, exactly as
+`<enter>` does in the `~` chooser. If the roster or the neighbor relationship changed
+since the panel was drawn, the jump is cancelled with a warning rather than landing
+somewhere stale.
 
 ### Agent Actions
 
@@ -1051,7 +1051,7 @@ selection cancels with a warning rather than opening a prompt for the wrong targ
 
 Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member family
 root opens with underlined `FAMILY` (cyan, matching the name) like `CLAN` / `TRIBE`,
-then the family's normal agent metadata plus a `FAMILY MEMBERS` roster. A selected agent
+then the family's normal agent metadata plus a `FAMILY SHELLS` roster. A selected agent
 shell — standalone or family member — opens with underlined `AGENT SHELL` (gold,
 matching the name). Both rosters use the numbered member jumps described above. Clan
 direct members in the Agents list sort by status priority — Failed, Stopped,
@@ -1060,7 +1060,7 @@ metadata roster instead keeps chronological launch order so its numbers do not c
 statuses change; a nested family remains one direct entry with its chain indented
 beneath it. Family rosters retain sequential chain order.
 
-Selecting a family **member** row (not the container) also shows a `FAMILY MEMBERS`
+Selecting a family **shell** row (not the container) also shows a `FAMILY SHELLS`
 roster: the same enclosing family's members, in the same chain order, minus the selected
 member itself. The heading carries a dim ` · <family name>` suffix naming the family,
 since the count shown is one less than the family's full size. Unlike a container panel,
@@ -1235,10 +1235,10 @@ in place after the editor exits.
 ### Sase Agent Neighbors Section
 
 Every sase agent panel carries a numbered `NEIGHBORS` roster in its metadata region. The
-section appears on family container panels below their `FAMILY MEMBERS` roster and on
+section appears on family container panels below their `FAMILY SHELLS` roster and on
 ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
-and workflow aggregate rows have no `NEIGHBORS` section. A selected family member row
-owns no sase agent, so its panel carries only the `FAMILY MEMBERS` roster (siblings,
+and workflow aggregate rows have no `NEIGHBORS` section. A selected family shell row
+owns no sase agent, so its panel carries only the `FAMILY SHELLS` roster (siblings,
 minus itself) and never a `NEIGHBORS` section.
 
 The rows are exactly the rows the `~` chooser offers for that sase agent — ancestors,
@@ -1261,8 +1261,8 @@ position shows 10. A family therefore shows 3 rows at level 1 and every row at l
 while a single sase agent shows 3 / 10 / all across its three levels. The heading count
 is always the sase agent's total neighbor count, and a dim
 `… +N more neighbors (zz / za to show more)` tail reports what is hidden. Only visible
-rows get digits. On a family, siblings that already appear under `FAMILY MEMBERS` are
-not repeated; they are reported by a dim `… +N also listed under FAMILY MEMBERS` tail
+rows get digits. On a family, siblings that already appear under `FAMILY SHELLS` are not
+repeated; they are reported by a dim `… +N also listed under FAMILY SHELLS` tail
 instead. That suppression applies only to this section — the `~` chooser and the info
 panel's `neighbors:` badge still count them.
 
@@ -4050,7 +4050,7 @@ pinned attempt view resets the cursor.
   most 100 members receive numbers.
 - **FAMILY**: Shown when a real multi-member family root is selected. The cyan heading
   and cyan `Name:` value match the family row's identity block. The line is header
-  chrome, not a `Ctrl+J` title; the first navigable section remains `FAMILY MEMBERS` (or
+  chrome, not a `Ctrl+J` title; the first navigable section remains `FAMILY SHELLS` (or
   the next rendered title if that roster is absent).
 - **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
   The gold heading and gold `Name:` value match the list-row name annotation. The line

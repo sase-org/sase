@@ -327,8 +327,8 @@ tribe parents in one multi-parent fork.
 ### Family detail folding
 
 Selecting a real multi-member family root in ACE opens the metadata panel with
-underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY MEMBERS` roster
-in stable chain order. The original member and each follow-up are direct jump targets;
+underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY SHELLS` roster in
+stable chain order. The original member and each follow-up are direct jump targets;
 synthetic planner projections and legacy parallel-family scaffolding are not. The same
 `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and
 the root's foldable output variables, workflow variables, SASE context, slow calls, and
@@ -340,8 +340,8 @@ workspace, timestamp, and attempt annotations. Press `zZ` at level 1 to open eve
 to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select
 either level directly. `z3` and `z4` are invalid in a family context and leave both the
 panel level and section overrides untouched. A member-specific override inherits from
-the `FAMILY MEMBERS` section, which in turn inherits the panel level. The numbered
-roster and its digit jumps remain present at both effective levels.
+the `FAMILY SHELLS` section, which in turn inherits the panel level. The numbered roster
+and its digit jumps remain present at both effective levels.
 
 The family root's `SLOW TOOL CALLS` section also follows that two-position scale. Level
 1 keeps one aligned row per call with a short target digest and a tail explaining that
@@ -357,13 +357,13 @@ members that have not responded yet remain visible with their pending state.
 
 A family root is a sase agent, so its panel also carries a `NEIGHBORS` section listing
 the sase agent's ancestors, descendants, and hood neighbors; it sits below
-`FAMILY MEMBERS` and above `SASE CONTEXT`. The family participates under its bare family
+`FAMILY SHELLS` and above `SASE CONTEXT`. The family participates under its bare family
 name rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a
 descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw their
 digits from one continuous ladder, so family members are numbered first and neighbors
 after, with a single shared number width. Family members already shown under
-`FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
-`… +N also listed under FAMILY MEMBERS` tail. The family's two-level scale drives the
+`FAMILY SHELLS` are never repeated in `NEIGHBORS`; they are reported as a dim
+`… +N also listed under FAMILY SHELLS` tail. The family's two-level scale drives the
 section too: level 1 shows the first three neighbors plus a hidden-count tail, and level
 2 shows all of them. See
 [Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
@@ -371,19 +371,19 @@ behavior, which single agents share through their own three-level scale.
 
 #### Family member detail folding
 
-Selecting a family **member** row — not the container — also renders a numbered
-`FAMILY MEMBERS` roster: every member of the enclosing family in the same stable chain
-order, except the selected member itself, numbered starting from `0`. The heading
-carries a dim ` · <family name>` suffix naming the family. Digit jumps behave exactly as
-they do on the container roster — `0`–`9` (or two-key `00`–`99` past ten members) reveal
-the target member, and a roster that changed since the panel was drawn cancels the jump
-with a warning instead of landing somewhere stale.
+Selecting a family **shell** row — not the container — also renders a numbered
+`FAMILY SHELLS` roster: every shell of the enclosing family in the same stable chain
+order, except the selected shell itself, numbered starting from `0`. The heading carries
+a dim ` · <family name>` suffix naming the family. Digit jumps behave exactly as they do
+on the container roster — `0`–`9` (or two-key `00`–`99` past ten shells) reveal the
+target shell, and a roster that changed since the panel was drawn cancels the jump with
+a warning instead of landing somewhere stale.
 
 Unlike the container's two-level family scale, a member panel folds its roster and every
 other section on the selected member's own three-level agent scale (`z1`–`z3`, `zz`,
 `za`, `zA`), so no `Fold: N/M` header line appears. A member row is an agent shell node
 rather than a sase agent, so its panel names that with underlined `AGENT SHELL` (gold,
-matching the name), has no `NEIGHBORS` section, and shows only `FAMILY MEMBERS` for the
+matching the name), has no `NEIGHBORS` section, and shows only `FAMILY SHELLS` for the
 enclosing family. The container panel names itself `FAMILY`.
 
 #### Per-member model lanes
@@ -405,11 +405,11 @@ every other SASE surface — the single-agent panel and `sase agent show` includ
 one reading habit covers all of them. The `← @<alias>` chip appears only when the member
 was launched with an `@` model alias, and it is launch-time provenance: completed runs
 keep showing the alias that launched them even if that alias is later retargeted or
-deleted. Member labels are the `--<suffix>` labels from the `FAMILY MEMBERS` roster,
+deleted. Member labels are the `--<suffix>` labels from the `FAMILY SHELLS` roster,
 padded to one aligned value column, and a member with no recorded model renders a dim
 `default`. Long values wrap beneath that column rather than pushing the layout wide. At
 most 12 lanes are shown; a larger family adds a dim
-`… +N more members (see FAMILY MEMBERS)` tail. The lanes are not part of the two-level
+`… +N more shells (see FAMILY SHELLS)` tail. The lanes are not part of the two-level
 fold scale — they read the same at level 1 and level 2. A family that projects to fewer
 than two concrete members, and every ordinary single agent, keeps the original one-line
 `Model:` field.

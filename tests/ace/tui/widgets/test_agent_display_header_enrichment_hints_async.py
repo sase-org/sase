@@ -115,7 +115,7 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
     assert cold.header_enrichment_pending
     assert panel._agent_hint_mode_rendered
     assert panel.worker_fn is not None
-    assert "FAMILY MEMBERS" in plain_of(panel.captured[-1])
+    assert "FAMILY SHELLS" in plain_of(panel.captured[-1])
 
     panel.worker.result = panel.worker_fn()
     panel._apply_agent_detail_header_enrichment_result(

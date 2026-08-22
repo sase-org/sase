@@ -20,7 +20,7 @@ from ._agent_display_content import (
 )
 from ._agent_display_family import (
     effective_family_fold_level,
-    family_member_rows,
+    family_shell_rows,
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
@@ -174,7 +174,7 @@ class AgentFamilyDisplayMixin:
             reply_header.append("\n")
             reply_header.append("\u2500" * 50 + "\n", style="dim")
             reply_header.append("\n")
-        phases = family_member_rows(agent)
+        phases = family_shell_rows(agent)
         reply_heading = Text(
             "AGENT REPLY",
             style=PROMPT_PANEL_SECTION_HEADING_STYLE,

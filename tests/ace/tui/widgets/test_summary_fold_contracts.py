@@ -192,8 +192,8 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         populated=populated,
         empty={level: render_family(empty_agent, level) for level in FAMILY_FOLD_SCALE},
         unloaded=populated,
-        roster_title="FAMILY MEMBERS",
-        content_section="FAMILY MEMBERS",
+        roster_title="FAMILY SHELLS",
+        content_section="FAMILY SHELLS",
         empty_sections=(
             "AGENT XPROMPT",
             "AGENT PROMPT",

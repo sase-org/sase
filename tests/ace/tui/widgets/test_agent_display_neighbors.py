@@ -199,7 +199,7 @@ def test_neighbors_section_marks_dismissed_targets_and_suppression_tail() -> Non
     ]
     assert "⊘ .dismissed" in text.plain
     assert "dismissed" in text.plain
-    assert "… +2 also listed under FAMILY MEMBERS" in text.plain
+    assert "… +2 also listed under FAMILY SHELLS" in text.plain
 
 
 def test_header_places_neighbors_below_workflow_variables_and_above_sase_context() -> (
@@ -257,7 +257,7 @@ def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
         member_jump_map_publisher=published.append,
     )
 
-    assert header.plain.index("FAMILY MEMBERS") < header.plain.index("NEIGHBORS")
+    assert header.plain.index("FAMILY SHELLS") < header.plain.index("NEIGHBORS")
     assert len(published) == 1
     assert [target.number for target in published[0].targets] == [
         f"{index:02d}" for index in range(11)
