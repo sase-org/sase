@@ -82,7 +82,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 22
-- Approx. tokens: 291
+- Approx. tokens: 296
 
 ### `sase/memory/gotchas.md`
 
@@ -206,7 +206,7 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Short notes: 8
 - Long notes: 9
 - Total lines: 1083
-- Total approx. tokens: 13328
+- Total approx. tokens: 13333
 
 ## Commands
 

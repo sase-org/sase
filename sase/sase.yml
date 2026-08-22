@@ -80,6 +80,9 @@ memory:
         `use: <plugin>@<provider>` from an installed provider plugin listed as a
         Required Plugin. Every ref expands to prompt text, is recorded against the
         agent that used it, and publishes as a `[@kind:arg][N]` link.
+    Chop:
+      definition: >-
+        A chop is one short, script-only unit of AXE automation. AXE supplies its context and applies configured cadence, triggers, guards, timeouts, and deduplication; a structured result may request follow-up launches, which only the runner performs.
     Current Project:
       definition: >-
         The current project is the one sase project SASE treats as your working context: in practice, the one you most recently launched an agent on. It is derived, not stored — the first entry in the shared VCS xprompt MRU store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project, where a Patch entry yields its owning project. `sase project set-current` and the ACE Projects tab promote a project without launching; the working directory never does, and there may be none. It supplies only display and defaults, namely the ACE top-bar `+<project>` chip and the first-open value of project filters, so it never overrides an explicit choice, project lifecycle state, or what a command targets. `sase project current` prints it.
@@ -98,6 +101,9 @@ memory:
         prose, and the `remove_by_date` and `remove_by_release` thresholds that drive
         `FlagTriage`. It is not a fourth issue type and not the epic or task that
         introduced the behavior.
+    Lumberjack:
+      definition: >-
+        An AXE lumberjack is an independently supervised scheduler process that runs its configured chops concurrently on a fixed interval and records its own state and metrics. The AXE orchestrator starts it and restarts it after crashes.
     Patch:
       definition: >-
         A Patch is SASE's local unit of change. Every PR created or managed by SASE is

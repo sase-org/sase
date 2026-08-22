@@ -15,8 +15,8 @@ are separated by semicolons; aliases follow in parentheses.
 **GLOSSARY TERMS:** Agent Clan; Agent Family; Agent Hood (hood, agent neighborhood);
 Agent Instruction File (agents.md file); Agent Neighbor; Agent Node; Agent Shell; Agent
 Tribe; Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact
-Reference (ref); Current Project; Feature Flag; Flag Bead (flag bead); Patch; Proc
-(background task); Proc Shell; Required Plugin (required plugin); Sase Agent (agent);
-Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase Repo (repo); Sase
-Shell (shell); Sase Workspace (workspace); Stitch; Task Type (task type); Xprompt;
-Xprompt Memory (memory file); Xprompt Part; Xprompt Swarm; Xprompt Workflow
+Reference (ref); Chop; Current Project; Feature Flag; Flag Bead (flag bead); Lumberjack;
+Patch; Proc (background task); Proc Shell; Required Plugin (required plugin); Sase Agent
+(agent); Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase Repo
+(repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Task Type (task type);
+Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt Swarm; Xprompt Workflow
