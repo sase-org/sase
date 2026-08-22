@@ -618,6 +618,24 @@ invocation. This path is deliberately outside any one runtime's native hook syst
 Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Muse Code, and provider plugins
 share the same behavior.
 
+Final declarations have three distinct boundaries:
+
+1. **Context publication**: `sase final context -f json` records the current
+   model-visible requirements plus a host-only repository identity snapshot. A `commit`
+   action in the returned manifest template is declarative; it authorizes the host
+   `builtin@commit` provider to run `sase stitch create` later.
+2. **Submission acceptance**: `sase final submit` validates the manifest against the
+   published context, re-reads the context artifact under the declaration lock, and
+   recomputes live repository state before writing `final_submission.json`. If the live
+   context digest or host repository set differs, submission is rejected with
+   `stale_final_context`, no accepted-submission artifact is written, and the caller
+   must rerun `sase final context`. A refreshed clean context needs no commit payload; a
+   refreshed dirty context supplies a new template and digest.
+3. **Finalizer execution**: after `final_submission.json` is accepted, repository
+   mutations are protocol violations until the host finalizer runs. Even a run-owned
+   manual stitch made after acceptance remains stale execution-time state; the executor
+   fails closed instead of treating it as the host's own work.
+
 **Flow:**
 
 1. Resolve the selected `finalizers` plan. Omitting `%final` selects configured
@@ -625,9 +643,10 @@ share the same behavior.
    instance, `%final:!commit` removes one, and required instances cannot be removed.
 2. Generated agent instructions ask for `/sase_final` as the last normal action.
    `/sase_final` reads `sase final context -f json`, exits early when no payload is
-   required, and otherwise submits one manifest with `sase final submit`. If that
-   required submission is missing or stale, the host spends one recovery turn that
-   explicitly requests `/sase_final` again.
+   required, and otherwise submits one manifest with `sase final submit`. Agents do not
+   run `/sase_git_commit` for a final manifest's `commit` decision. If the required
+   submission is missing, stale, or rejected as `stale_final_context`, the host spends
+   one recovery turn that explicitly requests `/sase_final` again.
 3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
    `commit` decision with a Conventional Commit message or one `refuse` decision with a
    nonblank reason.
@@ -720,6 +739,12 @@ An unchanged or stale marker, a marker for a different checkout, a clean or mixe
 transition with no new marker, a residual path whose fingerprint changed after submit,
 an unexpected dirty path or repository, or unpublished machine-owned state still fails
 closed.
+
+This guard is an execution-time check, after submission acceptance. Repository changes
+between context publication and submission are rejected earlier as
+`stale_final_context`; repository changes after acceptance remain fail-closed protocol
+violations. A `commit_results.json` marker that already existed before execution is not
+new finalizer evidence, even when the marker belongs to the same run.
 
 When none of those hold, evidence distinguishes two reasons:
 

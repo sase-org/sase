@@ -99,6 +99,13 @@ class FinalContextPublication:
         return _context_requires_submission(self.context)
 
 
+@dataclass(frozen=True)
+class _LiveFinalizerContext:
+    payload: dict[str, Any]
+    context: FinalizerContextWire
+    host_records: tuple[HostRepositoryRecord, ...]
+
+
 def _declaration_sync_hook(_point: str) -> None:
     """Deterministic interleaving seam; production is a no-op."""
 
@@ -129,34 +136,21 @@ def publish_final_context(
 
     root = require_artifacts_dir(artifacts_dir, "sase final context")
     with hold_finalizer_declaration_lock(root):
-        plan = load_finalizer_plan(root)
-        run_id, agent_id, turn_nonce = _run_identity(root, "sase final context")
-        dirty_state = _collect_dirty_state(root)
-        requirements, obligations = _build_context_requirements(plan, dirty_state)
-
-        context = FinalizerContextWire(
-            schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
-            run_id=run_id,
-            agent_id=agent_id,
-            turn_nonce=turn_nonce,
-            plan_digest=plan.plan_digest,
-            requirements=requirements,
-            obligations=obligations,
-        )
-        context_digest = validate_finalizer_context(plan, context)
-        context = replace(context, context_digest=context_digest)
-        payload = _context_payload(plan, context)
-        _record_selected_metrics(payload)
-        host_records = _host_repository_records(dirty_state)
+        live = _build_live_context(root, command="sase final context")
+        _record_selected_metrics(live.payload)
         _declaration_sync_hook("before_context_write")
         path = root / FINAL_CONTEXT_FILENAME
-        _write_json_atomic(path, payload)
+        _write_json_atomic(path, live.payload)
         _write_host_repository_file(
             root / FINAL_CONTEXT_HOST_FILENAME,
-            context_digest=context_digest,
-            records=host_records,
+            context_digest=live.context.context_digest or "",
+            records=live.host_records,
         )
-        return FinalContextPublication(payload=payload, context=context, path=path)
+        return FinalContextPublication(
+            payload=live.payload,
+            context=live.context,
+            path=path,
+        )
 
 
 def submit_final_manifest(
@@ -174,6 +168,13 @@ def submit_final_manifest(
             plan = load_finalizer_plan(root)
             context = load_latest_finalizer_context(root)
             envelope = normalize_submission_envelope(manifest)
+            if envelope.get("context_digest") != context.context_digest:
+                raise FinalizerDeclarationError(
+                    "finalizer context changed before the declaration could be "
+                    "accepted; rerun `sase final context` and submit a manifest "
+                    "built from the refreshed template",
+                    code="stale_final_context",
+                )
             validation = validate_finalizer_submission(plan, context, envelope)
             validate_provider_payloads(plan, context, envelope)
         except FinalizerDeclarationError as exc:
@@ -212,8 +213,33 @@ def submit_final_manifest(
             )
             raise stale
 
-        _declaration_sync_hook("before_submit_accept")
         host_records = _read_host_repository_file(root / FINAL_CONTEXT_HOST_FILENAME)
+        live = _build_live_context(
+            root,
+            command="sase final submit",
+            plan=plan,
+        )
+        if (
+            live.context.context_digest != current.context_digest
+            or _host_repository_record_set(live.host_records)
+            != _host_repository_record_set(host_records)
+        ):
+            stale = FinalizerDeclarationError(
+                "finalizer context is stale because repository state changed before "
+                "the declaration could be accepted; rerun `sase final context` and "
+                "submit a manifest built from the refreshed template",
+                code="stale_final_context",
+            )
+            _append_attempt_record_locked(
+                root,
+                accepted=False,
+                code=stale.code,
+                message=str(stale),
+                content_digest=content_digest,
+            )
+            raise stale
+
+        _declaration_sync_hook("before_submit_accept")
         submission_payload = {
             "schema_version": 1,
             "accepted_at": _now_iso(),
@@ -309,6 +335,44 @@ def _collect_dirty_state(root: Path) -> DirtyState:
     return collect_dirty_state(
         resolve_finalizer_project_dir(),
         artifact_root=root,
+    )
+
+
+def _build_live_context(
+    root: Path,
+    *,
+    command: str,
+    plan: FinalizerPlanWire | None = None,
+) -> _LiveFinalizerContext:
+    plan = plan or load_finalizer_plan(root)
+    run_id, agent_id, turn_nonce = _run_identity(root, command)
+    dirty_state = _collect_dirty_state(root)
+    requirements, obligations = _build_context_requirements(plan, dirty_state)
+
+    context = FinalizerContextWire(
+        schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
+        run_id=run_id,
+        agent_id=agent_id,
+        turn_nonce=turn_nonce,
+        plan_digest=plan.plan_digest,
+        requirements=requirements,
+        obligations=obligations,
+    )
+    context_digest = validate_finalizer_context(plan, context)
+    context = replace(context, context_digest=context_digest)
+    return _LiveFinalizerContext(
+        payload=_context_payload(plan, context),
+        context=context,
+        host_records=_host_repository_records(dirty_state),
+    )
+
+
+def _host_repository_record_set(
+    records: tuple[HostRepositoryRecord, ...],
+) -> frozenset[tuple[str, str, str, str]]:
+    return frozenset(
+        (record.obligation_id, record.kind, record.name, record.path)
+        for record in records
     )
 
 

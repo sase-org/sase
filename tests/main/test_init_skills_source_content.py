@@ -121,6 +121,10 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase_git_commit --resume" in body
     assert "git-ignored" in body
     assert "delegates to `sase stitch create`" in body
+    assert "explicit host instruction naming `/sase_git_commit`" in flat
+    assert "the provider-neutral `/sase_final` flow is not such an instruction" in flat
+    assert "A `commit` action in a `/sase_final` manifest is declarative" in flat
+    assert "`builtin@commit` executes the corresponding `sase stitch create`" in flat
     assert "sase commit -M" not in body
     assert "-M commit_message.md" not in body
     assert "sase commit --resume" not in body
@@ -140,6 +144,16 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
     assert "sase final context -f json" in body
     assert "sase final submit <manifest-file>" in body
     assert "beta" not in flat
+    assert "A `commit` action in the manifest is declarative" in flat
+    assert (
+        "Do not invoke `/sase_git_commit` after reading a required final context"
+        in flat
+    )
+    assert (
+        "If submit reports `stale_final_context`, rerun `sase final context -f json`"
+        in flat
+    )
+    assert "it is not an instruction to run any commit skill manually" in flat
     assert (
         "Do not mutate files or repositories after a successful declaration submit"
         in flat

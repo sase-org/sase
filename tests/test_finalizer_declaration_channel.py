@@ -23,6 +23,7 @@ from sase.finalizers.declaration import (
     FinalContextPublication,
     FinalizerDeclarationError,
     ensure_final_declaration_or_recover,
+    final_submission_is_current,
     load_accepted_host_repositories,
     publish_final_context,
     submit_final_manifest,
@@ -86,6 +87,15 @@ def _valid_manifest(publication: FinalContextPublication) -> dict[str, object]:
     repositories = manifest["payloads"][0]["payload"]["repositories"]
     repositories[0]["message"] = "fix(final): submit declaration"
     return manifest
+
+
+def _attempt_records(root: Path) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (root / FINAL_SUBMISSION_ATTEMPTS_FILENAME)
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
 
 
 def test_final_parser_registers_context_and_submit() -> None:
@@ -168,6 +178,104 @@ def test_submit_accepts_manifest_and_retains_invalid_attempt_diagnostic(
     assert attempts[-2]["accepted"] is True
     assert attempts[-1]["accepted"] is False
     assert attempts[-1]["content_digest"]
+
+
+def test_submit_rejects_dirty_fingerprint_changed_since_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprints = {"src/app.py": ("M", "abc123")}
+    _prepare_agent_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _dirty_state(tmp_path),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
+        lambda _path: dict(fingerprints),
+    )
+
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
+    manifest = _valid_manifest(publication)
+    fingerprints["src/app.py"] = ("M", "def456")
+
+    with pytest.raises(FinalizerDeclarationError, match="rerun `sase final context`"):
+        submit_final_manifest(manifest)
+
+    assert not (tmp_path / FINAL_SUBMISSION_FILENAME).exists()
+    assert not (tmp_path / FINAL_SUBMISSION_HOST_FILENAME).exists()
+    attempts = _attempt_records(tmp_path)
+    assert attempts[-1]["accepted"] is False
+    assert attempts[-1]["code"] == "stale_final_context"
+    assert "rerun `sase final context`" in str(attempts[-1]["message"])
+    assert attempts[-1]["content_digest"]
+
+
+def test_submit_rejects_dirty_context_that_became_clean_before_submit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dirty = {"value": True}
+    _prepare_agent_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: (
+            _dirty_state(tmp_path) if dirty["value"] else _clean_state(tmp_path)
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
+        lambda _path: {"src/app.py": ("M", "abc123")},
+    )
+
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
+    manifest = _valid_manifest(publication)
+    dirty["value"] = False
+
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_final_manifest(manifest)
+
+    assert exc_info.value.code == "stale_final_context"
+    assert not (tmp_path / FINAL_SUBMISSION_FILENAME).exists()
+    refreshed = publish_final_context()
+    assert refreshed.submission_required is False
+    assert refreshed.payload["manifest_template"]["payloads"] == []
+    assert final_submission_is_current(artifacts_dir=str(tmp_path)) is True
+
+
+def test_submit_rejects_host_repository_snapshot_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_agent_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: _dirty_state(tmp_path),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_store.dirty_path_fingerprints",
+        lambda _path: {"src/app.py": ("M", "abc123")},
+    )
+
+    _persist_default_plan(tmp_path)
+    publication = publish_final_context()
+    manifest = _valid_manifest(publication)
+    host_payload = json.loads(
+        (tmp_path / FINAL_CONTEXT_HOST_FILENAME).read_text(encoding="utf-8")
+    )
+    host_payload["repositories"] = []
+    (tmp_path / FINAL_CONTEXT_HOST_FILENAME).write_text(
+        json.dumps(host_payload),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_final_manifest(manifest)
+
+    assert exc_info.value.code == "stale_final_context"
+    assert not (tmp_path / FINAL_SUBMISSION_FILENAME).exists()
 
 
 def test_clean_commit_context_does_not_spend_recovery_turn(
@@ -582,11 +690,9 @@ def test_simultaneous_republish_and_submit_keep_acceptance_current(
         assert not thread.is_alive()
 
     latest = json.loads((tmp_path / FINAL_CONTEXT_FILENAME).read_text(encoding="utf-8"))
-    if accepted:
-        snapshot = accepted[0]["accepted_context"]
-        assert isinstance(snapshot, dict)
-        assert snapshot["context_digest"] == accepted[0]["submission"]["context_digest"]
-        assert snapshot["context_digest"] == publication.context.context_digest
-    else:
-        assert errors
-        assert latest["context"]["context_digest"] != publication.context.context_digest
+    assert accepted == []
+    assert len(errors) == 1
+    assert isinstance(errors[0], FinalizerDeclarationError)
+    assert errors[0].code == "stale_final_context"
+    assert latest["context"]["context_digest"] != publication.context.context_digest
+    assert not (tmp_path / FINAL_SUBMISSION_FILENAME).exists()

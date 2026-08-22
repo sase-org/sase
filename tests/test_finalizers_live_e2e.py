@@ -32,7 +32,10 @@ from sase.finalizers.config import (
 from sase.finalizers.controller import run_finalizers
 from sase.finalizers.declaration import (
     FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME,
+    FINAL_SUBMISSION_ATTEMPTS_FILENAME,
+    FINAL_SUBMISSION_FILENAME,
     SASE_FINAL_TURN_NONCE_ENV,
+    FinalizerDeclarationError,
     publish_final_context,
     submit_final_manifest,
 )
@@ -419,6 +422,70 @@ def test_live_dirty_commit_excludes_protected_baseline_and_pushes(
     ).stdout.strip()
     assert markers[0]["commit_sha"] == remote_sha
     assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
+
+
+def test_live_manual_stitch_before_submit_rejects_stale_context_then_finishes_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _isolate_host_config(monkeypatch, tmp_path)
+    repo = _init_live_repo(tmp_path / "repo")
+    _attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    _prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "agent.py").write_text("print('manual')\n", encoding="utf-8")
+    _use_real_git_stitch(monkeypatch)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    publication = publish_final_context(artifacts_dir=str(artifacts))
+    manifest = deepcopy(publication.payload["manifest_template"])
+    for item in manifest["payloads"]:
+        payload = item["payload"]
+        for decision in payload.get("repositories", []):
+            decision["message"] = "fix(final): live acceptance commit"
+
+    context = type("Context", (), {"artifacts_dir": str(artifacts)})()
+    stitch_result = _real_git_stitch(
+        DirtyRepo(
+            name="main",
+            path=str(repo),
+            changed_files=("agent.py",),
+            kind="main",
+        ),
+        "fix(final): manual pre-submit commit",
+        (),
+        context,
+    )
+    assert stitch_result.returncode == 0
+    assert git_changed_files(str(repo)) == []
+
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_final_manifest(manifest, artifacts_dir=str(artifacts))
+
+    assert exc_info.value.code == "stale_final_context"
+    assert not (artifacts / FINAL_SUBMISSION_FILENAME).exists()
+    attempts = [
+        json.loads(line)
+        for line in (artifacts / FINAL_SUBMISSION_ATTEMPTS_FILENAME)
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert attempts[-1]["accepted"] is False
+    assert attempts[-1]["code"] == "stale_final_context"
+
+    refreshed = publish_final_context(artifacts_dir=str(artifacts))
+    assert refreshed.submission_required is False
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="should-not-recover")
+    result = _run_controller(artifacts, provider)
+
+    assert result.content == "done"
+    provider.invoke.assert_not_called()
+    payload = _load_result(artifacts)
+    assert payload["status"] == "success"
+    assert "dirty_work_discarded" not in json.dumps(payload)
+    assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
+    assert _run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "2"
 
 
 def test_live_final_none_skips_commit_on_dirty_tree(
