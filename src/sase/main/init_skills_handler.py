@@ -1,30 +1,29 @@
-"""Handler for the 'sase skill init' command (and its 'sase init skills' alias)."""
+"""Public facade for ``sase skill init`` and its ``sase init skills`` alias."""
+
+from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
-from contextlib import ExitStack
+from pathlib import Path
 import shutil
 import sys
-from pathlib import Path
 
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
-from sase.main._init_chezmoi_deploy import (
-    ChezmoiDeployBehavior,
-    chezmoi_deploy_lock,
-    defer_chezmoi_paths,
-    deploy_to_chezmoi,
-    print_chezmoi_deploy_lock_timeout,
+from sase.main._init_skills_apply import run_init_skills as _run_init_skills_impl
+from sase.main._init_skills_interaction import (
+    deferred_skill_deploy_warnings as _deferred_skill_deploy_warnings_impl,
+    delete_retired_source as _delete_retired_source_impl,
+    deploy_to_chezmoi as _deploy_to_chezmoi_impl,
+    prompt_delete_retired as _prompt_delete_retired_impl,
+    prompt_overwrite as _prompt_overwrite_impl,
+    retired_delete_action as _retired_delete_action_impl,
+    skill_deploy_commit_tags as _skill_deploy_commit_tags_impl,
 )
-from sase.main._init_skills_manifest import (
-    ManagedSkillFile,
-    plan_skill_manifest_ownership,
-    prepare_skill_manifest,
-    retired_skill_files_with_drift,
-)
+from sase.main._init_skills_manifest import ManagedSkillFile, prepare_skill_manifest
+from sase.main._init_skills_plan import plan_init_skills as _plan_init_skills_impl
 from sase.main._init_skills_rendering import (
     RenderedSkillDeploymentTarget,
     RenderedSkillTarget,
-    SkillFrameTemplateError,
     format_skill_output as _format_skill_output_impl,
     format_skill_outputs as _format_skill_outputs_impl,
     format_unique_skill_outputs_batch as _format_unique_skill_outputs_batch_impl,
@@ -33,6 +32,7 @@ from sase.main._init_skills_rendering import (
     render_skill_targets as _render_skill_targets_impl,
     summarize_skill_actions as _summarize_skill_actions_impl,
 )
+from sase.main._init_skills_runtime import InitSkillsRuntime
 from sase.main._init_skills_sources import (
     all_providers as _all_providers_impl,
     provider_context as _provider_context_impl,
@@ -42,8 +42,6 @@ from sase.main._init_skills_sources import (
 )
 from sase.main._init_skills_source_integrity import skill_source_integrity_error
 from sase.main.init_plan import InitAction, InitOperation, InitPlan
-from sase.memory.locks import LockTimeoutError
-from sase.workflows.commit.runtime_tags import resolve_runtime_workspace_tag
 from sase.xprompt.load_issues import collect_xprompt_load_issues
 from sase.xprompt.loader import get_all_xprompts, load_skills_from_package
 from sase.xprompt.loader_skills import SKILL_PLACEMENT_ISSUE_KIND
@@ -94,13 +92,7 @@ def _provider_context(provider: str) -> dict[str, str]:
 
 
 def _skill_deploy_subpaths(provider: str) -> list[str]:
-    """Return subdirectories (under ``~/`` or ``CHEZMOI_HOME``) for *provider*.
-
-    Plugins may override via :meth:`llm_skill_deploy_subpath`; otherwise the
-    primary default is ``.{provider}``. Returning ``None`` opts out of skill
-    deployment. Plugins may also expose extra deployment locations via
-    :meth:`llm_additional_skill_deploy_subpaths`.
-    """
+    """Return deployment subdirectories for *provider*."""
     return _skill_deploy_subpaths_impl(provider)
 
 
@@ -117,7 +109,7 @@ def _get_target_providers(skill_field: bool | list[str]) -> list[str]:
     if skill_field is True:
         return list(known)
     if isinstance(skill_field, list):
-        return [p for p in skill_field if p in known]
+        return [provider for provider in skill_field if provider in known]
     return []
 
 
@@ -149,14 +141,7 @@ def _get_target_paths(provider: str, skill_name: str, use_chezmoi: bool) -> list
 
 
 def _load_skill_sources() -> tuple[list[XPrompt], tuple[str, ...]]:
-    """Return installable skill sources and any placement rule violations.
-
-    A misplaced source is a hard problem for generation: the definition was
-    excluded, so rendering from what remains would silently drop or revert a
-    provider skill. Callers surface the diagnostics instead of generating.
-    """
-    # Passing an empty project disables project auto-detection while still
-    # loading the global runtime catalog, including user config overlays.
+    """Return installable skill sources and placement rule violations."""
     with collect_xprompt_load_issues() as issues:
         selected = _select_skill_xprompts(
             dict(load_skills_from_package()),
@@ -305,13 +290,8 @@ def _retired_delete_action(
     chezmoi_home: Path,
     home_root: Path,
 ) -> InitAction:
-    """Return the preview action for one retired managed skill file."""
-    source_path = entry.source_path(chezmoi_home)
-    home_path = entry.home_path(home_root)
-    return InitAction(
-        path=source_path,
-        operation="delete",
-        detail=f"{entry.provider}/{entry.skill_name} -> {home_path}",
+    return _retired_delete_action_impl(
+        entry, chezmoi_home=chezmoi_home, home_root=home_root
     )
 
 
@@ -320,64 +300,11 @@ def _delete_retired_source(
     *,
     chezmoi_home: Path,
 ) -> bool:
-    """Delete the chezmoi source side of one retired generated skill."""
-    source_path = entry.source_path(chezmoi_home)
-    try:
-        if source_path.exists():
-            source_path.unlink()
-        _prune_empty_dir(source_path.parent)
-    except OSError as exc:
-        print(f"  Warning: could not delete {source_path}: {exc}", file=sys.stderr)
-        return False
-    return True
-
-
-def _prune_empty_dir(path: Path) -> None:
-    try:
-        path.rmdir()
-    except OSError:
-        return
+    return _delete_retired_source_impl(entry, chezmoi_home=chezmoi_home)
 
 
 def _prompt_overwrite(target: Path, new_content: str) -> bool:
-    """Interactively prompt the user about overwriting an existing file.
-
-    Returns True if the user chose to overwrite, False to skip.
-    """
-    existing = target.read_text(encoding="utf-8")
-    if existing == new_content:
-        print(f"  {target} (unchanged, skipping)")
-        return False
-
-    while True:
-        try:
-            answer = input(f"  {target} exists. Overwrite? [y/n/d] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return False
-
-        if answer == "y":
-            return True
-        if answer == "n":
-            return False
-        if answer == "d":
-            from .init_preview import preview_console, render_plan_diff
-
-            render_plan_diff(
-                preview_console(sys.stdout),
-                InitPlan(
-                    command="skills",
-                    label="Skills",
-                    summary="",
-                    actions=(
-                        InitAction(
-                            path=target,
-                            operation="overwrite",
-                            new_content=new_content,
-                        ),
-                    ),
-                ),
-            )
+    return _prompt_overwrite_impl(target, new_content)
 
 
 def _prompt_delete_retired(
@@ -386,54 +313,13 @@ def _prompt_delete_retired(
     chezmoi_home: Path,
     home_root: Path,
 ) -> bool:
-    """Interactively prompt for deleting one retired managed source/live pair."""
-    source_path = entry.source_path(chezmoi_home)
-    home_path = entry.home_path(home_root)
-    while True:
-        try:
-            answer = (
-                input(
-                    f"  {source_path} is retired; live target {home_path}. Delete? [y/n/d] "
-                )
-                .strip()
-                .lower()
-            )
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return False
-
-        if answer == "y":
-            return True
-        if answer == "n":
-            return False
-        if answer == "d":
-            from .init_preview import preview_console, render_plan_diff
-
-            render_plan_diff(
-                preview_console(sys.stdout),
-                InitPlan(
-                    command="skills",
-                    label="Skills",
-                    summary="",
-                    actions=(
-                        _retired_delete_action(
-                            entry,
-                            chezmoi_home=chezmoi_home,
-                            home_root=home_root,
-                        ),
-                    ),
-                ),
-            )
+    return _prompt_delete_retired_impl(
+        entry, chezmoi_home=chezmoi_home, home_root=home_root
+    )
 
 
 def _skill_deploy_commit_tags(source_commit: str | None) -> dict[str, object]:
-    tags: dict[str, object] = {}
-    if source_commit:
-        tags["SOURCE_REVISION"] = source_commit
-    workspace = resolve_runtime_workspace_tag()
-    if workspace:
-        tags["WORKSPACE"] = workspace
-    return tags
+    return _skill_deploy_commit_tags_impl(source_commit)
 
 
 def _deploy_to_chezmoi(
@@ -443,449 +329,61 @@ def _deploy_to_chezmoi(
     source_commit: str | None = None,
     delete_targets: Sequence[Path] = (),
 ) -> int:
-    """Stage, commit, push, and ``chezmoi apply`` after writing skill files.
-
-    Returns the desired process exit code (0 on success, 1 on pull/push/apply
-    failure). Honors ``--no-commit`` / ``--no-push`` / ``--no-apply`` flags.
-    """
-    no_commit: bool = getattr(args, "no_commit", False)
-    no_push: bool = getattr(args, "no_push", False)
-    no_apply: bool = getattr(args, "no_apply", False)
-    provider_filter: str | None = getattr(args, "provider", None)
-
-    message = "chore: regenerate skills via sase skill init"
-    if provider_filter:
-        message = f"chore: regenerate {provider_filter} skills via sase skill init"
-
-    return deploy_to_chezmoi(
+    """Deploy written generated-skill paths through chezmoi."""
+    return _deploy_to_chezmoi_impl(
         written_paths,
-        ChezmoiDeployBehavior(
-            command_label=_COMMAND_LABEL,
-            commit_message=message,
-            auto_commit_type="skills",
-            chezmoi_home=CHEZMOI_HOME,
-            no_commit=no_commit,
-            no_push=no_push,
-            no_apply=no_apply,
-            commit_tags=_skill_deploy_commit_tags(source_commit),
-            include_runtime_commit_tags=True,
-            git_failure_is_error=False,
-            chezmoi_missing_is_error=False,
-            git_missing_suffix=", skipping deploy",
-            not_repo_suffix=", skipping deploy",
-            delete_targets=tuple(delete_targets),
-            delete_target_root=Path.home(),
-        ),
+        args,
+        command_label=_COMMAND_LABEL,
+        chezmoi_home=CHEZMOI_HOME,
+        source_commit=source_commit,
+        delete_targets=delete_targets,
     )
 
 
 def _deferred_skill_deploy_warnings(
     pending_count: int, integrity_error: str | None
 ) -> tuple[str, ...]:
-    """Return ``--check`` warnings for drift a read-only check cannot resolve.
+    return _deferred_skill_deploy_warnings_impl(pending_count, integrity_error)
 
-    Redeploying to chezmoi is a separate, deliberate ``sase init skills`` run
-    that ``skill_source_integrity_error`` may refuse outright from a dirty or
-    unlanded tree; even when it would succeed, a passing ``--check`` should
-    not depend on a mutating deploy the current agent has no reason to run.
-    Either way, ``--check`` reports the drift as a warning instead of failing
-    for something it cannot fix in place.
-    """
-    noun = "provider skill file" if pending_count == 1 else "provider skill files"
-    warning = (
-        f"{pending_count} {noun} out of sync with rendered sources; redeploy is "
-        "deferred until land. Rerun `sase init skills` after landing."
+
+def _runtime() -> InitSkillsRuntime:
+    """Return this module through the typed workflow boundary."""
+    return InitSkillsRuntime(
+        chezmoi_home=CHEZMOI_HOME,
+        command_label=_COMMAND_LABEL,
+        prettier_warning=_PRETTIER_WARNING,
+        delete_warning=_DELETE_WARNING,
+        get_use_chezmoi=get_use_chezmoi,
+        provider_validation_error=_provider_validation_error,
+        load_skill_sources=_load_skill_sources,
+        prettier_available=_prettier_available,
+        render_skill_deployment_targets=_render_skill_deployment_targets,
+        render_skill_targets=_render_skill_targets,
+        registered_provider_names=_registered_provider_names,
+        planned_skill_operation=_planned_skill_operation,
+        summarize_skill_actions=_summarize_skill_actions,
+        retired_delete_action=_retired_delete_action,
+        prompt_overwrite=_prompt_overwrite,
+        prompt_delete_retired=_prompt_delete_retired,
+        delete_retired_source=_delete_retired_source,
+        skill_deploy_commit_tags=_skill_deploy_commit_tags,
+        deploy_to_chezmoi=_deploy_to_chezmoi,
+        deferred_skill_deploy_warnings=_deferred_skill_deploy_warnings,
+        skill_source_integrity_error=skill_source_integrity_error,
+        prepare_skill_manifest=prepare_skill_manifest,
+        plan_init_skills=plan_init_skills,
+        run_init_skills=run_init_skills,
     )
-    if integrity_error is None:
-        return (warning,)
-    return (warning, integrity_error)
 
 
 def plan_init_skills(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for generated provider skill files."""
-    use_chezmoi = get_use_chezmoi()
-    provider_filter: str | None = getattr(args, "provider", None)
-    provider_error = _provider_validation_error(provider_filter)
-    if provider_error is not None:
-        return InitPlan(
-            command="skills",
-            label="Skills",
-            summary="cannot plan generated skill files until provider is valid",
-            actions=(),
-            blockers=(provider_error,),
-        )
-
-    skill_xprompts, placement_errors = _load_skill_sources()
-    if placement_errors:
-        return InitPlan(
-            command="skills",
-            label="Skills",
-            summary="cannot plan generated skill files from a misplaced source set",
-            actions=(),
-            blockers=placement_errors,
-        )
-
-    use_prettier = _prettier_available()
-    try:
-        if use_chezmoi:
-            deployment_targets = _render_skill_deployment_targets(
-                skill_xprompts,
-                provider_filter=provider_filter,
-                use_prettier=use_prettier,
-            )
-            targets = [target.source_target() for target in deployment_targets]
-            ownership_plan, ownership_error = plan_skill_manifest_ownership(
-                deployment_targets,
-                chezmoi_home=CHEZMOI_HOME,
-                home_root=Path.home(),
-                provider_filter=provider_filter,
-                registered_providers=_registered_provider_names(),
-            )
-            if ownership_error is not None:
-                return InitPlan(
-                    command="skills",
-                    label="Skills",
-                    summary="cannot plan generated skill files until the manifest is fixed",
-                    actions=(),
-                    blockers=(ownership_error,),
-                )
-            assert ownership_plan is not None
-            retired_entries = retired_skill_files_with_drift(
-                ownership_plan.retired_entries,
-                chezmoi_home=CHEZMOI_HOME,
-                home_root=Path.home(),
-            )
-        else:
-            targets = _render_skill_targets(
-                skill_xprompts,
-                provider_filter=provider_filter,
-                use_chezmoi=use_chezmoi,
-                use_prettier=use_prettier,
-            )
-            retired_entries = ()
-    except (SkillFrameTemplateError, ValueError) as exc:
-        return InitPlan(
-            command="skills",
-            label="Skills",
-            summary="cannot plan generated skill files until the frame template is fixed",
-            actions=(),
-            blockers=(str(exc),),
-        )
-
-    actions: list[InitAction] = []
-    for target in targets:
-        planned = _planned_skill_operation(target)
-        if planned is None:
-            continue
-        operation, detail = planned
-        actions.append(
-            InitAction(
-                path=target.path,
-                operation=operation,
-                detail=detail,
-                new_content=target.content,
-            )
-        )
-    if use_chezmoi:
-        actions.extend(
-            _retired_delete_action(
-                entry,
-                chezmoi_home=CHEZMOI_HOME,
-                home_root=Path.home(),
-            )
-            for entry in retired_entries
-        )
-
-    warnings: list[str] = []
-    if targets and not use_prettier:
-        warnings.append(_PRETTIER_WARNING)
-
-    if use_chezmoi and actions and getattr(args, "check", False):
-        integrity_error = skill_source_integrity_error()
-        warnings.extend(_deferred_skill_deploy_warnings(len(actions), integrity_error))
-        actions = []
-
-    return InitPlan(
-        command="skills",
-        label="Skills",
-        summary=_summarize_skill_actions(tuple(actions)),
-        actions=tuple(actions),
-        warnings=tuple(warnings),
-    )
+    return _plan_init_skills_impl(args, runtime=_runtime())
 
 
 def run_init_skills(args: argparse.Namespace) -> int:
     """Apply ``sase init skills`` and return a process exit code."""
-    if getattr(args, "check", False):
-        from .init_onboarding import run_init_check
-        from .init_registry import InitCommandSpec
-
-        return run_init_check(
-            args,
-            specs=(
-                InitCommandSpec(
-                    name="skills",
-                    label="Skills",
-                    plan=plan_init_skills,
-                    run=run_init_skills,
-                ),
-            ),
-        )
-
-    use_chezmoi = get_use_chezmoi()
-    is_tty = sys.stdin.isatty()
-    provider_filter: str | None = getattr(args, "provider", None)
-    force: bool = getattr(args, "force", False)
-    assume_yes: bool = getattr(args, "yes", False)
-    dry_run: bool = getattr(args, "dry_run", False)
-
-    provider_error = _provider_validation_error(provider_filter)
-    if provider_error is not None:
-        print(f"{_COMMAND_LABEL}: {provider_error}", file=sys.stderr)
-        return 2
-
-    skill_xprompts, placement_errors = _load_skill_sources()
-    if placement_errors:
-        for error in placement_errors:
-            print(f"{_COMMAND_LABEL}: {error}", file=sys.stderr)
-        return 1
-
-    use_prettier = _prettier_available()
-    try:
-        if use_chezmoi:
-            deployment_targets = _render_skill_deployment_targets(
-                skill_xprompts,
-                provider_filter=provider_filter,
-                use_prettier=use_prettier,
-            )
-            targets = [target.source_target() for target in deployment_targets]
-            ownership_plan, ownership_error = plan_skill_manifest_ownership(
-                deployment_targets,
-                chezmoi_home=CHEZMOI_HOME,
-                home_root=Path.home(),
-                provider_filter=provider_filter,
-                registered_providers=_registered_provider_names(),
-            )
-            if ownership_error is not None:
-                print(f"{_COMMAND_LABEL}: {ownership_error}", file=sys.stderr)
-                return 1
-            assert ownership_plan is not None
-            retired_entries = retired_skill_files_with_drift(
-                ownership_plan.retired_entries,
-                chezmoi_home=CHEZMOI_HOME,
-                home_root=Path.home(),
-            )
-        else:
-            targets = _render_skill_targets(
-                skill_xprompts,
-                provider_filter=provider_filter,
-                use_chezmoi=use_chezmoi,
-                use_prettier=use_prettier,
-            )
-            deployment_targets = []
-            retired_entries = ()
-    except (SkillFrameTemplateError, ValueError) as exc:
-        print(f"{_COMMAND_LABEL}: {exc}", file=sys.stderr)
-        return 1
-    if targets and not use_prettier:
-        print(_PRETTIER_WARNING, file=sys.stderr)
-
-    diff: bool = getattr(args, "diff", False)
-    if diff:
-        from .init_preview import preview_console, render_plan_diff
-
-        preview_actions: list[InitAction] = []
-        for target in targets:
-            planned = _planned_skill_operation(target)
-            if planned is None:
-                continue
-            operation, detail = planned
-            preview_actions.append(
-                InitAction(
-                    path=target.path,
-                    operation=operation,
-                    detail=detail,
-                    new_content=target.content,
-                )
-            )
-        if use_chezmoi:
-            preview_actions.extend(
-                _retired_delete_action(
-                    entry,
-                    chezmoi_home=CHEZMOI_HOME,
-                    home_root=Path.home(),
-                )
-                for entry in retired_entries
-            )
-        render_plan_diff(
-            preview_console(sys.stdout),
-            InitPlan(
-                command="skills",
-                label="Skills",
-                summary="",
-                actions=tuple(preview_actions),
-            ),
-        )
-        return 0
-
-    deploy_lock_stack: ExitStack | None = None
-    if use_chezmoi and not dry_run:
-        deploy_lock_stack = ExitStack()
-        try:
-            deploy_lock_stack.enter_context(
-                chezmoi_deploy_lock(CHEZMOI_HOME.parent, _COMMAND_LABEL)
-            )
-        except LockTimeoutError as exc:
-            deploy_lock_stack.close()
-            print_chezmoi_deploy_lock_timeout(_COMMAND_LABEL, exc)
-            return 1
-
-    has_changes = any(
-        _planned_skill_operation(target) is not None for target in targets
-    ) or bool(retired_entries)
-    manifest_write = None
-    if use_chezmoi and not dry_run:
-        manifest_write, manifest_error = prepare_skill_manifest(
-            skill_xprompts,
-            chezmoi_home=CHEZMOI_HOME,
-            force=force,
-            current_targets=deployment_targets,
-            provider_filter=provider_filter,
-            registered_providers=_registered_provider_names(),
-            home_root=Path.home(),
-        )
-        if manifest_error is not None:
-            print(f"{_COMMAND_LABEL}: {manifest_error}", file=sys.stderr)
-            if deploy_lock_stack is not None:
-                deploy_lock_stack.close()
-            return 1
-
-    manifest_changed = manifest_write is not None and manifest_write.content is not None
-    allow_dirty: bool = getattr(args, "allow_dirty", False)
-    if (
-        use_chezmoi
-        and not dry_run
-        and (has_changes or manifest_changed)
-        and not allow_dirty
-    ):
-        source_error = skill_source_integrity_error()
-        if source_error is not None:
-            print(f"{_COMMAND_LABEL}: {source_error}", file=sys.stderr)
-            if deploy_lock_stack is not None:
-                deploy_lock_stack.close()
-            return 1
-
-    written = 0
-    deleted = 0
-    skipped = 0
-    unchanged = 0
-    written_paths: list[Path] = []
-    live_delete_targets: list[Path] = []
-
-    for target in targets:
-        planned = _planned_skill_operation(target)
-        if planned is None:
-            unchanged += 1
-            continue
-
-        if dry_run:
-            operation, _detail = planned
-            print(f"  {operation}: {target.path}")
-            continue
-
-        if target.path.exists() and not force and not assume_yes:
-            if not is_tty:
-                print(
-                    f"  Warning: {target.path} exists, skipping (not a TTY; use -f to force or -y to answer yes)",
-                    file=sys.stderr,
-                )
-                skipped += 1
-                continue
-            if not _prompt_overwrite(target.path, target.content):
-                skipped += 1
-                continue
-
-        target.path.parent.mkdir(parents=True, exist_ok=True)
-        target.path.write_text(target.content, encoding="utf-8")
-        print(f"  {target.path}")
-        written += 1
-        written_paths.append(target.path)
-
-    if use_chezmoi:
-        for entry in retired_entries:
-            source_path = entry.source_path(CHEZMOI_HOME)
-            home_path = entry.home_path(Path.home())
-            if dry_run:
-                print(f"  delete: {source_path} -> {home_path}")
-                continue
-
-            if not force and not assume_yes:
-                if not is_tty:
-                    print(
-                        f"{_DELETE_WARNING}: {source_path} -> {home_path}",
-                        file=sys.stderr,
-                    )
-                    skipped += 1
-                    continue
-                if not _prompt_delete_retired(
-                    entry,
-                    chezmoi_home=CHEZMOI_HOME,
-                    home_root=Path.home(),
-                ):
-                    skipped += 1
-                    continue
-
-            if not _delete_retired_source(entry, chezmoi_home=CHEZMOI_HOME):
-                skipped += 1
-                continue
-            print(f"  deleted: {source_path}")
-            deleted += 1
-            written_paths.append(source_path)
-            live_delete_targets.append(home_path)
-
-    if manifest_changed and skipped == 0 and manifest_write is not None:
-        manifest_content = manifest_write.content
-        assert manifest_content is not None
-        manifest_write.path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_write.path.write_text(manifest_content, encoding="utf-8")
-        print(f"  {manifest_write.path}")
-        written_paths.append(manifest_write.path)
-
-    if dry_run:
-        print(f"\nDry run: {len(skill_xprompts)} source entries, no files written")
-    else:
-        if deleted:
-            print(
-                f"\nWritten: {written}, Deleted: {deleted}, "
-                f"Skipped: {skipped}, Unchanged: {unchanged}"
-            )
-        else:
-            print(f"\nWritten: {written}, Skipped: {skipped}, Unchanged: {unchanged}")
-
-    exit_code = 0
-    if use_chezmoi and not dry_run and (written_paths or live_delete_targets):
-        source_commit = manifest_write.source_commit if manifest_write else None
-        commit_tags = _skill_deploy_commit_tags(source_commit)
-        if defer_chezmoi_paths(
-            written_paths,
-            chezmoi_home=CHEZMOI_HOME,
-            commit_tags=commit_tags,
-            include_runtime_commit_tags=True,
-            delete_targets=live_delete_targets,
-            delete_target_root=Path.home(),
-        ):
-            exit_code = 0
-        else:
-            exit_code = _deploy_to_chezmoi(
-                written_paths,
-                args,
-                source_commit=source_commit,
-                delete_targets=live_delete_targets,
-            )
-
-    if deploy_lock_stack is not None:
-        deploy_lock_stack.close()
-    return exit_code
+    return _run_init_skills_impl(args, runtime=_runtime())
 
 
 def handle_init_skills_command(args: argparse.Namespace) -> None:
