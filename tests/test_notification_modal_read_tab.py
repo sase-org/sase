@@ -95,7 +95,7 @@ def test_read_tab_general_prompt_uses_general_label_and_core_general_key() -> No
 
     assert confirm._subject == "Tab: General"
     args, kwargs = _durable_submission(mock_app)
-    assert args == (["sase", "notify", "apply-state", "n1", "read", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "read"],)
     request = kwargs["request"]
     assert request["tab_key"] == "general"
     assert request["ids"] == ["n1"]
@@ -119,7 +119,7 @@ def test_read_tab_panel_tab_prompt_and_dispatch_are_not_special_cased() -> None:
 
     assert confirm._subject == "Tab: Beads"
     args, kwargs = _durable_submission(mock_app)
-    assert args == (["sase", "notify", "apply-state", "p1", "read", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "read"],)
     request = kwargs["request"]
     assert request["tab_key"] == "beads"
     assert request["ids"] == ["p1"]
@@ -185,7 +185,7 @@ def test_read_tab_confirmation_dispatches_captured_core_key_and_ids() -> None:
         callback(True)
 
     args, kwargs = _durable_submission(mock_app)
-    assert args == (["sase", "notify", "apply-state-many", "read", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "read"],)
     request = kwargs["request"]
     assert request["tab_key"] == "alpha"
     assert set(request["ids"]) == {"a1", "a2"}

@@ -6,6 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
+from sase.main.notify_handler import handle_notify_command
 from sase.main.parser import create_parser
 from sase.ops import (
     DurableOperationRequest,
@@ -63,8 +66,9 @@ def test_patch_help_lists_operation_commands_sorted() -> None:
 def test_notify_and_agent_operation_help() -> None:
     notify_help = parser_for(("sase", "notify")).format_help()
     assert help_subcommand_rows(
-        notify_help, {"apply-state", "create", "list", "show"}
-    ) == ["apply-state", "create", "list", "show"]
+        notify_help,
+        {"apply-state", "apply-state-many", "create", "list", "show"},
+    ) == ["apply-state", "apply-state-many", "create", "list", "show"]
     agent_help = parser_for(("sase", "agent", "persist-directive")).format_help()
     assert "artifacts directory" in agent_help.lower() or "artifacts_dir" in agent_help
     assert "-Q" in agent_help and "--request-path" in agent_help
@@ -152,6 +156,54 @@ def test_notify_apply_state_success_and_failure(
         expected_proc_id="proc-notify",
     )
     assert failed.success is False
+
+
+def test_notify_apply_state_many_read_reaches_tab_scoped_store(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Parser plus top-level notify dispatch must run tab-scoped bulk reads."""
+    marked: list[str] = []
+
+    def fake_mark_tab_read(tab_key: str) -> int:
+        marked.append(tab_key)
+        return 3
+
+    monkeypatch.setattr("sase.notifications.store.mark_tab_read", fake_mark_tab_read)
+    request_path = tmp_path / "req.json"
+    result_path = tmp_path / "res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="notify.apply-state",
+            payload={"ids": ["n1"], "tab_key": "alpha"},
+        ),
+    )
+    args = create_parser().parse_args(
+        [
+            "notify",
+            "apply-state-many",
+            "read",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-notify-many")
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(args)
+    assert excinfo.value.code == 0
+    assert marked == ["alpha"]
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="notify.apply-state",
+        expected_proc_id="proc-notify-many",
+    )
+    assert loaded.success is True
+    assert loaded.payload is not None
+    assert loaded.payload["action"] == "read"
+    assert loaded.payload["ids"] == ["n1"]
+    assert loaded.payload["matched_count"] == 3
 
 
 def test_agent_persist_directive_uses_request_sidecar(

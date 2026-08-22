@@ -81,7 +81,7 @@ class NotificationActionSupportMixin:
         submit = getattr(app, "_submit_durable_proc", None)
         if callable(submit):
             proc_info = submit(
-                _notification_state_argv(action, ids),
+                _notification_state_argv(action, ids, tab_key=tab_key),
                 operation=NOTIFY_APPLY_STATE,
                 request=durable_request_payload(
                     cancelled_snoozes=cancelled_snoozes,
@@ -177,10 +177,15 @@ class NotificationActionSupportMixin:
         self._rebuild_list(highlight_index=highlight)
 
 
-def _notification_state_argv(action: str, ids: tuple[str, ...]) -> list[str]:
-    if len(ids) == 1:
-        return sase_argv("notify", "apply-state", ids[0], action, "--json")
-    return sase_argv("notify", "apply-state-many", action, "--json")
+def _notification_state_argv(
+    action: str,
+    ids: tuple[str, ...],
+    *,
+    tab_key: str | None = None,
+) -> list[str]:
+    if tab_key or len(ids) != 1:
+        return sase_argv("notify", "apply-state-many", action)
+    return sase_argv("notify", "apply-state", ids[0], action)
 
 
 def _notification_result_from_completion(

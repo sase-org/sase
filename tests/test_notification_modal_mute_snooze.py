@@ -130,7 +130,7 @@ def test_toggle_mute_with_marks_bulk_mutes_marked_rows_once() -> None:
         modal.action_toggle_mute()
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state-many", "mute", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "mute"],)
     assert kwargs["operation"] == NOTIFY_APPLY_STATE
     request = kwargs["request"]
     assert isinstance(request, dict)
@@ -163,7 +163,7 @@ def test_toggle_mute_with_marks_unmutes_and_cancels_snoozes() -> None:
         modal.action_toggle_mute()
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state-many", "unmute", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "unmute"],)
     request = kwargs["request"]
     assert isinstance(request, dict)
     assert request["ids"] == ["n1", "n2"]
@@ -192,7 +192,7 @@ def test_toggle_mute_with_mixed_marks_converges_to_muted() -> None:
         modal.action_toggle_mute()
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state-many", "mute", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "mute"],)
     request = kwargs["request"]
     assert isinstance(request, dict)
     assert request["ids"] == ["n1", "n2"]
@@ -327,7 +327,7 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
         callback(timedelta(minutes=15))
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state", "n1", "snooze", "--json"],)
+    assert args == (["sase", "notify", "apply-state", "n1", "snooze"],)
     request = kwargs["request"]
     assert isinstance(request, dict)
     assert request["ids"] == ["n1"]
@@ -360,7 +360,7 @@ def test_snooze_callback_with_datetime_uses_until_label() -> None:
         captured_callback[0](target)
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state", "n1", "snooze", "--json"],)
+    assert args == (["sase", "notify", "apply-state", "n1", "snooze"],)
     request = kwargs["request"]
     assert isinstance(request, dict)
     assert request["until"] == target.isoformat()
@@ -414,7 +414,7 @@ def test_single_snooze_submits_durable_background_write() -> None:
     mock_app._submit_durable_proc.assert_called_once()
     args = mock_app._submit_durable_proc.call_args.args
     kwargs = mock_app._submit_durable_proc.call_args.kwargs
-    assert args == (["sase", "notify", "apply-state", "n1", "snooze", "--json"],)
+    assert args == (["sase", "notify", "apply-state", "n1", "snooze"],)
     assert kwargs["operation"] == NOTIFY_APPLY_STATE
     assert kwargs["concurrency_keys"] == ("notification-state",)
 
@@ -490,7 +490,7 @@ def test_snooze_with_marks_uses_one_picker_and_bulk_call() -> None:
         captured_callback[0](timedelta(minutes=15))
 
     [(args, kwargs)] = submissions
-    assert args == (["sase", "notify", "apply-state-many", "snooze", "--json"],)
+    assert args == (["sase", "notify", "apply-state-many", "snooze"],)
     request = kwargs["request"]
     assert isinstance(request, dict)
     assert request["ids"] == ["n1", "n2"]
