@@ -1,5 +1,5 @@
 name: Set up SASE
-description: Install Python, just, and SASE with the run's prebuilt Rust core wheel.
+description: Install Python, just, and SASE with the run's prebuilt Rust core artifacts.
 
 inputs:
   python-version:
@@ -32,7 +32,7 @@ runs:
       env:
         PYTHON_VERSION: ${{ inputs.python-version }}
       run: uv python install "$PYTHON_VERSION"
-    - name: Download Rust core wheel
+    - name: Download Rust core artifacts
       uses: actions/download-artifact@v4
       with:
         name: sase-core-wheel
@@ -43,9 +43,19 @@ runs:
         CORE_ARTIFACT_DIR: ${{ runner.temp }}/sase-core-wheel
         INSTALL_RECIPE: ${{ inputs.install-recipe }}
       run: |
-        mapfile -t wheels < <(find "$CORE_ARTIFACT_DIR" -type f -name '*.whl' -print)
+        mapfile -t wheels < <(find "$CORE_ARTIFACT_DIR" -type f -name '*.whl' -print | sort)
         if [[ ${#wheels[@]} -ne 1 ]]; then
           echo "error: expected exactly one sase_core_rs wheel, found ${#wheels[@]}" >&2
+          exit 1
+        fi
+        mapfile -t provenance_files < <(find "$CORE_ARTIFACT_DIR" -type f -name 'sase-core-sha.txt' -print | sort)
+        if [[ ${#provenance_files[@]} -ne 1 ]]; then
+          echo "error: expected exactly one sase-core-sha.txt provenance file, found ${#provenance_files[@]}" >&2
+          exit 1
+        fi
+        mapfile -t lsp_binaries < <(find "$CORE_ARTIFACT_DIR" -type f -name 'sase-xprompt-lsp' -print | sort)
+        if [[ ${#lsp_binaries[@]} -ne 1 ]]; then
+          echo "error: expected exactly one sase-xprompt-lsp binary, found ${#lsp_binaries[@]}" >&2
           exit 1
         fi
         case "$INSTALL_RECIPE" in
@@ -55,7 +65,7 @@ runs:
             exit 2
             ;;
         esac
-        echo "Using sase-core commit $(<"$CORE_ARTIFACT_DIR/sase-core-sha.txt")"
+        echo "Using sase-core commit $(<"${provenance_files[0]}")"
         # Export the wheel for the whole job, not just this step. Every later
         # step runs another `just` recipe, and every recipe re-enters `_setup`.
         # Without SASE_CORE_WHEEL set there, `_core-overrides-arg` emits no
@@ -64,3 +74,14 @@ runs:
         # the wheel build-core built from sase-core master.
         echo "SASE_CORE_WHEEL=${wheels[0]}" >> "$GITHUB_ENV"
         SASE_CORE_WHEEL="${wheels[0]}" just "$INSTALL_RECIPE"
+        lsp_dest=".venv/bin/sase-xprompt-lsp"
+        if [[ ! -d .venv/bin ]]; then
+          echo "error: install recipe did not create .venv/bin for sase-xprompt-lsp" >&2
+          exit 1
+        fi
+        lsp_tmp="$(mktemp "${lsp_dest}.tmp.XXXXXX")"
+        trap 'rm -f "$lsp_tmp"' EXIT
+        cp "${lsp_binaries[0]}" "$lsp_tmp"
+        chmod 0755 "$lsp_tmp"
+        mv -f "$lsp_tmp" "$lsp_dest"
+        "$lsp_dest" --version

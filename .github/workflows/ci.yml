@@ -33,6 +33,9 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'release-please--branches--master'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CARGO_HTTP_MULTIPLEXING: "false"
+      CARGO_NET_RETRY: "10"
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -60,9 +63,14 @@ jobs:
       - name: Build abi3 Rust core wheel
         working-directory: sase-core/crates/sase_core_py
         run: uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"
+      - name: Build xprompt LSP
+        working-directory: sase-core
+        run: |
+          cargo build --release -p sase_xprompt_lsp
+          install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"
       - name: Record wheel provenance
         run: echo "${{ steps.core-sha.outputs.sha }}" > dist/sase-core-sha.txt
-      - name: Upload Rust core wheel
+      - name: Upload Rust core artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sase-core-wheel

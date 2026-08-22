@@ -16,15 +16,16 @@ pytestmark = pytest.mark.contract
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Jobs that run source lanes against the wheel `build-core` built from
-# sase-core master rather than against a published sase-core-rs release.
-WHEEL_CONSUMER_JOBS = (
+# Jobs that run source lanes against the Rust artifacts `build-core` built from
+# sase-core master rather than against published or stale local artifacts.
+CORE_ARTIFACT_CONSUMER_JOBS = (
     "lint",
     "test",
+    "coverage-contexts",
     "visual-test",
     "ace-page-group-isolation",
+    "contention-test",
     "perf-floors",
-    "coverage-contexts",
 )
 
 
@@ -54,6 +55,12 @@ def _setup_sase_install_script() -> str:
     return next(
         step["run"] for step in steps if step.get("name") == "Install dependencies"
     )
+
+
+def _write_executable(path: Path, contents: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(contents, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
 def test_lint_job_initializes_sase_home_before_lint() -> None:
@@ -97,26 +104,46 @@ def test_rust_core_is_built_once_and_shared_with_source_based_jobs() -> None:
     jobs = workflow["jobs"]
     build_core = jobs["build-core"]
     build_steps = build_core["steps"]
+    build_run_text = _job_run_text(build_core)
 
-    assert any(
+    core_checkouts = [
+        step
+        for step in build_steps
+        if step.get("with", {}).get("repository") == "sase-org/sase-core"
+    ]
+    assert len(core_checkouts) == 1
+    assert core_checkouts[0]["with"]["path"] == "sase-core"
+    assert "git -C sase-core rev-parse HEAD" in build_run_text
+    assert build_core["env"] == {
+        "CARGO_HTTP_MULTIPLEXING": "false",
+        "CARGO_NET_RETRY": "10",
+    }
+    assert (
+        'uvx maturin build --release --out "$GITHUB_WORKSPACE/dist"' in build_run_text
+    )
+    assert "cargo build --release -p sase_xprompt_lsp" in build_run_text
+    assert (
+        'install -m 0755 target/release/sase-xprompt-lsp "$GITHUB_WORKSPACE/dist/sase-xprompt-lsp"'
+        in build_run_text
+    )
+    assert not any(
         step.get("with", {}).get("repository") == "sase-org/sase-core"
         for step in build_steps
+        if step not in core_checkouts
     )
-    assert any("maturin build --release" in step.get("run", "") for step in build_steps)
-    assert any(
-        step.get("uses") == "actions/upload-artifact@v4"
-        and step.get("with", {}).get("name") == "sase-core-wheel"
+    upload_step = next(
+        step
         for step in build_steps
+        if step.get("uses") == "actions/upload-artifact@v4"
+        and step.get("with", {}).get("name") == "sase-core-wheel"
+    )
+    assert upload_step["with"]["path"] == "dist/"
+    assert (
+        "maturin build --release" in build_run_text
+        and "cargo build --release -p sase_xprompt_lsp" in build_run_text
     )
 
-    consumers = {
-        "lint",
-        "test",
-        "visual-test",
-        "ace-page-group-isolation",
-        "perf-floors",
-    }
-    for job_name in consumers:
+    for job_name in CORE_ARTIFACT_CONSUMER_JOBS:
         job = jobs[job_name]
         assert job["needs"] == "build-core"
         assert any(
@@ -391,7 +418,7 @@ def test_docs_build_once_per_event_and_deploys_are_serialized() -> None:
     )
 
 
-def test_setup_sase_action_installs_downloaded_wheel() -> None:
+def test_setup_sase_action_installs_downloaded_core_artifacts() -> None:
     steps = _load_setup_sase_action()["runs"]["steps"]
 
     assert any(
@@ -402,6 +429,9 @@ def test_setup_sase_action_installs_downloaded_wheel() -> None:
     install_script = _setup_sase_install_script()
     assert 'SASE_CORE_WHEEL="${wheels[0]}" just "$INSTALL_RECIPE"' in install_script
     assert "sase-core-sha.txt" in install_script
+    assert "sase-xprompt-lsp" in install_script
+    assert 'lsp_tmp="$(mktemp "${lsp_dest}.tmp.XXXXXX")"' in install_script
+    assert '"$lsp_dest" --version' in install_script
 
 
 def test_setup_sase_action_exports_wheel_for_the_whole_job() -> None:
@@ -488,11 +518,11 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert "git push origin HEAD:release-please--branches--master" in run_text
 
 
-def test_wheel_consumer_jobs_run_just_recipes_after_setup() -> None:
+def test_core_artifact_consumer_jobs_run_just_recipes_after_setup() -> None:
     """The export matters only because later steps re-enter `_setup`."""
     jobs = _load_ci_workflow()["jobs"]
 
-    for job_name in WHEEL_CONSUMER_JOBS:
+    for job_name in CORE_ARTIFACT_CONSUMER_JOBS:
         steps = jobs[job_name]["steps"]
         setup_index = next(
             index
@@ -500,7 +530,7 @@ def test_wheel_consumer_jobs_run_just_recipes_after_setup() -> None:
             if step.get("uses") == "./.github/actions/setup-sase"
         )
         assert any(
-            step.get("run", "").startswith("just ") for step in steps[setup_index + 1 :]
+            "just " in step.get("run", "") for step in steps[setup_index + 1 :]
         ), f"{job_name} runs no just recipe after setup-sase"
 
 
@@ -513,15 +543,21 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
     wheel = artifact_dir / "sase_core_rs-0.18.1-cp312-abi3-manylinux_2_39_x86_64.whl"
     wheel.touch()
     (artifact_dir / "sase-core-sha.txt").write_text("deadbeef\n", encoding="utf-8")
+    _write_executable(
+        artifact_dir / "sase-xprompt-lsp",
+        '#!/bin/sh\nprintf "lsp %s\\n" "$1"\n',
+    )
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    just_stub = bin_dir / "just"
-    just_stub.write_text(
-        '#!/bin/sh\nprintf "just %s SASE_CORE_WHEEL=%s\\n" "$1" "$SASE_CORE_WHEEL"\n',
-        encoding="utf-8",
+    _write_executable(
+        bin_dir / "just",
+        (
+            "#!/bin/sh\n"
+            "mkdir -p .venv/bin\n"
+            'printf "just %s SASE_CORE_WHEEL=%s\\n" "$1" "$SASE_CORE_WHEEL"\n'
+        ),
     )
-    just_stub.chmod(just_stub.stat().st_mode | stat.S_IXUSR)
 
     github_env = tmp_path / "github_env"
     github_env.touch()
@@ -536,13 +572,111 @@ def test_setup_sase_install_script_records_the_wheel_in_github_env(
     result = subprocess.run(
         ["bash", "-e", "-c", _setup_sase_install_script()],
         env=env,
+        cwd=tmp_path,
         capture_output=True,
         text=True,
         check=True,
     )
 
     assert f"just install SASE_CORE_WHEEL={wheel}" in result.stdout
+    assert "lsp --version" in result.stdout
+    installed_lsp = tmp_path / ".venv" / "bin" / "sase-xprompt-lsp"
+    assert installed_lsp.is_file()
+    assert installed_lsp.stat().st_mode & stat.S_IXUSR
     assert (
         f"SASE_CORE_WHEEL={wheel}"
         in github_env.read_text(encoding="utf-8").splitlines()
     )
+
+
+@pytest.mark.parametrize(
+    ("lsp_count", "diagnostic"),
+    [
+        (0, "error: expected exactly one sase-xprompt-lsp binary, found 0"),
+        (2, "error: expected exactly one sase-xprompt-lsp binary, found 2"),
+    ],
+)
+def test_setup_sase_install_script_rejects_missing_or_duplicate_lsp_artifacts(
+    tmp_path: Path,
+    lsp_count: int,
+    diagnostic: str,
+) -> None:
+    artifact_dir = tmp_path / "sase-core-wheel"
+    artifact_dir.mkdir()
+    (artifact_dir / "sase_core_rs-0.18.1-cp312-abi3-manylinux_2_39_x86_64.whl").touch()
+    (artifact_dir / "sase-core-sha.txt").write_text("deadbeef\n", encoding="utf-8")
+    for index in range(lsp_count):
+        _write_executable(
+            artifact_dir / f"lsp-{index}" / "sase-xprompt-lsp",
+            '#!/bin/sh\nprintf "lsp\\n"\n',
+        )
+
+    github_env = tmp_path / "github_env"
+    github_env.touch()
+    env = {
+        **os.environ,
+        "CORE_ARTIFACT_DIR": str(artifact_dir),
+        "INSTALL_RECIPE": "install",
+        "GITHUB_ENV": str(github_env),
+    }
+
+    result = subprocess.run(
+        ["bash", "-e", "-c", _setup_sase_install_script()],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert diagnostic in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("provenance_count", "diagnostic"),
+    [
+        (0, "error: expected exactly one sase-core-sha.txt provenance file, found 0"),
+        (2, "error: expected exactly one sase-core-sha.txt provenance file, found 2"),
+    ],
+)
+def test_setup_sase_install_script_rejects_missing_or_duplicate_provenance(
+    tmp_path: Path,
+    provenance_count: int,
+    diagnostic: str,
+) -> None:
+    artifact_dir = tmp_path / "sase-core-wheel"
+    artifact_dir.mkdir()
+    (artifact_dir / "sase_core_rs-0.18.1-cp312-abi3-manylinux_2_39_x86_64.whl").touch()
+    _write_executable(
+        artifact_dir / "sase-xprompt-lsp",
+        '#!/bin/sh\nprintf "lsp\\n"\n',
+    )
+    for index in range(provenance_count):
+        provenance_dir = artifact_dir / f"sha-{index}"
+        provenance_dir.mkdir()
+        (provenance_dir / "sase-core-sha.txt").write_text(
+            "deadbeef\n",
+            encoding="utf-8",
+        )
+
+    github_env = tmp_path / "github_env"
+    github_env.touch()
+    env = {
+        **os.environ,
+        "CORE_ARTIFACT_DIR": str(artifact_dir),
+        "INSTALL_RECIPE": "install",
+        "GITHUB_ENV": str(github_env),
+    }
+
+    result = subprocess.run(
+        ["bash", "-e", "-c", _setup_sase_install_script()],
+        env=env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert diagnostic in result.stderr
