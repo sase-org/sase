@@ -72,7 +72,8 @@ when Muse Code or Grok Build is your provider. SASE never auto-detects `muse` or
 from PATH because both are generic executable names; select them explicitly with a
 provider/model directive. Grok Build can still be reached automatically through the
 shipped `@xsmall`, `@small`, and `@medium` pools, or as the last `@xlarge` fallback
-candidate, when its CLI is installed:
+candidate, when its CLI is installed. The `@large` fallback also uses Grok as its last
+candidate:
 
 ```bash
 # Auto-detected providers:

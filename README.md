@@ -68,9 +68,10 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 [uv](https://docs.astral.sh/uv/), `git`, a text editor (`$EDITOR`, falling back to
 `nvim` then `vim`), and one authenticated agent CLI: Claude Code, Codex, Antigravity CLI
 (`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
-Muse Code and Grok Build are explicit-only: select either with a Muse/Grok
-model/provider directive because SASE does not auto-detect the generic `muse`/`grok`
-executable names.
+SASE never auto-detects Muse or Grok from `PATH`, because those executable names are
+generic. Select Muse explicitly. Grok can be selected explicitly or reached through the
+shipped `@xsmall`, `@small`, and `@medium` model-alias pools, or as the last candidate
+in the `@large` and `@xlarge` fallbacks, when Grok Build is installed.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
@@ -84,11 +85,11 @@ sase run "%model:grok/grok-4.6 #git:home summarize what this repository does; do
 sase ace                                                  # open the interactive control surface
 ```
 
-For a first run, use the auto-detected-provider command, or the Muse/Grok command if
-Muse or Grok is your provider. The `#git:home` workspace reference targets the built-in
-`home` project, which is bootstrapped automatically, so the first run needs no project
-setup. After the run completes, `sase ace` opens the TUI with the completed run visible
-on the Agents tab.
+For a first run, use the auto-detected-provider command, or one of the explicit
+Muse/Grok examples for deterministic provider selection. The `#git:home` workspace
+reference targets the built-in `home` project, which is bootstrapped automatically, so
+the first run needs no project setup. After the run completes, `sase ace` opens the TUI
+with the completed run visible on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
 check again; see [Agent Providers](https://sase.sh/agent_providers/). For full
@@ -119,7 +120,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
   integrations
-- [CLI Reference](https://sase.sh/cli/) — every command
+- [CLI Reference](https://sase.sh/cli/) — command index and links to detailed guides
 - [Shell Completion](https://sase.sh/completion/) — `<TAB>` completion for zsh, bash,
   and fish
 - [Blog](https://sase.sh/blog/) — announcements and deep dives

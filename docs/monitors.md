@@ -87,6 +87,9 @@ sase monitor start \
 - `--next` / `-n` is the follow-up agent's instruction. Omit it for a fire-and-forget
   monitor: the command still runs to completion and its output, exit state, and runtime
   are recorded for later inspection, but no agent launches afterward.
+- `--model` / `-m` selects a model or alias for that follow-up (for example `opus`,
+  `opus@high`, `@small`, or `codex/gpt-5`). It requires `--next`. When omitted, the
+  follow-up inherits the starter's model and reasoning effort.
 - `--next-output none|tail|file` controls how much retained command output is handed to
   the follow-up agent. `tail` is the default; `file` points at the on-disk log; `none`
   gives only the outcome summary and `sase monitor show --all-lines` pointer.
@@ -242,8 +245,10 @@ monitor settles. It receives:
 - the full log path and the exact `sase monitor show <id> --all-lines` invocation to
   read more than the tail.
 
-The follow-up inherits the starter's model, provider, and reasoning effort, so it is the
-same kind of agent shell that started the monitor.
+By default, the follow-up inherits the starter's model and reasoning effort. Pass
+`--model` / `-m` to replace that routing with a model, provider-qualified model, or
+model alias; an optional `@effort` suffix travels with the selection. `%model` text in
+`--next` remains literal prompt text and does not control routing.
 
 The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
 own workspace claim can no longer be transferred to the follow-up (for example, a stale
@@ -302,6 +307,9 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
 `ID` accepts a monitor id (or unique prefix), the monitor shell's agent name, or the
 owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
 even when `--next` was given.
+
+`sase agent kill -n <name>` uses the same stop behavior when the name resolves to a live
+monitor member or its owner. `sase monitor stop` remains the clearest explicit form.
 
 Every subcommand can emit machine-readable output, but not with the same flag: `start`,
 `list`, and `stop` take `-j/--json`, while `list` and `show` take `-f/--format`
@@ -411,6 +419,14 @@ layout, a wiped agent), the launch falls back to the original global `detached` 
 submission rather than silently dropping the approval. Other monitor-start errors fail
 the approval instead of using the proc fallback. See
 [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
+
+The host-owned epic launcher keeps `sase bead work` as the visible logical command. If
+an editable-source update is swapping that checkout when approval arrives, a minimal
+pre-import bootstrap prints
+`sase: waiting for the source-tree swap to finish before launching`, waits for the
+shared lock, and only then starts `sase bead work` against one consistent source tree.
+This waiting exception is specific to host-owned approved-epic launches; running
+`sase bead work` directly remains fail-fast during a swap.
 
 ## Pipe vs. monitor
 

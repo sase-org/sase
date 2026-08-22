@@ -4330,6 +4330,13 @@ follow-up**. Both are selected by default. Press `enter` to approve with the cur
 checkbox selection; the existing `a`, `t`, `c`, `r`, `f`, and `E` bindings remain as
 compatibility shortcuts for their common presets and alternate flows.
 
+For the Tale and Commit choices, SASE publishes the reviewed plan to the archive before
+the approval response is made terminal. The response carries a canonical `plan:`
+reference, so a coder launched from a different numbered workspace resolves the same
+archived plan without depending on the approver's checkout path. If publication fails,
+approval fails without consuming the proposal: it remains pending and can be retried
+after the archive problem is fixed.
+
 The same pending approvals are available from the CLI. Run `sase plan` to see pending
 proposals, recent approvals, and inferred rejected archived plans; run
 `sase plan approve <id-prefix> --kind approve|commit|epic|tale` or

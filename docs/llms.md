@@ -95,7 +95,8 @@ Key design principles:
 | `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                   |
 | `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                            |
 | `src/sase/llm_provider/provider_disable_peek.py`           | Lock-free display peek for active provider disables                                      |
-| `src/sase/llm_provider/commit_finalizer.py`                | Provider-neutral dirty-workspace finalizer                                               |
+| `src/sase/finalizers/controller.py`                        | Provider-neutral finalizer planning and orchestration                                    |
+| `src/sase/finalizers/commit.py`                            | Bundled dirty-workspace commit finalizer                                                 |
 | `src/sase/llm_provider/types.py`                           | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
 | `src/sase/llm_provider/_invoke.py`                         | `invoke_agent()` orchestrator                                                            |
 | `src/sase/llm_provider/_subprocess.py`                     | Provider stream-parser compatibility exports                                             |
@@ -180,8 +181,8 @@ provider = get_provider("claude")  # Explicit provider name
    by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
    never participates in autodetection either, but it is reached automatically by the
    shipped `@xsmall`/`@small`/`@medium` load-balanced pools, or as the last candidate in
-   `@xlarge`'s ordered fallback, whenever the `grok` CLI is installed (see
-   [Grok Build Integration](#grok-build-integration)).
+   the `@large` and `@xlarge` ordered fallbacks, whenever the `grok` CLI is installed
+   (see [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
 
@@ -829,9 +830,10 @@ with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Hom
 deprecated, unrelated `grok` regex tool. Reach Grok with `llm_provider.provider: grok`,
 `%model:grok/grok-4.6`, by pointing `SASE_GROK_PATH` at the binary, or automatically
 whenever the `grok` CLI is installed: through the shipped `@xsmall`/`@small`/`@medium`
-load-balanced pools, or as the last candidate in `@xlarge`'s ordered fallback (behind
-Claude and Codex). When a `grok` on `PATH` does not identify itself as Grok Build,
-`sase doctor` reports a distinct wrong-binary advisory instead of silently launching it.
+load-balanced pools, or as the last candidate in the `@large` and `@xlarge` ordered
+fallbacks (behind Claude and Codex). When a `grok` on `PATH` does not identify itself as
+Grok Build, `sase doctor` reports a distinct wrong-binary advisory instead of silently
+launching it.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
 

@@ -153,10 +153,10 @@ xAI's Grok Build CLI (`grok`). SASE never auto-detects it, because the executabl
 with Homebrew's deprecated, unrelated `grok` regex tool. Select it explicitly with
 `llm_provider.provider: grok`, `%model:grok/grok-4.6`, or `SASE_GROK_PATH`, or reach it
 automatically whenever the `grok` CLI is installed: through the shipped
-`@xsmall`/`@small`/`@medium` load-balanced pools, or as the last candidate in
-`@xlarge`'s ordered fallback (behind Claude and Codex). If a `grok` on `PATH` does not
-identify itself as Grok Build, `sase doctor` reports it as a distinct, actionable
-finding rather than silently launching the wrong binary.
+`@xsmall`/`@small`/`@medium` load-balanced pools, or as the last candidate in the
+`@large` and `@xlarge` ordered fallbacks (behind Claude and Codex). If a `grok` on
+`PATH` does not identify itself as Grok Build, `sase doctor` reports it as a distinct,
+actionable finding rather than silently launching the wrong binary.
 
 ### Install
 

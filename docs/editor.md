@@ -222,7 +222,8 @@ clan rows also have aggregate `status`.
 Family rows carry a `detail` of `family · N members` by default. For the 20 families
 with the most recent activity — and only those, so the short-lived helper subprocess
 stays fast enough for interactive completion — the helper additionally tries to resolve
-an associated plan or bead, in three descending rungs:
+an associated plan or bead. It checks concrete family members newest-first and uses the
+family root only as a legacy fallback, then enriches the row in three descending rungs:
 
 1. A plan or bead resolved with a title: `detail` becomes
    `<kind> · <structure> · <title>`, such as
@@ -257,7 +258,7 @@ registered workspace provider for repositories. The response reports `status`,
 Each entry has a short `name` and a full `ref` such as `sase-org/sase`; replace the
 current VCS ref with `ref` rather than appending it after the namespace.
 
-All four helper operations read one JSON object from stdin and write one compact JSON
+All five helper operations read one JSON object from stdin and write one compact JSON
 object to stdout. They are fixed catalog operations, not a general shell or filesystem
 bridge.
 

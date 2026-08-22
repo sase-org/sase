@@ -354,8 +354,12 @@ matters:
   A sase bead work is running against this checkout (<holder>). Re-run the update after it finishes.
   ```
 
-  Symmetrically, starting `sase bead work` while a swap is already in progress exits
-  non-zero without starting any work, rather than importing a torn tree.
+  A direct `sase bead work` started while a swap is already in progress exits non-zero
+  without starting any work, rather than importing a torn tree. The host-owned launcher
+  used after an approved epic is the deliberate exception: a package-free bootstrap
+  waits for the swap to finish before importing SASE, then hands its shared lock to
+  `sase bead work` for launch orchestration. It prints
+  `sase: waiting for the source-tree swap to finish before launching` while queued.
 
 - **Advisory readers.** A long-lived agent runner registers as advisory for the lifetime
   of its execution loop. Advisory holders never take the shared lock, so they can never
@@ -365,12 +369,14 @@ matters:
   — so you can decide whether to wait. A runner is deliberately not allowed to block an
   update indefinitely.
 
-Both sides are non-blocking and fail fast rather than queueing: a waiting reader may
-already hold pre-swap imports, and a waiting writer would stall ACE. Set
-`SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism entirely (both the barrier and
-the warning). One residual race is accepted by design: a reader that starts while a swap
-is already underway can import torn modules before it reaches the lock. Closing that
-fully would require re-execing readers.
+Ordinary readers and the writer remain non-blocking and fail fast rather than queueing:
+a waiting reader may already hold pre-swap imports, and a waiting writer would stall
+ACE. The approved-epic bootstrap can wait safely because it has not imported the
+editable package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism
+entirely (both the barrier and the warning). Direct readers still have one accepted
+residual race: one that starts while a swap is already underway can import torn modules
+before it reaches the lock. The guarded approved-epic path closes that race for its own
+launch.
 
 ### Install mode switching
 

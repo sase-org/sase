@@ -23,7 +23,8 @@ sections, environment variables, and CLI flags.
   - [artifacts](#artifacts)
   - [artifact_refs](#artifact_refs)
   - [llm_provider](#llm_provider)
-  - [commit](#commit)
+  - [finalizers](#finalizers)
+  - [commit.message](#commitmessage)
   - [repos](#repos)
   - [vcs_provider](#vcs_provider)
   - [vcs_repo_completion](#vcs_repo_completion)
@@ -2011,8 +2012,8 @@ be re-run after the subject is rewritten. There is no per-invocation bypass flag
 environment variable; a project that does not use Conventional Commits sets
 `require_conventional_subject: false`.
 
-Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`,
-`src/sase/workflows/commit/message_validation.py`,
+Source: `src/sase/finalizers/controller.py`, `src/sase/finalizers/commit.py`,
+`src/sase/commit_instructions.py`, `src/sase/workflows/commit/message_validation.py`,
 `src/sase/core/commit_subject_facade.py`
 
 ### repos
@@ -3729,6 +3730,12 @@ description and default. Unknown keys are tolerated by the schema so downgraded 
 can still read a config written by a newer SASE, but the resolver warns and ignores
 unknown keys at runtime.
 
+The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
+the experimental `%if` and `%proc` parser contract and the corresponding completion
+rows. Current public launch surfaces capture and strip those directives but do not yet
+execute their condition or process units; see
+[Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
+
 #### Saved machine preferences
 
 Persistent enable/disable choices live in a SASE-owned machine-state file
@@ -4023,9 +4030,9 @@ generic executable name shared with a stale community CLI (`grok-dev`) and Homeb
 deprecated regex tool, so Grok never participates in autodetection like Muse; it is
 reached by explicit selection (see [llm_provider.provider](#llm_provider) above) or
 automatically whenever the `grok` CLI is installed: through the shipped `@xsmall`,
-`@small`, and `@medium` round-robin pools, or as the last candidate in `@xlarge`'s
-ordered fallback (behind Claude and Codex). Grok's `grok-4.6` model accepts only
-`low`/`medium`/`high`/`xhigh` for `--effort`; see
+`@small`, and `@medium` round-robin pools, or as the last candidate in the `@large` and
+`@xlarge` ordered fallbacks (behind Claude and Codex). Grok's `grok-4.6` model accepts
+only `low`/`medium`/`high`/`xhigh` for `--effort`; see
 [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
