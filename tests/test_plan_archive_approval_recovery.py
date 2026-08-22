@@ -12,6 +12,7 @@ import pytest
 
 import sase.workspace_provider.reset_replay as reset_replay
 from sase._plan_archive_approval import (
+    _ApprovedPlanArchive,
     archive_approved_plan,
     report_plan_archive_failure,
 )
@@ -122,7 +123,7 @@ def _archive_harness(
 def _archive(
     tmp_path: Path,
     src_name: str = "approved_plan.md",
-) -> str:
+) -> _ApprovedPlanArchive:
     return archive_approved_plan(
         {"agent_project_file": str(tmp_path / "projects" / "demo" / "demo.sase")},
         tmp_path / src_name,
@@ -162,6 +163,7 @@ def test_archive_resets_store_repo_not_workspace_on_conflict(
         archived = _archive(tmp_path)
 
     assert Path(archived) == plans / _MONTH / "approved_plan.md"
+    assert archived.plan_archive_ref == f"plan:{_MONTH}/approved_plan.md"
     assert archive_calls["n"] == 2
     assert reset_roots == [plans.resolve()]
     assert (checkout / "workspace-marker").read_text(
@@ -205,6 +207,7 @@ def test_unpublished_poison_commit_does_not_fail_unrelated_archive(
         archived = _archive(tmp_path)
 
     assert Path(archived) == plans / _MONTH / "approved_plan.md"
+    assert archived.plan_archive_ref == f"plan:{_MONTH}/approved_plan.md"
     assert archive_calls["n"] == 1
     assert (plans / _MONTH / "poison.md").read_text(encoding="utf-8") == (
         "upstream poison from the other writer\n"

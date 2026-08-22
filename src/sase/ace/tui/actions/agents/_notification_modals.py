@@ -535,9 +535,10 @@ def _start_plan_approval_background_worker(
             and choice is not None
             and approval_choice_archives_plan(choice)
         ):
-            saved_plan_path = _archive_plan_for_approval(notification, result.action)
-            if saved_plan_path is not None:
-                _add_saved_plan_to_response(plan_response_path, saved_plan_path)
+            archive = _archive_plan_for_approval(notification, result.action)
+            if archive is not None:
+                _add_saved_plan_to_response(plan_response_path, archive)
+                saved_plan_path = str(archive)
 
         _call_on_app_thread(
             app,

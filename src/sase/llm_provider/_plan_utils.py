@@ -32,7 +32,11 @@ class PlanApprovalResult:
         compare=False,
     )
     plan_archive_state: str | None = field(default=None, compare=False)
-    plan_archive_protocol: Literal["host_v1"] | None = field(
+    plan_archive_protocol: Literal["host_v1", "host_v2"] | None = field(
+        default=None,
+        compare=False,
+    )
+    plan_archive_ref: str | None = field(
         default=None,
         compare=False,
     )
@@ -304,6 +308,20 @@ def handle_plan_approval(
             if isinstance(raw_archive_state, str)
             else None
         )
+        raw_archive_protocol = response_data.get("plan_archive_protocol")
+        plan_archive_protocol: Literal["host_v1", "host_v2"] | None
+        if raw_archive_protocol == "host_v1":
+            plan_archive_protocol = "host_v1"
+        elif raw_archive_protocol == "host_v2":
+            plan_archive_protocol = "host_v2"
+        else:
+            plan_archive_protocol = None
+        raw_archive_ref = response_data.get("plan_archive_ref")
+        plan_archive_ref = (
+            raw_archive_ref.strip() or None
+            if isinstance(raw_archive_ref, str)
+            else None
+        )
         return PlanApprovalResult(
             action=action,
             plan_file=str(reviewed_plan),
@@ -316,7 +334,8 @@ def handle_plan_approval(
             saved_plan_path=saved_plan_path,
             plan_archive_owner=plan_archive_owner,
             plan_archive_state=plan_archive_state,
-            plan_archive_protocol="host_v1",
+            plan_archive_protocol=plan_archive_protocol,
+            plan_archive_ref=plan_archive_ref,
         )
     feedback = response_data.get("feedback")
     if isinstance(feedback, str) and feedback:

@@ -244,6 +244,8 @@ def test_e2e_tale_plan_gate_structure_and_branches(
     assert runner_proto["run_coder"] is True
     assert runner_proto["commit_plan"] is True
     assert runner_proto["saved_plan_path"] == str(stub_host_plan_archive)
+    assert runner_proto["plan_archive_protocol"] == "host_v2"
+    assert runner_proto["plan_archive_ref"] == "plan:202608/host-archived-plan.md"
 
 
 def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:

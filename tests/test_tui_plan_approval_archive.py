@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.notifications import Notification
 from tests.sdd_policy_helpers import patched_sdd_policy
 from tests.workspace_lease_helpers import patched_operational_lease
@@ -38,6 +39,8 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         saved = _archive_plan_for_approval(notification, "epic")
 
     assert saved == str(workspace / "sdd" / "plans" / "202605" / "plan.md")
+    assert isinstance(saved, _ApprovedPlanArchive)
+    assert saved.plan_archive_ref == "plan:202605/plan.md"
     assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
     assert "tier: epic" in Path(saved).read_text(encoding="utf-8")
     assert not (workspace / ".sase" / "sdd" / "plans").exists()
@@ -146,6 +149,8 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
         saved = _archive_plan_for_approval(notification, "approve")
 
     assert saved == str(workspace / ".sase" / "sdd" / "plans" / "202605" / "plan.md")
+    assert isinstance(saved, _ApprovedPlanArchive)
+    assert saved.plan_archive_ref == "plan:202605/plan.md"
     assert Path(saved).exists()
     assert "tier: tale" in Path(saved).read_text(encoding="utf-8")
     ensure_sdd.assert_not_called()

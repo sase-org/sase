@@ -23,6 +23,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_successor import SuccessorRequest
@@ -251,8 +252,8 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
     successors: list[SuccessorRequest] = []
     store = SddStore(
         storage="sidecar_repos",
-        sdd_dir=host,
-        repo_root=host,
+        sdd_dir=runner,
+        repo_root=runner,
         remote_url=str(origin),
         sidecar_role="plans",
     )
@@ -267,7 +268,7 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
         saved.write_text(archived, encoding="utf-8")
         commit_all(host, f"Archive approved plan {_PLAN_STEM}")
         git(["push"], host)
-        return str(saved)
+        return _ApprovedPlanArchive(saved, plan_ref)
 
     def wait_then_result(*_args: object, **_kwargs: object) -> PlanApprovalResult:
         poller_waiting.set()
@@ -276,6 +277,8 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
         translated = translate_plan_gate_response(gate.bundle_path, polled.payload)
         saved_path = translated.get("saved_plan_path")
         assert saved_path == str(saved)
+        assert translated.get("plan_archive_protocol") == "host_v2"
+        assert translated.get("plan_archive_ref") == plan_ref
         return PlanApprovalResult(
             action="approve",
             plan_file=str(plan_path),
@@ -284,7 +287,8 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
             saved_plan_path=str(saved_path),
             plan_archive_owner="host",
             plan_archive_state="archived",
-            plan_archive_protocol="host_v1",
+            plan_archive_protocol="host_v2",
+            plan_archive_ref=plan_ref,
         )
 
     def refuse_runner_write(*_args: object, **_kwargs: object) -> object:
@@ -443,13 +447,19 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
     primary = response["option_results"][0]["result"]
     assert primary["plan_archive_owner"] == "host"
     assert primary["plan_archive_state"] == "archived"
+    assert primary["plan_archive_protocol"] == "host_v2"
+    assert primary["plan_archive_ref"] == plan_ref
     assert primary["saved_plan_path"] == str(saved)
     assert execution.response == response
     assert outcome is None
     assert writes == []
     assert len(successors) == 1
     assert successors[0].relationships.get("plan_committed") is True
-    assert successors[0].relationships.get("sdd_plan_path") == str(saved)
+    assert successors[0].relationships.get("sdd_plan_path") == plan_ref
+    assert successors[0].relationships.get("plan_archive_ref") == plan_ref
+    assert f"@{plan_ref}" in successors[0].prompt
+    assert str(saved) not in successors[0].prompt
+    assert str(runner) not in successors[0].prompt
 
     git(["fetch", "origin"], runner)
     git(["reset", "--hard", "origin/main"], runner)
@@ -549,7 +559,7 @@ def test_archive_publication_order_survives_inverted_scheduling(
         assert release.wait(timeout=5)
         saved.parent.mkdir(parents=True, exist_ok=True)
         saved.write_text(VALID_TALE_PLAN, encoding="utf-8")
-        return str(saved)
+        return _ApprovedPlanArchive(saved, f"plan:{_MONTH}/order.md")
 
     def approve() -> object:
         return execute_gate_selection(gate.bundle_path, ["approve", "commit"])
@@ -578,9 +588,10 @@ def test_archive_publication_order_survives_inverted_scheduling(
             polled = poll_future.result(timeout=5)
 
     assert polled.status == "responded"
-    assert polled.payload["option_results"][0]["result"]["saved_plan_path"] == (
-        str(saved)
-    )
+    result = polled.payload["option_results"][0]["result"]
+    assert result["saved_plan_path"] == str(saved)
+    assert result["plan_archive_protocol"] == "host_v2"
+    assert result["plan_archive_ref"] == f"plan:{_MONTH}/order.md"
 
 
 def _readline_until(

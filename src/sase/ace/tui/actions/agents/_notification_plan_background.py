@@ -45,13 +45,19 @@ def archive_plan_for_approval(
 
 
 def add_saved_plan_to_response(plan_response_path: Path, saved_plan_path: str) -> None:
-    """Add the archived path to the response file after the fast write."""
+    """Add host-owned archive identity to the response file after the fast write."""
     try:
         with open(plan_response_path, encoding="utf-8") as f:
             response_data = json.load(f)
         if not isinstance(response_data, dict):
             return
-        response_data["saved_plan_path"] = saved_plan_path
+        response_data["plan_archive_owner"] = "host"
+        response_data["plan_archive_state"] = "archived"
+        response_data["saved_plan_path"] = str(saved_plan_path)
+        archive_ref = getattr(saved_plan_path, "plan_archive_ref", None)
+        if isinstance(archive_ref, str) and archive_ref.strip():
+            response_data["plan_archive_protocol"] = "host_v2"
+            response_data["plan_archive_ref"] = archive_ref.strip()
         with open(plan_response_path, "w", encoding="utf-8") as f:
             json.dump(response_data, f, indent=2)
     except Exception:

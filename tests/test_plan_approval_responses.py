@@ -38,7 +38,9 @@ def _respond_after_gate_creation(
         def archive(*_args: object, **_kwargs: object) -> str:
             saved.parent.mkdir(parents=True)
             saved.write_text(plan.read_text(encoding="utf-8"), encoding="utf-8")
-            return str(saved)
+            from sase._plan_archive_approval import _ApprovedPlanArchive
+
+            return _ApprovedPlanArchive(saved, f"plan:202608/{plan.name}")
 
         with patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
@@ -82,6 +84,8 @@ def test_handle_plan_approval_commit(
         run_coder=False,
         saved_plan_path=str(tmp_path / "sdd" / "plans" / "202608" / "plan.md"),
     )
+    assert result.plan_archive_protocol == "host_v2"
+    assert result.plan_archive_ref == "plan:202608/plan.md"
 
 
 def test_handle_plan_approval_threads_saved_plan_path(

@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase._plan_approval_epic import epic_launch_project
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
@@ -204,7 +205,10 @@ def test_primary_approval_archives_only_commit_bearing_combinations(
         ),
         patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=str(tmp_path / "saved-plan.md"),
+            return_value=_ApprovedPlanArchive(
+                tmp_path / "saved-plan.md",
+                "plan:202608/saved-plan.md",
+            ),
         ) as archive,
     ):
         run_plan_side_effects(
@@ -218,6 +222,8 @@ def test_primary_approval_archives_only_commit_bearing_combinations(
         archive.assert_called_once_with(context, persisted_action, required=True)
         assert response["plan_archive_owner"] == "host"
         assert response["plan_archive_state"] == "archived"
+        assert response["plan_archive_protocol"] == "host_v2"
+        assert response["plan_archive_ref"] == "plan:202608/saved-plan.md"
         assert response["saved_plan_path"] == str(tmp_path / "saved-plan.md")
     else:
         archive.assert_not_called()
@@ -287,6 +293,8 @@ def test_archive_plan_for_approval_uses_canonical_durable_stem(
 
     expected = workspace / "sdd" / "plans" / "202608" / "canonical_plan.md"
     assert saved == str(expected)
+    assert isinstance(saved, _ApprovedPlanArchive)
+    assert saved.plan_archive_ref == "plan:202608/canonical_plan.md"
     assert expected.is_file()
 
 

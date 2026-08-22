@@ -61,6 +61,7 @@ def record_workflow_metadata(
         "feedback_submitted_at",
         "sdd_prompt_path",
         "sdd_plan_path",
+        "plan_archive_ref",
         "epic_plan_ref",
         "plan_committed",
         "questions_submitted_at",

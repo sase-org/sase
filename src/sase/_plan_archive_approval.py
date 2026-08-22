@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
     from sase.bead._sync_publication import PushOutcome
@@ -38,6 +38,30 @@ _PLAN_ARCHIVE_LEASE_WORKFLOW = "plan-archive"
 _PLAN_ARCHIVE_WORKER_LOCK_WAIT_SECONDS = 2.0
 
 
+class _ApprovedPlanArchive(str):
+    """Host-local archive path plus its workspace-independent ``plan:`` ref.
+
+    The string value is the concrete path used inside the operational
+    workspace lease. It is diagnostic data for users and compatibility callers,
+    not the durable identity a runner should consume across workspaces.
+    """
+
+    plan_archive_ref: str
+
+    def __new__(
+        cls,
+        saved_plan_path: str | Path,
+        plan_archive_ref: str,
+    ) -> _ApprovedPlanArchive:
+        archive = cast(_ApprovedPlanArchive, str.__new__(cls, str(saved_plan_path)))
+        archive.plan_archive_ref = plan_archive_ref
+        return archive
+
+    @property
+    def saved_plan_path(self) -> str:
+        return str(self)
+
+
 class _PlanArchiveProjectError(Exception):
     """Raised when action data does not identify an archivable project."""
 
@@ -48,15 +72,17 @@ def archive_approved_plan(
     *,
     tier: Literal["tale", "epic"],
     push_after_commit: bool | Literal["async"] | None = None,
-) -> str:
-    """Archive ``src_plan`` into its project's plan store and return the path.
+) -> _ApprovedPlanArchive:
+    """Archive ``src_plan`` into its project's plan store and return its identity.
 
     Runs inside a durable operational workspace lease -- never the user-owned
     primary checkout -- and publishes the archive commit using
     reset-and-replay semantics: an unpublished HEAD after commit resets the
     SDD store repository (the sidecar clone for remote-backed storage, or
     the checkout itself when plans live in-tree) to its verified upstream
-    tip and re-runs the archive.
+    tip and re-runs the archive. The returned value remains string-compatible
+    with the host-local archive path, and also carries ``plan_archive_ref`` as
+    the durable workspace-independent identity.
 
     Raises:
         _PlanArchiveProjectError: If ``action_data`` names no resolvable project.
@@ -72,6 +98,7 @@ def archive_approved_plan(
         ensure_bare_git_sdd_initialized,
     )
     from sase.sdd.plan_archive import archive_plan_file
+    from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
     from sase.sdd.store import materialize_sdd_store
     from sase.workspace_provider.lease import operational_workspace_lease
     from sase.workspace_provider.ownership import MutationOrigin
@@ -109,7 +136,7 @@ def archive_approved_plan(
         if archive_repo is not None and _store_has_unpublished_head(archive_repo):
             lease.reset_to_upstream(repo_root=archive_repo)
 
-        def _archive_and_publish() -> str:
+        def _archive_and_publish() -> _ApprovedPlanArchive:
             archived = archive_plan_file(
                 src_plan,
                 sdd_store,
@@ -142,7 +169,15 @@ def archive_approved_plan(
                             f"{sdd_store.repo_root} HEAD was not published "
                             "after the archive commit"
                         )
-            return str(archived.path)
+            archive_ref = canonicalize_plan_reference_from_roots(
+                archived.path,
+                roots=(sdd_store.kind_root("plans"),),
+            )
+            if archive_ref is None:
+                raise ReplayConflict(
+                    f"archived plan is outside the resolved plans root: {archived.path}"
+                )
+            return _ApprovedPlanArchive(archived.path, archive_ref)
 
         try:
             result = lease.reset_and_replay(

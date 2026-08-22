@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.notifications import Notification
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
@@ -99,6 +100,8 @@ def test_archive_resolves_project_from_agent_project_file(
 
     assert seen == [("gh_sase-org__sase", "plan-archive")]
     assert saved == str(workspace / "sdd" / "plans" / "202608" / "plan.md")
+    assert isinstance(saved, _ApprovedPlanArchive)
+    assert saved.plan_archive_ref == "plan:202608/plan.md"
 
 
 @pytest.mark.parametrize(
@@ -125,6 +128,8 @@ def test_archive_resolves_project_from_trailing_slash_workspace_dir(
 
     assert seen == [("myproj", "plan-archive")]
     assert saved == str(workspace / "sdd" / "plans" / "202608" / "plan.md")
+    assert isinstance(saved, _ApprovedPlanArchive)
+    assert saved.plan_archive_ref == "plan:202608/plan.md"
 
 
 @pytest.mark.parametrize(

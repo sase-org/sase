@@ -428,6 +428,12 @@ def translate_plan_gate_response(
     plan_archive_state = primary_result.get("plan_archive_state")
     if isinstance(plan_archive_state, str) and plan_archive_state:
         translated["plan_archive_state"] = plan_archive_state
+    plan_archive_protocol = primary_result.get("plan_archive_protocol")
+    if isinstance(plan_archive_protocol, str) and plan_archive_protocol:
+        translated["plan_archive_protocol"] = plan_archive_protocol
+    plan_archive_ref = primary_result.get("plan_archive_ref")
+    if isinstance(plan_archive_ref, str) and plan_archive_ref:
+        translated["plan_archive_ref"] = plan_archive_ref
     return translated
 
 

@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
 
 _logger = logging.getLogger(__name__)
+HOST_PLAN_ARCHIVE_PROTOCOL = "host_v2"
 
 
 def execute_plan_approval_response(
@@ -414,20 +415,19 @@ def prepare_plan_terminal_response(
     _sync_reviewed_plan_to_durable_best_effort(notification)
 
     if _response_requires_host_plan_archive(response_json, persisted_action):
-        saved_path = _archive_plan_for_approval(
+        archive = _archive_plan_for_approval(
             notification,
             persisted_action,
             required=True,
         )
+        saved_path = _archive_saved_plan_path(archive)
         if not saved_path:
             raise PlanApprovalActionError(
                 "plan_archive_failed",
                 "saved_plan_path",
                 "approved plan archive did not return a saved path",
             )
-        response_json["plan_archive_owner"] = "host"
-        response_json["plan_archive_state"] = "archived"
-        response_json["saved_plan_path"] = saved_path
+        _apply_host_plan_archive_fields(response_json, archive)
         return
 
     if response_json.get("action") in {"approve", "epic"}:
@@ -454,6 +454,28 @@ def _response_requires_host_plan_archive(
         and response_json.get("action") == "approve"
         and response_json.get("commit_plan") is True
     )
+
+
+def _archive_saved_plan_path(archive: object | None) -> str | None:
+    if isinstance(archive, str) and archive.strip():
+        return archive
+    return None
+
+
+def _apply_host_plan_archive_fields(
+    response_json: dict[str, Any],
+    archive: object,
+) -> None:
+    """Attach the host-owned archive fields before terminal publication."""
+    saved_path = _archive_saved_plan_path(archive)
+    response_json["plan_archive_owner"] = "host"
+    response_json["plan_archive_state"] = "archived"
+    if saved_path is not None:
+        response_json["saved_plan_path"] = saved_path
+    archive_ref = getattr(archive, "plan_archive_ref", None)
+    if isinstance(archive_ref, str) and archive_ref.strip():
+        response_json["plan_archive_protocol"] = HOST_PLAN_ARCHIVE_PROTOCOL
+        response_json["plan_archive_ref"] = archive_ref.strip()
 
 
 def _sync_reviewed_plan_to_durable_best_effort(

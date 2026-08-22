@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.ace.tui.modals.plan_approval_results import (
     PlanApprovalResult,
     plan_approval_result_for_choice,
@@ -92,7 +93,10 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
             ),
             patch(
                 "sase.plan_approval_actions._archive_plan_for_approval",
-                return_value=str(response_dir / "saved-plan.md"),
+                return_value=_ApprovedPlanArchive(
+                    response_dir / "saved-plan.md",
+                    "plan:202608/saved-plan.md",
+                ),
             ),
         ):
             on_dismiss(
@@ -106,6 +110,8 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
     assert data["run_coder"] is False
     assert data["plan_archive_owner"] == "host"
     assert data["saved_plan_path"] == str(response_dir / "saved-plan.md")
+    assert data["plan_archive_protocol"] == "host_v2"
+    assert data["plan_archive_ref"] == "plan:202608/saved-plan.md"
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
 
 
@@ -186,7 +192,10 @@ def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
             ),
             patch(
                 "sase.plan_approval_actions._archive_plan_for_approval",
-                return_value=str(response_dir / "saved-plan.md"),
+                return_value=_ApprovedPlanArchive(
+                    response_dir / "saved-plan.md",
+                    "plan:202608/saved-plan.md",
+                ),
             ),
         ):
             on_dismiss(
@@ -227,7 +236,7 @@ def test_approve_archives_plan_before_writing_response(tmp_path: Path) -> None:
         assert action == "tale"
         assert required is True
         assert mock_agent.identity not in app._agent_status_overrides
-        return saved_plan_path
+        return _ApprovedPlanArchive(saved_plan_path, "plan:202608/saved-plan.md")
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,
@@ -257,6 +266,8 @@ def test_approve_archives_plan_before_writing_response(tmp_path: Path) -> None:
     data = json.loads(plan_response_path.read_text())
     assert data["saved_plan_path"] == saved_plan_path
     assert data["plan_archive_owner"] == "host"
+    assert data["plan_archive_protocol"] == "host_v2"
+    assert data["plan_archive_ref"] == "plan:202608/saved-plan.md"
 
 
 def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:
@@ -281,7 +292,10 @@ def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> Non
         patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
         patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=str(_response_dir / "saved-plan.md"),
+            return_value=_ApprovedPlanArchive(
+                _response_dir / "saved-plan.md",
+                "plan:202608/saved-plan.md",
+            ),
         ),
     ):
         handle_plan_approval(app, notification)
@@ -317,7 +331,10 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
         patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
         patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=saved_plan_path,
+            return_value=_ApprovedPlanArchive(
+                saved_plan_path,
+                "plan:202608/plan.md",
+            ),
         ),
         patch("sase.ace.tui.actions.clipboard.schedule_copy_delivery") as schedule_copy,
     ):
@@ -338,3 +355,5 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
     app._schedule_agents_async_refresh.assert_not_called()
     data = json.loads((response_dir / "plan_response.json").read_text())
     assert data["saved_plan_path"] == saved_plan_path
+    assert data["plan_archive_protocol"] == "host_v2"
+    assert data["plan_archive_ref"] == "plan:202608/plan.md"

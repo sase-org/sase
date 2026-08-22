@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
 from sase.main.plan_approve_handler import (
@@ -151,7 +152,10 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
     saved_plan_path = str(tmp_path / "sdd" / "plans" / "202608" / f"{kind}.md")
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval",
-        return_value=saved_plan_path,
+        return_value=_ApprovedPlanArchive(
+            saved_plan_path,
+            f"plan:202608/{kind}.md",
+        ),
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind=kind)
 
@@ -161,6 +165,8 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
             {
                 "plan_archive_owner": "host",
                 "plan_archive_state": "archived",
+                "plan_archive_protocol": "host_v2",
+                "plan_archive_ref": f"plan:202608/{kind}.md",
                 "saved_plan_path": saved_plan_path,
             }
         )
@@ -384,7 +390,7 @@ def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:
     saved_plan_path = str(tmp_path / "sdd" / "plans" / "202608" / "tale.md")
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval",
-        return_value=saved_plan_path,
+        return_value=_ApprovedPlanArchive(saved_plan_path, "plan:202608/tale.md"),
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
 
@@ -394,6 +400,8 @@ def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:
         "run_coder": True,
         "plan_archive_owner": "host",
         "plan_archive_state": "archived",
+        "plan_archive_protocol": "host_v2",
+        "plan_archive_ref": "plan:202608/tale.md",
         "saved_plan_path": saved_plan_path,
     }
 
@@ -559,6 +567,8 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
 
     saved = str(workspace / "sdd" / "plans" / "202606" / "plan.md")
     assert result.response_json["saved_plan_path"] == saved
+    assert result.response_json["plan_archive_ref"] == "plan:202606/plan.md"
+    assert result.response_json["plan_archive_protocol"] == "host_v2"
     assert (
         json.loads((response_dir / "plan_response.json").read_text())["saved_plan_path"]
         == saved

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.main.plan_pending import plan_context_from_notification
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
@@ -240,7 +241,7 @@ def test_commit_gate_waits_for_archive_before_response_publication(
         assert release.wait(timeout=5)
         saved.parent.mkdir(parents=True)
         saved.write_text(VALID_TALE_PLAN, encoding="utf-8")
-        return str(saved)
+        return _ApprovedPlanArchive(saved, "plan:202608/archive-paused.md")
 
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval",
@@ -261,6 +262,8 @@ def test_commit_gate_waits_for_archive_before_response_publication(
     primary = response["option_results"][0]["result"]
     assert primary["plan_archive_owner"] == "host"
     assert primary["plan_archive_state"] == "archived"
+    assert primary["plan_archive_protocol"] == "host_v2"
+    assert primary["plan_archive_ref"] == "plan:202608/archive-paused.md"
     assert primary["saved_plan_path"] == str(saved)
     assert execution.response == response
 

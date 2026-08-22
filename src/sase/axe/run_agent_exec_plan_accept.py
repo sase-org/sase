@@ -76,11 +76,14 @@ class _PlanArchiveProtocolError(RuntimeError):
 def _validate_current_archive_protocol(
     plan_result: Any,
     published_plan_path: Path | None,
-) -> None:
+) -> str | None:
     if plan_result.action == "epic" or not plan_result.commit_plan:
-        return
-    if getattr(plan_result, "plan_archive_protocol", None) != "host_v1":
-        return
+        return None
+    protocol = getattr(plan_result, "plan_archive_protocol", None)
+    if protocol == "host_v2":
+        return _validate_host_v2_archive_ref(plan_result)
+    if protocol != "host_v1":
+        return None
     owner = getattr(plan_result, "plan_archive_owner", None)
     state = getattr(plan_result, "plan_archive_state", None)
     if owner != "host" or state != "archived" or published_plan_path is None:
@@ -88,6 +91,42 @@ def _validate_current_archive_protocol(
             "current plan approval response committed the plan but did not "
             "publish a verified host-owned saved_plan_path"
         )
+    return None
+
+
+def _validate_host_v2_archive_ref(plan_result: Any) -> str:
+    owner = getattr(plan_result, "plan_archive_owner", None)
+    state = getattr(plan_result, "plan_archive_state", None)
+    raw_ref = getattr(plan_result, "plan_archive_ref", None)
+    if owner != "host" or state != "archived":
+        raise _PlanArchiveProtocolError(
+            "current plan approval response committed the plan but did not "
+            "publish a verified host-owned plan_archive_ref"
+        )
+    if not isinstance(raw_ref, str) or not raw_ref.strip():
+        raise _PlanArchiveProtocolError(
+            "current plan approval response committed the plan but did not "
+            "publish a non-empty plan_archive_ref"
+        )
+    archive_ref = raw_ref.strip()
+    try:
+        from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, parse_plan_reference
+
+        parsed = parse_plan_reference(archive_ref)
+    except Exception as exc:
+        raise _PlanArchiveProtocolError(
+            f"plan_archive_ref is not a valid canonical plan reference: {archive_ref}"
+        ) from exc
+    if (
+        parsed.kind != PLAN_REFERENCE_KIND
+        or parsed.legacy
+        or parsed.rendered != archive_ref
+    ):
+        raise _PlanArchiveProtocolError(
+            f"plan_archive_ref is not a canonical non-legacy plan reference: "
+            f"{archive_ref}"
+        )
+    return parsed.rendered
 
 
 def _validate_saved_plan_path(saved_plan_path: Path, sdd_store: Any) -> Path:
@@ -198,10 +237,14 @@ def handle_accepted_plan(
         if isinstance(raw_saved_plan, str) and raw_saved_plan.strip()
         else None
     )
-    _validate_current_archive_protocol(plan_result, published_plan_path)
+    host_archive_ref = _validate_current_archive_protocol(
+        plan_result,
+        published_plan_path,
+    )
     sdd_store: Any | None = None
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
+    sdd_plan_meta: str | None = None
     sdd_prompt_path_obj: Path | None = None
     sdd_commit_paths: list[Path] = []
     sdd_in_tree = True  # safe default (in-tree path is the no-op path)
@@ -214,7 +257,7 @@ def handle_accepted_plan(
         sdd_in_tree = sdd_store.is_in_tree
         sdd_sidecar_storage = sdd_store.is_sidecar_storage
         sdd_dir = sdd_store.sdd_dir
-        if published_plan_path is not None:
+        if published_plan_path is not None and host_archive_ref is None:
             published_plan_path = _validate_saved_plan_path(
                 published_plan_path,
                 sdd_store,
@@ -256,10 +299,16 @@ def handle_accepted_plan(
                 prompt_path=sdd_prompt_path_obj,
                 yyyymm=archive_month,
             )
+        elif host_archive_ref is not None:
+            # Approval already published the canonical tale plan in an
+            # operational checkout. Do not resolve or trust that checkout path
+            # here; hand off by durable logical reference instead.
+            sdd_plan_meta = host_archive_ref
         elif published_plan_path is not None:
             # Approval already published the canonical tale plan. Consume that
             # path instead of writing and committing a second copy.
             sdd_plan_path = published_plan_path
+            sdd_plan_meta = str(sdd_plan_path)
         else:
             plan_tier = plan_tier_for_action(plan_result.action)
             sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
@@ -274,20 +323,19 @@ def handle_accepted_plan(
                 yyyymm=archive_month,
             )
             sdd_commit_paths = [sdd_plan_path]
+            sdd_plan_meta = str(sdd_plan_path)
         state.sdd_spec_path = (
             str(sdd_prompt_path_obj) if sdd_prompt_path_obj is not None else None
         )
-        record_workflow_metadata(
-            state.current_artifacts_dir,
-            {
-                "sdd_prompt_path": (
-                    str(sdd_prompt_path_obj)
-                    if sdd_prompt_path_obj is not None
-                    else None
-                ),
-                "sdd_plan_path": str(sdd_plan_path),
-            },
-        )
+        workflow_meta = {
+            "sdd_prompt_path": (
+                str(sdd_prompt_path_obj) if sdd_prompt_path_obj is not None else None
+            ),
+            "sdd_plan_path": sdd_plan_meta,
+        }
+        if host_archive_ref is not None:
+            workflow_meta["plan_archive_ref"] = host_archive_ref
+        record_workflow_metadata(state.current_artifacts_dir, workflow_meta)
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError
         from sase.sdd._store_types import SddMaterializationError
@@ -326,6 +374,7 @@ def handle_accepted_plan(
             and sdd_plan_name
             and not is_epic
             and published_plan_path is None
+            and host_archive_ref is None
         ):
             if sdd_in_tree:
                 required_sdd_commit_succeeded = _commit_sdd_files(
@@ -348,7 +397,12 @@ def handle_accepted_plan(
                 )
             else:
                 required_sdd_commit_succeeded = False
-        elif should_commit and not is_epic and published_plan_path is None:
+        elif (
+            should_commit
+            and not is_epic
+            and published_plan_path is None
+            and host_archive_ref is None
+        ):
             required_sdd_commit_succeeded = False
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError
@@ -371,15 +425,31 @@ def handle_accepted_plan(
         store_unusable_error = None
     plan_committed = bool(
         not is_epic
-        and sdd_plan_path is not None
-        and sdd_plan_path.exists()
         and (
-            published_plan_path is not None
-            or (should_commit and required_sdd_commit_succeeded)
+            host_archive_ref is not None
+            or (
+                sdd_plan_path is not None
+                and sdd_plan_path.exists()
+                and (
+                    published_plan_path is not None
+                    or (should_commit and required_sdd_commit_succeeded)
+                )
+            )
         )
     )
     if not is_epic:
         update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
+        if host_archive_ref is not None:
+            update_meta_field(
+                state.current_artifacts_dir,
+                "sdd_plan_path",
+                host_archive_ref,
+            )
+            update_meta_field(
+                state.current_artifacts_dir,
+                "plan_archive_ref",
+                host_archive_ref,
+            )
 
     if not plan_result.run_coder and plan_result.action != "epic":
         return "plan_committed"
@@ -402,7 +472,7 @@ def handle_accepted_plan(
 
     followup_plan_file = (
         sdd_plan_path
-        if plan_committed and sdd_plan_path
+        if plan_committed and sdd_plan_path and host_archive_ref is None
         else Path(plan_result.plan_file)
     )
     custom_prompt_model = _custom_coder_prompt_model(plan_result.coder_prompt)
@@ -432,7 +502,7 @@ def handle_accepted_plan(
     # Point SASE_PLAN at the committed in-repo plan file only when the approval
     # committed that file. No-commit approvals must hand off the archived plan
     # because VCS workflow pre-steps may stash local SDD files.
-    if plan_committed and sdd_plan_path:
+    if plan_committed and sdd_plan_path and host_archive_ref is None:
         os.environ["SASE_PLAN"] = str(sdd_plan_path)
     else:
         os.environ["SASE_PLAN"] = plan_result.plan_file
@@ -441,7 +511,9 @@ def handle_accepted_plan(
     if plan_result.coder_prompt:
         coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
 
-    if plan_committed:
+    if host_archive_ref is not None:
+        coder_plan_ref = host_archive_ref
+    elif plan_committed:
         coder_plan_ref = build_saved_plan_ref(
             sdd_plan_path=sdd_plan_path,
             sdd_dir=sdd_dir,
@@ -472,7 +544,8 @@ def handle_accepted_plan(
                 "sdd_prompt_path": str(state.sdd_spec_path)
                 if state.sdd_spec_path
                 else None,
-                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
+                "sdd_plan_path": sdd_plan_meta,
+                "plan_archive_ref": host_archive_ref,
                 "plan_committed": plan_committed,
                 "patch_name": ctx.cl_name,
                 "changespec_name": ctx.cl_name,

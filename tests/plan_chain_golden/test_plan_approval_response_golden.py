@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase._plan_archive_approval import _ApprovedPlanArchive
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalResult
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
@@ -108,7 +109,10 @@ def test_shared_plan_response_writer_golden_json(
 
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval",
-        return_value=saved_plan_path,
+        return_value=_ApprovedPlanArchive(
+            saved_plan_path,
+            f"plan:202607/{choice}.md",
+        ),
     ):
         result = execute_plan_approval_response(
             _context(tmp_path, response_dir, plan),
@@ -122,6 +126,8 @@ def test_shared_plan_response_writer_golden_json(
             {
                 "plan_archive_owner": "host",
                 "plan_archive_state": "archived",
+                "plan_archive_protocol": "host_v2",
+                "plan_archive_ref": f"plan:202607/{choice}.md",
                 "saved_plan_path": saved_plan_path,
             }
         )

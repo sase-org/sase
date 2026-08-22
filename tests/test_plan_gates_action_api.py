@@ -57,6 +57,8 @@ def test_plan_action_api_executes_selected_approval_options(
                 "run_coder": False,
                 "plan_archive_owner": "host",
                 "plan_archive_state": "archived",
+                "plan_archive_protocol": "host_v2",
+                "plan_archive_ref": "plan:202608/host-archived-plan.md",
                 "saved_plan_path": str(stub_host_plan_archive),
             },
         }
@@ -120,6 +122,8 @@ def test_plan_action_api_filters_coder_options_for_commit_preset(
         "run_coder": False,
         "plan_archive_owner": "host",
         "plan_archive_state": "archived",
+        "plan_archive_protocol": "host_v2",
+        "plan_archive_ref": "plan:202608/host-archived-plan.md",
         "saved_plan_path": str(stub_host_plan_archive),
     }
 

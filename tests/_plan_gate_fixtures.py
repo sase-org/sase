@@ -58,8 +58,14 @@ def plan_host_archive_stub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
     """Publish a host-owned archive path without resolving a real project."""
     saved = tmp_path / "host-archived-plan.md"
     saved.write_text("# archived\n", encoding="utf-8")
+
+    from sase._plan_archive_approval import _ApprovedPlanArchive
+
     monkeypatch.setattr(
         "sase.plan_approval_actions._archive_plan_for_approval",
-        lambda *_args, **_kwargs: str(saved),
+        lambda *_args, **_kwargs: _ApprovedPlanArchive(
+            saved,
+            "plan:202608/host-archived-plan.md",
+        ),
     )
     return saved
