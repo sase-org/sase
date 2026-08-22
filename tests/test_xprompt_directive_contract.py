@@ -41,6 +41,16 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "model": (),
         "repeat": (),
         "wait": ("bead", "priority", "runners", "time"),
+        "if": (),
+        "proc": (
+            "bash",
+            "python",
+            "timeout",
+            "idle_timeout",
+            "cwd",
+            "workspace",
+            "label",
+        ),
         "xprompts_enabled": (),
     }
     assert contract["model"]["dynamic_keyword_role"] == "model_alias_key"
@@ -61,8 +71,14 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "model": ("colon", "parenthesized"),
         "repeat": ("colon",),
         "wait": ("colon", "parenthesized", "bare"),
+        "if": ("double_colon",),
+        "proc": ("parenthesized", "double_colon"),
         "xprompts_enabled": ("colon",),
     }
+    assert contract["if"]["feature_flag"] == "typed_launch_units"
+    assert contract["proc"]["feature_flag"] == "typed_launch_units"
+    assert contract["if"]["body_kind"] == "fenced_code"
+    assert contract["proc"]["body_kind"] == "optional_fenced_code"
 
 
 def _contract_by_name() -> dict[str, dict[str, Any]]:

@@ -76,6 +76,7 @@ class _FrontmatterInputType:
     name: str
     aliases: tuple[str, ...]
     rule: str
+    advertised: bool = True
 
 
 @dataclass(frozen=True)
@@ -133,6 +134,7 @@ def _input_type_from_dict(payload: dict[str, Any]) -> _FrontmatterInputType:
         name=payload["name"],
         aliases=tuple(payload["aliases"]),
         rule=payload["rule"],
+        advertised=bool(payload.get("advertised", True)),
     )
 
 
@@ -159,10 +161,17 @@ def frontmatter_field_schema() -> list[_FrontmatterFieldSchema]:
     return [_field_from_dict(item) for item in binding()]
 
 
-def input_type_schema() -> list[_FrontmatterInputType]:
-    """Return the supported ``input`` type catalog from core."""
+def input_type_schema(*, include_internal: bool = False) -> list[_FrontmatterInputType]:
+    """Return the supported ``input`` type catalog from core.
+
+    Internal types such as ``code`` are parsed and transported but omitted
+    from public pickers until later authoring surfaces land.
+    """
     binding = require_rust_binding("frontmatter_input_type_schema")
-    return [_input_type_from_dict(item) for item in binding()]
+    types = [_input_type_from_dict(item) for item in binding()]
+    if include_internal:
+        return types
+    return [item for item in types if item.advertised]
 
 
 def validate_frontmatter(text: str) -> list[FrontmatterDiagnostic]:

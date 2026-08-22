@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.xprompt.code_value import CodeDirectiveScan, CodeValue
 
 from ._directive_collect import collect_prompt_directive_matches
 from ._directive_shorthand import preprocess_directive_double_colon_shorthand
@@ -50,6 +54,20 @@ def extract_prompt_directives(
     if "%" not in prompt:
         return prompt, PromptDirectives()
 
+    from sase.xprompt.code_value import (
+        raise_if_code_directive_scan_failed,
+        reject_disabled_code_directives,
+        scan_directive_owned_fences,
+        strip_owned_code_spans,
+        typed_launch_units_enabled,
+    )
+
+    owned_scan = scan_directive_owned_fences(prompt)
+    reject_disabled_code_directives(prompt, scan=owned_scan)
+    if typed_launch_units_enabled():
+        raise_if_code_directive_scan_failed(owned_scan)
+        prompt = strip_owned_code_spans(prompt, owned_scan)
+
     prompt = preprocess_directive_double_colon_shorthand(prompt)
 
     fenced_blocks: list[str] = []
@@ -59,7 +77,8 @@ def extract_prompt_directives(
     prompt = protect_disabled_regions(prompt, disabled_regions)
 
     collected = collect_prompt_directive_matches(prompt)
-    if not collected.regions_to_remove:
+    if_code, proc_code = _owned_code_values(owned_scan, collected)
+    if not collected.regions_to_remove and if_code is None and proc_code is None:
         prompt = unprotect_disabled_regions(prompt, disabled_regions)
         if strip_disabled_markers:
             prompt = strip_disabled_region_markers(prompt)
@@ -211,6 +230,9 @@ def extract_prompt_directives(
         wait_runners=wait_runners,
         wait_priority=wait_priority,
         final=expanded_multi.get("final", []),
+        if_code=if_code,
+        proc_code=proc_code,
+        proc_options=collected.proc_options,
     )
 
     cleaned = unprotect_disabled_regions(cleaned, disabled_regions)
@@ -218,6 +240,24 @@ def extract_prompt_directives(
         cleaned = strip_disabled_region_markers(cleaned)
     cleaned = unprotect_fenced_blocks(cleaned, fenced_blocks)
     return cleaned, directives
+
+
+def _owned_code_values(
+    owned_scan: CodeDirectiveScan,
+    collected: object,
+) -> tuple[CodeValue | None, CodeValue | None]:
+    from sase.xprompt._exceptions import DirectiveError
+
+    if_spans = [item for item in owned_scan.directives if item.name == "if"]
+    proc_spans = [item for item in owned_scan.directives if item.name == "proc"]
+    if len(if_spans) > 1:
+        raise DirectiveError("Only one %if is allowed per launch unit.")
+    collected_proc = getattr(collected, "proc_code", None)
+    if len(proc_spans) > 1 or (proc_spans and collected_proc is not None):
+        raise DirectiveError("Only one %proc is allowed per launch unit.")
+    if_code = if_spans[0].code if if_spans else None
+    proc_code = proc_spans[0].code if proc_spans else collected_proc
+    return if_code, proc_code
 
 
 def _remove_directive_regions(

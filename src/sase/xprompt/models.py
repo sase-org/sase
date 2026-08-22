@@ -33,6 +33,7 @@ class InputType(Enum):
     BOOL = "bool"
     FLOAT = "float"
     ENUM = "enum"  # One of a declared set of choices
+    CODE = "code"  # Structured source plus language; gated/internal until Phase 6
 
 
 class OutputType(Enum):
@@ -195,6 +196,10 @@ class InputArg:
                     f"{', '.join(allowed)}, got '{value}'"
                 )
             return value
+        elif self.type == InputType.CODE:
+            from sase.xprompt.code_value import make_code_value
+
+            return make_code_value(value, "bash")
         else:
             # Should never happen, but handle gracefully
             return value

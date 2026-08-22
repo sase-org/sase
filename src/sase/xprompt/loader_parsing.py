@@ -101,6 +101,7 @@ def parse_input_type(type_str: str) -> InputType:
         "boolean": InputType.BOOL,
         "float": InputType.FLOAT,
         "enum": InputType.ENUM,
+        "code": InputType.CODE,
     }
     return type_map.get(type_str.lower(), InputType.LINE)
 

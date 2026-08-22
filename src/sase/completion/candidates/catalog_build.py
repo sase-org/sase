@@ -7,6 +7,8 @@ of the running build rather than of any project; see
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from sase.completion.candidates.protocol import Candidate
@@ -78,6 +80,9 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
         name = str(row.get("name") or "")
         if not name:
             continue
+        flag = row.get("feature_flag")
+        if isinstance(flag, str) and flag and not _env_feature_flag_enabled(flag):
+            continue
         description = str(row.get("description") or "")
         alias = row.get("alias")
         if isinstance(alias, str) and alias:
@@ -86,6 +91,18 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
             )
         candidates.append(Candidate(name, description))
     return candidates
+
+
+def _env_feature_flag_enabled(flag: str) -> bool:
+    """Read only ``SASE_FEATURE_FLAGS`` so CLI completion stays a fast path."""
+    raw = os.environ.get("SASE_FEATURE_FLAGS", "").strip()
+    if not raw:
+        return False
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    return isinstance(payload, dict) and payload.get(flag) is True
 
 
 def flag_candidates(_project: str | None) -> list[Candidate]:

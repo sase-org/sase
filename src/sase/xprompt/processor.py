@@ -14,6 +14,10 @@ from sase.xprompt._disabled_regions import (
 )
 from sase.xprompt._directive_types import KEY_MARKER_PATTERN
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from sase.xprompt.code_value import (
+    protect_owned_code_directives,
+    unprotect_owned_code_directives,
+)
 
 from sase.output import print_status
 from sase.content import (
@@ -432,6 +436,11 @@ def process_xprompt_references_with_catalog(
     if "#" not in prompt:
         return prompt
 
+    # Protect directive-owned `%if::` / `%proc::` fences before ordinary
+    # literal-zone protection so later xprompt/Jinja scans cannot see the body.
+    owned_blocks: list[str] = []
+    prompt = protect_owned_code_directives(prompt, owned_blocks)
+
     # Protect fenced code blocks from expansion.  Content inside
     # triple-backtick blocks is replaced with null-byte placeholders so
     # that neither shorthand preprocessing nor the xprompt regex treats
@@ -596,7 +605,8 @@ def process_xprompt_references_with_catalog(
             print_status(str(e), "error")
             sys.exit(1)
 
-        # Protect any new fenced code blocks introduced by expanded content
+        # Protect any new owned fences, then ordinary fences, from expansion.
+        prompt = protect_owned_code_directives(prompt, owned_blocks)
         prompt = protect_fenced_blocks(prompt, fenced_blocks)
 
         iteration += 1
@@ -620,6 +630,7 @@ def process_xprompt_references_with_catalog(
 
     # Restore all fenced code blocks
     prompt = unprotect_fenced_blocks(prompt, fenced_blocks)
+    prompt = unprotect_owned_code_directives(prompt, owned_blocks)
 
     return prompt
 

@@ -32,7 +32,11 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     ace_candidates, shared = build_directive_completion_candidates("%")
     assert shared == ""
     ace_rows = _ace_surface_rows(ace_candidates)
-    contract_order = [f"%{row['name']}" for row in sase_core_rs.directive_contract()]
+    contract_order = [
+        f"%{row['name']}"
+        for row in sase_core_rs.directive_contract()
+        if not row.get("feature_flag")
+    ]
 
     with LspSession(tmp_path) as lsp:
         lsp_rows = lsp.complete("%")

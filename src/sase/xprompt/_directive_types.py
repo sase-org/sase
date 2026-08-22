@@ -5,9 +5,15 @@ splitter and the main extractor can share regex patterns and alias
 tables without a circular import.
 """
 
+from __future__ import annotations
+
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.xprompt.code_value import CodeValue
 
 # A keyed `{@<id>}` / `{@<id>!}` agent-name marker. Colon arguments admit this
 # as an indivisible unit rather than adding `{}` to their character classes: a
@@ -39,6 +45,8 @@ _KNOWN_DIRECTIVES = frozenset(
         "id",
         "repeat",
         "wait",
+        "if",
+        "proc",
     }
 )
 
@@ -137,6 +145,9 @@ class PromptDirectives:
             %wait(runners=...) keyword.
         wait_priority: Runner-slot queue priority from the
             %wait(priority=...) keyword. Lower values start first.
+        if_code: Structured `%if::` fence body when typed launch units are on.
+        proc_code: Structured `%proc` body when typed launch units are on.
+        proc_options: Optional `%proc` kwargs (timeout, cwd, workspace, label).
         final: Ordered raw selector operations from repeatable ``%final``
             directives. Resolution is owned by the finalizer launch gate.
         auto_mode: Compatibility rendering of the raw ``%auto`` argument;
@@ -180,6 +191,12 @@ class PromptDirectives:
     wait_runners: int | None = None
     wait_priority: int | None = None
     final: list[str] = field(default_factory=list)
+    if_code: CodeValue | None = None
+    proc_code: CodeValue | None = None
+    proc_options: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))
+        self.proc_options = MappingProxyType(dict(self.proc_options))

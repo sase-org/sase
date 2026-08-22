@@ -23,6 +23,7 @@ class FeatureFlag(StrEnum):
 
     admin_center_flags = "admin_center_flags"
     ref_sync_gesture = "ref_sync_gesture"
+    typed_launch_units = "typed_launch_units"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -46,6 +47,12 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "newly-arrived rows badged."
         ),
         bead="sase-qu",
+    ),
+    FeatureFlag.typed_launch_units: FeatureFlagDefinition(
+        key=FeatureFlag.typed_launch_units,
+        kind="beta",
+        description="Beta gate for typed launch units, %if, and %proc.",
+        bead="sase-s7",
     ),
 }
 

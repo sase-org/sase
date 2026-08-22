@@ -54,6 +54,11 @@ def test_input_type_schema_covers_known_types_with_aliases() -> None:
     assert "boolean" in by_name["bool"].aliases
     for input_type in types:
         assert input_type.rule, f"{input_type.name} should have a rule"
+        assert input_type.advertised
+    internal = input_type_schema(include_internal=True)
+    by_internal = {item.name: item for item in internal}
+    assert "code" in by_internal
+    assert by_internal["code"].advertised is False
 
 
 def test_validate_frontmatter_accepts_known_good_block() -> None:
@@ -61,6 +66,11 @@ def test_validate_frontmatter_accepts_known_good_block() -> None:
         "---\ndescription: Refactor the auth module\n"
         "tags: refactor, backend\ninput:\n  service: word\n---\n"
     )
+    assert not [d for d in diagnostics if d.is_error], diagnostics
+
+
+def test_validate_frontmatter_accepts_internal_code_type() -> None:
+    diagnostics = validate_frontmatter("---\ninput:\n  script: code\n---\n")
     assert not [d for d in diagnostics if d.is_error], diagnostics
 
 

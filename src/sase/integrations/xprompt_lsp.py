@@ -30,6 +30,7 @@ SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
+SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -250,6 +251,7 @@ def _prepare_xprompt_lsp_environment(
     _materialize_model_catalog(environ)
     _materialize_artifact_ref_catalog(environ)
     _materialize_glossary_catalog(environ)
+    _apply_typed_launch_units_flag(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -367,6 +369,13 @@ def _materialize_glossary_catalog(
             f"Warning: failed to materialize glossary catalog: {exc}",
             file=sys.stderr,
         )
+
+
+def _apply_typed_launch_units_flag(environ: MutableMapping[str, str]) -> None:
+    """Pin the LSP to the process-local typed_launch_units decision."""
+    from sase.xprompt.code_value import typed_launch_units_enabled
+
+    environ[SASE_TYPED_LAUNCH_UNITS_ENV] = "1" if typed_launch_units_enabled() else "0"
 
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:

@@ -126,6 +126,7 @@ def core_candidate_rows(
         "beads": [dict(entry) for entry in bead_inventory or ()],
         "finalizers": [dict(entry) for entry in finalizer_inventory or ()],
         "excluded_bead_ids": list(excluded_bead_ids),
+        "enabled_feature_flags": _enabled_feature_flags(),
     }
     payload = require_rust_binding("directive_completion_candidates")(
         clause.raw,
@@ -227,6 +228,15 @@ def _catalog_placeholder(
             catalog=catalog,
         ),
     )
+
+
+def _enabled_feature_flags() -> list[str]:
+    from sase.feature_flags.registry import FeatureFlag
+    from sase.xprompt.code_value import typed_launch_units_enabled
+
+    if typed_launch_units_enabled():
+        return [FeatureFlag.typed_launch_units]
+    return []
 
 
 def shared_extension(insertions: Sequence[str], partial: str) -> str:

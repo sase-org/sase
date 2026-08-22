@@ -3716,6 +3716,11 @@
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",
           "default": true,
           "deprecated": true
+        },
+        "typed_launch_units": {
+          "type": "boolean",
+          "description": "Beta gate for typed launch units, %if, and %proc.",
+          "default": false
         }
       }
     }

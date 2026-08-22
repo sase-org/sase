@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.xprompt.code_value import CodeValue
 
 from ._directive_alt import _ALT_DIRECTIVE_RE, multi_model_unsupported_message
 from ._directive_types import (
@@ -46,6 +50,8 @@ class _CollectedDirectives:
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
+    proc_code: CodeValue | None = None
+    proc_options: dict[str, str] = field(default_factory=dict)
 
 
 def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
@@ -56,6 +62,9 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         if name in _DEPRECATED_DIRECTIVES:
             raise DirectiveError(_DEPRECATED_DIRECTIVE_MESSAGES[name])
         if name not in _KNOWN_DIRECTIVES:
+            continue
+        if name in {"if", "proc"}:
+            _collect_code_directive(collected, prompt, match, name)
             continue
 
         has_open_paren = match.group(2) is not None
@@ -185,6 +194,94 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
     return collected
 
 
+_PROC_OPTION_KEYS = frozenset(
+    {"bash", "python", "timeout", "idle_timeout", "cwd", "workspace", "label"}
+)
+_PROC_BODY_KEYS = frozenset({"bash", "python"})
+
+
+def _collect_code_directive(
+    collected: _CollectedDirectives,
+    prompt: str,
+    match: re.Match[str],
+    name: str,
+) -> None:
+    from sase.xprompt.code_value import (
+        TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
+        make_code_value,
+        typed_launch_units_enabled,
+    )
+
+    if not typed_launch_units_enabled():
+        raise DirectiveError(TYPED_LAUNCH_UNITS_DISABLED_MESSAGE)
+    if name == "if":
+        raise DirectiveError(
+            "%if requires %if:: followed by exactly one closed bash or python fence."
+        )
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+    if plus_suffix is not None or (colon_arg is not None and not has_open_paren):
+        raise DirectiveError(
+            '%proc does not accept colon or plus forms; use %proc("cmd"), '
+            "%proc(bash=...|python=...), or %proc:: plus a fence."
+        )
+    if not has_open_paren:
+        raise DirectiveError(
+            '%proc requires a body: %proc("cmd"), %proc(bash=...|python=...), '
+            "or %proc:: plus a fence."
+        )
+    paren_start = match.end() - 1
+    paren_end = find_matching_paren_for_args(prompt, paren_start)
+    if paren_end is None:
+        raise DirectiveError("Malformed %proc(...) directive: missing closing ')'.")
+    paren_content = prompt[paren_start + 1 : paren_end]
+    try:
+        positional_args, named_args = parse_args(
+            paren_content,
+            reject_duplicate_named_args=True,
+        )
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from exc
+    unknown = sorted(key for key in named_args if key not in _PROC_OPTION_KEYS)
+    if unknown:
+        keys = ", ".join(f"{key}=" for key in unknown)
+        raise DirectiveError(
+            f"Unsupported keyword on %proc: {keys}. Only bash=, python=, "
+            "timeout=, idle_timeout=, cwd=, workspace=, and label= are supported."
+        )
+    if "bash" in named_args and "python" in named_args:
+        raise DirectiveError("%proc cannot combine bash= and python=.")
+    positional_body = next((arg for arg in positional_args if arg), "")
+    named_body_key = next(
+        (key for key in ("bash", "python") if key in named_args), None
+    )
+    if positional_body and named_body_key is not None:
+        raise DirectiveError(
+            "%proc cannot combine a positional body with bash= or python=."
+        )
+    if positional_body:
+        language = "bash"
+        source = positional_body
+    elif named_body_key is not None:
+        language = named_body_key
+        source = named_args[named_body_key]
+    else:
+        raise DirectiveError(
+            '%proc requires a body: %proc("cmd"), %proc(bash=...|python=...), '
+            "or %proc:: plus a fence."
+        )
+    if not source.strip():
+        raise DirectiveError("%proc requires a non-empty body.")
+    if collected.proc_code is not None:
+        raise DirectiveError("Only one %proc is allowed per launch unit.")
+    collected.proc_code = make_code_value(source, language)
+    collected.proc_options = {
+        key: value for key, value in named_args.items() if key not in _PROC_BODY_KEYS
+    }
+    collected.regions_to_remove.append((match.start(), paren_end + 1))
+
+
 def _split_final_selector_args(raw: str) -> list[str]:
     """Split a colon-form ``%final`` argument without dropping empty elements."""
 
@@ -262,16 +359,32 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
 
 
 def _directive_matches_outside_alt(prompt: str) -> list[re.Match[str]]:
-    alt_inner_regions = _alt_inner_regions(prompt)
+    ignored_regions = [
+        *_alt_inner_regions(prompt),
+        *_code_directive_inner_ranges(prompt),
+    ]
 
-    def is_inside_alt(pos: int) -> bool:
-        return any(start <= pos < end for start, end in alt_inner_regions)
+    def is_ignored(pos: int) -> bool:
+        return any(start <= pos < end for start, end in ignored_regions)
 
     return [
         match
         for match in re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE)
-        if not is_inside_alt(match.start())
+        if not is_ignored(match.start())
     ]
+
+
+def _code_directive_inner_ranges(prompt: str) -> list[tuple[int, int]]:
+    """Keep `%proc(...)` / `%if(...)` argument interiors opaque."""
+    ranges: list[tuple[int, int]] = []
+    for match in re.finditer(_DIRECTIVE_PATTERN, prompt, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name not in {"if", "proc"} or match.group(2) is None:
+            continue
+        paren_end = find_matching_paren_for_args(prompt, match.end() - 1)
+        if paren_end is not None:
+            ranges.append((match.end(), paren_end))
+    return ranges
 
 
 def _alt_inner_regions(prompt: str) -> list[tuple[int, int]]:

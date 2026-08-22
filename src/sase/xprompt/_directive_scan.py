@@ -26,6 +26,13 @@ def strip_known_directives(prompt: str) -> str:
     if "%" not in prompt:
         return prompt
 
+    from sase.xprompt.code_value import (
+        scan_directive_owned_fences,
+        strip_owned_code_spans,
+    )
+
+    prompt = strip_owned_code_spans(prompt, scan_directive_owned_fences(prompt))
+
     fenced_blocks: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced_blocks)
 
