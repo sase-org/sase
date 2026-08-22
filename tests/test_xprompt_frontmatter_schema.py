@@ -48,7 +48,7 @@ def test_structured_and_bool_field_kinds() -> None:
 def test_input_type_schema_covers_known_types_with_aliases() -> None:
     types = input_type_schema()
     names = {input_type.name for input_type in types}
-    assert {"word", "line", "text", "path", "int", "float", "bool"} <= names
+    assert {"word", "line", "text", "path", "int", "float", "bool", "code"} <= names
     by_name = {input_type.name: input_type for input_type in types}
     assert "integer" in by_name["int"].aliases
     assert "boolean" in by_name["bool"].aliases
@@ -58,7 +58,7 @@ def test_input_type_schema_covers_known_types_with_aliases() -> None:
     internal = input_type_schema(include_internal=True)
     by_internal = {item.name: item for item in internal}
     assert "code" in by_internal
-    assert by_internal["code"].advertised is False
+    assert by_internal["code"].advertised is True
 
 
 def test_validate_frontmatter_accepts_known_good_block() -> None:

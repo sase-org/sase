@@ -131,8 +131,14 @@ def _clause_from_dispatch_name(
 
 def single_directive_candidate(token: str) -> tuple[CompletionCandidate, str]:
     candidates, shared = build_directive_completion_candidates(token)
-    assert len(candidates) == 1
-    return candidates[0], shared
+    canonical = [
+        candidate
+        for candidate in candidates
+        if isinstance(candidate.metadata, DirectiveCompletionMetadata)
+        and not candidate.metadata.is_snippet
+    ]
+    assert len(canonical) == 1
+    return canonical[0], shared
 
 
 def directive_metadata(

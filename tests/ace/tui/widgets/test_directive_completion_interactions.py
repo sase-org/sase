@@ -54,7 +54,12 @@ async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:
             assert ta._try_file_completion_tab() is True
 
     assert ta.text == "%model"
-    assert ta._file_completion_active is False
+    assert ta._file_completion_active is True
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "%model",
+        "%model:value",
+        "%model(model, alias=model)",
+    ]
 
 
 async def test_ctrl_t_at_alias_partial_inserts_canonical_directive() -> None:
@@ -71,7 +76,12 @@ async def test_ctrl_t_at_alias_partial_inserts_canonical_directive() -> None:
             assert ta._try_file_completion_tab() is True
 
     assert ta.text == "%model"
-    assert ta._file_completion_active is False
+    assert ta._file_completion_active is True
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "%model",
+        "%model:value",
+        "%model(model, alias=model)",
+    ]
 
 
 async def test_multi_candidate_directive_completion_accepts_ctrl_l() -> None:
@@ -114,7 +124,11 @@ async def test_percent_partial_auto_opens_directive_panel() -> None:
         assert ta.text == "%m"
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
-        assert [c.insertion for c in ta._file_completion_candidates] == ["%model"]
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%model",
+            "%model:value",
+            "%model(model, alias=model)",
+        ]
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "directives"
 
@@ -200,17 +214,24 @@ async def test_directive_typing_narrows_deleting_widens_and_space_dismisses() ->
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%alt",
             "%auto",
+            "%auto:value",
+            "%{A | B}",
         ]
 
         await pilot.press("u")
         assert ta.text == "%au"
-        assert [c.insertion for c in ta._file_completion_candidates] == ["%auto"]
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "%auto",
+            "%auto:value",
+        ]
 
         await pilot.press("backspace")
         assert ta.text == "%a"
         assert [c.insertion for c in ta._file_completion_candidates] == [
             "%alt",
             "%auto",
+            "%auto:value",
+            "%{A | B}",
         ]
 
         await pilot.press("space")

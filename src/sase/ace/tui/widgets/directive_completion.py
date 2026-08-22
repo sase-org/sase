@@ -18,6 +18,7 @@ from sase.ace.tui.widgets._directive_completion_candidates import (
     build_finalizer_clause_candidates,
     core_candidate_rows,
     directive_name_candidate,
+    directive_recipe_candidates,
     parenthesized_keyword_fallback,
     shared_extension,
     static_or_keyword_candidate,
@@ -66,10 +67,15 @@ def build_directive_completion_candidates(
         for row in core_candidate_rows(clause)
         if isinstance(row.get("insertion"), str)
     ]
-    return candidates, shared_extension(
-        [candidate.insertion[1:] for candidate in candidates],
-        token[1:],
-    )
+    recipe_candidates = directive_recipe_candidates(token)
+    canonical_insertions = [candidate.insertion[1:] for candidate in candidates]
+    shared = shared_extension(canonical_insertions, token[1:])
+    if not shared and len(canonical_insertions) == 1:
+        canonical = canonical_insertions[0]
+        partial = token[1:]
+        if canonical.startswith(partial) and len(canonical) > len(partial):
+            shared = canonical[len(partial) :]
+    return [*candidates, *recipe_candidates], shared
 
 
 def build_directive_clause_candidates(

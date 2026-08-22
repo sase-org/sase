@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.placeholder_completion import (
         PlaceholderCompletionResult,
     )
+    from sase.ace.tui.widgets.file_completion import CompletionCandidate
     from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgCompletionContext
 
 
@@ -62,6 +63,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_artifact_ref_completion_tab(self) -> bool: ...
         def _try_auto_directive_arg_completion(self) -> bool: ...
         def _try_file_history_completion(self) -> bool: ...
+        def _accept_directive_completion_candidate(
+            self,
+            selected: CompletionCandidate,
+            row: int,
+            start: int,
+            end: int,
+        ) -> bool: ...
 
     def _try_file_completion_tab(self) -> bool:
         """Dispatch manual Ctrl+T completion for the current prompt context.
@@ -157,7 +165,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 accepted_kind == "xprompt"
                 and self._accept_xprompt_completion_candidate(selected, row, start, end)
             )
-            if not used_xprompt_skeleton:
+            used_directive_template = (
+                accepted_kind == "directive"
+                and self._accept_directive_completion_candidate(
+                    selected, row, start, end
+                )
+            )
+            if not (used_xprompt_skeleton or used_directive_template):
                 self._replace_token_text(row, start, end, selected.insertion)
             if selected.is_dir and accepted_kind == "directive_arg":
                 self._file_completion_active = False

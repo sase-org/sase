@@ -23,9 +23,17 @@ def test_directive_like_token_accepts_marker_and_identifier() -> None:
     assert is_directive_like_token("%model:opus") is False
 
 
+def canonical_insertions(candidates) -> list[str]:
+    return [
+        candidate.insertion
+        for candidate in candidates
+        if not directive_metadata(candidate).is_snippet
+    ]
+
+
 def test_directive_completion_lists_canonical_directives() -> None:
     candidates, shared = build_directive_completion_candidates("%")
-    insertions = {candidate.insertion for candidate in candidates}
+    insertions = set(canonical_insertions(candidates))
 
     assert shared == ""
     assert "%alt" in insertions
@@ -50,7 +58,7 @@ def test_auto_completes_from_name_and_advertises_alias() -> None:
 
     assert auto.insertion == "%auto"
     assert directive_metadata(auto).aliases == ("a",)
-    assert [candidate.insertion for candidate in a_candidates] == ["%alt", "%auto"]
+    assert canonical_insertions(a_candidates) == ["%alt", "%auto"]
 
 
 def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
@@ -210,8 +218,27 @@ def test_all_directive_completion_candidates_have_descriptions() -> None:
 def test_directive_completion_filters_partial_name() -> None:
     candidates, shared = build_directive_completion_candidates("%mo")
 
-    assert shared == ""
-    assert [candidate.insertion for candidate in candidates] == ["%model"]
+    assert shared == "del"
+    assert canonical_insertions(candidates) == ["%model"]
+
+
+def test_directive_completion_includes_contract_recipe_templates() -> None:
+    candidates, _ = build_directive_completion_candidates("%mo")
+    recipes = [
+        candidate
+        for candidate in candidates
+        if directive_metadata(candidate).is_snippet
+    ]
+
+    alias_recipe = next(
+        candidate
+        for candidate in recipes
+        if candidate.display == "%model(..., alias=...)"
+    )
+    metadata = directive_metadata(alias_recipe)
+    assert alias_recipe.insertion == "%model(model, alias=model)"
+    assert metadata.template == "%model($1, $2=$3)$0"
+    assert metadata.plain_text == "%model(model, alias=model)"
 
 
 def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
@@ -230,7 +257,7 @@ def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
 def test_directive_completion_returns_multi_match_without_false_shared_prefix() -> None:
     candidates, shared = build_directive_completion_candidates("%a")
 
-    assert [candidate.insertion for candidate in candidates] == [
+    assert canonical_insertions(candidates) == [
         "%alt",
         "%auto",
     ]
@@ -241,8 +268,8 @@ def test_e_prefix_completes_only_effort() -> None:
     """``%e`` is the advertised ``%effort`` alias, so it narrows to ``%effort``."""
     candidates, shared = build_directive_completion_candidates("%e")
 
-    assert [candidate.insertion for candidate in candidates] == ["%effort"]
-    assert shared == ""
+    assert canonical_insertions(candidates) == ["%effort"]
+    assert shared == "ffort"
 
 
 def test_effort_completion_advertises_e_alias() -> None:

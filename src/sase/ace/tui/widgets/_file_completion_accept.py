@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.widgets._directive_completion_types import (
+    DirectiveCompletionMetadata,
+)
 from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -165,6 +168,26 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         if expanded:
             self._note_xprompt_completion_spacer(selected.metadata)
         return expanded
+
+    def _accept_directive_completion_candidate(
+        self,
+        selected: CompletionCandidate,
+        row: int,
+        start: int,
+        end: int,
+    ) -> bool:
+        """Accept a directive template row through the snippet engine."""
+        metadata = selected.metadata
+        if not isinstance(metadata, DirectiveCompletionMetadata):
+            return False
+        if not metadata.is_snippet or not metadata.template:
+            return False
+        return self._expand_snippet_template_at_range(
+            metadata.template,
+            (row, start),
+            (row, end),
+            session_policy="nest",
+        )
 
     def _refresh_xprompt_completion_skeleton_hint(
         self,
@@ -373,7 +396,11 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             accepted_kind == "xprompt"
             and self._accept_xprompt_completion_candidate(selected, row, start, end)
         )
-        if not used_xprompt_skeleton:
+        used_directive_template = (
+            accepted_kind == "directive"
+            and self._accept_directive_completion_candidate(selected, row, start, end)
+        )
+        if not (used_xprompt_skeleton or used_directive_template):
             self._replace_token_text(row, start, end, selected.insertion)
         # Directory drill-down: open completion for the accepted directory/provider.
         if selected.is_dir and self._completion_kind in (

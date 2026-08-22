@@ -88,6 +88,29 @@ async def test_directive_arg_completion_accepts_selection() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_directive_name_recipe_expands_as_snippet() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%mo")
+        ta.cursor_location = (0, len("%mo"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            await pilot.press("ctrl+t")
+            labels = [candidate.display for candidate in ta._file_completion_candidates]
+            ta._file_completion_index = labels.index("%model(..., alias=...)")
+            await pilot.press("ctrl+l")
+
+    assert ta.text == "%model(, =)"
+    assert ta.cursor_location == (0, len("%model("))
+    assert ta.snippet_session_active is True
+    assert ta._file_completion_active is False
+
+
 async def test_directive_arg_completion_replaces_only_partial_value() -> None:
     app = CompletionTestApp()
     async with app.run_test():

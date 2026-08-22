@@ -14,7 +14,6 @@ from sase.ace.tui.widgets.directive_completion import (
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
-    _only_lsp,
     _surface_rows,
 )
 from tests._xprompt_directive_completion_parity_surface import (
@@ -32,16 +31,21 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     ace_candidates, shared = build_directive_completion_candidates("%")
     assert shared == ""
     ace_rows = _ace_surface_rows(ace_candidates)
-    contract_order = [
-        f"%{row['name']}"
-        for row in sase_core_rs.directive_contract()
-        if not row.get("feature_flag")
-    ]
+    expected_labels: list[str] = []
+    for row in sase_core_rs.directive_contract():
+        if row.get("feature_flag"):
+            continue
+        expected_labels.append(f"%{row['name']}")
+        expected_labels.extend(
+            recipe["label"]
+            for recipe in row.get("recipes", [])
+            if isinstance(recipe, dict)
+        )
 
     with LspSession(tmp_path) as lsp:
         lsp_rows = lsp.complete("%")
 
-    assert {row.label for row in ace_rows} == set(contract_order)
+    assert {row.label for row in ace_rows} == set(expected_labels)
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
 
 
@@ -116,7 +120,9 @@ def test_lsp_uses_utf16_replacement_ranges(tmp_path: Path) -> None:
     with LspSession(tmp_path) as lsp:
         rows = lsp.complete("🙂 %mod")
 
-    model = _only_lsp(rows)
+    model = next(
+        row for row in rows if row.label == "%model" and row.insertion == "%model"
+    )
     assert model.label == "%model"
     assert model.insertion == "%model"
 

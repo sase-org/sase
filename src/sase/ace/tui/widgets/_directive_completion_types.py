@@ -20,6 +20,9 @@ class DirectiveCompletionMetadata:
     aliases: tuple[str, ...] = ()
     argument_hint: str = ""
     description: str = ""
+    template: str = ""
+    plain_text: str = ""
+    is_snippet: bool = False
 
 
 @dataclass(frozen=True, slots=True)

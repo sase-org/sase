@@ -162,6 +162,55 @@ def directive_name_candidate(row: dict[str, object]) -> CompletionCandidate:
     )
 
 
+def directive_recipe_candidates(token: str) -> list[CompletionCandidate]:
+    """Build full-form directive template rows from the shared contract."""
+    partial = token.removeprefix("%").lower()
+    enabled_flags = frozenset(_enabled_feature_flags())
+    candidates: list[CompletionCandidate] = []
+    for name, contract in _directive_contract_by_name().items():
+        if not _directive_contract_visible(contract, enabled_flags):
+            continue
+        alias = contract.get("alias")
+        aliases = (str(alias),) if isinstance(alias, str) and alias else ()
+        recipes = contract.get("recipes")
+        if not isinstance(recipes, list):
+            continue
+        for recipe in recipes:
+            if not isinstance(recipe, dict):
+                continue
+            label = str(recipe.get("label") or "")
+            if not label:
+                continue
+            label_key = label.removeprefix("%").lower()
+            if partial and not (
+                name.startswith(partial)
+                or any(alias.startswith(partial) for alias in aliases)
+                or label_key.startswith(partial)
+            ):
+                continue
+            template = str(recipe.get("template") or "")
+            plain_text = str(recipe.get("plain_text") or "")
+            documentation = str(recipe.get("documentation") or "")
+            candidates.append(
+                CompletionCandidate(
+                    display=label,
+                    insertion=plain_text,
+                    is_dir=False,
+                    name=name,
+                    metadata=DirectiveCompletionMetadata(
+                        aliases=(),
+                        argument_hint=str(contract.get("argument_hint") or ""),
+                        description=documentation
+                        or str(contract.get("description") or ""),
+                        template=template,
+                        plain_text=plain_text,
+                        is_snippet=bool(template),
+                    ),
+                )
+            )
+    return candidates
+
+
 def parenthesized_keyword_fallback(
     clause: DirectiveClauseCompletion,
 ) -> tuple[list[CompletionCandidate], str] | None:
@@ -237,6 +286,14 @@ def _enabled_feature_flags() -> list[str]:
     if typed_launch_units_enabled():
         return [FeatureFlag.typed_launch_units]
     return []
+
+
+def _directive_contract_visible(
+    contract: Mapping[str, object],
+    enabled_flags: frozenset[str],
+) -> bool:
+    feature_flag = contract.get("feature_flag")
+    return not isinstance(feature_flag, str) or feature_flag in enabled_flags
 
 
 def shared_extension(insertions: Sequence[str], partial: str) -> str:

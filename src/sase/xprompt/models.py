@@ -33,7 +33,7 @@ class InputType(Enum):
     BOOL = "bool"
     FLOAT = "float"
     ENUM = "enum"  # One of a declared set of choices
-    CODE = "code"  # Structured source plus language; gated/internal until Phase 6
+    CODE = "code"  # Structured source plus language.
 
 
 class OutputType(Enum):
