@@ -541,6 +541,44 @@ class TestPlanFollowupApprovals:
         first_commit.assert_not_called()
         second_commit.assert_not_called()
 
+    @pytest.mark.parametrize("path_case", ["missing", "outside_store"])
+    def test_current_host_archive_response_requires_valid_saved_plan_path(
+        self,
+        tmp_path,
+        path_case: str,
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = tmp_path / "plan.md"
+        plan_file.write_text(VALID_TALE_PLAN, encoding="utf-8")
+        saved_plan_path = None
+        if path_case == "outside_store":
+            outside = tmp_path / "outside.md"
+            outside.write_text(VALID_TALE_PLAN, encoding="utf-8")
+            saved_plan_path = str(outside)
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=str(plan_file),
+            run_coder=False,
+            commit_plan=True,
+            saved_plan_path=saved_plan_path,
+            plan_archive_owner="host",
+            plan_archive_state="archived",
+            plan_archive_protocol="host_v1",
+        )
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch("sase.sdd.files.write_sdd_files") as write_plan,
+            pytest.raises(RuntimeError, match="saved_plan_path"),
+        ):
+            handle_plan_marker({"plan_file": str(plan_file)}, ctx, state)
+
+        write_plan.assert_not_called()
+
     def test_legacy_approval_without_saved_path_still_writes_plan(
         self, tmp_path
     ) -> None:

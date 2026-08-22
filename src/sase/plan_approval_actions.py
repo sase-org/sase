@@ -56,7 +56,6 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.plan_approval_choices import (
-    approval_choice_archives_plan,
     plan_approval_response_message_for_selection,
     plan_approval_selection_for_choice,
 )
@@ -166,9 +165,13 @@ def _execute_legacy_plan_approval_response(
         # Transitional compatibility: pre-upgrade agents launch the epic
         # themselves unless the response explicitly assigns ownership here.
         response_json["epic_launch_owner"] = "host"
+    prepare_plan_terminal_response(notification, choice, response_json)
     _write_json_once(response_path, response_json, notification.id)
-
-    run_plan_side_effects(notification, choice, response_path, response_json)
+    apply_plan_post_terminal_side_effects(
+        notification,
+        choice,
+        source="plan_response",
+    )
     epic_launch_monitor_id: str | None = None
     epic_launch_task_id: str | None = None
     if choice == "epic" and epic_launch_mode != "skip":
@@ -380,31 +383,77 @@ def run_plan_side_effects(
     response_container: dict[str, Any] | None = None,
     source: str = "plan_response",
 ) -> None:
-    dismiss_notification_best_effort(notification.id)
-    _mark_action_handled_best_effort(notification.id, source=source, action=choice)
+    prepare_plan_terminal_response(notification, choice, response_json)
+    if response_path.exists():
+        try:
+            if response_container is not None:
+                from sase.notification_gates.durability import atomic_write_json
 
+                atomic_write_json(response_path, response_container)
+            else:
+                response_path.write_text(
+                    json.dumps(response_json, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+        except OSError:
+            pass
+    apply_plan_post_terminal_side_effects(notification, choice, source=source)
+
+
+def prepare_plan_terminal_response(
+    notification: PlanApprovalActionContext,
+    choice: str,
+    response_json: dict[str, Any],
+) -> None:
+    """Prepare runner-visible plan response fields before terminal publication."""
+    del choice
     persisted_action = _persist_plan_approved_metadata(notification, response_json)
     if persisted_action is None:
         return
 
     _sync_reviewed_plan_to_durable_best_effort(notification)
 
-    if approval_choice_archives_plan(choice):
-        saved_path = _archive_plan_for_approval(notification, persisted_action)
-        if saved_path:
-            try:
-                response_json["saved_plan_path"] = saved_path
-                if response_container is not None:
-                    from sase.notification_gates.durability import atomic_write_json
+    if _response_requires_host_plan_archive(response_json, persisted_action):
+        saved_path = _archive_plan_for_approval(
+            notification,
+            persisted_action,
+            required=True,
+        )
+        if not saved_path:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                "saved_plan_path",
+                "approved plan archive did not return a saved path",
+            )
+        response_json["plan_archive_owner"] = "host"
+        response_json["plan_archive_state"] = "archived"
+        response_json["saved_plan_path"] = saved_path
+        return
 
-                    atomic_write_json(response_path, response_container)
-                else:
-                    response_path.write_text(
-                        json.dumps(response_json, indent=2) + "\n",
-                        encoding="utf-8",
-                    )
-            except OSError:
-                pass
+    if response_json.get("action") in {"approve", "epic"}:
+        response_json["plan_archive_owner"] = "none"
+        response_json["plan_archive_state"] = "not_requested"
+
+
+def apply_plan_post_terminal_side_effects(
+    notification: PlanApprovalActionContext,
+    choice: str,
+    *,
+    source: str = "plan_response",
+) -> None:
+    dismiss_notification_best_effort(notification.id)
+    _mark_action_handled_best_effort(notification.id, source=source, action=choice)
+
+
+def _response_requires_host_plan_archive(
+    response_json: dict[str, Any],
+    persisted_action: str,
+) -> bool:
+    return (
+        persisted_action in {"commit", "tale"}
+        and response_json.get("action") == "approve"
+        and response_json.get("commit_plan") is True
+    )
 
 
 def _sync_reviewed_plan_to_durable_best_effort(
@@ -469,8 +518,16 @@ def _persist_plan_approved_metadata(
 def _archive_plan_for_approval(
     notification: PlanApprovalActionContext,
     persisted_action: str,
+    *,
+    required: bool = False,
 ) -> str | None:
     if not notification.host_files:
+        if required:
+            raise PlanApprovalActionError(
+                "invalid_request",
+                "plan_file",
+                "plan file is missing",
+            )
         return None
     tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
     src_plan = durable_plan_file_for_context(notification) or Path(
@@ -488,4 +545,10 @@ def _archive_plan_for_approval(
         from sase._plan_archive_approval import report_plan_archive_failure
 
         report_plan_archive_failure(src_plan, notification.host_action_data, error)
+        if required:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                str(src_plan),
+                f"failed to archive approved plan: {error}",
+            ) from error
         return None

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -14,7 +15,10 @@ from sase.main.plan_pending import plan_context_from_notification
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.notifications.store import load_notifications
-from sase.plan_approval_actions import execute_plan_approval_response
+from sase.plan_approval_actions import (
+    PlanApprovalActionError,
+    execute_plan_approval_response,
+)
 from sase.plan_gate import (
     create_plan_approval_gate,
     translate_plan_gate_response,
@@ -128,10 +132,10 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
             "sase.plan_approval_actions.prepare_epic_launch",
             return_value=SimpleNamespace(monitor_id="mon-auto"),
         ),
-        # This fixture's action data names no project, so archiving cannot
-        # run; its failure report is out of scope for the notification
-        # assertion below.
-        patch("sase._plan_archive_approval.report_plan_archive_failure"),
+        patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            return_value=str(gate_home / "archived-plan.md"),
+        ),
     ):
         gate = create_plan_approval_gate(
             write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
@@ -218,6 +222,88 @@ def test_shared_host_executor_handles_feedback_rejection_and_races(
     ]
 
 
+def test_commit_gate_waits_for_archive_before_response_publication(
+    gate_home: Path,
+) -> None:
+    gate = create_plan_approval_gate(
+        write_plan(gate_home, "archive-paused.md", VALID_TALE_PLAN),
+        "archive-paused",
+    )
+    started = Event()
+    release = Event()
+    saved = gate_home / "sdd" / "plans" / "202608" / "archive-paused.md"
+
+    def archive(*_args: object, required: bool = False, **_kwargs: object) -> str:
+        assert required is True
+        started.set()
+        assert not gate.response_path.exists()
+        assert release.wait(timeout=5)
+        saved.parent.mkdir(parents=True)
+        saved.write_text(VALID_TALE_PLAN, encoding="utf-8")
+        return str(saved)
+
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        side_effect=archive,
+    ):
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                execute_gate_selection,
+                gate.bundle_path,
+                ["approve", "commit"],
+            )
+            assert started.wait(timeout=5)
+            assert not gate.response_path.exists()
+            release.set()
+            execution = future.result(timeout=5)
+
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    primary = response["option_results"][0]["result"]
+    assert primary["plan_archive_owner"] == "host"
+    assert primary["plan_archive_state"] == "archived"
+    assert primary["saved_plan_path"] == str(saved)
+    assert execution.response == response
+
+
+def test_approve_only_gate_does_not_archive(gate_home: Path) -> None:
+    gate = create_plan_approval_gate(
+        write_plan(gate_home, "approve-only.md", VALID_TALE_PLAN),
+        "approve-only",
+    )
+
+    with patch("sase.plan_approval_actions._archive_plan_for_approval") as archive:
+        execution = execute_gate_selection(gate.bundle_path, ["approve"])
+
+    archive.assert_not_called()
+    primary = execution.response["option_results"][0]["result"]
+    assert primary["commit_plan"] is False
+    assert primary["plan_archive_owner"] == "none"
+    assert primary["plan_archive_state"] == "not_requested"
+    assert "saved_plan_path" not in primary
+
+
+def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> None:
+    gate = create_plan_approval_gate(
+        write_plan(gate_home, "archive-fails.md", VALID_TALE_PLAN),
+        "archive-fails",
+    )
+
+    def archive(*_args: object, **_kwargs: object) -> str:
+        raise PlanApprovalActionError("plan_archive_failed", "plan", "archive boom")
+
+    with (
+        patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            side_effect=archive,
+        ),
+        pytest.raises(GateError) as exc_info,
+    ):
+        execute_gate_selection(gate.bundle_path, ["commit"])
+
+    assert exc_info.value.code == "plan_archive_failed"
+    assert not gate.response_path.exists()
+
+
 @pytest.mark.parametrize(
     ("selected_option_ids", "expected_commit", "expected_run"),
     [
@@ -241,12 +327,17 @@ def test_tale_selection_derives_runner_protocol(
         f"selection-{expected_commit}-{expected_run}",
     )
 
-    execution = execute_gate_selection(
-        gate.bundle_path,
-        selected_option_ids,
-    )
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=str(gate_home / f"saved-{expected_commit}-{expected_run}.md"),
+    ) as archive:
+        execution = execute_gate_selection(
+            gate.bundle_path,
+            selected_option_ids,
+        )
     translated = translate_plan_gate_response(gate.bundle_path, execution.response)
 
     assert execution.response["selected_option_ids"] == list(selected_option_ids)
     assert translated["commit_plan"] is expected_commit
     assert translated["run_coder"] is expected_run
+    assert archive.called is expected_commit

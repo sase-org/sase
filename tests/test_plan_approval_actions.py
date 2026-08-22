@@ -178,7 +178,7 @@ def test_approval_syncs_reviewed_bundle_to_durable_plan(tmp_path: Path) -> None:
         (True, True, "tale"),
     ],
 )
-def test_primary_approval_archives_every_extras_combination(
+def test_primary_approval_archives_only_commit_bearing_combinations(
     tmp_path: Path,
     commit_plan: bool,
     run_coder: bool,
@@ -204,7 +204,7 @@ def test_primary_approval_archives_every_extras_combination(
         ),
         patch(
             "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=None,
+            return_value=str(tmp_path / "saved-plan.md"),
         ) as archive,
     ):
         run_plan_side_effects(
@@ -214,7 +214,16 @@ def test_primary_approval_archives_every_extras_combination(
             response,
         )
 
-    archive.assert_called_once_with(context, persisted_action)
+    if commit_plan:
+        archive.assert_called_once_with(context, persisted_action, required=True)
+        assert response["plan_archive_owner"] == "host"
+        assert response["plan_archive_state"] == "archived"
+        assert response["saved_plan_path"] == str(tmp_path / "saved-plan.md")
+    else:
+        archive.assert_not_called()
+        assert response["plan_archive_owner"] == "none"
+        assert response["plan_archive_state"] == "not_requested"
+        assert "saved_plan_path" not in response
 
 
 def test_durable_plan_file_falls_back_to_bundle_envelope(tmp_path: Path) -> None:

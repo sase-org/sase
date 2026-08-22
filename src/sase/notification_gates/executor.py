@@ -218,6 +218,33 @@ def execute_gate_selection(
             "responded_at_unix": time.time(),
         }
         try:
+            adapter.prepare_terminal_response(
+                bundle_path=bundle_path,
+                response=response,
+            )
+        except GateError as exc:
+            record_execution_error(
+                bundle_path,
+                option_id=selected[0].id,
+                code=exc.code,
+                message=str(exc),
+                source=source,
+            )
+            raise
+        except Exception as exc:
+            record_execution_error(
+                bundle_path,
+                option_id=selected[0].id,
+                code="terminal_prepare_failed",
+                message=str(exc),
+                source=source,
+            )
+            raise GateError(
+                "terminal_prepare_failed",
+                adapter.kind,
+                f"host terminal preparation failed: {exc}",
+            ) from exc
+        try:
             atomic_write_json(response_path, response, exclusive=True)
         except FileExistsError:
             existing = read_json_object(response_path)

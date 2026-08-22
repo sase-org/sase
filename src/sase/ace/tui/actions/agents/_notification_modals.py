@@ -290,6 +290,35 @@ def handle_plan_approval(
             # Transitional compatibility for pre-upgrade agents.
             epic_launch_owner="host" if choice == "epic" else None,
         )
+        prepared_saved_plan_path = response_data.get("saved_plan_path")
+        try:
+            from sase.plan_approval_actions import (
+                PlanApprovalActionContext,
+                PlanApprovalActionError,
+                prepare_plan_terminal_response,
+            )
+
+            prepare_plan_terminal_response(
+                PlanApprovalActionContext(
+                    id=notification.id,
+                    host_files=tuple(str(path) for path in notification.files),
+                    host_action_data={
+                        str(key): str(value)
+                        for key, value in notification.action_data.items()
+                    },
+                ),
+                choice or result.action,
+                response_data,
+            )
+            prepared_saved_plan_path = response_data.get("saved_plan_path")
+        except PlanApprovalActionError as exc:
+            app.notify(  # type: ignore[attr-defined]
+                str(exc),
+                title="Plan archive failed",
+                severity="error",
+                timeout=15,
+            )
+            return
 
         try:
             write_workflow_action_response(
@@ -324,6 +353,12 @@ def handle_plan_approval(
             agent,
             result,
             plan_response_path,
+            prepared_saved_plan_path=(
+                prepared_saved_plan_path
+                if isinstance(prepared_saved_plan_path, str)
+                else None
+            ),
+            archive_in_background=False,
         )
 
     app.push_screen(  # type: ignore[attr-defined]
@@ -472,11 +507,14 @@ def _start_plan_approval_background_worker(
     agent: Agent | None,
     result: PlanApprovalResult,
     plan_response_path: Path,
+    *,
+    prepared_saved_plan_path: str | None = None,
+    archive_in_background: bool = True,
 ) -> None:
     """Run non-critical plan approval side effects off the TUI keypress path."""
 
     def work() -> str | None:
-        saved_plan_path: str | None = None
+        saved_plan_path: str | None = prepared_saved_plan_path
         try:
             from sase.notifications import mark_dismissed
 
@@ -492,7 +530,11 @@ def _start_plan_approval_background_worker(
                 log.warning("Failed to persist plan approval marker", exc_info=True)
 
         choice = _plan_approval_choice_for_status(result)
-        if choice is not None and approval_choice_archives_plan(choice):
+        if (
+            archive_in_background
+            and choice is not None
+            and approval_choice_archives_plan(choice)
+        ):
             saved_plan_path = _archive_plan_for_approval(notification, result.action)
             if saved_plan_path is not None:
                 _add_saved_plan_to_response(plan_response_path, saved_plan_path)

@@ -90,6 +90,10 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
             patch(
                 "sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"
             ),
+            patch(
+                "sase.plan_approval_actions._archive_plan_for_approval",
+                return_value=str(response_dir / "saved-plan.md"),
+            ),
         ):
             on_dismiss(
                 PlanApprovalResult(action="approve", commit_plan=True, run_coder=False)
@@ -100,6 +104,8 @@ def test_approve_commit_only_writes_options_and_sets_committed_status(
     data = json.loads(plan_response_path.read_text())
     assert data["commit_plan"] is True
     assert data["run_coder"] is False
+    assert data["plan_archive_owner"] == "host"
+    assert data["saved_plan_path"] == str(response_dir / "saved-plan.md")
     assert app._agent_status_overrides[mock_agent.identity] == "PLAN COMMITTED"
 
 
@@ -178,6 +184,10 @@ def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
             patch(
                 "sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"
             ),
+            patch(
+                "sase.plan_approval_actions._archive_plan_for_approval",
+                return_value=str(response_dir / "saved-plan.md"),
+            ),
         ):
             on_dismiss(
                 PlanApprovalResult(
@@ -194,8 +204,8 @@ def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
     assert app._agent_status_overrides[mock_agent.identity] == "TALE APPROVED"
 
 
-def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
-    """The agent-unblocking response write happens before slow plan copy work."""
+def test_approve_archives_plan_before_writing_response(tmp_path: Path) -> None:
+    """The agent-unblocking response is published only after archive metadata exists."""
     app, notification, response_dir, mock_agent = make_approval_app_and_notification(
         tmp_path
     )
@@ -205,12 +215,19 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
 
     plan_response_path = response_dir / "plan_response.json"
 
-    def archive_side_effect(notification: object, action: str = "approve") -> None:
-        assert plan_response_path.exists()
-        data = json.loads(plan_response_path.read_text())
-        assert data["action"] == "approve"
-        assert action == "approve"
-        assert app._agent_status_overrides[mock_agent.identity] == "TALE APPROVED"
+    saved_plan_path = str(response_dir / "saved-plan.md")
+
+    def archive_side_effect(
+        notification: object,
+        action: str = "approve",
+        *,
+        required: bool = False,
+    ) -> str:
+        assert not plan_response_path.exists()
+        assert action == "tale"
+        assert required is True
+        assert mock_agent.identity not in app._agent_status_overrides
+        return saved_plan_path
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,
@@ -224,15 +241,22 @@ def test_approve_writes_response_before_archiving_plan(tmp_path: Path) -> None:
         patch("sase.notifications.mark_dismissed"),
         patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
         patch(
-            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+            "sase.plan_approval_actions._archive_plan_for_approval",
             side_effect=archive_side_effect,
         ) as archive_plan,
+        patch(
+            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval"
+        ) as background_archive,
     ):
         handle_plan_approval(app, notification)
         on_dismiss = app.push_screen.call_args[0][1]
         on_dismiss(PlanApprovalResult(action="approve"))
 
     archive_plan.assert_called_once()
+    background_archive.assert_not_called()
+    data = json.loads(plan_response_path.read_text())
+    assert data["saved_plan_path"] == saved_plan_path
+    assert data["plan_archive_owner"] == "host"
 
 
 def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> None:
@@ -256,8 +280,8 @@ def test_approve_uses_cached_refresh_instead_of_sync_load(tmp_path: Path) -> Non
         patch("sase.notifications.mark_dismissed"),
         patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
         patch(
-            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
-            return_value=None,
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            return_value=str(_response_dir / "saved-plan.md"),
         ),
     ):
         handle_plan_approval(app, notification)
@@ -292,7 +316,7 @@ def test_commit_only_copies_saved_plan_path_after_background_work(
         patch("sase.notifications.mark_dismissed"),
         patch("sase.ace.tui.actions.agents._notification_modals.persist_plan_approved"),
         patch(
-            "sase.ace.tui.actions.agents._notification_modals._archive_plan_for_approval",
+            "sase.plan_approval_actions._archive_plan_for_approval",
             return_value=saved_plan_path,
         ),
         patch("sase.ace.tui.actions.clipboard.schedule_copy_delivery") as schedule_copy,

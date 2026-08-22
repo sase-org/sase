@@ -27,6 +27,15 @@ class PlanApprovalResult:
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
     saved_plan_path: str | None = None
+    plan_archive_owner: Literal["host", "none"] | None = field(
+        default=None,
+        compare=False,
+    )
+    plan_archive_state: str | None = field(default=None, compare=False)
+    plan_archive_protocol: Literal["host_v1"] | None = field(
+        default=None,
+        compare=False,
+    )
 
 
 def add_create_time_frontmatter(
@@ -281,6 +290,20 @@ def handle_plan_approval(
         saved_plan_path = (
             raw_saved.strip() or None if isinstance(raw_saved, str) else None
         )
+        raw_archive_owner = response_data.get("plan_archive_owner")
+        plan_archive_owner: Literal["host", "none"] | None
+        if raw_archive_owner == "host":
+            plan_archive_owner = "host"
+        elif raw_archive_owner == "none":
+            plan_archive_owner = "none"
+        else:
+            plan_archive_owner = None
+        raw_archive_state = response_data.get("plan_archive_state")
+        plan_archive_state = (
+            raw_archive_state.strip() or None
+            if isinstance(raw_archive_state, str)
+            else None
+        )
         return PlanApprovalResult(
             action=action,
             plan_file=str(reviewed_plan),
@@ -291,6 +314,9 @@ def handle_plan_approval(
             auto_approved=auto_resolved,
             epic_launch_owner=epic_launch_owner,
             saved_plan_path=saved_plan_path,
+            plan_archive_owner=plan_archive_owner,
+            plan_archive_state=plan_archive_state,
+            plan_archive_protocol="host_v1",
         )
     feedback = response_data.get("feedback")
     if isinstance(feedback, str) and feedback:

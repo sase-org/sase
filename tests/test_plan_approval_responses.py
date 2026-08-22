@@ -32,12 +32,24 @@ def _respond_after_gate_creation(
             captured["request"] = json.loads(
                 gate.request_path.read_text(encoding="utf-8")
             )
-        execute_gate_selection(
-            gate.bundle_path,
-            ["approve" if choice == "epic" else choice],
-            input_data or {},
-            source="test_host",
-        )
+        plan = Path(args[0]).expanduser()
+        saved = plan.parent / "sdd" / "plans" / "202608" / plan.name
+
+        def archive(*_args: object, **_kwargs: object) -> str:
+            saved.parent.mkdir(parents=True)
+            saved.write_text(plan.read_text(encoding="utf-8"), encoding="utf-8")
+            return str(saved)
+
+        with patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            side_effect=archive,
+        ):
+            execute_gate_selection(
+                gate.bundle_path,
+                ["approve" if choice == "epic" else choice],
+                input_data or {},
+                source="test_host",
+            )
         return gate
 
     return patch("sase.plan_gate.create_plan_approval_gate", side_effect=create)
@@ -68,6 +80,7 @@ def test_handle_plan_approval_commit(
         plan_file=str(plan),
         commit_plan=True,
         run_coder=False,
+        saved_plan_path=str(tmp_path / "sdd" / "plans" / "202608" / "plan.md"),
     )
 
 

@@ -69,6 +69,43 @@ logger = logging.getLogger(__name__)
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
 
+class _PlanArchiveProtocolError(RuntimeError):
+    """Raised when a current approval response cannot identify its archive."""
+
+
+def _validate_current_archive_protocol(
+    plan_result: Any,
+    published_plan_path: Path | None,
+) -> None:
+    if plan_result.action == "epic" or not plan_result.commit_plan:
+        return
+    if getattr(plan_result, "plan_archive_protocol", None) != "host_v1":
+        return
+    owner = getattr(plan_result, "plan_archive_owner", None)
+    state = getattr(plan_result, "plan_archive_state", None)
+    if owner != "host" or state != "archived" or published_plan_path is None:
+        raise _PlanArchiveProtocolError(
+            "current plan approval response committed the plan but did not "
+            "publish a verified host-owned saved_plan_path"
+        )
+
+
+def _validate_saved_plan_path(saved_plan_path: Path, sdd_store: Any) -> Path:
+    path = saved_plan_path.expanduser().resolve(strict=False)
+    if not path.is_file():
+        raise _PlanArchiveProtocolError(
+            f"saved_plan_path does not exist: {saved_plan_path}"
+        )
+    plans_root = sdd_store.kind_root("plans").expanduser().resolve(strict=False)
+    try:
+        path.relative_to(plans_root)
+    except ValueError as exc:
+        raise _PlanArchiveProtocolError(
+            f"saved_plan_path is outside the resolved plans store: {saved_plan_path}"
+        ) from exc
+    return path
+
+
 def _commit_sdd_files(
     workspace_dir: str, plan_name: str, *, plan_tier: str = "tale"
 ) -> bool:
@@ -161,6 +198,7 @@ def handle_accepted_plan(
         if isinstance(raw_saved_plan, str) and raw_saved_plan.strip()
         else None
     )
+    _validate_current_archive_protocol(plan_result, published_plan_path)
     sdd_store: Any | None = None
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
@@ -176,6 +214,11 @@ def handle_accepted_plan(
         sdd_in_tree = sdd_store.is_in_tree
         sdd_sidecar_storage = sdd_store.is_sidecar_storage
         sdd_dir = sdd_store.sdd_dir
+        if published_plan_path is not None:
+            published_plan_path = _validate_saved_plan_path(
+                published_plan_path,
+                sdd_store,
+            )
         if sdd_in_tree:
             ensure_bare_git_sdd_initialized(
                 ctx.workspace_dir,
@@ -249,6 +292,8 @@ def handle_accepted_plan(
         from sase.sdd._repository_transaction import SddRepositoryHealthError
         from sase.sdd._store_types import SddMaterializationError
 
+        if isinstance(exc, _PlanArchiveProtocolError):
+            raise
         if is_epic and isinstance(
             exc, (SddMaterializationError, SddRepositoryHealthError)
         ):

@@ -171,58 +171,25 @@ class GateAdapter:
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
-        from sase.plan_approval_actions import run_plan_side_effects
+        from sase.plan_approval_actions import apply_plan_post_terminal_side_effects
         from sase.plan_gate import (
             plan_context_from_envelope,
             translate_plan_gate_response,
         )
 
         envelope = read_json_object(bundle_path / "request.json")
-        selected = response.get("selected_option_ids")
-        option_results = response.get("option_results")
-        if (
-            not isinstance(selected, list)
-            or not selected
-            or not all(isinstance(option_id, str) for option_id in selected)
-            or not isinstance(option_results, list)
-        ):
-            raise GateError(
-                "invalid_response",
-                str(bundle_path / "response.json"),
-                "plan response is missing its selected options or results",
-            )
-        selected_ids = tuple(selected)
-        plan_action = (
-            "epic"
-            if self.kind == "epic_plan" and selected_ids == ("approve",)
-            else "commit"
-            if selected_ids == ("commit",)
-            else selected_ids[0]
+        selected_ids, result = _plan_response_selection_and_result(
+            self.kind,
+            bundle_path,
+            response,
         )
-        first_result = next(
-            (
-                entry.get("result")
-                for entry in option_results
-                if isinstance(entry, Mapping) and entry.get("id") == selected_ids[0]
-            ),
-            None,
-        )
-        if not isinstance(first_result, dict):
-            raise GateError(
-                "invalid_response",
-                str(bundle_path / "response.json"),
-                "plan response is missing the primary option result",
-            )
-        result = first_result
+        plan_action = _plan_action_for_selection(self.kind, selected_ids)
         context = plan_context_from_envelope(bundle_path, envelope)
         translated = translate_plan_gate_response(bundle_path, response)
         result.update(translated)
-        run_plan_side_effects(
+        apply_plan_post_terminal_side_effects(
             context,
             plan_action,
-            bundle_path / "response.json",
-            result,
-            response_container=response if isinstance(response, dict) else None,
             source=str(response.get("source") or "plan_response"),
         )
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
@@ -269,6 +236,42 @@ class GateAdapter:
                         response["epic_launch_task_id"] = str(task_id)
                     atomic_write_json(bundle_path / "response.json", response)
 
+    def prepare_terminal_response(
+        self,
+        *,
+        bundle_path: Path,
+        response: dict[str, Any],
+    ) -> None:
+        """Populate response fields required before the terminal file exists."""
+        if self.kind not in {"plan", "epic_plan"}:
+            return
+        from sase.notification_gates.durability import read_json_object
+        from sase.plan_approval_actions import (
+            PlanApprovalActionError,
+            prepare_plan_terminal_response,
+        )
+        from sase.plan_gate import (
+            plan_context_from_envelope,
+            translate_plan_gate_response,
+        )
+
+        envelope = read_json_object(bundle_path / "request.json")
+        selected_ids, result = _plan_response_selection_and_result(
+            self.kind,
+            bundle_path,
+            response,
+        )
+        translated = translate_plan_gate_response(bundle_path, response)
+        result.update(translated)
+        try:
+            prepare_plan_terminal_response(
+                plan_context_from_envelope(bundle_path, envelope),
+                _plan_action_for_selection(self.kind, selected_ids),
+                result,
+            )
+        except PlanApprovalActionError as exc:
+            raise GateError(exc.code, exc.target, str(exc)) from exc
+
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""
         if self.kind not in {"plan", "epic_plan"}:
@@ -309,6 +312,51 @@ def _default_branch_selection(
         option_id for option_id in branch if by_id[option_id].default_selected
     )
     return selected or (branch[0],)
+
+
+def _plan_response_selection_and_result(
+    kind: str,
+    bundle_path: Path,
+    response: Mapping[str, Any],
+) -> tuple[tuple[str, ...], dict[str, Any]]:
+    selected = response.get("selected_option_ids")
+    option_results = response.get("option_results")
+    if (
+        not isinstance(selected, list)
+        or not selected
+        or not all(isinstance(option_id, str) for option_id in selected)
+        or not isinstance(option_results, list)
+    ):
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "response.json"),
+            "plan response is missing its selected options or results",
+        )
+    selected_ids = tuple(selected)
+    result = next(
+        (
+            entry.get("result")
+            for entry in option_results
+            if isinstance(entry, Mapping) and entry.get("id") == selected_ids[0]
+        ),
+        None,
+    )
+    if not isinstance(result, dict):
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "response.json"),
+            "plan response is missing the primary option result",
+        )
+    _plan_action_for_selection(kind, selected_ids)
+    return selected_ids, result
+
+
+def _plan_action_for_selection(kind: str, selected_ids: tuple[str, ...]) -> str:
+    if kind == "epic_plan" and selected_ids == ("approve",):
+        return "epic"
+    if selected_ids == ("commit",):
+        return "commit"
+    return selected_ids[0]
 
 
 _ADAPTERS = (

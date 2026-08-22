@@ -422,6 +422,12 @@ def translate_plan_gate_response(
     saved_plan_path = primary_result.get("saved_plan_path")
     if isinstance(saved_plan_path, str) and saved_plan_path:
         translated["saved_plan_path"] = saved_plan_path
+    plan_archive_owner = primary_result.get("plan_archive_owner")
+    if isinstance(plan_archive_owner, str) and plan_archive_owner:
+        translated["plan_archive_owner"] = plan_archive_owner
+    plan_archive_state = primary_result.get("plan_archive_state")
+    if isinstance(plan_archive_state, str) and plan_archive_state:
+        translated["plan_archive_state"] = plan_archive_state
     return translated
 
 

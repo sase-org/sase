@@ -148,13 +148,32 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
     )
     _append_plan_notification("abcdef12-plan", plan, response_dir)
 
-    result = _approve_plan_from_cli(selector="abcdef12", kind=kind)
+    saved_plan_path = str(tmp_path / "sdd" / "plans" / "202608" / f"{kind}.md")
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=saved_plan_path,
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind=kind)
 
+    expected = dict(expected_json)
+    if expected.get("commit_plan") is True:
+        expected.update(
+            {
+                "plan_archive_owner": "host",
+                "plan_archive_state": "archived",
+                "saved_plan_path": saved_plan_path,
+            }
+        )
+    else:
+        expected.update(
+            {
+                "plan_archive_owner": "none",
+                "plan_archive_state": "not_requested",
+            }
+        )
     assert result.notification_id == "abcdef12-plan"
-    assert result.response_json == expected_json
-    assert (
-        json.loads((response_dir / "plan_response.json").read_text()) == expected_json
-    )
+    assert result.response_json == expected
+    assert json.loads((response_dir / "plan_response.json").read_text()) == expected
     meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
     assert meta["plan_approved"] is True
     assert meta["plan_action"] == expected_meta_action
@@ -193,6 +212,8 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
         "commit_plan": True,
         "run_coder": True,
         "epic_launch_owner": "host",
+        "plan_archive_owner": "none",
+        "plan_archive_state": "not_requested",
     }
     assert result.epic_launch_monitor_id == "mon-omitted"
 
@@ -360,12 +381,20 @@ def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:
     plan = _plan_file(tmp_path)
     _append_plan_notification("abcdef12-plan", plan, response_dir)
 
-    result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
+    saved_plan_path = str(tmp_path / "sdd" / "plans" / "202608" / "tale.md")
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=saved_plan_path,
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
 
     assert result.response_json == {
         "action": "approve",
         "commit_plan": True,
         "run_coder": True,
+        "plan_archive_owner": "host",
+        "plan_archive_state": "archived",
+        "saved_plan_path": saved_plan_path,
     }
 
 
@@ -390,15 +419,12 @@ def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None
     plan = _plan_file(tmp_path)
     _append_plan_notification("abcdef12-plan", plan, response_dir)
 
-    # This fixture's action data names no project, so archiving cannot run;
-    # its failure report is out of scope for the notification assertion below.
-    with patch("sase._plan_archive_approval.report_plan_archive_failure"):
-        result = _approve_plan_from_cli(
-            selector="abcdef12",
-            kind="approve",
-            coder_prompt="Focus on tests",
-            coder_model="worker",
-        )
+    result = _approve_plan_from_cli(
+        selector="abcdef12",
+        kind="approve",
+        coder_prompt="Focus on tests",
+        coder_model="worker",
+    )
 
     assert result.response_json == {
         "action": "approve",
@@ -406,6 +432,8 @@ def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None
         "run_coder": True,
         "coder_prompt": "Focus on tests",
         "coder_model": "worker",
+        "plan_archive_owner": "none",
+        "plan_archive_state": "not_requested",
     }
     [notification] = load_notifications(include_dismissed=True)
     assert notification.dismissed is True
