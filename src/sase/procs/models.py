@@ -25,6 +25,7 @@ PROC_LIFECYCLE_LEGACY: Final = "legacy"
 PROC_LIFECYCLE_PROC_SHELL: Final = "proc-shell"
 STORE_LOG_OWNER: Final = "proc-store"
 ARTIFACTS_LOG_OWNER: Final = "artifacts"
+XPROMPT_PROC_ORIGIN: Final = "xprompt-proc"
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,7 @@ class Proc:
     settled_at: str | None = None
     finished_by: str | None = None
     result: Any | None = None
+    xprompt_proc: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.argv and self.command:
@@ -142,6 +144,8 @@ class Proc:
         ):
             values[name] = None if data.get(name) is None else int(data[name])
         values["result"] = data.get("result")
+        meta = data.get("xprompt_proc")
+        values["xprompt_proc"] = dict(meta) if isinstance(meta, Mapping) else None
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
@@ -193,6 +197,7 @@ class Proc:
                 "settled_at",
                 "finished_by",
                 "result",
+                "xprompt_proc",
             )
         }
 
@@ -303,6 +308,7 @@ class ProcReserve:
     concurrency_keys: list[str] = field(default_factory=list)
     timeout_seconds: int | None = None
     idle_timeout_seconds: int | None = None
+    xprompt_proc: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcReserve:
@@ -457,6 +463,7 @@ class ProcUpdate:
     settled_at: UpdateValue = UNSET
     finished_by: UpdateValue = UNSET
     result: UpdateValue = UNSET
+    xprompt_proc: UpdateValue = UNSET
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdate:

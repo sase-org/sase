@@ -51,6 +51,7 @@ class ProcSubmitRequest:
     operation_payload: Mapping[str, Any] | None = None
     workspace_claim: Mapping[str, Any] | None = None
     followup: Mapping[str, Any] | None = None
+    xprompt_proc: Mapping[str, Any] | None = None
 
 
 def proc_request_fingerprint(
@@ -125,6 +126,9 @@ def request_sidecar_payload(
             dict(request.workspace_claim)
             if request.workspace_claim is not None
             else None
+        ),
+        "xprompt_proc": (
+            dict(request.xprompt_proc) if request.xprompt_proc is not None else None
         ),
     }
 

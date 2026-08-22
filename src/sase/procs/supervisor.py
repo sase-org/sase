@@ -147,6 +147,12 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     output_pipe: BoundedLogPipe | None = None
     try:
         proc = _claim_supervisor(proc, supervisor_id)
+        prepare_error = _prepare_xprompt_proc(proc, termination)
+        if prepare_error is not None:
+            message = prepare_error
+            status = "killed" if termination.requested else "error"
+            termination_reason = "stop" if termination.requested else "launch-failure"
+            proc = get_proc(proc.proc_id) or proc
         activity = _OutputActivity()
         output_pipe = BoundedLogPipe(
             Path(proc.log_path),
@@ -157,7 +163,9 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
         _write_start_acknowledgement(proc, supervisor_id)
         maybe_crash("ack")
         barrier_error = _wait_for_launch_barrier(proc.proc_id, termination)
-        if barrier_error is not None:
+        if prepare_error is not None:
+            _append_supervisor_line(output_pipe, message)
+        elif barrier_error is not None:
             message = barrier_error
             status = "killed" if termination.requested else "error"
             termination_reason = "stop" if termination.requested else "launch-failure"
@@ -168,6 +176,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
             termination_reason = "stop"
             _append_supervisor_line(output_pipe, message)
         else:
+            proc = get_proc(proc.proc_id) or proc
             outcome = _run_command(proc, termination, activity, output_pipe)
             status = outcome["status"]
             exit_code = outcome["exit_code"]
@@ -199,6 +208,19 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
             exit_code=exit_code,
         )
     return 0 if status == "success" else 1
+
+
+def _prepare_xprompt_proc(proc: Proc, termination: _Termination) -> str | None:
+    if proc.origin != "xprompt-proc":
+        return None
+    from sase.agent.launch_proc_runtime import prepare_xprompt_proc_supervisor
+
+    if termination.requested:
+        return "proc killed"
+    return prepare_xprompt_proc_supervisor(
+        proc,
+        cancelled=lambda: termination.requested,
+    )
 
 
 def _claim_supervisor(proc: Proc, supervisor_id: str) -> Proc:
@@ -254,10 +276,11 @@ def _run_command(
     request = read_json_object(proc_request_sidecar_path(proc.proc_id))
     overlay = request.get("env") if isinstance(request.get("env"), dict) else None
     argv = list(proc.argv or proc.command)
+    cwd = str(request.get("cwd") or proc.cwd)
     try:
         child = subprocess.Popen(
             argv,
-            cwd=proc.cwd,
+            cwd=cwd,
             env=_child_environment(proc, overlay),
             stdin=subprocess.DEVNULL,
             stdout=cast(Any, output_pipe),
@@ -347,6 +370,19 @@ def _wait_for_child(
 
 
 def _child_environment(proc: Proc, overlay: dict[str, Any] | None) -> dict[str, str]:
+    if proc.origin == "xprompt-proc":
+        env = {
+            str(key): str(value)
+            for key, value in (overlay or {}).items()
+            if isinstance(key, str) and isinstance(value, str)
+        }
+        env["SASE_PROC_ID"] = proc.proc_id
+        env["SASE_PROC_LOG_PATH"] = proc.log_path
+        env.pop("SASE_AGENT", None)
+        for key in list(env):
+            if key.startswith("SASE_AGENT_"):
+                env.pop(key, None)
+        return env
     env = os.environ.copy()
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)

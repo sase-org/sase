@@ -87,7 +87,10 @@ def submit_proc_request(
     cwd = str(_validated_cwd(request.cwd))
     if request.kind != COMMAND_PROC_KIND:
         request = replace(request, kind=COMMAND_PROC_KIND)
-    shell_name = _qualified_shell_name(request.shell_name)
+    if request.origin == "xprompt-proc":
+        shell_name = _standalone_shell_name(request.shell_name)
+    else:
+        shell_name = _qualified_shell_name(request.shell_name)
     if shell_name != request.shell_name:
         request = replace(request, shell_name=shell_name)
     proc_id = request.proc_id or new_proc_id()
@@ -120,6 +123,11 @@ def submit_proc_request(
                 reserved_by=reserved_by,
                 timeout_seconds=request.timeout_seconds,
                 idle_timeout_seconds=request.idle_timeout_seconds,
+                xprompt_proc=(
+                    dict(request.xprompt_proc)
+                    if request.xprompt_proc is not None
+                    else None
+                ),
             )
         )
     except Exception as exc:
@@ -373,6 +381,19 @@ def _signal_leftover_group(pgid: int) -> None:
         os.killpg(pgid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def _standalone_shell_name(shell_name: str | None) -> str | None:
+    raw = None if shell_name is None else shell_name.strip()
+    if not raw:
+        return None
+    from sase.core.agent_launch_facade import validate_standalone_proc_shell_name
+
+    try:
+        validate_standalone_proc_shell_name(raw)
+    except Exception as exc:
+        raise ProcSubmitError(str(exc)) from exc
+    return raw
 
 
 def _qualified_shell_name(shell_name: str | None) -> str | None:

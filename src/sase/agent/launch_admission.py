@@ -12,6 +12,7 @@ import fcntl
 import json
 import os
 import signal
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -220,7 +221,14 @@ class _AdmissionEngine:
                     if str(action.get("unit_kind") or "") == "proc"
                     else _dispatch_agent_unit
                 )
-            ok, identity, message, spawned = dispatcher(unit, fingerprint)
+            if dispatcher is self.proc_dispatcher or (
+                dispatcher is _dispatch_proc_unit
+            ):
+                ok, identity, message, spawned = _call_proc_dispatcher(
+                    dispatcher, unit, fingerprint, self._proc_context(unit, action)
+                )
+            else:
+                ok, identity, message, spawned = dispatcher(unit, fingerprint)
             self.results.extend(spawned)
             if ok:
                 _write_unit_receipt(
@@ -305,6 +313,23 @@ class _AdmissionEngine:
             "supervise": self.condition_evaluator is None,
         }
 
+    def _proc_context(
+        self, unit: LaunchUnitWire, action: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "logical_unit": unit.logical_id,
+            "selected_project": self.plan.selected_project,
+            "source_cwd": self.source_cwd,
+            "admission_dir": str(self.admission_dir),
+            "work_dir": str(self.admission_dir / UNITS_DIRNAME / unit.logical_id),
+            "cancelled": self.cancelled,
+            "waited_outcomes": list(action.get("waited_outcomes") or []),
+            "condition_result": (self._states().get(unit.logical_id) or {}).get(
+                "message"
+            ),
+            "python_executable": sys.executable,
+        }
+
     def _cancel_open_units(self) -> None:
         states = self._states()
         for unit in self.plan.units:
@@ -318,13 +343,15 @@ class _AdmissionEngine:
                 "cancelled",
             }:
                 continue
-            if phase == "checking":
+            if phase in {"checking", "dispatching", "reserved", "waiting", "eligible"}:
                 cancel_path = (
                     self.admission_dir / UNITS_DIRNAME / unit.logical_id / "cancel"
                 )
                 cancel_path.parent.mkdir(parents=True, exist_ok=True)
                 cancel_path.write_text("1\n", encoding="utf-8")
             identity = state.get("identity")
+            if phase == "dispatching" and isinstance(identity, str) and identity:
+                _stop_proc_identity(identity)
             fingerprint = state.get("fingerprint")
             self._journal(
                 unit.logical_id,
@@ -586,19 +613,40 @@ def _dispatch_agent_unit(
 def _dispatch_proc_unit(
     unit: LaunchUnitWire,
     fingerprint: str,
+    context: Mapping[str, Any] | None = None,
 ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
-    """Default proc hook; Phase 5 replaces this with native proc dispatch."""
+    """Dispatch one eligible stand-alone `%proc` through the native supervisor."""
 
-    del fingerprint
     if not isinstance(unit.payload, ProcUnitWire):
         return False, None, "not_a_proc_unit", []
+    from sase.agent.launch_proc_runtime import dispatch_proc_unit as hooked
+
+    return hooked(unit, fingerprint, context)
+
+
+def _call_proc_dispatcher(
+    dispatcher: _UnitDispatcher,
+    unit: LaunchUnitWire,
+    fingerprint: str,
+    context: Mapping[str, Any],
+) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
+    if dispatcher is _dispatch_proc_unit:
+        return _dispatch_proc_unit(unit, fingerprint, context)
+    return dispatcher(unit, fingerprint)
+
+
+def _stop_proc_identity(identity: str) -> None:
     try:
-        from sase.agent.launch_proc_runtime import (  # type: ignore[import-not-found]
-            dispatch_proc_unit as hooked,
-        )
-    except ImportError:
-        return False, None, "proc_dispatcher_unavailable", []
-    return hooked(unit, fingerprint)
+        from sase.procs.models import TERMINAL_PROC_STATUSES
+        from sase.procs.service import stop_proc_shell
+        from sase.procs.store import get_proc
+
+        proc = get_proc(identity)
+        if proc is None or proc.status in TERMINAL_PROC_STATUSES:
+            return
+        stop_proc_shell(proc, requested_by="launch-admission")
+    except Exception:
+        return
 
 
 def _format_admission_summary(summary: LaunchAdmissionSummaryWire) -> str:

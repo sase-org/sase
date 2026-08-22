@@ -94,6 +94,10 @@ def settle_proc_shell(
     _settle_workspace_claim(state)
     maybe_crash("claim_settled")
     _mark(state, "claim_settled")
+    if current.origin == "xprompt-proc":
+        from sase.agent.launch_proc_runtime import cleanup_xprompt_proc_inputs
+
+        cleanup_xprompt_proc_inputs(proc_id)
 
     _settle_artifacts(state)
     maybe_crash("artifacts_settled")

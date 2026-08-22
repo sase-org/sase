@@ -489,7 +489,7 @@ def test_cancel_open_units_does_not_erase_launched(tmp_path: Path) -> None:
     assert outcomes["unit-2"] == "launch_error"
 
 
-def test_proc_unit_does_not_allocate_without_dispatcher(tmp_path: Path) -> None:
+def test_proc_unit_dispatches_through_injected_hook(tmp_path: Path) -> None:
     pytest.importorskip("sase_core_rs")
     plan = _plan(
         LaunchUnitWire(
@@ -497,16 +497,26 @@ def test_proc_unit_does_not_allocate_without_dispatcher(tmp_path: Path) -> None:
             source_order=0,
             payload=ProcUnitWire(
                 code=_code(),
-                workspace=True,
-                selected_project="sase",
+                workspace=False,
+                cwd=str(tmp_path),
             ),
         )
     )
     with patch("sase.procs.store.reserve_proc") as reserve_proc:
-        progress, _ = _run_plan(tmp_path, plan, request_id="req-proc")
+        progress, _ = _run_plan(
+            tmp_path,
+            plan,
+            request_id="req-proc",
+            proc_dispatcher=lambda unit, fingerprint: (
+                True,
+                "proc-hook",
+                None,
+                [],
+            ),
+        )
     assert progress.summary is not None
-    assert progress.summary.launch_errors == 1
-    assert "proc_dispatcher_unavailable" in (progress.unit_results[0].message or "")
+    assert progress.summary.launched == 1
+    assert progress.unit_results[0].outcome == "launched"
     reserve_proc.assert_not_called()
 
 

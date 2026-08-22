@@ -280,6 +280,106 @@ def evaluate_launch_condition(request: dict[str, Any]) -> dict[str, Any]:
     return dict(payload)
 
 
+def xprompt_proc_origin() -> str:
+    """Return the native stand-alone `%proc` origin string."""
+
+    return str(require_rust_binding("xprompt_proc_origin")())
+
+
+def proc_dispatch_wire_schema_version() -> int:
+    """Return the `%proc` dispatch request schema version."""
+
+    return int(require_rust_binding("proc_dispatch_wire_schema_version")())
+
+
+def parse_proc_duration_seconds(raw: str) -> int:
+    """Parse a SASE duration such as ``20m`` into seconds."""
+
+    return int(require_rust_binding("parse_proc_duration_seconds")(raw))
+
+
+def validate_standalone_proc_shell_name(name: str | None) -> None:
+    """Reject family-qualified or malformed stand-alone proc names."""
+
+    require_rust_binding("validate_standalone_proc_shell_name")(name)
+
+
+def validate_proc_workspace_intent(
+    workspace: bool,
+    selected_project: str | None,
+    declared_cwd: str | None,
+) -> None:
+    """Reject workspace/cwd combinations that cannot launch."""
+
+    require_rust_binding("validate_proc_workspace_intent")(
+        workspace, selected_project, declared_cwd
+    )
+
+
+def resolve_proc_execution_cwd(
+    workspace: bool,
+    *,
+    declared_cwd: str | None = None,
+    source_cwd: str | None = None,
+    lease_root: str | None = None,
+) -> str:
+    """Resolve and contain a `%proc` execution cwd."""
+
+    return str(
+        require_rust_binding("resolve_proc_execution_cwd")(
+            workspace, declared_cwd, source_cwd, lease_root
+        )
+    )
+
+
+def proc_script_argv(language: str, work_dir: str, python_executable: str) -> list[str]:
+    """Return the interpreter argv for a `%proc` script in *work_dir*."""
+
+    return [
+        str(part)
+        for part in require_rust_binding("proc_script_argv")(
+            language, work_dir, python_executable
+        )
+    ]
+
+
+def prepare_proc_script(request: dict[str, Any]) -> dict[str, Any]:
+    """Materialize a private `%proc` script and return argv/cwd/env."""
+
+    payload = require_rust_binding("prepare_proc_script")(request)
+    return dict(payload)
+
+
+def sanitized_proc_env(
+    proc_id: str,
+    cwd: str,
+    work_dir: str,
+    python_executable: str,
+    *,
+    selected_project: str | None = None,
+    project_file: str | None = None,
+    workspace_num: int | None = None,
+) -> dict[str, str]:
+    """Return the documented sanitized `%proc` child environment."""
+
+    payload = require_rust_binding("sanitized_proc_env")(
+        proc_id,
+        cwd,
+        work_dir,
+        python_executable,
+        selected_project,
+        project_file,
+        workspace_num,
+    )
+    return {str(key): str(value) for key, value in dict(payload).items()}
+
+
+def cleanup_proc_private_inputs(work_dir: str) -> None:
+    """Remove private `%proc` scripts after settlement."""
+
+    require_rust_binding("cleanup_proc_private_inputs")(work_dir)
+
+
 class LaunchTimestampBatchAllocator:
     """Allocate monotonically unique launch timestamps for one fan-out."""
 
@@ -331,16 +431,26 @@ __all__ = [
     "agent_unit_dispatch_prompt",
     "build_condition_context",
     "classify_condition_status",
+    "cleanup_proc_private_inputs",
     "evaluate_launch_condition",
     "next_admission_actions",
+    "parse_proc_duration_seconds",
     "plan_fake_fanout",
     "plan_agent_launch_fanout",
     "plan_typed_launch_units",
     "prepare_agent_launch",
+    "prepare_proc_script",
+    "proc_dispatch_wire_schema_version",
+    "proc_script_argv",
     "reconcile_admission_journal",
     "reserve_launch_timestamp_batch",
+    "resolve_proc_execution_cwd",
     "safe_launch_name",
     "sanitize_condition_inputs",
+    "sanitized_proc_env",
     "spawn_prepared_agent_process",
     "summarize_admission",
+    "validate_proc_workspace_intent",
+    "validate_standalone_proc_shell_name",
+    "xprompt_proc_origin",
 ]
