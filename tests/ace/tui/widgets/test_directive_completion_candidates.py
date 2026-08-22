@@ -33,6 +33,7 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%model" in insertions
     assert "%id" in insertions
     assert "%wait" in insertions
+    assert "%final" in insertions
     assert "%tribe" not in insertions
     assert "%name" not in insertions
     assert "%plan" not in insertions
@@ -40,7 +41,6 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%epic" not in insertions
     assert "%xprompts_enabled" in insertions
     assert "%approve" not in insertions
-    assert "%final" not in insertions
 
 
 def test_auto_completes_from_name_and_advertises_alias() -> None:
@@ -106,12 +106,14 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
 
-def test_final_directive_name_is_hidden_from_generic_completion() -> None:
-    f_candidates, _ = build_directive_completion_candidates("%f")
-    final_candidates, _ = build_directive_completion_candidates("%final")
+def test_final_directive_name_completes_to_canonical_row() -> None:
+    for token in ["%f", "%final"]:
+        final, _ = single_directive_candidate(token)
 
-    assert f_candidates == []
-    assert final_candidates == []
+        assert final.insertion == "%final"
+        assert directive_metadata(final).description == (
+            "Select configured finalizer instances for this launch"
+        )
 
 
 def test_removed_tribe_spellings_are_absent_from_completion() -> None:
