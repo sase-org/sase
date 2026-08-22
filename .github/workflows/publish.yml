@@ -100,6 +100,8 @@ jobs:
         run: uv python install 3.12
       - name: Reconcile release metadata
         if: ${{ steps.check_branch.outputs.exists == 'true' }}
+        env:
+          UV_DEFAULT_INDEX: https://pypi.org/simple/
         run: |
           set -euo pipefail
           ratchet_status=0

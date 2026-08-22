@@ -499,6 +499,13 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert "release-please--branches--master" in check_branch["run"]
     assert check_branch["env"]["GH_TOKEN"] == "${{ secrets.SASE_RELEASE_TOKEN }}"
 
+    reconcile = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Reconcile release metadata"
+    )
+    assert reconcile["env"]["UV_DEFAULT_INDEX"] == "https://pypi.org/simple/"
+
     run_text = _job_run_text(job)
     assert (
         "python tools/ratchet_core_window --allow-transitive-lock-refresh "
