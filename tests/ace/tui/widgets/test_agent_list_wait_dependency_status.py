@@ -215,7 +215,7 @@ class TestMissingWaitTargetIndicator:
             has_unresolvable_wait_target=True,
         )
 
-        assert left.plain.endswith("test_cl (WAITING ▶1 · ●1 ! +5m)")
+        assert left.plain.endswith("test_cl (WAITING ▶1 ●1 ! +5m)")
         assert "bold #FFD700" in _styles_covering(left, "▶1")
         assert "bold #5FD787" in _styles_covering(left, "●1")
 
@@ -239,4 +239,4 @@ class TestMissingWaitTargetIndicator:
             ),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ?1 · ?2 +5m)")
+        assert left.plain.endswith("test_cl (WAITING ?1 ?2 +5m)")

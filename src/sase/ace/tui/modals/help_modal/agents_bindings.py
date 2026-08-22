@@ -435,8 +435,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 ("▶2 ✓1 ?1", "Agent wait counts"),
                 ("○2 ◐1", "Bead wait counts"),
-                ("▶1 · ◐2", "Mixed agent · bead groups"),
-                ("?1 · ?2", "Unknown agent · bead groups"),
+                ("▶1 ◐2", "Bead follows matching agent"),
+                ("✓1 ●1", "Closed bead follows done agent"),
+                ("◇1 ◈1", "Unmatched beads trail"),
+                ("?1 ?2", "Unknown agent + bead"),
                 ("?N", "Unknown agent or bead"),
                 ("▶ ◐ … ⏳ ✓ ✗ ▲", "Agent states (see Grouping)"),
                 ("!", "Reserved tribe never resolves"),

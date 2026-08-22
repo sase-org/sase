@@ -512,8 +512,10 @@ def test_agents_help_documents_two_domain_wait_badges() -> None:
 
     assert badges["▶2 ✓1 ?1"] == "Agent wait counts"
     assert badges["○2 ◐1"] == "Bead wait counts"
-    assert badges["▶1 · ◐2"] == "Mixed agent · bead groups"
-    assert badges["?1 · ?2"] == "Unknown agent · bead groups"
+    assert badges["▶1 ◐2"] == "Bead follows matching agent"
+    assert badges["✓1 ●1"] == "Closed bead follows done agent"
+    assert badges["◇1 ◈1"] == "Unmatched beads trail"
+    assert badges["?1 ?2"] == "Unknown agent + bead"
     assert badges["?N"] == "Unknown agent or bead"
     assert badges["[beads] id ◐"] == "Bead wait target status"
     assert "beads: id ✓" not in badges

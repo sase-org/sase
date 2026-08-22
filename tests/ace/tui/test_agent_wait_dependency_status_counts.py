@@ -18,7 +18,6 @@ from sase.ace.tui.models.agent_wait_beads import (
     _WaitBeadStatusSnapshotEntry,
 )
 from sase.ace.tui.wait_status_presentation import (
-    WAIT_DOMAIN_SEPARATOR,
     WAIT_UNKNOWN_GLYPH,
     WAIT_UNKNOWN_GLYPH_STYLE,
     format_wait_dependency_status_counts,
@@ -118,9 +117,10 @@ def test_counts_keep_agent_and_bead_domains_separate() -> None:
         ),
     )
     rendered = format_wait_dependency_status_counts(counts)
-    assert rendered.plain == ("▲1 ✗1 ◐1 ▶1 …1 ⏳1 ✓1 ?1 · ○1 ◎1 ◇1 ◈1 ◐1 ●1 ?1")
+    assert rendered.plain == ("▲1 ✗1 ◐1 ◎1 ▶1 ◐1 …1 ⏳1 ○1 ✓1 ●1 ?1 ?1 ◇1 ◈1")
+    assert "·" not in rendered.plain
     assert "▶2" not in rendered.plain
-    assert rendered.plain.index(WAIT_DOMAIN_SEPARATOR) < rendered.plain.rindex("?1")
+    assert "●2" not in rendered.plain
 
 
 def test_similar_agent_and_bead_statuses_do_not_merge() -> None:
@@ -141,7 +141,33 @@ def test_similar_agent_and_bead_statuses_do_not_merge() -> None:
         agents=WaitAgentStatusCounts(starting=1),
         beads=WaitBeadStatusCounts(in_progress=1),
     )
-    assert rendered.plain == "◐1 · ◐1"
+    assert rendered.plain == "◐1 ◐1"
+    assert "◐2" not in rendered.plain
+
+
+def test_formatter_groups_every_corresponding_status_pair() -> None:
+    counts = WaitDependencyStatusCounts(
+        agents=WaitAgentStatusCounts(
+            starting=1,
+            running=2,
+            waiting=3,
+            done=4,
+            unknown=5,
+        ),
+        beads=WaitBeadStatusCounts(
+            claimed=6,
+            in_progress=7,
+            open=8,
+            closed=9,
+            unknown=10,
+        ),
+    )
+
+    rendered = format_wait_dependency_status_counts(counts)
+
+    assert rendered.plain == "◐1 ◎6 ▶2 ◐7 ⏳3 ○8 ✓4 ●9 ?5 ?10"
+    assert "▶9" not in rendered.plain
+    assert "✓13" not in rendered.plain
 
 
 def test_formatter_suppresses_zeroes_and_keeps_multi_digit_counts() -> None:
@@ -156,7 +182,7 @@ def test_formatter_suppresses_zeroes_and_keeps_multi_digit_counts() -> None:
     assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(rendered, "?1")
 
 
-def test_formatter_emits_separator_only_for_mixed_domains() -> None:
+def test_formatter_uses_single_sequence_for_mixed_domains() -> None:
     agent_only = format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(agents=WaitAgentStatusCounts(running=2, done=1))
     )
@@ -179,14 +205,32 @@ def test_formatter_emits_separator_only_for_mixed_domains() -> None:
     )
 
     assert agent_only.plain == "▶2 ✓1"
-    assert WAIT_DOMAIN_SEPARATOR not in agent_only.plain
+    assert "·" not in agent_only.plain
     assert bead_only.plain == "○2 ◐1"
-    assert WAIT_DOMAIN_SEPARATOR not in bead_only.plain
-    assert mixed.plain == "▶1 · ◐2"
-    assert "dim" in _styles_covering(mixed, WAIT_DOMAIN_SEPARATOR)
-    assert unknown_mixed.plain == "?1 · ?2"
+    assert "·" not in bead_only.plain
+    assert mixed.plain == "▶1 ◐2"
+    assert "·" not in mixed.plain
+    assert unknown_mixed.plain == "?1 ?2"
     assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(unknown_mixed, "?1")
     assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(unknown_mixed, "?2")
+
+
+def test_unpaired_bead_statuses_trail_in_canonical_bead_order() -> None:
+    counts = WaitDependencyStatusCounts(
+        agents=WaitAgentStatusCounts(running=1),
+        beads=WaitBeadStatusCounts(
+            open=2,
+            claimed=3,
+            ready=4,
+            snoozed=5,
+            closed=6,
+            unknown=7,
+        ),
+    )
+
+    rendered = format_wait_dependency_status_counts(counts)
+
+    assert rendered.plain == "▶1 ○2 ◎3 ◇4 ◈5 ●6 ?7"
 
 
 def test_bead_tokens_use_canonical_glyph_color_and_unbroken_style() -> None:
@@ -232,9 +276,10 @@ def test_documented_wait_summary_examples_match_formatter() -> None:
         )
     )
 
-    assert mixed.plain == "▶1 · ◐2"
-    assert unknown_mixed.plain == "?1 · ?2"
-    assert "WAITING ▶1 · ◐2" in docs
+    assert mixed.plain == "▶1 ◐2"
+    assert unknown_mixed.plain == "?1 ?2"
+    assert "WAITING ▶1 ◐2" in docs
+    assert "WAITING ?1 ?2" in docs
     assert "`?N`" in docs
     assert "trailing gold `◆` linked-bead badge" in docs
 

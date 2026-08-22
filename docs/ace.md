@@ -1856,16 +1856,18 @@ threshold keeps its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a d
 cannot be mistaken for a fraction. Implicit-cap rows omit the repeated capacity suffix.
 **Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with a time
 wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a
-bead wait. A compact `WAITING` row summarizes named waits as two independent groups:
-agent counts keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep
-the canonical Beads-tab status glyph (`○` open, `◐` in progress, `●` closed). Zero
-entries are omitted, the count is always shown, and a dim `·` appears only when both
-groups are present, for example `WAITING ▶1 · ◐2`. Unknown agents and unknown beads both
-render as `?N`; in mixed rows, group position disambiguates them, as in
-`WAITING ?1 · ?2`. These tokens sit directly after `WAITING` and before a reserved-tribe
-`!`, duration, or countdown annotation. They are not the trailing gold `◆` linked-bead
-badge that marks an agent launched by `sase bead work`. **Stopped** keeps the strict
-"you need to act" semantics for plan approval, questions, and workflow input.
+bead wait. A compact `WAITING` row summarizes named waits as one sequence of independent
+tokens: agent counts keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead
+counts keep the canonical Beads-tab status glyph (`○` open, `◐` in progress, `●`
+closed). When a bead status matches a present agent bucket, the bead token follows that
+agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`; unmatched bead tokens trail
+in canonical bead order. Zero entries are omitted and the count is always shown. Unknown
+agents and unknown beads both render as `?N`; when both are present they appear as
+adjacent independent counts, as in `WAITING ?1 ?2`. These tokens sit directly after
+`WAITING` and before a reserved-tribe `!`, duration, or countdown annotation. They are
+not the trailing gold `◆` linked-bead badge that marks an agent launched by
+`sase bead work`. **Stopped** keeps the strict "you need to act" semantics for plan
+approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -3842,20 +3844,20 @@ and completed (the agent has finished).
 
 ### Active Statuses
 
-| Status             | Color           | Description                                                                                                     |
-| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
-| **RUNNING**        | Gold            | Agent subprocess is executing                                                                                   |
-| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity                                            |
-| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; group order separates agents from beads |
-| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                                           |
-| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                                     |
-| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                                     |
-| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                                     |
-| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                                             |
-| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet                                              |
-| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                                             |
-| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                                     |
-| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                                               |
+| Status             | Color           | Description                                                                                                      |
+| ------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **RUNNING**        | Gold            | Agent subprocess is executing                                                                                    |
+| **QUEUED**         | Cornflower blue | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
+| **WAITING**        | Amethyst/purple | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
+| **WAITING INPUT**  | Amber/orange    | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
+| **TALE**           | Pink/magenta    | An authored tale is waiting for user review                                                                      |
+| **EPIC**           | Orchid          | An authored epic is waiting for user review                                                                      |
+| **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review                                                      |
+| **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                                                              |
+| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet                                               |
+| **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running                                              |
+| **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)                                                      |
+| **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying                                                |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an
 answer it writes a `pending_question.json` marker into its run directory and temporarily
@@ -4158,15 +4160,16 @@ pinned attempt view resets the cursor.
   unknown names with `?` so typos and stale references are obvious. The `[beads]` lane
   uses the same status-bearing token as the compact row, without a count: `run-bead ◐`,
   `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row keeps agent and
-  bead counts in separate groups (`▶1 · ◐2`); unknown targets can render as `?1 · ?2`,
-  with group order separating agents from beads. Timed-only and runner-only waits do not
-  receive those markers. Timed waits add compact duration, target time, and countdown
-  text when available. An explicit runner threshold on a `QUEUED` row shows the live
-  running count, threshold, and its `queue #N of M` capacity-aware display rank;
-  `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:`
-  line led by its rank and elapsed time since `slot_requested_at`, followed by cap
-  context. It deliberately suppresses the marker's stale dependency, bead, and time-wait
-  fields.
+  bead counts independent while placing matching bead statuses after their present agent
+  status (`▶1 ◐2`, `✓1 ●1`); unmatched bead tokens trail in bead order. Unknown targets
+  can render as adjacent independent counts (`?1 ?2`). Timed-only and runner-only waits
+  do not receive those markers. Timed waits add compact duration, target time, and
+  countdown text when available. An explicit runner threshold on a `QUEUED` row shows
+  the live running count, threshold, and its `queue #N of M` capacity-aware display
+  rank; `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate
+  `Queue:` line led by its rank and elapsed time since `slot_requested_at`, followed by
+  cap context. It deliberately suppresses the marker's stale dependency, bead, and
+  time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;
