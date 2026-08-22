@@ -26,7 +26,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
-KillKind = Literal["running", "hook", "mentor", "crs", "workflow"]
+KillKind = Literal["running", "hook", "mentor", "crs", "workflow", "monitor"]
 AgentIdentity = tuple["AgentType", str, str | None]
 
 
@@ -57,8 +57,10 @@ def persist_kill_side_effects(
         agents_with_children_snapshot,
         register_expected_deletion=register_expected_deletion,
     )
-    if consumed_intents and kind in {"running", "workflow"}:
+    if consumed_intents and kind in {"running", "workflow", "monitor"}:
         return True
+    if kind == "monitor":
+        return consumed_intents
 
     if kind == "running":
         _persist_running_kill(agent)
@@ -99,7 +101,9 @@ def persist_bulk_kill_side_effects(
         register_expected_deletion=register_expected_deletion,
     )
     for item in kill_items:
-        if consumed_intents and item.kind in {"running", "workflow"}:
+        if consumed_intents and item.kind in {"running", "workflow", "monitor"}:
+            continue
+        if item.kind == "monitor":
             continue
         if register_expected_deletion is None:
             persist_kill_side_effects(

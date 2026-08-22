@@ -81,6 +81,7 @@ def plan_agent_cleanup(
     if (plan.kill_items or plan.dismiss_items) and not any(
         getattr(plan.side_effects, attr)
         for attr in (
+            "monitor_stop_requests",
             "dismissed_index_additions",
             "bundle_save_candidates",
             "artifact_delete_paths",

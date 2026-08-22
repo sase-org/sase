@@ -13,7 +13,7 @@ from typing import Any
 
 from sase.core.wire import known_field_kwargs
 
-AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 3
+AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 4
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"
@@ -36,6 +36,7 @@ KILL_KIND_HOOK = "hook"
 KILL_KIND_MENTOR = "mentor"
 KILL_KIND_CRS = "crs"
 KILL_KIND_WORKFLOW = "workflow"
+KILL_KIND_MONITOR = "monitor"
 
 SKIPPED_NOT_IN_SCOPE = "not_in_scope"
 SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY = "workflow_child_cascade_only"
@@ -92,6 +93,8 @@ class AgentCleanupTargetWire:
     agent_family_parallel: bool = False
     appears_as_agent: bool = False
     step_type: str | None = None
+    monitor_id: str | None = None
+    is_live_monitor: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,7 @@ class AgentCleanupKillItemWire:
     kind: str
     pid: int | None = None
     display_name: str | None = None
+    monitor_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -190,9 +194,18 @@ class AgentCleanupNotificationDismissIntentWire:
 
 
 @dataclass(frozen=True)
+class AgentCleanupMonitorStopIntentWire:
+    """Canonical monitor stop. The host must not treat the supervisor PID as a PGID."""
+
+    identity: AgentCleanupIdentityWire
+    monitor_id: str
+
+
+@dataclass(frozen=True)
 class AgentCleanupSideEffectsWire:
     """Deterministic side-effect intents for host-side execution."""
 
+    monitor_stop_requests: tuple[AgentCleanupMonitorStopIntentWire, ...] = ()
     dismissed_index_additions: tuple[AgentCleanupIdentityWire, ...] = ()
     bundle_save_candidates: tuple[AgentCleanupBundleSaveIntentWire, ...] = ()
     artifact_delete_paths: tuple[AgentCleanupArtifactDeleteIntentWire, ...] = ()
@@ -287,6 +300,10 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         agent_family_parallel=bool(data.get("agent_family_parallel", False)),
         appears_as_agent=bool(data.get("appears_as_agent", False)),
         step_type=None if data.get("step_type") is None else str(data["step_type"]),
+        monitor_id=(
+            None if data.get("monitor_id") is None else str(data["monitor_id"])
+        ),
+        is_live_monitor=bool(data.get("is_live_monitor", False)),
     )
 
 
@@ -349,6 +366,9 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
                     if item.get("display_name") is None
                     else str(item["display_name"])
                 ),
+                monitor_id=(
+                    None if item.get("monitor_id") is None else str(item["monitor_id"])
+                ),
             )
             for item in data.get("kill_items") or ()
         ),
@@ -383,6 +403,13 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
         ),
         summary_lines=tuple(str(line) for line in data.get("summary_lines") or ()),
         side_effects=AgentCleanupSideEffectsWire(
+            monitor_stop_requests=tuple(
+                AgentCleanupMonitorStopIntentWire(
+                    identity=_identity_from_dict(item["identity"]),
+                    monitor_id=str(item["monitor_id"]),
+                )
+                for item in side_effect_data.get("monitor_stop_requests") or ()
+            ),
             dismissed_index_additions=tuple(
                 _identity_from_dict(item)
                 for item in side_effect_data.get("dismissed_index_additions") or ()
@@ -461,6 +488,7 @@ __all__ = [
     "KILL_KIND_CRS",
     "KILL_KIND_HOOK",
     "KILL_KIND_MENTOR",
+    "KILL_KIND_MONITOR",
     "KILL_KIND_RUNNING",
     "KILL_KIND_WORKFLOW",
     "SKIPPED_DUPLICATE",
@@ -475,6 +503,7 @@ __all__ = [
     "AgentCleanupDismissItemWire",
     "AgentCleanupIdentityWire",
     "AgentCleanupKillItemWire",
+    "AgentCleanupMonitorStopIntentWire",
     "AgentCleanupNotificationDismissIntentWire",
     "AgentCleanupPlanWire",
     "AgentCleanupRequestWire",

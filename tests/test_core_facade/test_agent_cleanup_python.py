@@ -19,6 +19,7 @@ from sase.core.agent_cleanup_wire import (
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
     CLEANUP_SCOPE_FOCUSED_PANEL,
     CLEANUP_SCOPE_TRIBE,
+    KILL_KIND_MONITOR,
     KILL_KIND_RUNNING,
     KILL_KIND_WORKFLOW,
     SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY,
@@ -42,7 +43,9 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_pidless_dismiss_fallback,
     _scenario_parallel_family_root,
     _scenario_clan_sequential_family_dismiss,
+    _scenario_direct_live_monitor,
     _scenario_explicit_clan_sequential_family_dismiss,
+    _scenario_owner_cascades_live_monitor,
     _scenario_tribe_scope,
     _scenario_workflow_parent_with_children,
 )
@@ -128,6 +131,32 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             "sase-ps.plan--1",
             "sase-ps.plan--mon",
         ]
+    elif scenario is _scenario_direct_live_monitor:
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("owner--mon", KILL_KIND_MONITOR)
+        ]
+        assert plan.kill_items[0].pid is None
+        assert plan.kill_items[0].monitor_id == "monid123456"
+        assert plan.side_effects.workspace_release_requests == ()
+        assert [
+            intent.monitor_id for intent in plan.side_effects.monitor_stop_requests
+        ] == ["monid123456"]
+    elif scenario is _scenario_owner_cascades_live_monitor:
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("sase-ru.6--mon-1", KILL_KIND_MONITOR)
+        ]
+        assert [item.identity.cl_name for item in plan.dismiss_items] == ["sase-ru.6"]
+        assert [
+            intent.monitor_id for intent in plan.side_effects.monitor_stop_requests
+        ] == ["0fmbm91hgytw"]
+        assert not any(
+            intent.identity.cl_name == "sase-ru.7--mon"
+            for intent in plan.side_effects.monitor_stop_requests
+        )
+        assert not any(
+            intent.identity.cl_name == "sase-ru.6--mon-1"
+            for intent in plan.side_effects.workspace_release_requests
+        )
 
 
 def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> None:

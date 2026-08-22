@@ -41,6 +41,10 @@ def _agent(
     agent_clan_generation: str | None = None,
     tribe: str | None = None,
     agent_name: str | None = None,
+    agent_family_role: str | None = None,
+    role_suffix: str | None = None,
+    monitor_id: str | None = None,
+    monitor_state: str | None = None,
     workspace_num: int | None = 7,
     artifacts_dir: str | None = "/tmp/artifacts",
     start_time: datetime | None = _START,
@@ -64,6 +68,10 @@ def _agent(
         agent_clan_generation=agent_clan_generation,
         tribe=tribe,
         agent_name=agent_name,
+        agent_family_role=agent_family_role,
+        role_suffix=role_suffix,
+        monitor_id=monitor_id,
+        monitor_state=monitor_state,
         artifacts_dir=artifacts_dir,
     )
 
@@ -523,6 +531,90 @@ def _scenario_explicit_clan_sequential_family_dismiss() -> tuple[
     )
 
 
+def _live_monitor(
+    *,
+    cl_name: str,
+    raw_suffix: str,
+    parent_timestamp: str,
+    monitor_id: str,
+    pid: int | None = 1665545,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
+) -> Agent:
+    return _agent(
+        cl_name=cl_name,
+        raw_suffix=raw_suffix,
+        parent_timestamp=parent_timestamp,
+        status="MONITORING",
+        pid=pid,
+        workspace_num=15,
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id=monitor_id,
+        monitor_state="running",
+        agent_clan=agent_clan,
+        agent_clan_generation=agent_clan_generation,
+    )
+
+
+def _scenario_direct_live_monitor() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    owner = _agent(
+        cl_name="owner",
+        raw_suffix="owner-ts",
+        status="DONE",
+        pid=None,
+        stop_time=_STOP,
+    )
+    monitor = _live_monitor(
+        cl_name="owner--mon",
+        raw_suffix="mon-ts",
+        parent_timestamp="owner-ts",
+        monitor_id="monid123456",
+    )
+    return [owner, monitor], _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(monitor),),
+    )
+
+
+def _scenario_owner_cascades_live_monitor() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
+    owner = _agent(
+        cl_name="sase-ru.6",
+        raw_suffix="owner-ts",
+        status="DONE",
+        pid=None,
+        stop_time=_STOP,
+    )
+    family = _agent(
+        cl_name="sase-ru.6--1",
+        raw_suffix="family-ts",
+        parent_timestamp="owner-ts",
+        status="DONE",
+        pid=None,
+        stop_time=_STOP,
+    )
+    monitor = _live_monitor(
+        cl_name="sase-ru.6--mon-1",
+        raw_suffix="mon-ts",
+        parent_timestamp="family-ts",
+        monitor_id="0fmbm91hgytw",
+    )
+    sibling = _live_monitor(
+        cl_name="sase-ru.7--mon",
+        raw_suffix="sib-mon-ts",
+        parent_timestamp="sib-ts",
+        monitor_id="unrelatedmon1",
+    )
+    return [owner, family, monitor, sibling], _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(owner),),
+    )
+
+
 _SCENARIOS = [
     pytest.param(_scenario_focused_panel_dismiss, id="focused-panel-dismiss-done"),
     pytest.param(
@@ -555,4 +647,6 @@ _SCENARIOS = [
         _scenario_explicit_clan_sequential_family_dismiss,
         id="explicit-clan-sequential-family-dismiss",
     ),
+    pytest.param(_scenario_direct_live_monitor, id="direct-live-monitor"),
+    pytest.param(_scenario_owner_cascades_live_monitor, id="owner-cascade-monitor"),
 ]

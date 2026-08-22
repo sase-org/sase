@@ -48,6 +48,24 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.display_name == "convert"
     assert target.start_time == "2026-04-30T09:00:00"
     assert target.stop_time == "2026-04-30T09:05:00"
+    assert target.monitor_id is None
+    assert target.is_live_monitor is False
+
+
+def test_agent_to_cleanup_target_marks_live_monitors() -> None:
+    agent = _agent(
+        cl_name="owner--mon",
+        status="MONITORING",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="monid123456",
+        monitor_state="running",
+    )
+
+    target = agent_to_cleanup_target(agent)
+
+    assert target.is_live_monitor is True
+    assert target.monitor_id == "monid123456"
 
 
 def test_workflow_step_child_excludes_family_members_and_monitors() -> None:

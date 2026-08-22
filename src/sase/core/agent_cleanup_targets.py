@@ -58,6 +58,11 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         agent_family_parallel=bool(getattr(agent, "agent_family_parallel", False)),
         appears_as_agent=agent.appears_as_agent,
         step_type=agent.step_type,
+        monitor_id=getattr(agent, "monitor_id", None),
+        is_live_monitor=bool(
+            getattr(agent, "is_monitor", False)
+            and getattr(agent, "monitor_state", None) == "running"
+        ),
     )
 
 

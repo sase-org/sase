@@ -368,6 +368,10 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
     added = identities_from_json(payload.get("added_identities"))
     agents_with_children = agents_from_json(payload.get("agents_with_children"))
     cleanup_plan = _cleanup_plan_from_payload(payload.get("cleanup_plan"))
+    if cleanup_plan is not None:
+        from sase.monitor.cleanup import execute_monitor_stop_intents
+
+        execute_monitor_stop_intents(cleanup_plan)
     recent_group = _recent_group_from_payload(payload.get("recent_group"))
     if transaction == "single_kill":
         from sase.ace.tui.actions.agents._kill_transactions import (

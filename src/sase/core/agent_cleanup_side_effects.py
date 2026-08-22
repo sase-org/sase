@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from sase.core.agent_cleanup_targets import is_workflow_child
 from sase.core.agent_cleanup_wire import (
     CLEANUP_MODE_PREVIEW_ONLY,
+    KILL_KIND_MONITOR,
     KILL_KIND_RUNNING,
     KILL_KIND_WORKFLOW,
     AgentCleanupArtifactDeleteIntentWire,
@@ -14,6 +15,7 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupDismissItemWire,
     AgentCleanupIdentityWire,
     AgentCleanupKillItemWire,
+    AgentCleanupMonitorStopIntentWire,
     AgentCleanupNotificationDismissIntentWire,
     AgentCleanupRequestWire,
     AgentCleanupSideEffectsWire,
@@ -59,6 +61,7 @@ def build_cleanup_side_effects(
         return AgentCleanupSideEffectsWire()
 
     by_id = {target.identity: target for target in targets}
+    monitor_stops: list[AgentCleanupMonitorStopIntentWire] = []
     dismissed_index: list[AgentCleanupIdentityWire] = []
     bundle_candidates: list[AgentCleanupBundleSaveIntentWire] = []
     artifact_deletes: list[AgentCleanupArtifactDeleteIntentWire] = []
@@ -71,6 +74,7 @@ def build_cleanup_side_effects(
     seen_workspace: set[AgentCleanupIdentityWire] = set()
     seen_held_workspace: set[AgentCleanupIdentityWire] = set()
     seen_notifications: set[AgentCleanupIdentityWire] = set()
+    seen_monitor_stops: set[str] = set()
 
     def add_bundle(target: AgentCleanupTargetWire) -> None:
         if target.from_patch or target.identity in seen_bundle:
@@ -182,6 +186,18 @@ def build_cleanup_side_effects(
         target = by_id.get(kill.identity)
         if target is None:
             continue
+        if kill.kind == KILL_KIND_MONITOR:
+            if kill.monitor_id and kill.monitor_id not in seen_monitor_stops:
+                seen_monitor_stops.add(kill.monitor_id)
+                monitor_stops.append(
+                    AgentCleanupMonitorStopIntentWire(
+                        identity=target.identity,
+                        monitor_id=kill.monitor_id,
+                    )
+                )
+            _append_unique_identity(dismissed_index, seen_index, target)
+            add_notification(target)
+            continue
         related = _related_workflow_targets(target, children_by_parent)
         for item in related:
             _append_unique_identity(dismissed_index, seen_index, item)
@@ -192,6 +208,7 @@ def build_cleanup_side_effects(
         add_workspace(target, kill.kind)
 
     return AgentCleanupSideEffectsWire(
+        monitor_stop_requests=tuple(monitor_stops),
         dismissed_index_additions=tuple(dismissed_index),
         bundle_save_candidates=tuple(bundle_candidates),
         artifact_delete_paths=tuple(artifact_deletes),

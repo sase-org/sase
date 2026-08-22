@@ -25,6 +25,8 @@ def classify_kill_kind(agent: Agent) -> KillKind | None:
     """
     from ...models.agent import AgentType
 
+    if agent.is_monitor and agent.monitor_state == "running":
+        return "monitor"
     workflow = agent.workflow or ""
     if agent.agent_type == AgentType.WORKFLOW:
         return "workflow"

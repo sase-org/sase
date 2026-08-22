@@ -44,6 +44,7 @@ def serialize_agent(agent: Agent) -> dict[str, Any]:
     start = agent.start_time
     return {
         "agent_clan": agent.agent_clan,
+        "agent_family_role": agent.agent_family_role,
         "agent_name": agent.agent_name,
         "agent_type": agent.agent_type.value,
         "artifacts_dir": agent.artifacts_dir,
@@ -53,12 +54,15 @@ def serialize_agent(agent: Agent) -> dict[str, Any]:
         "hook_command": agent.hook_command,
         "mentor_name": agent.mentor_name,
         "mentor_profile": agent.mentor_profile,
+        "monitor_id": agent.monitor_id,
+        "monitor_state": agent.monitor_state,
         "parent_timestamp": agent.parent_timestamp,
         "parent_workflow": agent.parent_workflow,
         "pid": agent.pid,
         "project_file": agent.project_file,
         "raw_suffix": agent.raw_suffix,
         "reviewer": agent.reviewer,
+        "role_suffix": agent.role_suffix,
         "start_time": start.isoformat() if isinstance(start, datetime) else None,
         "status": agent.status,
         "tribe": agent.tribe,
@@ -135,6 +139,24 @@ def agent_from_json(data: Mapping[str, Any]) -> Agent:
         ),
         agent_clan=(
             data.get("agent_clan") if isinstance(data.get("agent_clan"), str) else None
+        ),
+        agent_family_role=(
+            data.get("agent_family_role")
+            if isinstance(data.get("agent_family_role"), str)
+            else None
+        ),
+        role_suffix=(
+            data.get("role_suffix")
+            if isinstance(data.get("role_suffix"), str)
+            else None
+        ),
+        monitor_id=(
+            data.get("monitor_id") if isinstance(data.get("monitor_id"), str) else None
+        ),
+        monitor_state=(
+            data.get("monitor_state")
+            if isinstance(data.get("monitor_state"), str)
+            else None
         ),
         clan_tribe=(
             data.get("clan_tribe") if isinstance(data.get("clan_tribe"), str) else None

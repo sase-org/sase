@@ -27,6 +27,7 @@ from sase.core.agent_cleanup_wire import (
     KILL_KIND_CRS,
     KILL_KIND_HOOK,
     KILL_KIND_MENTOR,
+    KILL_KIND_MONITOR,
     KILL_KIND_RUNNING,
     KILL_KIND_WORKFLOW,
     SKIPPED_DUPLICATE,
@@ -161,6 +162,8 @@ def _is_direct_child_target(
 
 
 def _classify_kill_kind(target: AgentCleanupTargetWire) -> str | None:
+    if target.is_live_monitor:
+        return KILL_KIND_MONITOR
     workflow = target.workflow or ""
     if target.agent_type == "workflow":
         return KILL_KIND_WORKFLOW
@@ -216,6 +219,89 @@ def _target_is_dismissable(
     return target.status in DISMISSABLE_STATUSES or (
         request.include_pidless_as_dismissable and target.pid is None
     )
+
+
+def _children_by_parent_timestamp(
+    targets: Sequence[AgentCleanupTargetWire],
+) -> dict[str, list[AgentCleanupTargetWire]]:
+    children: dict[str, list[AgentCleanupTargetWire]] = defaultdict(list)
+    for target in targets:
+        if target.parent_timestamp is not None:
+            children[target.parent_timestamp].append(target)
+    return children
+
+
+def _collect_live_monitor_descendants(
+    owner: AgentCleanupTargetWire,
+    children_by_parent_ts: dict[str, list[AgentCleanupTargetWire]],
+    owned: set[AgentCleanupIdentityWire],
+) -> None:
+    if owner.raw_suffix is None:
+        return
+    stack = [owner.raw_suffix]
+    seen: set[str] = set()
+    while stack:
+        timestamp = stack.pop()
+        if timestamp in seen:
+            continue
+        seen.add(timestamp)
+        for child in children_by_parent_ts.get(timestamp, ()):
+            if child.is_live_monitor:
+                owned.add(child.identity)
+            if child.raw_suffix is not None:
+                stack.append(child.raw_suffix)
+
+
+def _owned_live_monitor_identities(
+    targets: Sequence[AgentCleanupTargetWire],
+    request: AgentCleanupRequestWire,
+    selected_ids: set[AgentCleanupIdentityWire],
+    parent_tribes: dict[str, str | None],
+    children_by_parent_ts: dict[str, list[AgentCleanupTargetWire]],
+) -> set[AgentCleanupIdentityWire]:
+    owned: set[AgentCleanupIdentityWire] = set()
+    if request.mode != CLEANUP_MODE_KILL_AND_DISMISS:
+        return owned
+    for target in targets:
+        if not _selected_by_scope(target, request, selected_ids, parent_tribes):
+            continue
+        if is_workflow_step_child(target) and not _is_direct_child_target(
+            target,
+            targets,
+            request,
+            selected_ids,
+            parent_tribes,
+        ):
+            continue
+        _collect_live_monitor_descendants(target, children_by_parent_ts, owned)
+    return owned
+
+
+def _monitor_id_for_kill(target: AgentCleanupTargetWire) -> str | None:
+    monitor_id = target.monitor_id
+    if monitor_id is None:
+        return None
+    stripped = monitor_id.strip()
+    return stripped or None
+
+
+def _push_monitor_kill_item(
+    kill_items: list[AgentCleanupKillItemWire],
+    target: AgentCleanupTargetWire,
+) -> bool:
+    monitor_id = _monitor_id_for_kill(target)
+    if monitor_id is None:
+        return False
+    kill_items.append(
+        AgentCleanupKillItemWire(
+            identity=target.identity,
+            kind=KILL_KIND_MONITOR,
+            pid=None,
+            display_name=target.display_name,
+            monitor_id=monitor_id,
+        )
+    )
+    return True
 
 
 def _add_skip(
@@ -276,6 +362,14 @@ def plan_agent_cleanup_python(
                 (target.parent_timestamp, target.parent_workflow)
             ].append(target)
     parallel_members_by_parent = _parallel_members_by_parent(wire_targets)
+    children_by_parent_ts = _children_by_parent_timestamp(wire_targets)
+    owned_live_monitors = _owned_live_monitor_identities(
+        wire_targets,
+        wire_request,
+        selected_ids,
+        parent_tribes,
+        children_by_parent_ts,
+    )
 
     seen_live: set[AgentCleanupIdentityWire] = set()
     selected: list[AgentCleanupIdentityWire] = []
@@ -295,7 +389,9 @@ def plan_agent_cleanup_python(
         if target.pid is not None and not dismissable_status:
             running += 1
 
-        if not _selected_by_scope(target, wire_request, selected_ids, parent_tribes):
+        in_scope = _selected_by_scope(target, wire_request, selected_ids, parent_tribes)
+        cascaded_monitor = not in_scope and target.identity in owned_live_monitors
+        if not in_scope and not cascaded_monitor:
             _add_skip(skipped_items, target, SKIPPED_NOT_IN_SCOPE)
             continue
 
@@ -314,7 +410,8 @@ def plan_agent_cleanup_python(
             _add_skip(skipped_items, target, SKIPPED_DUPLICATE)
             continue
         seen_live.add(target.identity)
-        selected.append(target.identity)
+        if not cascaded_monitor:
+            selected.append(target.identity)
 
         if wire_request.mode == CLEANUP_MODE_PREVIEW_ONLY:
             _add_skip(
@@ -325,8 +422,12 @@ def plan_agent_cleanup_python(
             )
             continue
 
-        dismissable = _target_is_dismissable(target, wire_request)
-        killable = target.pid is not None and not dismissable_status
+        dismissable = not target.is_live_monitor and _target_is_dismissable(
+            target, wire_request
+        )
+        killable = target.is_live_monitor or (
+            target.pid is not None and not dismissable_status
+        )
 
         if wire_request.mode == CLEANUP_MODE_DISMISS_COMPLETED:
             if dismissable:
@@ -358,6 +459,16 @@ def plan_agent_cleanup_python(
                     target,
                     SKIPPED_NOT_DISMISSABLE,
                     target.status,
+                )
+            continue
+
+        if target.is_live_monitor:
+            if not _push_monitor_kill_item(kill_items, target):
+                _add_skip(
+                    skipped_items,
+                    target,
+                    SKIPPED_UNKNOWN_KILL_KIND,
+                    "live monitor missing monitor_id",
                 )
             continue
 
@@ -416,7 +527,13 @@ def plan_agent_cleanup_python(
                 )
                 action_identities.add(member.identity)
                 continue
-            if wire_request.mode != CLEANUP_MODE_KILL_AND_DISMISS or member.pid is None:
+            if wire_request.mode != CLEANUP_MODE_KILL_AND_DISMISS:
+                continue
+            if member.is_live_monitor:
+                if _push_monitor_kill_item(kill_items, member):
+                    action_identities.add(member.identity)
+                continue
+            if member.pid is None:
                 continue
             kind = _classify_kill_kind(member)
             if kind is None:
@@ -430,6 +547,8 @@ def plan_agent_cleanup_python(
                 )
             )
             action_identities.add(member.identity)
+
+    kill_items.sort(key=lambda item: item.kind != KILL_KIND_MONITOR)
 
     counts = AgentCleanupCountsWire(
         candidates=len(wire_targets),

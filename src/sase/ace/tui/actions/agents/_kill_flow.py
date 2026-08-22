@@ -33,11 +33,20 @@ class AgentKillFlowMixin:
     ) -> None:
         """Perform the actual agent kill after confirmation."""
         started = time.perf_counter()
-        kind: KillKind | None
-        if cleanup_plan is not None and cleanup_plan.kill_items:
-            kind = cast(KillKind, cleanup_plan.kill_items[0].kind)
-        else:
-            kind = self._classify_kill_kind(agent)  # type: ignore[attr-defined]
+        kind: KillKind | None = self._classify_kill_kind(agent)  # type: ignore[attr-defined]
+        if cleanup_plan is not None:
+            matching = next(
+                (
+                    item
+                    for item in cleanup_plan.kill_items
+                    if agent_identity_from_wire(item.identity) == agent.identity
+                ),
+                None,
+            )
+            if matching is not None:
+                kind = cast(KillKind, matching.kind)
+            elif cleanup_plan.kill_items and kind is None:
+                kind = cast(KillKind, cleanup_plan.kill_items[0].kind)
         if kind is None:
             self.notify(  # type: ignore[attr-defined]
                 f"Unknown agent type: {agent.agent_type}", severity="error"
@@ -69,12 +78,19 @@ class AgentKillFlowMixin:
                 )
             )
 
+        kill_kinds = {
+            agent_identity_from_wire(item.identity): item.kind
+            for item in (cleanup_plan.kill_items if cleanup_plan is not None else ())
+        }
         signaled: set[AgentIdentity] = set()
         signal_failed = False
         for target in kill_targets:
             if target.identity in signaled:
                 continue
             signaled.add(target.identity)
+            target_kind = kill_kinds.get(target.identity, kind)
+            if target_kind == "monitor":
+                continue
             if target.pid is not None and not self._kill_agent_process_group(target):  # type: ignore[attr-defined]
                 signal_failed = True
         if signal_failed:
@@ -117,37 +133,31 @@ class AgentKillFlowMixin:
         dismissable = dismissable or []
         agents_with_children_snapshot = list(self._agents_with_children)
         live_ids = {a.identity for a in agents_with_children_snapshot}
+        selected_agents = [
+            agent for agent in [*killable, *dismissable] if agent.identity in live_ids
+        ]
+        cleanup_plan = killing_compat._plan_bulk_kill_cleanup_side_effects(
+            selected_agents,
+            agents_with_children_snapshot,
+        )
+        by_identity = {
+            candidate.identity: candidate for candidate in agents_with_children_snapshot
+        }
         seen_ids: set[AgentIdentity] = set()
         kill_items: list[BulkKillItem] = []
         failed_ids: set[AgentIdentity] = set()
 
-        for agent in killable:
-            if agent.identity not in live_ids or agent.identity in seen_ids:
+        for planned_kill in cleanup_plan.kill_items:
+            agent = by_identity.get(agent_identity_from_wire(planned_kill.identity))
+            if agent is None or agent.identity not in live_ids:
                 continue
-            kind = self._classify_kill_kind(agent)  # type: ignore[attr-defined]
-            if kind is None:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Unknown agent type: {agent.agent_type}", severity="error"
-                )
-                failed_ids.add(agent.identity)
+            if agent.identity in seen_ids:
                 continue
-            cascade_targets = [
-                agent,
-                *clan_members_for_container(
-                    agent,
-                    agents_with_children_snapshot,
-                ),
-            ]
-            signal_failed = False
-            for target in cascade_targets:
-                if target.pid is None:
+            kind = cast(KillKind, planned_kill.kind)
+            if kind != "monitor" and agent.pid is not None:
+                if not self._kill_agent_process_group(agent):  # type: ignore[attr-defined]
+                    failed_ids.add(agent.identity)
                     continue
-                kill_succeeded = self._kill_agent_process_group(target)  # type: ignore[attr-defined]
-                if not kill_succeeded:
-                    signal_failed = True
-            if signal_failed:
-                failed_ids.update(target.identity for target in cascade_targets)
-                continue
             identities = self._collect_immediate_kill_identities(agent)  # type: ignore[attr-defined]
             seen_ids.update(identities)
             kill_items.append(
@@ -161,11 +171,12 @@ class AgentKillFlowMixin:
             and a.identity not in seen_ids
             and a.identity not in failed_ids
         ]
-        cleanup_plan = killing_compat._plan_bulk_kill_cleanup_side_effects(
-            [item.agent for item in kill_items] + dismiss_candidates,
-            agents_with_children_snapshot,
-        )
-        dismissed_ids = dismissed_identities_from_plan(cleanup_plan)
+        if failed_ids:
+            cleanup_plan = killing_compat._plan_bulk_kill_cleanup_side_effects(
+                [item.agent for item in kill_items] + dismiss_candidates,
+                agents_with_children_snapshot,
+            )
+        dismissed_ids = dismissed_identities_from_plan(cleanup_plan) - failed_ids
         # Union with the confirmed modal set so a planner miss cannot leave a
         # row on screen. Rows contributed only by the union get index-only
         # dismissal; the plan remains the source of truth for richer side

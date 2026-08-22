@@ -74,7 +74,15 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             status="not_found",
         )
 
+    stopped_monitors, monitor_error = _stop_live_monitors_for_named_agent(name, agent)
+    if monitor_error is not None:
+        return monitor_error
+    if _named_agent_is_live_monitor_member(agent, stopped_monitors):
+        return _finish_named_monitor_kill(name, agent, stopped_monitors)
+
     if agent.is_done:
+        if stopped_monitors:
+            return _finish_named_monitor_kill(name, agent, stopped_monitors)
         outcome_str = f" ({agent.outcome})" if agent.outcome else ""
         return _KillResult(
             False,
@@ -233,6 +241,83 @@ def dismiss_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
         True,
         f"Dismissed agent '{name}'",
         status="dismissed",
+        changed=True,
+        artifacts_dir=agent.artifacts_dir,
+        project=project_name,
+        timestamp=timestamp,
+    )
+
+
+def _stop_live_monitors_for_named_agent(
+    name: str, agent: NamedAgent
+) -> tuple[list[object], _KillResult | None]:
+    """Stop live monitors for this named endpoint before agent signalling."""
+    from sase.monitor.cleanup import owned_live_monitors_for_name
+    from sase.monitor.store import read_monitor_marker, stop_monitor
+
+    records = owned_live_monitors_for_name(name)
+    stopped: list[object] = []
+    for record in records:
+        result = stop_monitor(record)
+        current = read_monitor_marker(result.project_name, result.artifacts_dir)
+        settled = current if current is not None else result
+        if settled.monitor_state == "running":
+            return stopped, _KillResult(
+                False,
+                f"Failed to stop monitor {getattr(record, 'monitor_id', name)}",
+                reason="monitor_stop_failed",
+                status="monitor_stop_failed",
+                artifacts_dir=agent.artifacts_dir,
+            )
+        stopped.append(settled)
+    return stopped, None
+
+
+def _named_agent_is_live_monitor_member(
+    agent: NamedAgent, stopped_monitors: list[object]
+) -> bool:
+    artifacts_dir = agent.artifacts_dir
+    if any(
+        getattr(record, "artifacts_dir", None) == artifacts_dir
+        or getattr(record, "member_agent_name", None) == agent.name
+        for record in stopped_monitors
+    ):
+        return True
+    meta = _read_agent_meta(Path(artifacts_dir)) or {}
+    from sase.monitor_state import is_real_monitor_member
+
+    role = meta.get("agent_family_role")
+    monitor_id = meta.get("monitor_id")
+    return is_real_monitor_member(
+        role if isinstance(role, str) else None,
+        monitor_id if isinstance(monitor_id, str) else None,
+    )
+
+
+def _finish_named_monitor_kill(
+    name: str, agent: NamedAgent, stopped_monitors: list[object]
+) -> _KillResult:
+    artifacts_path, project_name, project_file, timestamp, is_home = (
+        _named_agent_project_fields(agent)
+    )
+    cl_name = _read_cl_name_from_artifacts(artifacts_path)
+    if not is_home:
+        _release_workspace_claim(project_file, timestamp)
+    _remove_agent_state_markers(
+        artifacts_path,
+        remove_running=True,
+        remove_waiting=True,
+    )
+    _record_dismissal(cl_name, timestamp)
+    _dismiss_agent_notifications(cl_name, timestamp)
+    monitor_id = (
+        getattr(stopped_monitors[0], "monitor_id", None) if stopped_monitors else None
+    )
+    label = monitor_id or name
+    return _KillResult(
+        True,
+        f"Stopped monitor '{label}' owned by '{name}'",
+        status="stopped",
         changed=True,
         artifacts_dir=agent.artifacts_dir,
         project=project_name,
