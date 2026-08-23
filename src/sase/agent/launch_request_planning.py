@@ -124,6 +124,105 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
     return query, plan_fake_fanout("single", [query])
 
 
+def expand_prompt_for_typed_launch(prompt: str) -> str:
+    """Recursively expand xprompts without injecting a default VCS tag.
+
+    ``normalize_default_vcs_workflow`` inserts ``#git:home`` after a leading
+    directive prefix, which splits ``%if::`` / ``%proc(...)::`` from the fence
+    they own. Typed planning therefore expands first and lets later agent
+    dispatch apply the default VCS tag to remaining agent prose.
+    """
+    from sase.agent.multi_prompt import parse_multi_prompt
+    from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+    from sase.xprompt.processor import (
+        LAUNCH_DEFERRED_XPROMPT_NAMES,
+        process_xprompt_references,
+        prompt_may_reference_xprompt,
+    )
+
+    submitted = canonicalize_project_aliases_in_prompt(prompt)
+    multi = parse_multi_prompt(submitted)
+    expanded_records = expand_xprompt_swarms_with_metadata(
+        multi.segments, multi.local_xprompts
+    )
+    expanded_segments = [record.prompt for record in expanded_records]
+    expanded: list[str] = []
+    for segment in expanded_segments:
+        if "#" in segment and prompt_may_reference_xprompt(segment):
+            segment = process_xprompt_references(
+                segment,
+                defer_xprompt_names=LAUNCH_DEFERRED_XPROMPT_NAMES,
+            )
+        expanded.append(segment)
+    return "\n---\n".join(expanded)
+
+
+def resolve_typed_launch_selected_project(expanded_prompt: str) -> str | None:
+    """Return the canonical project for a typed plan, or ``None``.
+
+    An explicit known ``#gh:`` / ``#git:`` ref wins over the current launch
+    context. Implicit ``home`` never overrides that ref, and this helper does
+    not invent workspace 0.
+    """
+    from sase.agent.launch_cwd_common import resolve_known_project_vcs_launch_ref
+    from sase.main.utils import ensure_project_file_and_get_workspace_num
+
+    known = resolve_known_project_vcs_launch_ref(expanded_prompt)
+    if known is not None:
+        return known.ref
+    project_file, _workspace_num, project_name = (
+        ensure_project_file_and_get_workspace_num(create_missing=False)
+    )
+    if project_file is None or not project_name or project_name == "home":
+        return None
+    return project_name
+
+
+def typed_launch_project_display_name(selected_project: str | None) -> str | None:
+    """Return the configured label for *selected_project*."""
+    if not selected_project:
+        return None
+    from sase.project_display_names import project_display_name_for
+
+    return project_display_name_for(selected_project)
+
+
+def prepare_typed_launch_plan(
+    expanded_prompt: str,
+    *,
+    selected_project: str | None = None,
+    launch_kind: str = "multi_prompt",
+) -> dict[str, Any]:
+    """Build a serialized typed launch plan from an already expanded prompt.
+
+    Side-effect-free aside from the Rust planner call. Grammar, graph
+    validation, and unit classification stay in ``sase-core``.
+    """
+    from sase.core.agent_launch_facade import plan_typed_launch_units
+    from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
+    from sase.xprompt.directives import DirectiveError
+
+    try:
+        plan = plan_typed_launch_units(
+            expanded_prompt,
+            launch_kind=launch_kind,
+            selected_project=selected_project,
+        )
+    except DirectiveError as exc:
+        raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
+    except (TypeError, ValueError) as exc:
+        raise LaunchRequestError("invalid_request", "typed_plan", str(exc)) from exc
+    for diagnostic in plan.diagnostics:
+        if str(diagnostic.severity).lower() == "error":
+            raise LaunchRequestError(
+                "invalid_request",
+                diagnostic.logical_id or "prompt",
+                diagnostic.message,
+            )
+    return dict(agent_launch_wire_to_json_dict(plan))
+
+
 def preview_context() -> Any:
     from sase.agent.launch_executor import LaunchExecutionContext
     from sase.core.paths import sase_projects_dir
@@ -139,7 +238,6 @@ def preview_context() -> Any:
         project_name = "home"
         home_dir = str(sase_projects_dir() / "home")
         project_file = preferred_project_spec_path(home_dir, "home")
-        workspace_num = 0
 
     assert project_file is not None
     assert project_name is not None

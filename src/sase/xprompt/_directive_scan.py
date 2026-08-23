@@ -12,6 +12,8 @@ from ._disabled_regions import protect_disabled_regions
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing import find_matching_paren_for_args
 
+_TYPED_LAUNCH_DIRECTIVES = frozenset({"if", "proc"})
+
 
 def strip_known_directives(prompt: str) -> str:
     """Remove known ``%id`` directive spans from *prompt* without side effects.
@@ -81,6 +83,27 @@ def has_model_directive(prompt: str) -> bool:
         prompt,
         r"(?:^|\s)%(?:model|m)(?:[:+(]|\s|$)",
     )
+
+
+def has_typed_launch_directive(prompt: str) -> bool:
+    """Return whether *prompt* has an active ``%if`` or ``%proc`` directive.
+
+    Uses the shared directive/fence contract: fenced code, inline literals, and
+    ``%xprompts_enabled:false`` regions are inert. Parenthesized and ``::``
+    fenced forms in live text count as active.
+    """
+    if "%if" not in prompt and "%proc" not in prompt:
+        return False
+
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name in _TYPED_LAUNCH_DIRECTIVES:
+            return True
+    return False
 
 
 def _has_wait_directive(prompt: str) -> bool:

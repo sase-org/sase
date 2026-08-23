@@ -12,6 +12,7 @@ from typing import Any
 
 from sase.agent.launch_preview import LAUNCH_REQUEST_FILE
 from sase.agent.launch_request_types import (
+    DIRECT_TYPED_LAUNCH_KIND,
     ApprovedLaunchDispatchResult,
     LaunchRequestCreationResult,
     LaunchRequestError,
@@ -132,7 +133,7 @@ def dispatch_approved_launch_request(
 
 
 def read_launch_request(response_dir: Path) -> dict[str, Any]:
-    """Read a neutral launch payload first, then the legacy request file."""
+    """Read a LaunchApproval or direct typed-launch bundle, then the legacy file."""
     neutral_path = response_dir / REQUEST_FILENAME
     legacy_path = response_dir / LAUNCH_REQUEST_FILE
     request_path = neutral_path if neutral_path.is_file() else legacy_path
@@ -152,16 +153,19 @@ def read_launch_request(response_dir: Path) -> dict[str, Any]:
         )
 
     if request_path == neutral_path:
-        if data.get("kind") != "launch":
+        kind = data.get("kind")
+        if kind not in {"launch", DIRECT_TYPED_LAUNCH_KIND}:
             raise LaunchRequestError(
-                "invalid_request", str(request_path), "gate is not a launch request"
+                "invalid_request",
+                str(request_path),
+                "bundle is not a launch request",
             )
         payload = data.get("payload")
         if not isinstance(payload, dict):
             raise LaunchRequestError(
                 "invalid_request",
                 str(request_path),
-                "launch gate payload must be an object",
+                "launch request payload must be an object",
             )
         return payload
     return data

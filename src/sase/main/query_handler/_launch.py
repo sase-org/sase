@@ -2,6 +2,8 @@
 
 import json
 import sys
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from sase.agent.launcher import launch_agents_from_cwd
 
@@ -112,6 +114,14 @@ def launch_query(query: str) -> None:
             segment_extra_env = force_reuse_plan.segment_envs
             force_reuse_applied = True
 
+    if "%if" in query or "%proc" in query:
+        _dispatch_direct_typed_launch_if_active(
+            query,
+            payload=payload,
+            allow_force_reuse=allow_force_reuse,
+            unresolved_names=tuple(unresolved_names),
+        )
+
     launch_units = None
     if not force_reuse_applied and payload.get("launch_units") is not None:
         from sase.agent.launch_guard import (
@@ -191,6 +201,54 @@ def launch_query(query: str) -> None:
         message=f"Started {len(results)} agent(s)",
         payload=result_payload,
     )
+    sys.exit(0)
+
+
+def _dispatch_direct_typed_launch_if_active(
+    query: str,
+    *,
+    payload: Mapping[str, Any],
+    allow_force_reuse: bool,
+    unresolved_names: Sequence[str],
+) -> None:
+    """Admit a direct typed launch, or return so the legacy path can run."""
+    from sase.agent.direct_typed_launch import (
+        dispatch_direct_typed_launch,
+        typed_launch_run_message,
+        typed_launch_run_payload,
+    )
+    from sase.agent.launch_request import LaunchRequestError
+
+    source_surface = str(payload.get("source_surface") or "")
+    if not source_surface:
+        source_surface = "ace" if allow_force_reuse else "cli"
+    raw_inputs = payload.get("inputs")
+    safe_inputs = raw_inputs if isinstance(raw_inputs, dict) else None
+    try:
+        dispatched = dispatch_direct_typed_launch(
+            query,
+            source_surface=source_surface,
+            safe_inputs=safe_inputs,
+        )
+    except LaunchRequestError as exc:
+        _emit_failed_launch_result(str(exc))
+        sys.exit(1)
+    if dispatched is None:
+        return
+    result, bundle_dir = dispatched
+    message = typed_launch_run_message(result)
+    result_payload = typed_launch_run_payload(
+        result,
+        bundle_dir,
+        unresolved_names=tuple(unresolved_names),
+    )
+    print(message)
+    for item in result.results:
+        print(f"Agent started (PID {item.pid})")
+    _record_launched_vcs_xprompt_usage(query)
+    from sase.ops.commands.run import emit_run_launch_result
+
+    emit_run_launch_result(success=True, message=message, payload=result_payload)
     sys.exit(0)
 
 

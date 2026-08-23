@@ -145,6 +145,14 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         ]
         if digest or preview_lines:
             lines.extend(["## Typed launch plan", ""])
+            display = str(
+                request.get("selected_project_display")
+                or request.get("selected_project")
+                or ""
+            )
+            if display:
+                lines.append(f"project `{display}`")
+                lines.append("")
             if digest:
                 lines.append(f"digest `{digest[:12]}`")
                 lines.append("")

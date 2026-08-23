@@ -1600,18 +1600,20 @@ each directive and its body from the model prompt. Each planned fanout slot is o
 launch unit. A slot containing `%proc` becomes a process unit and cannot also contain
 agent prompt prose; `%id:<name>` gives that process unit a shell name.
 
-Execution depends on the launch path:
+Execution depends on who initiated the launch:
 
-- Direct operator launches from `sase run` and ACE still use the ordinary launch path.
-  They capture and strip `%if` and `%proc`, but do not evaluate or dispatch them. In
-  particular, `%if` does not make a direct launch conditional, and `%proc` does not run
-  a command there.
-- A launch routed through LaunchApproval freezes its typed plan and digest before the
-  approval is shown. After approval, the admission coordinator waits for prerequisites,
-  evaluates `%if`, and only then dispatches eligible units. If a wait remains
-  unresolved, the approval response can finish while a detached coordinator continues
-  waiting; the coordinator writes a completion receipt and attempts a separate
+- User-initiated submissions from `sase run` and ACE execute directly through durable
+  typed admission. They freeze the same immutable typed plan and digest used after
+  approval, then the admission coordinator waits for prerequisites, evaluates `%if`, and
+  dispatches eligible units — agent units through the established agent launch path, and
+  `%proc` units as native `proc-shell` records with origin `xprompt-proc`. A direct user
+  submission does not create a LaunchApproval notification. If a wait remains
+  unresolved, the `sase run` / ACE launch proc can finish while a detached coordinator
+  continues waiting; the coordinator writes a completion receipt and attempts a separate
   notification when admission settles.
+- Agent-initiated launches still require LaunchApproval. Approval freezes the typed plan
+  and digest before the gate is shown. After approval, the same coordinator admits
+  units.
 
 For `%if`, exit `0` makes the unit eligible, exit `1` skips it, and any other exit,
 signal, timeout, cancellation, or execution failure records a condition error. A false

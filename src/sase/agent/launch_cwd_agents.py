@@ -199,6 +199,12 @@ def launch_agents_from_cwd_impl(
         swarm_xprompts=expanded_segment_swarm_xprompts,
         record_failed_launch_prompt=record_failed_launch_prompt,
     )
+    if not (extra_env or {}).get("SASE_LAUNCH_DISPATCH_FINGERPRINT"):
+        _guard_typed_directives_require_admission(
+            submitted_query,
+            expanded_segments,
+            record_failed_launch_prompt=record_failed_launch_prompt,
+        )
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
 
@@ -579,6 +585,32 @@ def launch_agents_from_cwd_impl(
         record_failed_launch_prompt(query)
         raise
     return execution.results
+
+
+def _guard_typed_directives_require_admission(
+    submitted_query: str,
+    expanded_segments: Sequence[str],
+    *,
+    record_failed_launch_prompt: Callable[[str], None],
+) -> None:
+    """Fail closed if enabled ``%if`` / ``%proc`` reaches agent-only execution."""
+    from sase.agent.launch_request_types import TypedAdmissionRequiredError
+    from sase.xprompt.code_value import typed_launch_units_enabled
+    from sase.xprompt.directives import has_typed_launch_directive
+
+    if not typed_launch_units_enabled():
+        return
+    if not any(
+        has_typed_launch_directive(segment)
+        for segment in (submitted_query, *expanded_segments)
+    ):
+        return
+    record_failed_launch_prompt(submitted_query)
+    raise TypedAdmissionRequiredError(
+        "typed_launch_units is enabled and this prompt contains an active "
+        "%if or %proc directive; it must go through typed admission instead "
+        "of the agent-only launch path"
+    )
 
 
 def _guard_hard_disabled_launch_units(

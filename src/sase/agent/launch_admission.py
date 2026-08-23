@@ -171,6 +171,15 @@ def install_coordinator_signal_flag() -> Callable[[], bool]:
     return cancelled.is_set
 
 
+def _format_admission_summary(summary: LaunchAdmissionSummaryWire) -> str:
+    return (
+        f"{summary.total} total, {summary.eligible} eligible, "
+        f"{summary.launched} launched, {summary.skipped} skipped, "
+        f"{summary.condition_errors} condition error(s), "
+        f"{summary.launch_errors} launch error(s)"
+    )
+
+
 def _dispatch_result(
     request_id: str,
     progress: AdmissionProgress,
@@ -182,15 +191,6 @@ def _dispatch_result(
         unit_results=progress.unit_results,
         plan_digest=str(progress.receipt.get("plan_digest") or ""),
         admission_complete=progress.complete,
-    )
-
-
-def _format_admission_summary(summary: LaunchAdmissionSummaryWire) -> str:
-    return (
-        f"{summary.total} total, {summary.eligible} eligible, "
-        f"{summary.launched} launched, {summary.skipped} skipped, "
-        f"{summary.condition_errors} condition error(s), "
-        f"{summary.launch_errors} launch error(s)"
     )
 
 

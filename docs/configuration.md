@@ -3733,12 +3733,13 @@ can still read a config written by a newer SASE, but the resolver warns and igno
 unknown keys at runtime.
 
 The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
-the experimental `%if` and `%proc` parser, completion, and launch-plan contract. Direct
-operator launches from `sase run` and ACE capture and strip those directives but do not
-perform typed admission. Launches routed through LaunchApproval freeze the typed plan
-before review; after approval, the admission coordinator resolves waits, evaluates
-`%if`, and dispatches eligible units — agent units through the established agent launch
-path, and `%proc` units through native stand-alone proc-shell dispatch; see
+the experimental `%if` and `%proc` parser, completion, and launch-plan contract.
+User-initiated ACE and `sase run` submissions execute those directives through durable
+typed admission without a LaunchApproval gate. Agent-initiated launches still freeze the
+typed plan for LaunchApproval; after approval, the same admission coordinator resolves
+waits, evaluates `%if`, and dispatches eligible units — agent units through the
+established agent launch path, and `%proc` units through native stand-alone proc-shell
+dispatch; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences

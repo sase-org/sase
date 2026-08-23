@@ -72,6 +72,53 @@ def test_launch_outcome_from_completion_reads_warning_messages_payload() -> None
     assert outcome.warning_messages == (toast,)
 
 
+def test_launch_outcome_from_completion_accepts_proc_only_payload() -> None:
+    completion = TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id="task",
+            proc_type="launch",
+            cl_name="test",
+            project_file="/tmp/test.sase",
+            status="success",
+            message="Launched 1 of 1 launch unit",
+            started_at=datetime.now(),
+        ),
+        success=True,
+        message="Launched 1 of 1 launch unit",
+        output="",
+        payload={
+            "count": 0,
+            "pids": [],
+            "results": [],
+            "request_agents_refresh": True,
+            "schedule_agents_refresh": True,
+            "admission_complete": True,
+            "plan_digest": "a" * 64,
+            "admission_summary": {
+                "total": 1,
+                "eligible": 1,
+                "launched": 1,
+                "skipped": 0,
+                "condition_errors": 0,
+                "launch_errors": 0,
+            },
+            "unit_results": [
+                {"logical_id": "unit-1", "outcome": "launched", "identity": "proc-1"}
+            ],
+        },
+        error=None,
+    )
+
+    outcome = _launch_outcome_from_completion(completion)
+
+    assert outcome is not None
+    assert outcome.results == ()
+    assert outcome.request_agents_refresh is True
+    assert outcome.schedule_agents_refresh is True
+    assert outcome.message == "Launched 1 of 1 launch unit"
+    assert outcome.severity is None
+
+
 def test_launch_task_completion_emits_warning_messages_from_result_payload() -> None:
     app = _FakeApp()
     toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"

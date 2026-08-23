@@ -23,9 +23,13 @@ from sase.agent.launch_request_gate import (
 )
 from sase.agent.launch_request_planning import (
     build_preview_plan as _build_preview_plan,
+    expand_prompt_for_typed_launch as _expand_prompt_for_typed_launch,
     normalize_request_payload as _normalize_request_payload,
+    prepare_typed_launch_plan as _prepare_typed_launch_plan,
     preview_context as _preview_context,
     requester_context as _requester_context,
+    resolve_typed_launch_selected_project as _resolve_typed_launch_selected_project,
+    typed_launch_project_display_name as _typed_launch_project_display_name,
 )
 from sase.agent.launch_admission import stop_launch_admission
 from sase.agent.launch_request_response import (
@@ -98,11 +102,17 @@ def create_launch_approval_request(
         "cwd": str(Path.cwd()),
         "prompt": prompt,
     }
-    typed_plan = _typed_plan_payload(preview_prompt, context)
+    typed_plan = _typed_plan_payload(prompt)
     if typed_plan is not None:
         request["typed_plan"] = typed_plan
         request["plan_digest"] = typed_plan.get("content_digest")
         request["plan_schema_version"] = typed_plan.get("schema_version")
+        selected_project = typed_plan.get("selected_project")
+        if isinstance(selected_project, str) and selected_project:
+            request["selected_project"] = selected_project
+            display = _typed_launch_project_display_name(selected_project)
+            if display:
+                request["selected_project_display"] = display
         slot_count = len(typed_plan.get("units") or [])
         request["slot_count"] = slot_count
         if slot_count > max_slots:
@@ -149,26 +159,14 @@ def create_launch_approval_request(
     )
 
 
-def _typed_plan_payload(prompt: str, context: Any) -> dict[str, Any] | None:
-    from sase.core.agent_launch_facade import plan_typed_launch_units
-    from sase.core.agent_launch_wire import agent_launch_wire_to_json_dict
+def _typed_plan_payload(prompt: str) -> dict[str, Any] | None:
     from sase.xprompt.code_value import typed_launch_units_enabled
-    from sase.xprompt.directives import DirectiveError
 
     if not typed_launch_units_enabled():
         return None
-    selected_project = getattr(context, "project_name", None)
-    try:
-        plan = plan_typed_launch_units(
-            prompt,
-            launch_kind="multi_prompt",
-            selected_project=selected_project,
-        )
-    except DirectiveError as exc:
-        raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
-    except (TypeError, ValueError) as exc:
-        raise LaunchRequestError("invalid_request", "typed_plan", str(exc)) from exc
-    return dict(agent_launch_wire_to_json_dict(plan))
+    expanded = _expand_prompt_for_typed_launch(prompt)
+    selected_project = _resolve_typed_launch_selected_project(expanded)
+    return _prepare_typed_launch_plan(expanded, selected_project=selected_project)
 
 
 def running_agent_context_requires_launch_approval() -> bool:

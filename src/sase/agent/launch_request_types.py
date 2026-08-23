@@ -13,6 +13,7 @@ from sase.core.agent_launch_wire import (
 )
 
 LAUNCH_REQUEST_SCHEMA_VERSION = 1
+DIRECT_TYPED_LAUNCH_KIND = "direct_typed_launch"
 
 
 @dataclass(frozen=True)
@@ -81,3 +82,7 @@ class LaunchRequestError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.target = target
+
+
+class TypedAdmissionRequiredError(RuntimeError):
+    """Enabled ``%if`` / ``%proc`` reached the agent-only launch path."""

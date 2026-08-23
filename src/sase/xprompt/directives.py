@@ -39,6 +39,7 @@ from ._directive_extract import extract_prompt_directives as _extract_prompt_dir
 from ._directive_scan import (
     has_deferred_start_directive,
     has_model_directive,
+    has_typed_launch_directive,
     has_wait_runners_directive,
     strip_known_directives,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",
+    "has_typed_launch_directive",
     "has_wait_runners_directive",
     "parse_absolute_time",
     "parse_duration",

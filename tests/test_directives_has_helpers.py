@@ -11,6 +11,7 @@ from sase.xprompt.directives import (
     has_alt_directive,
     has_deferred_start_directive,
     has_model_directive,
+    has_typed_launch_directive,
     has_wait_runners_directive,
 )
 
@@ -240,6 +241,60 @@ def test_has_model_directive_ignores_disabled_regions(directive: str) -> None:
     assert has_model_directive(prompt) is False
 
 
+# --- has_typed_launch_directive tests ---
+
+
+def test_has_typed_launch_directive_positional_proc() -> None:
+    assert has_typed_launch_directive('%proc("echo hello")\n') is True
+
+
+def test_has_typed_launch_directive_named_proc() -> None:
+    assert (
+        has_typed_launch_directive(
+            '%proc(python="print(\'ready\')", timeout="20m", label="Preflight")'
+        )
+        is True
+    )
+
+
+def test_has_typed_launch_directive_fenced_proc() -> None:
+    prompt = '%proc(timeout="20m")::\n\n```bash\njust check\n```\n'
+    assert has_typed_launch_directive(prompt) is True
+
+
+def test_has_typed_launch_directive_if_fence() -> None:
+    prompt = "%if::\n\n```bash\ntest -f pyproject.toml\n```\nDo work"
+    assert has_typed_launch_directive(prompt) is True
+
+
+def test_has_typed_launch_directive_absent() -> None:
+    assert has_typed_launch_directive("%id:reviewer\nDo work") is False
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ['%proc("echo hello")', "%if::"],
+)
+def test_has_typed_launch_directive_ignores_fenced_blocks(directive: str) -> None:
+    assert (
+        has_typed_launch_directive(f"snapshot\n```text\n{directive}\n```\nDo work")
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ['%proc("echo hello")', "%if::"],
+)
+def test_has_typed_launch_directive_ignores_disabled_regions(directive: str) -> None:
+    prompt = f"%xprompts_enabled:false\n{directive}\n%xprompts_enabled:true\nDo work"
+    assert has_typed_launch_directive(prompt) is False
+
+
+def test_has_typed_launch_directive_ignores_inline_literals() -> None:
+    assert has_typed_launch_directive('See `%proc("echo hello")` in the docs') is False
+
+
 # --- has_alt_directive tests ---
 
 
@@ -345,6 +400,8 @@ def test_has_alt_directive_ignores_disabled_regions(directive: str) -> None:
         (has_deferred_start_directive, "#t(5m)"),
         (has_model_directive, "%model:opus"),
         (has_model_directive, "%m:opus"),
+        (has_typed_launch_directive, '%proc("just check")'),
+        (has_typed_launch_directive, "%if::"),
         (has_alt_directive, "%alt(a,b)"),
         (has_alt_directive, "%(a,b)"),
         (has_alt_directive, "%{a | b}"),

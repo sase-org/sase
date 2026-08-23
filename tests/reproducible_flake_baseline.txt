@@ -203,12 +203,12 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # sase-s6.8: LspSession now pins SASE_TYPED_LAUNCH_UNITS to the process-local
 # flag (same as `sase lsp`), and ACE/LSP directive tests default the beta off
 # so ungated-contract assertions stay deterministic. Retires host-flag and
-# stale-binary evidence. Phase worker cannot file a flake task.
+# stale-binary evidence. Phase worker cannot file a flake task. The three
+# test_xprompt_directive_completion_parity.py nodes that shared this block
+# were re-retired below after later evidence from the digest-check master
+# break; a node may have only one fixed-at entry.
 # fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_candidates.py::test_id_parenthesized_completion_advertises_identity_keywords
 # fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_interactions.py::test_ctrl_t_at_percent_opens_directive_panel
-# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
-# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
-# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
 # sase-rv: retired-deletion inventory assertion no longer requires the full
 # xdist tmp prefix. Phase sase-s6.8 applied the suffix check; sase-rv remains
 # the flake task for any recurrence.
@@ -220,3 +220,16 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # mid-edit; the node passes on this tree. Phase worker cannot file a flake
 # task.
 # fixed-at: 2026-08-23T10:15:00Z tests/telemetry/test_metrics.py::test_metric_def_count
+#
+# sase-s6: restored plan_digest mismatch rejection on the live
+# typed_plan_from_request path (it survived only on the unused
+# launch_admission.py:_typed_plan_from_request after the split). The four
+# directive-completion parity nodes shared the same <=5-failure full-run
+# records as that master break; they pass after just install on this tree
+# (sase_core 0.31.6). Already recorded as DISCOVERED ISSUE on sase-s6; no
+# dedicated flake task.
+# fixed-at: 2026-08-23T14:09:41Z tests/test_launch_admission_mixed_matrix.py::test_plan_digest_mismatch_is_rejected
+# fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
+# fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
+# fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_typed_launch_directives_when_enabled
+# fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
