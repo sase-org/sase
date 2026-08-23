@@ -42,7 +42,7 @@ def test_guarded_exec_argv_wraps_logical_command_and_round_trips() -> None:
 
     assert argv[0] == sys.executable
     assert argv[1] == str(_BOOTSTRAP.resolve())
-    assert argv[2] == str(sase_subdir("locks") / "code-swap.lock")
+    assert argv[2] == str(sase_subdir("locks") / "code-swap-v2.lock")
     assert argv[3] == "--"
     assert argv[4:] == logical
     assert "-m" not in argv
@@ -140,7 +140,7 @@ def test_guarded_exec_reader_lock_does_not_leak_to_inheriting_child(
             ) as lock:
                 assert lock.acquired is True
                 assert _ENV_CODE_SWAP_LOCK_FD not in os.environ
-                lock_path = sase_subdir("locks") / "code-swap.lock"
+                lock_path = sase_subdir("locks") / "code-swap-v2.lock"
                 lock_stat = lock_path.stat()
                 lock_key = (lock_stat.st_dev, lock_stat.st_ino)
                 lock_fds = []

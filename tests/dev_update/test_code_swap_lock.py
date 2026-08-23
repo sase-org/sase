@@ -49,6 +49,45 @@ def test_writer_is_refused_while_reader_holds_lock() -> None:
             assert "plan.md" in writer.blocked_by
 
 
+def test_writer_ignores_anonymous_legacy_reader_lock() -> None:
+    legacy_path = sase_subdir("locks") / "code-swap.lock"
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_fd = os.open(legacy_path, os.O_RDWR | os.O_CREAT, 0o666)
+    try:
+        fcntl.flock(legacy_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+        with code_swap_writer_lock() as writer:
+            assert writer.acquired is True
+    finally:
+        fcntl.flock(legacy_fd, fcntl.LOCK_UN)
+        os.close(legacy_fd)
+
+
+def test_writer_still_defers_for_identified_legacy_reader() -> None:
+    legacy_path = sase_subdir("locks") / "code-swap.lock"
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_fd = os.open(legacy_path, os.O_RDWR | os.O_CREAT, 0o666)
+    holder_path = lock_mod._write_reader_holder(
+        lock_mod._holder(
+            op="bead.work",
+            command=("sase", "bead", "work", "legacy.md"),
+        ),
+        path=lock_mod._reader_holder_path(pid=os.getpid(), blocking=True),
+    )
+    assert holder_path is not None
+    try:
+        fcntl.flock(legacy_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+        with code_swap_writer_lock() as writer:
+            assert writer.acquired is False
+            assert writer.blocked_by is not None
+            assert "legacy.md" in writer.blocked_by
+    finally:
+        holder_path.unlink(missing_ok=True)
+        fcntl.flock(legacy_fd, fcntl.LOCK_UN)
+        os.close(legacy_fd)
+
+
 def test_reader_is_refused_while_writer_holds_lock() -> None:
     with code_swap_writer_lock() as writer:
         assert writer.acquired is True
@@ -176,7 +215,7 @@ def test_advisory_warning_disabled_by_env_var(monkeypatch) -> None:
 
 
 def test_reader_adopts_matching_handoff_fd(monkeypatch) -> None:
-    lock_path = sase_subdir("locks") / "code-swap.lock"
+    lock_path = sase_subdir("locks") / "code-swap-v2.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o666)
     os.set_inheritable(fd, True)
@@ -201,6 +240,33 @@ def test_reader_adopts_matching_handoff_fd(monkeypatch) -> None:
         with pytest.raises(OSError):
             os.fstat(fd)
         assert code_swap_readers_active() is None
+        with code_swap_writer_lock() as writer:
+            assert writer.acquired is True
+    finally:
+        if not closed:
+            os.close(fd)
+
+
+def test_reader_migrates_legacy_handoff_fd(monkeypatch) -> None:
+    legacy_path = sase_subdir("locks") / "code-swap.lock"
+    legacy_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(legacy_path, os.O_RDWR | os.O_CREAT, 0o666)
+    os.set_inheritable(fd, True)
+    fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+    monkeypatch.setenv(lock_mod._ENV_CODE_SWAP_LOCK_FD, str(fd))
+    closed = False
+    try:
+        with code_swap_reader_lock(
+            op="bead.work",
+            command=("sase", "bead", "work", "plan.md"),
+        ) as lock:
+            assert lock.acquired is True
+            assert os.get_inheritable(fd) is False
+            with code_swap_writer_lock() as writer:
+                assert writer.acquired is False
+        closed = True
+        with pytest.raises(OSError):
+            os.fstat(fd)
         with code_swap_writer_lock() as writer:
             assert writer.acquired is True
     finally:

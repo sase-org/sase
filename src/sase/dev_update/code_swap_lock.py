@@ -45,6 +45,8 @@ ENV_DISABLE_CODE_SWAP_LOCK = "SASE_DISABLE_CODE_SWAP_LOCK"
 _ENV_CODE_SWAP_LOCK_FD = "SASE_CODE_SWAP_LOCK_FD"
 _GUARDED_EXEC_SEPARATOR = "--"
 _GUARDED_EXEC_BOOTSTRAP = Path(__file__).with_name("code_swap_guarded_exec.py")
+CODE_SWAP_LOCK_FILENAME = "code-swap-v2.lock"
+_LEGACY_LOCK_FILENAMES = ("code-swap.lock",)
 
 
 @dataclass(frozen=True)
@@ -76,9 +78,20 @@ def code_swap_reader_lock(
 
     lock_path = _lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = _adopt_handoff_lock_fd(raw_handoff_fd, lock_path)
-    if fd is None:
+    adopted = _adopt_handoff_lock_fd(raw_handoff_fd, lock_path)
+    legacy_fd: int | None = None
+    if adopted is None:
         fd = _open_lock_file(lock_path)
+    else:
+        handoff_fd, current_generation = adopted
+        if current_generation:
+            fd = handoff_fd
+        else:
+            # A bootstrap loaded before the v2 migration can still hand off
+            # the legacy inode. Hold it until the current lock is open so the
+            # transition never leaves the reader entirely unprotected.
+            legacy_fd = handoff_fd
+            fd = _open_lock_file(lock_path)
     holder_path: Path | None = None
     try:
         if not _try_lock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB):
@@ -100,6 +113,9 @@ def code_swap_reader_lock(
             _unlock(fd)
     finally:
         os.close(fd)
+        if legacy_fd is not None:
+            _unlock(legacy_fd)
+            os.close(legacy_fd)
 
 
 @contextmanager
@@ -146,6 +162,19 @@ def code_swap_writer_lock() -> Iterator[_CodeSwapLockResult]:
             yield _CodeSwapLockResult(
                 acquired=False,
                 blocked_by=_format_reader_holders(_live_reader_holders()),
+            )
+            return
+
+        # ``code-swap.lock`` could remain shared-locked forever when a
+        # pre-handoff-fix bootstrap leaked its descriptor into an agent
+        # runner. The v2 inode deliberately leaves anonymous legacy locks
+        # behind, but a live holder record still identifies a real legacy
+        # bead-work reader whose orchestration must finish before the swap.
+        legacy_blocked_by = _legacy_reader_blocked_by()
+        if legacy_blocked_by is not None:
+            yield _CodeSwapLockResult(
+                acquired=False,
+                blocked_by=legacy_blocked_by,
             )
             return
 
@@ -227,7 +256,30 @@ def logical_argv_from_guarded_exec(argv: Sequence[str]) -> list[str]:
 
 
 def _lock_path() -> Path:
-    return sase_subdir("locks") / "code-swap.lock"
+    return sase_subdir("locks") / CODE_SWAP_LOCK_FILENAME
+
+
+def _legacy_lock_paths() -> tuple[Path, ...]:
+    locks_dir = sase_subdir("locks")
+    return tuple(locks_dir / name for name in _LEGACY_LOCK_FILENAMES)
+
+
+def _legacy_reader_blocked_by() -> str | None:
+    holders = _live_reader_holders()
+    if not holders:
+        return None
+    for path in _legacy_lock_paths():
+        try:
+            fd = os.open(path, os.O_RDWR)
+        except OSError:
+            continue
+        try:
+            if not _try_lock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB):
+                return _format_reader_holders(holders)
+            _unlock(fd)
+        finally:
+            os.close(fd)
+    return None
 
 
 def _holders_dir() -> Path:
@@ -238,11 +290,12 @@ def _lock_disabled() -> bool:
     return os.environ.get(ENV_DISABLE_CODE_SWAP_LOCK) == "1"
 
 
-def _adopt_handoff_lock_fd(raw: str | None, lock_path: Path) -> int | None:
-    """Return the inherited lock fd when *raw* names this lock, else None.
+def _adopt_handoff_lock_fd(raw: str | None, lock_path: Path) -> tuple[int, bool] | None:
+    """Return the inherited lock fd and whether it names the current lock.
 
     Never closes *raw*: a malformed, closed, or mismatched value may identify
-    an unrelated descriptor that this process must keep.
+    an unrelated descriptor that this process must keep. A recognized legacy
+    descriptor is adopted so the caller can migrate it without leaking it.
     """
     if raw is None:
         return None
@@ -254,16 +307,29 @@ def _adopt_handoff_lock_fd(raw: str | None, lock_path: Path) -> int | None:
         return None
     try:
         fd_stat = os.fstat(fd)
-        lock_stat = lock_path.stat()
     except OSError:
         return None
-    if (fd_stat.st_dev, fd_stat.st_ino) != (lock_stat.st_dev, lock_stat.st_ino):
+
+    fd_key = (fd_stat.st_dev, fd_stat.st_ino)
+    current_generation: bool | None = None
+    for candidate, is_current in (
+        (lock_path, True),
+        *((path, False) for path in _legacy_lock_paths()),
+    ):
+        try:
+            candidate_stat = candidate.stat()
+        except OSError:
+            continue
+        if fd_key == (candidate_stat.st_dev, candidate_stat.st_ino):
+            current_generation = is_current
+            break
+    if current_generation is None:
         return None
     try:
         os.set_inheritable(fd, False)
     except OSError:
         return None
-    return fd
+    return fd, current_generation
 
 
 def _open_lock_file(path: Path) -> int:

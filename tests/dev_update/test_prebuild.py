@@ -355,7 +355,7 @@ def test_produce_refuses_while_update_writer_lock_held(
 ) -> None:
     locks_dir = tmp_path / "locks"
     locks_dir.mkdir()
-    (locks_dir / "code-swap.lock").write_text(
+    (locks_dir / "code-swap-v2.lock").write_text(
         json.dumps({"pid": 999, "op": "dev.update", "command": [], "blocking": True}),
         encoding="utf-8",
     )

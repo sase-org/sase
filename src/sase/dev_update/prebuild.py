@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_subdir
+from sase.dev_update.code_swap_lock import CODE_SWAP_LOCK_FILENAME
 from sase.dev_update.models import DevCommandResult, DevCommandRunner
 from sase.dev_update.prebuild_cache import (
     EXTENSION_FILENAME,
@@ -165,7 +166,7 @@ def _consume_prebuild(
 
 def _code_swap_writer_active() -> bool:
     """Best-effort non-blocking probe for the active update writer holder."""
-    lock_path = sase_subdir("locks") / "code-swap.lock"
+    lock_path = sase_subdir("locks") / CODE_SWAP_LOCK_FILENAME
     try:
         raw = lock_path.read_text(encoding="utf-8").strip()
     except OSError:
