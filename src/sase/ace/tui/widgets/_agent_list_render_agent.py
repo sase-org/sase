@@ -102,6 +102,7 @@ from ._agent_list_styling import (
     _STEP_TYPE_COLORS,
     _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
+    _TREE_DEPTH_COLORS,
     _TREE_GUIDE,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH,
     _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
@@ -135,15 +136,30 @@ def _monitor_glyph_style(agent: Agent) -> str:
     )
 
 
-def _append_tree_indent(text: Text, depth: int) -> None:
-    """Append a depth-aware branch using the existing child-row footprint."""
+def _tree_depth_style(depth: int, *, is_selected: bool) -> str:
+    """Return the Rich style for a tree connector at one-based *depth*."""
+    color = _TREE_DEPTH_COLORS[(depth - 1) % len(_TREE_DEPTH_COLORS)]
+    return f"bold {color}" if is_selected else color
+
+
+def _append_tree_indent(text: Text, depth: int, *, is_selected: bool) -> None:
+    """Append a depth-aware branch using the existing child-row footprint.
+
+    Leading spacing, each ancestor guide, and the terminal branch are
+    separate spans so a connector keeps the color of the level it represents.
+    """
     if depth <= 0:
         return
-    if depth == 1:
-        indent = _CHILD_INDENT
-    else:
-        indent = "  " + (_TREE_GUIDE * (depth - 1)) + _CHILD_INDENT.lstrip()
-    text.append(indent, style="dim #808080")
+    text.append("  ")
+    for ancestor_depth in range(1, depth):
+        text.append(
+            _TREE_GUIDE,
+            style=_tree_depth_style(ancestor_depth, is_selected=is_selected),
+        )
+    text.append(
+        _CHILD_INDENT.lstrip(),
+        style=_tree_depth_style(depth, is_selected=is_selected),
+    )
 
 
 def _tribe_style(
@@ -212,7 +228,7 @@ def format_agent_option(
 
     # Indentation for rows linked under a parent agent/workflow.
     if tree_depth > 0:
-        _append_tree_indent(text, tree_depth)
+        _append_tree_indent(text, tree_depth, is_selected=is_selected)
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
         if agent.is_monitor:

@@ -188,6 +188,25 @@ _FOLD_RESTORE_GLYPH_STYLE = ARMED_RESTORE_STYLE
 _CHILD_INDENT = "  └─ "
 _TREE_GUIDE = "│  "
 
+# Tree-indent palette keyed by one-based hierarchy depth. Adjacent hues are
+# ordered for distinction and a calm progression on the current dark theme:
+# sky blue, mint, gold, rose, lavender, cyan. The first three stay especially
+# distinct on both the normal surface and the translucent purple selection
+# background. Selected rows bold the same colors instead of shifting hue, so
+# connectors stay readable over the highlight. Glyph shape and indentation
+# remain as a non-color cue for color-vision and low-color terminals. Depths
+# beyond the palette cycle with modulo so the hot render path stays total,
+# adjacent levels never share a color, and malformed or unusually deep trees
+# cannot generate a theme at render time.
+_TREE_DEPTH_COLORS: tuple[str, ...] = (
+    "#5FAFFF",  # sky blue
+    "#5FD7AF",  # mint
+    "#FFD75F",  # gold
+    "#FF87AF",  # rose
+    "#D7AFFF",  # lavender
+    "#5FD7FF",  # cyan
+)
+
 # Agent-grouping row identity colors. These saturated colors distinguish each
 # grouping kind without adding a trailing marker to the displayed name.
 _CLAN_IDENTITY_COLOR = "#D75FFF"
