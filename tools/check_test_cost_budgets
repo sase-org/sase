@@ -19,11 +19,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tests._test_cost import (  # noqa: E402
+    CostBudgetFailure,
     TEST_COST_DIR_ENV,
     TEST_COST_SCHEMA,
     check_cost_budgets,
     cost_directory,
     cost_recording_paths,
+    format_cost_budget_failure,
     latest_cost_record,
     load_cost_budgets,
     load_cost_record,
@@ -36,12 +38,22 @@ DEFAULT_BUDGET_PATH = (
     REPO_ROOT / "tests" / "perf" / "baselines" / "test_cost_budgets.json"
 )
 
+# Summary metrics whose family is CPU: hard by default, checked against the
+# `cpu` tolerance. Kept in sync with tests/_test_cost_budgets.py.
+CPU_SUMMARY_METRICS = frozenset({"total_file_cpu_seconds", "collection_cpu_seconds"})
+# Summary metrics whose family is memory: hard by default, wall tolerance.
+# Kept in sync with tests/_test_cost_budgets.py.
+MEMORY_SUMMARY_METRICS = frozenset(
+    {"peak_worker_rss_kib", "median_worker_rss_kib", "post_collection_worker_rss_kib"}
+)
+
 # (metric, per_worker) pairs suggested from recorded history. Per-worker metrics
 # are summed across xdist workers by build_cost_record(), so they must be
 # divided back down before a limit derived from a single worker's cost is
 # meaningful.
 SUGGESTED_SUMMARY_METRICS: tuple[tuple[str, bool], ...] = (
     ("total_file_wall_seconds", False),
+    ("total_file_cpu_seconds", False),
     ("idle_seconds", False),
     ("peak_worker_rss_kib", False),
     ("median_worker_rss_kib", False),
@@ -84,6 +96,21 @@ def _local_tolerance(budgets: Mapping[str, Any]) -> float:
         return 0.15
 
 
+def _local_cpu_tolerance(budgets: Mapping[str, Any]) -> float:
+    raw = budgets.get("tolerance", {})
+    raw_cpu = raw.get("cpu", 0.25) if isinstance(raw, Mapping) else 0.25
+    try:
+        return max(float(raw_cpu), 0.0)
+    except (TypeError, ValueError):
+        return 0.25
+
+
+def _summary_default_severity(metric: str) -> str:
+    if metric in CPU_SUMMARY_METRICS or metric in MEMORY_SUMMARY_METRICS:
+        return "hard"
+    return "advisory"
+
+
 def _round_up_nice(value: float) -> float:
     """Round ``value`` up to a round number carrying about 2 significant figures."""
 
@@ -98,6 +125,18 @@ def _suggest_limit(values: Sequence[float], tolerance: float) -> float | None:
     if not values:
         return None
     return _round_up_nice(max(values) / (1.0 + tolerance))
+
+
+def _suggest_count_limit(values: Sequence[int]) -> int | None:
+    """25% headroom on the max observed count, with no runtime tolerance.
+
+    Counts are near-deterministic, so the headroom belongs in the limit
+    itself rather than in a check-time tolerance (see check_cost_budgets()).
+    """
+
+    if not values:
+        return None
+    return int(_round_up_nice(max(values) * 1.25))
 
 
 def _summary_metric_values(
@@ -145,6 +184,34 @@ def _cause_values(records: Sequence[Mapping[str, Any]], name: str) -> list[float
     return values
 
 
+def _cause_cpu_values(records: Sequence[Mapping[str, Any]], name: str) -> list[float]:
+    values: list[float] = []
+    for record in records:
+        summary = record.get("summary")
+        causes = summary.get("causes") if isinstance(summary, Mapping) else None
+        payload = causes.get(name) if isinstance(causes, Mapping) else None
+        if isinstance(payload, Mapping) and payload.get("cpu_seconds") is not None:
+            try:
+                values.append(float(payload["cpu_seconds"]))
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
+def _cause_count_values(records: Sequence[Mapping[str, Any]], name: str) -> list[int]:
+    values: list[int] = []
+    for record in records:
+        summary = record.get("summary")
+        causes = summary.get("causes") if isinstance(summary, Mapping) else None
+        payload = causes.get(name) if isinstance(causes, Mapping) else None
+        if isinstance(payload, Mapping) and payload.get("count") is not None:
+            try:
+                values.append(int(payload["count"]))
+            except (TypeError, ValueError):
+                continue
+    return values
+
+
 def _provenance_notes(records: Sequence[Mapping[str, Any]]) -> list[str]:
     hosts = sorted({str(record["host"]) for record in records if record.get("host")})
     recorded_ats = sorted(
@@ -181,17 +248,20 @@ def suggest_budgets(
     paths = _history_recording_paths(directory, history)
     records = [load_cost_record(path) for path in paths]
     tolerance = _local_tolerance(current_budgets)
+    cpu_tolerance = _local_cpu_tolerance(current_budgets)
 
     summary: dict[str, Any] = {}
     metric_notes: list[str] = []
     for metric, per_worker in SUGGESTED_SUMMARY_METRICS:
         values = _summary_metric_values(records, metric, per_worker=per_worker)
-        limit = _suggest_limit(values, tolerance)
+        metric_tolerance = cpu_tolerance if metric in CPU_SUMMARY_METRICS else tolerance
+        limit = _suggest_limit(values, metric_tolerance)
         if limit is None:
             continue
         entry: dict[str, Any] = {"limit": limit}
         if per_worker:
             entry["per_worker"] = True
+        entry["enforce"] = _summary_default_severity(metric)
         summary[metric] = entry
         label = f"summary.{metric}" + (" (per worker)" if per_worker else "")
         metric_notes.append(
@@ -201,27 +271,61 @@ def suggest_budgets(
 
     causes: dict[str, Any] = {}
     for name in _cause_names(records):
-        values = _cause_values(records, name)
-        limit = _suggest_limit(values, tolerance)
-        if limit is None:
-            continue
-        causes[name] = {"limit": limit}
-        metric_notes.append(
-            f"causes.{name}: min={min(values):.3f} median={statistics.median(values):.3f} "
-            f"max={max(values):.3f}"
-        )
+        entry = {}
+
+        wall_values = _cause_values(records, name)
+        wall_limit = _suggest_limit(wall_values, tolerance)
+        if wall_limit is not None:
+            entry["limit"] = wall_limit
+            entry["enforce"] = "advisory"
+            metric_notes.append(
+                f"causes.{name}: min={min(wall_values):.3f} "
+                f"median={statistics.median(wall_values):.3f} "
+                f"max={max(wall_values):.3f}"
+            )
+
+        cpu_values = _cause_cpu_values(records, name)
+        cpu_limit = _suggest_limit(cpu_values, cpu_tolerance)
+        if cpu_limit is not None:
+            entry["cpu_limit"] = cpu_limit
+            entry["cpu_enforce"] = "hard"
+            metric_notes.append(
+                f"causes.{name}.cpu: min={min(cpu_values):.3f} "
+                f"median={statistics.median(cpu_values):.3f} "
+                f"max={max(cpu_values):.3f}"
+            )
+
+        count_values = _cause_count_values(records, name)
+        count_limit = _suggest_count_limit(count_values)
+        if count_limit is not None:
+            entry["count_limit"] = count_limit
+            entry["count_enforce"] = "hard"
+            metric_notes.append(
+                f"causes.{name}.count: min={min(count_values)} "
+                f"median={statistics.median(count_values):.1f} "
+                f"max={max(count_values)}"
+            )
+
+        if entry:
+            causes[name] = entry
 
     notes = [
-        "Suggested by `tools/check_test_cost_budgets --suggest`: limit = "
-        "ceil(worst recorded value / (1 + local tolerance)), rounded up to a round "
-        "number.",
+        "Suggested by `tools/check_test_cost_budgets --suggest`: wall/cpu limit = "
+        "ceil(worst recorded value / (1 + tolerance)) using the local (wall) or "
+        "cpu tolerance; count_limit = ceil(max observed count * 1.25) with no "
+        "runtime tolerance; each rounded up to a round number. `enforce` / "
+        "`cpu_enforce` / `count_enforce` are always written explicitly so the "
+        "committed file never depends on the implicit family default (wall "
+        "advisory, cpu/count/memory hard).",
         *_provenance_notes(records),
         *metric_notes,
     ]
 
     return {
         "schema": TEST_COST_SCHEMA,
-        "tolerance": current_budgets.get("tolerance", {"ci": 0.2, "local": 0.15}),
+        "tolerance": current_budgets.get(
+            "tolerance", {"ci": 0.2, "local": 0.15, "cpu": 0.25}
+        ),
         "summary": summary,
         "causes": causes,
         "notes": notes,
@@ -244,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ci",
         action="store_true",
-        default=os.environ.get("CI") == "true",
+        default=os.environ.get("GITHUB_ACTIONS") == "true",
         help="use the CI tolerance from the budget file",
     )
     parser.add_argument(
@@ -260,6 +364,23 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=None,
         help="with --suggest, use only the newest N recordings (default: all retained)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "treat advisory metrics as fatal too, for deliberate investigation on "
+            "a quiet host"
+        ),
+    )
+    parser.add_argument(
+        "--report-advisories",
+        action="store_true",
+        help=(
+            "re-read the newest recording, print only the advisory section, and "
+            "always exit 0 (used after `just test-cost` to surface advisories "
+            "that tools/run_silent would otherwise swallow on success)"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -279,15 +400,46 @@ def main(argv: list[str] | None = None) -> int:
     record_path = args.recording or _default_recording_path()
     record = load_cost_record(record_path)
     failures = check_cost_budgets(record, budgets, ci=args.ci)
-    if not failures:
-        print(f"test cost budgets passed: {record_path}")
+    hard = [failure for failure in failures if failure.severity == "hard"]
+    advisories = [failure for failure in failures if failure.severity == "advisory"]
+
+    if args.report_advisories:
+        if not advisories:
+            print(f"test cost budgets: no advisories: {record_path}")
+            return 0
+        _print_advisories(record_path, advisories, record=record)
+        return 0
+
+    if advisories:
+        _print_advisories(record_path, advisories, record=record)
+
+    fatal = failures if args.strict else hard
+    if not fatal:
+        suffix = " (see advisories above)" if advisories else ""
+        print(f"test cost budgets passed{suffix}: {record_path}")
         return 0
 
     print(f"test cost budget regression: {record_path}", file=sys.stderr)
     print(f"budgets: {budget_path}", file=sys.stderr)
-    for failure in failures:
-        print(f"- {failure.format()}", file=sys.stderr)
+    for failure in fatal:
+        print(f"- {format_cost_budget_failure(record, failure)}", file=sys.stderr)
     return 1
+
+
+def _print_advisories(
+    record_path: Path,
+    advisories: Sequence[CostBudgetFailure],
+    *,
+    record: Mapping[str, Any],
+) -> None:
+    print(f"test cost budget advisories: {record_path}")
+    print(
+        "wall-clock overages usually mean the host was busy, not that the suite "
+        "got more expensive; the cpu/count figures alongside each entry are "
+        "contention-stable, so compare them to tell the two apart."
+    )
+    for failure in advisories:
+        print(f"- {format_cost_budget_failure(record, failure)}")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import time
 from datetime import UTC, datetime
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -137,6 +138,7 @@ def test_build_cost_record_merges_workers_and_files() -> None:
     assert record["summary"]["causes"]["parser_create"] == {
         "count": 2,
         "seconds": 0.5,
+        "cpu_seconds": 0.0,
     }
     assert record["files"]["tests/test_a.py"]["node_count"] == 3
 
@@ -369,6 +371,184 @@ def test_cost_budget_check_uses_wider_ci_tolerance() -> None:
     assert check_cost_budgets(record, budgets, ci=True) == []
 
 
+def test_check_cost_budgets_classifies_severity_by_family() -> None:
+    record = {
+        "summary": {
+            "total_file_wall_seconds": 100.0,
+            "total_file_cpu_seconds": 100.0,
+            "peak_worker_rss_kib": 100.0,
+            "causes": {
+                "some_cause": {"count": 10, "seconds": 100.0, "cpu_seconds": 100.0},
+            },
+        },
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.0, "ci": 0.0, "cpu": 0.0},
+        "summary": {
+            "total_file_wall_seconds": {"limit": 1.0},
+            "total_file_cpu_seconds": {"limit": 1.0},
+            "peak_worker_rss_kib": {"limit": 1.0},
+        },
+        "causes": {
+            "some_cause": {"limit": 1.0, "cpu_limit": 1.0, "count_limit": 1},
+        },
+    }
+
+    failures = {
+        failure.metric: failure for failure in check_cost_budgets(record, budgets)
+    }
+
+    assert failures["total_file_wall_seconds"].severity == "advisory"
+    assert failures["total_file_cpu_seconds"].severity == "hard"
+    assert failures["peak_worker_rss_kib"].severity == "hard"
+    assert failures["causes.some_cause"].severity == "advisory"
+    assert failures["causes.some_cause.cpu"].severity == "hard"
+    assert failures["causes.some_cause.count"].severity == "hard"
+
+
+def test_check_cost_budgets_enforce_overrides_family_default() -> None:
+    record = {"summary": {"total_file_wall_seconds": 100.0}}
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.0},
+        "summary": {"total_file_wall_seconds": {"limit": 1.0, "enforce": "hard"}},
+        "causes": {},
+    }
+
+    failures = check_cost_budgets(record, budgets)
+
+    assert failures[0].severity == "hard"
+
+
+def test_count_budget_has_no_tolerance() -> None:
+    record = {
+        "summary": {"causes": {"c": {"count": 10, "seconds": 0.0, "cpu_seconds": 0.0}}}
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.5, "cpu": 0.5},
+        "summary": {},
+        "causes": {"c": {"count_limit": 10}},
+    }
+
+    assert check_cost_budgets(record, budgets) == []
+
+    budgets["causes"]["c"]["count_limit"] = 9
+    failures = check_cost_budgets(record, budgets)
+
+    assert failures[0].metric == "causes.c.count"
+    assert failures[0].tolerance == 0.0
+    assert failures[0].allowed == 9.0
+
+
+def test_cpu_budget_uses_cpu_tolerance() -> None:
+    record = {
+        "summary": {"causes": {"c": {"count": 1, "seconds": 0.0, "cpu_seconds": 11.5}}}
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"cpu": 0.10},
+        "summary": {},
+        "causes": {"c": {"cpu_limit": 10.0}},
+    }
+
+    failures = check_cost_budgets(record, budgets)
+
+    assert failures[0].metric == "causes.c.cpu"
+    assert failures[0].tolerance == 0.10
+    assert failures[0].allowed == pytest.approx(11.0)
+
+
+def _write_wall_only_overage_case(tmp_path: Path) -> tuple[Path, Path]:
+    """Build the reported bug as a fixture: a wall overage with CPU/count OK.
+
+    Uses the real numbers from the 2026-08-23 `ace_page_enter` regression
+    report (actual 680.949 with count 672) so this is a direct regression
+    test for the reported bug, not a synthetic stand-in.
+    """
+
+    record = build_cost_record(
+        [
+            {
+                "worker_id": "gw0",
+                "wall_seconds": 700.0,
+                "cpu_seconds": 700.0,
+                "collection_seconds": 1.0,
+                "peak_rss_kib": 100,
+                "causes": {
+                    "ace_page_enter": {
+                        "count": 672,
+                        "seconds": 680.949,
+                        "cpu_seconds": 600.0,
+                    }
+                },
+                "files": {},
+            }
+        ],
+        mode="cost",
+        worker_count=1,
+        host="host",
+        now=datetime(2026, 8, 23, tzinfo=UTC),
+    )
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.15, "ci": 0.2, "cpu": 0.25},
+        "summary": {},
+        "causes": {
+            "ace_page_enter": {
+                "limit": 540.0,
+                "enforce": "advisory",
+                "cpu_limit": 700.0,
+                "cpu_enforce": "hard",
+                "count_limit": 840,
+                "count_enforce": "hard",
+            }
+        },
+    }
+
+    recording_path = tmp_path / "recording.json"
+    recording_path.write_text(json.dumps(record), encoding="utf-8")
+    budget_path = tmp_path / "budgets.json"
+    budget_path.write_text(json.dumps(budgets), encoding="utf-8")
+    return recording_path, budget_path
+
+
+def test_wall_only_overage_produces_advisories_and_exits_zero(tmp_path: Path) -> None:
+    recording_path, budget_path = _write_wall_only_overage_case(tmp_path)
+    record = load_cost_record(recording_path)
+    budgets = load_cost_budgets(budget_path)
+
+    failures = check_cost_budgets(record, budgets)
+
+    assert [failure.metric for failure in failures] == ["causes.ace_page_enter"]
+    assert failures[0].severity == "advisory"
+
+    tool = _load_check_tool()
+    exit_code = tool.main(
+        ["--recording", str(recording_path), "--budgets", str(budget_path)]
+    )
+
+    assert exit_code == 0
+
+
+def test_wall_only_overage_is_fatal_with_strict(tmp_path: Path) -> None:
+    recording_path, budget_path = _write_wall_only_overage_case(tmp_path)
+
+    tool = _load_check_tool()
+    exit_code = tool.main(
+        [
+            "--recording",
+            str(recording_path),
+            "--budgets",
+            str(budget_path),
+            "--strict",
+        ]
+    )
+
+    assert exit_code == 1
+
+
 def test_committed_cost_budgets_are_valid() -> None:
     budgets = load_cost_budgets(Path("tests/perf/baselines/test_cost_budgets.json"))
 
@@ -415,6 +595,41 @@ async def test_cost_recorder_attributes_ace_settle_helpers(tmp_path: Path) -> No
     assert causes["ace_pause_until_cpu_idle"]["count"] == 1
 
 
+def test_cost_recorder_attributes_cpu_seconds_by_cause(tmp_path: Path) -> None:
+    recorder = _test_cost_plugin.CostRecorder(tmp_path, mode="cost", worker_count=1)
+    token = _test_cost_plugin._CURRENT_FILE.set("tests/test_a.py")
+    try:
+        with recorder.measure("cpu_bound_cause"):
+            total = 0
+            for i in range(2_000_000):
+                total += i * i
+        with recorder.measure("sleep_bound_cause"):
+            time.sleep(0.05)  # sase-test-wait: need measurable wall time with ~0 CPU
+        payload = recorder._worker_payload()
+    finally:
+        _test_cost_plugin._CURRENT_FILE.reset(token)
+        recorder._restore_patches()
+
+    cpu_cause = payload["causes"]["cpu_bound_cause"]
+    sleep_cause = payload["causes"]["sleep_bound_cause"]
+    assert cpu_cause["cpu_seconds"] > 0.0
+    assert sleep_cause["cpu_seconds"] < sleep_cause["seconds"] / 2
+
+    record = build_cost_record(
+        [payload],
+        mode="cost",
+        worker_count=1,
+        host="host",
+        now=datetime(2026, 8, 9, tzinfo=UTC),
+    )
+
+    assert record["summary"]["causes"]["cpu_bound_cause"]["cpu_seconds"] > 0.0
+    assert (
+        record["files"]["tests/test_a.py"]["causes"]["cpu_bound_cause"]["cpu_seconds"]
+        > 0.0
+    )
+
+
 def test_build_cost_record_summarizes_collection_cpu_seconds() -> None:
     record = build_cost_record(
         [
@@ -452,7 +667,7 @@ def test_per_worker_normalization_divides_summed_actual_by_worker_count() -> Non
     record = {"summary": {"collection_cpu_seconds": 160.0}, "worker_count": 10}
     budgets = {
         "schema": 1,
-        "tolerance": {"local": 0.0},
+        "tolerance": {"local": 0.0, "cpu": 0.0},
         "summary": {"collection_cpu_seconds": {"limit": 20.0, "per_worker": True}},
         "causes": {},
     }
@@ -503,23 +718,79 @@ def test_per_worker_normalization_never_divides_by_zero() -> None:
 _COMMITTED_BUDGETS: dict[str, Any] = load_cost_budgets(COMMITTED_BUDGETS_PATH)
 
 
+_DEFAULT_SUMMARY_SEVERITY_FAMILIES = {
+    "total_file_cpu_seconds": "hard",
+    "collection_cpu_seconds": "hard",
+    "peak_worker_rss_kib": "hard",
+    "median_worker_rss_kib": "hard",
+    "post_collection_worker_rss_kib": "hard",
+}
+
+
 def _committed_regression_cases() -> list[Any]:
     cases = []
     for metric, raw in sorted(_COMMITTED_BUDGETS["summary"].items()):
         limit = float(raw["limit"])
         per_worker = bool(raw.get("per_worker"))
+        severity = raw.get(
+            "enforce", _DEFAULT_SUMMARY_SEVERITY_FAMILIES.get(metric, "advisory")
+        )
         cases.append(
-            pytest.param("summary", metric, limit, per_worker, id=f"summary-{metric}")
+            pytest.param(
+                "summary",
+                metric,
+                "wall",
+                limit,
+                per_worker,
+                severity,
+                id=f"summary-{metric}",
+            )
         )
     for cause, raw in sorted((_COMMITTED_BUDGETS.get("causes") or {}).items()):
-        limit = float(raw["limit"])
-        cases.append(pytest.param("causes", cause, limit, False, id=f"causes-{cause}"))
+        if "limit" in raw:
+            cases.append(
+                pytest.param(
+                    "causes",
+                    cause,
+                    "wall",
+                    float(raw["limit"]),
+                    False,
+                    raw.get("enforce", "advisory"),
+                    id=f"causes-{cause}",
+                )
+            )
+        if "cpu_limit" in raw:
+            cases.append(
+                pytest.param(
+                    "causes",
+                    cause,
+                    "cpu",
+                    float(raw["cpu_limit"]),
+                    False,
+                    raw.get("cpu_enforce", "hard"),
+                    id=f"causes-{cause}-cpu",
+                )
+            )
+        if "count_limit" in raw:
+            cases.append(
+                pytest.param(
+                    "causes",
+                    cause,
+                    "count",
+                    float(raw["count_limit"]),
+                    False,
+                    raw.get("count_enforce", "hard"),
+                    id=f"causes-{cause}-count",
+                )
+            )
     return cases
 
 
-@pytest.mark.parametrize("scope, key, limit, per_worker", _committed_regression_cases())
+@pytest.mark.parametrize(
+    "scope, key, dimension, limit, per_worker, severity", _committed_regression_cases()
+)
 def test_every_committed_budget_flags_a_doubled_metric(
-    scope: str, key: str, limit: float, per_worker: bool
+    scope: str, key: str, dimension: str, limit: float, per_worker: bool, severity: str
 ) -> None:
     """A record at 2x any committed limit must fail exactly that budget.
 
@@ -536,15 +807,33 @@ def test_every_committed_budget_flags_a_doubled_metric(
         }
         expected_metric = f"{key} (per worker)" if per_worker else key
     else:
-        record = {"summary": {"causes": {key: {"count": 1, "seconds": limit * 2}}}}
-        expected_metric = f"causes.{key}"
+        cause_payload: dict[str, Any] = {"count": 1, "seconds": 0.0, "cpu_seconds": 0.0}
+        if dimension == "wall":
+            cause_payload["seconds"] = limit * 2
+            expected_metric = f"causes.{key}"
+        elif dimension == "cpu":
+            cause_payload["cpu_seconds"] = limit * 2
+            expected_metric = f"causes.{key}.cpu"
+        else:
+            cause_payload["count"] = int(limit * 2)
+            expected_metric = f"causes.{key}.count"
+        record = {"summary": {"causes": {key: cause_payload}}}
 
     failures = check_cost_budgets(record, _COMMITTED_BUDGETS)
 
     assert [failure.metric for failure in failures] == [expected_metric]
+    assert failures[0].severity == severity
 
 
 def test_committed_pre_epic_baseline_still_fails_recalibrated_budgets() -> None:
+    """The pre-epic baseline predates per-cause CPU attribution.
+
+    Its two known-bad causes must still be reported (as advisories, since
+    wall-only causes.* budgets are advisory by default) and must not trip any
+    hard metric -- the recalibrated budgets add count_limit/cpu_limit
+    dimensions this old recording cannot exercise.
+    """
+
     baseline = load_cost_record(BASELINE_RECORDING_PATH)
 
     failures = check_cost_budgets(baseline, _COMMITTED_BUDGETS)
@@ -553,6 +842,7 @@ def test_committed_pre_epic_baseline_still_fails_recalibrated_budgets() -> None:
         "causes.parser_create",
         "causes.yaml_load",
     ]
+    assert [failure.severity for failure in failures] == ["advisory", "advisory"]
 
 
 def test_suggest_output_round_trips_through_load_cost_budgets(tmp_path: Path) -> None:
@@ -567,7 +857,9 @@ def test_suggest_output_round_trips_through_load_cost_budgets(tmp_path: Path) ->
                 "collection_seconds": 1.25,
                 "collection_cpu_seconds": 1.0,
                 "peak_rss_kib": 500000,
-                "causes": {"parser_create": {"count": 2, "seconds": 0.5}},
+                "causes": {
+                    "parser_create": {"count": 2, "seconds": 0.5, "cpu_seconds": 0.3}
+                },
                 "files": {},
             }
         ],
@@ -586,4 +878,11 @@ def test_suggest_output_round_trips_through_load_cost_budgets(tmp_path: Path) ->
 
     assert loaded["schema"] == suggested["schema"] == 1
     assert loaded["summary"]["collection_seconds"]["per_worker"] is True
+    assert loaded["summary"]["collection_seconds"]["enforce"] == "advisory"
+    assert loaded["summary"]["collection_cpu_seconds"]["enforce"] == "hard"
     assert loaded["causes"]["parser_create"]["limit"] > 0
+    assert loaded["causes"]["parser_create"]["enforce"] == "advisory"
+    assert loaded["causes"]["parser_create"]["cpu_limit"] > 0
+    assert loaded["causes"]["parser_create"]["cpu_enforce"] == "hard"
+    assert loaded["causes"]["parser_create"]["count_limit"] > 0
+    assert loaded["causes"]["parser_create"]["count_enforce"] == "hard"

@@ -1,57 +1,107 @@
 {
   "causes": {
     "ace_page_enter": {
+      "count_enforce": "hard",
+      "count_limit": 840,
+      "cpu_enforce": "hard",
+      "cpu_limit": 590.0,
+      "enforce": "advisory",
       "limit": 540.0
     },
     "ace_settle_pilot": {
+      "count_enforce": "hard",
+      "count_limit": 8600,
+      "cpu_enforce": "hard",
+      "cpu_limit": 290.0,
+      "enforce": "advisory",
       "limit": 340.0
     },
     "parser_create": {
+      "count_enforce": "hard",
+      "count_limit": 2300,
+      "cpu_enforce": "hard",
+      "cpu_limit": 33.0,
+      "enforce": "advisory",
       "limit": 52.0
     },
     "pilot_pause_delay": {
+      "count_enforce": "hard",
+      "count_limit": 18000,
+      "cpu_enforce": "hard",
+      "cpu_limit": 250.0,
+      "enforce": "advisory",
       "limit": 230.0
     },
     "subprocess_run": {
+      "count_enforce": "hard",
+      "count_limit": 52000,
+      "cpu_enforce": "hard",
+      "cpu_limit": 24.0,
+      "enforce": "advisory",
       "limit": 540.0
     },
     "textual_app_run_test_enter": {
+      "count_enforce": "hard",
+      "count_limit": 4500,
+      "cpu_enforce": "hard",
+      "cpu_limit": 520.0,
+      "enforce": "advisory",
       "limit": 470.0
     },
     "yaml_load": {
+      "count_enforce": "hard",
+      "count_limit": 56000,
+      "cpu_enforce": "hard",
+      "cpu_limit": 18.0,
+      "enforce": "advisory",
       "limit": 20.0
     }
   },
   "notes": [
-    "Limits are derived as ceil(worst recorded value / (1 + local tolerance)), rounded up to a round number; run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
-    "Sample: 8 recordings from host athena, 2026-08-19 23:00Z-2026-08-20 17:35Z, 4-14 workers, 34,551-35,266 nodes. Existing keys only: raise a limit when --suggest exceeds the committed value; do not add new cause keys or lower a still-passing limit.",
-    "Updated existing suggested limit increases from this sample: collection_cpu_seconds 25.0, ace_page_enter 540.0, pilot_pause_delay 230.0, textual_app_run_test_enter 470.0.",
+    "2026-08-23 severity-model migration (test-cost-contention fix): every causes.* wall `limit` is now advisory (`enforce: \"advisory\"`) because wall-clock durations for the ACE/Textual async causes move ~17-19% with host contention alone, with no change in invocation count -- see the 2026-08-23 ace_page_enter/textual_app_run_test_enter/pilot_pause_delay false-positive regression this migration fixes. CPU seconds, invocation counts, and RSS are contention-stable and stay hard (`enforce: \"hard\"` / `cpu_enforce` / `count_enforce`); `--strict` makes advisories fatal too, for deliberate investigation on a quiet host.",
+    "Existing wall limits (causes.* `limit`, `total_file_wall_seconds`, `idle_seconds`, `collection_seconds`) are kept at their already-committed values in this migration rather than raised from fresh --suggest output, even though a fresh sample would justify raising several of them: the pre-epic baseline regression test (test_committed_pre_epic_baseline_still_fails_recalibrated_budgets) depends on the current parser_create/yaml_load limits still catching that historical regression, and since wall limits are now advisory-only anyway, there is no urgency to raise them in the same change that adds the severity model. Raise them in a later --suggest cycle once that baseline test (or its fixture) is revisited.",
+    "Added `count_limit` (hard, no runtime tolerance) for every cause that already had a wall limit: round_up_nice(max observed count * 1.25) from the 2026-08-23 sample below, ~25% headroom for organic test growth so a refactor that doubles a call site trips it but a handful of new tests does not.",
+    "Added `total_file_cpu_seconds` (new, hard, `cpu` tolerance) as a summary limit, derived from the 2026-08-23 sample below; `collection_cpu_seconds` keeps its already-committed limit but is now hard. `tolerance.cpu` starts at 0.25 (deliberately conservative for the first cycle -- observed contention pushed suite CPU +10.4% on 2026-08-23); tighten once ten or more recordings carry per-cause CPU.",
+    "2026-08-23 Pass 2: committed per-cause `cpu_limit` (hard, `cpu_enforce: \"hard\"`) for every cause that already had a wall `limit`, derived from the first two recordings to carry per-cause `cpu_seconds`: 20260823T160203Z-1037053.json (ace_page_enter 596.190s, ace_settle_pilot 293.583s, parser_create 34.008s, pilot_pause_delay 255.515s, subprocess_run 23.618s, textual_app_run_test_enter 530.780s, yaml_load 18.836s) and 20260823T162245Z-1275122.json (626.290s, 301.058s, 34.647s, 261.443s, 24.743s, 548.117s, 18.922s respectively), both taken on host athena on an evidently busy host (see the surrounding contention discussion in the plan) since only two post-migration CPU-bearing recordings exist. Per the plan, both observations count as the quiet-band sample given the limited history.",
+    "Per-cause `cpu_limit` values above deliberately depart from the standard `--suggest` formula (`round_up_nice(max_observed / (1 + cpu tolerance))`): applied verbatim to only two close-together observations, that formula leaves just 0.3-5.4% headroom below the effective allowance (limit * 1.25) for these causes -- short of the required 15%. Instead each `cpu_limit` is `round_up_nice(max_observed_cpu_seconds / (0.85 * (1 + cpu tolerance)))`, guaranteeing both acceptance criteria: every quiet-band observation sits >=15% below the effective allowance, and the effective allowance stays below 1.5x the quiet-band median (verified per cause: ace_page_enter allowance 737.5 vs 1.5x-median 916.9; ace_settle_pilot 362.5 vs 446.0; parser_create 41.25 vs 51.5; pilot_pause_delay 312.5 vs 387.7; subprocess_run 30.0 vs 36.3; textual_app_run_test_enter 650.0 vs 809.2; yaml_load 22.5 vs 28.3). Re-derive with the standard `--suggest` formula once ten or more recordings carry per-cause CPU and the quiet-band sample is large enough that the max observation is no longer also the limit-setting observation.",
+    "Limits are derived as ceil(worst recorded value / (1 + tolerance)), rounded up to a round number, using the local/ci tolerance for wall limits and the cpu tolerance for cpu limits; count_limit = ceil(max observed count * 1.25) with no runtime tolerance. Run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
+    "Sample used for total_file_cpu_seconds and every count_limit above: 8 recordings from host athena, 2026-08-23T08:40Z-2026-08-23T15:17Z, 9-14 workers, 36,199-36,323 nodes. Existing keys only: raise a limit when --suggest exceeds the committed value; do not add new cause keys or lower a still-passing limit.",
     "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
     "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
-    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output \u2014 do not raise a limit to hide a one-off regression."
+    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output — do not raise a limit to hide a one-off regression."
   ],
   "schema": 1,
   "summary": {
     "collection_cpu_seconds": {
+      "enforce": "hard",
       "limit": 25.0,
       "per_worker": true
     },
     "collection_seconds": {
+      "enforce": "advisory",
       "limit": 60.0,
       "per_worker": true
     },
     "idle_seconds": {
+      "enforce": "advisory",
       "limit": 3200.0
     },
     "peak_worker_rss_kib": {
+      "enforce": "hard",
       "limit": 1700000.0
     },
+    "total_file_cpu_seconds": {
+      "enforce": "hard",
+      "limit": 1800.0
+    },
     "total_file_wall_seconds": {
+      "enforce": "advisory",
       "limit": 4700.0
     }
   },
   "tolerance": {
     "ci": 0.2,
+    "cpu": 0.25,
     "local": 0.15
   }
 }

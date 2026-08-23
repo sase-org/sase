@@ -7,6 +7,7 @@ existing import path used by pytest plugins, command-line tools, and tests.
 from tests._test_cost_budgets import (
     CostBudgetFailure,
     check_cost_budgets,
+    format_cost_budget_failure,
     load_cost_budgets,
     worker_divisor,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "check_cost_budgets",
     "cost_directory",
     "cost_recording_paths",
+    "format_cost_budget_failure",
     "format_cost_report",
     "latest_cost_record",
     "load_cost_budgets",

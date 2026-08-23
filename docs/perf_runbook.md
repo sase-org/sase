@@ -15,11 +15,65 @@ just test-cost
 ```
 
 The lane runs the default fast suite, records per-file wall/CPU time, collection time,
-the worker RSS curve, and attributed hot causes, then prints `tools/test_cost_report`.
+the worker RSS curve, and attributed hot causes (now with a per-cause CPU-seconds
+breakdown alongside wall seconds and count), then prints `tools/test_cost_report`.
 Recordings live under `${SASE_HOME:-~/.sase}/test-selection/<project>/timings/cost/`;
 set `SASE_TEST_COST_DIR` to redirect them. `tools/check_test_cost_budgets` compares the
 newest recording with `tests/perf/baselines/test_cost_budgets.json`, and
 `just check-full` plus the Python 3.13 CI test leg enforce that comparison.
+
+### Severity model: hard vs. advisory
+
+A single host regularly runs several agents' test suites at once, and Python's
+`time.perf_counter()` wall-clock durations stretch under CPU contention that has nothing
+to do with the suite's own cost -- a `causes.ace_page_enter` wall time can rise 17%
+between a quiet host and a busy one for the exact same test run (same invocation count).
+CPU seconds, invocation counts, and RSS do not move with contention, so the gate is
+split by metric family instead of failing everything uniformly:
+
+| family | metrics                                                                                    | default  | tolerance    |
+| ------ | ------------------------------------------------------------------------------------------ | -------- | ------------ |
+| wall   | `causes.<name>` (`limit`), `total_file_wall_seconds`, `idle_seconds`, `collection_seconds` | advisory | `ci`/`local` |
+| cpu    | `causes.<name>.cpu` (`cpu_limit`), `total_file_cpu_seconds`, `collection_cpu_seconds`      | hard     | `cpu`        |
+| count  | `causes.<name>.count` (`count_limit`)                                                      | hard     | none         |
+| memory | `peak_worker_rss_kib`, `median_worker_rss_kib`, `post_collection_worker_rss_kib`           | hard     | `ci`/`local` |
+
+**Advisory** failures are printed with full detail but never fail the gate and are
+excluded from the exit code -- they are the "the host was probably busy" bucket.
+**Hard** failures fail the gate; they are the contention-stable metrics, so an overage
+there is a real signal. Any budget entry can override its dimension's family default
+with an explicit `enforce` (for the wall `limit`), `cpu_enforce` (for `cpu_limit`), or
+`count_enforce` (for `count_limit`) key set to `"hard"` or `"advisory"`. `--suggest`
+always writes these explicitly so the committed file never silently depends on the
+implicit default.
+
+Count budgets are compared **without** the `cpu`/`ci`/`local` tolerance: a `count_limit`
+already carries ~25% headroom over the worst observed invocation count
+(`round_up_nice(max_observed_count * 1.25)`), because counts are near-deterministic --
+the headroom belongs in the limit itself, not in a runtime tolerance. That policy trips
+on a refactor that doubles a call site but tolerates a handful of newly added tests.
+
+CPU attribution note: `CostRecorder.measure()` times `time.process_time()`, which is
+process-wide, so CPU burned by other coroutines on the same event loop during an awaited
+span is attributed to that span. This matches how wall time already behaves, and within
+one xdist worker tests run sequentially, so the attribution stays meaningful.
+Sleep-dominated causes such as `pilot_pause_delay` report near-zero CPU seconds -- that
+is correct, and is exactly why the count dimension matters for them.
+
+Run the gate with `--strict` to make advisories fatal too, for deliberate investigation
+on a quiet host:
+
+```bash
+tools/check_test_cost_budgets --strict
+```
+
+`just test-cost` runs the fast suite and then `tools/check_test_cost_budgets`
+(non-strict, so a wall-only advisory no longer breaks the lane). Inside
+`just check-full`, `tools/run_silent` discards a wrapped command's captured output on
+success, which would otherwise hide a printed advisory; `check-full` follows the wrapped
+`just test-cost` line with an unwrapped
+`tools/check_test_cost_budgets --report-advisories`, which re-reads the recording
+`test-cost` just wrote and always exits `0`, so advisories still reach the operator.
 
 Budget entries are either per-worker or suite-wide totals, and mixing the two up
 silently defeats the gate:
@@ -29,9 +83,10 @@ silently defeats the gate:
   workers before a budget entry marked `"per_worker": true` divides it back down by the
   record's worker count (falling back to the number of worker payloads that reported
   collection time, then to 1) before comparing against the limit.
-- Every other summary entry (`total_file_wall_seconds`, `idle_seconds`,
-  `peak_worker_rss_kib`, `median_worker_rss_kib`, and `post_collection_worker_rss_kib`)
-  and every `causes.*` entry is a **suite-wide** metric, not normalized by worker count.
+- Every other summary entry (`total_file_wall_seconds`, `total_file_cpu_seconds`,
+  `idle_seconds`, `peak_worker_rss_kib`, `median_worker_rss_kib`, and
+  `post_collection_worker_rss_kib`) and every `causes.*` entry is a **suite-wide**
+  metric, not normalized by worker count.
 - Each worker records `start`, `post_collection`, `median`, and `peak` RSS summaries.
   The suite-level `worker_rss_curve_kib` takes the maximum worker value for `start`,
   `post_collection`, and `peak`; its `median` is the median of every positive worker
@@ -43,13 +98,17 @@ silently defeats the gate:
 
 Read failures by bucket:
 
-- `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting.
+- `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting, but
+  are advisory-only -- pair them with `total_file_cpu_seconds` (hard) to tell contention
+  from a real regression.
 - `collection_seconds`, `collection_cpu_seconds`, and post-collection RSS point to
   import-time state. Median and peak RSS summarize later retained or run-time growth,
   but the suite median is over worker summary fields rather than raw time-series
   samples.
 - Cause entries such as `textual_app_run_test_enter`, `ace_page_enter`, `parser_create`,
-  `yaml_load`, and `subprocess_run` point to the hot pattern to audit.
+  `yaml_load`, and `subprocess_run` point to the hot pattern to audit; each reports up
+  to three failures (`causes.<name>` wall/advisory, `causes.<name>.cpu` hard,
+  `causes.<name>.count` hard).
 
 For focused diagnosis, rerun the cost lane on a path or node and print more rows:
 
@@ -68,10 +127,19 @@ tools/check_test_cost_budgets --suggest
 ```
 
 `--suggest` reads the newest retained recordings (`--history N` to limit the sample),
-derives each limit as `ceil(worst recorded value / (1 + local tolerance))` rounded up to
-a round number, and prints a budget JSON along with the `notes` provenance line (sample
-size, host, UTC date range, worker-count range, node-count range, and per-metric
-min/median/max) to paste alongside the new limits.
+derives each wall/cpu limit as `ceil(worst recorded value / (1 + tolerance))` (using the
+`local`/`ci` tolerance for wall metrics and the `cpu` tolerance for CPU metrics) and
+each `count_limit` as `ceil(max observed count * 1.25)` with no tolerance, rounds each
+up to a round number, and prints a budget JSON -- with
+`enforce`/`cpu_enforce`/`count_enforce` written explicitly on every entry -- along with
+the `notes` provenance line (sample size, host, UTC date range, worker-count range,
+node-count range, and per-metric min/median/max) to paste alongside the new limits.
+
+`tools/check_test_cost_budgets --ci` defaults to
+`os.environ.get("GITHUB_ACTIONS") == "true"`, not a bare `CI` variable: an agent runtime
+that exports `CI=true` locally must not silently switch a local run onto the wider CI
+tolerance. GitHub Actions always sets `GITHUB_ACTIONS`; nothing else does. Pass `--ci`
+explicitly to force the CI tolerance on a non-GitHub-Actions host.
 
 ## Trace recorder
 

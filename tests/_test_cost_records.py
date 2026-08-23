@@ -74,7 +74,7 @@ def _round_seconds(value: float | int | None) -> float | None:
 
 def _coerce_cause(raw: object) -> dict[str, float | int]:
     if not isinstance(raw, Mapping):
-        return {"count": 0, "seconds": 0.0}
+        return {"count": 0, "seconds": 0.0, "cpu_seconds": 0.0}
     try:
         count = int(raw.get("count", 0))
     except (TypeError, ValueError):
@@ -83,7 +83,15 @@ def _coerce_cause(raw: object) -> dict[str, float | int]:
         seconds = float(raw.get("seconds", 0.0))
     except (TypeError, ValueError):
         seconds = 0.0
-    return {"count": max(count, 0), "seconds": max(seconds, 0.0)}
+    try:
+        cpu_seconds = float(raw.get("cpu_seconds", 0.0))
+    except (TypeError, ValueError):
+        cpu_seconds = 0.0
+    return {
+        "count": max(count, 0),
+        "seconds": max(seconds, 0.0),
+        "cpu_seconds": max(cpu_seconds, 0.0),
+    }
 
 
 def _merge_causes(
@@ -95,9 +103,14 @@ def _merge_causes(
     for raw_name, raw_cause in raw_causes.items():
         name = str(raw_name)
         cause = _coerce_cause(raw_cause)
-        bucket = target.setdefault(name, {"count": 0, "seconds": 0.0})
+        bucket = target.setdefault(
+            name, {"count": 0, "seconds": 0.0, "cpu_seconds": 0.0}
+        )
         bucket["count"] = int(bucket["count"]) + int(cause["count"])
         bucket["seconds"] = float(bucket["seconds"]) + float(cause["seconds"])
+        bucket["cpu_seconds"] = float(bucket["cpu_seconds"]) + float(
+            cause["cpu_seconds"]
+        )
 
 
 def _merged_files(
@@ -145,6 +158,7 @@ def _merged_files(
                 name: {
                     "count": int(cause["count"]),
                     "seconds": _round_seconds(float(cause["seconds"])),
+                    "cpu_seconds": _round_seconds(float(cause["cpu_seconds"])),
                 }
                 for name, cause in sorted(metrics["causes"].items())
             },
@@ -162,6 +176,7 @@ def _merged_worker_causes(
         name: {
             "count": int(cause["count"]),
             "seconds": _round_seconds(float(cause["seconds"])),
+            "cpu_seconds": _round_seconds(float(cause["cpu_seconds"])),
         }
         for name, cause in sorted(causes.items())
     }
@@ -365,5 +380,37 @@ def _cause_seconds(record: Mapping[str, Any], cause: str) -> float | None:
         return None
     try:
         return float(payload["seconds"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _cause_cpu_seconds(record: Mapping[str, Any], cause: str) -> float | None:
+    summary = record.get("summary")
+    if not isinstance(summary, Mapping):
+        return None
+    causes = summary.get("causes")
+    if not isinstance(causes, Mapping):
+        return None
+    payload = causes.get(cause)
+    if not isinstance(payload, Mapping) or payload.get("cpu_seconds") is None:
+        return None
+    try:
+        return float(payload["cpu_seconds"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _cause_count(record: Mapping[str, Any], cause: str) -> int | None:
+    summary = record.get("summary")
+    if not isinstance(summary, Mapping):
+        return None
+    causes = summary.get("causes")
+    if not isinstance(causes, Mapping):
+        return None
+    payload = causes.get(cause)
+    if not isinstance(payload, Mapping) or payload.get("count") is None:
+        return None
+    try:
+        return int(payload["count"])
     except (TypeError, ValueError):
         return None

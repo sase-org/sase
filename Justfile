@@ -408,9 +408,10 @@ test-cost *args: _setup-visual (_header "test-cost")
     @{{ venv_bin }}/python tools/check_test_cost_budgets
 
 # Check the latest test-cost recording against committed suite-cost budgets.
-test-cost-budget: _setup
+[positional-arguments]
+test-cost-budget *args: _setup
     @printf "\n---------- Checking pytest cost budgets... ----------\n"
-    @{{ venv_bin }}/python tools/check_test_cost_budgets
+    @{{ venv_bin }}/python tools/check_test_cost_budgets "$@"
 
 # Run every test module migrated to AcePageGroup with forced fresh AcePage
 # instances. This keeps the shared-page optimization honest without recording
@@ -650,6 +651,7 @@ check-full: _setup
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test cost"          just test-cost
+    @{{ venv_bin }}/python tools/check_test_cost_budgets --report-advisories
     @tools/run_silent "flake baseline"     just selection-health --fail-on-new-flake
 
 # Render the scripted ACE demo videos (GIF + MP4), stamp

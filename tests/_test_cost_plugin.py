@@ -89,7 +89,11 @@ class CostRecorder:
     def causes(self) -> dict[str, dict[str, float | int]]:
         with self._lock:
             return {
-                name: {"count": int(payload["count"]), "seconds": payload["seconds"]}
+                name: {
+                    "count": int(payload["count"]),
+                    "seconds": payload["seconds"],
+                    "cpu_seconds": payload["cpu_seconds"],
+                }
                 for name, payload in self._causes.items()
             }
 
@@ -98,7 +102,8 @@ class CostRecorder:
 
         class _Measurement:
             def __enter__(self) -> None:
-                self._start = time.perf_counter()
+                self._wall_start = time.perf_counter()
+                self._cpu_start = time.process_time()
 
             def __exit__(
                 self,
@@ -106,7 +111,11 @@ class CostRecorder:
                 _exc: BaseException | None,
                 _tb: Any,
             ) -> None:
-                recorder._record_cause(cause, time.perf_counter() - self._start)
+                recorder._record_cause(
+                    cause,
+                    time.perf_counter() - self._wall_start,
+                    time.process_time() - self._cpu_start,
+                )
 
         return _Measurement()
 
@@ -135,20 +144,29 @@ class CostRecorder:
             metrics = self._file_metrics(path)
             metrics["wall_seconds"] += max(wall_seconds, 0.0)
 
-    def _record_cause(self, cause: str, seconds: float) -> None:
+    def _record_cause(self, cause: str, seconds: float, cpu_seconds: float) -> None:
         seconds = max(seconds, 0.0)
+        cpu_seconds = max(cpu_seconds, 0.0)
         path = _CURRENT_FILE.get()
         with self._lock:
-            cause_metrics = self._causes.setdefault(cause, {"count": 0, "seconds": 0.0})
+            cause_metrics = self._causes.setdefault(
+                cause, {"count": 0, "seconds": 0.0, "cpu_seconds": 0.0}
+            )
             cause_metrics["count"] = int(cause_metrics["count"]) + 1
             cause_metrics["seconds"] = float(cause_metrics["seconds"]) + seconds
+            cause_metrics["cpu_seconds"] = (
+                float(cause_metrics["cpu_seconds"]) + cpu_seconds
+            )
             if path is None:
                 return
             file_metrics = self._file_metrics(path)
             file_causes = file_metrics["causes"]
-            file_cause = file_causes.setdefault(cause, {"count": 0, "seconds": 0.0})
+            file_cause = file_causes.setdefault(
+                cause, {"count": 0, "seconds": 0.0, "cpu_seconds": 0.0}
+            )
             file_cause["count"] = int(file_cause["count"]) + 1
             file_cause["seconds"] = float(file_cause["seconds"]) + seconds
+            file_cause["cpu_seconds"] = float(file_cause["cpu_seconds"]) + cpu_seconds
 
     def _patch(self, target: Any, name: str, replacement: Any) -> None:
         original = getattr(target, name)
@@ -444,6 +462,9 @@ class CostRecorder:
                         name: {
                             "count": int(cause["count"]),
                             "seconds": round(float(cause["seconds"]), 6),
+                            "cpu_seconds": round(
+                                float(cause.get("cpu_seconds", 0.0)), 6
+                            ),
                         }
                         for name, cause in sorted(metrics["causes"].items())
                     },
