@@ -2693,12 +2693,15 @@ and its checkpoint policy is `on_observation`, `on_action_accepted`, or
 honor guards; with `agent_runners`, a manual run while agents hold runner slots skips
 unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string
 or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key` values
-take precedence. A content-only `dedupe_key` stays reserved after a successful no-op
-launch, so chops that should retry as the codebase advances should include the target
-repository's revision in the key. When dedupe removes a proposal from a `wait_on` chain,
-AXE walks through the skipped dependencies to the nearest earlier proposal that survives
-filtering. If none survives, AXE removes the wait. Proposal previews expose the
-resulting `wait_on` value and explain a relink in `dedupe_reason`.
+take precedence. `dedupe_key` is durable work identity, not a retry clock: it stays
+reserved after a successful no-op launch, so chops whose work can go stale between scans
+should recheck eligibility with a proposal `%if` predicate (see
+[Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals))
+instead of folding a repository revision into the key. When dedupe removes a proposal
+from a `wait_on` chain, AXE walks through the skipped dependencies to the nearest
+earlier proposal that survives filtering. If none survives, AXE removes the wait.
+Proposal previews expose the resulting `wait_on` value and explain a relink in
+`dedupe_reason`.
 
 The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal
 that waits for the update. It uses the target source's `workspace`, while cadence and

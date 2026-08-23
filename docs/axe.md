@@ -845,6 +845,21 @@ immediately. A started proposal keeps its key while it runs, then releases it on
 that agent fails, so successful work remains de-duplicated. A key-release error is
 appended to the chop output and does not replace the original launch or agent outcome.
 
+A proposal's `prompt` may contain typed directives such as `%if::` (a Bash or Python
+condition fence) or `%proc`. When the `typed_launch_units` beta flag is enabled, a batch
+containing an active directive routes through the same durable typed admission
+coordinator used by ACE, `sase run`, and LaunchApproval, joining AXE as a fourth typed-
+admission source; see [Agent Launch Flow](architecture.md#agent-launch-flow). A `%if`
+predicate evaluates after its unit's `%wait` dependency settles and before any runner,
+workspace, agent identity, or model request is allocated. Exit `0` admits the unit
+normally; exit `1` records a resource-free skip and allocates nothing. AXE owns the
+admission bundle across the run, keeping the chop in active `launched` state until every
+admitted unit reaches its own terminal state, and treats predicate skips as successful
+no-op outcomes rather than once-per duplicates or launcher errors. A batch with no
+active `%if`/`%proc` directive, or any batch while the flag is disabled, keeps using the
+legacy launch path unchanged; an explicit typed directive while the flag is disabled
+fails before any agent or model is dispatched.
+
 Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`,
 `ChopLogger`, `ChopReport`, `ChopResultBuilder`, and `launch_proposal`) for argument
 parsing, summaries, reports, validation, and atomic result writes.
@@ -909,9 +924,10 @@ Policy is runner-owned and evaluated before the script:
   precedence. Duplicate proposals are skipped without relaunching work. Accepted keys
   remain reserved for successful launches, but are released when their proposal never
   starts or its launched agent reaches terminal failure, allowing a later run to retry
-  that work. A key derived only from file content therefore suppresses that work
-  permanently once an agent succeeds without changing the file; chops that should retry
-  as the codebase advances should include the target repository's revision in the key.
+  that work. `dedupe_key` is durable work identity, not a retry clock: a key means "this
+  is the same unit of work," and a successful no-op launch reserves it permanently.
+  Chops whose work can go stale between scans should recheck eligibility with `%if`
+  (below) instead of folding a repository revision into the key.
 - `for_each` accepts literal target rows or `source: projects`. Expansion creates stable
   instances such as `refresh_docs[sase-core]`, each with independent cadence, history,
   checkpoints, and dedupe state. Target overrides can patch per-instance fields such as

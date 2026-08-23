@@ -59,18 +59,23 @@ across those entry points:
    when requested.
 
 When the `typed_launch_units` beta flag is enabled, user-initiated ACE and `sase run`
-submissions and approved LaunchApproval requests share one typed admission path.
-Recursive xprompt expansion and fan-out still happen first, then Rust builds an
-immutable `LaunchPlan` of tagged Agent or Proc units with stable logical IDs, waits,
-optional `%if` predicates, and code digests. Direct user submissions persist that plan
-in a durable bundle and dispatch immediately; agent-initiated launches freeze the same
-digest behind LaunchApproval. A detached launch-admission coordinator — infrastructure
-owned by the launch-request bundle, not an Agents-tab row — journals each unit through
-waiting, checking, skipped/error, dispatching, and launched states. Waits resolve before
-conditions; a false `%if` is a resource-free terminal skip; eligible Agent units still
-use the established agent launch path; eligible `%proc` units dispatch as native
-`proc-shell` records with origin `xprompt-proc`. Restarts replay the journal instead of
-re-running settled predicates or duplicating reserved identities.
+submissions, approved LaunchApproval requests, and typed AXE chop proposal batches share
+one typed admission path. Recursive xprompt expansion and fan-out still happen first,
+then Rust builds an immutable `LaunchPlan` of tagged Agent or Proc units with stable
+logical IDs, waits, optional `%if` predicates, and code digests. Direct user submissions
+persist that plan in a durable bundle and dispatch immediately; agent-initiated launches
+freeze the same digest behind LaunchApproval; AXE chop batches containing an active
+`%if`/`%proc` directive dispatch through the same durable bundle under a distinct
+`axe_chop` source surface, with the originating chop run owning the bundle across
+process restarts (see
+[Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
+A detached launch-admission coordinator — infrastructure owned by the launch-request
+bundle, not an Agents-tab row — journals each unit through waiting, checking,
+skipped/error, dispatching, and launched states. Waits resolve before conditions; a
+false `%if` is a resource-free terminal skip; eligible Agent units still use the
+established agent launch path; eligible `%proc` units dispatch as native `proc-shell`
+records with origin `xprompt-proc`. Restarts replay the journal instead of re-running
+settled predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches
 create a sequence of detached agents. Stand-alone `%proc` shells appear in the same
