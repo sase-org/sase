@@ -342,3 +342,144 @@ def test_failure_error_report_notification_includes_output_variables(
     assert json.loads(action_data["output_variables"]) == {
         "summary_path": "reports/error.md"
     }
+
+
+def _write_agent_meta(base_kwargs, payload: object) -> None:
+    artifacts_dir = Path(base_kwargs["current_artifacts_dir"])
+    artifacts_dir.mkdir(exist_ok=True)
+    text = payload if isinstance(payload, str) else json.dumps(payload)
+    (artifacts_dir / "agent_meta.json").write_text(text)
+
+
+def _assert_family_facing_identity(
+    mock_notify, base_kwargs, *, family: str, shell: str
+) -> None:
+    notes = mock_notify.call_args.kwargs["notes"]
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert any(f" @{family} " in note for note in notes)
+    assert not any(f"@{shell}" in note for note in notes)
+    assert action_data["agent_name"] == family
+    assert action_data["cl_name"] == base_kwargs["cl_name"]
+    assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
+
+
+def test_success_completion_notification_names_owning_family(base_kwargs):
+    base_kwargs["agent_name"] = "0bw--1"
+    _write_agent_meta(
+        base_kwargs,
+        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "JumpToAgent"
+    _assert_family_facing_identity(
+        mock_notify, base_kwargs, family="0bw", shell="0bw--1"
+    )
+
+
+def test_failure_error_report_notification_names_owning_family(base_kwargs, tmp_path):
+    error_report = tmp_path / "error.md"
+    error_report.write_text("boom\n")
+    base_kwargs["success"] = False
+    base_kwargs["error_report_path"] = str(error_report)
+    base_kwargs["agent_name"] = "0bw--1"
+    _write_agent_meta(
+        base_kwargs,
+        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+    )
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
+    _assert_family_facing_identity(
+        mock_notify, base_kwargs, family="0bw", shell="0bw--1"
+    )
+
+
+def test_deferred_epic_completion_names_owning_family(base_kwargs):
+    base_kwargs["outcome"] = "epic_approved"
+    base_kwargs["agent_name"] = "0bw--1"
+    _write_agent_meta(
+        base_kwargs,
+        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+    )
+
+    with (
+        patch(
+            "sase.bead.epic_launch_handoff.defer_epic_completion", return_value=True
+        ) as mock_defer,
+        patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
+    ):
+        send_completion_notification(**base_kwargs)
+
+    mock_notify.assert_not_called()
+    payload = mock_defer.call_args.args[1]
+    assert any(" @0bw " in note for note in payload.notes)
+    assert not any("@0bw--1" in note for note in payload.notes)
+    assert payload.action_data["agent_name"] == "0bw"
+    assert payload.action_data["cl_name"] == base_kwargs["cl_name"]
+    assert payload.action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
+
+
+def test_completion_notification_bead_display_uses_family_name(
+    base_kwargs, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(
+        "sase.agent.bead_display.lookup_bead_issue", lambda _, **__: None
+    )
+    base_kwargs["agent_name"] = "sase-x.3--1"
+    _write_agent_meta(base_kwargs, {"name": "sase-x.3--1", "agent_family": "sase-x.3"})
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert action_data["agent_name"] == "sase-x.3"
+    assert action_data["bead_display"] == "sase-x.3"
+    assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
+
+
+@pytest.mark.parametrize(
+    "meta_payload",
+    [
+        None,
+        "not-json",
+        "[]",
+        {"agent_family": ""},
+        {"agent_family": "   "},
+        {"agent_family": None},
+        {"agent_family": 0},
+    ],
+)
+def test_completion_notification_keeps_shell_name_without_family_metadata(
+    base_kwargs, meta_payload
+):
+    base_kwargs["agent_name"] = "0bw--1"
+    if meta_payload is not None:
+        _write_agent_meta(base_kwargs, meta_payload)
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert any(" @0bw--1 " in note for note in notes)
+    assert action_data["agent_name"] == "0bw--1"
+    assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
+
+
+def test_completion_notification_does_not_truncate_dotted_standalone_name(base_kwargs):
+    base_kwargs["agent_name"] = "sase-x.3"
+
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    action_data = mock_notify.call_args.kwargs["action_data"]
+    assert any(" @sase-x.3 " in note for note in notes)
+    assert not any("@sase-x " in note for note in notes)
+    assert action_data["agent_name"] == "sase-x.3"
+    assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]

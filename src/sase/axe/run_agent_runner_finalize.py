@@ -224,6 +224,33 @@ def _sdd_publication_error(current_artifacts_dir: str | None) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _completion_notification_agent_name(
+    agent_name: str | None,
+    current_artifacts_dir: str | None,
+) -> str | None:
+    """Prefer the artifact's agent family for user-facing completion identity.
+
+    Monitor follow-up shells such as ``0bw--1`` belong to family ``0bw``. The
+    completion note, ``action_data.agent_name``, and bead-display lookup should
+    name that family. Missing or malformed metadata keeps *agent_name*; family
+    is never inferred from dotted standalone names such as ``sase-x.3``.
+    """
+    if not current_artifacts_dir:
+        return agent_name
+    meta_path = os.path.join(current_artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return agent_name
+    family = meta.get("agent_family") if isinstance(meta, dict) else None
+    if isinstance(family, str):
+        family = family.strip()
+        if family:
+            return family
+    return agent_name
+
+
 def _commit_message_for_notification(
     step_output: dict[str, Any] | None, current_artifacts_dir: str | None
 ) -> str | None:
@@ -292,9 +319,12 @@ def send_completion_notification(
     extra_files.extend(append_unique_paths(explicit_artifact_paths, extra_files))
 
     agent_label = format_provider_model_label(agent_llm_provider, agent_model)
+    display_agent_name = _completion_notification_agent_name(
+        agent_name, current_artifacts_dir
+    )
 
     # Build notes — include error summary for failures
-    name_part = f" @{agent_name}" if agent_name else ""
+    name_part = f" @{display_agent_name}" if display_agent_name else ""
     notes = [
         f"{agent_label}{name_part} {'completed' if success else 'failed'}: {workflow_name}"
     ]
@@ -334,7 +364,7 @@ def send_completion_notification(
     )
     pr_url = (step_output or {}).get("meta_pr_url")
     bead_display = format_agent_bead_display_for_name(
-        agent_name, include_description=True
+        display_agent_name, include_description=True
     )
     runtime_data = {"runtime": runtime} if runtime else {}
     output_variables = _completion_output_variables(current_artifacts_dir)
@@ -359,7 +389,7 @@ def send_completion_notification(
             "patch_name": cl_name,
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
-            **({"agent_name": agent_name} if agent_name else {}),
+            **({"agent_name": display_agent_name} if display_agent_name else {}),
             **({"bead_display": bead_display} if bead_display else {}),
             **({"commit_message": commit_message} if commit_message else {}),
             **({"pr_url": pr_url} if pr_url else {}),
@@ -372,7 +402,7 @@ def send_completion_notification(
             "patch_name": cl_name,
             "cl_name": cl_name,
             "raw_suffix": artifacts_timestamp,
-            **({"agent_name": agent_name} if agent_name else {}),
+            **({"agent_name": display_agent_name} if display_agent_name else {}),
             **({"bead_display": bead_display} if bead_display else {}),
             **({"model": agent_model} if agent_model else {}),
             **({"llm_provider": agent_llm_provider} if agent_llm_provider else {}),
