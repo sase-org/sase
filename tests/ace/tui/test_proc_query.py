@@ -12,8 +12,8 @@ from sase.ace.tui._proc_observer_models import ObservedProc
 from sase.ace.tui._proc_query import (
     PROC_QUERY_OUTPUT_TAIL_CHARS,
     ProcQueryFilter,
-    proc_query_row,
-    query_needs_output,
+    _proc_query_row,
+    _query_needs_output,
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 
@@ -212,7 +212,7 @@ def test_output_tail_is_capped_at_32kb() -> None:
     proc = _proc("big", output=big_output)
     filt = ProcQueryFilter()
     assert _ids(filt.matching("out:needle", [proc], now=_NOW)) == ["big"]
-    row = proc_query_row(proc, now=_NOW, with_output=True)
+    row = _proc_query_row(proc, now=_NOW, with_output=True)
     assert len(row["fields"]["out"]) == PROC_QUERY_OUTPUT_TAIL_CHARS
 
 
@@ -285,16 +285,16 @@ def test_worked_example_just_check_excludes_monitor_and_long_procs() -> None:
     ]
 
 
-# --- query_needs_output --------------------------------------------------------
+# --- _query_needs_output --------------------------------------------------------
 
 
 def test_query_needs_output_gates_on_free_text_and_text_out_keys() -> None:
     filt = ProcQueryFilter()
-    assert query_needs_output(filt.parse("monitor -min:300")) is False
-    assert query_needs_output(filt.parse('"just check"')) is True
-    assert query_needs_output(filt.parse("text:foo")) is True
-    assert query_needs_output(filt.parse("out:foo")) is True
-    assert query_needs_output(filt.parse("cmd:foo name:bar")) is False
+    assert _query_needs_output(filt.parse("monitor -min:300")) is False
+    assert _query_needs_output(filt.parse('"just check"')) is True
+    assert _query_needs_output(filt.parse("text:foo")) is True
+    assert _query_needs_output(filt.parse("out:foo")) is True
+    assert _query_needs_output(filt.parse("cmd:foo name:bar")) is False
 
 
 # --- Parse errors surface as the shared ProfileQueryError --------------------

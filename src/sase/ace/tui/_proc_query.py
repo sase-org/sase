@@ -52,7 +52,7 @@ _OUTPUT_NEEDING_KEYS = frozenset({"text", "out"})
 _RowCacheKey = tuple[str, int, str, datetime | None]
 
 
-def proc_query_row(
+def _proc_query_row(
     proc: ObservedProc, *, now: datetime, with_output: bool
 ) -> dict[str, Any]:
     """Build the mapping row the shared profile coercer consumes for *proc*."""
@@ -118,7 +118,7 @@ def _corpus_text(command_text: str, name_text: str, output_text: str) -> str:
     return "\n".join(part for part in (command_text, name_text, output_text) if part)
 
 
-def query_needs_output(expr: QueryExpr) -> bool:
+def _query_needs_output(expr: QueryExpr) -> bool:
     """Return whether *expr* touches free text, ``text:``, or ``out:``."""
 
     if isinstance(expr, StringMatch):
@@ -126,9 +126,9 @@ def query_needs_output(expr: QueryExpr) -> bool:
     if isinstance(expr, PropertyMatch):
         return expr.key in _OUTPUT_NEEDING_KEYS
     if isinstance(expr, NotExpr):
-        return query_needs_output(expr.operand)
+        return _query_needs_output(expr.operand)
     if isinstance(expr, (AndExpr, OrExpr)):
-        return any(query_needs_output(operand) for operand in expr.operands)
+        return any(_query_needs_output(operand) for operand in expr.operands)
     raise TypeError(f"Unknown expression type: {type(expr)}")
 
 
@@ -172,7 +172,7 @@ class ProcQueryFilter:
         if not query.strip():
             return list(rows)
         expr = self.parse(query)
-        with_output = query_needs_output(expr)
+        with_output = _query_needs_output(expr)
         return [
             proc
             for proc in rows
@@ -200,7 +200,7 @@ class ProcQueryFilter:
             return cached[1]
         row = coerce_artifact_query_row(
             self.profile,
-            proc_query_row(proc, now=now, with_output=with_output),
+            _proc_query_row(proc, now=now, with_output=with_output),
         )
         self._rows[key] = (with_output, row)
         return row
@@ -216,6 +216,4 @@ __all__ = [
     "PROC_QUERY_OUTPUT_TAIL_CHARS",
     "ProcQueryFilter",
     "ProfileQueryError",
-    "proc_query_row",
-    "query_needs_output",
 ]
