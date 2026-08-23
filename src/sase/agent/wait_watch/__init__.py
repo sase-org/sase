@@ -3,6 +3,7 @@
 from sase.agent.wait_watch._classify import classify_wait_target, classify_wait_targets
 from sase.agent.wait_watch._resolve import (
     load_wait_caller_from_env,
+    record_is_live,
     resolve_all_wait_targets,
     resolve_wait_targets,
     wait_scan_options,
@@ -26,6 +27,7 @@ from sase.agent.wait_watch._types import (
     WaitTick,
     WaitWatchConfig,
     is_blocked_state,
+    is_terminal_state,
 )
 from sase.agent.wait_watch._watch import (
     adaptive_poll_interval,
@@ -55,7 +57,9 @@ __all__ = [
     "classify_wait_target",
     "classify_wait_targets",
     "is_blocked_state",
+    "is_terminal_state",
     "load_wait_caller_from_env",
+    "record_is_live",
     "resolve_all_wait_targets",
     "resolve_wait_targets",
     "settle_wait_tick",

@@ -151,6 +151,24 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             archived_completion=archived.get(str(artifact_dir)),
         )
 
+    def add_scan_record(
+        self,
+        artifact_dir: Path,
+        meta: dict[str, Any],
+        *,
+        project_name: str = "",
+        done_data: dict[str, Any] | None = None,
+    ) -> None:
+        """Index one snapshot record without reading marker files from disk."""
+
+        self._add_prepared(
+            artifact_dir,
+            meta,
+            project_name=project_name,
+            done_data=done_data,
+            archived_completion=None,
+        )
+
     def _add_prepared(
         self,
         artifact_dir: Path,

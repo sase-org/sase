@@ -25,7 +25,7 @@ def render_initial_line(targets: tuple[WaitTarget, ...]) -> str:
     return f"waiting on {len(targets)} {noun}: {names}"
 
 
-def format_elapsed_prefix(seconds: float) -> str:
+def _format_elapsed_prefix(seconds: float) -> str:
     """Return a ``[+HH:MM:SS]`` prefix for *seconds* elapsed."""
     total = max(0, int(seconds))
     hours, remainder = divmod(total, 3600)
@@ -55,7 +55,7 @@ def render_transition_line(elapsed_seconds: float, state: WaitTargetState) -> st
     label = wait_state_label(state.state)
     detail = f"  {state.reason}" if state.reason and (state.failed) else ""
     return (
-        f"{format_elapsed_prefix(elapsed_seconds)} "
+        f"{_format_elapsed_prefix(elapsed_seconds)} "
         f"{state.target.name:<{_NAME_COLUMN_WIDTH}} "
         f"{label:<{_STATUS_COLUMN_WIDTH}} "
         f"({format_duration(elapsed_seconds)}){detail}"
@@ -70,7 +70,7 @@ def render_heartbeat_line(
         1 for state in target_states if not state.succeeded and not state.failed
     )
     return (
-        f"{format_elapsed_prefix(elapsed_seconds)} "
+        f"{_format_elapsed_prefix(elapsed_seconds)} "
         f"still waiting on {pending} of {len(target_states)}"
     )
 
@@ -114,7 +114,6 @@ __all__ = [
     "WaitProgressTracker",
     "WaitTargetKey",
     "format_duration",
-    "format_elapsed_prefix",
     "render_heartbeat_line",
     "render_initial_line",
     "render_settle_summary_line",

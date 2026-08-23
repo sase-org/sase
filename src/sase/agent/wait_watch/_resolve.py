@@ -97,7 +97,7 @@ def resolve_wait_targets(
             raise WaitTargetResolutionError(
                 f"no agent wait target found for {raw_name!r}"
             )
-        if caller is not None and target_intersects_caller(target, records, caller):
+        if caller is not None and _target_intersects_caller(target, records, caller):
             raise WaitTargetResolutionError(
                 f"refusing to wait on calling agent family via {raw_name!r}"
             )
@@ -122,7 +122,7 @@ def resolve_all_wait_targets(
     for record in records:
         if not record_is_live(record, liveness_checker):
             continue
-        if caller is not None and caller_excludes_record(caller, record):
+        if caller is not None and _caller_excludes_record(caller, record):
             continue
         target = _target_for_live_record(record, records)
         if target is None or target.key in seen:
@@ -164,7 +164,7 @@ def target_records(
     return _workflow_records(ace_records, target.name)
 
 
-def target_intersects_caller(
+def _target_intersects_caller(
     target: WaitTarget,
     records: Iterable[AgentArtifactRecordWire],
     caller: WaitCaller,
@@ -178,17 +178,19 @@ def target_intersects_caller(
     if caller.workflow_name and _same_name(target.name, caller.workflow_name):
         return True
     return any(
-        caller_excludes_record(caller, record)
+        _caller_excludes_record(caller, record)
         for record in target_records(target, records)
     )
 
 
-def caller_excludes_record(caller: WaitCaller, record: AgentArtifactRecordWire) -> bool:
+def _caller_excludes_record(
+    caller: WaitCaller, record: AgentArtifactRecordWire
+) -> bool:
     if _same_path(caller.artifact_dir, record.artifact_dir):
         return True
     if caller.family_name is None:
         return False
-    base = record_family_base(record) or _family_from_name(record_name(record))
+    base = _record_family_base(record) or _family_from_name(record_name(record))
     return base is not None and _same_name(base, caller.family_name)
 
 
@@ -210,7 +212,7 @@ def record_name(record: AgentArtifactRecordWire) -> str:
     return record.timestamp
 
 
-def record_clan_identity(
+def _record_clan_identity(
     record: AgentArtifactRecordWire,
 ) -> tuple[str, str] | None:
     meta = record.agent_meta
@@ -220,7 +222,7 @@ def record_clan_identity(
     return meta.agent_clan, generation
 
 
-def record_family_base(record: AgentArtifactRecordWire) -> str | None:
+def _record_family_base(record: AgentArtifactRecordWire) -> str | None:
     meta = record.agent_meta
     if meta is None:
         return None
@@ -244,7 +246,7 @@ def _resolve_clan(
         generations = {
             generation
             for record in records
-            if (identity := record_clan_identity(record)) is not None
+            if (identity := _record_clan_identity(record)) is not None
             and _same_name(identity[0], candidate)
             for generation in (identity[1],)
         }
@@ -332,14 +334,14 @@ def _target_for_live_record(
     record: AgentArtifactRecordWire,
     records: Sequence[AgentArtifactRecordWire],
 ) -> WaitTarget | None:
-    if (identity := record_clan_identity(record)) is not None:
+    if (identity := _record_clan_identity(record)) is not None:
         return WaitTarget(
             raw_name=identity[0],
             name=identity[0],
             kind=WaitTargetKind.CLAN,
             clan_generation=identity[1],
         )
-    if (base := record_family_base(record)) is not None:
+    if (base := _record_family_base(record)) is not None:
         root_timestamp = _family_root_timestamp_for_record(records, base, record)
         return WaitTarget(
             raw_name=base,
@@ -366,7 +368,7 @@ def _clan_generation_records(
     matches = [
         record
         for record in records
-        if (identity := record_clan_identity(record)) is not None
+        if (identity := _record_clan_identity(record)) is not None
         and _same_name(identity[0], clan_name)
         and (generation is None or identity[1] == generation)
     ]
@@ -374,12 +376,12 @@ def _clan_generation_records(
         newest = max(
             identity[1]
             for record in matches
-            if (identity := record_clan_identity(record))
+            if (identity := _record_clan_identity(record))
         )
         matches = [
             record
             for record in matches
-            if (identity := record_clan_identity(record)) is not None
+            if (identity := _record_clan_identity(record)) is not None
             and identity[1] == newest
         ]
     return tuple(sorted(matches, key=lambda record: record.timestamp))
@@ -394,7 +396,7 @@ def _family_generation_records(
     members = [
         record
         for record in records
-        if (base := record_family_base(record)) is not None
+        if (base := _record_family_base(record)) is not None
         and _name_key(base) == family_key
     ]
     if not members:

@@ -9,6 +9,8 @@ import re
 import signal
 import time
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 
 from rich.console import Console
@@ -32,6 +34,11 @@ from sase.core.cli_duration import parse_cli_duration
 from sase.core.paths import sase_projects_dir
 
 from ._wait_json import print_wait_json, wait_settlement_envelope
+from ._wait_render_live import (
+    WaitLiveDisplay,
+    render_wait_settle_panel,
+    should_render_wait_live,
+)
 from ._wait_render_plain import (
     HEARTBEAT_SECONDS,
     WaitProgressTracker,
@@ -91,6 +98,8 @@ def handle_agents_wait(
     sleep: Callable[[float], None] = time.sleep,
     install_signal_handlers: bool = True,
     signal_state: _WaitSignalState | None = None,
+    use_live: bool | None = None,
+    live_console: Console | None = None,
 ) -> int:
     """Resolve targets, poll until settle, render output, and return the exit code."""
     names = list(getattr(args, "names", None) or [])
@@ -99,6 +108,9 @@ def handle_agents_wait(
     as_json = bool(getattr(args, "json", False))
     quiet = bool(getattr(args, "quiet", False))
     wait_blocked = bool(getattr(args, "wait_blocked", False))
+    render_live = should_render_wait_live(
+        as_json=as_json, quiet=quiet, use_live=use_live
+    )
 
     err_console = Console(stderr=True)
 
@@ -130,10 +142,21 @@ def handle_agents_wait(
 
     root = Path(projects_root) if projects_root is not None else sase_projects_dir()
     scan_options = wait_scan_options(project_name=project)
-    provider = snapshot_provider or (lambda: scan_agent_artifacts(root, scan_options))
+    if render_live and snapshot_provider is None:
+        scan_options = replace(scan_options, include_raw_prompt_snippets=True)
+    raw_provider = snapshot_provider or (
+        lambda: scan_agent_artifacts(root, scan_options)
+    )
     caller = load_wait_caller_from_env(env if env is not None else os.environ)
 
-    initial_snapshot = provider()
+    initial_snapshot = raw_provider()
+    last_snapshot = initial_snapshot
+
+    def provider() -> AgentArtifactScanWire:
+        nonlocal last_snapshot
+        last_snapshot = raw_provider()
+        return last_snapshot
+
     try:
         if include_all:
             targets = resolve_all_wait_targets(
@@ -163,35 +186,42 @@ def handle_agents_wait(
         stop_requested=state.requested,
     )
 
-    show_progress = not as_json and not quiet
+    show_progress = not as_json and not quiet and not render_live
     if show_progress:
         err_console.print(render_initial_line(targets), soft_wrap=True)
 
     tracker = WaitProgressTracker()
+    live_out = live_console or Console() if render_live else None
+    live_ctx = WaitLiveDisplay(live_out) if live_out is not None else nullcontext()
     try:
         last_tick = None
-        for tick in watch_wait_targets(config, provider, clock=clock, sleep=sleep):
-            changed = tracker.observe(tick)
-            if show_progress:
-                for target_state in changed:
-                    err_console.print(
-                        render_transition_line(tick.elapsed_seconds, target_state),
-                        markup=False,
-                        soft_wrap=True,
-                    )
-                if (
-                    not changed
-                    and tick.elapsed_seconds - tracker.last_heartbeat_elapsed
-                    >= HEARTBEAT_SECONDS
-                ):
-                    tracker.last_heartbeat_elapsed = tick.elapsed_seconds
-                    err_console.print(
-                        render_heartbeat_line(tick.elapsed_seconds, tick.target_states),
-                        soft_wrap=True,
-                    )
-            last_tick = tick
-            if tick.settled:
-                break
+        with live_ctx as display:
+            for tick in watch_wait_targets(config, provider, clock=clock, sleep=sleep):
+                changed = tracker.observe(tick)
+                if display is not None:
+                    display.update(tick, last_snapshot)
+                elif show_progress:
+                    for target_state in changed:
+                        err_console.print(
+                            render_transition_line(tick.elapsed_seconds, target_state),
+                            markup=False,
+                            soft_wrap=True,
+                        )
+                    if (
+                        not changed
+                        and tick.elapsed_seconds - tracker.last_heartbeat_elapsed
+                        >= HEARTBEAT_SECONDS
+                    ):
+                        tracker.last_heartbeat_elapsed = tick.elapsed_seconds
+                        err_console.print(
+                            render_heartbeat_line(
+                                tick.elapsed_seconds, tick.target_states
+                            ),
+                            soft_wrap=True,
+                        )
+                last_tick = tick
+                if tick.settled:
+                    break
     finally:
         if install_signal_handlers:
             state.restore()
@@ -211,6 +241,11 @@ def handle_agents_wait(
             wait_settlement_envelope(
                 settlement, durations=durations, exit_code=exit_code
             )
+        )
+    elif render_live:
+        out = live_out or Console()
+        out.print(
+            render_wait_settle_panel(settlement, last_snapshot, exit_code=exit_code)
         )
     else:
         print(render_settle_summary_line(settlement, exit_code=exit_code))

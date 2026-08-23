@@ -24,10 +24,10 @@ def parse_cli_duration(raw: str, *, flag: str) -> tuple[float, str]:
     seconds = value * _DURATION_UNIT_SECONDS[unit]
     if seconds <= 0:
         raise ValueError(f"{flag} must be greater than zero")
-    return seconds, f"{text} ({format_cli_duration_seconds(seconds)})"
+    return seconds, f"{text} ({_format_cli_duration_seconds(seconds)})"
 
 
-def format_cli_duration_seconds(seconds: float) -> str:
+def _format_cli_duration_seconds(seconds: float) -> str:
     """Format *seconds* the way :func:`parse_cli_duration` labels its input."""
     if seconds == int(seconds):
         return f"{int(seconds)}s"
@@ -35,6 +35,5 @@ def format_cli_duration_seconds(seconds: float) -> str:
 
 
 __all__ = [
-    "format_cli_duration_seconds",
     "parse_cli_duration",
 ]

@@ -2284,6 +2284,127 @@
                 "subcommands": []
               }
             ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "77856b4f75f2144d",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "wait",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "all",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "interval",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-i",
+                  "--interval"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "quiet",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--quiet"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "wait_blocked",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-w",
+                  "--wait-blocked"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "agent",
+              "wait"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "names",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "NAME",
+                "nargs": "*"
+              }
+            ],
+            "subcommands": []
           }
         ]
       },

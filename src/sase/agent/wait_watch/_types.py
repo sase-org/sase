@@ -169,7 +169,7 @@ def is_stop_state(state: WaitState, *, wait_blocked: bool) -> bool:
     return is_terminal_state(state) or (is_blocked_state(state) and not wait_blocked)
 
 
-def exit_code_for_outcome(outcome: WaitSettlementOutcome) -> int:
+def _exit_code_for_outcome(outcome: WaitSettlementOutcome) -> int:
     return {
         WaitSettlementOutcome.SUCCEEDED: WAIT_EXIT_SUCCESS,
         WaitSettlementOutcome.FAILED: WAIT_EXIT_FAILED,
@@ -179,7 +179,7 @@ def exit_code_for_outcome(outcome: WaitSettlementOutcome) -> int:
     }[outcome]
 
 
-def settlement_outcome_for_states(
+def _settlement_outcome_for_states(
     states: Sequence[WaitTargetState],
     *,
     timed_out: bool = False,
@@ -208,7 +208,7 @@ def make_settlement(
     interrupted: bool = False,
     reason: str | None = None,
 ) -> WaitSettlement | None:
-    outcome = settlement_outcome_for_states(
+    outcome = _settlement_outcome_for_states(
         states,
         timed_out=timed_out,
         interrupted=interrupted,
@@ -219,7 +219,7 @@ def make_settlement(
         outcome=outcome,
         target_states=tuple(states),
         elapsed_seconds=elapsed_seconds,
-        exit_code=exit_code_for_outcome(outcome),
+        exit_code=_exit_code_for_outcome(outcome),
         reason=reason,
     )
 
