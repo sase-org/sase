@@ -21,25 +21,34 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.agent.launch_admission_engine import (AdmissionEngine,
-                                                AdmissionProgress,
-                                                request_safe_inputs,
-                                                request_source_cwd,
-                                                typed_plan_from_request)
-from sase.agent.launch_admission_runtime import (ConditionEvaluator,
-                                                 UnitDispatcher, WaitResolver)
-from sase.agent.launch_admission_store import (ADMISSION_DIRNAME,
-                                               COORDINATOR_ENV,
-                                               COORDINATOR_LOG_FILENAME,
-                                               LOCK_FILENAME, POLL_SECONDS,
-                                               RECEIPT_FILENAME,
-                                               SIDECAR_FILENAME,
-                                               START_ACK_TIMEOUT_SECONDS,
-                                               STARTED_FILENAME,
-                                               STOP_KILL_SECONDS,
-                                               STOP_TERM_SECONDS,
-                                               admission_dir, read_json,
-                                               write_sidecar)
+from sase.agent.launch_admission_engine import (
+    AdmissionEngine,
+    AdmissionProgress,
+    request_safe_inputs,
+    request_source_cwd,
+    typed_plan_from_request,
+)
+from sase.agent.launch_admission_runtime import (
+    ConditionEvaluator,
+    UnitDispatcher,
+    WaitResolver,
+)
+from sase.agent.launch_admission_store import (
+    ADMISSION_DIRNAME,
+    COORDINATOR_ENV,
+    COORDINATOR_LOG_FILENAME,
+    LOCK_FILENAME,
+    POLL_SECONDS,
+    RECEIPT_FILENAME,
+    SIDECAR_FILENAME,
+    START_ACK_TIMEOUT_SECONDS,
+    STARTED_FILENAME,
+    STOP_KILL_SECONDS,
+    STOP_TERM_SECONDS,
+    admission_dir,
+    read_json,
+    write_sidecar,
+)
 from sase.agent.launch_request_types import ApprovedLaunchDispatchResult
 from sase.core.agent_launch_wire import LaunchAdmissionSummaryWire
 from sase.monitor.transaction import write_json_marker_atomic
@@ -85,8 +94,7 @@ def dispatch_typed_launch_request(
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     if spawn_coordinator and not progress.complete:
-        from sase.agent.launch_admission_coordinator import \
-            start_detached_coordinator
+        from sase.agent.launch_admission_coordinator import start_detached_coordinator
 
         start_detached_coordinator(response_dir)
     elif progress.complete:
@@ -161,6 +169,7 @@ def install_coordinator_signal_flag() -> Callable[[], bool]:
         signal.signal(signal.SIGTERM, _handle)
         signal.signal(signal.SIGINT, _handle)
     return cancelled.is_set
+
 
 def _evaluate_launch_condition(
     unit: LaunchUnitWire,
