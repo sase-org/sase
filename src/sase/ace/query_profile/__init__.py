@@ -49,6 +49,7 @@ from .profiles import (
     files_query_schema,
     patches_query_schema,
     plans_query_schema,
+    procs_query_schema,
     provider_query_schema,
     stitches_query_schema,
 )
@@ -75,6 +76,7 @@ __all__ = [
     "files_query_schema",
     "patches_query_schema",
     "plans_query_schema",
+    "procs_query_schema",
     "provider_query_schema",
     "stitches_query_schema",
 ]
