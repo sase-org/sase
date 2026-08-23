@@ -388,6 +388,9 @@ def typed_plan_from_request(data: Mapping[str, Any]) -> LaunchPlanWire:
             "typed launch plan is missing",
         )
     plan = launch_plan_from_dict(raw)
+    # An approval authorizes exactly the plan the user was shown, identified by
+    # its content digest. Admitting a plan whose digest no longer matches would
+    # dispatch unapproved units.
     digest = data.get("plan_digest")
     if digest not in (None, "") and str(digest) != plan.content_digest:
         raise LaunchRequestError(

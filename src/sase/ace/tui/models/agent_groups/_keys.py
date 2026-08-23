@@ -73,6 +73,11 @@ class GroupingKeys:
 
 def _project_name(agent: Agent) -> str:
     if not agent.project_file:
+        # A stand-alone proc shell has a selected project but no agent
+        # ``.sase`` project file, so group it by its resolved display name
+        # instead of dropping every proc into ``(no project)``.
+        if agent.is_proc_shell and agent.project_display_name:
+            return agent.project_display_name
         return NO_PROJECT
     return agent.project_display_name or Path(agent.project_file).parent.name
 

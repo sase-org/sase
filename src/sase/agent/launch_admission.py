@@ -170,6 +170,7 @@ def install_coordinator_signal_flag() -> Callable[[], bool]:
         signal.signal(signal.SIGINT, _handle)
     return cancelled.is_set
 
+
 def _dispatch_result(
     request_id: str,
     progress: AdmissionProgress,

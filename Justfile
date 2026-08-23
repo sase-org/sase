@@ -333,7 +333,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-s6(LaunchPlanDiagnosticWire)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
@@ -867,6 +866,10 @@ rust-install VENV=venv_dir_abs: _venv
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
         "{{ VENV }}/bin/maturin" develop --release && \
     "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
+    # Keep the LSP server in lockstep with the extension: both are built
+    # from the same sase-core checkout, and the ACE/LSP parity tests
+    # compare their directive contracts.
+    @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-lsp-install "{{ VENV }}"
 
 # Build and install `sase_core_rs` into the uv-tool venv for `sase`
 # (typically ~/.local/share/uv/tools/sase). Use this when you installed

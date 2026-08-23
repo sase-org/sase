@@ -183,7 +183,7 @@ class LaunchAdmissionSummaryWire:
 
 
 @dataclass(frozen=True)
-class LaunchPlanDiagnosticWire:
+class _LaunchPlanDiagnosticWire:
     """Stable typed launch-plan diagnostic."""
 
     code: str
@@ -203,7 +203,7 @@ class LaunchPlanWire:
     content_digest: str
     units: list[LaunchUnitWire] = field(default_factory=list)
     approval_preview: list[str] = field(default_factory=list)
-    diagnostics: list[LaunchPlanDiagnosticWire] = field(default_factory=list)
+    diagnostics: list[_LaunchPlanDiagnosticWire] = field(default_factory=list)
 
 
 def agent_launch_wire_to_json_dict(record: Any) -> Any:
@@ -488,9 +488,11 @@ def _wait_target_from_dict(data: dict[str, Any]) -> WaitTargetWire:
     )
 
 
-def _launch_plan_diagnostic_from_dict(data: dict[str, Any]) -> LaunchPlanDiagnosticWire:
+def _launch_plan_diagnostic_from_dict(
+    data: dict[str, Any],
+) -> _LaunchPlanDiagnosticWire:
     span = data.get("source_span")
-    return LaunchPlanDiagnosticWire(
+    return _LaunchPlanDiagnosticWire(
         code=str(data["code"]),
         severity=str(data["severity"]),
         message=str(data["message"]),
@@ -547,7 +549,6 @@ __all__ = [
     "LaunchConditionWire",
     "LaunchFanoutPlanWire",
     "LaunchFanoutSlotWire",
-    "LaunchPlanDiagnosticWire",
     "LaunchPlanWire",
     "LaunchUnitResultWire",
     "LaunchUnitWire",

@@ -256,6 +256,18 @@ def test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed(
     assert "maturin" in output
 
 
+def test_rust_install_also_refreshes_the_xprompt_lsp_binary() -> None:
+    """`just install` must never leave a stale `sase-xprompt-lsp` behind.
+
+    The extension and the LSP server both compile the same directive contract,
+    and the ACE/LSP parity tests compare them, so rebuilding only the extension
+    fails those tests with a confusing completion diff.
+    """
+    output = _dry_run("rust-install", "/tmp/fake-venv")
+
+    assert 'rust-lsp-install "/tmp/fake-venv"' in output
+
+
 def test_rust_install_is_fatal_on_a_behind_status() -> None:
     output = _dry_run("rust-install", "/tmp/fake-venv")
 

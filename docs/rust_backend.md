@@ -349,7 +349,7 @@ Docs-only commands do not need the application package or the Rust extension.
 `just docs-check` and `just docs-pdf-check` install only MkDocs tooling into `.venv`,
 which is why documentation CI can run without checking out `../sase-core`.
 
-`just rust-install` remains the explicit way to (re)build only the extension, and
+`just rust-install` remains the explicit way to (re)build the local Rust artifacts, and
 `just rust-install-uv-tool` targets the uv-tool venv at `$(uv tool dir)/sase` for users
 who installed `sase` via `uv tool install` and want the latest local Rust code instead
 of the published wheel:
@@ -360,10 +360,13 @@ just rust-install-uv-tool         # $(uv tool dir)/sase
 just rust-install /path/to/venv   # any other venv (pipx, system Python, custom location)
 ```
 
-Those extension-only targets install `maturin` into the target venv on demand and run
-`maturin develop --release` inside `../sase-core/crates/sase_core_py/`, so re-running
-them after a `../sase-core` update is the supported way to refresh an existing source
-install.
+Those targets install `maturin` into the target venv on demand and run
+`maturin develop --release` inside `../sase-core/crates/sase_core_py/`, then chain
+`just rust-lsp-install` for the same venv. Both artifacts come from one checkout, so
+`sase-xprompt-lsp` can never lag the directive contract compiled into `sase_core_rs`; a
+stale binary would otherwise fail the ACE/LSP parity tests with a confusing completion
+diff. Re-running them after a `../sase-core` update is the supported way to refresh an
+existing source install.
 
 Editable `sase update` uses `just rust-dev-install-uv-tool` instead. It builds with the
 `dev-update` Cargo profile from `sase-core`, which inherits `release` but disables LTO,

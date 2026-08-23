@@ -171,6 +171,35 @@ def test_proc_shell_counts_stay_out_of_agent_lanes(
     assert panel_counts.proc_shells == 1
 
 
+def test_proc_shell_groups_under_its_selected_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proc shell has a project but no agent ``.sase`` project file."""
+    from sase.ace.tui.models.agent_groups import (
+        GroupingMode,
+        _grouping_keys_for_agents,
+    )
+    from sase.ace.tui.models.agent_groups._buckets import NO_PROJECT
+
+    _patch_projection_io(monkeypatch)
+    [proc_agent] = proc_shell_agents_from_observed([_proc()])
+    projectless_agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase",
+        project_file="",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="agent-1",
+    )
+
+    [proc_key, agent_key] = _grouping_keys_for_agents(
+        [proc_agent, projectless_agent], GroupingMode.STANDARD, None
+    )
+
+    assert proc_key.project == "sase display"
+    assert agent_key.project == NO_PROJECT
+
+
 class _KillHost(MonitorStopActionFlowMixin):
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
