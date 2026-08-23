@@ -19,6 +19,10 @@ from sase.ace.query.types import (
     StringMatch,
 )
 from sase.ace.query_profile import CompiledQueryProfile, QueryFieldSpec
+from sase.ace.query_profile.registry import (
+    HOST_DATE_BOUND_KEYS,
+    HOST_DURATION_BOUND_KEYS,
+)
 from sase.ace.query_profile.types import FieldValueKind
 from sase.core.patch import strip_reverted_suffix
 from sase.vcs_log.dates import (
@@ -379,7 +383,7 @@ def _match_field(
             desired_int = int(expr.value)
         except ValueError:
             return False
-        return any(value == desired_int for value in values)
+        return _match_int_field(expr.key, values, desired_int)
     if field.value_kind == "date":
         try:
             desired_epoch = int(expr.value)
@@ -394,12 +398,35 @@ def _match_date_field(
     values: tuple[ProfileFieldValue, ...],
     desired_epoch: int,
 ) -> bool:
-    int_values = tuple(value for value in values if isinstance(value, int))
-    if key == "since":
+    int_values = _field_int_values(values)
+    direction = HOST_DATE_BOUND_KEYS.get(key)
+    if direction == ">=":
         return any(value >= desired_epoch for value in int_values)
-    if key == "until":
+    if direction == "<=":
         return any(value <= desired_epoch for value in int_values)
     return any(value == desired_epoch for value in int_values)
+
+
+def _match_int_field(
+    key: str,
+    values: tuple[ProfileFieldValue, ...],
+    desired_int: int,
+) -> bool:
+    int_values = _field_int_values(values)
+    direction = HOST_DURATION_BOUND_KEYS.get(key)
+    if direction == ">=":
+        return any(value >= desired_int for value in int_values)
+    if direction == "<=":
+        return any(value <= desired_int for value in int_values)
+    return any(value == desired_int for value in int_values)
+
+
+def _field_int_values(values: tuple[ProfileFieldValue, ...]) -> tuple[int, ...]:
+    return tuple(
+        value
+        for value in values
+        if isinstance(value, int) and not isinstance(value, bool)
+    )
 
 
 def _match_text_field(

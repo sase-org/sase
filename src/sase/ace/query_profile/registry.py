@@ -21,6 +21,13 @@ HOST_FIELD_VALUE_KINDS: frozenset[str] = frozenset(
     {"string", "enum", "bool", "date", "int"}
 )
 HOST_ANY_SPECIAL_SIGIL = "*"
+HOST_DATE_BOUND_KEYS: dict[str, str] = {
+    "since": ">=",
+    "after": ">=",
+    "until": "<=",
+    "before": "<=",
+}
+HOST_DURATION_BOUND_KEYS: dict[str, str] = {"min": ">=", "max": "<="}
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +52,8 @@ HOST_PREDICATES: dict[str, HostPredicateDef] = {
 
 __all__ = [
     "HOST_ANY_SPECIAL_SIGIL",
+    "HOST_DATE_BOUND_KEYS",
+    "HOST_DURATION_BOUND_KEYS",
     "HOST_FIELD_VALUE_KINDS",
     "HOST_MACRO_TRIGGERS",
     "HOST_PREDICATES",

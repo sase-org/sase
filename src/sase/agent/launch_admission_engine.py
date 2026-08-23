@@ -387,7 +387,15 @@ def typed_plan_from_request(data: Mapping[str, Any]) -> LaunchPlanWire:
             "typed_plan",
             "typed launch plan is missing",
         )
-    return launch_plan_from_dict(raw)
+    plan = launch_plan_from_dict(raw)
+    digest = data.get("plan_digest")
+    if digest not in (None, "") and str(digest) != plan.content_digest:
+        raise LaunchRequestError(
+            "plan_digest_mismatch",
+            "plan_digest",
+            "approved launch plan digest does not match typed_plan.content_digest",
+        )
+    return plan
 
 
 def request_source_cwd(data: Mapping[str, Any]) -> str | None:

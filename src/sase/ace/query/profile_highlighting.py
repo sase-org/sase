@@ -117,7 +117,18 @@ def _classify_token(
                 spans.append((body_raw, "shorthand"))
                 return spans
 
-    if token.wholly_quoted:
+    bare_flag_style = _bare_bool_flag_style(
+        token,
+        profile,
+        colon=unquoted_index(token, ":"),
+    )
+    if bare_flag_style is not None:
+        spans.append((body_raw, bare_flag_style))
+        return spans
+
+    if token.wholly_quoted or (
+        token.negated and token.body_quoted and all(token.body_quoted)
+    ):
         spans.append((body_raw, "quoted"))
         return spans
 
@@ -137,6 +148,20 @@ def _classify_token(
 
     spans.append((body_raw, "term"))
     return spans
+
+
+def _bare_bool_flag_style(
+    token: FilterToken,
+    profile: CompiledQueryProfile,
+    *,
+    colon: int,
+) -> str | None:
+    if token.wholly_quoted or colon >= 0 or any(token.body_quoted):
+        return None
+    field = profile.field(token.body.casefold())
+    if field is None or not field.filterable or field.value_kind != "bool":
+        return None
+    return "property_key"
 
 
 def _predicate_style(body: str, profile: CompiledQueryProfile) -> str | None:

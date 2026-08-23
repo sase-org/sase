@@ -36,6 +36,17 @@ _SIGIL_MACRO_PROFILE = compile_query_profile(
     )
 )
 
+_FLAG_PROFILE = compile_query_profile(
+    ArtifactQuerySchema(
+        pane_id="test-flat-flags",
+        boolean=False,
+        fields=(
+            QueryFieldSpec(key="flag", value_kind="bool", negatable=True),
+            QueryFieldSpec(key="status", filterable=True, negatable=True),
+        ),
+    )
+)
+
 
 def test_known_key() -> None:
     assert _classify_flat_query_tokens("status:closed", _BEADS_PROFILE) == [
@@ -126,6 +137,24 @@ def test_predicate_absent_from_profile_renders_as_term() -> None:
 
 def test_bare_term() -> None:
     assert _classify_flat_query_tokens("hello", _BEADS_PROFILE) == [("hello", "term")]
+
+
+def test_bare_bool_flag() -> None:
+    assert _classify_flat_query_tokens("flag -flag", _FLAG_PROFILE) == [
+        ("flag", "property_key"),
+        (" ", "whitespace"),
+        ("-", "negation"),
+        ("flag", "property_key"),
+    ]
+
+
+def test_quoted_bool_key_stays_quoted_free_text() -> None:
+    assert _classify_flat_query_tokens('"flag" -"flag"', _FLAG_PROFILE) == [
+        ('"flag"', "quoted"),
+        (" ", "whitespace"),
+        ("-", "negation"),
+        ('"flag"', "quoted"),
+    ]
 
 
 def test_quoted_free_text() -> None:

@@ -10,6 +10,10 @@ from datetime import datetime, timedelta
 from sase.ace.query.parser import QueryParseError
 from sase.ace.query.types import AndExpr, OrExpr, QueryExpr
 from sase.ace.query_profile import CompiledQueryProfile, QueryFieldSpec
+from sase.ace.query_profile.registry import (
+    HOST_DATE_BOUND_KEYS,
+    HOST_DURATION_BOUND_KEYS,
+)
 from sase.vcs_log.dates import (
     TimeBoundary,
     VcsLogDateError,
@@ -18,9 +22,12 @@ from sase.vcs_log.dates import (
 )
 
 _INTEGER_RE = re.compile(r"^[+-]?\d+$")
+_DURATION_RE = re.compile(r"^(?P<amount>\d+)(?P<unit>[smhd])?$", re.IGNORECASE)
+_COMPOSITE_DURATION_RE = re.compile(r"^\d+[smhd](?:\d+[smhd])+$", re.IGNORECASE)
 _MONTH_RE = re.compile(r"^(?P<year>\d{4})-?(?P<month>\d{2})$")
 _RELATIVE_MONTH_RE = re.compile(r"^(?P<amount>\d+)m$", re.IGNORECASE)
 _BOOLEAN_VALUES = {"true": True, "false": False}
+_DURATION_SECONDS = {"s": 1, "m": 60, "h": 60 * 60, "d": 24 * 60 * 60}
 
 
 class ProfileQueryError(QueryParseError):
@@ -69,6 +76,8 @@ def normalize_query_value(
             raise ProfileQueryError(f"{field.key}: must be 'true' or 'false'", position)
         return "true" if normalized_bool else "false"
     if field.value_kind == "int":
+        if field.key in HOST_DURATION_BOUND_KEYS:
+            return _parse_duration_bound_value(field.key, value, position=position)
         if not _INTEGER_RE.fullmatch(value):
             raise ProfileQueryError(f"{field.key}: must be an integer", position)
         return str(int(value))
@@ -96,7 +105,7 @@ def or_terms(terms: Sequence[QueryExpr]) -> QueryExpr:
 
 
 def _parse_date_bound_value(key: str, value: str, *, position: int) -> int:
-    boundary: TimeBoundary = "until" if key == "until" else "since"
+    boundary = _time_boundary_for_key(key)
     now = normalize_reference_time()
     relative_month = _RELATIVE_MONTH_RE.fullmatch(value)
     if relative_month is not None:
@@ -125,6 +134,29 @@ def _parse_date_bound_value(key: str, value: str, *, position: int) -> int:
         )
     except VcsLogDateError as exc:
         raise ProfileQueryError(str(exc), position) from exc
+
+
+def _parse_duration_bound_value(key: str, value: str, *, position: int) -> str:
+    duration = _DURATION_RE.fullmatch(value)
+    if duration is None:
+        if _COMPOSITE_DURATION_RE.fullmatch(value):
+            raise ProfileQueryError(
+                f"{key}: composite durations are not supported; use seconds "
+                "or one whole-unit literal such as 90m",
+                position,
+            )
+        raise ProfileQueryError(
+            f"{key}: must be seconds or a whole-unit duration like 5m",
+            position,
+        )
+    amount = int(duration.group("amount"))
+    unit = (duration.group("unit") or "s").casefold()
+    return str(amount * _DURATION_SECONDS[unit])
+
+
+def _time_boundary_for_key(key: str) -> TimeBoundary:
+    direction = HOST_DATE_BOUND_KEYS.get(key)
+    return "until" if direction == "<=" else "since"
 
 
 def _subtract_months(moment: datetime, months: int) -> datetime:

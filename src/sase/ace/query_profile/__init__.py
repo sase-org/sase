@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from .registry import (
     HOST_ANY_SPECIAL_SIGIL,
+    HOST_DATE_BOUND_KEYS,
+    HOST_DURATION_BOUND_KEYS,
     HOST_FIELD_VALUE_KINDS,
     HOST_MACRO_TRIGGERS,
     HOST_PREDICATES,
@@ -53,6 +55,8 @@ from .profiles import (
 
 __all__ = [
     "HOST_ANY_SPECIAL_SIGIL",
+    "HOST_DATE_BOUND_KEYS",
+    "HOST_DURATION_BOUND_KEYS",
     "HOST_FIELD_VALUE_KINDS",
     "HOST_MACRO_TRIGGERS",
     "HOST_PREDICATES",

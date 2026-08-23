@@ -18,7 +18,7 @@ from sase.ace.query.types import (
     QueryExpr,
     StringMatch,
 )
-from sase.ace.query_profile import CompiledQueryProfile
+from sase.ace.query_profile import CompiledQueryProfile, QueryFieldSpec
 from sase.ace.query_profile.registry import HOST_PREDICATES
 from sase.filter_tokens import (
     FilterQueryError,
@@ -104,7 +104,7 @@ def canonical_flat_query(query: str, profile: CompiledQueryProfile) -> str:
         elif isinstance(clause, _FlatPredicateClause):
             predicates.append(clause.spelling)
         else:
-            rendered = quote_value(clause.value, keyed=False)
+            rendered = _render_text_value(clause.value, profile)
             text_tokens.append(f"-{rendered}" if clause.negated else rendered)
 
     tokens: list[str] = []
@@ -133,6 +133,15 @@ def _flat_clauses(
             clauses.append(predicate)
             continue
         colon = unquoted_index(token, ":")
+        if bare_flag := _bare_bool_clause(token, profile, colon=colon):
+            field_spec = require_filterable_field(profile, bare_flag.key, token.start)
+            if token.negated and not field_spec.negatable:
+                raise ProfileQueryError(
+                    f"{bare_flag.key}: may not be negated", token.start
+                )
+            _record_single_field(single_fields, bare_flag.key, token, field_spec)
+            clauses.append(bare_flag)
+            continue
         if token.wholly_quoted or colon < 0:
             clauses.append(_text_clause(token, profile=profile))
             continue
@@ -156,11 +165,7 @@ def _flat_clauses(
             )
         if any(not part for part in parts):
             raise ProfileQueryError(f"{key}: contains an empty value", token.start)
-        if not field_spec.repeatable:
-            prior = single_fields.get(key)
-            if prior is not None:
-                raise ProfileQueryError(f"{key}: may only appear once", token.start)
-            single_fields[key] = token
+        _record_single_field(single_fields, key, token, field_spec)
 
         clauses.append(
             _FlatFieldClause(
@@ -173,6 +178,39 @@ def _flat_clauses(
             )
         )
     return tuple(clauses)
+
+
+def _bare_bool_clause(
+    token: FilterToken,
+    profile: CompiledQueryProfile,
+    *,
+    colon: int,
+) -> _FlatFieldClause | None:
+    if token.wholly_quoted or colon >= 0 or any(token.body_quoted):
+        return None
+    key = token.body.casefold()
+    field_spec = profile.field(key)
+    if (
+        field_spec is None
+        or not field_spec.filterable
+        or field_spec.value_kind != "bool"
+    ):
+        return None
+    return _FlatFieldClause(key=key, values=("true",), negated=token.negated)
+
+
+def _record_single_field(
+    single_fields: dict[str, FilterToken],
+    key: str,
+    token: FilterToken,
+    field_spec: QueryFieldSpec,
+) -> None:
+    if field_spec.repeatable:
+        return
+    prior = single_fields.get(key)
+    if prior is not None:
+        raise ProfileQueryError(f"{key}: may only appear once", token.start)
+    single_fields[key] = token
 
 
 def _flat_tokens(query: str) -> tuple[FilterToken, ...]:
@@ -245,6 +283,23 @@ def _profile_field_order(profile: CompiledQueryProfile) -> tuple[str, ...]:
 
 def _render_field_values(values: list[str]) -> str:
     return ",".join(quote_value(value, keyed=True) for value in values)
+
+
+def _render_text_value(value: str, profile: CompiledQueryProfile) -> str:
+    rendered = quote_value(value, keyed=False)
+    if rendered == value and _is_filterable_bool_key(value, profile):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return rendered
+
+
+def _is_filterable_bool_key(value: str, profile: CompiledQueryProfile) -> bool:
+    field_spec = profile.field(value.casefold())
+    return (
+        field_spec is not None
+        and field_spec.filterable
+        and field_spec.value_kind == "bool"
+    )
 
 
 __all__ = ["canonical_flat_query", "parse_flat_query"]
