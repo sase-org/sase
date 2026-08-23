@@ -8,6 +8,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
+from sase.core.time import get_timezone, local_now
+
 
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
@@ -367,6 +369,13 @@ class ArtifactRefDocumentExpansion:
     is_pointer: bool
 
 
+def _utc_offset_seconds() -> int:
+    """Return the configured timezone's current UTC offset in whole seconds."""
+
+    offset = get_timezone().utcoffset(local_now())
+    return 0 if offset is None else int(offset.total_seconds())
+
+
 @dataclass(frozen=True, slots=True)
 class ArtifactRefContext:
     """Caller-supplied local namespaces used by the Rust resolver."""
@@ -434,6 +443,7 @@ class ArtifactRefContext:
             ),
             "home_dir": None if self.home_dir is None else str(self.home_dir),
             "file_capture_max_bytes": self.file_capture_max_bytes,
+            "utc_offset_seconds": _utc_offset_seconds(),
         }
 
 

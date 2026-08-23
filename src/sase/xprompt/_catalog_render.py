@@ -8,8 +8,9 @@ import os
 import shutil
 import subprocess
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
+
+from sase.core.time import local_now
 
 from ._catalog_format import (
     bar_width,
@@ -110,7 +111,7 @@ def compute_stats(entries: list[CatalogEntry]) -> CatalogStats:
         with_inputs=with_inputs,
         skills=skills,
         memory=memory,
-        generated_at=datetime.now(UTC),
+        generated_at=local_now(),
     )
 
 

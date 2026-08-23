@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 _cached_timezone: tzinfo | None = None
 
 
-def _system_timezone() -> tzinfo:
+def system_timezone() -> tzinfo:
     """Resolve the host system timezone without assuming a specific zone.
 
     Resolution order: the ``TZ`` env var when it names a valid IANA zone, then
@@ -62,7 +62,7 @@ def get_timezone() -> tzinfo:
     Resolution order:
 
     1. The ``timezone`` key from the merged sase config, when set.
-    2. Otherwise the host system timezone (see :func:`_system_timezone`), so
+    2. Otherwise the host system timezone (see :func:`system_timezone`), so
        machines that don't share our timezone assumptions get sensible behavior
        out of the box.
     """
@@ -75,7 +75,7 @@ def get_timezone() -> tzinfo:
         if isinstance(tz_name, str) and tz_name:
             _cached_timezone = ZoneInfo(tz_name)
         else:
-            _cached_timezone = _system_timezone()
+            _cached_timezone = system_timezone()
     return _cached_timezone
 
 
@@ -166,5 +166,6 @@ __all__ = [
     "local_now",
     "local_timezone_name",
     "parse_local",
+    "system_timezone",
     "to_local",
 ]

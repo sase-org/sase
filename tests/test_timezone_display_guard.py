@@ -15,7 +15,7 @@ _SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "sase"
 _ALLOWED_CLOCK_DISPLAY_SITES = frozenset(
     {
         # Host timezone fallback must inspect the process clock; it is not display.
-        "core/time.py:_system_timezone",
+        "core/time.py:system_timezone",
     }
 )
 _CLOCK_ATTR_NAMES = ("now", "astimezone", "fromtimestamp")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
 import json
 import sys
 from collections.abc import Sequence
@@ -19,6 +18,7 @@ from sase.agents_sync.publication_repair import (
     repair_agent_owner_manifests,
 )
 from sase.agents_sync.status import get_agents_sync_status
+from sase.core.time import format_local
 
 
 def handle_agents_sync(args: argparse.Namespace) -> int:
@@ -170,7 +170,7 @@ def _number(value: int | None) -> str:
 def _timestamp(value: float | None) -> str:
     if value is None:
         return "-"
-    return datetime.fromtimestamp(value, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+    return format_local(value, "%Y-%m-%d %H:%M %Z", default="-")
 
 
 __all__ = ["handle_agents_sync"]

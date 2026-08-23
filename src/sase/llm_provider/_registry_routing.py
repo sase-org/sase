@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sase.core.time import format_local
+
 from ._registry_metadata import provider_path_env_var
 from .provider_disable import TemporaryProviderDisable
 from .types import LLMInvocationError
@@ -135,9 +137,7 @@ def format_provider_disable_expiry(
     """Format a provider-disable expiry for non-TUI diagnostics."""
     if disable.expires_at is None:
         return "until cleared"
-    expires = datetime.fromtimestamp(disable.expires_at, tz=UTC).strftime(
-        "%Y-%m-%d %H:%M:%S UTC"
-    )
+    expires = format_local(disable.expires_at, "%Y-%m-%d %H:%M:%S %Z")
     current = datetime.now(tz=UTC).timestamp() if now is None else now
     remaining = max(0.0, disable.expires_at - current)
     return f"until {expires} ({_format_duration(remaining)} remaining)"

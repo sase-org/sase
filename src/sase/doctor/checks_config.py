@@ -18,6 +18,7 @@ from sase.doctor.checks_config_notification_tabs import (
 from sase.doctor.checks_config_repos import check_config_repos
 from sase.doctor.checks_config_skills import check_config_skills_applied
 from sase.doctor.checks_config_sdd import check_config_sdd
+from sase.doctor.checks_config_timezone import check_config_timezone
 from sase.doctor.checks_config_tribes import check_config_tribes
 from sase.doctor.checks_config_xprompts import (
     check_config_model_xprompts,
@@ -36,6 +37,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="config",
             title="Config layers",
             runner=check_config_layers,
+        ),
+        CheckSpec(
+            id="config.timezone",
+            group="config",
+            title="Configured timezone",
+            runner=check_config_timezone,
         ),
         CheckSpec(
             id="config.init",
@@ -120,6 +127,7 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 
 _check_config_layers = check_config_layers
+_check_config_timezone = check_config_timezone
 _check_config_init = check_config_init
 _check_config_sdd = check_config_sdd
 _check_config_model_aliases = check_config_model_aliases

@@ -235,6 +235,40 @@ def test_render_phase_divider_shows_naive_start_verbatim(tz_divergence: None) ->
     assert "06:24:49" in divider.plain
 
 
+def test_agents_sync_timestamp_uses_configured_tz(tz_divergence: None) -> None:
+    from sase.agents.cli_sync import _timestamp
+
+    epoch = datetime(2026, 7, 3, 10, 24, 49, tzinfo=UTC).timestamp()
+    rendered = _timestamp(epoch)
+    assert "06:24" in rendered
+    assert "UTC" not in rendered
+
+
+def test_provider_disable_expiry_uses_configured_tz(tz_divergence: None) -> None:
+    from sase.llm_provider._registry_routing import format_provider_disable_expiry
+    from sase.llm_provider.provider_disable import TemporaryProviderDisable
+
+    expires_at = datetime(2026, 7, 3, 10, 24, 49, tzinfo=UTC).timestamp()
+    disable = TemporaryProviderDisable(
+        version=1,
+        provider="test-provider",
+        created_at=expires_at - 60,
+        expires_at=expires_at,
+        source="test",
+    )
+    rendered = format_provider_disable_expiry(disable, now=expires_at)
+    assert "2026-07-03 06:24:49" in rendered
+    assert "2026-07-03 10:24:49 UTC" not in rendered
+
+
+def test_xprompt_catalog_generated_at_uses_configured_tz(tz_divergence: None) -> None:
+    from sase.xprompt._catalog_render import compute_stats
+
+    stats = compute_stats([])
+    assert abs((stats.generated_at - local_now()).total_seconds()) < 5
+    assert abs((stats.generated_at - datetime.now()).total_seconds()) > 3000
+
+
 def test_attempt_start_hhmmss_uses_configured_tz(tz_divergence: None) -> None:
     from sase.ace.tui.models.agent_attempt import AttemptRecord
 
