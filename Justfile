@@ -333,7 +333,6 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-s9(ProcQueryFilter)" \
         --epic-symbol "sase-s9(proc_query_row)" \
         --epic-symbol "sase-s9(query_needs_output)" \
         {{ args }}
