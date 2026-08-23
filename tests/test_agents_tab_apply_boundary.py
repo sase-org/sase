@@ -15,6 +15,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
 )
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
+from sase.ace.tui.models.agent_proc_shells import merge_proc_shell_agents
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -310,3 +311,90 @@ def test_worker_boundary_observes_changed_effective_runner_limit(
 
     assert first.runner_capacity == RunnerCapacitySnapshot(10, 0, 0)
     assert second.runner_capacity == RunnerCapacitySnapshot(4, 0, 0)
+
+
+@pytest.mark.parametrize("merge_incomplete", [True, False])
+@pytest.mark.parametrize("incoming_has_proc", [False, True])
+def test_apply_boundary_carries_cached_proc_shell_before_fold_filtering(
+    merge_incomplete: bool,
+    incoming_has_proc: bool,
+) -> None:
+    disk_agent = _make_agent(cl_name="disk", raw_suffix="disk")
+    proc_shell = _make_agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="sase",
+        raw_suffix="proc-123",
+        status="RUNNING",
+        proc_id="proc-123",
+    )
+    incoming = (
+        merge_proc_shell_agents([disk_agent], [proc_shell])
+        if incoming_has_proc
+        else [disk_agent]
+    )
+    prep = PreparedApplyData(
+        filtered_agents=incoming,
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+
+    app = FakeAgentApp()
+    app._agents_with_children = [disk_agent, proc_shell]
+    boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        app._make_prepared_apply_snapshot(
+            on_agents_tab=False,
+            selected_identity=None,
+            load_state=None,
+        ),
+        merge_incomplete=merge_incomplete,
+    )
+
+    assert [agent.identity for agent in boundary.fold.unfiltered_agents].count(
+        proc_shell.identity
+    ) == 1
+    assert [agent.identity for agent in boundary.fold.visible_agents].count(
+        proc_shell.identity
+    ) == 1
+
+
+def test_proc_shell_rows_do_not_occupy_runner_capacity() -> None:
+    holder = _make_agent(
+        cl_name="holder",
+        status="RUNNING",
+        raw_suffix="holder",
+        pid=101,
+        artifacts_dir="/tmp/artifacts/ace-run/holder",
+        run_start_time=datetime(2026, 8, 23, 10, 0),
+    )
+    proc_shell = _make_agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="sase",
+        raw_suffix="proc-123",
+        status="RUNNING",
+        proc_id="proc-123",
+        pid=202,
+        run_start_time=datetime(2026, 8, 23, 10, 1),
+    )
+    app = FakeAgentApp()
+    app._agents_with_children = [holder, proc_shell]
+
+    boundary = prepare_loaded_agents_apply_boundary(
+        PreparedApplyData(
+            filtered_agents=[holder],
+            has_always_visible=True,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        app._make_prepared_apply_snapshot(
+            on_agents_tab=False,
+            selected_identity=None,
+            load_state=None,
+        ),
+        effective_runner_limit=4,
+    )
+
+    assert boundary.runner_capacity.slots_in_use == 1

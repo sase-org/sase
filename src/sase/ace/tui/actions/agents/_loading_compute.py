@@ -182,6 +182,24 @@ def prepare_loaded_agents_apply_boundary(
         ):
             prep = merge_incomplete_load_after_complete_history(prep, snapshot)
 
+    # The disk loader has no proc-shell source; stand-alone proc rows are a
+    # proc-observer projection held in the current roster. Carry them into the
+    # prepared payload before slot, fold, and selection work so a refresh does
+    # not restore selection against a proc-less list and then pin a neighbor.
+    proc_shells = [
+        agent for agent in snapshot.cached_agents_with_children if agent.is_proc_shell
+    ]
+    if proc_shells:
+        from ...models.agent_proc_shells import merge_proc_shell_agents
+
+        prep.filtered_agents = merge_proc_shell_agents(
+            prep.filtered_agents, proc_shells
+        )
+        # Proc-shell rows are never workflow children and never hidden, so the
+        # hideable partition and hidden count remain correct as captured from
+        # the loader payload; only the visible-presence flag needs widening.
+        prep.has_always_visible = True
+
     # Derive slot counts/queue positions from the already-loaded, post-merge
     # refresh payload. This stays off the Textual event loop on async loads and
     # avoids a second artifact scan for display-only data.
