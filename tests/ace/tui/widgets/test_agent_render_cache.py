@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.agent_completion import (
     WaitAgentStatusCounts,
     WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
 )
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 from sase.ace.tui.widgets._agent_list_rendering import (
@@ -20,6 +22,28 @@ from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
 from ._agent_render_cache_helpers import agent as _agent
 from ._agent_render_cache_helpers import style_at as _style_at
+
+
+def _running_family_for_cache() -> tuple[Agent, Agent]:
+    root = _agent(cl_name="family", status="DONE", agent_name="family--0")
+    root.agent_family = "family"
+    root.agent_family_role = "root"
+    root.role_suffix = "--0"
+    root.stop_time = datetime(2026, 4, 25, 14, 29, 0)
+    child = _agent(
+        cl_name="family--code",
+        status="RUNNING",
+        raw_suffix="code",
+        agent_name="family--code",
+    )
+    child.parent_timestamp = root.raw_suffix
+    child.agent_family = "family"
+    child.agent_family_role = "code"
+    child.role_suffix = "--code"
+    child.run_start_time = datetime(2026, 4, 25, 14, 30, 0)
+    root.runtime_children = [child]
+    root.followup_agents = [child]
+    return root, child
 
 
 def test_cached_format_agent_option_reuses_result_on_repeat_call() -> None:
@@ -276,6 +300,52 @@ def test_cached_family_root_ignores_member_unread_count_changes() -> None:
     assert read[0] is stale_shell_unread[0]
     assert read[1] is stale_shell_unread[1]
     assert "[U1]" not in stale_shell_unread[0].plain
+
+
+def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
+    cache = AgentRenderCache()
+    root, child = _running_family_for_cache()
+    now = datetime(2026, 4, 25, 14, 35, 0)
+
+    before = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+
+    child.status = "DONE"
+    child.stop_time = datetime(2026, 4, 25, 14, 33, 0)
+    next_child = _agent(
+        cl_name="family--review",
+        status="RUNNING",
+        raw_suffix="review",
+        agent_name="family--review",
+    )
+    next_child.parent_timestamp = root.raw_suffix
+    next_child.agent_family = "family"
+    next_child.agent_family_role = "review"
+    next_child.role_suffix = "--review"
+    next_child.start_time = datetime(2026, 4, 25, 14, 34, 0)
+    next_child.run_start_time = datetime(2026, 4, 25, 14, 34, 0)
+    root.runtime_children = [child, next_child]
+    root.followup_agents = [child, next_child]
+
+    after = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+
+    assert before[1].plain == "🏃‍♂️ 5m / 5m"
+    assert after[1].plain == "🏃‍♂️ 1m / 4m"
+    assert before[1] is not after[1]
+
+
+def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() -> None:
+    cache = AgentRenderCache()
+    root, child = _running_family_for_cache()
+    now = datetime(2026, 4, 25, 14, 35, 0)
+
+    before = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+    child.run_start_time = datetime(2026, 4, 25, 14, 32, 0)
+    child.start_time = datetime(2026, 4, 25, 14, 32, 0)
+    after = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
+
+    assert before[1].plain == "🏃‍♂️ 5m / 5m"
+    assert after[1].plain == "🏃‍♂️ 3m / 3m"
+    assert before[1] is not after[1]
 
 
 def test_invalidate_agent_drops_only_that_identity() -> None:

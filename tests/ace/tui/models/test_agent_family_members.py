@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent_family_members import (
     concrete_agent_statuses,
     concrete_family_member_rows,
     concrete_family_shell_rows,
+    current_family_shell_row,
     is_sequential_family_container,
 )
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -465,3 +466,122 @@ def test_member_plus_monitor_still_makes_a_family_container() -> None:
     starter.followup_agents = [continuation, monitor]
 
     assert is_sequential_family_container(starter) is True
+
+
+def test_current_family_shell_selects_active_promoted_root() -> None:
+    root = _agent("alpha--0", role="root", status="RUNNING")
+    waiting_child = _agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        status="WAITING",
+        start_offset=1,
+    )
+    root.followup_agents = [waiting_child]
+
+    assert current_family_shell_row(root) is root
+
+
+def test_current_family_shell_selects_later_serial_continuation() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="RUNNING",
+        start_offset=2,
+    )
+    queued = _agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        status="QUEUED",
+        start_offset=3,
+    )
+    root.runtime_children = [coder, queued]
+    root.followup_agents = [coder, queued]
+
+    assert current_family_shell_row(root) is coder
+
+
+def test_current_family_shell_selects_nested_running_monitor() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=2,
+        stop_offset=3,
+    )
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=coder,
+        monitor_id="m-running",
+        monitor_state="running",
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+    coder.runtime_children = [monitor]
+    coder.followup_agents = [monitor]
+
+    assert current_family_shell_row(root) is monitor
+
+
+def test_current_family_shell_returns_none_without_active_shell() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        start_offset=2,
+        stop_offset=3,
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+
+    assert current_family_shell_row(root) is None
+
+
+def test_current_family_shell_ignores_waiting_and_parallel_families() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
+    waiting = _agent(
+        "alpha--review",
+        role="review",
+        parent_timestamp=root.raw_suffix,
+        status="WAITING",
+        start_offset=2,
+    )
+    root.runtime_children = [waiting]
+    root.followup_agents = [waiting]
+
+    parallel = _agent("parallel", role="root", status="RUNNING")
+    parallel.agent_family_parallel = True
+    parallel_child = _agent(
+        "parallel--1",
+        role="phase",
+        parent_timestamp=parallel.raw_suffix,
+        status="RUNNING",
+    )
+    parallel_child.agent_family_parallel = True
+    parallel.runtime_children = [parallel_child]
+    parallel.followup_agents = [parallel_child]
+
+    assert current_family_shell_row(root) is None
+    assert current_family_shell_row(parallel) is None
+
+
+def test_current_family_shell_uses_newest_active_candidate_in_chain_order() -> None:
+    root = _agent("alpha--0", role="root", status="RUNNING")
+    coder = _agent(
+        "alpha--code",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="RUNNING",
+        start_offset=1,
+    )
+    root.runtime_children = [coder]
+    root.followup_agents = [coder]
+
+    assert current_family_shell_row(root) is coder

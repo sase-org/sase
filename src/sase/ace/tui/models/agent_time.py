@@ -483,6 +483,25 @@ def compute_row_runtime(
     return (None, format_compact_duration(interval.elapsed_seconds))
 
 
+def compute_leaf_row_runtime(
+    agent: "Agent",
+    now: datetime | None = None,
+) -> tuple[tuple[str, str] | None, str | None]:
+    """Compute one row's own runtime suffix pair, excluding descendants."""
+    if not should_display_runtime_suffix(agent):
+        return (None, None)
+    reference = now if now is not None else local_now()
+    interval = _leaf_runtime_interval(agent, reference)
+    if interval is None:
+        return (None, None)
+    if interval.terminal_time is not None:
+        return (
+            _format_finish_timestamp(interval.terminal_time, now=reference),
+            format_compact_duration(interval.elapsed_seconds),
+        )
+    return (None, format_compact_duration(interval.elapsed_seconds))
+
+
 def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
     """Return True when *agent* renders a runtime suffix that can tick."""
     if _seen is None:

@@ -334,6 +334,16 @@ def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
+def current_family_shell_row(agent: Agent) -> Agent | None:
+    """Return the current in-flight concrete shell for a sequential family."""
+    if agent.is_clan_container or not is_sequential_family_container(agent):
+        return None
+    for row in reversed(concrete_family_shell_rows(agent)):
+        if agent_row_is_in_flight(row):
+            return row
+    return None
+
+
 def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return ordered concrete agent shells represented by a family container.
 
@@ -477,6 +487,7 @@ __all__ = [
     "concrete_agent_statuses",
     "concrete_family_member_rows",
     "concrete_family_shell_rows",
+    "current_family_shell_row",
     "family_member_status_buckets",
     "family_roster_container",
     "is_sequential_family_container",

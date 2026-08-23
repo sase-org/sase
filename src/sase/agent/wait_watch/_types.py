@@ -157,7 +157,7 @@ def is_blocked_state(state: WaitState) -> bool:
     }
 
 
-def is_terminal_state(state: WaitState) -> bool:
+def _is_terminal_state(state: WaitState) -> bool:
     return state in {
         WaitState.SUCCEEDED,
         WaitState.FAILED,
@@ -166,7 +166,7 @@ def is_terminal_state(state: WaitState) -> bool:
 
 
 def is_stop_state(state: WaitState, *, wait_blocked: bool) -> bool:
-    return is_terminal_state(state) or (is_blocked_state(state) and not wait_blocked)
+    return _is_terminal_state(state) or (is_blocked_state(state) and not wait_blocked)
 
 
 def _exit_code_for_outcome(outcome: WaitSettlementOutcome) -> int:

@@ -86,6 +86,67 @@ def waiting_family_child_agents() -> list[Agent]:
     return [parent, child]
 
 
+def running_family_runtime_agents() -> list[Agent]:
+    started = datetime(2026, 7, 19, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="visual-runtime-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WORKING TALE",
+        start_time=started,
+        run_start_time=started,
+        raw_suffix="20260719090000",
+        agent_name="visual-runtime-family--plan",
+        agent_family="visual-runtime-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        workflow="ace-run",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    planner = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="plan",
+        project_file=root.project_file,
+        status="DONE",
+        start_time=started,
+        run_start_time=started,
+        raw_suffix=root.raw_suffix,
+        parent_workflow=root.workflow,
+        parent_timestamp=root.raw_suffix,
+        step_name="plan",
+        step_type="agent",
+        step_index=0,
+        total_steps=1,
+        plan_times=[started + timedelta(minutes=2)],
+        role_suffix="--plan",
+        agent_name="visual-runtime-family--plan",
+        agent_family="visual-runtime-family",
+        agent_family_role="plan",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-family-code",
+        project_file=root.project_file,
+        status="RUNNING",
+        start_time=started + timedelta(minutes=4),
+        run_start_time=started + timedelta(minutes=4),
+        raw_suffix="20260719090400",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--code",
+        agent_name="visual-runtime-family--code",
+        agent_family="visual-runtime-family",
+        agent_family_role="code",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    root.followup_agents.append(coder)
+    root.runtime_children.extend([planner, coder])
+    return [root, planner, coder]
+
+
 def settled_monitor_family_agents() -> list[Agent]:
     """Return a collapsed family mixing one running and three finished monitors.
 

@@ -7,7 +7,10 @@ from datetime import datetime
 import pytest
 
 from sase.ace.tui.models.agent import compute_row_runtime
-from sase.ace.tui.models.agent_time import runtime_suffix_ticks
+from sase.ace.tui.models.agent_time import (
+    compute_leaf_row_runtime,
+    runtime_suffix_ticks,
+)
 
 from .agent_list_runtime_helpers import (
     agent,
@@ -220,3 +223,26 @@ def test_compute_row_runtime_standalone_coder_question_continuation_active() -> 
     assert ts is None
     assert elapsed == "2m05s"
     assert runtime_suffix_ticks(coder, set()) is True
+
+
+def test_compute_leaf_row_runtime_ignores_descendant_aggregation() -> None:
+    start = datetime(2026, 4, 25, 13, 0, 0)
+    run_start = datetime(2026, 4, 25, 14, 0, 0)
+    now = datetime(2026, 4, 25, 14, 5, 0)
+    parent = agent(start=start, run_start=run_start)
+    parent.runtime_children.append(
+        agent(
+            start=datetime(2026, 4, 25, 14, 3, 0),
+            run_start=datetime(2026, 4, 25, 14, 3, 0),
+            raw_suffix="20260425140300",
+            cl_name="child",
+        )
+    )
+    childless_parent = agent(start=start, run_start=run_start)
+
+    assert compute_row_runtime(parent, now=now) == (None, "2m")
+    assert compute_leaf_row_runtime(parent, now=now) == compute_row_runtime(
+        childless_parent,
+        now=now,
+    )
+    assert compute_leaf_row_runtime(parent, now=now) == (None, "5m")

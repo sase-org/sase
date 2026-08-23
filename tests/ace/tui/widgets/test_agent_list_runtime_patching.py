@@ -11,14 +11,53 @@ from sase.ace.tui.agent_completion import (
     WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
 )
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_list import AgentList
 
 from .agent_list_runtime_helpers import (
     AgentListHarness,
     agent,
     agent_row_index,
+    workflow_child,
 )
+
+
+def _active_plan_family() -> tuple[Agent, Agent, Agent]:
+    root = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="WORKING TALE",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        raw_suffix="root",
+        cl_name="family-workflow",
+    )
+    root.agent_name = "family--plan"
+    root.agent_family = "family"
+    root.agent_family_role = "root"
+    root.plan_chain_root = True
+    planner = workflow_child(
+        step_type="agent",
+        status="DONE",
+        start=datetime(2026, 7, 19, 9, 0, 0),
+        run_start=datetime(2026, 7, 19, 9, 0, 0),
+        plan_times=[datetime(2026, 7, 19, 9, 2, 0)],
+        raw_suffix="planner",
+        cl_name="plan",
+    )
+    coder = agent(
+        status="RUNNING",
+        start=datetime(2026, 7, 19, 9, 4, 0),
+        run_start=datetime(2026, 7, 19, 9, 4, 0),
+        raw_suffix="coder",
+        cl_name="family--code",
+    )
+    coder.parent_timestamp = root.raw_suffix
+    coder.agent_family = "family"
+    coder.agent_family_role = "code"
+    coder.role_suffix = "--code"
+    root.runtime_children = [planner, coder]
+    root.followup_agents = [coder]
+    return root, planner, coder
 
 
 @pytest.mark.asyncio
@@ -50,6 +89,58 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
         assert widget.option_count == before_count
         assert "[✓]" in after
         assert after.rstrip().endswith("🏃‍♂️ 1m")
+
+
+@pytest.mark.asyncio
+async def test_patch_active_runtime_rows_advances_family_current_and_total() -> None:
+    app = AgentListHarness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        root, _planner, _coder = _active_plan_family()
+        widget.update_list(
+            [root],
+            current_idx=0,
+            marked_agents={root.identity},
+            now=datetime(2026, 7, 19, 9, 5, 59),
+        )
+        await pilot.pause()
+
+        row = agent_row_index(widget, 0)
+        before_count = widget.option_count
+        before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert "[✓]" in before
+        assert before.rstrip().endswith("🏃‍♂️ 1m59s / 3m59s")
+
+        patched = widget.patch_active_runtime_rows(datetime(2026, 7, 19, 9, 6, 0))
+        await pilot.pause()
+
+        after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
+        assert patched == 1
+        assert widget.option_count == before_count
+        assert "[✓]" in after
+        assert after.rstrip().endswith("🏃‍♂️ 2m / 4m")
+
+
+@pytest.mark.asyncio
+async def test_family_runtime_suffix_matches_collapsed_and_expanded_container() -> None:
+    app = AgentListHarness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        root, planner, coder = _active_plan_family()
+        now = datetime(2026, 7, 19, 9, 5, 5)
+
+        widget.update_list([root], current_idx=0, now=now)
+        await pilot.pause()
+        collapsed_row = agent_row_index(widget, 0)
+        collapsed = widget.get_option_at_index(collapsed_row).prompt.plain  # type: ignore[union-attr]
+
+        widget.update_list([root, planner, coder], current_idx=0, now=now)
+        await pilot.pause()
+        expanded_row = agent_row_index(widget, 0)
+        expanded = widget.get_option_at_index(expanded_row).prompt.plain  # type: ignore[union-attr]
+
+        assert collapsed.rstrip().endswith("🏃‍♂️ 1m05s / 3m05s")
+        assert expanded.rstrip().endswith("🏃‍♂️ 1m05s / 3m05s")
 
 
 @pytest.mark.asyncio

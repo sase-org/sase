@@ -110,22 +110,40 @@ def _runtime_signature(
 
     time_sensitive = row_runtime_or_wait_ticks(agent)
     wait_agent = wait_display_agent(agent)
-    child_signature = tuple(
+    runtime_child_signature = tuple(
         _runtime_signature(child, now, seen)
         for child in getattr(agent, "runtime_children", ())
     )
+    followup_signature = tuple(
+        _runtime_signature(child, now, seen)
+        for child in getattr(agent, "followup_agents", ())
+    )
     return (
+        agent.identity,
         agent.status,
         agent.start_time,
         agent.run_start_time,
         agent.stop_time,
+        agent.parent_timestamp,
+        agent.parent_workflow,
+        agent.step_type,
+        agent.parent_step_index,
+        agent.is_synthetic_planner,
+        agent.agent_family,
+        agent.agent_family_role,
+        agent.agent_family_parallel,
+        agent.role_suffix,
+        agent.monitor_id,
+        agent.monitor_state,
+        agent.proc_id,
         tuple(agent.plan_times),
         tuple(agent.feedback_times),
         agent.code_time,
         tuple(agent.questions_times),
         agent.question_response_path,
         agent.runner_slot_yielded,
-        child_signature,
+        runtime_child_signature,
+        followup_signature,
         getattr(wait_agent, "wait_until", None),
         getattr(wait_agent, "wait_duration", None),
         tuple(getattr(wait_agent, "waiting_for", ())),
