@@ -21,9 +21,7 @@ from sase.main.parser_commands import (
     register_revive_log_parser,
     register_run_parser,
 )
-from sase.main.parser_patch import register_patch_parser
 from sase.main.parser_commit import (
-    register_commit_parser,
     register_restore_parser,
     register_revert_parser,
 )
@@ -41,6 +39,7 @@ from sase.main.parser_launch import register_launch_parser
 from sase.main.parser_memory import register_memory_parser
 from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_monitor import register_monitor_parser
+from sase.main.parser_patch import register_patch_parser
 from sase.main.parser_plan import register_plan_parser
 from sase.main.parser_pipe import register_pipe_parser
 from sase.main.parser_plugin import register_plugin_parser
@@ -76,7 +75,6 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_bead_parser,
         register_chat_parser,
         register_comments_parser,
-        register_commit_parser,
         register_completion_parser,
         register_config_parser,
         register_core_parser,

@@ -1,4 +1,4 @@
-"""Tests for the commit CLI: flag parsing -> payload dict -> workflow construction."""
+"""Tests for `sase stitch create`: flag parsing -> payload dict -> workflow construction."""
 
 import argparse
 import os
@@ -7,16 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.main.parser_commit import register_commit_parser
+from sase.main.stitch_handler import handle_stitch_command
 from sase.workflows.commit.workflow import RunResult
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
-def _parse_commit_args(argv: list[str]) -> argparse.Namespace:
-    """Parse argv through the commit subparser."""
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
-    register_commit_parser(subparsers)
-    return parser.parse_args(["commit", *argv])
+def _parse_stitch_create_args(argv: list[str]) -> argparse.Namespace:
+    """Parse argv through the canonical ``sase stitch create`` parser."""
+    return parse_sase_args(["stitch", "create", *argv])
 
 
 def _write_msg(tmp_path: Path, content: str) -> str:
@@ -29,8 +27,8 @@ def _write_msg(tmp_path: Path, content: str) -> str:
 def _run_handler(
     argv: list[str], env: dict[str, str] | None = None
 ) -> tuple[dict, str]:
-    """Run handle_commit_command and return (payload, method) passed to CommitWorkflow."""
-    args = _parse_commit_args(argv)
+    """Run stitch create and return (payload, method) passed to CommitWorkflow."""
+    args = _parse_stitch_create_args(argv)
     mock_workflow = MagicMock()
     mock_workflow.run.return_value = RunResult.OK
     requested_env = env or {}
@@ -42,21 +40,20 @@ def _run_handler(
 
         with (
             patch(
-                "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
+                "sase.main.stitch_create_handler.CommitWorkflow",
+                return_value=mock_workflow,
             ) as cls,
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
 
     assert exc_info.value.code == 0
     call_kwargs = cls.call_args.kwargs
     return call_kwargs["payload"], call_kwargs["method"]
 
 
-class TestCommitCLI:
-    """Test commit CLI flag -> payload mapping."""
+class TestStitchCreateCLI:
+    """Test stitch-create CLI flag -> payload mapping."""
 
     def test_basic_commit(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "fix: bug")
@@ -84,41 +81,39 @@ class TestCommitCLI:
     def test_removed_file_flag_exits_1(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
-            _parse_commit_args(["-M", msg_file, "-f", "a.py"])
+            _parse_stitch_create_args(["-M", msg_file, "-f", "a.py"])
         assert exc_info.value.code == 1
 
     def test_removed_file_flag_bare_exits_1(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
-            _parse_commit_args(["-M", msg_file, "-f"])
+            _parse_stitch_create_args(["-M", msg_file, "-f"])
         assert exc_info.value.code == 1
 
     def test_only_file_and_exclude_mutually_exclusive(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        args = _parse_commit_args(["-M", msg_file, "--only-file", "a.py", "-x", "b.py"])
+        args = _parse_stitch_create_args(
+            ["-M", msg_file, "--only-file", "a.py", "-x", "b.py"]
+        )
         with (
-            patch("sase.main.commit_handler.CommitWorkflow") as cls,
+            patch("sase.main.stitch_create_handler.CommitWorkflow") as cls,
             patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
         assert exc_info.value.code == 1
         cls.assert_not_called()
 
     @pytest.mark.parametrize("bad_path", ["/etc/passwd", "../outside", ":(top)a.py"])
     def test_invalid_exclude_path_exits_1(self, tmp_path: Path, bad_path: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        args = _parse_commit_args(["-M", msg_file, "-x", bad_path])
+        args = _parse_stitch_create_args(["-M", msg_file, "-x", bad_path])
         with (
-            patch("sase.main.commit_handler.CommitWorkflow") as cls,
+            patch("sase.main.stitch_create_handler.CommitWorkflow") as cls,
             patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
         assert exc_info.value.code == 1
         cls.assert_not_called()
 
@@ -132,7 +127,7 @@ class TestCommitCLI:
     def test_bead_id_flag_rejected(self, tmp_path: Path, flag: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
-            _parse_commit_args(["-M", msg_file, flag, "sase-42"])
+            _parse_stitch_create_args(["-M", msg_file, flag, "sase-42"])
         assert exc_info.value.code == 2
 
     def test_bead_id_from_env(self, tmp_path: Path) -> None:
@@ -224,15 +219,13 @@ class TestCommitCLI:
     def test_stale_uppercase_bug_id_flag_is_rejected(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
-            _parse_commit_args(["-M", msg_file, "-B", "12345"])
+            _parse_stitch_create_args(["-M", msg_file, "-B", "12345"])
         assert exc_info.value.code == 2
 
     def test_message_file_not_found(self) -> None:
-        args = _parse_commit_args(["-M", "/nonexistent/message.md"])
+        args = _parse_stitch_create_args(["-M", "/nonexistent/message.md"])
         with pytest.raises(SystemExit) as exc_info:
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
         assert exc_info.value.code == 1
 
     def test_message_file_deleted_after_success(self, tmp_path: Path) -> None:
@@ -249,20 +242,19 @@ class TestCommitCLI:
         self, tmp_path: Path, result: RunResult, exit_code: int
     ) -> None:
         msg_file = _write_msg(tmp_path, "feat: keep me")
-        args = _parse_commit_args(["-M", msg_file])
+        args = _parse_stitch_create_args(["-M", msg_file])
         mock_workflow = MagicMock()
         mock_workflow.run.return_value = result
 
         with (
             patch(
-                "sase.main.commit_handler.CommitWorkflow", return_value=mock_workflow
+                "sase.main.stitch_create_handler.CommitWorkflow",
+                return_value=mock_workflow,
             ),
             patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
 
         assert exc_info.value.code == exit_code
         assert Path(msg_file).read_text() == "feat: keep me"
@@ -343,9 +335,9 @@ class TestCommitCLI:
     def test_conflicting_cli_env_methods_exits_1(self, tmp_path: Path) -> None:
         """CLI --type that conflicts with SASE_COMMIT_METHOD must fail."""
         msg_file = _write_msg(tmp_path, "msg")
-        args = _parse_commit_args(["-M", msg_file, "--type", "commit"])
+        args = _parse_stitch_create_args(["-M", msg_file, "--type", "commit"])
         with (
-            patch("sase.main.commit_handler.CommitWorkflow") as cls,
+            patch("sase.main.stitch_create_handler.CommitWorkflow") as cls,
             patch.dict(
                 "os.environ",
                 {"SASE_COMMIT_METHOD": "create_pull_request"},
@@ -353,9 +345,7 @@ class TestCommitCLI:
             ),
             pytest.raises(SystemExit) as exc_info,
         ):
-            from sase.main.commit_handler import handle_commit_command
-
-            handle_commit_command(args)
+            handle_stitch_command(args)
 
         assert exc_info.value.code == 1
         cls.assert_not_called()
@@ -384,4 +374,4 @@ class TestCommitCLI:
     def test_message_and_message_file_mutually_exclusive(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit):
-            _parse_commit_args(["-m", "inline", "-M", msg_file])
+            _parse_stitch_create_args(["-m", "inline", "-M", msg_file])

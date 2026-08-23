@@ -61,7 +61,7 @@ def commit_sdd_files_for_exec_plan(
         "sdd",
     )
     # -M / --message-file expects a file path, not a raw string.
-    # handle_commit_command deletes the file after reading it.
+    # handle_stitch_create_command deletes the file after reading it.
     from sase.core.paths import get_sase_managed_tmpdir
 
     msg_fd, msg_path = tempfile.mkstemp(

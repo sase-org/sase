@@ -388,48 +388,15 @@ class TestStitchCreateParser:
 
         assert "Usage: sase stitch {create,list}" in capsys.readouterr().err
 
-    def test_commit_and_stitch_create_parse_to_equivalent_namespaces(self) -> None:
-        argv = [
-            "-M",
-            "msg.txt",
-            "-x",
-            "a.py",
-            "-x",
-            "b.py",
-            "-n",
-            "feature",
-            "-b",
-            "7",
-            "-B",
-            "-c",
-            "main",
-            "-p",
-            "parent_feature",
-            "-s",
-            "ready",
-            "-t",
-            "pr",
-        ]
+    def test_legacy_commit_command_is_unknown(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            parse_sase_args(["commit", "-m", "hi"])
 
-        commit_ns = parse_sase_args(["commit", *argv])
-        create_ns = parse_sase_args(["stitch", "create", *argv])
-
-        shared_keys = (
-            "message",
-            "message_file",
-            "exclude",
-            "only_files",
-            "name",
-            "bug_id",
-            "do_not_close_bead",
-            "checkout_target",
-            "parent",
-            "status",
-            "method",
-            "resume",
-        )
-        for key in shared_keys:
-            assert getattr(commit_ns, key) == getattr(create_ns, key), key
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert "invalid choice: 'commit'" in err
 
 
 class TestStitchHandlerDispatch:

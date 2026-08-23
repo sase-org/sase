@@ -496,8 +496,8 @@ deployment sequence. `sase init skills` still works as a compatibility alias for
 
 The chezmoi destination is a single global tree shared by every workspace, so a deploy
 from a workspace whose sources are not canonical publishes content that exists in no
-sase commit and can revert another agent's deployment. Two guards enforce that, and they
-apply only to writing chezmoi deploys — `--check`, `--diff`, `--dry-run`, and
+landed sase revision and can revert another agent's deployment. Two guards enforce that,
+and they apply only to writing chezmoi deploys — `--check`, `--diff`, `--dry-run`, and
 non-chezmoi targets are unaffected:
 
 - **Source integrity.** The deploy is refused when `src/sase/xprompts/` has uncommitted

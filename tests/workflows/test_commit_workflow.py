@@ -650,7 +650,7 @@ def test_capture_pre_commit_diff_skips_without_cl_name(
 def test_before_hook_runs_during_sdd_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression: run_before_commit_hook() must execute when sase commit is used for SDD files."""
+    """Regression: run_before_commit_hook() must execute when sase stitch create is used for SDD files."""
     monkeypatch.delenv("SASE_PLAN", raising=False)
     monkeypatch.chdir(tmp_path)
 

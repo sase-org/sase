@@ -1,7 +1,7 @@
 """Acceptance coverage: a tagged commit publishes every sidecar inline.
 
 The commit path must finish its bead-page, prompt-archive, plan-header, and
-agent-hood work *before* ``sase commit`` returns, so the ``SASE_AGENT`` footer
+agent-hood work *before* ``sase stitch create`` returns, so the ``SASE_AGENT`` footer
 URL resolves as soon as the commit lands. This composes the four real
 publishers over real sidecar git repositories and asserts each one committed,
 pushed, and left an empty publication outbox behind.

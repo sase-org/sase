@@ -4302,8 +4302,7 @@ scannable; `-v/--verbose` renders the full [description](axe.md#description-gram
 
 ### `sase stitch create`
 
-Dispatches a commit, proposal, or PR via the VCS provider layer. `sase commit` remains
-accepted as a deprecated alias for this subcommand. See
+Dispatches a commit, proposal, or PR via the VCS provider layer. See
 [commit_workflows.md](commit_workflows.md) for the full flow, payload, checkpoint, and
 resume semantics.
 
@@ -4311,7 +4310,8 @@ resume semantics.
 | ------------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
 | `-m, --message`           | string                        | -                       | Commit message (mutually exclusive with `-M`).                                              |
 | `-M, --message-file`      | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).         |
-| `-f, --file`              | path (repeatable)             | stage all               | Specific file to stage. Repeat for multiple; omit to stage everything.                      |
+| `-x, --exclude`           | path (repeatable)             | -                       | Repo-relative file or directory to leave out of the commit.                                 |
+| `--only-file`             | path (repeatable, hidden)     | stage all               | Internal: restrict the commit to these repo-relative paths. Mutually exclusive with `-x`.   |
 | `-n, --name`              | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                        |
 | `-b, --bug-id`            | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                        |
 | `-B, --do-not-close-bead` | flag                          | -                       | Do not auto-close the assigned in-progress task bead after commit.                          |

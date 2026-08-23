@@ -1,13 +1,13 @@
 ---
 name: sase_hg_commit
 description: |
-  Commit changes using sase commit for Google's fig VCS. This skill is the ONLY way that you should EVER commit to fig
+  Commit changes using sase stitch create for Google's fig VCS. This skill is the ONLY way that you should EVER commit to fig
   repos. NEVER invoke this skill unless the user explicitly asks you to commit or a post-completion finalizer triggers
   it.
 skill: [gemini]
 ---
 
-Commit changes via the `sase commit` command.
+Commit changes via the `sase stitch create` command.
 
 ## Instructions
 
@@ -20,7 +20,7 @@ Commit changes via the `sase commit` command.
 3. **Run the commit** — Execute:
 
    ```bash
-   sase commit -M commit_message.md
+   sase stitch create -M commit_message.md
    ```
 
    Flags:
@@ -37,15 +37,15 @@ Commit changes via the `sase commit` command.
 ## Example
 
 ```bash
-sase commit -M commit_message.md
+sase stitch create -M commit_message.md
 ```
 
 ## On Merge Conflict
 
-If `sase commit` exits with code **2** and prints a "merge conflict" message, the local
-repository is in a paused evolve/rebase state and the post-commit bookkeeping has been
-deferred. Do NOT re-run the original `sase commit` command. Instead, resolve the
-conflict and finalize:
+If `sase stitch create` exits with code **2** and prints a "merge conflict" message, the
+local repository is in a paused evolve/rebase state and the post-commit bookkeeping has
+been deferred. Do NOT re-run the original `sase stitch create` command. Instead, resolve
+the conflict and finalize:
 
 1. **Find conflicted files**: Run `hg resolve --list` (lines starting with `U` are
    unresolved).
@@ -55,4 +55,4 @@ conflict and finalize:
 4. **Continue the rebase/evolve**: Run `hg rebase --continue` (or
    `hg evolve --continue`). Repeat steps 1–4 until clean.
 5. **Verify the working tree is clean**: `hg status` should be empty.
-6. **Finalize the sase commit**: Run `sase commit --resume`.
+6. **Finalize the sase stitch create**: Run `sase stitch create --resume`.

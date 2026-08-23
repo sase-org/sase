@@ -1,8 +1,8 @@
 """Commit method constants.
 
-This module must stay dependency-free: argparse ``choices`` for both
-``sase commit`` and ``sase stitch create`` import it directly so building
-those parsers never pulls in the full commit workflow dependency chain.
+This module must stay dependency-free: argparse ``choices`` for
+``sase stitch create`` import it directly so building that parser never
+pulls in the full commit workflow dependency chain.
 """
 
 VALID_METHODS = ("create_commit", "create_proposal", "create_pull_request")

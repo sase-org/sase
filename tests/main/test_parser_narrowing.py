@@ -27,6 +27,14 @@ def _root_commands(parser: argparse.ArgumentParser) -> set[str]:
 def test_full_parser_commands_match_lazy_registry() -> None:
     """The full and narrow parser paths share one command inventory."""
     assert _root_commands(create_parser()) == set(_COMMAND_REGISTRARS)
+    assert "commit" not in _COMMAND_REGISTRARS
+    assert "commit" not in _root_commands(create_parser())
+
+
+def test_narrow_parser_rejects_removed_commit_command() -> None:
+    """Parser narrowing does not treat the removed top-level commit alias as known."""
+    with pytest.raises(ValueError, match="unknown top-level command"):
+        create_parser(only="commit")
 
 
 def test_construction_still_rejects_badly_formed_help() -> None:
@@ -100,6 +108,7 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
         (["sase", "patch"], "patch"),
         (["sase", "stitch"], "stitch"),
         (["sase", "vcs"], "vcs"),
+        (["sase", "commit"], None),
         (["sase"], None),
         (["sase", "--help"], None),
         (["sase", "-H"], None),
@@ -112,6 +121,22 @@ def test_parser_only_hint_uses_narrow_path_only_when_safe(
 ) -> None:
     """Root help and error paths retain the complete command inventory."""
     assert parser_only_hint(argv) == expected
+
+
+def test_sase_commit_invocation_exits_as_unknown_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A real ``sase commit`` invocation uses the normal unknown-command path."""
+    from sase.main import entry
+
+    monkeypatch.setattr(sys, "argv", ["sase", "commit", "-m", "hi"])
+    with pytest.raises(SystemExit) as actual_exit:
+        entry.main()
+    output = capsys.readouterr()
+
+    assert actual_exit.value.code == 2
+    assert "invalid choice: 'commit'" in output.err
 
 
 @pytest.mark.parametrize("argv", [[], ["--help"], ["-H"], ["bogus"]])

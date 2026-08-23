@@ -33,7 +33,7 @@ providers.
 
 ## One CLI, Three Outcomes
 
-The `sase commit` command drives three XPrompt workflows. They share the same
+The `sase stitch create` command drives three XPrompt workflows. They share the same
 orchestrator, the same pre-stages, and the same result format; they differ only in what
 the dispatch step produces.
 
@@ -67,16 +67,16 @@ instruction to invoke the matching commit skill (for example `/sase_git_commit` 
 git-based projects, `/sase_hg_commit` for Mercurial). Dirty linked repo clones are
 enforced like the main workspace. The generated skill normally runs a wrapper such as
 `sase_git_commit`, which records skill invocation evidence and then delegates to
-`sase commit`. A narrow SDD closeout, where the only enforced diff is one tracked SDD
-markdown file whose leading front matter changes from `status: wip` to `status: done`,
-is committed directly by the finalizer with a `SASE_TYPE=sdd` tag.
+`sase stitch create`. A narrow SDD closeout, where the only enforced diff is one tracked
+SDD markdown file whose leading front matter changes from `status: wip` to
+`status: done`, is committed directly by the finalizer with a `SASE_TYPE=sdd` tag.
 
 That finalizer is runtime-uniform because it lives in the LLM provider orchestration
 layer, not in a provider-native hook. Claude, Codex, Antigravity (`agy`), Qwen,
 OpenCode, Muse Code, and plugin providers all follow the same control flow: changes
-exist → follow-up with skill name → skill wrapper delegates to `sase commit` → finalizer
-re-checks the workspaces. No runtime-specific branching in the agent prompt, no "if
-Codex then X" anywhere in the workflow.
+exist → follow-up with skill name → skill wrapper delegates to `sase stitch create` →
+finalizer re-checks the workspaces. No runtime-specific branching in the agent prompt,
+no "if Codex then X" anywhere in the workflow.
 
 If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the
 uncommitted changes were made in the current session. For changes the agent did make, it
@@ -87,8 +87,8 @@ closure of unrelated dirty work.
 ## Runtime-Uniform Commit Skills
 
 Supported agent runtimes follow the same commit-finalizer control flow: the finalizer
-asks for the VCS-specific commit skill, the skill delegates to `sase commit`, and the
-finalizer re-checks for dirty work. The common Git skill surface is available across
+asks for the VCS-specific commit skill, the skill delegates to `sase stitch create`, and
+the finalizer re-checks for dirty work. The common Git skill surface is available across
 Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and Muse Code; provider-specific
 extras can be scoped to the runtimes that support that provider.
 
@@ -116,22 +116,23 @@ on disk (`$SASE_ARTIFACTS_DIR/commit_state.json`, or
 `RunResult.CONFLICT` (exit code 2). The CLI prints:
 
 > `create_commit` hit a merge conflict: … Resolve the conflict, then run
-> `sase commit --resume` to finish.
+> `sase stitch create --resume` to finish.
 
-`sase commit --resume` loads the checkpoint, re-checks the working tree for conflict
-markers, verifies the commit at `HEAD` matches the subject line from the checkpointed
-message, calls the provider's `vcs_finalize_commit` hook to replay idempotent
-post-commit work (bead amend, push with retry), runs `commit_hooks.after`, re-runs the
-tracking steps (STITCHES entry append, Patch creation), and deletes the checkpoint on
-success. Completed steps are skipped, so resuming an after-hook failure does not
-duplicate dispatch or a successful hook. After hooks should still be repeatable for the
-crash window between command success and checkpoint persistence. Resume is VCS-agnostic:
-the same `--resume` flag works for commits, proposals, and PRs.
+`sase stitch create --resume` loads the checkpoint, re-checks the working tree for
+conflict markers, verifies the commit at `HEAD` matches the subject line from the
+checkpointed message, calls the provider's `vcs_finalize_commit` hook to replay
+idempotent post-commit work (bead amend, push with retry), runs `commit_hooks.after`,
+re-runs the tracking steps (STITCHES entry append, Patch creation), and deletes the
+checkpoint on success. Completed steps are skipped, so resuming an after-hook failure
+does not duplicate dispatch or a successful hook. After hooks should still be repeatable
+for the crash window between command success and checkpoint persistence. Resume is
+VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs.
 
 This is the recovery path that makes multi-agent execution survivable. Without it, a
 conflict on phase 3 of a seven-phase epic would mean wiping the workspace and
-restarting; with it, the human resolves the conflict, runs `sase commit --resume`, and
-the rest of the epic carries on through AXE's `%wait` resolution.
+restarting; with it, the human resolves the conflict, runs
+`sase stitch create --resume`, and the rest of the epic carries on through AXE's `%wait`
+resolution.
 
 ## What's in `commit_result.json`
 

@@ -10,10 +10,11 @@ pdf: false
 ## Summary
 
 This is a historical critique of a diagram that predated the provider-neutral commit
-finalizer. The committed PNG still shows the old left-to-right shape (xprompt inputs →
-stop hook → commit skill → `sase commit` → `CommitWorkflow` → three output branches).
-The current runtime behavior is xprompt inputs → commit finalizer → commit skill →
-`sase commit` → `CommitWorkflow` → three output branches.
+finalizer. After a local relabel, the committed PNG still shows the old left-to-right
+shape (xprompt inputs → stop hook → commit skill → `sase stitch create` →
+`CommitWorkflow` → three output branches). The current runtime behavior is xprompt
+inputs → commit finalizer → commit skill → `sase stitch create` → `CommitWorkflow` →
+three output branches.
 
 The main problems are with the central `CommitWorkflow` band: it omits two stages, drops
 one of the canonical labels in favor of an off-spec synonym, and renders the stages in
@@ -28,8 +29,9 @@ Reading the committed `commit-workflow-infographic.png` directly:
 
 - Title: **Shared Commit Workflow**
 - Left input stack: `#commit`, `#propose`, `#pr` (rendered as map-pin icons).
-- Linear path: **Agent changes → Stop hook → Commit skill → sase commit →
-  CommitWorkflow** (large central band).
+- Linear path: **Agent changes → Stop hook → Commit skill → sase stitch create →
+  CommitWorkflow** (large central band). The CLI step is a stacked three-line overlay
+  (`sase` / `stitch` / `create`) immediately right of **Commit skill**.
 - `CommitWorkflow` band chips, in the order shown: **Precommit, Bead handling, Plan
   handling, PR tags, Parent detection, VCS dispatch, Tracking, Result marker**.
 - Side loop, drawn under the band as a yellow warning chip with a curved arrow:

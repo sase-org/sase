@@ -126,8 +126,8 @@ copied into `pool/`. External files are hashed and pooled unless they exceed
 with a skip reason, but their bytes are not copied. Locator-only references such as
 `@agent:`, `@patch:`, and `@stitch:` get manifest rows without file bytes.
 
-When `sase commit` publishes the canonical prompt archive, it reads the manifest rows
-for that run, copies pooled files to the agents sidecar's content-addressed object
+When `sase stitch create` publishes the canonical prompt archive, it reads the manifest
+rows for that run, copies pooled files to the agents sidecar's content-addressed object
 store, and writes the prompt to `prompts/<YYYYMM>/<name>.md`. The body is the prompt
 text selected for publication. The prompt's `ARTIFACTS` header section lists exactly the
 `@...` references made clickable in the body. VCS-backed rows link to hosted source

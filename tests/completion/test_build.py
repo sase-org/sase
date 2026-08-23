@@ -48,7 +48,7 @@ def test_hidden_subcommands_are_absent() -> None:
 def test_mutex_groups_found() -> None:
     spec = build_spec()
     total = sum(len(command.mutex_groups) for command in _all_commands(spec.root))
-    assert total == 15
+    assert total == 14
 
 
 def test_glossary_del_term_is_kinded_and_add_term_is_not() -> None:
@@ -137,8 +137,8 @@ def test_static_choices_need_no_kind() -> None:
 
 def test_suppressed_option_is_kept_and_flagged_hidden() -> None:
     spec = build_spec()
-    commit = _by_path(spec.root, ("commit",))
-    file_option = next(option for option in commit.options if option.dest == "file")
+    create = _by_path(spec.root, ("stitch", "create"))
+    file_option = next(option for option in create.options if option.dest == "file")
     assert file_option.hidden is True
 
 

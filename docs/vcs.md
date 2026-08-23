@@ -288,8 +288,7 @@ and an adaptive legend; `--format full` includes the marker in each commit heade
 ### `sase stitch create`
 
 Dispatches to one of three VCS methods (`create_commit`, `create_proposal`,
-`create_pull_request`) via the `CommitWorkflow` orchestrator. `sase commit` remains
-accepted as a deprecated alias for this subcommand. See
+`create_pull_request`) via the `CommitWorkflow` orchestrator. See
 [`docs/commit_workflows.md`](commit_workflows.md) for the full workflow reference.
 
 **Key VCS operations used:**

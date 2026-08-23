@@ -105,6 +105,25 @@ def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:
     ) in flat
 
 
+@pytest.mark.parametrize("skill_name", ["sase_git_commit", "sase_hg_commit"])
+def test_commit_skill_sources_reject_legacy_sase_commit_cli(skill_name: str) -> None:
+    """Git and Mercurial skill sources must not recommend the removed ``sase commit`` CLI."""
+    src = get_sase_package_skills_dir() / f"{skill_name}.md"
+    body = src.read_text(encoding="utf-8")
+    assert "sase commit" not in body
+
+
+def test_hg_commit_skill_invokes_stitch_create() -> None:
+    """The Mercurial commit skill should call ``sase stitch create`` directly."""
+    src = get_sase_package_skills_dir() / "sase_hg_commit.md"
+    body = src.read_text(encoding="utf-8")
+    flat = collapse_whitespace(body)
+    assert "Commit changes via the `sase stitch create` command" in flat
+    assert "sase stitch create -M commit_message.md" in body
+    assert "sase stitch create --resume" in body
+    assert "Do NOT re-run the original `sase stitch create` command" in flat
+
+
 def test_git_commit_skill_invokes_observable_wrapper() -> None:
     """The git commit skill should call the wrapper, not raw ``sase commit``."""
     src = get_sase_package_skills_dir() / "sase_git_commit.md"

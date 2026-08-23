@@ -29,7 +29,7 @@ Exact visible labels to include, spelled exactly:
 
 - Title: Shared Commit Workflow
 - Left inputs: #commit, #propose, #pr
-- Main path blocks: Agent changes, Commit finalizer, Commit skill, sase commit,
+- Main path blocks: Agent changes, Commit finalizer, Commit skill, sase stitch create,
   CommitWorkflow
 - CommitWorkflow stage labels inside the central orchestration band: Bead lifecycle,
   Plan handling, Before hook, PR tags, Parent detection, Diff capture, Checkpoint, VCS
@@ -41,9 +41,9 @@ Exact visible labels to include, spelled exactly:
 
 Composition: left-to-right flow. Put the three input xprompts in a compact stack on the
 left feeding Agent changes. Then Commit finalizer and Commit skill feed into
-`sase commit` and a large central CommitWorkflow band. Inside the band, reserve room for
-eleven ordered stage chips. Put bead lifecycle and plan handling before the before hook:
-the workflow closes/syncs beads and stages plan files before it runs
+`sase stitch create` and a large central CommitWorkflow band. Inside the band, reserve
+room for eleven ordered stage chips. Put bead lifecycle and plan handling before the
+before hook: the workflow closes/syncs beads and stages plan files before it runs
 `commit_hooks.before`. Mark bead lifecycle and plan handling as skipped for `#propose`;
 mark PR tags and parent detection as PR-only. Put the after hook immediately after VCS
 dispatch, mark it commit/PR-only, and note that it runs after push. From VCS dispatch,
@@ -74,9 +74,10 @@ left-to-right and top-to-bottom:
 
 ## Current Status
 
-The checked-in PNG is stale and is not currently embedded in `docs/commit_workflows.md`.
-It still labels the provider-neutral finalizer as `Stop hook`. Regenerate or locally
-relabel the image before re-embedding it.
+The checked-in PNG is still not embedded in `docs/commit_workflows.md`. The CLI step in
+the main path is labeled `sase stitch create` (stacked under Commit skill). Other stale
+labels remain (`Stop hook`, `COMMITS`, `ChangeSpec`, `Precommit`) and should be fixed
+before re-embedding.
 
 ## Required Post-Processing Notes
 

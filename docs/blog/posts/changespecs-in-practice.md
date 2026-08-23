@@ -69,15 +69,15 @@ TIMESTAMPS:
 The status lifecycle is a small state machine: `WIP → Draft, Ready`, `Draft → Ready`,
 `Ready → Mailed, Draft`, `Mailed → Submitted`. `Submitted`, `Reverted`, and `Archived`
 are terminal — the moment a Patch enters one, it moves to the archive file. PR workflows
-default new Patches to `Draft` unless `sase commit --status` or `SASE_PR_STATUS`
+default new Patches to `Draft` unless `sase stitch create --status` or `SASE_PR_STATUS`
 overrides; manual Patches typically start `WIP`.
 
 ## STITCHES, Drawers, and Proposals
 
-Stitches are managed automatically by `sase commit`. Regular commits get sequential
-integer stitches `(1)`, `(2)`, `(3)`. A commitless proposal is attached to the latest
-regular stitch with a letter suffix such as `(2a)` or `(2b)`; proposals made before the
-first regular stitch start at `(0a)`. Proposal entries are flagged with
+Stitches are managed automatically by `sase stitch create`. Regular commits get
+sequential integer stitches `(1)`, `(2)`, `(3)`. A commitless proposal is attached to
+the latest regular stitch with a letter suffix such as `(2a)` or `(2b)`; proposals made
+before the first regular stitch start at `(0a)`. Proposal entries are flagged with
 `(!: NEW PROPOSAL)`. Each stitch can carry zero or more **drawer** lines (6-space
 indent, `| ` prefix):
 

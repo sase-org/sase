@@ -72,7 +72,7 @@ Rust-backend image are all 16:9 PNGs.
 ### `docs/commit_workflows.md`
 
 - Show the shared path from `#commit`, `#propose`, or `#pr` through the provider-neutral
-  commit finalizer, commit skill, `sase commit`, and `CommitWorkflow`.
+  commit finalizer, commit skill, `sase stitch create`, and `CommitWorkflow`.
 - Keep the three dispatch outputs visually distinct: commit hash plus STITCHES entry,
   saved diff plus STITCHES entry, and PR URL plus Patch entry.
 - Include bead lifecycle, plan handling, PR tags, parent detection, VCS dispatch, result

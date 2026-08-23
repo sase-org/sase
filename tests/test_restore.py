@@ -196,7 +196,7 @@ def test_restore_patch_hg_import_fails(make_patch) -> None:  # type: ignore[no-u
 
 
 def test_restore_patch_sase_commit_fails(make_patch) -> None:  # type: ignore[no-untyped-def]
-    """Test restore_patch fails when sase commit fails."""
+    """Test restore_patch fails when sase stitch create fails."""
     patch = make_patch.create(name="test_project_feature__1", status="Reverted")
 
     mock_provider = MagicMock()

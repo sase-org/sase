@@ -98,7 +98,6 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     ),
     "chat": ("sase.main.parser_chat", "register_chat_parser"),
     "comments": ("sase.main.parser_commands", "register_comments_parser"),
-    "commit": ("sase.main.parser_commit", "register_commit_parser"),
     "completion": ("sase.main.parser_completion", "register_completion_parser"),
     "config": ("sase.main.parser_commands", "register_config_parser"),
     "core": ("sase.main.parser_core", "register_core_parser"),

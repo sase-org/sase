@@ -161,6 +161,8 @@ def test_root_full_help_renders_every_top_level_command(
     assert "--enable-feature" in help_text
     assert "--disable-feature" in help_text
     assert expected_commands <= help_commands
+    assert "commit" not in expected_commands
+    assert "commit" not in help_commands
 
 
 def test_root_short_full_help_matches_long_full_help(

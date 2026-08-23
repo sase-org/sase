@@ -33,7 +33,7 @@ def test_pr_title_types_are_a_subset_of_validator_defaults() -> None:
     drifted = [commit_type for commit_type in ci_types if commit_type not in defaults]
 
     assert not drifted, (
-        "PR-title CI accepts commit type(s) that `sase commit` would reject: "
+        "PR-title CI accepts commit type(s) that `sase stitch create` would reject: "
         f"{', '.join(drifted)}.\n"
         "Add them to default_commit_subject_types() in "
         "sase-core's crates/sase_core/src/commit_subject.rs (and the "

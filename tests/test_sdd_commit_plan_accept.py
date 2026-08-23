@@ -135,7 +135,7 @@ def test_commit_sdd_files_noop_no_files() -> None:
 
 
 def test_commit_sdd_files_logs_failure() -> None:
-    """Non-zero exit code from sase commit is logged."""
+    """Non-zero exit code from sase stitch create is logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
         ws = tmpdir
         plans = Path(ws) / "plans" / "202603"
