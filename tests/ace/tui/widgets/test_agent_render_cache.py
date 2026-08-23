@@ -328,8 +328,8 @@ def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
 
     after = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
 
-    assert before[1].plain == "🏃‍♂️ 5m / 5m"
-    assert after[1].plain == "🏃‍♂️ 1m / 4m"
+    assert before[1].plain == "🏃‍♂️ 5m/5m"
+    assert after[1].plain == "🏃‍♂️ 1m/4m"
     assert before[1] is not after[1]
 
 
@@ -343,8 +343,8 @@ def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() ->
     child.start_time = datetime(2026, 4, 25, 14, 32, 0)
     after = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
 
-    assert before[1].plain == "🏃‍♂️ 5m / 5m"
-    assert after[1].plain == "🏃‍♂️ 3m / 3m"
+    assert before[1].plain == "🏃‍♂️ 5m/5m"
+    assert after[1].plain == "🏃‍♂️ 3m/3m"
     assert before[1] is not after[1]
 
 

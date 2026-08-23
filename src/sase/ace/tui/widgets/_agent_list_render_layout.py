@@ -139,7 +139,7 @@ def build_runtime_suffix(
             )
         if current_shell_elapsed is not None:
             suffix.append(current_shell_elapsed, style=_RUNTIME_ELAPSED_STYLE)
-            suffix.append(" / ")
+            suffix.append("/")
         suffix.append(elapsed, style=_RUNTIME_ELAPSED_STYLE)
     elif show_unread_marker:
         suffix.append(
