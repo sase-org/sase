@@ -99,6 +99,55 @@ def linked_followup_workflow(
     return result
 
 
+def monitor_shell(
+    *,
+    status: str = "MONITORING",
+    start: datetime | None = datetime(2026, 4, 25, 14, 35, 0),
+    run_start: datetime | None | Any = _DEFAULT_RUN_START,
+    stop: datetime | None = None,
+    raw_suffix: str = "20260425143500",
+    cl_name: str = "demo--mon",
+    monitor_state: str = "running",
+) -> Agent:
+    result = agent(
+        status=status,
+        start=start,
+        run_start=run_start,
+        stop=stop,
+        role_suffix="--mon",
+        raw_suffix=raw_suffix,
+        cl_name=cl_name,
+    )
+    result.agent_family_role = "monitor"
+    result.monitor_id = "m-demo"
+    result.monitor_state = monitor_state
+    return result
+
+
+def family_container(
+    member: Agent,
+    *,
+    status: str = "DONE",
+    start: datetime | None = datetime(2026, 4, 25, 14, 30, 0),
+    run_start: datetime | None | Any = _DEFAULT_RUN_START,
+    stop: datetime | None = datetime(2026, 4, 25, 14, 35, 0),
+    raw_suffix: str = "20260425143000",
+    cl_name: str = "demo",
+) -> Agent:
+    result = agent(
+        status=status,
+        start=start,
+        run_start=run_start,
+        stop=stop,
+        raw_suffix=raw_suffix,
+        cl_name=cl_name,
+    )
+    result.agent_family_role = "root"
+    result.followup_agents.append(member)
+    result.runtime_children.append(member)
+    return result
+
+
 class AgentListHarness(App):
     """Mount a single AgentList for row-patching tests."""
 

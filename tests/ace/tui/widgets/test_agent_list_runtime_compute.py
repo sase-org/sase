@@ -14,7 +14,9 @@ from sase.ace.tui.models.agent_time import (
 
 from .agent_list_runtime_helpers import (
     agent,
+    family_container,
     linked_followup_workflow,
+    monitor_shell,
     workflow_child,
 )
 
@@ -246,3 +248,70 @@ def test_compute_leaf_row_runtime_ignores_descendant_aggregation() -> None:
         now=now,
     )
     assert compute_leaf_row_runtime(parent, now=now) == (None, "5m")
+
+
+def test_compute_row_runtime_settled_starter_ignores_running_monitor() -> None:
+    start = datetime(2026, 4, 25, 14, 30, 0)
+    stop = datetime(2026, 4, 25, 14, 35, 0)
+    now = datetime(2026, 4, 25, 14, 40, 0)
+    starter = agent(
+        status="DONE",
+        start=start,
+        stop=stop,
+        cl_name="demo--code",
+        role_suffix="--code",
+    )
+    starter.runtime_children.append(
+        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+    )
+
+    expected = compute_leaf_row_runtime(starter, now=now)
+    assert compute_row_runtime(starter, now=now) == expected
+    assert expected == (("", "14:35:00"), "5m")
+    assert runtime_suffix_ticks(starter) is False
+
+
+def test_compute_row_runtime_settled_starter_ignores_settled_monitor() -> None:
+    start = datetime(2026, 4, 25, 14, 30, 0)
+    stop = datetime(2026, 4, 25, 14, 35, 0)
+    now = datetime(2026, 4, 25, 14, 50, 0)
+    starter = agent(
+        status="DONE",
+        start=start,
+        stop=stop,
+        cl_name="demo--code",
+        role_suffix="--code",
+    )
+    starter.runtime_children.append(
+        monitor_shell(
+            status="DONE",
+            start=datetime(2026, 4, 25, 14, 34, 0),
+            stop=datetime(2026, 4, 25, 14, 42, 0),
+            monitor_state="completed",
+        )
+    )
+
+    expected = compute_leaf_row_runtime(starter, now=now)
+    assert compute_row_runtime(starter, now=now) == expected
+    assert expected == (("", "14:35:00"), "5m")
+
+
+def test_compute_row_runtime_family_container_spans_running_monitor() -> None:
+    now = datetime(2026, 4, 25, 14, 40, 0)
+    starter = agent(
+        status="DONE",
+        start=datetime(2026, 4, 25, 14, 30, 0),
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425143100",
+    )
+    starter.runtime_children.append(
+        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+    )
+    container = family_container(starter)
+
+    ts, elapsed = compute_row_runtime(container, now=now)
+    assert ts is None
+    assert elapsed == "6m"
+    assert runtime_suffix_ticks(container) is True

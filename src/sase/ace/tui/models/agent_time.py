@@ -360,6 +360,17 @@ def _leaf_runtime_interval(agent: "Agent", now: datetime) -> _RuntimeInterval | 
     return None
 
 
+def _aggregates_monitor_shells(agent: "Agent") -> bool:
+    """Return whether *agent*'s aggregate owns monitor-shell runtime.
+
+    This is container-ness, not ``stop_time``. A settled family container
+    still records ``stopped_at`` on the root artifacts dir, but it must keep
+    spanning a running monitor grandchild. Concrete agent shells only own
+    their own interval; the monitor already has its own roster row.
+    """
+    return agent.is_clan_container or agent.is_family_container_row
+
+
 def _aggregate_runtime(
     agent: "Agent", now: datetime, seen: set[int]
 ) -> _RuntimeInterval | None:
@@ -368,6 +379,7 @@ def _aggregate_runtime(
     if not children:
         return None
 
+    include_monitor_shells = _aggregates_monitor_shells(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
 
@@ -379,6 +391,8 @@ def _aggregate_runtime(
         return value.isoformat()
 
     def append_runtime_member(child: "Agent") -> None:
+        if child.is_monitor and not include_monitor_shells:
+            return
         child_id = id(child)
         if child_id in seen:
             return
@@ -502,7 +516,12 @@ def compute_leaf_row_runtime(
     return (None, format_compact_duration(interval.elapsed_seconds))
 
 
-def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
+def runtime_suffix_ticks(
+    agent: "Agent",
+    _seen: set[int] | None = None,
+    *,
+    _include_monitor_shells: bool | None = None,
+) -> bool:
     """Return True when *agent* renders a runtime suffix that can tick."""
     if _seen is None:
         _seen = set()
@@ -511,10 +530,20 @@ def runtime_suffix_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
         return False
     _seen.add(agent_id)
 
+    include_monitor_shells = (
+        _aggregates_monitor_shells(agent)
+        if _include_monitor_shells is None
+        else _include_monitor_shells
+    )
+
     if not should_display_runtime_suffix(agent):
         return False
     for child in getattr(agent, "runtime_children", ()):
-        if runtime_suffix_ticks(child, _seen):
+        if child.is_monitor and not include_monitor_shells:
+            continue
+        if runtime_suffix_ticks(
+            child, _seen, _include_monitor_shells=include_monitor_shells
+        ):
             return True
     if agent.stop_time is not None:
         return False
@@ -558,7 +587,12 @@ def wait_countdown_ticks(agent: "Agent") -> bool:
     )
 
 
-def row_runtime_or_wait_ticks(agent: "Agent", _seen: set[int] | None = None) -> bool:
+def row_runtime_or_wait_ticks(
+    agent: "Agent",
+    _seen: set[int] | None = None,
+    *,
+    _include_monitor_shells: bool | None = None,
+) -> bool:
     """Return True when any visible time text for *agent* can tick."""
     if _seen is None:
         _seen = set()
@@ -567,11 +601,21 @@ def row_runtime_or_wait_ticks(agent: "Agent", _seen: set[int] | None = None) -> 
         return False
     _seen.add(agent_id)
 
-    if runtime_suffix_ticks(agent):
+    include_monitor_shells = (
+        _aggregates_monitor_shells(agent)
+        if _include_monitor_shells is None
+        else _include_monitor_shells
+    )
+
+    if runtime_suffix_ticks(agent, _include_monitor_shells=include_monitor_shells):
         return True
     if wait_countdown_ticks(agent):
         return True
-    return any(
-        row_runtime_or_wait_ticks(child, _seen)
-        for child in getattr(agent, "runtime_children", ())
-    )
+    for child in getattr(agent, "runtime_children", ()):
+        if child.is_monitor and not include_monitor_shells:
+            continue
+        if row_runtime_or_wait_ticks(
+            child, _seen, _include_monitor_shells=include_monitor_shells
+        ):
+            return True
+    return False

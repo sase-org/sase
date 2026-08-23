@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 import pytest
 
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_time import (
     row_runtime_or_wait_ticks,
     runtime_suffix_ticks,
@@ -15,8 +17,15 @@ from sase.ace.tui.models.agent_time import (
 
 from .agent_list_runtime_helpers import (
     agent,
+    family_container,
     linked_followup_workflow,
+    monitor_shell,
     workflow_child,
+)
+
+_TICK_DECISIONS: tuple[Callable[[Agent], bool], ...] = (
+    runtime_suffix_ticks,
+    row_runtime_or_wait_ticks,
 )
 
 
@@ -91,6 +100,79 @@ def test_runtime_suffix_ticks_non_agent_workflow_child_does_not_tick(
 ) -> None:
     result = workflow_child(step_type=step_type, status="RUNNING")
     assert runtime_suffix_ticks(result) is False
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+def test_settled_starter_with_running_monitor_does_not_tick(
+    ticks: Callable[[Agent], bool],
+) -> None:
+    starter = agent(
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+    )
+    child = monitor_shell()
+    starter.runtime_children.append(child)
+
+    assert ticks(starter) is False
+    assert ticks(child) is True
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+def test_family_container_ticks_through_settled_starter_to_monitor(
+    ticks: Callable[[Agent], bool],
+) -> None:
+    starter = agent(
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425143100",
+    )
+    starter.runtime_children.append(monitor_shell())
+    container = family_container(starter)
+
+    assert container.is_family_container_row is True
+    assert ticks(container) is True
+    assert ticks(starter) is False
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+def test_clan_container_ticks_with_running_monitor_descendant(
+    ticks: Callable[[Agent], bool],
+) -> None:
+    starter = agent(
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+        raw_suffix="20260425143100",
+    )
+    starter.runtime_children.append(monitor_shell())
+    clan = agent(status="DONE", stop=datetime(2026, 4, 25, 14, 35, 0), cl_name="clan")
+    clan.is_clan_container = True
+    clan.runtime_children.append(starter)
+
+    assert ticks(clan) is True
+    assert ticks(starter) is False
+
+
+@pytest.mark.parametrize("ticks", _TICK_DECISIONS)
+def test_settled_starter_with_running_non_monitor_child_still_ticks(
+    ticks: Callable[[Agent], bool],
+) -> None:
+    starter = agent(
+        status="DONE",
+        stop=datetime(2026, 4, 25, 14, 35, 0),
+        cl_name="demo--code",
+        role_suffix="--code",
+    )
+    starter.runtime_children.append(
+        agent(status="RUNNING", raw_suffix="20260425143100", cl_name="child")
+    )
+
+    assert ticks(starter) is True
 
 
 def test_wait_countdown_ticks_waiting_with_wait_until() -> None:
