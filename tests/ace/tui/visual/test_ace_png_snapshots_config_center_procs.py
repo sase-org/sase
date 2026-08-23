@@ -6,6 +6,7 @@ import pytest
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.procs_filter_bar import ProcsFilterBar
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.proc_observer import ObservedProc
 from sase.monitor_state import MONITOR_GLYPH
@@ -151,4 +152,47 @@ async def test_config_center_procs_tab_monitors_png_snapshot(
             page,
             snapshot_name,
             title="ACE SASE Admin Center - Procs tab monitors",
+        )
+
+
+async def test_config_center_procs_tab_filtered_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The teal filter bar, its highlighted closed display, and `N/M shown`."""
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+    _freeze_procs_clock(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        pane = await _open_seeded_procs_tab(page)
+        bar = pane.query_one(ProcsFilterBar)
+        display = bar.query_one(f"#{bar.DISPLAY_ID}", Static)
+
+        await page.press("/")
+        bar.set_query("monitor")
+        bar.post_message(ProcsFilterBar.Submitted("monitor"))
+        await page.wait_for(
+            lambda _state: (
+                not bar._editing  # noqa: SLF001
+                and display.render().plain == "monitor"
+            )
+        )
+        await wait_for_visual_idle(page)
+
+        option_list = pane.query_one("#procs-list", OptionList)
+        title = pane._title_text().plain
+        assert all(
+            MONITOR_GLYPH in _option_plain(option_list, index)
+            for index in range(option_list.option_count)
+        )
+        assert "shown" in title
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_procs_tab_filtered_120x40",
+            title="ACE SASE Admin Center - Procs tab filtered",
         )

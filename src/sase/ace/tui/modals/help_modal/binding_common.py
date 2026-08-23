@@ -76,6 +76,8 @@ ADMIN_CENTER_TASKS_SECTION: tuple[str, list[tuple[str, str]]] = (
     "Admin Center Procs",
     [
         ("j / k", "Move through procs"),
+        ("/", "Filter procs"),
+        ("m", "Cycle monitor filter"),
         ("a", "Scope: this session / all"),
         ("K", "Kill selected running proc"),
         ("d / D", "Dismiss done / all done"),

@@ -362,6 +362,14 @@ search for a literal leading minus (`"-repo:plans"`); quote only the excluded va
 keep negation active (`-"generated rollout"`). Matching remains case-insensitive, and
 repository/project aliases work for both inclusion and exclusion.
 
+A declared boolean field also takes a bare shorthand: an unquoted `key` token with no
+colon expands to `key:true`, and `-key` to `-key:true`. Quoting opts out, so `"key"`
+stays free text. Because the shorthand is purely lexical (it always canonicalizes to the
+long spelling), it costs no schema field and moves no compiled profile's digest, so no
+saved query is invalidated. Stitches' `sidecar` field is boolean, so this changes what a
+bare `sidecar` token means there: it now filters to `sidecar:true` instead of searching
+for the literal word in a commit subject. Quote it (`"sidecar"`) to search for the word.
+
 ### Bead Pane
 
 The top-level Beads view (`3`) is the work-item home for standalone tasks, epic plan
@@ -6229,11 +6237,68 @@ historical kind rows. Approved epics normally launch as [monitor shells](monitor
 only an unresolvable planner agent family uses an unattributed command proc. See the
 [CLI reference](cli.md#daily-operation).
 
+### Filtering procs
+
+Press `/` to reveal a query bar above the proc list, prefilled with the query already
+active. Typing narrows the list live; the status lane shows `N matches` or a parse error
+with its exact span. `Enter` commits and returns focus to the list; `Esc` restores the
+query that was active when the bar was opened. Unlike the Artifacts panes, the bar is
+**hidden when there is no query** and appears — read-only, syntax-highlighted — only
+while a filter is active, so an active filter is never invisible without also being
+silent. The header gains a `· N/M shown` segment while filtered, and the query survives
+closing and reopening the Admin Center in the same session.
+
+Free text (and its explicit `text:` spelling) matches the command string, the row label,
+and the retained output; `cmd:` and `out:` narrow to one side. Every key is negatable
+with a leading `-`, and a boolean key takes the bare shorthand (`monitor` means
+`monitor:true`).
+
+| Key        | Kind     | Meaning                                                        |
+| ---------- | -------- | -------------------------------------------------------------- |
+| free text  | string   | Command, label, output (implicit AND); same as `text:`         |
+| `cmd:`     | string   | Command string only                                            |
+| `out:`     | string   | Retained output only (last 32 KB)                              |
+| `name:`    | string   | Row label / display name                                       |
+| `agent:`   | string   | A monitor row's member agent name                              |
+| `project:` | string   | Project key or display name                                    |
+| `status:`  | enum     | `pending`, `running`, `settling`, `success`, `error`, `killed` |
+| `kind:`    | enum     | `command`, `tui`, `detached`                                   |
+| `monitor`  | bool     | A `sase monitor start` proc shell                              |
+| `running`  | bool     | Active and owned by a live session                             |
+| `failed`   | bool     | Terminal status is `error` or `killed`                         |
+| `exit:`    | int      | Exit code (exact)                                              |
+| `min:`     | duration | Runtime at least N seconds (or `5m`, `2h`, `1d`)               |
+| `max:`     | duration | Runtime at most N                                              |
+| `after:`   | date     | Completed at or after the bound                                |
+| `before:`  | date     | Completed at or before the bound                               |
+| `since:`   | date     | **Started** at or after the bound                              |
+| `until:`   | date     | **Started** at or before the bound                             |
+| `limit:`   | host     | Row cap; `all` removes it                                      |
+
+Runtime is `(finished_at or now) - started_at`, so `min:`/`max:` read sensibly for a
+still-running proc too. `before:`/`after:` bound **completion** time and `since:`/
+`until:` bound **start** time; a running proc has no completion time, so
+`before:`/`after:` never match it and `-before:X` includes it. For example,
+`"just check" -monitor -min:300` matches non-monitor procs that ran for at least five
+minutes and mention `just check` in their command or output.
+
+`m` cycles the `monitor` term through three states without opening the bar for editing:
+
+```
+(no monitor term)  →  monitor  →  -monitor  →  (no monitor term)
+```
+
+Each press rewrites the query in place, leaving every other term untouched, and never
+steals focus from the row list. If the monitor term was the query's last term, the last
+press clears the filter and removes the bar.
+
 ### Keybindings
 
 | Key                 | Action                                       |
 | ------------------- | -------------------------------------------- |
 | `j` / `k`           | Navigate proc list                           |
+| `/`                 | Filter procs                                 |
+| `m`                 | Cycle the `monitor` filter                   |
 | `'`                 | Jump to a proc row via adaptive hints        |
 | `a`                 | Toggle scope: this session / all sessions    |
 | `K`                 | Kill selected running proc (durable or live) |
