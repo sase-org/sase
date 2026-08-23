@@ -25,6 +25,7 @@ from sase.agent.wait_watch._types import (
     WaitTargetState,
     WaitTick,
     WaitWatchConfig,
+    is_blocked_state,
 )
 from sase.agent.wait_watch._watch import (
     adaptive_poll_interval,
@@ -53,6 +54,7 @@ __all__ = [
     "adaptive_poll_interval",
     "classify_wait_target",
     "classify_wait_targets",
+    "is_blocked_state",
     "load_wait_caller_from_env",
     "resolve_all_wait_targets",
     "resolve_wait_targets",

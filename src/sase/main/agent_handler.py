@@ -98,10 +98,15 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_agent_operation(args))
 
+    if sub == "wait":
+        from sase.agents.cli_wait import handle_agents_wait
+
+        sys.exit(handle_agents_wait(args))
+
     print(
         "Usage: sase agent "
         "{archive,artifacts,index,kill,list,names,persist-cleanup,"
         "persist-directive,prompts,restart,"
-        "retire-v1,revert,show,sync,tribe}"
+        "retire-v1,revert,show,sync,tribe,wait}"
     )
     sys.exit(1)

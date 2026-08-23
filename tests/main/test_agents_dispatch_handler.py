@@ -77,6 +77,55 @@ def test_dispatch_restart() -> None:
     assert excinfo.value.code == 0
 
 
+def test_dispatch_wait() -> None:
+    """``sase agent wait`` dispatches to the wait handler."""
+    args = argparse.Namespace(agent_subcommand="wait", names=["02p"])
+    with (
+        patch("sase.agents.cli_wait.handle_agents_wait", return_value=3),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agent_command(args)
+    assert excinfo.value.code == 3
+
+
+def test_parser_registers_wait_options() -> None:
+    """``sase agent wait`` accepts the documented option table and NAME positional."""
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "wait",
+            "-i",
+            "5s",
+            "-p",
+            "proj",
+            "-t",
+            "2h",
+            "-w",
+            "foo",
+            "bar",
+        ]
+    )
+
+    assert args.command == "agent"
+    assert args.agent_subcommand == "wait"
+    assert args.all is False
+    assert args.interval == "5s"
+    assert args.json is False
+    assert args.project == "proj"
+    assert args.quiet is False
+    assert args.timeout == "2h"
+    assert args.wait_blocked is True
+    assert args.names == ["foo", "bar"]
+
+
+def test_parser_rejects_wait_all_and_name_together_is_a_runtime_check() -> None:
+    """Argparse itself accepts ``-a`` with NAME; the handler rejects it at runtime."""
+    args = create_parser().parse_args(["agent", "wait", "-a", "foo"])
+
+    assert args.all is True
+    assert args.names == ["foo"]
+
+
 def test_dispatch_unknown_subcommand(capsys: pytest.CaptureFixture[str]) -> None:
     """Unknown subcommand prints usage and exits 1."""
     args = argparse.Namespace(agent_subcommand="bogus")

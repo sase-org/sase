@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import time
 from pathlib import Path
@@ -12,6 +11,7 @@ from typing import NoReturn
 
 from rich.console import Console
 
+from sase.core.cli_duration import parse_cli_duration
 from sase.monitor import (
     MonitorAlreadyRunningError,
     MonitorError,
@@ -71,9 +71,6 @@ _MODEL_WITHOUT_NEXT = (
     "sase monitor start: -m/--model requires -n/--next -- no follow-up agent would "
     "consume the model selection"
 )
-
-_TIMEOUT_RE = re.compile(r"^(\d+(?:\.\d+)?)([smh]?)$")
-_TIMEOUT_UNIT_SECONDS = {"s": 1.0, "m": 60.0, "h": 3600.0}
 
 
 def handle_monitor_command(args: argparse.Namespace) -> NoReturn:
@@ -224,12 +221,14 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         raw_timeout = (
             getattr(args, "timeout", None) or f"{int(DEFAULT_TIMEOUT_SECONDS)}s"
         )
-        timeout_seconds, timeout_label = _parse_timeout(raw_timeout)
+        timeout_seconds, timeout_label = parse_cli_duration(
+            raw_timeout, flag="-t/--timeout"
+        )
         idle_timeout_seconds = 0.0
         idle_timeout_label: str | None = None
         raw_idle_timeout = getattr(args, "idle_timeout", None)
         if raw_idle_timeout:
-            idle_timeout_seconds, idle_timeout_label = _parse_timeout(
+            idle_timeout_seconds, idle_timeout_label = parse_cli_duration(
                 raw_idle_timeout,
                 flag="-i/--idle-timeout",
             )
@@ -514,25 +513,6 @@ def _scope_label(*, project: str | None, agent: str | None, include_all: bool) -
         parts.append(f"agent {agent}")
     parts.append("all" if include_all else "active")
     return ", ".join(parts)
-
-
-def _parse_timeout(raw: str, *, flag: str = "-t/--timeout") -> tuple[float, str]:
-    text = (raw or "").strip()
-    match = _TIMEOUT_RE.match(text)
-    if not match:
-        raise ValueError(f"invalid {flag} value {raw!r}; use e.g. 90, 90s, 45m, 2h")
-    value = float(match.group(1))
-    unit = match.group(2) or "s"
-    seconds = value * _TIMEOUT_UNIT_SECONDS[unit]
-    if seconds <= 0:
-        raise ValueError(f"{flag} must be greater than zero")
-    return seconds, f"{text} ({_format_seconds(seconds)})"
-
-
-def _format_seconds(seconds: float) -> str:
-    if seconds == int(seconds):
-        return f"{int(seconds)}s"
-    return f"{seconds}s"
 
 
 def _optional_text(value: object) -> str | None:

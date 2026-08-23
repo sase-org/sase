@@ -665,3 +665,76 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="NAME",
         help="Name of the agent to restart",
     )
+
+    # sase agent wait [NAME ...]
+    wait_parser = agents_sub.add_parser(
+        "wait",
+        help="Block until named agents (or every running agent) reach a terminal state",
+        description=(
+            "Block until the agents you name (or every agent running right now, "
+            "with -a) reach a terminal state, then exit with a status code that "
+            "says what happened. NAME is resolved the same way %wait resolves "
+            "it: clan, then agent family, then workflow, then exact agent name. "
+            "Exit codes: 0 every target succeeded, 1 at least one failed, 2 a "
+            "usage error, 3 at least one target is blocked on a human (without "
+            "-w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. "
+            "Precedence when more than one applies: 1 > 3 > 4. Progress goes to "
+            "stderr; the settle summary and the -j envelope go to stdout."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent wait sase-s7.2 && just check-full\n"
+            "  sase agent wait -a -t 2h\n"
+            "  sase monitor start -s WAITING -S WAITED -n 'agents finished; land "
+            "the epic' -- sase agent wait -a"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    wait_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Wait for every agent running when the command starts (rejects NAME)",
+    )
+    wait_parser.add_argument(
+        "-i",
+        "--interval",
+        metavar="DURATION",
+        help="Fixed poll interval, e.g. 90, 90s, 45m, 2h (default: adaptive)",
+    )
+    wait_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one JSON envelope on settle; suppresses progress output",
+    )
+    wait_parser.add_argument(
+        "-p",
+        "--project",
+        metavar="NAME",
+        help="Limit --all targets, and scope name resolution, to one project",
+    )
+    wait_parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress progress; print only the final summary line",
+    )
+    wait_parser.add_argument(
+        "-t",
+        "--timeout",
+        metavar="DURATION",
+        help="Give up after DURATION, e.g. 90, 90s, 45m, 2h (default: no timeout)",
+    )
+    wait_parser.add_argument(
+        "-w",
+        "--wait-blocked",
+        action="store_true",
+        help="Keep waiting through pauses that need a human instead of exiting 3",
+    )
+    wait_parser.add_argument(
+        "names",
+        metavar="NAME",
+        nargs="*",
+        help="Agent, family, clan, or workflow name to wait for (repeatable)",
+    )
