@@ -21,7 +21,6 @@ from .registry import (
     TaskTypeRegistry,
     assemble_task_type_registry,
     get_task_type_registry,
-    machine_global_builtin_task_type_specs,
     reset_task_type_registry_cache,
     validate_task_type_spec,
 )
@@ -56,7 +55,6 @@ __all__ = [
     "hookspec",
     "issue_matches_task_types",
     "issue_task_type_slug",
-    "machine_global_builtin_task_type_specs",
     "parse_field_args",
     "render_task_type_display_block",
     "render_task_type_snapshot_json",

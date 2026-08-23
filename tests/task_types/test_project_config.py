@@ -174,29 +174,6 @@ def test_use_override_still_rejects_a_wrong_provider_prefix_after_an_override(
     assert records[0].spec["agent_creatable"] is False
 
 
-def test_machine_global_replay_skips_the_local_layer(monkeypatch: Any) -> None:
-    monkeypatch.setattr(
-        "sase.task_types._project_config.load_config_layers",
-        lambda: [
-            _layer(
-                "user",
-                [{"use": "builtin@flake", "agent_creatable": False}],
-            ),
-            _layer(
-                "local",
-                [{"use": "builtin@flake", "agent_creatable": True}],
-            ),
-        ],
-    )
-    diagnostics: list[TaskTypeDiagnostic] = []
-    records = apply_project_task_type_config(
-        (_builtin_record(),), diagnostics, include_local_layer=False
-    )
-    assert diagnostics == []
-    assert len(records) == 1
-    assert records[0].spec["agent_creatable"] is False
-
-
 def test_replace_list_strategy_resets_earlier_layers(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         "sase.task_types._project_config.load_config_layers",

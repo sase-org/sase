@@ -80,7 +80,11 @@ linked_repos:
     assert not (project_root / "sase" / "memory").exists()
     assert not (project_root / "AGENTS.md").exists()
     assert (home_root / "sase" / "memory" / "sase.md").exists()
+    assert not (home_root / "sase" / "memory" / "task_types.md").exists()
     assert (home_root / "AGENTS.md").exists()
+    assert "Task Bead Types" not in (home_root / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
     git_run.assert_not_called()
 
 

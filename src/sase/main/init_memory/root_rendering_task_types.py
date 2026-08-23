@@ -9,12 +9,15 @@ from typing import Any
 from sase.amd.inline_memory import validate_short_memory_structure
 from sase.content_layout import resolve_project_layout
 from sase.mdtemplates import render_markdown_template
-from sase.memory.notes import AGENTS_PARENT, apply_memory_frontmatter
+from sase.memory.notes import (
+    AGENTS_PARENT,
+    apply_memory_frontmatter,
+    parse_memory_note_text,
+)
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 from sase.task_types import (
     build_committed_task_type_snapshot_entries,
     get_task_type_registry,
-    machine_global_builtin_task_type_specs,
     render_task_type_snapshot_json,
 )
 
@@ -23,6 +26,8 @@ from .formatting import format_generated_memory_markdown
 MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME = "memory-sase-task-types.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TASK_TYPES_TEMPLATE_VARS = frozenset({"task_type_entries"})
+_TASK_TYPES_NOTE_TITLE_HEADING = "# Task Bead Types"
+_TASK_TYPES_NOTE_TYPES_HEADING = "## Types"
 
 
 def generated_task_types_memory_relative_path() -> Path:
@@ -97,24 +102,9 @@ def _project_task_type_snapshot_entries() -> tuple[dict[str, Any], ...]:
     return build_committed_task_type_snapshot_entries(get_task_type_registry())
 
 
-def _home_task_type_specs() -> tuple[Mapping[str, Any], ...]:
-    """Return builtin specs after machine-global ``bead.task_types`` config.
-
-    The project layer and plugin types stay out so a home note is identical for
-    every project on the machine.
-    """
-    return machine_global_builtin_task_type_specs()
-
-
-def render_generated_task_types_memory_body(
-    *, include_project_memory: bool
-) -> tuple[str | None, str | None]:
+def render_generated_task_types_memory_body() -> tuple[str | None, str | None]:
     """Render the stable ``sase/memory/task_types.md`` body or return a blocker."""
-    specs: Sequence[Mapping[str, Any]] = (
-        _project_task_type_snapshot_entries()
-        if include_project_memory
-        else _home_task_type_specs()
-    )
+    specs: Sequence[Mapping[str, Any]] = _project_task_type_snapshot_entries()
     rendered, render_error = render_markdown_template(
         package=_MEMORY_TEMPLATE_PACKAGE,
         filename=f"templates/{MEMORY_SASE_TASK_TYPES_TEMPLATE_FILENAME}",
@@ -142,6 +132,24 @@ def generated_task_types_memory_content(generated_task_types_body: str) -> str:
         generated_task_types_body,
         note_type="short",
         parent=AGENTS_PARENT,
+    )
+
+
+def is_generated_task_types_memory_content(text: str) -> bool:
+    """Return whether *text* matches a generated task-type memory note.
+
+    Recognition is a heading signature rather than a byte comparison against a
+    re-render: a previously written home body depended on that machine's
+    ``bead.task_types`` config and on whichever template shipped when it was
+    last generated.
+    """
+    note = parse_memory_note_text(text, generated_task_types_memory_relative_path())
+    if note.type != "short":
+        return False
+    headings = set(note.body.splitlines())
+    return (
+        _TASK_TYPES_NOTE_TITLE_HEADING in headings
+        and _TASK_TYPES_NOTE_TYPES_HEADING in headings
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -17,6 +17,7 @@ from sase.main._init_chezmoi_deploy import defer_chezmoi_deploy
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     run_handler,
+    short_note,
     write,
 )
 
@@ -60,7 +61,10 @@ sibling_repos:
 
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(
+        paths: Iterable[Path],
+        delete_targets: Sequence[Path] = (),
+    ) -> int:
         deployed.extend(paths)
         return 0
 
@@ -118,7 +122,10 @@ def test_init_memory_chezmoi_migrates_plain_provider_shim_source(
     write(chezmoi_home / "CLAUDE.md", HOME_PROVIDER_SHIM_CONTENT)
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(
+        paths: Iterable[Path],
+        delete_targets: Sequence[Path] = (),
+    ) -> int:
         deployed.extend(paths)
         return 0
 
@@ -162,3 +169,53 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
     deploy_mock.assert_not_called()
     assert chezmoi_home / "sase" / "memory" / "sase.md" in deferred.paths
     assert chezmoi_home / "CLAUDE.md" in deferred.paths
+
+
+def test_init_memory_chezmoi_retired_source_deletes_live_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=True,
+    )
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    write(
+        chezmoi_home / "sase" / "memory" / "task_types.md",
+        short_note(
+            "# Task Bead Types\n\n"
+            "Stale generated catalog from an older SASE.\n\n"
+            "## Types\n\n"
+            "No agent-creatable task types are registered.\n"
+        ),
+    )
+
+    deployed: list[Path] = []
+    deleted: list[Path] = []
+
+    def fake_deploy(
+        paths: Iterable[Path],
+        delete_targets: Sequence[Path] = (),
+    ) -> int:
+        deployed.extend(paths)
+        deleted.extend(delete_targets)
+        return 0
+
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+
+    assert run_handler() == 0
+
+    source_path = chezmoi_home / "sase" / "memory" / "task_types.md"
+    live_path = Path.home() / "sase" / "memory" / "task_types.md"
+    assert not source_path.exists()
+    assert source_path in deployed
+    assert live_path in deleted

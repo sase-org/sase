@@ -35,7 +35,7 @@ def discover_task_type_specs(*, entry_points_fn: Any) -> _TaskTypeDiscovery:
     disabled_env: set[str] = set()
     candidates: list[TaskTypeCandidate] = []
 
-    builtin = builtin_task_type_provenance()
+    builtin = _builtin_task_type_provenance()
     _collect_plugin_specs(
         BuiltinTaskTypes(),
         builtin,
@@ -87,7 +87,7 @@ def discover_task_type_specs(*, entry_points_fn: Any) -> _TaskTypeDiscovery:
     )
 
 
-def builtin_task_type_provenance() -> TaskTypeProvenance:
+def _builtin_task_type_provenance() -> TaskTypeProvenance:
     """Return the provenance stamp shared by every builtin task-type spec."""
 
     return TaskTypeProvenance(
@@ -221,6 +221,5 @@ def _safe_str(value: object, default: str) -> str:
 
 __all__ = [
     "TASK_TYPE_ENTRY_POINT_GROUP",
-    "builtin_task_type_provenance",
     "discover_task_type_specs",
 ]

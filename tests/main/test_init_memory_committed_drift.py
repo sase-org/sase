@@ -103,7 +103,7 @@ def test_project_memory_templates_beat_home_and_chezmoi_templates(
     import sase.config.core as config_core
 
     monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
-    monkeypatch.setattr(handler_mod, "_deploy_to_chezmoi", lambda _paths: 0)
+    monkeypatch.setattr(handler_mod, "_deploy_to_chezmoi", lambda _paths, **_kwargs: 0)
 
     write(
         project_root / "sase.yml",

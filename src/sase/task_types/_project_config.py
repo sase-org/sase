@@ -32,8 +32,6 @@ _PROJECT_PROVENANCE_VERSION = "<unknown>"
 def apply_project_task_type_config(
     records: tuple[TaskTypeRecord, ...],
     diagnostics: list[TaskTypeDiagnostic],
-    *,
-    include_local_layer: bool = True,
 ) -> tuple[TaskTypeRecord, ...]:
     """Apply ``bead.task_types`` overrides and additions to *records*."""
 
@@ -45,9 +43,7 @@ def apply_project_task_type_config(
         record.task_type: record.provenance for record in records
     }
 
-    for item, source_layer in _effective_raw_task_type_entries(
-        include_local_layer=include_local_layer
-    ):
+    for item, source_layer in _effective_raw_task_type_entries():
         if not isinstance(item, Mapping):
             diagnostics.append(
                 TaskTypeDiagnostic(
@@ -256,14 +252,10 @@ def _use_prefix_for(provenance: TaskTypeProvenance) -> str:
     return "builtin" if provenance.builtin else provenance.package
 
 
-def _effective_raw_task_type_entries(
-    *, include_local_layer: bool = True
-) -> list[tuple[object, str]]:
+def _effective_raw_task_type_entries() -> list[tuple[object, str]]:
     """Replay config-list merge semantics for ``bead.task_types`` with provenance."""
     effective: list[tuple[object, str]] = []
     for layer in load_config_layers():
-        if not include_local_layer and layer.name == "local":
-            continue
         if not layer.exists:
             continue
         bead_config = layer.data.get("bead")

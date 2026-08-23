@@ -314,7 +314,7 @@ def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
 
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(paths: Iterable[Path], **_kwargs: object) -> int:
         deployed.extend(paths)
         return 0
 

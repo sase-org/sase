@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
@@ -282,7 +282,10 @@ def _deploy_to_project_repo(
     )
 
 
-def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
+def _deploy_to_chezmoi(
+    written_paths: Iterable[Path],
+    delete_targets: Sequence[Path] = (),
+) -> int:
     return deploy_to_chezmoi(
         written_paths,
         ChezmoiDeployBehavior(
@@ -297,6 +300,8 @@ def _deploy_to_chezmoi(written_paths: Iterable[Path]) -> int:
             print_nothing_to_commit=False,
             print_applying=False,
             print_apply_done=False,
+            delete_targets=tuple(delete_targets),
+            delete_target_root=Path.home(),
         ),
     )
 
@@ -534,13 +539,24 @@ def run_init_memory(args: argparse.Namespace) -> int:
 
     if inputs.use_chezmoi:
         home_changed_paths = (*home_result.written_paths, *home_result.deleted_paths)
+        live_delete_targets: list[Path] = []
+        for path in home_result.deleted_paths:
+            try:
+                live_delete_targets.append(Path.home() / path.relative_to(CHEZMOI_HOME))
+            except ValueError:
+                continue
         if defer_chezmoi_paths(
             home_changed_paths,
             chezmoi_home=CHEZMOI_HOME,
+            delete_targets=live_delete_targets,
+            delete_target_root=Path.home(),
         ):
             chezmoi_exit_code = 0
         else:
-            chezmoi_exit_code = _deploy_to_chezmoi(home_changed_paths)
+            chezmoi_exit_code = _deploy_to_chezmoi(
+                home_changed_paths,
+                delete_targets=live_delete_targets,
+            )
         if chezmoi_exit_code != 0:
             exit_code = chezmoi_exit_code
     return exit_code

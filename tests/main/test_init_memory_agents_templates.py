@@ -352,7 +352,7 @@ def test_user_template_is_resolved_from_chezmoi_source_config_dir(
 
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(paths: Iterable[Path], **_kwargs: object) -> int:
         deployed.extend(paths)
         return 0
 

@@ -176,7 +176,7 @@ compatibility option name `--enable-project-memory`, this does not change Projec
 lifecycle state and is independent of `sase project enable`.
 
 - Project memory under `./sase/memory/`, including `sase/memory/README.md`, the
-  generated short `sase/memory/task_types.md` catalog note, the committed
+  project-only generated short `sase/memory/task_types.md` catalog note, the committed
   `sase/task_types.json` snapshot, and flat note files with `type`/`parent` frontmatter,
   only when the project's own `sase/sase.yml` contains `is_sase_managed: true`.
   `plugins.required` is verified before any snapshot or note comparison, so a missing
@@ -257,17 +257,17 @@ indexed-file workflow guidance. The generated long-term `sase/memory/sase_beads.
 provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a child
 size-scale note. Top-level project-only long notes are listed in Tier 2 of managed agent
 instructions, generated for SASE-managed project repositories only and never for home or
-chezmoi-home roots. A root that no longer manages those notes (for example, a home root
-that previously generated them) deletes unmodified copies on the next `sase memory init`
-pass; copies a human has since edited are left alone and keep behaving as ordinary long
-notes. Project memory reads linked-repo descriptions from the project-local
-`sase/sase.yml`; home memory reads them from the global config
-`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
-`use_chezmoi: true`. Generated memory requires agents to use `/sase_repo` before reading
-or modifying any repository outside their own workspace checkout. This rule applies to
-configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos
-even when no linked repositories are configured; the skill carries the command grammar
-and workspace-selection details.
+chezmoi-home roots. The short `sase/memory/task_types.md` catalog note is likewise
+project-only. A root that no longer manages those notes (for example, a home root that
+previously generated them) deletes generated copies on the next `sase memory init` pass;
+copies a human has since edited are left alone and keep behaving as ordinary notes.
+Project memory reads linked-repo descriptions from the project-local `sase/sase.yml`;
+home memory reads them from the global config `~/.config/sase/sase.yml`, or from the
+chezmoi-managed config path when `use_chezmoi: true`. Generated memory requires agents
+to use `/sase_repo` before reading or modifying any repository outside their own
+workspace checkout. This rule applies to configured linked repos and sidecars, other
+SASE projects, and unlinked GitHub repos even when no linked repositories are
+configured; the skill carries the command grammar and workspace-selection details.
 
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must
 have a non-empty `description`. Initialization fails instead of generating ambiguous

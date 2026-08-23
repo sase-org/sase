@@ -27,10 +27,7 @@ def test_generated_memory_note_relative_paths_match_private_helpers() -> None:
     assert tuple(
         path.as_posix()
         for path in generated_memory_note_relative_paths(include_project_memory=False)
-    ) == (
-        "sase/memory/sase.md",
-        "sase/memory/task_types.md",
-    )
+    ) == ("sase/memory/sase.md",)
     assert tuple(
         path.as_posix()
         for path in generated_memory_note_relative_paths(include_project_memory=True)
@@ -145,6 +142,20 @@ def test_generated_glossary_note_is_refused_in_a_project_scope(tmp_path: Path) -
             expected_digest=digest,
         )
     assert glossary.is_file()
+
+
+def test_home_scope_allows_the_project_only_task_types_name(tmp_path: Path) -> None:
+    seed_scope(tmp_path)
+    outcome = create_note(
+        tmp_path,
+        "task_types",
+        note_type="short",
+        description="Home-authored task types.",
+        scope_key="home",
+        scope_kind="home",
+    )
+    assert outcome.relative_path == "sase/memory/task_types.md"
+    assert (tmp_path / "sase" / "memory" / "task_types.md").is_file()
 
 
 def test_home_scope_allows_the_project_only_glossary_name(tmp_path: Path) -> None:

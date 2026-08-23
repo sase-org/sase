@@ -441,7 +441,7 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
 
     snapshot = panel_catalog.load_memory_scope_snapshot(panel_catalog._home_scope_ref())
     assert "sase/memory/sase.md" in snapshot.generated_paths
-    assert "sase/memory/task_types.md" in snapshot.generated_paths
+    assert "sase/memory/task_types.md" not in snapshot.generated_paths
     assert "sase/memory/glossary.md" not in snapshot.generated_paths
     assert "sase/memory/sase_artifacts.md" not in snapshot.generated_paths
     assert "sase/memory/sase_beads.md" not in snapshot.generated_paths

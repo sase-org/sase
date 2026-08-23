@@ -36,6 +36,8 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     assert {action.operation for action in plan.actions} == {"create"}
     action_by_path = {action.path: action for action in plan.actions}
     assert project_root / "sase" / "memory" / "sase.md" in action_by_path
+    assert project_root / "sase" / "memory" / "task_types.md" in action_by_path
+    assert home_root / "sase" / "memory" / "task_types.md" not in action_by_path
     assert project_root / "sase" / "memory" / "sase_artifacts.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_beads.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_flags.md" not in action_by_path
@@ -106,6 +108,7 @@ linked_repos:
 
     assert plan.blockers == ()
     assert home_root / "sase" / "memory" / "sase.md" in action_paths
+    assert home_root / "sase" / "memory" / "task_types.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_artifacts.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_beads.md" not in action_paths
     assert home_root / "sase" / "memory" / "sase_flags.md" not in action_paths

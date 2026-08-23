@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import importlib.metadata
 import os
 from typing import Any
 
 from sase.config.core import current_config_token
 
-from ._builtin import BuiltinTaskTypes
 from ._discovery import (
     TASK_TYPE_ENTRY_POINT_GROUP,
-    builtin_task_type_provenance,
     discover_task_type_specs,
 )
 from ._models import (
@@ -71,22 +68,6 @@ def assemble_task_type_registry(
     )
 
 
-def machine_global_builtin_task_type_specs() -> tuple[Mapping[str, Any], ...]:
-    """Return the builtin specs after machine-global ``bead.task_types`` config."""
-
-    provenance = builtin_task_type_provenance()
-    candidates = tuple(
-        (spec, provenance) for spec in BuiltinTaskTypes().task_type_specs()
-    )
-    builtin_slugs = {spec["task_type"] for spec, _ in candidates}
-    diagnostics: list[TaskTypeDiagnostic] = []
-    records = validate_task_type_candidates(candidates, diagnostics)
-    records = apply_project_task_type_config(
-        records, diagnostics, include_local_layer=False
-    )
-    return tuple(record.spec for record in records if record.task_type in builtin_slugs)
-
-
 def _task_type_registry_token() -> tuple[Any, ...]:
     return (
         current_config_token(),
@@ -103,7 +84,6 @@ __all__ = [
     "TaskTypeRegistry",
     "assemble_task_type_registry",
     "get_task_type_registry",
-    "machine_global_builtin_task_type_specs",
     "reset_task_type_registry_cache",
     "validate_task_type_spec",
 ]

@@ -23,20 +23,19 @@ Use [initialization](init.md#memory-initialization) to create or refresh the fil
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
 provider instruction file status. Initialization always generates the short
 `sase/memory/sase.md` workspace note — workspace naming, linked repositories, and the
-`/sase_final` terminal-action contract — and the short `sase/memory/task_types.md`
-catalog note (agent-creatable types, their `when_to_use` text, and field names). For
-SASE-managed project repositories it additionally generates
+`/sase_final` terminal-action contract. For SASE-managed project repositories it
+additionally generates the short `sase/memory/task_types.md` catalog note
+(agent-creatable types, their `when_to_use` text, and field names),
 `sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
 `sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
 size-scale guidance nested under `sase_beads.md` and surfaced through that note's
 `## Children` section on an audited read. The top-level long notes are listed in Tier 2
 of managed agent instructions. The project-root task-type note and
 `sase/task_types.json` snapshot render from the committed catalog (builtins,
-`plugins.required` types, and `bead.task_types`); the home-root note renders from the
-builtin catalog only. Day to day, the usual order is: inspect loaded context with
-`sase memory list`, have agents use `sase memory read` for audited long-term reads, have
-agents use `sase memory write` only to create proposals, then have a human approve or
-reject those proposals with `sase memory review`.
+`plugins.required` types, and `bead.task_types`). Day to day, the usual order is:
+inspect loaded context with `sase memory list`, have agents use `sase memory read` for
+audited long-term reads, have agents use `sase memory write` only to create proposals,
+then have a human approve or reject those proposals with `sase memory review`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
 deleting these notes by hand across every memory-bearing project plus Home. From a

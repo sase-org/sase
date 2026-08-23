@@ -13,7 +13,6 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.bead_pages.rendering_identity import render_prose_sections
-from sase.config.layers import ConfigLayer
 from sase.doctor.checks_beads import _check_task_types
 from sase.doctor.checks_plugins import _check_plugins_required
 from sase.doctor.runner import DoctorContext
@@ -239,51 +238,16 @@ def test_optional_plugin_types_do_not_change_generated_note(
         "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: with_optional,
     )
-    with_note, with_error = render_generated_task_types_memory_body(
-        include_project_memory=True
-    )
+    with_note, with_error = render_generated_task_types_memory_body()
     monkeypatch.setattr(
         "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: without_optional,
     )
-    without_note, without_error = render_generated_task_types_memory_body(
-        include_project_memory=True
-    )
+    without_note, without_error = render_generated_task_types_memory_body()
     assert with_error is None and without_error is None
     assert with_note == without_note
     assert with_note is not None
     assert "incident" not in with_note
-
-
-def test_home_task_type_note_omits_a_machine_global_disabled_builtin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    user_layer = ConfigLayer(
-        name="user",
-        path=None,
-        exists=True,
-        list_strategy="concatenate",
-        data={
-            "bead": {
-                "task_types": [
-                    {"use": "builtin@feature", "agent_creatable": False},
-                ]
-            }
-        },
-    )
-    monkeypatch.setattr(
-        "sase.task_types._project_config.load_config_layers",
-        lambda: [user_layer],
-    )
-
-    body, error = render_generated_task_types_memory_body(include_project_memory=False)
-    assert error is None
-    assert body is not None
-    assert "### `feature`" not in body
-    assert "### `bug`" in body
-    assert "### `ci`" in body
-    assert "### `flake`" in body
-    assert "### `memory`" in body
 
 
 def test_doctor_reports_plugins_required_and_task_types(

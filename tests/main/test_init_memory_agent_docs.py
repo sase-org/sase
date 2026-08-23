@@ -111,7 +111,7 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
 
     deployed: list[Path] = []
 
-    def fake_deploy(paths: Iterable[Path]) -> int:
+    def fake_deploy(paths: Iterable[Path], **_kwargs: object) -> int:
         deployed.extend(paths)
         return 0
 

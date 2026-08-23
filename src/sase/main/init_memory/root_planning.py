@@ -40,6 +40,7 @@ from .root_rendering import (
     generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
+    generated_task_types_memory_relative_path,
     render_generated_artifact_relations_memory_body,
     render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
@@ -47,6 +48,7 @@ from .root_rendering import (
     render_generated_task_types_memory_body,
     render_expected_memory_files,
 )
+from .root_rendering_task_types import is_generated_task_types_memory_content
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,29 @@ def _retired_glossary_note_paths(
     except (OSError, UnicodeDecodeError):
         return ()
     if not is_generated_glossary_memory_content(current):
+        return ()
+    return (path,)
+
+
+def _retired_task_types_note_path(
+    root: Path, *, include_project_memory: bool
+) -> tuple[Path, ...]:
+    """Return a generated task-type memory note this root no longer manages.
+
+    When *include_project_memory* is true the path is generated, not retired.
+    Otherwise a leftover whose body matches the generated heading signature is
+    deleted; a hand-authored note at the same path is left alone.
+    """
+    if include_project_memory:
+        return ()
+    path = root / generated_task_types_memory_relative_path()
+    if not path.exists():
+        return ()
+    try:
+        current = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    if not is_generated_task_types_memory_content(current):
         return ()
     return (path,)
 
@@ -213,6 +238,9 @@ def memory_root_context(
     retired_note_paths = (
         *_retired_note_paths(root, include_project_memory=include_project_memory),
         *_retired_glossary_note_paths(root, glossary_terms=glossary_terms),
+        *_retired_task_types_note_path(
+            root, include_project_memory=include_project_memory
+        ),
     )
     root_resolved = root.resolve(strict=False)
     excluded_note_paths = frozenset(
@@ -234,25 +262,24 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
-    generated_task_types_body, task_types_render_error = (
-        render_generated_task_types_memory_body(
-            include_project_memory=include_project_memory
-        )
-    )
-    if task_types_render_error is not None or generated_task_types_body is None:
-        return _MemoryRootContext(
-            amd_sync=None,
-            expected_files=(),
-            shim_plan=ProviderShimPlan(writes=(), deletes=()),
-            additional_shim_plans=(),
-            source_memory_root=migration.source_memory_root,
-            blockers=(
-                task_types_render_error
-                or "failed to render sase/memory/task_types.md template",
-            ),
-        )
+    generated_task_types_body: str | None = None
     generated_artifact_relations_body: str | None = None
     if include_project_memory:
+        generated_task_types_body, task_types_render_error = (
+            render_generated_task_types_memory_body()
+        )
+        if task_types_render_error is not None or generated_task_types_body is None:
+            return _MemoryRootContext(
+                amd_sync=None,
+                expected_files=(),
+                shim_plan=ProviderShimPlan(writes=(), deletes=()),
+                additional_shim_plans=(),
+                source_memory_root=migration.source_memory_root,
+                blockers=(
+                    task_types_render_error
+                    or "failed to render sase/memory/task_types.md template",
+                ),
+            )
         generated_artifact_relations_body, artifact_relations_render_error = (
             render_generated_artifact_relations_memory_body()
         )

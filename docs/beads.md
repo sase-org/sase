@@ -185,17 +185,18 @@ The catalog is assembled from three sources, first wins: builtin specs,
 `use: <plugin>@<slug>` config entry deep-merges its sibling keys onto that slug; an
 entry without `use:` defines a new slug and may not shadow a builtin. `sase memory init`
 writes the committed catalog to `sase/task_types.json` and generates the short
-`sase/memory/task_types.md` note from it, so generated agent instructions stay a
-function of committed files rather than whichever optional plugins happen to be
-installed. See [Required plugins](configuration.md#plugins) and
+`sase/memory/task_types.md` note from it for SASE-managed project repositories only, so
+generated agent instructions stay a function of committed files rather than whichever
+optional plugins happen to be installed. See
+[Required plugins](configuration.md#plugins) and
 [Task-type plugins](plugins.md#task-type-plugins).
 
 Suppress a builtin for a project or the whole machine with `use: <plugin>@<slug>` plus
 `agent_creatable: false`; existing beads of that type keep rendering normally. The
 `use:` prefix always names the type's original provider (`builtin` for a builtin), no
 matter how many layers have already overridden the slug. A machine-global entry in
-`~/.config/sase/sase.yml` applies to every project on the machine, including the
-home-level instruction files, and a project's own `sase/sase.yml` entry wins over it.
+`~/.config/sase/sase.yml` applies to every project on the machine, and a project's own
+`sase/sase.yml` entry wins over it.
 
 Every CLI, ACE, bead-page, and gate-preview surface routes the colored type chip through
 one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `✦` feature,
