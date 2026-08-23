@@ -253,6 +253,12 @@ BeadFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
+ProcsFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #48CAE4;
+    text-style: bold;
+}
+
 #stitches-info {
     width: 100%;
     height: 3;

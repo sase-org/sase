@@ -247,6 +247,8 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         if action in ("next_center_tab", "prev_center_tab"):
             if self._child_owns_tab_keys():
                 return False
+            if self._active_pane_consumes_priority_tab():
+                return False
         return super().check_action(action, parameters)
 
     def _child_owns_tab_keys(self) -> bool:
@@ -256,6 +258,18 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         pane = self._active_pane()
         owns = getattr(pane, "child_owns_tab_keys", None)
         return bool(callable(owns) and owns())
+
+    def _active_pane_consumes_priority_tab(self) -> bool:
+        """Let a pane's own completion menu (Procs' filter bar) claim Tab first.
+
+        Opt-in per pane: panes that do not implement ``consume_priority_tab``
+        are unaffected, so this only changes behavior once a pane's ``Tab``
+        would otherwise be swallowed by this screen's priority binding while
+        a completion candidate is highlighted.
+        """
+        pane = self._active_pane()
+        consume = getattr(pane, "consume_priority_tab", None)
+        return bool(callable(consume) and consume())
 
     def _active_pane(self) -> Widget | None:
         """Return the stable, currently visible working pane."""

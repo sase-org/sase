@@ -10,7 +10,7 @@ from textual.css.query import NoMatches
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from sase.ace.query_profile import CompiledQueryProfile
+from sase.ace.query_profile import CompiledQueryProfile, QueryFieldSpec
 from sase.ace.tui.widgets._filter_bar_completion_edit import (
     FilterCompletionMetadata,
     apply_filter_completion,
@@ -167,22 +167,51 @@ class FilterBarCompletionMixin(_MixinBase):
         folded_prefix = prefix.casefold()
         if kind == "key":
             marker = "-" if negated else ""
-            candidates = [
-                _candidate(
-                    display=f"{marker}{key}:",
-                    insertion=f"{marker}{key}:",
-                    name=key,
-                    metadata=FilterCompletionMetadata(
-                        kind="key",
-                        value=f"{marker}{key}:",
-                        hint=hint,
-                        append_space=False,
-                    ),
+            # The bare shorthand only exists in the flat grammar (see
+            # ``profile_reference_flat``); a boolean-mode profile's parser
+            # never expands one, so never offer it as a candidate there.
+            profile = self._profile
+            flat_fields: tuple[QueryFieldSpec, ...] = ()
+            if profile is not None and not profile.boolean:
+                flat_fields = profile.fields
+            bare_flag_keys = frozenset(
+                field.key
+                for field in flat_fields
+                if field.value_kind == "bool" and field.filterable
+            )
+            candidates: list[CompletionCandidate] = []
+            for key, hint in self.KEY_COMPLETIONS:
+                if negated and key not in self.NEGATABLE_KEYS:
+                    continue
+                if not key.casefold().startswith(folded_prefix):
+                    continue
+                candidates.append(
+                    _candidate(
+                        display=f"{marker}{key}:",
+                        insertion=f"{marker}{key}:",
+                        name=key,
+                        metadata=FilterCompletionMetadata(
+                            kind="key",
+                            value=f"{marker}{key}:",
+                            hint=hint,
+                            append_space=False,
+                        ),
+                    )
                 )
-                for key, hint in self.KEY_COMPLETIONS
-                if not negated or key in self.NEGATABLE_KEYS
-                if key.casefold().startswith(folded_prefix)
-            ]
+                if key in bare_flag_keys:
+                    candidates.append(
+                        _candidate(
+                            display=f"{marker}{key}",
+                            insertion=f"{marker}{key}",
+                            name=key,
+                            metadata=FilterCompletionMetadata(
+                                kind="key",
+                                value=f"{marker}{key}",
+                                hint=hint,
+                                append_space=True,
+                            ),
+                        )
+                    )
             if not prefix and self.FREE_TEXT_HINT:
                 candidates.append(
                     _candidate(

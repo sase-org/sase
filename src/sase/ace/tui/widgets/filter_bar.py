@@ -38,7 +38,8 @@ class _FilterBarInput(SingleLineVimTextArea):
     """Single-line editor that keeps completion keys inside its owning bar."""
 
     async def _on_key(self, event: Key) -> None:
-        if event.key in {"ctrl+j", "ctrl+k"}:
+        bar = self.query_ancestor(FilterBar)
+        if event.key in {"ctrl+j", "ctrl+k"} and bar.FORWARD_ARTIFACTS_PAGING:
             action_name = (
                 "action_artifacts_load_more"
                 if event.key == "ctrl+j"
@@ -60,7 +61,6 @@ class _FilterBarInput(SingleLineVimTextArea):
         }:
             return
 
-        bar = self.query_ancestor(FilterBar)
         if event.key == "escape":
             bar._escape()
         elif event.key == "tab":
@@ -94,6 +94,13 @@ class FilterBar(FilterBarCompletionMixin, Static):
     NEGATABLE_KEYS: frozenset[str] = frozenset()
     FREE_TEXT_HINT: str = ""
     PERSISTENT: ClassVar[bool] = False
+    #: Shown at rest only while the query is non-empty, instead of always
+    #: (``PERSISTENT``) or never outside an editing session.
+    SHOW_WHEN_ACTIVE: ClassVar[bool] = False
+    #: Whether the inner editor forwards ``ctrl+j`` / ``ctrl+k`` to the app's
+    #: Artifacts paging actions. Wrong for a host, like the Admin Center,
+    #: that does not have those actions.
+    FORWARD_ARTIFACTS_PAGING: ClassVar[bool] = True
 
     class QueryChanged(Message):
         """The user changed the query text."""
@@ -141,7 +148,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
         self._last_query_text = ""
         # Keep the widget out of layout even in small test apps that don't load
         # the application stylesheet.
-        self.display = self.PERSISTENT
+        self.display = self._resting_visible()
         if self.PERSISTENT:
             self.add_class("persistent")
 
@@ -241,16 +248,32 @@ class FilterBar(FilterBarCompletionMixin, Static):
         self._collapse_completion()
         editor = self._editor()
         if editor is None:
-            self.display = self.PERSISTENT
+            self.display = self._resting_visible()
             return
         editor._enter_normal_mode()
-        editor.read_only = self.PERSISTENT
-        if self._set_closed_display_visible(True):
+        self._apply_resting_state(editor)
+
+    def _resting_visible(self) -> bool:
+        """Whether the bar is shown outside an editing session.
+
+        ``PERSISTENT`` bars are always shown; ``SHOW_WHEN_ACTIVE`` bars are
+        shown only while the query is non-empty, so an active filter is
+        never invisible but an idle one takes no space.
+        """
+        return self.PERSISTENT or (
+            self.SHOW_WHEN_ACTIVE and bool(self._last_query_text.strip())
+        )
+
+    def _apply_resting_state(self, editor: _FilterBarInput) -> None:
+        """Sync the editor/closed-display split to the current resting state."""
+        visible = self._resting_visible()
+        editor.read_only = visible
+        if self._set_closed_display_visible(visible):
             editor.display = False
             editor.can_focus = False
         else:
-            editor.can_focus = not self.PERSISTENT
-        self.display = self.PERSISTENT
+            editor.can_focus = not visible
+        self.display = visible
 
     def focus_editor(self) -> bool:
         """Focus the editor when it has been composed."""
@@ -260,6 +283,19 @@ class FilterBar(FilterBarCompletionMixin, Static):
         editor.focus()
         return True
 
+    def has_highlighted_completion(self) -> bool:
+        """Whether the completion menu is open with a candidate highlighted.
+
+        A pane whose ``Tab`` doubles as a host-level priority binding (the
+        Admin Center's tab cycle, for example) calls this from its own
+        ``consume_priority_tab()`` hook so ``Tab`` accepts the highlighted
+        candidate instead of switching away.
+        """
+        if not self._completion_visible:
+            return False
+        completion = self._completion_list()
+        return completion is not None and completion.highlighted is not None
+
     def set_query(self, text: str) -> None:
         """Replace displayed text without emitting a user-edit message."""
         self._completion_signature = None
@@ -268,6 +304,8 @@ class FilterBar(FilterBarCompletionMixin, Static):
         if editor is not None and editor.text != text:
             editor.load_text(text)
         self._update_closed_display(text)
+        if not self._editing and editor is not None:
+            self._apply_resting_state(editor)
 
     def set_status(
         self,
@@ -397,7 +435,7 @@ class FilterBar(FilterBarCompletionMixin, Static):
 
     def _on_mount(self, event: Mount) -> None:
         super()._on_mount(event)
-        if self.PERSISTENT:
+        if self.PERSISTENT or self.SHOW_WHEN_ACTIVE:
             self._apply_accent()
 
     def _apply_accent(self) -> None:
@@ -406,8 +444,9 @@ class FilterBar(FilterBarCompletionMixin, Static):
         Applied per instance rather than in CSS so a runtime-configured
         accent (a document provider's ``contract.accent``) renders
         correctly even though it is unknown at CSS-authoring time. Scoped to
-        persistent bars: non-persistent bars keep their existing per-class
-        CSS colors until they gain this idle presentation too.
+        bars that can be visible outside an editing session (persistent or
+        show-while-active): a purely editing-only bar keeps its existing
+        per-class CSS colors until it gains an idle presentation too.
 
         Called from ``_on_mount``, where Textual has already attached this
         widget's composed children (so they are queryable) but has not yet

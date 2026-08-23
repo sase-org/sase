@@ -59,3 +59,30 @@ def _patch_stub_panes(
 
     monkeypatch.setattr(ConfigCenterModal, "_create_pane", create)
     return created, calls
+
+
+class _TabConsumingPane(_StubPane):
+    """Stub pane exercising the optional ``consume_priority_tab()`` hook."""
+
+    def __init__(self, tab: CenterTab) -> None:
+        super().__init__(tab)
+        self.should_consume = False
+        self.consume_calls = 0
+
+    def consume_priority_tab(self) -> bool:
+        self.consume_calls += 1
+        return self.should_consume
+
+
+def _patch_tab_consuming_pane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[CenterTab, list[_TabConsumingPane]]:
+    created: dict[CenterTab, list[_TabConsumingPane]] = {}
+
+    def create(_self: ConfigCenterModal, tab: CenterTab) -> _TabConsumingPane:
+        pane = _TabConsumingPane(tab)
+        created.setdefault(tab, []).append(pane)
+        return pane
+
+    monkeypatch.setattr(ConfigCenterModal, "_create_pane", create)
+    return created
