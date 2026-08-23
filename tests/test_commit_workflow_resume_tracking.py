@@ -45,7 +45,7 @@ def test_resume_reaches_close_bead_step(
         ),
         patch("sase.workflows.commit.workflow.write_result_marker"),
         patch(
-            "sase.workflows.commit.workflow.close_task_bead_after_commit",
+            "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
             return_value=True,
         ) as close_bead,
         patch(
@@ -85,7 +85,7 @@ def test_resume_skips_completed_close_bead_step(
     with (
         patch("sase.workflows.commit.workflow.write_result_marker"),
         patch(
-            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
         ) as close_bead,
     ):
         assert CommitWorkflow.resume() == RunResult.OK

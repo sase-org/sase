@@ -212,6 +212,15 @@ class TestCommitCLI:
         payload, _ = _run_handler(["-M", msg_file, "--do-not-close-bead"])
         assert payload["do_not_close_bead"] is True
 
+    def test_do_not_close_bead_help_mentions_assigned_in_progress_bead(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_commit_args(["-h"])
+
+        assert exc_info.value.code == 0
+        assert "assigned in-progress bead" in capsys.readouterr().out
+
     def test_stale_uppercase_bug_id_flag_is_rejected(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:

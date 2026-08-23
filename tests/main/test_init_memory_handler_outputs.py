@@ -24,11 +24,15 @@ from tests.main.init_memory_handler_helpers import (
 
 _FINAL_DECLARATION_MARKERS = (
     "/sase_final",
+    "Before any normal response that ends this SASE provider turn",
+    "incomplete-status response",
+    "I will wait",
     "sase final context",
     "sase final submit",
     "do not make more file or repository changes",
     "repair the manifest",
-    "plan, monitor, pipe, and questions",
+    "plan, monitor, pipe, or questions handoff",
+    "Intending to resume later is not an exemption",
 )
 
 

@@ -26,7 +26,7 @@ _SDD_REPO_ENV_VARS = (
 
 @dataclass(frozen=True)
 class _AutocloseDecision:
-    """Decision for commit-time task bead autoclose."""
+    """Decision for commit-time assigned bead autoclose."""
 
     bead_id: str | None
     should_close: bool
@@ -71,10 +71,10 @@ def apply_bead_commit_tag(
 def handle_beads(payload: dict, cwd: str, *, method: str = "create_commit") -> None:
     """Sync beads best-effort and report assigned beads that will not auto-close.
 
-    Only an ``in_progress`` task bead assigned to a commit in this workspace's
-    primary repo is eligible for post-dispatch autoclose. Phase, plan, epic, linked-repo,
-    and SDD-sidecar commits stay warning-only so a mid-flight commit cannot close the
-    wrong lifecycle object.
+    Only an ``in_progress`` bead assigned to a landed commit in this workspace's
+    primary repo is eligible for post-dispatch autoclose. Linked-repo and SDD-sidecar
+    commits stay warning-only so a mid-flight sidecar commit cannot close the workspace
+    lifecycle object.
     """
     bead_id = payload.get("bead_id")
     has_bead_dir = (
@@ -84,7 +84,7 @@ def handle_beads(payload: dict, cwd: str, *, method: str = "create_commit") -> N
     )
 
     if bead_id:
-        decision = _resolve_task_bead_autoclose(payload, cwd, method=method)
+        decision = _resolve_assigned_bead_autoclose(payload, cwd, method=method)
         if not decision.should_close:
             _report_unclosed_bead(decision)
 
@@ -109,13 +109,13 @@ def _run_bead_command(
         return None
 
 
-def _resolve_task_bead_autoclose(
+def _resolve_assigned_bead_autoclose(
     payload: dict,
     cwd: str,
     *,
     method: str = "create_commit",
 ) -> _AutocloseDecision:
-    """Return whether the assigned task bead should auto-close after commit."""
+    """Return whether the assigned bead should auto-close after commit."""
     raw_bead_id = payload.get("bead_id")
     bead_id = str(raw_bead_id).strip() if raw_bead_id else ""
     if not bead_id:
@@ -157,15 +157,6 @@ def _resolve_task_bead_autoclose(
             issue_type=issue_type,
             warn=warn,
         )
-    if issue_type != "task":
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            _not_task_reason(issue_type),
-            status=status,
-            issue_type=issue_type,
-            warn=warn,
-        )
     if status != "in_progress":
         return _AutocloseDecision(
             bead_id,
@@ -190,15 +181,15 @@ def _resolve_task_bead_autoclose(
     return _AutocloseDecision(
         bead_id,
         True,
-        "eligible in-progress task bead in the primary repo",
+        "eligible in-progress assigned bead in the primary repo",
         status=status,
         issue_type=issue_type,
     )
 
 
-def close_task_bead_after_commit(payload: dict, cwd: str, *, method: str) -> bool:
-    """Best-effort close for an eligible assigned task bead after a commit lands."""
-    decision = _resolve_task_bead_autoclose(payload, cwd, method=method)
+def close_assigned_bead_after_commit(payload: dict, cwd: str, *, method: str) -> bool:
+    """Best-effort close for an eligible assigned bead after a commit lands."""
+    decision = _resolve_assigned_bead_autoclose(payload, cwd, method=method)
     if not decision.should_close or not decision.bead_id:
         return False
 
@@ -218,7 +209,7 @@ def close_task_bead_after_commit(payload: dict, cwd: str, *, method: str) -> boo
     )
     if result is not None and result.returncode == 0:
         print_status(
-            f"Auto-closed task bead {decision.bead_id}. Reopen with "
+            f"Auto-closed assigned bead {decision.bead_id}. Reopen with "
             f"`sase bead open {decision.bead_id}` if more work remains.",
             "success",
         )
@@ -259,7 +250,7 @@ def _report_autoclose_failed(
         if output:
             output = f": {_truncate_for_status(output)}"
     print_status(
-        f"Auto-close failed for task bead {decision.bead_id}: {detail}{output}. "
+        f"Auto-close failed for bead {decision.bead_id}: {detail}{output}. "
         f'Run `sase bead close {decision.bead_id} --note "<what you verified>"` '
         "once the work is actually done.",
         "warning",
@@ -289,12 +280,6 @@ def _issue_text(issue: dict[str, object], key: str) -> str | None:
         return None
     text = value.strip()
     return text or None
-
-
-def _not_task_reason(issue_type: str | None) -> str:
-    if issue_type:
-        return f"it is a {issue_type} bead"
-    return "it is not a task bead"
 
 
 def _repo_autoclose_skip_reason(cwd: str) -> str | None:

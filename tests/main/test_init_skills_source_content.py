@@ -121,6 +121,10 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase_git_commit --resume" in body
     assert "git-ignored" in body
     assert "delegates to `sase stitch create`" in body
+    assert "Do not auto-close your assigned in-progress bead" in body
+    assert "auto-closes the assigned `in_progress` bead in this repo" in body
+    assert "phase and plan beads are never auto-closed" not in flat
+    assert "failed lifecycle validation must be resolved explicitly" in flat
     assert "explicit host instruction naming `/sase_git_commit`" in flat
     assert "the provider-neutral `/sase_final` flow is not such an instruction" in flat
     assert "A `commit` action in a `/sase_final` manifest is declarative" in flat
@@ -141,6 +145,16 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
     assert front_matter is not None
     assert front_matter["skill"] is True
     assert front_matter["log_skill_use"] is False
+    assert (
+        "before every normal response that ends a SASE provider turn"
+        in front_matter["description"]
+    )
+    assert "mandatory for final answers" in flat
+    assert "incomplete-status responses" in flat
+    assert "replies that intend to resume in a later turn" in flat
+    assert (
+        "Only a successfully executed plan, monitor, pipe, or questions handoff" in flat
+    )
     assert "sase final context -f json" in body
     assert "sase final submit <manifest-file>" in body
     assert "beta" not in flat

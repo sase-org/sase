@@ -1,18 +1,21 @@
 ---
 name: sase_final
 description:
-  Submit the current turn's SASE finalizer declaration. Use this as the last normal
-  action when finalizer instructions ask for `/sase_final`.
+  Submit the current turn's SASE finalizer declaration. Use this as the last action
+  before every normal response that ends a SASE provider turn.
 skill: true
 log_skill_use: false
 ---
 
-Use this skill only when the current SASE turn's instructions ask you to finish with
-`/sase_final`.
+Use this skill whenever the current SASE turn is about to end with a normal response. It
+is mandatory for final answers, incomplete-status responses, "I will wait" responses,
+and replies that intend to resume in a later turn. Only a successfully executed plan,
+monitor, pipe, or questions handoff is exempt.
 
 ## Rules
 
-- Run this after all ordinary work, edits, and verification for the turn are complete.
+- Run this after all ordinary work, edits, and verification for the turn are complete,
+  immediately before the normal response that ends the provider turn.
 - Do not mutate files or repositories after a successful declaration submit.
 - A `commit` action in the manifest is declarative: the host's `builtin@commit`
   finalizer runs `sase stitch create`. Do not invoke `/sase_git_commit` after reading a
@@ -26,8 +29,8 @@ Use this skill only when the current SASE turn's instructions ask you to finish 
   refreshed context no longer requires one.
 - If submit reports other validation errors, repair the manifest and resubmit when
   possible.
-- Intentional handoffs through plan, monitor, pipe, or questions terminate the runner
-  mechanically and do not need this skill.
+- Successfully executed handoffs through plan, monitor, pipe, or questions terminate the
+  runner mechanically and do not need this skill.
 
 ## Steps
 

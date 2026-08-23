@@ -76,7 +76,7 @@ class TestCommitWorkflowDispatch:
                 side_effect=lambda *_args, **_kwargs: events.append("append") or "7",
             ),
             patch(
-                "sase.workflows.commit.workflow.close_task_bead_after_commit",
+                "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
                 side_effect=lambda *_args, **_kwargs: events.append("close") or True,
             ) as close_bead,
             patch(
@@ -124,7 +124,7 @@ class TestCommitWorkflowDispatch:
             ),
             patch("sase.workflows.commit.workflow.write_result_marker"),
             patch(
-                "sase.workflows.commit.workflow.close_task_bead_after_commit",
+                "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
                 return_value=True,
             ) as close_bead,
         ):
@@ -229,7 +229,7 @@ class TestCommitWorkflowDispatch:
         wf = CommitWorkflow({"message": "test: provider failure"}, "create_commit")
 
         with patch(
-            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
         ) as close_bead:
             assert wf.run() == RunResult.FAILED
 
@@ -260,7 +260,7 @@ class TestCommitWorkflowDispatch:
         )
 
         with patch(
-            "sase.workflows.commit.workflow.close_task_bead_after_commit"
+            "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
         ) as close_bead:
             assert wf.run() == RunResult.CONFLICT
 
@@ -317,7 +317,7 @@ class TestProposalSkipsBeadsAndPlan:
                 "sase.workflows.commit.workflow.append_commits_entry", return_value=None
             ),
             patch(
-                "sase.workflows.commit.workflow.close_task_bead_after_commit"
+                "sase.workflows.commit.workflow.close_assigned_bead_after_commit"
             ) as close_bead,
         ):
             assert wf.run() == RunResult.OK

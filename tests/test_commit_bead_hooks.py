@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.workflows.commit.bead_hooks import (
-    close_task_bead_after_commit,
+    close_assigned_bead_after_commit,
     handle_beads,
 )
 
@@ -67,7 +67,7 @@ class TestHandleBeads:
 
         assert payload["message"] == "Fix bug"
 
-    def test_in_progress_task_bead_is_armed_without_a_pre_commit_reminder(
+    def test_in_progress_assigned_bead_is_armed_without_a_pre_commit_reminder(
         self, tmp_path: Path
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
@@ -87,14 +87,15 @@ class TestHandleBeads:
         ]
         print_status.assert_not_called()
 
-    def test_autoclose_closes_in_progress_task_in_primary_repo(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("issue_type", ["task", "phase", "plan"])
+    def test_autoclose_closes_in_progress_assigned_bead_in_primary_repo(
+        self, tmp_path: Path, issue_type: str
     ) -> None:
         payload = {"message": "fix: bug\n\nBody", "bead_id": "B-123"}
         with (
             patch(
                 "sase.workflows.commit.bead_hooks.subprocess.run",
-                side_effect=[_show_result("in_progress"), _CLOSE_RESULT],
+                side_effect=[_show_result("in_progress", issue_type), _CLOSE_RESULT],
             ) as run,
             patch(_BEAD_REPO_ROOT_TARGET, return_value=str(tmp_path)),
             patch(
@@ -103,7 +104,7 @@ class TestHandleBeads:
             ),
             patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
-            assert close_task_bead_after_commit(
+            assert close_assigned_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
             )
 
@@ -129,27 +130,12 @@ class TestHandleBeads:
         assert "No verification is implied by this note" in note
         message, level = print_status.call_args.args
         assert level == "success"
-        assert "Auto-closed task bead B-123" in message
-
-    @pytest.mark.parametrize("issue_type", ["phase", "plan"])
-    def test_non_task_beads_are_not_auto_closed(
-        self, tmp_path: Path, issue_type: str
-    ) -> None:
-        payload = {"message": "Fix bug", "bead_id": "B-123"}
-        with patch(
-            "sase.workflows.commit.bead_hooks.subprocess.run",
-            side_effect=[_show_result("in_progress", issue_type)],
-        ) as run:
-            assert not close_task_bead_after_commit(
-                payload, str(tmp_path), method="create_commit"
-            )
-
-        assert len(run.call_args_list) == 1
+        assert "Auto-closed assigned bead B-123" in message
 
     @pytest.mark.parametrize(
         "status", ["open", "ready", "claimed", "snoozed", "closed"]
     )
-    def test_task_bead_statuses_other_than_in_progress_are_not_auto_closed(
+    def test_assigned_bead_statuses_other_than_in_progress_are_not_auto_closed(
         self, tmp_path: Path, status: str
     ) -> None:
         payload = {"message": "Fix bug", "bead_id": "B-123"}
@@ -157,11 +143,29 @@ class TestHandleBeads:
             "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=[_show_result(status)],
         ) as run:
-            assert not close_task_bead_after_commit(
+            assert not close_assigned_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
             )
 
         assert len(run.call_args_list) == 1
+
+    def test_unassigned_payload_does_not_auto_close(self, tmp_path: Path) -> None:
+        payload = {"message": "Fix bug"}
+        with patch("sase.workflows.commit.bead_hooks.subprocess.run") as run:
+            assert not close_assigned_bead_after_commit(
+                payload, str(tmp_path), method="create_commit"
+            )
+
+        run.assert_not_called()
+
+    def test_non_landed_method_does_not_auto_close(self, tmp_path: Path) -> None:
+        payload = {"message": "Fix bug", "bead_id": "B-123"}
+        with patch("sase.workflows.commit.bead_hooks.subprocess.run") as run:
+            assert not close_assigned_bead_after_commit(
+                payload, str(tmp_path), method="create_proposal"
+            )
+
+        run.assert_not_called()
 
     def test_opt_out_does_not_auto_close(self, tmp_path: Path) -> None:
         payload = {
@@ -173,7 +177,7 @@ class TestHandleBeads:
             "sase.workflows.commit.bead_hooks.subprocess.run",
             side_effect=[_show_result("in_progress")],
         ) as run:
-            assert not close_task_bead_after_commit(
+            assert not close_assigned_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
             )
 
@@ -220,7 +224,7 @@ class TestHandleBeads:
             patch(_BEAD_REPO_ROOT_TARGET, return_value=str(linked)),
             patch.dict("os.environ", {"SASE_LINKED_REPOS_JSON": linked_json}),
         ):
-            assert not close_task_bead_after_commit(
+            assert not close_assigned_bead_after_commit(
                 payload, str(linked), method="create_commit"
             )
 
@@ -239,7 +243,7 @@ class TestHandleBeads:
             patch(_BEAD_REPO_ROOT_TARGET, return_value=str(sidecar)),
             patch.dict("os.environ", {"SASE_SDD_PLANS_DIR": str(sidecar)}),
         ):
-            assert not close_task_bead_after_commit(
+            assert not close_assigned_bead_after_commit(
                 payload, str(sidecar), method="create_commit"
             )
 
@@ -262,13 +266,13 @@ class TestHandleBeads:
             ),
             patch("sase.workflows.commit.bead_hooks.print_status") as print_status,
         ):
-            assert not close_task_bead_after_commit(
+            assert not close_assigned_bead_after_commit(
                 payload, str(tmp_path), method="create_commit"
             )
 
         message, level = print_status.call_args.args
         assert level == "warning"
-        assert "Auto-close failed for task bead B-123" in message
+        assert "Auto-close failed for bead B-123" in message
         assert "blocked by child" in message
 
     def test_already_closed_bead_is_left_alone_without_a_reminder(

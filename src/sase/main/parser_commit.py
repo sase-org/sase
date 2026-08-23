@@ -99,7 +99,7 @@ def add_commit_create_options(parser: argparse.ArgumentParser) -> None:
         "--do-not-close-bead",
         action="store_true",
         dest="do_not_close_bead",
-        help="Do not auto-close the assigned in-progress task bead after commit",
+        help="Do not auto-close the assigned in-progress bead after commit",
     )
     parser.add_argument(
         "-c",

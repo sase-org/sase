@@ -62,7 +62,7 @@ def no_commit_hooks() -> Iterator[None]:
         patch("sase.workflows.commit.workflow.handle_beads", return_value=None),
         patch("sase.workflows.commit.workflow.handle_sase_plan", return_value=None),
         patch(
-            "sase.workflows.commit.workflow.close_task_bead_after_commit",
+            "sase.workflows.commit.workflow.close_assigned_bead_after_commit",
             return_value=False,
         ),
         patch(

@@ -27,7 +27,7 @@ from sase.workflows.commit.commit_tracking import (
 )
 from sase.workflows.commit.bead_hooks import (
     apply_bead_commit_tag,
-    close_task_bead_after_commit,
+    close_assigned_bead_after_commit,
     handle_beads,
 )
 from sase.workflows.commit.command_hooks import (
@@ -465,7 +465,11 @@ class CommitWorkflow(BaseWorkflow):
         if (
             self._method in ("create_commit", "create_pull_request")
             and "close_bead" not in cp.completed_steps
-            and close_task_bead_after_commit(cp.payload, cp.cwd, method=self._method)
+            and close_assigned_bead_after_commit(
+                cp.payload,
+                cp.cwd,
+                method=self._method,
+            )
         ):
             cp.completed_steps.append("close_bead")
             checkpoint_save(cp)
