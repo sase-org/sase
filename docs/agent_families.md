@@ -328,7 +328,8 @@ tribe parents in one multi-parent fork.
 
 Selecting a real multi-member family root in ACE opens the metadata panel with
 underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY SHELLS` roster in
-stable chain order. The original member and each follow-up are direct jump targets;
+stable chain order: agent shells in chain order, with each monitor spliced in directly
+after its starter shell. The original member and each follow-up are direct jump targets;
 synthetic planner projections and legacy parallel-family scaffolding are not. The same
 `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and
 the root's foldable output variables, workflow variables, SASE context, slow calls, and

@@ -205,32 +205,56 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
     return (agent,)
 
 
-def _family_shell_anchors(agent: Agent) -> tuple[Agent, ...]:
+@dataclass(frozen=True, slots=True)
+class _FamilyShellAnchors:
+    """Ordered agent-shell anchors plus the anchor standing in for the root.
+
+    ``container_proxy`` is the shell that represents the container row's own
+    agent process: the concrete planner step when one is loaded (same
+    ``raw_suffix`` and artifacts dir as the container, different
+    ``identity``), the container itself when it represents a member, and
+    ``None`` when nothing in the sequence represents it.
+    """
+
+    anchors: tuple[Agent, ...]
+    container_proxy: Agent | None
+
+
+def _family_shell_anchors(agent: Agent) -> _FamilyShellAnchors:
     """Return the ordered agent-shell chain before nested monitors are inserted."""
     planner = _concrete_planner_child(agent)
     candidates: list[Agent] = []
+    container_proxy: Agent | None = None
     if planner is not None:
         candidates.append(planner)
+        container_proxy = planner
     elif _root_represents_member(agent):
         candidates.append(agent)
+        container_proxy = agent
 
     candidates.extend(_concrete_continuations(agent.runtime_children, planner))
     candidates.extend(_concrete_continuations(agent.followup_agents, planner))
-    return _dedupe_by_identity(candidates)
+    return _FamilyShellAnchors(
+        anchors=_dedupe_by_identity(candidates),
+        container_proxy=container_proxy,
+    )
 
 
 def _expand_nested_monitor_shells(
     container: Agent,
     anchors: Sequence[Agent],
+    container_proxy: Agent | None,
 ) -> tuple[Agent, ...]:
     """Insert nested monitor shells immediately after their causal starter.
 
-    Traverses both ``runtime_children`` and ``followup_agents`` because loaded
-    shapes expose overlapping but not always identical links. Dedupes by
-    durable row identity, cycle-guards by object identity, and keeps each
-    collection's already-normalized order rather than sorting by timestamp.
-    Later agent-shell continuations stay in the anchor sequence; their
-    monitors are not stolen while walking an earlier starter.
+    A monitor attached to the container row is emitted after the anchor that
+    represents that container (its planner step when one is loaded). Traverses
+    both ``runtime_children`` and ``followup_agents`` because loaded shapes
+    expose overlapping but not always identical links. Dedupes by durable row
+    identity, cycle-guards by object identity, and keeps each collection's
+    already-normalized order rather than sorting by timestamp. Later
+    agent-shell continuations stay in the anchor sequence; their monitors are
+    not stolen while walking an earlier starter.
     """
     result: list[Agent] = []
     walked_ids: set[int] = set()
@@ -266,10 +290,23 @@ def _expand_nested_monitor_shells(
             walked_ids.add(child_id)
             walk_monitors(child)
 
-    if container.identity not in anchor_identities:
-        walk_monitors(container)
+    proxy = container_proxy
+    if proxy is not None and proxy.identity == container.identity:
+        proxy = None  # emit(container) already walks the container's monitors
+    pending_container_walk = proxy is not None
+    if proxy is None and container.identity not in anchor_identities:
+        walk_monitors(container)  # nothing represents the container
     for anchor in anchors:
         emit(anchor)
+        if (
+            pending_container_walk
+            and proxy is not None
+            and anchor.identity == proxy.identity
+        ):
+            walk_monitors(container)
+            pending_container_walk = False
+    if pending_container_walk:
+        walk_monitors(container)  # proxy absent from anchors: never drop a row
     return tuple(result)
 
 
@@ -281,13 +318,20 @@ def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
     as the compatibility fallback. Rename-on-attach roots remain the first
     real shell for families that do not have a concrete planner step.
 
-    A monitor nested under any family shell is included immediately after its
-    causal starter. Synthetic planners, non-agent workflow steps, and
-    parallel-family rows stay excluded. The walk is a pure in-memory
-    projection: linear in the loaded family subtree, cycle-safe, and
-    identity-deduped.
+    A monitor is emitted immediately after the shell that started it. A
+    monitor attached to the container row is emitted after the anchor that
+    represents that container (its planner step when one is loaded). Synthetic
+    planners, non-agent workflow steps, and parallel-family rows stay
+    excluded. The walk is a pure in-memory projection: linear in the loaded
+    family subtree, cycle-safe, identity-deduped, and ordered by causal
+    placement rather than timestamp.
     """
-    return _expand_nested_monitor_shells(agent, _family_shell_anchors(agent))
+    projection = _family_shell_anchors(agent)
+    return _expand_nested_monitor_shells(
+        agent,
+        projection.anchors,
+        projection.container_proxy,
+    )
 
 
 def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:

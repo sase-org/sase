@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 from rich.console import Group
 from rich.text import Text
 
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import (
     AgentHeaderRenderable,
@@ -214,3 +216,69 @@ def test_family_keeps_pending_reply_state(
 
     assert "AGENT REPLY · 2\n" in plain
     assert plain.count("No response content yet.") == 2
+
+
+def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None:
+    root, child = make_family(tmp_path)
+    planner = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file=root.project_file,
+        status="DONE",
+        start_time=root.start_time,
+        stop_time=root.stop_time,
+        raw_suffix=root.raw_suffix,
+        artifacts_dir=root.artifacts_dir,
+        response_path=root.response_path,
+        parent_workflow="ace-run",
+        step_type="agent",
+        step_index=0,
+        parent_step_index=None,
+        agent_name="alpha--plan",
+        agent_family=root.agent_family,
+        agent_family_role="plan",
+        role_suffix="--plan",
+        model=root.model,
+    )
+    started = root.start_time
+    assert started is not None
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="family-monitor",
+        project_file=root.project_file,
+        status="MONITORED",
+        status_bucket="Done",
+        start_time=started + timedelta(minutes=1),
+        stop_time=started + timedelta(minutes=2),
+        raw_suffix="20260718120100",
+        parent_timestamp=root.raw_suffix,
+        agent_name="alpha--mon",
+        agent_family=root.agent_family,
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m-root",
+        monitor_state="completed",
+        monitor_command="just check-full",
+    )
+    root.runtime_children = [planner]
+    root.followup_agents = [child, monitor]
+    child.family_container = root
+    monitor.family_container = root
+
+    panel = FakePromptPanel()
+    header, error = build_header_text(
+        root,
+        cheap=True,
+        lane_fold_level=FoldLevel.EXPANDED,
+    )
+    panel._update_family_display(
+        root,
+        header,
+        error,
+        panel_level=FoldLevel.EXPANDED,
+        section_fold_overrides={},
+    )
+    plain = plain_of(panel.captured[-1])
+
+    assert "AGENT REPLY · 3\n" in plain
+    assert plain.index("AGENT (plan)") < plain.index("⚙ MONITOR")

@@ -53,6 +53,27 @@ def _plan_root(*, name: str = "alpha--plan") -> Agent:
     return root
 
 
+def _plan_root_with_main_step(*, name: str = "alpha--plan") -> tuple[Agent, Agent]:
+    """Build a plan root with its loaded concrete ``main`` workflow step.
+
+    Production plan-family containers share ``raw_suffix`` (and artifacts dir)
+    with the ``main`` step but differ in ``cl_name``, so the step becomes the
+    first shell anchor while the container itself is dropped from the list.
+    """
+    root = _plan_root(name=name)
+    step = _agent(
+        "main",
+        role="plan",
+        parent_timestamp=root.raw_suffix,
+        workflow_child=True,
+    )
+    step.raw_suffix = root.raw_suffix
+    step.step_index = 0
+    step.parent_step_index = None
+    root.runtime_children = [step]
+    return root, step
+
+
 def _monitor_member(
     name: str,
     *,

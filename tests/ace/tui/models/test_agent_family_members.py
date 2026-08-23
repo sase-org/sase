@@ -13,7 +13,12 @@ from sase.ace.tui.models.agent_family_members import (
 )
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
-from ._agent_family_members_helpers import _agent, _monitor_member, _plan_root
+from ._agent_family_members_helpers import (
+    _agent,
+    _monitor_member,
+    _plan_root,
+    _plan_root_with_main_step,
+)
 
 
 def test_concrete_planner_replaces_aggregate_root_and_mixed_links_dedupe() -> None:
@@ -210,6 +215,102 @@ def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:
     assert concrete_family_shell_rows(root) == (root, monitor)
     assert concrete_family_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
+def test_root_monitor_follows_its_planner_step_anchor() -> None:
+    root, main_step = _plan_root_with_main_step()
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m-root",
+        monitor_state="running",
+    )
+    root.runtime_children = [main_step, monitor]
+    root.followup_agents = [monitor]
+
+    assert concrete_family_shell_rows(root) == (main_step, monitor)
+
+
+def test_root_monitor_precedes_later_continuations() -> None:
+    root, main_step = _plan_root_with_main_step()
+    root_monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m-root",
+        monitor_state="completed",
+        stop_offset=5,
+    )
+    continuation = _agent(
+        "alpha--1",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=2,
+    )
+    continuation_monitor = _monitor_member(
+        "alpha--mon-0",
+        root=continuation,
+        monitor_id="m-cont",
+        monitor_state="running",
+    )
+    root.runtime_children = [main_step, continuation, root_monitor]
+    root.followup_agents = [continuation, root_monitor]
+    continuation.runtime_children = [continuation_monitor]
+    continuation.followup_agents = [continuation_monitor]
+
+    assert concrete_family_shell_rows(root) == (
+        main_step,
+        root_monitor,
+        continuation,
+        continuation_monitor,
+    )
+
+
+def test_planner_step_projection_keeps_every_monitor() -> None:
+    root, main_step = _plan_root_with_main_step()
+    root_monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m-root",
+        monitor_state="completed",
+        stop_offset=5,
+    )
+    continuation = _agent(
+        "alpha--1",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        start_offset=2,
+    )
+    continuation_monitor = _monitor_member(
+        "alpha--mon-0",
+        root=continuation,
+        monitor_id="m-cont",
+        monitor_state="running",
+    )
+    root.runtime_children = [main_step, continuation, root_monitor]
+    root.followup_agents = [continuation, root_monitor]
+    continuation.runtime_children = [continuation_monitor]
+    continuation.followup_agents = [continuation_monitor]
+
+    loaded = {
+        main_step.identity,
+        root_monitor.identity,
+        continuation.identity,
+        continuation_monitor.identity,
+    }
+    assert {row.identity for row in concrete_family_shell_rows(root)} == loaded
+
+
+def test_root_monitor_follows_root_when_no_step_is_loaded() -> None:
+    root = _plan_root()
+    monitor = _monitor_member(
+        "alpha--mon",
+        root=root,
+        monitor_id="m-root",
+        monitor_state="running",
+    )
+    root.followup_agents = [monitor]
+
+    assert concrete_family_shell_rows(root) == (root, monitor)
 
 
 def test_nested_monitor_follows_mid_family_continuation() -> None:

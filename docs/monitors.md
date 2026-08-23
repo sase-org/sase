@@ -361,10 +361,10 @@ a monitor whose retained output was capped shows an
 written anything yet shows `No output yet.`.
 
 When the monitor's family (or its starter) is selected, that same block appears inline
-as a `MONITOR` phase in the AGENT REPLY stream: an amber `⚙ MONITOR` divider, the
-command, the recorded detail fields, and the full captured output. File-hint mode
-renders the monitor document with `[N]` markers on the command and log instead of
-falling back to the empty prompt view.
+as a `MONITOR` phase in the AGENT REPLY stream, at the starter's position in the family
+conversation: an amber `⚙ MONITOR` divider, the command, the recorded detail fields, and
+the full captured output. File-hint mode renders the monitor document with `[N]` markers
+on the command and log instead of falling back to the empty prompt view.
 
 With a **running** monitor row selected, the Agents tab's kill key (`x` by default)
 stops the monitor instead of killing an agent: it opens a `Stop Monitor` confirmation
