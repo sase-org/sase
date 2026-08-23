@@ -105,6 +105,7 @@ def ensure_current_declaration(
     model_override: str | None,
     artifacts_dir: str | None,
     options: Any,
+    original_prompt: str | None = None,
 ) -> Any:
     """Recover a required stale declaration within its one-shot budget."""
     publication = publish_final_context(artifacts_dir=artifacts_dir)
@@ -126,6 +127,7 @@ def ensure_current_declaration(
         model_override=model_override,
         artifacts_dir=artifacts_dir,
         options=options,
+        original_prompt=original_prompt,
     )
     _rebind_turn_nonce_to_accepted_context(artifacts_dir)
     return recovered

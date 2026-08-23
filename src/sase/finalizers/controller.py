@@ -101,6 +101,7 @@ def run_finalizers(
             model_override=model_override,
             artifacts_dir=artifacts_dir,
             options=options,
+            original_prompt=original_prompt,
         )
         for cycle in range(1, MAX_CONTROLLER_CYCLES + 1):
             cycles = cycle
@@ -156,6 +157,7 @@ def run_finalizers(
                         model_override=model_override,
                         artifacts_dir=artifacts_dir,
                         options=options,
+                        original_prompt=original_prompt,
                     )
                     ledger = ledger_for_instance(
                         ledgers, instance_id, instance.max_attempts
@@ -171,6 +173,7 @@ def run_finalizers(
                         model_override=model_override,
                         options=options,
                         artifacts_dir=artifacts_dir,
+                        original_prompt=original_prompt,
                     )
                     current_result = execution.invoke_result
                     _remember_result(results_by_id, execution.result)
@@ -338,6 +341,7 @@ def _run_budgeted_commit(
     model_override: str | None,
     options: Any,
     artifacts_dir: str | None,
+    original_prompt: str | None = None,
 ) -> BuiltinCommitExecution:
     current_result = invoke_result
     while True:
@@ -368,6 +372,7 @@ def _run_budgeted_commit(
                     model_override=model_override,
                     artifacts_dir=artifacts_dir,
                     options=options,
+                    original_prompt=original_prompt,
                 )
                 execution = execute_commit_finalizer(
                     instance,

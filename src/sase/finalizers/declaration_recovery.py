@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.pending_handoff import has_pending_handoff
+from sase.finalizers.declaration_recovery_evidence import build_recovery_evidence
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
     write_text_atomic as _write_text_atomic,
@@ -18,6 +19,7 @@ from sase.telemetry.metrics import FINALIZER_RECOVERIES
 if TYPE_CHECKING:
     from sase.finalizers.declaration import FinalContextPublication
 
+FINAL_DECLARATION_RECOVERY_EVIDENCE_FILENAME = "final_declaration_recovery_evidence.md"
 FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME = "final_declaration_recovery_prompt.md"
 FINAL_DECLARATION_RECOVERY_RESPONSE_FILENAME = "final_declaration_recovery_response.md"
 
@@ -31,6 +33,7 @@ def ensure_final_declaration_or_recover(
     model_override: str | None,
     artifacts_dir: str | None,
     options: LLMInvocationOptions | None = None,
+    original_prompt: str | None = None,
 ) -> InvokeResult:
     """Run one declaration-recovery turn when required submission is absent."""
 
@@ -52,11 +55,21 @@ def ensure_final_declaration_or_recover(
     previous_nonce = os.environ.get(declaration.SASE_FINAL_TURN_NONCE_ENV)
     recovery_nonce = declaration.mint_finalizer_turn_nonce()
     try:
-        prompt = _declaration_recovery_prompt(context)
         root = declaration.require_artifacts_dir(
             artifacts_dir,
             "finalizer declaration recovery",
         )
+        evidence = build_recovery_evidence(
+            context=context,
+            original_prompt=original_prompt,
+            response_text=invoke_result.content,
+            artifacts_dir=artifacts_dir,
+        )
+        _write_text_atomic(
+            root / FINAL_DECLARATION_RECOVERY_EVIDENCE_FILENAME,
+            evidence,
+        )
+        prompt = _declaration_recovery_prompt(context, evidence)
         _write_text_atomic(root / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME, prompt)
         follow_up = provider.invoke(
             prompt,
@@ -104,14 +117,43 @@ def _latest_context_matches_nonce(root: Path, nonce: str) -> bool:
         return False
 
 
-def _declaration_recovery_prompt(context: FinalContextPublication) -> str:
-    return (
+def _declaration_recovery_prompt(
+    context: FinalContextPublication,
+    evidence: str,
+) -> str:
+    parts = [
         "A required SASE finalizer declaration was missing or stale after your "
-        "normal response.\n\n"
+        "normal response.",
+        "",
         "This is the single declaration-recovery turn. Do not perform unrelated "
         "work, do not mutate repositories, and do not answer the user yet. Use "
         "your `/sase_final` skill now; it must publish a fresh context for this "
         "turn and submit one valid declaration for every required finalizer "
-        "payload. After the declaration succeeds, return briefly.\n\n"
-        f"Current required context digest: {context.context.context_digest}\n"
+        "payload. After the declaration succeeds, return briefly.",
+    ]
+    if evidence.strip():
+        parts.extend(
+            [
+                "",
+                evidence.strip(),
+                "",
+                "The work described above is this turn's own run. Write any "
+                "commit message from that evidence; do not assume no work happened.",
+            ]
+        )
+    parts.extend(
+        [
+            "",
+            "A refuse decision needs a substantive reason about the changes "
+            "themselves. Missing conversational context is not a valid refusal "
+            'reason. Do not refuse because "I have no context", "this is only '
+            'a recovery turn", "these files predate me", or "I did not do this '
+            'work". Valid reasons include protected paths, changes that genuinely '
+            "belong to another repository or agent, or a tree you can see is "
+            "unsafe to commit.",
+            "",
+            f"Current required context digest: {context.context.context_digest}",
+            "",
+        ]
     )
+    return "\n".join(parts)

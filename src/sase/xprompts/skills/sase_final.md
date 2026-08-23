@@ -17,6 +17,9 @@ Use this skill only when the current SASE turn's instructions ask you to finish 
 - A `commit` action in the manifest is declarative: the host's `builtin@commit`
   finalizer runs `sase stitch create`. Do not invoke `/sase_git_commit` after reading a
   required final context.
+- A `refuse` decision needs a substantive reason about the _changes_. Missing
+  conversational context is not a valid reason. In a recovery turn, build the commit
+  message from the host's evidence brief rather than assuming no work happened.
 - If context says no payloads are required, return after reading it.
 - If submit reports `stale_final_context`, rerun `sase final context -f json` and
   rebuild the manifest from the refreshed template, or abandon the manifest if the
