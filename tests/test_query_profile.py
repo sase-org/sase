@@ -324,6 +324,7 @@ def test_stitches_profile_filterable_fields_are_all_accepted_by_the_parser() -> 
         "repo": "myrepo",
         "author": "alice",
         "origin": "stitch",
+        "type": "automatic",
         "since": "1d",
         "until": "1h",
         "sidecar": "true",
@@ -339,9 +340,14 @@ def test_stitches_profile_filterable_fields_are_all_accepted_by_the_parser() -> 
 def test_stitches_profile_negatable_fields_match_the_parser() -> None:
     profile = compile_query_profile(stitches_query_schema())
     negatable = set(profile.negatable_fields())
-    assert negatable == {"repo", "author", "origin"}
+    assert negatable == {"repo", "author", "origin", "type"}
     for key in negatable:
-        value = {"repo": "myrepo", "author": "alice", "origin": "stitch"}[key]
+        value = {
+            "repo": "myrepo",
+            "author": "alice",
+            "origin": "stitch",
+            "type": "automatic",
+        }[key]
         parse_commit_filter_query(f"-{key}:{value}")  # must not raise
     for key in {item.key for item in profile.fields if item.filterable} - negatable:
         value = {
@@ -370,6 +376,8 @@ def test_stitches_profile_repeatable_fields_accept_comma_lists() -> None:
         assert profile.field(key).repeatable is True
     values = parse_commit_filter_query("repo:a,b")
     assert values.repos == ("a", "b")
+    values = parse_commit_filter_query("type:automatic,bead_work")
+    assert values.types == ("automatic", "bead_work")
 
 
 def test_stitches_profile_search_only_field_is_subject() -> None:

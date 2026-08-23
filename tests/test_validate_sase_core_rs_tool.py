@@ -215,7 +215,11 @@ def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
 
 def test_validate_sase_core_rs_requires_vcs_log_bindings() -> None:
     validator = load_validate_sase_core_rs()
-    vcs_log_bindings = {"vcs_log_wire_schema_version", "parse_merge_summary"}
+    vcs_log_bindings = {
+        "vcs_log_wire_schema_version",
+        "parse_merge_summary",
+        "classify_commit_types",
+    }
 
     assert vcs_log_bindings <= set(validator.REQUIRED_BINDINGS)
     for binding in vcs_log_bindings:

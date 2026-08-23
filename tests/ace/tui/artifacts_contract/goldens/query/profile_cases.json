@@ -80,6 +80,7 @@
             "repo": "app",
             "author": "Ada Lovelace",
             "origin": "stitch",
+            "type": ["stitch"],
             "sidecar": "false",
             "merges": "hide",
             "subject": "unified query engine"
@@ -92,6 +93,7 @@
             "repo": "docs",
             "author": "Grace Hopper",
             "origin": "manual",
+            "type": ["manual", "merge"],
             "sidecar": "true",
             "merges": "show",
             "subject": "migration docs"
@@ -104,6 +106,7 @@
             "repo": "app",
             "author": "Ada Byron",
             "origin": "auto",
+            "type": ["automatic", "sdd", "patch"],
             "sidecar": "false",
             "merges": "hide",
             "subject": "cache fix"
@@ -122,6 +125,18 @@
         "-author:Grace": {
           "canonical": "-author:Grace",
           "matches": ["commit-alpha", "commit-gamma"]
+        },
+        "type:automatic,sdd -type:patch": {
+          "canonical": "type:automatic,sdd -type:patch",
+          "matches": []
+        },
+        "type:merge": {
+          "canonical": "type:merge",
+          "matches": ["commit-beta"]
+        },
+        "type:patch": {
+          "canonical": "type:patch",
+          "matches": ["commit-gamma"]
         }
       },
       "errors": {

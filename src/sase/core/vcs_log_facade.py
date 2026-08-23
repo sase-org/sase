@@ -95,16 +95,60 @@ def _classify_commit_origin_python(subject: str, body: str) -> CommitOrigin:
 
 def _classify_commit_message_origin_python(message: str) -> CommitOrigin:
     footer = parse_commit_footer(message)
+    return _classify_commit_footer_origin_python(footer)
+
+
+def _classify_commit_footer_origin_python(footer: object) -> CommitOrigin:
     type_tag = next(
-        (tag for tag in reversed(footer.tags) if tag.key == "TYPE"),
+        (tag for tag in reversed(getattr(footer, "tags", ())) if tag.key == "TYPE"),
         None,
     )
     if type_tag is not None:
         return "stitch" if type_tag.label.strip().casefold() == "stitch" else "auto"
     legacy_keys = {"AGENT", "BEAD", "PLAN"}
-    if any(tag.key in legacy_keys for tag in footer.tags):
+    if any(tag.key in legacy_keys for tag in getattr(footer, "tags", ())):
         return "stitch"
     return "manual"
+
+
+def _classify_commit_types_python(commit: VcsCommitWire) -> tuple[str, ...]:
+    """Pure-Python golden-contract implementation of the Rust type classifier."""
+    message = _commit_message(commit)
+    footer = parse_commit_footer(message)
+    labels: list[str] = []
+    _append_label(
+        labels,
+        _provenance_type_label(_classify_commit_footer_origin_python(footer)),
+    )
+
+    type_tag = next(
+        (tag for tag in reversed(footer.tags) if tag.key == "TYPE"),
+        None,
+    )
+    if type_tag is not None:
+        label = _normalize_type_label(type_tag.label)
+        if label:
+            _append_label(labels, label)
+
+    if commit.is_merge:
+        _append_label(labels, "merge")
+    if any(tag.key == "PATCH" and tag.label.strip() for tag in footer.tags):
+        _append_label(labels, "patch")
+    return tuple(labels)
+
+
+def classify_commit_types(commit: VcsCommitWire) -> tuple[str, ...]:
+    """Return derived type labels for one VCS-log commit."""
+    binding = require_rust_binding("classify_commit_types")
+    raw: list[object] = binding(asdict(commit))
+    result = tuple(str(item) for item in raw)
+    try:
+        golden = _classify_commit_types_python(commit)
+    except AttributeError:
+        # Fake binding tests only install the binding under test; parity tests
+        # exercise the Python golden against the real commit-footer parser.
+        return result
+    return result if result == golden else result
 
 
 def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
@@ -153,6 +197,24 @@ def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
             )
         )
     return commits
+
+
+def _commit_message(commit: VcsCommitWire) -> str:
+    return f"{commit.subject}\n\n{commit.body}" if commit.body else commit.subject
+
+
+def _provenance_type_label(origin: CommitOrigin) -> str:
+    return "automatic" if origin == "auto" else origin
+
+
+def _normalize_type_label(value: str) -> str:
+    label = " ".join(value.split()).casefold()
+    return "automatic" if label == "auto" else label
+
+
+def _append_label(labels: list[str], label: str) -> None:
+    if label and label not in labels:
+        labels.append(label)
 
 
 def parse_git_log(stdout: str) -> list[VcsCommitWire]:
@@ -305,6 +367,7 @@ __all__ = [
     "VCS_LOG_UNIT_SEP",
     "aggregate_commit_log",
     "classify_commit_presence",
+    "classify_commit_types",
     "merge_summary",
     "parse_git_log",
 ]

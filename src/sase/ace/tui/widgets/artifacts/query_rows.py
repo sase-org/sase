@@ -11,6 +11,7 @@ from sase.core.query_profile_corpus_facade import (
     ArtifactQueryIndex,
     compile_artifact_query_index,
 )
+from sase.core.vcs_log_facade import classify_commit_types
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_log.models import VcsLogResult
 
@@ -289,6 +290,7 @@ def _commit_query_entry(
             "repo": repo_labels,
             "author": (commit.author_name, commit.author_email),
             "origin": commit.origin,
+            "type": classify_commit_types(commit),
             "since": (commit.timestamp,),
             "until": (commit.timestamp,),
             "sidecar": repo_kind == "sidecar",

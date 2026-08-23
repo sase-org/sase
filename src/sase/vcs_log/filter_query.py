@@ -40,6 +40,7 @@ CompletionKind = Literal[
     "repo",
     "author",
     "origin",
+    "type",
     "since",
     "until",
     "sidecar",
@@ -52,14 +53,15 @@ _FILTER_KEYS = (
     "repo",
     "author",
     "origin",
+    "type",
     "since",
     "until",
     "sidecar",
     "merges",
     "limit",
 )
-_REPEATABLE_KEYS = frozenset(("repo", "author", "origin"))
-_NEGATABLE_KEYS = frozenset(("repo", "author", "origin"))
+_REPEATABLE_KEYS = frozenset(("repo", "author", "origin", "type"))
+_NEGATABLE_KEYS = frozenset(("repo", "author", "origin", "type"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
 #: Canonical commit-origin values accepted by the ``origin:`` filter key.
 #: Mirrors ``sase.core.vcs_log_wire.CommitOrigin``.
@@ -79,6 +81,8 @@ class CommitLogFilterValues:
     excluded_authors: tuple[str, ...] = ()
     origins: tuple[CommitOrigin, ...] = ()
     excluded_origins: tuple[CommitOrigin, ...] = ()
+    types: tuple[str, ...] = ()
+    excluded_types: tuple[str, ...] = ()
     since_text: str = ""
     until_text: str = ""
     since: TimeBound | None = None
@@ -123,6 +127,8 @@ def parse_commit_filter_query(
     excluded_authors: list[str] = []
     origins: list[CommitOrigin] = []
     excluded_origins: list[CommitOrigin] = []
+    types: list[str] = []
+    excluded_types: list[str] = []
     text_terms: list[str] = []
     excluded_text_terms: list[str] = []
     singles: dict[str, tuple[str, FilterToken]] = {}
@@ -161,9 +167,12 @@ def parse_commit_filter_query(
                 (excluded_repos if token.negated else repos).extend(parts)
             elif key == "author":
                 (excluded_authors if token.negated else authors).extend(parts)
-            else:
+            elif key == "origin":
                 origin_parts = [_parse_origin_value(part, token) for part in parts]
                 (excluded_origins if token.negated else origins).extend(origin_parts)
+            else:
+                type_parts = [_parse_type_value(part, token) for part in parts]
+                (excluded_types if token.negated else types).extend(type_parts)
             continue
 
         if key in singles:
@@ -217,6 +226,8 @@ def parse_commit_filter_query(
         excluded_authors=tuple(excluded_authors),
         origins=tuple(origins),
         excluded_origins=tuple(excluded_origins),
+        types=tuple(types),
+        excluded_types=tuple(excluded_types),
         since_text=since_text,
         until_text=until_text,
         since=since,
@@ -253,6 +264,10 @@ def to_query_tokens(
     )
     tokens.extend(
         f"-origin:{quote_value(value, keyed=True)}" for value in values.excluded_origins
+    )
+    tokens.extend(f"type:{quote_value(value, keyed=True)}" for value in values.types)
+    tokens.extend(
+        f"-type:{quote_value(value, keyed=True)}" for value in values.excluded_types
     )
     tokens.append(f"sidecar:{str(values.sidecar).lower()}")
     tokens.append(f"merges:{values.merges}")
@@ -353,6 +368,13 @@ def _parse_origin_value(value: str, token: FilterToken) -> CommitOrigin:
     if folded in _ORIGIN_VALUES:
         return folded  # type: ignore[return-value]
     raise _error("origin: must be 'stitch', 'auto', or 'manual'", token)
+
+
+def _parse_type_value(value: str, token: FilterToken) -> str:
+    folded = " ".join(value.split()).casefold()
+    if not folded:
+        raise _error("type: contains an empty value", token)
+    return "automatic" if folded == "auto" else folded
 
 
 def _error(message: str, token: FilterToken) -> CommitFilterQueryError:

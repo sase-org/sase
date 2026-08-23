@@ -178,9 +178,9 @@ class CommitsCollectionMixin(_MixinBase):
     def _collect(
         self, spec: CommitCollectionSpec, *, force_fetch: bool
     ) -> VcsLogResult:
-        # Subject terms are presentation-only, so collect the complete
-        # author/date/repo-filtered set before the UI applies the row cap.
-        # Otherwise older subject matches can be hidden behind newer misses.
+        # Row-only facets collect the complete backend-filtered set before
+        # the UI applies the row cap. Otherwise older matches can be hidden
+        # behind newer misses.
         collection_limit = _backend_collection_limit(spec.filters)
         return self._collector(
             cwd=os.getcwd(),
@@ -481,8 +481,16 @@ def _same_backend_constraints(
 
 
 def _backend_collection_limit(values: CommitLogFilterValues) -> int:
-    presentation_exclusions = values.excluded_authors or values.excluded_text
-    return 0 if values.text or presentation_exclusions else values.limit
+    row_filters = (
+        values.text
+        or values.excluded_text
+        or values.excluded_authors
+        or values.origins
+        or values.excluded_origins
+        or values.types
+        or values.excluded_types
+    )
+    return 0 if row_filters else values.limit
 
 
 def _scope_key_for(values: CommitLogFilterValues) -> CommitScopeKey:

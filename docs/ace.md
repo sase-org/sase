@@ -270,11 +270,14 @@ combine with AND semantics; comma-separated and repeated values within one facet
 with OR semantics. Free-text terms must all match. Press `Tab` to accept the highlighted
 key or value completion.
 
-Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `since:`,
-`until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against the commit
-subject. `origin:` accepts `stitch`, `auto`, and `manual`, and is repeatable,
-comma-listable, and negatable like `repo:` and `author:`. `merges:hide/show/only`
-controls merge-commit visibility exactly like `sase stitch list`'s `--merges` flag (see
+Stitches accepts singular `project:` plus `repo:`, `author:`, `origin:`, `type:`,
+`since:`, `until:`, `sidecar:`, `merges:`, and `limit:` and free text matched against
+the commit subject. `origin:` accepts `stitch`, `auto`, and `manual`, and is repeatable,
+comma-listable, and negatable like `repo:` and `author:`. `type:` is also repeatable,
+comma-listable, and negatable; it accepts `manual`, `automatic` (`auto` alias),
+`stitch`, `merge`, `patch`, and observed `SASE_TYPE` footer values.
+`merges:hide/show/only` controls merge-commit visibility exactly like
+`sase stitch list`'s `--merges` flag (see
 [VCS Provider Reference](vcs.md#sase-stitch-list)). `project:` is not repeatable,
 comma-listable, or negatable because it selects the repository constellation before
 commits are collected. With no `project:` token, collection spans all projects. It

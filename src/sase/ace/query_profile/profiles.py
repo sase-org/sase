@@ -140,6 +140,14 @@ def stitches_query_schema() -> ArtifactQuerySchema:
             hint="commit origin: stitch, auto, manual",
         ),
         QueryFieldSpec(
+            key="type",
+            repeatable=True,
+            negatable=True,
+            exact_match=True,
+            static_values=("manual", "automatic", "stitch", "merge", "patch"),
+            hint="commit labels or observed SASE_TYPE value",
+        ),
+        QueryFieldSpec(
             key="since",
             value_kind="date",
             hint="from an instant or the start of a named day",

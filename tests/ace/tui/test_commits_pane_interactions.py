@@ -282,6 +282,7 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         assert "F / f2" in help_text
         assert "sidecar:true" in help_text
         assert "merges:hide" in help_text
+        assert "type:manual/automatic/stitch/merge/patch" in help_text
         assert "Cycle merge visibility" in help_text
         assert "project:NAME" in help_text
         assert "Single; omitted seeds current" in help_text

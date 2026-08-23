@@ -112,6 +112,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("sidecar:true / false", "Include / exclude sidecars"),
                 ("merges:hide / show / only", "Merge-commit visibility"),
                 ("origin:stitch/auto/manual", "Commit origin"),
+                ("type:manual/automatic/stitch/merge/patch", "Commit labels"),
                 ("limit:N / limit:all", "Host cap; default page size; all unlimited"),
                 (
                     "[P/N] / [P/N+]",

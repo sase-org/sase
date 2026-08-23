@@ -233,3 +233,14 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_include_typed_launch_directives_when_enabled
 # fixed-at: 2026-08-23T14:09:41Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
+#
+# sase-s8 / sase-sg: restore wait_watch's public is_terminal_state export in
+# 2882047e2 "fix(query): retire the sase-s9 symvision exemptions and restore
+# is_terminal_state" (committed 2026-08-23T16:39:34Z). Retires stale records
+# from the temporary broken export; the dispatch node passes on this tree.
+# fixed-at: 2026-08-23T16:39:34Z tests/main/test_agents_dispatch_handler.py::test_dispatch_wait
+#
+# sase-sf: filed flake task for the full-parallel-only archive publication
+# ordering node. Focused serial and isolated xdist reruns passed on the filing
+# tree; remove when the timing root cause is fixed.
+tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-2]

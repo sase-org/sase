@@ -164,6 +164,7 @@ REQUIRED_BINDINGS = (
     "telemetry_store_stats",
     "vcs_log_wire_schema_version",
     "parse_merge_summary",
+    "classify_commit_types",
     "apply_snippet_session_event",
     "provider_disable_wire_schema_version",
     "provider_disable_get",

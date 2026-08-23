@@ -154,6 +154,7 @@ async def test_negative_completion_omits_non_negatable_keys() -> None:
         labels = _option_labels(app.query_one("#commit-filter-completion", OptionList))
         assert any(label.startswith("-repo:") for label in labels)
         assert any(label.startswith("-author:") for label in labels)
+        assert any(label.startswith("-type:") for label in labels)
         assert not any(label.startswith("-since:") for label in labels)
         assert not any(label.startswith("-until:") for label in labels)
         assert not any(label.startswith("-sidecar:") for label in labels)
@@ -321,6 +322,40 @@ async def test_static_value_completions_explain_dates_merges_and_caps() -> None:
         labels = _option_labels(completion)
         assert [label.split()[0] for label in labels] == ["hide", "show", "only"]
         assert all("hide, show, or only" in label for label in labels)
+
+
+async def test_type_key_static_observed_and_negated_values_complete() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+        bar.set_completion_sources(repos=(), authors=(), types=("bead_work", "sdd"))
+        bar.open("ty")
+        await pilot.pause()
+
+        completion = app.query_one("#commit-filter-completion", OptionList)
+        labels = _option_labels(completion)
+        assert len(labels) == 1
+        assert labels[0].startswith("type:")
+        assert "manual, automatic" in labels[0]
+
+        editor = app.query_one("#commit-filter-input", SingleLineVimTextArea)
+        editor.load_text("type:b")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        labels = _option_labels(completion)
+        assert labels[0].startswith("bead_work")
+        assert "observed SASE_TYPE" in labels[0]
+
+        editor.load_text("type:manual,pa")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        assert _option_labels(completion)[0].startswith("patch")
+
+        editor.load_text("-type:s")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        labels = _option_labels(completion)
+        assert [label.split()[0] for label in labels] == ["stitch", "sdd"]
 
 
 async def test_close_leaves_persistent_bar_visible_and_hides_completion() -> None:

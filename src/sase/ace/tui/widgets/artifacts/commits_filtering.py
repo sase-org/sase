@@ -211,6 +211,7 @@ class CommitsFilteringMixin(_MixinBase):
             self.query_one(CommitFilterBar).set_completion_sources(
                 query_index.facets.get("repo", ()),
                 query_index.facets.get("author", ()),
+                query_index.facets.get("type", ()),
             )
             return
         results: tuple[VcsLogResult, ...] = (result,)
@@ -229,7 +230,14 @@ class CommitsFilteringMixin(_MixinBase):
             for entry in source_result.commits
             if entry.commit.author_name
         )
-        self.query_one(CommitFilterBar).set_completion_sources(repos, authors)
+        types = tuple(
+            label
+            for source_result in results
+            for query_index in (self._query_index_for_result(source_result),)
+            if query_index is not None
+            for label in query_index.facets.get("type", ())
+        )
+        self.query_one(CommitFilterBar).set_completion_sources(repos, authors, types)
 
     def _filter_reconciliation_blocked(self) -> bool:
         if not self._filter_session_open:

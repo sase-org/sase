@@ -224,6 +224,45 @@ async def test_explicit_limit_truncates_and_remains_visible(
         assert "limit:40" in pane._filter_chips()
 
 
+async def test_type_filter_uses_uncapped_backend_candidates_before_host_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {
+            "ace": {
+                "artifacts": {
+                    "stitches": {"default_query": "sidecar:false type:manual limit:1"}
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="patches") as page:
+        await page.press("1")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        bar = pane.query_one(CommitFilterBar)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and [entry.commit.short_id for entry in pane.result.commits]
+                == ["bbbbbbb"]
+            )
+        )
+
+        assert calls[0]["limit"] == 0
+        assert editor.text == "type:manual sidecar:false merges:hide limit:1"
+
+
 def test_relative_filter_reparse_reuses_snapshot_cache_key() -> None:
     tz = get_timezone()
     first_now = datetime(2026, 7, 18, 12, 0, tzinfo=tz)

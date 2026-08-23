@@ -42,6 +42,7 @@ class CommitFilterBar(FilterBar):
         ("repo", "repository name or alias"),
         ("author", "name or email substring"),
         ("origin", "commit origin: stitch, auto, manual"),
+        ("type", "commit labels: manual, automatic, stitch, merge, patch"),
         ("since", "from an instant or the start of a named day"),
         ("until", "through an instant or the full named day"),
         ("sidecar", "include sidecar repositories"),
@@ -55,20 +56,22 @@ class CommitFilterBar(FilterBar):
         "merges": ("hide", "show", "only"),
         "limit": ("40", "100", "200", "all"),
         "origin": ("stitch", "auto", "manual"),
+        "type": ("manual", "automatic", "stitch", "merge", "patch"),
     }
     VALUE_HINTS = {
         "project": "project name",
         "repo": "repository",
         "author": "author",
         "origin": "stitch, auto, manual",
+        "type": "manual, automatic, stitch, merge, patch, or observed SASE_TYPE",
         "since": "date bound",
         "until": "named days include the full day",
         "sidecar": "true or false",
         "merges": "hide, show, or only",
         "limit": "row cap or all",
     }
-    REPEATABLE_VALUE_KINDS = frozenset(("repo", "author", "origin"))
-    NEGATABLE_KEYS = frozenset(("repo", "author", "origin"))
+    REPEATABLE_VALUE_KINDS = frozenset(("repo", "author", "origin", "type"))
+    NEGATABLE_KEYS = frozenset(("repo", "author", "origin", "type"))
     FREE_TEXT_HINT = "subject terms (AND)"
     PERSISTENT = True
 
@@ -94,15 +97,18 @@ class CommitFilterBar(FilterBar):
         self._projects: tuple[str, ...] = ()
         self._repos: tuple[str, ...] = ()
         self._authors: tuple[str, ...] = ()
+        self._types: tuple[str, ...] = ()
 
     def set_completion_sources(
         self,
         repos: Iterable[str],
         authors: Iterable[str],
+        types: Iterable[str] = (),
     ) -> None:
-        """Replace the in-memory repository and author completion sources."""
+        """Replace the in-memory repository, author, and type completion sources."""
         self._repos = tuple(repos)
         self._authors = tuple(authors)
+        self._types = tuple(types)
         self._refresh_completion_sources()
 
     def set_project_completion_sources(self, projects: Iterable[str]) -> None:
@@ -116,6 +122,7 @@ class CommitFilterBar(FilterBar):
                 "project": self._projects,
                 "repo": self._repos,
                 "author": self._authors,
+                "type": self._types,
             }
         )
 

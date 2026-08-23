@@ -117,6 +117,13 @@ def test_parse_origin_comma_list_and_negation() -> None:
     assert values.excluded_origins == ("manual",)
 
 
+def test_parse_type_comma_list_negation_and_auto_alias() -> None:
+    values = parse_commit_filter_query("type:manual,AUTO,sdd -type:patch")
+
+    assert values.types == ("manual", "automatic", "sdd")
+    assert values.excluded_types == ("patch",)
+
+
 def test_parse_origin_is_case_insensitive() -> None:
     values = parse_commit_filter_query("ORIGIN:StItCh")
 
@@ -124,10 +131,13 @@ def test_parse_origin_is_case_insensitive() -> None:
 
 
 def test_canonical_query_round_trips_origin_selection() -> None:
-    values = parse_commit_filter_query("origin:stitch,auto -origin:manual")
+    values = parse_commit_filter_query(
+        "origin:stitch,auto -origin:manual type:AUTO,sdd -type:patch"
+    )
 
     assert to_query_string(values) == (
-        "origin:stitch origin:auto -origin:manual sidecar:true merges:hide"
+        "origin:stitch origin:auto -origin:manual "
+        "type:automatic type:sdd -type:patch sidecar:true merges:hide"
     )
     assert parse_commit_filter_query(to_query_string(values)) == values
 
@@ -158,6 +168,9 @@ def test_canonical_query_round_trips_origin_selection() -> None:
         ("repo:a,,b", "empty value", "repo:a,,b", (0, 9)),
         ("origin:", "requires a value", "origin:", (0, 7)),
         ("origin:manual,,auto", "empty value", "origin:manual,,auto", (0, 19)),
+        ("type:", "requires a value", "type:", (0, 5)),
+        ("type:manual,,patch", "empty value", "type:manual,,patch", (0, 18)),
+        ('type:"   "', "empty value", 'type:"   "', (0, 10)),
         (
             "origin:bogus",
             "must be 'stitch', 'auto', or 'manual'",
@@ -315,6 +328,11 @@ _VALUE_TEXT = st.text(
     min_size=1,
     max_size=18,
 )
+_TYPE_TEXT = (
+    _VALUE_TEXT.map(lambda value: " ".join(value.split()).casefold())
+    .filter(bool)
+    .map(lambda value: "automatic" if value == "auto" else value)
+)
 
 
 @given(
@@ -329,6 +347,8 @@ _VALUE_TEXT = st.text(
     excluded_origins=st.lists(
         st.sampled_from(("stitch", "auto", "manual")), max_size=2
     ).map(tuple),
+    types=st.lists(_TYPE_TEXT, max_size=3).map(tuple),
+    excluded_types=st.lists(_TYPE_TEXT, max_size=3).map(tuple),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     sidecar=st.booleans(),
@@ -351,6 +371,8 @@ def test_canonical_query_round_trip_property(
     excluded_authors: tuple[str, ...],
     origins: tuple[CommitOrigin, ...],
     excluded_origins: tuple[CommitOrigin, ...],
+    types: tuple[str, ...],
+    excluded_types: tuple[str, ...],
     text_terms: tuple[str, ...],
     excluded_text: tuple[str, ...],
     sidecar: bool,
@@ -365,6 +387,8 @@ def test_canonical_query_round_trip_property(
         excluded_authors=excluded_authors,
         origins=origins,
         excluded_origins=excluded_origins,
+        types=types,
+        excluded_types=excluded_types,
         since_text=since_text,
         until_text=until_text,
         since=parse_time_bound(since_text) if since_text else None,
@@ -394,6 +418,8 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         excluded_repos=("plans",),
         merges="show",
         limit=5,
+        types=("sdd",),
+        excluded_types=("patch",),
         text=("fix",),
         excluded_text=("generated",),
     )
@@ -433,9 +459,13 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         ("origin:", 7, ("origin", "")),
         ("origin:st", 9, ("origin", "st")),
         ("origin:manual,st", 16, ("origin", "st")),
+        ("type:", 5, ("type", "")),
+        ("type:au", 7, ("type", "au")),
+        ("type:manual,pa", 14, ("type", "pa")),
         ("-repo:plans", 11, ("repo", "plans")),
         ("-author:bo", 10, ("author", "bo")),
         ("-origin:st", 10, ("origin", "st")),
+        ("-type:pa", 8, ("type", "pa")),
         ("-since:7", 8, ("key", "since:7")),
         ("-merges:o", 9, ("key", "merges:o")),
         ('-"generated ro', 14, ("text", "generated ro")),
@@ -458,7 +488,7 @@ def test_completion_context_reports_negative_polarity() -> None:
 
 def test_filter_chips_use_canonical_query_tokens() -> None:
     filters = parse_commit_filter_query(
-        'author:"Ada Lovelace" repo:sase project:alpha '
+        'author:"Ada Lovelace" repo:sase project:alpha type:auto '
         'sidecar:true limit:all "fix live"'
     )
 
@@ -466,6 +496,7 @@ def test_filter_chips_use_canonical_query_tokens() -> None:
         "project:alpha",
         "repo:sase",
         'author:"Ada Lovelace"',
+        "type:automatic",
         "sidecar:true",
         "merges:hide",
         '"fix live"',

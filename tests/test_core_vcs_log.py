@@ -33,9 +33,11 @@ from sase.core.vcs_log_facade import (
     _aggregate_commit_log_python,
     _classify_commit_origin_python,
     _classify_commit_presence_python,
+    _classify_commit_types_python,
     _parse_git_log_python,
     aggregate_commit_log,
     classify_commit_presence,
+    classify_commit_types,
     merge_summary,
     parse_git_log,
 )
@@ -414,6 +416,99 @@ def test_classify_origin_matches_python_golden(subject: str, body: str) -> None:
     assert binding(message) == _classify_commit_origin_python(subject, body)
 
 
+@pytest.mark.parametrize(
+    ("commit", "expected"),
+    [
+        (_commit("manual", 1, "fix: handwritten"), ("manual",)),
+        (
+            VcsCommitWire(
+                full_id="auto",
+                short_id="auto",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=2,
+                subject="fix: generated",
+                body="Details\n\nSASE_TYPE=SDD",
+                origin="auto",
+            ),
+            ("automatic", "sdd"),
+        ),
+        (
+            VcsCommitWire(
+                full_id="auto-alias",
+                short_id="auto",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=2,
+                subject="fix: generated",
+                body="Details\n\nSASE_TYPE=auto",
+                origin="auto",
+            ),
+            ("automatic",),
+        ),
+        (
+            VcsCommitWire(
+                full_id="tracked",
+                short_id="tracked",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=3,
+                subject="fix: tracked",
+                body="Details\n\nSASE_TYPE=stitch",
+                origin="stitch",
+            ),
+            ("stitch",),
+        ),
+        (
+            VcsCommitWire(
+                full_id="merge",
+                short_id="merge",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=4,
+                parent_ids=("p1", "p2"),
+                subject="Merge tracked work",
+                body="Details\n\nSASE_TYPE=bead_work\nSASE_PATCH=feat-x",
+                origin="auto",
+            ),
+            ("automatic", "bead_work", "merge", "patch"),
+        ),
+        (
+            VcsCommitWire(
+                full_id="legacy",
+                short_id="legacy",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=5,
+                subject="fix: legacy",
+                body="Details\n\nTYPE=Future Kind\nPATCH=feat-x",
+                origin="auto",
+            ),
+            ("automatic", "future kind", "patch"),
+        ),
+        (
+            VcsCommitWire(
+                full_id="body",
+                short_id="body",
+                author_name="bryan",
+                author_email="bryan@example.com",
+                timestamp=6,
+                parent_ids=("p1", "p2"),
+                subject="fix: handwritten",
+                body="SASE_TYPE=not terminal\n\nMore",
+            ),
+            ("manual", "merge"),
+        ),
+    ],
+)
+def test_classify_commit_types_matches_python_golden(
+    commit: VcsCommitWire,
+    expected: tuple[str, ...],
+) -> None:
+    assert _classify_commit_types_python(commit) == expected
+    assert classify_commit_types(commit) == expected
+
+
 def test_parse_computes_origin_from_footer() -> None:
     stream = _record(
         "h1",
@@ -578,6 +673,23 @@ def test_classify_routes_through_registered_binding(
     assert captured["behind_ids"] == []
     assert captured["commits"][0]["full_id"] == "a"
     assert result[0].presence == "local_only"
+
+
+def test_classify_commit_types_routes_through_registered_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_classify(commit: dict[str, object]) -> list[str]:
+        captured["commit"] = commit
+        return ["manual", "custom"]
+
+    _install_fake_module(monkeypatch, classify_commit_types=fake_classify)
+    commit = _commit("a", 5, parent_ids=("p1", "p2"))
+
+    assert classify_commit_types(commit) == ("manual", "custom")
+    assert captured["commit"]["full_id"] == "a"
+    assert captured["commit"]["parent_ids"] == ("p1", "p2")
 
 
 # ---------------------------------------------------------------------------
