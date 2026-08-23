@@ -178,6 +178,8 @@ class ProcsPaneSelectionMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _all_sessions: bool
+        _filter_scoped_total: int
+        _filter_session_open: bool
         _last_statuses: dict[str, tuple[str, str | None, str]]
         _monitor_agent_names: dict[str, str]
         _monitor_status_chips: dict[str, MonitorStatusChip]
@@ -186,6 +188,8 @@ class ProcsPaneSelectionMixin(_MixinBase):
         _store_loaded_once: bool
         _tasks: list[ObservedProc]
         _user_scrolled: bool
+
+        def _display_filter_query(self) -> str: ...
 
         def _display_output(self, task: ObservedProc | None) -> None: ...
 
@@ -445,7 +449,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
 
         self._display_output(self._get_selected_task())
         self._update_hints()
-        if self._is_active_tab():
+        if self._is_active_tab() and not self._filter_session_open:
             option_list.focus()
 
     def _status_snapshot(self) -> dict[str, tuple[str, str | None, str]]:
@@ -472,6 +476,8 @@ class ProcsPaneSelectionMixin(_MixinBase):
         text.append(gear_chip(proc_running, PROC_GEAR_HUE, hide_at_zero=False))
         text.append(gear_chip(monitor_running, MONITOR_GEAR_HUE, hide_at_zero=False))
         text.append(f"  [{running} running · {done} done]")
+        if self._display_filter_query().strip():
+            text.append(f"  · {len(self._tasks)}/{self._filter_scoped_total} shown")
         return text
 
 

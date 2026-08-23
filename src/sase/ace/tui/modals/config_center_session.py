@@ -72,6 +72,7 @@ class ProcsSessionState:
 
     all_sessions: bool = False
     task: SelectionBookmark = field(default_factory=SelectionBookmark)
+    query: str = ""
 
 
 @dataclass

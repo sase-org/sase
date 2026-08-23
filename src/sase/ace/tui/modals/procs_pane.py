@@ -23,8 +23,10 @@ from ..proc_observer import ObservedProc, ProcProjection, proc_projection_for
 from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
+from .procs_filter_bar import ProcsFilterBar
 from .procs_pane_actions import ProcsPaneActionsMixin
 from .procs_pane_agent_jump import ProcsPaneAgentJumpMixin
+from .procs_pane_filter import ProcsPaneFilterMixin
 from .procs_pane_render import BodyCache, MonitorStatusChip
 from .procs_pane_selection import ProcsPaneSelectionMixin, TaskList
 from .procs_pane_store import ProcsPaneStoreMixin
@@ -35,6 +37,7 @@ class ProcsPane(
     PaneEntryJumpMixin,
     ProcsPaneActionsMixin,
     ProcsPaneAgentJumpMixin,
+    ProcsPaneFilterMixin,
     ProcsPaneStoreMixin,
     ProcsPaneSelectionMixin,
     Vertical,
@@ -62,6 +65,7 @@ class ProcsPane(
         ("shift+g", "scroll_to_bottom", "Bottom"),
         ("enter", "open_monitor_agent", "Open Agent"),
         ("apostrophe", "jump_to_entry", "Jump"),
+        ("slash", "focus_filter", "Filter"),
     ]
 
     def __init__(
@@ -86,9 +90,11 @@ class ProcsPane(
         self._store_detail_id: str | None = None
         self._store_loaded_once = False
         self._tick_count = 0
+        self._init_procs_filter_session()
 
     def compose(self) -> ComposeResult:
         yield Label(self._title_text(), id="procs-pane-title")
+        yield ProcsFilterBar(id="procs-filter-bar", profile=self._query_filter.profile)
         with Horizontal(id="procs-panels"):
             with Vertical(id="procs-list-panel"):
                 yield Label("Procs", classes="config-region-header")
@@ -103,6 +109,7 @@ class ProcsPane(
 
     def on_mount(self) -> None:
         self._session_id = self._proc_projection().session_id
+        self._sync_filter_bar()
         self._refresh_snapshot()
         self._request_store_reload(force=True)
         self._refresh_timer = self.set_interval(0.25, self._refresh_running_output)
@@ -182,6 +189,7 @@ class ProcsPane(
         agent_hint = self._monitor_jump_hint()
         tokens = [
             "j/k: move",
+            "/: filter",
             "a: scope",
             "d/D: dismiss",
             "K: kill",
@@ -198,7 +206,7 @@ class ProcsPane(
                 "Esc: close",
             )
         )
-        return self._fit_hints(tokens, protected={agent_hint, "': jump"})
+        return self._fit_hints(tokens, protected={agent_hint, "': jump", "/: filter"})
 
     def _hint_width(self) -> int:
         try:

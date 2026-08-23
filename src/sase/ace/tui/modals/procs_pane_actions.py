@@ -34,6 +34,7 @@ class ProcsPaneActionsMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _body_cache: BodyCache
+        _filter_scoped_total: int
         _monitor_agent_names: dict[str, str]
         _monitor_status_chips: dict[str, MonitorStatusChip]
         _spinner_index: int
@@ -59,6 +60,8 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         def _selected_task_identity(self) -> str | None: ...
 
+        def _display_filter_query(self) -> str: ...
+
     def _display_output(self, task: ObservedProc | None) -> None:
         """Render task output in the right pane."""
         title = self.query_one("#procs-output-title", Label)
@@ -66,7 +69,7 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         if task is None:
             title.update("Output")
-            content.update(Text("No procs yet.", style="dim italic"))
+            content.update(self._empty_output_text())
             self._reset_output_scroll()
             return
 
@@ -76,6 +79,14 @@ class ProcsPaneActionsMixin(_MixinBase):
             self._scroll_output_to_end()
         elif not is_active(task):
             self._reset_output_scroll()
+
+    def _empty_output_text(self) -> Text:
+        if self._display_filter_query().strip() and self._filter_scoped_total:
+            text = Text("No procs match the filter. ", style="dim italic")
+            text.append("Press /", style="bold")
+            text.append(" to change it.", style="dim italic")
+            return text
+        return Text("No procs yet.", style="dim italic")
 
     def _output_text(self, task: ObservedProc) -> Text:
         out = Text()
