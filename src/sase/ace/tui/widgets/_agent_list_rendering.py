@@ -7,6 +7,8 @@ from ``_agent_list_rendering``:
 - ``_agent_list_render_layout`` — shared style constants and layout helpers.
 - ``_agent_list_render_cache`` — LRU-backed render cache and key builders.
 - ``_agent_list_render_agent`` — agent row formatter (+ cached wrapper).
+- ``_agent_list_render_agent_prefix`` — leading chrome for one agent row.
+- ``_agent_list_render_agent_status`` — status parenthetical for one agent row.
 - ``_agent_list_render_banner`` — group banner formatter (+ cached wrapper).
 - ``_agent_list_render_attempt`` — prior-attempt row formatter.
 """
