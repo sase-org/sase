@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.proc_handler import handle_proc_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from sase.procs import Proc, append_proc, proc_log_path
 from sase.sessions import SessionIdentity
 
@@ -40,7 +40,7 @@ NOOP = (sys.executable, "-c", "pass")
 def dispatch(argv: list[str]) -> int:
     """Run one ``sase proc`` invocation and return its process exit code."""
     with pytest.raises(SystemExit) as exit_info:
-        handle_proc_command(create_parser().parse_args(argv))
+        handle_proc_command(parse_sase_args(argv))
     return int(exit_info.value.code or 0)
 
 

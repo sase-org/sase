@@ -616,8 +616,9 @@ def test_skills_inventory_reports_retired_deletion_drift(
     text = output.getvalue()
     assert "/sase_old" in text
     assert "retired" in text
-    _assert_rendered_path(text, source)
-    _assert_rendered_path(text, live)
+    collapsed = _collapsed_render(text)
+    assert "dot_claude/skills/sase_old/SKILL.md" in collapsed
+    assert ".claude/skills/sase_old/SKILL.md" in collapsed
 
 
 def test_rendered_path_assertion_tolerates_wrap_and_rejects_absence() -> None:

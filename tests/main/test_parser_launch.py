@@ -16,7 +16,7 @@ from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 def test_launch_command_group_parses_subcommands() -> None:
     """``sase launch`` resolves pending LaunchApproval requests."""
-    parser = create_parser()
+    parser = create_parser(only="launch")
 
     approve_args = parser.parse_args(["launch", "approve", "launch-1"])
     reject_args = parser.parse_args(

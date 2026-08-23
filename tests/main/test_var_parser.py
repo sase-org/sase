@@ -13,7 +13,7 @@ from sase.main.parser_var import WrappedAgentTarget
 
 
 def test_parser_registers_var_get_aliases() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     args = parser.parse_args(
         [
@@ -51,7 +51,7 @@ def test_parser_registers_var_get_aliases() -> None:
 
 
 def test_parser_accepts_zero_target_and_wrapped_agent_get() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     empty = parser.parse_args(["var", "get", "--format", "json"])
     wrapped = parser.parse_args(
@@ -78,7 +78,7 @@ def test_parser_accepts_zero_target_and_wrapped_agent_get() -> None:
 
 
 def test_parser_registers_var_list_aliases() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     listing = parser.parse_args(
         [
@@ -119,7 +119,7 @@ def test_parser_registers_var_list_aliases() -> None:
 def test_parser_rejects_removed_var_show(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "show"])
@@ -129,14 +129,14 @@ def test_parser_rejects_removed_var_show(
 
 
 def test_parser_single_limit_keeps_default_value_limit() -> None:
-    args = create_parser().parse_args(["var", "list", "--limit", "0"])
+    args = create_parser(only="var").parse_args(["var", "list", "--limit", "0"])
 
     assert args.limit == (0, 5)
 
 
 @pytest.mark.parametrize("raw", ["-1", "20:", ":5", "nope", "1:x"])
 def test_parser_rejects_invalid_limits(raw: str) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "list", "--limit", raw])
@@ -145,11 +145,15 @@ def test_parser_rejects_invalid_limits(raw: str) -> None:
 
 
 def test_parse_var_list_limit_zero_is_unlimited() -> None:
-    assert create_parser().parse_args(["var", "list", "--limit", "0:0"]).limit == (
+    assert create_parser(only="var").parse_args(
+        ["var", "list", "--limit", "0:0"]
+    ).limit == (
         0,
         0,
     )
-    assert create_parser().parse_args(["var", "list", "--limit", "8"]).limit == (
+    assert create_parser(only="var").parse_args(
+        ["var", "list", "--limit", "8"]
+    ).limit == (
         8,
         5,
     )
@@ -158,7 +162,7 @@ def test_parse_var_list_limit_zero_is_unlimited() -> None:
 def test_parser_rejects_invalid_date_bounds(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "list", "--since", "next-week"])
@@ -170,7 +174,7 @@ def test_parser_rejects_invalid_date_bounds(
 def test_parser_rejects_invalid_value_json(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "list", "--value-json", "{"])
@@ -180,7 +184,7 @@ def test_parser_rejects_invalid_value_json(
 
 
 def test_parser_value_and_value_json_are_mutually_exclusive() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "list", "--value", "ok", "--value-json", '"ok"'])
@@ -189,7 +193,7 @@ def test_parser_value_and_value_json_are_mutually_exclusive() -> None:
 
 
 def test_parse_var_value_json_normalizes_typed_values() -> None:
-    args = create_parser().parse_args(
+    args = create_parser(only="var").parse_args(
         ["var", "list", "--value-json", '{"z":1,"a":true}']
     )
 
@@ -199,7 +203,7 @@ def test_parse_var_value_json_normalizes_typed_values() -> None:
 def test_parser_rejects_invalid_get_selectors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "get", "report[summary]"])
@@ -213,7 +217,7 @@ def test_parser_rejects_malformed_wrapped_agents(
     raw: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "get", raw])
@@ -225,7 +229,7 @@ def test_parser_rejects_malformed_wrapped_agents(
 def test_parser_rejects_mixed_and_multiple_wrapped_targets(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "get", "<build>", "status"])
@@ -239,7 +243,7 @@ def test_parser_rejects_mixed_and_multiple_wrapped_targets(
 
 
 def test_parser_rejects_invalid_get_limit() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "get", "status", "--limit", "-1"])
@@ -250,7 +254,7 @@ def test_parser_rejects_invalid_get_limit() -> None:
 def test_var_list_and_get_help_keep_options_alphabetized(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "list", "--help"])
@@ -285,7 +289,7 @@ def test_var_list_and_get_help_keep_options_alphabetized(
 
 
 def test_parser_registers_var_set_assignments() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     args = parser.parse_args(["var", "set", "plan_file=sdd/plan.md", "status=ok"])
 
@@ -295,7 +299,7 @@ def test_parser_registers_var_set_assignments() -> None:
 
 
 def test_parser_registers_json_for_var_set() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     set_args = parser.parse_args(["var", "set", "cfg={}", "--json"])
 
@@ -304,8 +308,8 @@ def test_parser_registers_json_for_var_set() -> None:
 
 
 def test_bare_var_delegates_to_list() -> None:
-    args = create_parser().parse_args(["var"])
-    explicit = create_parser().parse_args(["var", "list"])
+    args = create_parser(only="var").parse_args(["var"])
+    explicit = create_parser(only="var").parse_args(["var", "list"])
 
     assert args.var_subcommand == "list"
     assert args.format == "pretty"
@@ -318,7 +322,7 @@ def test_bare_var_delegates_to_list() -> None:
 def test_var_help_keeps_subcommands_and_set_options_alphabetized(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "--help"])
@@ -353,7 +357,7 @@ def test_parser_registers_var_set_value_sources(
     option: str,
     destination: str,
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     args = parser.parse_args(["var", "set", "summary", option, "source"])
 
@@ -362,7 +366,7 @@ def test_parser_registers_var_set_value_sources(
 
 
 def test_parser_rejects_both_var_set_value_sources() -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(
@@ -383,7 +387,7 @@ def test_parser_rejects_both_var_set_value_sources() -> None:
 def test_parser_value_source_requires_a_positional_key(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    parser = create_parser()
+    parser = create_parser(only="var")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "set", "--value", "text"])

@@ -13,11 +13,11 @@ from sase.bead import cli as bead_cli
 from sase.bead import cli_dep
 from sase.bead.model import Dependency, Issue, IssueType
 from sase.bead.project import BeadProject
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def _run(argv: list[str]) -> None:
-    bead_cli.handle_bead_dep(create_parser().parse_args(["bead", "dep", *argv]))
+    bead_cli.handle_bead_dep(parse_sase_args(["bead", "dep", *argv]))
 
 
 def _create(project: BeadProject, title: str) -> Issue:
@@ -25,7 +25,7 @@ def _create(project: BeadProject, title: str) -> Issue:
 
 
 def test_dep_tree_parser_defaults_and_sorted_public_options() -> None:
-    args = create_parser().parse_args(["bead", "dep", "tree"])
+    args = parse_sase_args(["bead", "dep", "tree"])
 
     assert args.id is None
     assert args.color == "auto"
@@ -34,7 +34,7 @@ def test_dep_tree_parser_defaults_and_sorted_public_options() -> None:
     assert args.levels == 0
     assert args.status is None
 
-    help_text = create_parser().parse_args(["bead", "dep"])
+    help_text = parse_sase_args(["bead", "dep"])
     assert help_text.dep_action == "list"
 
 

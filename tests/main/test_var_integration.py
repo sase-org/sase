@@ -12,8 +12,8 @@ from sase.core.agent_scan_facade import (
     write_agent_artifact_index_meta,
 )
 from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
-from sase.main.parser import create_parser
 from sase.main.var_handler import handle_var_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.var_cli_helpers import (
     isolate_sase_home,
     rebuild_home_index,
@@ -23,7 +23,7 @@ from tests.main.var_cli_helpers import (
 
 def _run_var(argv: list[str]) -> int:
     with pytest.raises(SystemExit) as exc:
-        handle_var_command(create_parser().parse_args(["var", *argv]))
+        handle_var_command(parse_sase_args(["var", *argv]))
     return int(exc.value.code)
 
 

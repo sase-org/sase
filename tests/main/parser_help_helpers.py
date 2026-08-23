@@ -8,7 +8,7 @@ from io import StringIO
 
 import pytest
 
-from sase.main.parser import create_parser
+from sase.main.parser import create_parser, parser_only_hint
 
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -39,7 +39,8 @@ def walk_subparser_actions(
 
 
 def parser_for(path: tuple[str, ...]) -> argparse.ArgumentParser:
-    parser = create_parser()
+    only = path[1] if len(path) > 1 else None
+    parser = create_parser(only=only)
     for command in path[1:]:
         subparser_action = next(
             action
@@ -87,7 +88,7 @@ def root_subparser_action(
 
 
 def parse_and_capture_help(args: list[str], capsys: pytest.CaptureFixture[str]) -> str:
-    parser = create_parser()
+    parser = create_parser(only=parser_only_hint(["sase", *args]))
 
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(args)

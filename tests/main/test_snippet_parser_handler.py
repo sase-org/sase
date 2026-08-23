@@ -16,7 +16,7 @@ from tests.main.parser_help_helpers import (
 
 
 def test_parser_registers_snippet_namespace() -> None:
-    parser = create_parser()
+    parser = create_parser(only="snippet")
 
     default_args = parser.parse_args(["snippet"])
     assert default_args.command == "snippet"
@@ -118,7 +118,7 @@ def test_parser_snippet_options_are_alphabetical_and_aliased() -> None:
 
 
 def test_parser_accepts_project_before_or_after_subcommand() -> None:
-    parser = create_parser()
+    parser = create_parser(only="snippet")
 
     before = parser.parse_args(["snippet", "-p", "sase", "show", "greet"])
     after = parser.parse_args(["snippet", "show", "greet", "-p", "sase"])
@@ -136,7 +136,7 @@ def test_parser_accepts_project_before_or_after_subcommand() -> None:
 
 
 def test_bare_snippet_records_list_delegation() -> None:
-    parser = create_parser()
+    parser = create_parser(only="snippet")
     omitted = parser.parse_args(["snippet"])
     explicit = parser.parse_args(["snippet", "list"])
 
@@ -203,7 +203,7 @@ def _assert_dispatches(
         calls.append(args)
 
     monkeypatch.setattr(target, fake_handler)
-    args = create_parser().parse_args(argv)
+    args = create_parser(only="snippet").parse_args(argv)
 
     with pytest.raises(SystemExit) as exc:
         snippet_handler.handle_snippet_command(args)

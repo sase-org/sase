@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.var_handler import handle_var_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.var_cli_helpers import (
     isolate_sase_home,
     rebuild_home_index,
@@ -19,7 +19,7 @@ from tests.main.var_cli_helpers import (
 
 def run_var_get(argv: list[str]) -> None:
     """Run ``sase var get`` with *argv* through the real parser and handler."""
-    handle_var_command(create_parser().parse_args(["var", "get", *argv]))
+    handle_var_command(parse_sase_args(["var", "get", *argv]))
 
 
 def write_current_artifacts(

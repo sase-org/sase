@@ -696,6 +696,12 @@ save-time conversion, and literal-zone rules.
 | `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
 | `float` | --        | Must parse as a float                                   |
 | `enum`  | --        | Must be one of the input's declared `choices`           |
+| `code`  | --        | Structured source plus language (default language bash) |
+
+A `code` input is not a plain string with a convention. Binding yields a structured
+`CodeValue` (source, language, digest, preview). Unlabelled values default to Bash; ACE
+and the xprompt LSP treat the field as code rather than a scalar. Completing the type as
+an input is gated with the `typed_launch_units` beta flag, same as `%if` / `%proc`.
 
 ### Enum Choices
 
@@ -1491,21 +1497,21 @@ are extracted and stripped from the prompt before further processing.
 
 ### Supported Directives
 
-| Directive           | Alias | Description                                                             |
-| ------------------- | ----- | ----------------------------------------------------------------------- |
-| `%model`            | `%m`  | Override the LLM model for this prompt                                  |
-| `%effort`           | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                   |
-| `%id`               | `%i`  | Assign an id, clan, family, or user-managed tribe                       |
-| `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                       |
-| `%wait`             | `%w`  | Wait for agents, closed beads, a time floor, and/or a runner threshold  |
-| `%if`               |       | Attach a beta condition to a typed launch unit                          |
-| `%proc`             |       | Define a beta typed process unit (native dispatch is not yet available) |
-| `%final`            |       | Select configured finalizer instances for this launch                   |
-| `%hide`             | `%h`  | Hide the agent from the default Agents tab display                      |
-| `%auto`             | `%a`  | Request automatic gate resolution; an optional argument is gate-owned   |
-| `%repeat`           | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                       |
-| `%alt`              | `%{}` | Split prompt into variants with different text (brace shorthand)        |
-| `%xprompts_enabled` |       | Enable or disable xprompt expansion for a text region                   |
+| Directive           | Alias | Description                                                            |
+| ------------------- | ----- | ---------------------------------------------------------------------- |
+| `%model`            | `%m`  | Override the LLM model for this prompt                                 |
+| `%effort`           | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                  |
+| `%id`               | `%i`  | Assign an id, clan, family, or user-managed tribe                      |
+| `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                      |
+| `%wait`             | `%w`  | Wait for agents, closed beads, a time floor, and/or a runner threshold |
+| `%if`               |       | Attach a beta condition to a typed launch unit                         |
+| `%proc`             |       | Define and natively dispatch a beta stand-alone process unit           |
+| `%final`            |       | Select configured finalizer instances for this launch                  |
+| `%hide`             | `%h`  | Hide the agent from the default Agents tab display                     |
+| `%auto`             | `%a`  | Request automatic gate resolution; an optional argument is gate-owned  |
+| `%repeat`           | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                      |
+| `%alt`              | `%{}` | Split prompt into variants with different text (brace shorthand)       |
+| `%xprompts_enabled` |       | Enable or disable xprompt expansion for a text region                  |
 
 Agent identity uses `%id` or its `%i` alias. The retired `%name` and `%n` prompt
 directives are not launch aliases. Using either as a top-level directive now raises a
@@ -1558,6 +1564,7 @@ and lets the directive parser capture the following forms:
 
 ````text
 %if::
+
 ```bash
 test -f pyproject.toml
 ```
@@ -1578,19 +1585,20 @@ The fenced form puts options before `::` and owns the fence that follows:
 
 ````text
 %proc(timeout="20m", idle_timeout="5m", cwd="docs", workspace="true")::
+
 ```bash
 just docs-check
 ```
 ````
 
-`%if` accepts only `%if::` followed by exactly one closed `bash` or `python` fence.
-`%proc` accepts one positional shell command, one `bash=` or `python=` body, or the
-fenced `::` form; only one `%if` and one `%proc` may appear in a launch unit. Code
-bodies are opaque: `%` directives, `#` references, YAML frontmatter, Jinja, and `$()`
-inside them are preserved literally. The parser strips each directive and its body from
-the model prompt. Each planned fanout slot is one launch unit. A slot containing `%proc`
-becomes a process unit and cannot also contain agent prompt prose; `%id:<name>` gives
-that process unit a shell name.
+`%if` accepts only `%if::` followed by exactly one closed `bash` or `python` fence
+(intervening blank lines are allowed). `%proc` accepts one positional shell command, one
+`bash=` or `python=` body, or the fenced `::` form; only one `%if` and one `%proc` may
+appear in a launch unit. Code bodies are opaque: `%` directives, `#` references, YAML
+frontmatter, Jinja, and `$()` inside them are preserved literally. The parser strips
+each directive and its body from the model prompt. Each planned fanout slot is one
+launch unit. A slot containing `%proc` becomes a process unit and cannot also contain
+agent prompt prose; `%id:<name>` gives that process unit a shell name.
 
 Execution depends on the launch path:
 
@@ -1622,9 +1630,47 @@ proc. A typed dependency is satisfied when the target settles, even if it was sk
 failed; that outcome is available in the `%if` context and does not automatically cancel
 the dependent unit.
 
-`%proc` planning and approval previews are implemented, but the native process
-dispatcher is not. An eligible `%proc` unit currently settles as `launch_error` with
-`proc_dispatcher_unavailable`. Do not rely on `%proc` for command execution yet.
+An eligible `%proc` unit dispatches natively once its waits and `%if` pass: the
+admission coordinator reserves a `proc-shell` (lifecycle `proc-shell`, origin
+`xprompt-proc`) and starts its detached supervisor. The supervisor then acquires an
+operational workspace lease when `workspace` is true, materializes the approved source
+as a private `0600` script, executes it by argv — `/bin/bash --noprofile --norc
+
+<script>` or the SASE interpreter plus that script, never shell interpolation — and
+releases the lease through the existing resumable settlement path on every terminal
+outcome. Execution and idle timeouts begin when the child starts, not while waits, the
+condition, or the workspace lease are pending. The child's environment is sanitized and
+adds only documented proc context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, selected
+project, project file, and workspace number); it never sets `SASE_AGENT` or another
+agent-artifact variable. A stand-alone `%proc` unit never allocates an agent runner
+slot, family, `done.json`, or finalizer obligation.
+
+In project context `workspace` defaults to `true` and an optional relative `cwd` is
+resolved beneath the leased checkout; `workspace="false"` opts out and requires an
+ordinary `cwd`. Outside project context no lease is taken and an explicit `cwd` is
+required — `workspace="true"` without a selected project is a hard error. `%id:<name>` /
+`%id(<name>)` becomes the proc's optional bare `shell_name` (validated independently of
+the agent-family `--` naming convention); the canonical proc id is always allocated by
+the proc store. Stop/kill is routed through the native proc-stop path and is responsive
+in every phase — waiting, checking, acquiring the workspace, preparing the script,
+running, and settling.
+
+Coordinator restarts replay the journal: a persisted terminal condition result is not
+re-run, a reserved proc id is not duplicated, and agent/proc dispatch uses the stable
+request fingerprint written at approval. CLI and ACE notifications report the same
+counts the receipt stores — total, eligible, launched, skipped, condition errors, and
+launch errors.
+
+Stand-alone proc shells created this way appear in ACE's Agents tab as their own
+top-level rows (never nested under an agent family), each marked with a `▣` glyph
+alongside its shell name or short proc id, an optional `label`, a Bash/Python language
+badge, the current phase/status, elapsed time, and project. Panel titles report a
+separate `▣<count>` chip for stand-alone procs next to the ordinary agent-status chips;
+a stand-alone proc never changes agent runner, unread, clan, or family counts. Selecting
+a row opens a `PROC SHELL` detail with status/phase timeline, project/workspace/cwd,
+language, code digest and safe preview, waits and condition result, timeouts, and a
+bounded live-log tail — never the private script, the `SASE_CONDITION_CONTEXT` file, or
+unbounded output. The same rows and details are visible from the Procs pane.
 
 ### Syntax
 

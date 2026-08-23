@@ -10,8 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.integrations.xprompt_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
+    SASE_TYPED_LAUNCH_UNITS_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
     SASE_XPROMPT_BUILTIN_DIR_ENV,
     SASE_XPROMPT_DEFAULT_DIR_ENV,
@@ -458,3 +460,16 @@ def test_prepare_lsp_environment_respects_plugin_disable_env(
 
     assert json.loads(env[SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV]) == []
     assert json.loads(env[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV]) == []
+
+
+@pytest.mark.parametrize("enabled,expected", [(False, "0"), (True, "1")])
+def test_prepare_lsp_environment_pins_typed_launch_units(
+    tmp_path: Path,
+    enabled: bool,
+    expected: str,
+) -> None:
+    env: dict[str, str] = {}
+    with override_flags(typed_launch_units=enabled):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_TYPED_LAUNCH_UNITS_ENV] == expected

@@ -58,9 +58,24 @@ across those entry points:
 9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers
    when requested.
 
+When the `typed_launch_units` beta flag is enabled, LaunchApproval inserts a typed
+admission step between plan validation and dispatch. Recursive xprompt expansion and
+fan-out still happen first, then Rust builds an immutable `LaunchPlan` of tagged Agent
+or Proc units with stable logical IDs, waits, optional `%if` predicates, and code
+digests. Approval authorizes that digest. After approval, a detached launch-admission
+coordinator — infrastructure owned by the launch-request bundle, not an Agents-tab row —
+journals each unit through waiting, checking, skipped/error, dispatching, and launched
+states. Waits resolve before conditions; a false `%if` is a resource-free terminal skip;
+eligible Agent units still use the established agent launch path; eligible `%proc` units
+dispatch as native `proc-shell` records with origin `xprompt-proc`. Restarts replay the
+journal instead of re-running settled predicates or duplicating reserved identities.
+Direct `sase run` / ACE launches still strip the directives without evaluating them.
+
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches
-create a sequence of detached agents. Workflow launches persist step state so ACE and
-axe can inspect progress and recover meaningful output.
+create a sequence of detached agents. Stand-alone `%proc` shells appear in the same
+Agents tab as top-level `▣` rows backed only by the proc store, counted separately from
+agents. Workflow launches persist step state so ACE and axe can inspect progress and
+recover meaningful output.
 
 ## State Model
 

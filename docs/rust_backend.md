@@ -62,7 +62,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   Python compatibility paths for missing or stale bindings. In the current ACE host
   path, dismissed-bundle JSON persistence and its summary SQLite index are Python-owned.
 - Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out
-  planning, and RUNNING-field workspace-claim planning/mutation helpers
+  planning, typed Agent/Proc launch-plan validation, admission-journal replay, `%if`
+  condition evaluation, `%proc` script/argv/env preparation, and RUNNING-field
+  workspace-claim planning/mutation helpers
 - Bead data operations: read queries (`show`, `list`, `ready`, `blocked`, `stats`,
   `doctor`, epic-child lookups), merged multi-workspace reads, mutations (`init`,
   `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags, sync-clean

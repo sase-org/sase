@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.var_handler import handle_var_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
@@ -21,7 +21,7 @@ from tests.main.var_cli_helpers import (
 
 
 def _run_list(argv: list[str]) -> None:
-    handle_var_command(create_parser().parse_args(["var", "list", *argv]))
+    handle_var_command(parse_sase_args(["var", "list", *argv]))
 
 
 def _seed_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:

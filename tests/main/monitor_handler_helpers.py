@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.main.monitor_handler import handle_monitor_command
-from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 from tests.monitor._fixtures import make_starter_agent, patch_project_records
 
 __all__ = [
@@ -38,7 +38,7 @@ def pin_project(monkeypatch: pytest.MonkeyPatch, project: str = "proj") -> None:
 def dispatch(argv: list[str]) -> int:
     """Run one ``sase monitor`` invocation and return its process exit code."""
     with pytest.raises(SystemExit) as exit_info:
-        handle_monitor_command(create_parser().parse_args(argv))
+        handle_monitor_command(parse_sase_args(argv))
     return int(exit_info.value.code or 0)
 
 

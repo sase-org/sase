@@ -3734,9 +3734,9 @@ The registered `typed_launch_units` beta flag defaults to `false`. Enabling it e
 the experimental `%if` and `%proc` parser, completion, and launch-plan contract. Direct
 operator launches from `sase run` and ACE capture and strip those directives but do not
 perform typed admission. Launches routed through LaunchApproval freeze the typed plan
-before review; after approval, the admission coordinator resolves waits and evaluates
-`%if` before dispatching eligible agent units. Native `%proc` dispatch is not yet
-available; see
+before review; after approval, the admission coordinator resolves waits, evaluates
+`%if`, and dispatches eligible units — agent units through the established agent launch
+path, and `%proc` units through native stand-alone proc-shell dispatch; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences

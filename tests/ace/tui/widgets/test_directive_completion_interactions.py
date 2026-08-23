@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from unittest.mock import patch
 
+import pytest
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.feature_flags import override_flags
 
 from ._completion_helpers import CompletionTestApp
+
+
+@pytest.fixture(autouse=True)
+def _typed_launch_units_off_by_default() -> Iterator[None]:
+    """Keep the directive panel compact and independent of host flag state."""
+    with override_flags(typed_launch_units=False):
+        yield
 
 
 async def test_ctrl_t_at_percent_opens_directive_panel() -> None:

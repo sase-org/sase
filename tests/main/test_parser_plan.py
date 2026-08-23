@@ -11,7 +11,7 @@ from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
 def test_plan_command_group_parses_subcommands() -> None:
     """``sase plan`` is a command group with list/propose/approve/reject children."""
-    parser = create_parser()
+    parser = create_parser(only="plan")
 
     bare_args = parser.parse_args(["plan"])
     list_args = parser.parse_args(["plan", "list"])
@@ -43,14 +43,14 @@ def test_plan_command_group_parses_subcommands() -> None:
 
 
 def test_plan_approve_kind_defaults_from_plan_at_execution_time() -> None:
-    args = create_parser().parse_args(["plan", "approve", "abcdef12"])
+    args = create_parser(only="plan").parse_args(["plan", "approve", "abcdef12"])
 
     assert args.kind is None
 
 
 def test_plan_reject_parses_with_optional_selector() -> None:
     """``sase plan reject`` accepts an optional notification selector."""
-    parser = create_parser()
+    parser = create_parser(only="plan")
 
     reject_args = parser.parse_args(["plan", "reject", "abcdef12"])
     bare_reject_args = parser.parse_args(["plan", "reject"])
@@ -63,7 +63,7 @@ def test_plan_reject_parses_with_optional_selector() -> None:
 
 def test_plan_list_parses_status_and_limit_options() -> None:
     """``sase plan list`` accepts repeatable statuses and history limits."""
-    parser = create_parser()
+    parser = create_parser(only="plan")
 
     default_args = parser.parse_args(["plan", "list"])
     filtered_args = parser.parse_args(
@@ -95,7 +95,7 @@ def test_plan_list_parses_status_and_limit_options() -> None:
 def test_plan_list_rejects_invalid_status_and_limit(arguments: list[str]) -> None:
     """Plan-list filters use strict statuses and a nonnegative limit."""
     with pytest.raises(SystemExit) as exc_info:
-        create_parser().parse_args(arguments)
+        create_parser(only="plan").parse_args(arguments)
 
     assert exc_info.value.code == 2
 
@@ -104,7 +104,7 @@ def test_plan_command_rejects_old_root_plan_file(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``sase plan <file>`` is no longer accepted; use ``propose``."""
-    parser = create_parser()
+    parser = create_parser(only="plan")
 
     with pytest.raises(SystemExit) as exc_info:
         parser.parse_args(["plan", "file.md"])
@@ -117,7 +117,7 @@ def test_plan_command_rejects_old_root_plan_file(
 
 def test_plan_show_parses_target_and_options() -> None:
     """``sase plan show`` accepts an optional TARGET and its documented options."""
-    parser = create_parser()
+    parser = create_parser(only="plan")
 
     bare_args = parser.parse_args(["plan", "show"])
     full_args = parser.parse_args(
@@ -152,7 +152,7 @@ def test_plan_show_parses_target_and_options() -> None:
 def test_plan_show_rejects_invalid_target_kind() -> None:
     """``-t/--target`` only accepts the five documented rung names plus auto."""
     with pytest.raises(SystemExit) as exc_info:
-        create_parser().parse_args(["plan", "show", "x", "-t", "bogus"])
+        create_parser(only="plan").parse_args(["plan", "show", "x", "-t", "bogus"])
 
     assert exc_info.value.code == 2
 

@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.repo_handler import handle_repo_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from sase.main.workspace_handler_context import ProjectContext
 from sase.repo_inventory import (
     RepoCloneRecord,
@@ -21,7 +21,7 @@ from sase.workspace_provider.store import WorkspaceStore
 
 
 def test_repo_path_parser_accepts_repo_and_context_options() -> None:
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         [
             "repo",
             "path",
@@ -40,7 +40,7 @@ def test_repo_path_parser_accepts_repo_and_context_options() -> None:
     assert args.project == "demo"
     assert args.workspace == 12
 
-    short_args = create_parser().parse_args(
+    short_args = parse_sase_args(
         ["repo", "path", "plans", "-e", "-p", "demo", "-w", "4"]
     )
     assert short_args.ensure is True
@@ -64,7 +64,7 @@ def test_repo_path_resolves_primary_name_and_project_alias(
     )
     _patch_context_and_inventory(monkeypatch, ctx, RepoInventory((primary,)))
 
-    args = create_parser().parse_args(
+    args = parse_sase_args(
         ["repo", "path", requested, "--project", "demo", "--workspace", "0"]
     )
     with pytest.raises(SystemExit) as exc_info:
@@ -99,7 +99,7 @@ def test_repo_path_resolves_sidecar_role_and_slug(
         RepoInventory((primary, sidecar)),
     )
 
-    args = create_parser().parse_args(["repo", "path", requested, "--workspace", "0"])
+    args = parse_sase_args(["repo", "path", requested, "--workspace", "0"])
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
 
@@ -140,9 +140,7 @@ def test_repo_path_ensure_materializes_configured_sidecar(
         "sase.linked_repos.materialize_linked_repo_workspace",
         materialize,
     )
-    args = create_parser().parse_args(
-        ["repo", "path", "reports", "--ensure", "--workspace", "0"]
-    )
+    args = parse_sase_args(["repo", "path", "reports", "--ensure", "--workspace", "0"])
 
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
@@ -202,9 +200,7 @@ def test_repo_path_hidden_agents_uses_stable_path_in_numbered_workspace(
         "sase.linked_repos.materialize_linked_repo_workspace",
         materialize,
     )
-    args = create_parser().parse_args(
-        ["repo", "path", requested, "--ensure", "--workspace", "12"]
-    )
+    args = parse_sase_args(["repo", "path", requested, "--ensure", "--workspace", "12"])
 
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
@@ -286,7 +282,7 @@ def test_repo_path_preserves_legacy_sdd_layout_resolution(
             },
         )
 
-    args = create_parser().parse_args(["repo", "path", kind, "--workspace", "0"])
+    args = parse_sase_args(["repo", "path", kind, "--workspace", "0"])
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
 
@@ -324,9 +320,7 @@ def test_repo_path_ensure_materializes_legacy_sdd_sidecar(
         "sase.sdd.store.resolve_sdd_kind_dir",
         lambda *_args: expected,
     )
-    args = create_parser().parse_args(
-        ["repo", "path", "research", "--ensure", "--workspace", "0"]
-    )
+    args = parse_sase_args(["repo", "path", "research", "--ensure", "--workspace", "0"])
 
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
@@ -360,7 +354,7 @@ def test_repo_path_refuses_linked_and_external_repositories(
         ctx,
         RepoInventory((primary, repo)),
     )
-    args = create_parser().parse_args(["repo", "path", name, "--workspace", "0"])
+    args = parse_sase_args(["repo", "path", name, "--workspace", "0"])
 
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)
@@ -383,7 +377,7 @@ def test_repo_path_honors_disabled_legacy_sidecar_role(
         "sase.main.repo_handler._sidecar_role_disabled",
         lambda *_args, **_kwargs: True,
     )
-    args = create_parser().parse_args(["repo", "path", "plans", "--workspace", "0"])
+    args = parse_sase_args(["repo", "path", "plans", "--workspace", "0"])
 
     with pytest.raises(SystemExit) as exc_info:
         handle_repo_command(args)

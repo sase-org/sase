@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 
+from sase.integrations.xprompt_lsp import _apply_typed_launch_units_flag
 from tests._xprompt_directive_completion_parity_helpers import (
     _finalizer_catalog_payload,
     _write_helper,
@@ -104,6 +105,7 @@ class LspSession:
         )
         env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
         env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
+        _apply_typed_launch_units_flag(env)
         self._proc = subprocess.Popen(
             [str(binary)],
             stdin=subprocess.PIPE,

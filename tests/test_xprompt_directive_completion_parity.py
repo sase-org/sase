@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ import sase_core_rs
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_completion_candidates,
 )
+from sase.feature_flags import override_flags
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
@@ -25,6 +27,13 @@ from tests._xprompt_directive_completion_parity_surface import (
     _model_alias_description,
     _model_entries,
 )
+
+
+@pytest.fixture(autouse=True)
+def _typed_launch_units_off_by_default() -> Iterator[None]:
+    """Keep ungated-contract assertions independent of host flag state."""
+    with override_flags(typed_launch_units=False):
+        yield
 
 
 def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
@@ -47,6 +56,23 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
 
     assert {row.label for row in ace_rows} == set(expected_labels)
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert "%if" not in expected_labels
+    assert "%proc" not in expected_labels
+
+
+def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(typed_launch_units=True):
+        ace_candidates, shared = build_directive_completion_candidates("%")
+        assert shared == ""
+        ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
+        with LspSession(tmp_path) as lsp:
+            lsp_labels = {row.label for row in lsp.complete("%")}
+
+    assert "%if" in ace_labels
+    assert "%proc" in ace_labels
+    assert ace_labels == lsp_labels
 
 
 @pytest.mark.parametrize(

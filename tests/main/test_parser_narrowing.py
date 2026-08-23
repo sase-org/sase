@@ -29,6 +29,24 @@ def test_full_parser_commands_match_lazy_registry() -> None:
     assert _root_commands(create_parser()) == set(_COMMAND_REGISTRARS)
 
 
+def test_construction_still_rejects_badly_formed_help() -> None:
+    """Shared validation formatters must still catch broken help templates."""
+    parser = create_parser(only="version")
+    with pytest.raises(ValueError, match="badly formed help string"):
+        parser.add_argument("--x", help="%(unknown)s")
+
+
+def test_parser_for_builds_only_the_requested_command_tree() -> None:
+    """Help helpers must not pay for the full command inventory."""
+    from tests.main.parser_help_helpers import parser_for
+
+    parser = parser_for(("sase", "bead"))
+    args = parser.parse_args(["show", "sase-1"])
+
+    assert args.bead_subcommand == "show"
+    assert args.id == "sase-1"
+
+
 def test_narrow_parser_registers_only_requested_command() -> None:
     """A narrow parser does not build unrelated top-level command trees."""
     parser = create_parser(only="bead")

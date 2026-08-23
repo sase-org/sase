@@ -23,8 +23,8 @@ from sase.feature_flags.state import (
     feature_flag_state_path,
     load_saved_feature_flags,
 )
-from sase.main.parser import create_parser
 from sase.main.update_types import RestartAxeFn
+from tests.main.parser_cli_helpers import parse_sase_args
 from tests._conftest_runtime import reset_process_feature_flags
 
 
@@ -47,7 +47,7 @@ def _run(
     axe_running: bool = False,
     restart_axe_fn: RestartAxeFn | None = None,
 ) -> int:
-    args = create_parser().parse_args(argv)
+    args = parse_sase_args(argv)
     enabled = args.flag_subcommand == "enable"
     return handle_flag_set(
         args,
@@ -131,7 +131,7 @@ def test_unknown_flag_is_usage_error_and_skips_axe(
     def _axe_running() -> bool:
         raise AssertionError("axe status must not be checked for an unknown flag")
 
-    args = create_parser().parse_args(["flag", "enable", "missing_flag"])
+    args = parse_sase_args(["flag", "enable", "missing_flag"])
     code = handle_flag_set(
         args,
         enabled=True,

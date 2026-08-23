@@ -199,3 +199,24 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_failure_names_workspace
 # fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_prepares_retained_sidecar
 # fixed-at: 2026-08-20T19:42:44Z tests/test_run_agent_runner_setup_linked_repos.py::test_prepare_linked_repo_workspaces_uses_default_revision_sentinel
+#
+# sase-s6.8: LspSession now pins SASE_TYPED_LAUNCH_UNITS to the process-local
+# flag (same as `sase lsp`), and ACE/LSP directive tests default the beta off
+# so ungated-contract assertions stay deterministic. Retires host-flag and
+# stale-binary evidence. Phase worker cannot file a flake task.
+# fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_candidates.py::test_id_parenthesized_completion_advertises_identity_keywords
+# fixed-at: 2026-08-23T10:15:00Z tests/ace/tui/widgets/test_directive_completion_interactions.py::test_ctrl_t_at_percent_opens_directive_panel
+# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_argument_rows_match[%wait(]
+# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_ace_and_lsp_directive_name_rows_match
+# fixed-at: 2026-08-23T10:15:00Z tests/test_xprompt_directive_completion_parity.py::test_failure_degradation_retains_static_directive_rows
+# sase-rv: retired-deletion inventory assertion no longer requires the full
+# xdist tmp prefix. Phase sase-s6.8 applied the suffix check; sase-rv remains
+# the flake task for any recurrence.
+# fixed-at: 2026-08-23T10:15:00Z tests/main/test_skills_handler.py::test_skills_inventory_reports_retired_deletion_drift
+# sase-iu: historical hits are stale-core / dirty-tree budget mismatches, not
+# a live master break. Phase sase-s6.8 cannot file a duplicate flake task.
+# fixed-at: 2026-08-23T10:15:00Z tests/test_contract_manifest.py::test_contract_set_manifest_entry_budget_has_no_hidden_headroom
+# sase-s6.8: two eligible dirty-tree hits while telemetry/metrics.py was
+# mid-edit; the node passes on this tree. Phase worker cannot file a flake
+# task.
+# fixed-at: 2026-08-23T10:15:00Z tests/telemetry/test_metrics.py::test_metric_def_count

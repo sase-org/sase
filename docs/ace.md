@@ -1894,6 +1894,8 @@ badges instead of verbose text:
 | `⚙`   | Monitor shell (row label)                                                                          |
 | `⚙N`  | N running monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (amber) |
 | `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
+| `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                             |
+| `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                    |
 
 A monitor shell (a family member whose work is a supervised command, started with
 `sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
@@ -1999,6 +2001,19 @@ submission and code launch. The date prefix uses a softer `dim #8787AF` while th
 half keeps the standard `#8787AF`, giving the column internal hierarchy without
 inflating the palette. Statuses not in the table fall back to `(STATUS)` text for
 forwards compatibility.
+
+A stand-alone `%proc` unit (beta, behind `typed_launch_units`) is backed only by the
+proc store — it is never an agent, never nested under an agent family, and never counted
+in agent runner, unread, clan, or family totals. It renders as its own top-level `▣` row
+with a Bash/Python language badge, current phase/status, elapsed time, and project, and
+a panel title reports it in a separate `▣<count>` chip alongside the ordinary agent
+metrics. Selecting one opens a `PROC SHELL` detail (status/phase timeline, project/
+workspace/cwd, language, code digest and safe preview, waits, condition result,
+timeouts, and a bounded live-log tail) and routes stop/kill through the native proc
+service with confirmation. The same proc shell is also visible from the
+[Procs pane](#durable-procs). See
+[Experimental typed launch units](xprompt.md#experimental-typed-launch-units) for the
+directives that create it.
 
 ### Agent Search
 

@@ -158,8 +158,34 @@ _PROC_ALIASES = frozenset({"proc", "task"})
 _PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED = frozenset({"list", "run"})
 
 
+_VALIDATION_FORMATTER: argparse.HelpFormatter | None = None
+
+
+def _shared_validation_formatter() -> argparse.HelpFormatter:
+    """Return one colorless formatter for construction-time help checks."""
+    global _VALIDATION_FORMATTER
+    formatter = _VALIDATION_FORMATTER
+    if formatter is None:
+        formatter = argparse.HelpFormatter(prog="sase")
+        set_color = getattr(formatter, "_set_color", None)
+        if callable(set_color):
+            set_color(False)
+        _VALIDATION_FORMATTER = formatter
+    return formatter
+
+
 class _SaseArgumentParser(argparse.ArgumentParser):
     """Root parser with cross-option validation that argparse cannot express."""
+
+    def _get_validation_formatter(self) -> argparse.HelpFormatter:
+        """Reuse one colorless formatter while constructing the command tree.
+
+        Python 3.14 validates every help string through a per-parser formatter
+        whose ``_set_color`` path dominates ``create_parser``. Validation only
+        interpolates help templates, so a shared colorless formatter is enough.
+        ``format_help`` still uses ``_get_formatter`` and keeps TTY color.
+        """
+        return _shared_validation_formatter()
 
     @overload
     def parse_args(

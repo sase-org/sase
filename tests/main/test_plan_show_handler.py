@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.main.parser import create_parser
 from sase.main.plan_show_handler import handle_plan_show_command
+from tests.main.parser_cli_helpers import parse_sase_args
 from sase.plan_show.model import (
     PlanShowAmbiguity,
     PlanShowAmbiguityCandidate,
@@ -65,7 +65,7 @@ def _args(target: str = "a", **cli_overrides: str) -> argparse.Namespace:
     argv = ["plan", "show", target]
     for flag, value in cli_overrides.items():
         argv.extend([f"--{flag}", value])
-    return create_parser().parse_args(argv)
+    return parse_sase_args(argv)
 
 
 def _stub(monkeypatch: pytest.MonkeyPatch, result: object) -> None:
