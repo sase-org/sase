@@ -29,6 +29,7 @@ children. See the [configuration reference](configuration.md#feature_flags).
 | `sase agent kill`               | Terminate a running agent by name (`-n/--name` is required; a bare name is usage error). If the name resolves to a live monitor member or its owner, stop that monitor through the monitor path; stopped monitors do not launch their recorded follow-up.                                                                                                                                                                                                                                                                                                                                            | [ACE TUI](ace.md), [Monitors](monitors.md)                               |
 | `sase agent restart`            | Stop a named agent and immediately relaunch its stored prompt under the same name. Deletes the previous run's artifacts (the chat transcript under `~/.sase/chats` is kept). A failed wipe or relaunch writes a recovery directory under `~/.sase/restarts/`. `-n/--dry-run` previews only, `-y/--yes` skips confirmation, `-m/--model` overrides the model, `-j/--json` emits one envelope and skips confirmation. Exit `0` restarted or previewed, `2` refused (nothing changed), `1` for both `partial` (name released, relaunch failed) and `wipe_failed` (stopped but the name is still taken). | [ACE `,x`](ace.md#leader-mode-prefix_1)                                  |
 | `sase agent tribe`              | Set, clear, or list user-defined agent tribes used for grouping.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | [Agent tribes](agent_families.md#agent-tribes)                           |
+| `sase agent wait`               | Block until named agents, families, clans, or workflows settle; `-a/--all` snapshots every currently running eligible agent. Exits non-zero when a target failed, is blocked on a human, or timed out.                                                                                                                                                                                                                                                                                                                                                                                               | [Agent wait](#sase-agent-wait)                                           |
 | `sase agent archive`            | Maintain dismissed-agent bundle summary indexes (`rebuild-index`, `verify`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | [ACE TUI](ace.md#agent-revival)                                          |
 | `sase agent artifacts`          | Inspect and migrate physical agent artifact storage layout.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | [Configuration](configuration.md#directory-sharding)                     |
 | `sase agent index`              | Manage the persistent agent artifact SQLite index (`status`, `rebuild`, `verify`, `gc`, `repair`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | [ACE TUI](ace.md)                                                        |
@@ -71,6 +72,35 @@ launches. ACE uses the same launch machinery when users start agents from the TU
 The short option `-n` is not one flag across commands: `sase agent kill -n NAME` is
 `--name` (required; a bare name is a usage error), `sase agent restart -n` is
 `--dry-run` (the agent name is positional), and `sase monitor start -n` is `--next`.
+Likewise, `sase agent wait -a` is `--all`: it snapshots the eligible agents running when
+the wait starts, while `sase agent list -a` means include recent completed agents in a
+list view.
+
+### `sase agent wait`
+
+`sase agent wait NAME ...` resolves each target the same way `%wait` does: clan, then
+agent family, then workflow, then exact agent name. A family target waits on the whole
+family, including successors that appear after the wait begins. `sase agent wait -a`
+waits for every eligible agent running at command start and deliberately does not absorb
+later unrelated launches; when run from inside an agent it excludes the calling agent's
+own family so `-a` cannot wait on itself. `-p/--project` scopes target resolution and
+the `--all` snapshot to one project.
+
+By default the command stops when a target cannot progress without a human: a pending
+question, a submitted plan awaiting review, or a stopped artifact with no completion
+marker exits `3`. Use `-w/--wait-blocked` only when you want the gate to keep polling
+through those states. `-t/--timeout` exits `4` if unfinished targets remain after the
+duration, and `-i/--interval` pins the poll interval instead of using the adaptive
+default.
+
+Exit codes are `0` when every target succeeded, `1` when any target finished
+unsuccessfully, `2` for command usage or resolution errors, `3` for human-blocked
+targets without `-w`, `4` for timeout, and `130`/`143` for `SIGINT`/`SIGTERM`.
+Precedence is `1 > 3 > 4` when more than one condition applies.
+
+Progress output goes to stderr. The final settle summary goes to stdout, and `-j/--json`
+prints one stdout JSON envelope with no progress noise, so shell gates and command
+substitution both stay predictable.
 
 `sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`,
 whether its threshold comes from the global cap or an authored `%wait(runners=N)`. Its

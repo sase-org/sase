@@ -69,6 +69,20 @@ sase monitor start \
   -- just check-full
 ```
 
+Use the same shape when the command you need is an agent-completion gate. The intended
+composition is a monitor running `sase agent wait`, followed by a normal follow-up agent
+that acts on the result:
+
+```bash
+sase monitor start \
+  -s WAITING -S WAITED \
+  -n 'agents finished; land the epic' \
+  -- sase agent wait -a
+```
+
+That keeps the wait outside the current provider turn, preserves the workspace claim,
+and records the wait output where the follow-up can inspect it.
+
 - The command is the remainder after `--` (for example `-- just check-full`). That is
   the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
   compatibility alias for a single shell string, but new invocations should use `--`.

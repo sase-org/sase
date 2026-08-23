@@ -315,8 +315,10 @@ completion notification.
 If the parent is missing, ambiguous, or dismissed, or the composed member name already
 exists, launch preparation fails before spawning the member. Collision errors suggest
 `%i(@, family=parent)`. `%wait:<family>` and `#fork` references to the bare family name
-resolve through the family container; an exact `--<suffix>` name targets one member. A
-member attached to an agent already inside a clan inherits that clan membership.
+resolve through the family container; `sase agent wait <family>` uses the same family
+target and waits for successors that appear after the wait begins. An exact `--<suffix>`
+name targets one member. A member attached to an agent already inside a clan inherits
+that clan membership.
 
 `#fork:<family>` contributes every readable transcript from a successful family member
 in chain order, oldest first. The injected context labels each member and lists every
