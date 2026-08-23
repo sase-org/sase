@@ -1982,7 +1982,7 @@ finished in a `FAILED` state; and user-paused rows (`PLAN`, `QUESTION`, `WAITING
 use a `✋` marker while waiting for a human response. Pre-run `WAITING` and `QUEUED`
 rows with no `BEGIN` time hide the suffix so admission waits do not look like live
 runtime. On an active sequential-family container, the live suffix is
-`🏃‍♂️ <current-shell-runtime>/<family-total-runtime>`: the left value is the concrete
+`🏃‍♂️ <current-shell-runtime> / <family-total-runtime>`: the left value is the concrete
 agent or monitor shell currently executing, and the right value is the aggregate family
 interval. For finished agents, the start-timestamp half is rendered as a humanized
 `(date_prefix, time)` pair sized to fit the existing 15-cell slot:

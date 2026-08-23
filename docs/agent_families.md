@@ -192,7 +192,7 @@ chronological launch order instead, keeping its number-to-member mapping stable 
 statuses change. The runtime is the union of member run intervals, with human-wait
 windows excluded, so concurrent members are not double-counted. When a sequential family
 has a concrete agent or monitor shell currently executing, the collapsed and expanded
-family container row shows `🏃‍♂️ <current-shell-runtime>/<family-total-runtime>` so the
+family container row shows `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the
 active shell duration is visible without opening the family.
 
 ### Clan summary folding

@@ -109,7 +109,7 @@ async def test_patch_active_runtime_rows_advances_family_current_and_total() -> 
         before_count = widget.option_count
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert "[✓]" in before
-        assert before.rstrip().endswith("🏃‍♂️ 1m59s/3m59s")
+        assert before.rstrip().endswith("🏃‍♂️ 1m59s / 3m59s")
 
         patched = widget.patch_active_runtime_rows(datetime(2026, 7, 19, 9, 6, 0))
         await pilot.pause()
@@ -118,7 +118,7 @@ async def test_patch_active_runtime_rows_advances_family_current_and_total() -> 
         assert patched == 1
         assert widget.option_count == before_count
         assert "[✓]" in after
-        assert after.rstrip().endswith("🏃‍♂️ 2m/4m")
+        assert after.rstrip().endswith("🏃‍♂️ 2m / 4m")
 
 
 @pytest.mark.asyncio
@@ -139,8 +139,8 @@ async def test_family_runtime_suffix_matches_collapsed_and_expanded_container() 
         expanded_row = agent_row_index(widget, 0)
         expanded = widget.get_option_at_index(expanded_row).prompt.plain  # type: ignore[union-attr]
 
-        assert collapsed.rstrip().endswith("🏃‍♂️ 1m05s/3m05s")
-        assert expanded.rstrip().endswith("🏃‍♂️ 1m05s/3m05s")
+        assert collapsed.rstrip().endswith("🏃‍♂️ 1m05s / 3m05s")
+        assert expanded.rstrip().endswith("🏃‍♂️ 1m05s / 3m05s")
 
 
 @pytest.mark.asyncio

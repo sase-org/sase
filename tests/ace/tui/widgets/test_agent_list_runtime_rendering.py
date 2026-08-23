@@ -157,7 +157,7 @@ def test_format_agent_option_active_family_shows_current_root_and_total() -> Non
         now=datetime(2026, 7, 19, 9, 3, 5),
     )
 
-    assert suffix.plain == "🏃‍♂️ 3m05s/3m05s"
+    assert suffix.plain == "🏃‍♂️ 3m05s / 3m05s"
 
 
 def test_format_agent_option_active_family_shows_current_continuation_first() -> None:
@@ -203,7 +203,7 @@ def test_format_agent_option_active_family_shows_current_continuation_first() ->
         now=datetime(2026, 7, 19, 9, 5, 5),
     )
 
-    assert suffix.plain == "🏃‍♂️ 1m05s/3m05s"
+    assert suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
 
 
 def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None:
@@ -254,7 +254,7 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         now=datetime(2026, 7, 19, 9, 5, 0),
     )
 
-    assert suffix.plain == "🏃‍♂️ 2m/2m"
+    assert suffix.plain == "🏃‍♂️ 2m / 2m"
 
 
 def test_format_agent_option_completed_family_keeps_single_total_suffix() -> None:
@@ -291,7 +291,7 @@ def test_format_agent_option_completed_family_keeps_single_total_suffix() -> Non
     )
 
     assert suffix.plain == "09:02:00 · 1m"
-    assert "/" not in suffix.plain
+    assert " / " not in suffix.plain
 
 
 def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None:
