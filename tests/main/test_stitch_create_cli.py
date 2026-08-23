@@ -211,10 +211,10 @@ class TestStitchCreateCLI:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with pytest.raises(SystemExit) as exc_info:
-            _parse_commit_args(["-h"])
+            _parse_stitch_create_args(["-h"])
 
         assert exc_info.value.code == 0
-        assert "assigned in-progress bead" in capsys.readouterr().out
+        assert "assigned in-progress task bead" in capsys.readouterr().out
 
     def test_stale_uppercase_bug_id_flag_is_rejected(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")

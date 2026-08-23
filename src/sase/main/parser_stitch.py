@@ -52,7 +52,7 @@ class _RemovedFileFlagAction(argparse.Action):
         sys.exit(1)
 
 
-def add_stitch_create_options(parser: argparse.ArgumentParser) -> None:
+def _add_stitch_create_options(parser: argparse.ArgumentParser) -> None:
     """Add the ``sase stitch create`` dispatch flags to *parser*."""
     msg_group = parser.add_mutually_exclusive_group()
     msg_group.add_argument(
@@ -334,7 +334,7 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
             "configured VCS provider."
         ),
     )
-    add_stitch_create_options(create_parser)
+    _add_stitch_create_options(create_parser)
 
     list_parser = stitch_sub.add_parser(
         "list",
