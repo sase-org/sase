@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.launch_admission_store import RECEIPT_FILENAME, admission_dir
+from sase.agent.launch_request_types import DIRECT_TYPED_LAUNCH_KIND
 from sase.axe.chop_agents import (
     _record_chop_agent_launch,
     get_chop_agent_records,
@@ -26,6 +28,7 @@ from sase.axe.state import (
     start_chop_run,
 )
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
+from sase.notification_gates.paths import REQUEST_FILENAME
 
 from tests.axe_chop_runner_helpers import make_script
 
@@ -51,6 +54,7 @@ def _launched_entry(
     pid: int,
     launches: list[dict[str, object]] | None = None,
     script_duration_ms: int | None = None,
+    typed_admission: dict[str, object] | None = None,
 ) -> ChopRunEntry:
     entry = ChopRunEntry(
         run_id=run_id,
@@ -62,6 +66,7 @@ def _launched_entry(
         status="running",
     )
     start_chop_run(entry)
+    launch_rows = [{"pid": pid}] if launches is None else launches
     finish_chop_run(
         "docs",
         "docs",
@@ -71,7 +76,8 @@ def _launched_entry(
         duration_ms=1,
         exit_code=0,
         agent_pid=pid,
-        launches=launches or [{"pid": pid}],
+        launches=launch_rows,
+        typed_admission=typed_admission,
         script_duration_ms=script_duration_ms,
     )
     return entry
@@ -82,6 +88,10 @@ def _record_agent(
     *,
     pid: int,
     timestamp: str = "260718_120000",
+    admission_logical_id: str = "",
+    admission_fingerprint: str = "",
+    proposal_index: int | None = None,
+    proposal_id: str = "",
 ) -> object:
     return _record_chop_agent_launch(
         lumberjack_name="docs",
@@ -95,7 +105,102 @@ def _record_agent(
         cl_name="sase",
         timestamp=timestamp,
         prompt="refresh",
+        admission_logical_id=admission_logical_id,
+        admission_fingerprint=admission_fingerprint,
+        proposal_index=proposal_index,
+        proposal_id=proposal_id,
     )
+
+
+def _typed_bundle(
+    tmp_path: Path,
+    *,
+    logical_id: str,
+    outcome: str,
+    dedupe_key: str = "",
+) -> tuple[Path, dict[str, object]]:
+    bundle = tmp_path / f"bundle-{logical_id}"
+    metadata = {
+        logical_id: {
+            "lumberjack_name": "docs",
+            "chop_name": "docs",
+            "run_id": "run-typed",
+            "logical_id": logical_id,
+            "source_order": 0,
+            "proposal_index": 0,
+            "proposal_id": "refresh",
+            "agent_name": "refresh",
+            "clan": "toobig-0",
+            "member_id": "refresh",
+            "workspace": "git:sase",
+            "dedupe_key": dedupe_key,
+            "wait_on": None,
+            "wait_name": None,
+            "env": {},
+        }
+    }
+    payload: dict[str, object] = {
+        "request_id": f"req-{logical_id}",
+        "source_surface": "axe_chop",
+        "plan_digest": "digest",
+        "typed_plan": {
+            "schema_version": 1,
+            "launch_kind": "axe_chop",
+            "selected_project": "sase",
+            "content_digest": "digest",
+            "units": [],
+            "approval_preview": [],
+            "diagnostics": [],
+        },
+        "unit_dispatch_metadata": metadata,
+        "dispatch": {"cwd": str(tmp_path), "prompt": "prompt"},
+    }
+    bundle.mkdir(parents=True)
+    (bundle / REQUEST_FILENAME).write_text(
+        json.dumps(
+            {
+                "kind": DIRECT_TYPED_LAUNCH_KIND,
+                "request_id": f"req-{logical_id}",
+                "payload": payload,
+            }
+        ),
+        encoding="utf-8",
+    )
+    root = admission_dir(bundle)
+    root.mkdir(parents=True)
+    (root / RECEIPT_FILENAME).write_text(
+        json.dumps(
+            {
+                "complete": True,
+                "summary": {
+                    "total": 1,
+                    "eligible": 1 if outcome == "launched" else 0,
+                    "launched": 1 if outcome == "launched" else 0,
+                    "skipped": 1 if outcome == "skipped" else 0,
+                    "condition_errors": 1 if outcome == "condition_error" else 0,
+                    "launch_errors": 1 if outcome == "launch_error" else 0,
+                },
+                "units": [{"logical_id": logical_id, "outcome": outcome}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    typed_admission = {
+        "request_id": f"req-{logical_id}",
+        "bundle_dir": str(bundle),
+        "plan_digest": "digest",
+        "source_surface": "axe_chop",
+        "units": [
+            {
+                "logical_id": logical_id,
+                "source_order": 0,
+                "proposal_index": 0,
+                "proposal_id": "refresh",
+                "dedupe_key": dedupe_key,
+            }
+        ],
+    }
+    return bundle, typed_admission
 
 
 def test_launch_failure_releases_only_unlaunched_once_per_keys(
@@ -233,6 +338,107 @@ def test_lifecycle_finalizes_completed_agents_and_clears_registry(
     assert entry is not None
     assert entry.status == "action_succeeded"
     assert get_chop_agent_records("docs", chop_name="docs", run_id=run_id) == []
+
+
+def test_lifecycle_reconstructs_typed_admission_launch_from_registry(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120020_000000"
+    _bundle, typed_admission = _typed_bundle(
+        tmp_path,
+        logical_id="unit-1",
+        outcome="launched",
+        dedupe_key="docs:refresh",
+    )
+    _launched_entry(
+        run_id,
+        pid=0,
+        launches=[],
+        typed_admission=typed_admission,
+    )
+    _record_agent(
+        run_id,
+        pid=777,
+        admission_logical_id="unit-1",
+        admission_fingerprint="fp-1",
+        proposal_index=0,
+        proposal_id="refresh",
+    )
+    artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120000"
+    )
+    artifacts.mkdir(parents=True)
+    (artifacts / "done.json").write_text(
+        json.dumps({"outcome": "completed"}), encoding="utf-8"
+    )
+
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_succeeded"
+    output = chop_run_log_path("docs", "docs", run_id).read_text(encoding="utf-8")
+    assert "typed admission completed: 1 launched, 0 skipped" in output
+    assert get_chop_agent_records("docs", chop_name="docs", run_id=run_id) == []
+
+
+def test_lifecycle_releases_once_per_key_for_skipped_typed_unit(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120021_000000"
+    chop = ChopConfig(name="docs", description="")
+    proposed = prepare_chop_proposals(
+        "docs",
+        {
+            "proposed_launches": [
+                {
+                    "prompt": "Refresh.",
+                    "workspace": "git:sase",
+                    "dedupe_key": "docs:skip",
+                }
+            ]
+        },
+    )
+    seeded = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=proposed,
+        persist=True,
+    )
+    assert seeded.accepted_indices == (0,)
+    _bundle, typed_admission = _typed_bundle(
+        tmp_path,
+        logical_id="unit-skip",
+        outcome="skipped",
+        dedupe_key="docs:skip",
+    )
+    _launched_entry(
+        run_id,
+        pid=0,
+        launches=[],
+        typed_admission=typed_admission,
+    )
+
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_succeeded"
+    retried = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=proposed,
+        persist=False,
+    )
+    assert retried.accepted_indices == (0,)
+    output = chop_run_log_path("docs", "docs", run_id).read_text(encoding="utf-8")
+    assert "Released 1 once-per key(s) after typed admission" in output
 
 
 def test_lifecycle_preserves_script_duration_ms_through_finalization(

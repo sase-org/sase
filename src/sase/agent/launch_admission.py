@@ -49,8 +49,9 @@ from sase.agent.launch_admission_store import (
     read_json,
     write_sidecar,
 )
+from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_request_types import ApprovedLaunchDispatchResult
-from sase.core.agent_launch_wire import LaunchAdmissionSummaryWire
+from sase.core.agent_launch_wire import LaunchAdmissionSummaryWire, LaunchUnitWire
 from sase.monitor.transaction import write_json_marker_atomic
 
 
@@ -73,6 +74,7 @@ def dispatch_typed_launch_request(
     root = admission_dir(response_dir)
     lock_path = root / LOCK_FILENAME
     root.mkdir(parents=True, exist_ok=True)
+    agent_dispatcher = agent_dispatcher or _agent_dispatcher_for_request(data)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
@@ -97,7 +99,7 @@ def dispatch_typed_launch_request(
         from sase.agent.launch_admission_coordinator import start_detached_coordinator
 
         start_detached_coordinator(response_dir)
-    elif progress.complete:
+    elif progress.complete and _should_notify_admission_complete(data):
         _notify_admission_complete(request_id, progress, root / RECEIPT_FILENAME)
     return _dispatch_result(request_id, progress)
 
@@ -113,6 +115,7 @@ def run_coordinator_in_bundle(
 
     data = read_launch_request(response_dir)
     plan = typed_plan_from_request(data)
+    agent_dispatcher = _agent_dispatcher_for_request(data)
     root = admission_dir(response_dir)
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / LOCK_FILENAME
@@ -134,17 +137,19 @@ def run_coordinator_in_bundle(
                 admission_dir=root,
                 request_id=str(data.get("request_id") or ""),
                 cancelled=stop,
+                agent_dispatcher=agent_dispatcher,
                 source_cwd=request_source_cwd(data),
                 safe_inputs=request_safe_inputs(data),
             )
             progress = engine.run(until_blocked=False)
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-    _notify_admission_complete(
-        str(data.get("request_id") or ""),
-        progress,
-        root / RECEIPT_FILENAME,
-    )
+    if _should_notify_admission_complete(data):
+        _notify_admission_complete(
+            str(data.get("request_id") or ""),
+            progress,
+            root / RECEIPT_FILENAME,
+        )
     return progress
 
 
@@ -192,6 +197,42 @@ def _dispatch_result(
         plan_digest=str(progress.receipt.get("plan_digest") or ""),
         admission_complete=progress.complete,
     )
+
+
+def _agent_dispatcher_for_request(data: Mapping[str, Any]) -> UnitDispatcher | None:
+    from sase.axe.chop_typed_admission import (
+        is_axe_chop_typed_request,
+        make_axe_chop_agent_dispatcher,
+    )
+
+    if is_axe_chop_typed_request(data):
+        dispatcher = make_axe_chop_agent_dispatcher(data)
+        if dispatcher is not None:
+            return dispatcher
+
+        def _missing_metadata(
+            unit: LaunchUnitWire,
+            fingerprint: str,
+        ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
+            del fingerprint
+            return (
+                False,
+                None,
+                f"missing AXE chop dispatch metadata for {unit.logical_id}",
+                [],
+            )
+
+        return _missing_metadata
+    return None
+
+
+def _should_notify_admission_complete(data: Mapping[str, Any]) -> bool:
+    try:
+        from sase.axe.chop_typed_admission import is_axe_chop_typed_request
+
+        return not is_axe_chop_typed_request(data)
+    except Exception:
+        return True
 
 
 def _notify_admission_complete(

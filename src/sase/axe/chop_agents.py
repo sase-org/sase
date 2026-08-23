@@ -25,6 +25,10 @@ ENV_CHOP_LUMBERJACK = "SASE_CHOP_LUMBERJACK"
 ENV_CHOP_NAME = "SASE_CHOP_NAME"
 ENV_CHOP_RUN_ID = "SASE_CHOP_RUN_ID"
 ENV_CHOP_PROMPT_HASH = "SASE_CHOP_PROMPT_HASH"
+ENV_CHOP_ADMISSION_LOGICAL_ID = "SASE_CHOP_ADMISSION_LOGICAL_ID"
+ENV_CHOP_ADMISSION_FINGERPRINT = "SASE_CHOP_ADMISSION_FINGERPRINT"
+ENV_CHOP_PROPOSAL_INDEX = "SASE_CHOP_PROPOSAL_INDEX"
+ENV_CHOP_PROPOSAL_ID = "SASE_CHOP_PROPOSAL_ID"
 
 _PROCESS_REGISTRY_LOCKS: dict[Path, threading.RLock] = {}
 _PROCESS_REGISTRY_LOCKS_GUARD = threading.Lock()
@@ -51,6 +55,10 @@ class _ChopAgentRecord:
     artifacts_timestamp: str
     started_at: str
     run_id: str = ""
+    admission_logical_id: str = ""
+    admission_fingerprint: str = ""
+    proposal_index: int | None = None
+    proposal_id: str = ""
 
 
 def _prompt_hash(prompt: str) -> str:
@@ -65,6 +73,10 @@ def build_chop_launch_env(
     chop_name: str,
     prompt: str | None,
     run_id: str | None = None,
+    admission_logical_id: str | None = None,
+    admission_fingerprint: str | None = None,
+    proposal_index: int | None = None,
+    proposal_id: str | None = None,
 ) -> dict[str, str]:
     """Build env vars that identify a chop-launched agent.
 
@@ -78,6 +90,14 @@ def build_chop_launch_env(
     }
     if prompt is not None:
         env[ENV_CHOP_PROMPT_HASH] = _prompt_hash(prompt)
+    if admission_logical_id:
+        env[ENV_CHOP_ADMISSION_LOGICAL_ID] = admission_logical_id
+    if admission_fingerprint:
+        env[ENV_CHOP_ADMISSION_FINGERPRINT] = admission_fingerprint
+    if proposal_index is not None:
+        env[ENV_CHOP_PROPOSAL_INDEX] = str(proposal_index)
+    if proposal_id:
+        env[ENV_CHOP_PROPOSAL_ID] = proposal_id
     return env
 
 
@@ -98,6 +118,14 @@ def extract_chop_launch_env(
     }
     if source.get(ENV_CHOP_PROMPT_HASH):
         result[ENV_CHOP_PROMPT_HASH] = source[ENV_CHOP_PROMPT_HASH]
+    for key in (
+        ENV_CHOP_ADMISSION_LOGICAL_ID,
+        ENV_CHOP_ADMISSION_FINGERPRINT,
+        ENV_CHOP_PROPOSAL_INDEX,
+        ENV_CHOP_PROPOSAL_ID,
+    ):
+        if source.get(key):
+            result[key] = source[key]
     return result
 
 
@@ -268,6 +296,10 @@ def _record_chop_agent_launch(
     prompt: str = "",
     prompt_hash_value: str = "",
     run_id: str = "",
+    admission_logical_id: str = "",
+    admission_fingerprint: str = "",
+    proposal_index: int | None = None,
+    proposal_id: str = "",
     started_at: str | None = None,
 ) -> _ChopAgentRecord:
     """Append or update a registry record for a chop-launched agent."""
@@ -285,6 +317,10 @@ def _record_chop_agent_launch(
         artifacts_timestamp=artifacts_timestamp,
         started_at=started_at or datetime.now(get_timezone()).isoformat(),
         run_id=run_id,
+        admission_logical_id=admission_logical_id,
+        admission_fingerprint=admission_fingerprint,
+        proposal_index=proposal_index,
+        proposal_id=proposal_id,
     )
 
     with _registry_lock(lumberjack_name):
@@ -319,6 +355,10 @@ def record_chop_agent_launch_from_env(
         chop_name=metadata[ENV_CHOP_NAME],
         run_id=metadata[ENV_CHOP_RUN_ID],
         prompt_hash_value=metadata.get(ENV_CHOP_PROMPT_HASH, ""),
+        admission_logical_id=metadata.get(ENV_CHOP_ADMISSION_LOGICAL_ID, ""),
+        admission_fingerprint=metadata.get(ENV_CHOP_ADMISSION_FINGERPRINT, ""),
+        proposal_index=_parse_int(metadata.get(ENV_CHOP_PROPOSAL_INDEX)),
+        proposal_id=metadata.get(ENV_CHOP_PROPOSAL_ID, ""),
         pid=pid,
         project_file=project_file,
         project_name=project_name,
@@ -328,3 +368,12 @@ def record_chop_agent_launch_from_env(
         timestamp=timestamp,
         prompt=prompt,
     )
+
+
+def _parse_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None

@@ -41,6 +41,7 @@ def _write_direct_typed_launch_bundle(
     source_surface: str,
     selected_project: str | None,
     safe_inputs: Mapping[str, Any] | None = None,
+    unit_dispatch_metadata: Mapping[str, Any] | None = None,
     request_id: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Atomically persist a coordinator-readable direct typed-launch bundle."""
@@ -63,6 +64,8 @@ def _write_direct_typed_launch_bundle(
         "expanded_prompt": expanded_prompt,
         "safe_inputs": dict(safe_inputs or {}),
     }
+    if unit_dispatch_metadata:
+        payload["unit_dispatch_metadata"] = dict(unit_dispatch_metadata)
     if selected_project:
         payload["selected_project"] = selected_project
         display = typed_launch_project_display_name(selected_project)
@@ -77,6 +80,32 @@ def _write_direct_typed_launch_bundle(
     bundle_dir.mkdir(parents=True, exist_ok=True)
     write_json_marker_atomic(bundle_dir / REQUEST_FILENAME, envelope)
     return bundle_dir, payload
+
+
+def write_typed_launch_bundle(
+    *,
+    prompt: str,
+    expanded_prompt: str,
+    typed_plan: Mapping[str, Any],
+    source_cwd: str,
+    source_surface: str,
+    selected_project: str | None,
+    safe_inputs: Mapping[str, Any] | None = None,
+    unit_dispatch_metadata: Mapping[str, Any] | None = None,
+    request_id: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    """Persist a durable typed-launch bundle for an already planned request."""
+    return _write_direct_typed_launch_bundle(
+        prompt=prompt,
+        expanded_prompt=expanded_prompt,
+        typed_plan=typed_plan,
+        source_cwd=source_cwd,
+        source_surface=source_surface,
+        selected_project=selected_project,
+        safe_inputs=safe_inputs,
+        unit_dispatch_metadata=unit_dispatch_metadata,
+        request_id=request_id,
+    )
 
 
 def dispatch_direct_typed_launch(
@@ -244,4 +273,5 @@ __all__ = [
     "dispatch_direct_typed_launch",
     "typed_launch_run_message",
     "typed_launch_run_payload",
+    "write_typed_launch_bundle",
 ]

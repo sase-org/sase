@@ -72,6 +72,7 @@ class ChopRunEntry:
     launches: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
     reason: str | None = None
+    typed_admission: dict[str, Any] | None = None
     #: Wall-clock the lumberjack tick was blocked by this chop's script,
     #: which ``duration_ms`` stops representing once a launched run is
     #: finalized against its agents' lifetime.
@@ -309,6 +310,7 @@ def finish_chop_run(
     launches: list[dict[str, Any]] | None = None,
     dry_run: bool | None = None,
     reason: str | None = None,
+    typed_admission: dict[str, Any] | None = None,
     script_duration_ms: int | None = None,
 ) -> None:
     """Transition a running chop entry and prune terminal history.
@@ -342,6 +344,8 @@ def finish_chop_run(
         data["dry_run"] = dry_run
     if reason is not None:
         data["reason"] = reason
+    if typed_admission is not None:
+        data["typed_admission"] = typed_admission
     if script_duration_ms is not None:
         data["script_duration_ms"] = script_duration_ms
 

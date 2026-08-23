@@ -145,7 +145,19 @@ class Proc:
             values[name] = None if data.get(name) is None else int(data[name])
         values["result"] = data.get("result")
         meta = data.get("xprompt_proc")
-        values["xprompt_proc"] = dict(meta) if isinstance(meta, Mapping) else None
+        if isinstance(meta, Mapping):
+            xprompt_proc = dict(meta)
+            if data.get("origin") == "xprompt-proc":
+                if "label" not in xprompt_proc and data.get("label") is not None:
+                    xprompt_proc["label"] = str(data["label"])
+                if (
+                    "shell_name" not in xprompt_proc
+                    and data.get("shell_name") is not None
+                ):
+                    xprompt_proc["shell_name"] = str(data["shell_name"])
+            values["xprompt_proc"] = xprompt_proc
+        else:
+            values["xprompt_proc"] = None
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:

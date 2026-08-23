@@ -56,6 +56,7 @@ def finalize_script_chop_run(
     dry_run: bool | None = None,
     active: bool = False,
     reason: str | None = None,
+    typed_admission: dict[str, Any] | None = None,
     preflight: ChopPreflight | None = None,
     checkpoint_event: ChopCheckpointEvent | None = None,
 ) -> None:
@@ -82,6 +83,7 @@ def finalize_script_chop_run(
             launches=launches,
             dry_run=dry_run,
             reason=reason,
+            typed_admission=typed_admission,
         )
     except OSError:
         pass
