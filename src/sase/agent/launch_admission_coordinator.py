@@ -18,6 +18,7 @@ from pathlib import Path
 from sase.agent.env_hygiene import scrub_agent_identity_env, scrub_chop_context_env
 from sase.agent.launch_admission import (
     COORDINATOR_ENV,
+    COORDINATOR_LOG_FILENAME,
     START_ACK_TIMEOUT_SECONDS,
     STARTED_FILENAME,
     admission_dir,
@@ -42,7 +43,7 @@ def start_detached_coordinator(response_dir: Path) -> int:
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
     env[COORDINATOR_ENV] = "1"
-    log_path = root / "coordinator.log"
+    log_path = root / COORDINATOR_LOG_FILENAME
     with log_path.open("ab") as log_file:
         child = subprocess.Popen(
             [
