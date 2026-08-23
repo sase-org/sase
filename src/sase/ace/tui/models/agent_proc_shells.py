@@ -7,6 +7,8 @@ import json
 import re
 from typing import Any
 
+from rich.cells import cell_len
+
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
     PROC_LIFECYCLE_PROC_SHELL,
@@ -21,6 +23,9 @@ from .agent_types import AgentType
 
 _PROC_PREVIEW_MAX_CHARS = 4000
 _PROC_LOG_TAIL_MAX_CHARS = 12000
+_PROC_COMMAND_TITLE_MAX_CELLS = 48
+_PROC_COMMAND_TITLE_PREFIX = "❯ "
+_ELLIPSIS = "…"
 _SENSITIVE_LINE_RE = re.compile(
     r"(?i)\b(password|passwd|secret|token|api[_-]?key|authorization|bearer)\b"
 )
@@ -91,9 +96,9 @@ def _is_standalone_xprompt_row(row: ObservedProc) -> bool:
 
 def _observed_proc_to_agent(row: ObservedProc) -> Agent:
     project_key = row.project or row.cl_name or "proc"
-    label = row.display_name or row.shell_name or short_proc_id(row.proc_id)
-    shell_name = row.shell_name or short_proc_id(row.proc_id)
     meta = row.xprompt_proc or {}
+    label = _explicit_proc_label(row, meta)
+    shell_name = row.shell_name or short_proc_id(row.proc_id)
     agent = Agent(
         agent_type=AgentType.PROC_SHELL,
         cl_name=project_key,
@@ -140,6 +145,55 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
         ),
     )
     return agent
+
+
+def proc_shell_command_title(preview: str | None) -> str | None:
+    """Return the compact command title for an unlabeled proc shell."""
+    if not preview:
+        return None
+    nonblank_lines = [line for line in preview.splitlines() if line.strip()]
+    if not nonblank_lines:
+        return None
+    first_line = re.sub(r"\s+", " ", nonblank_lines[0]).strip()
+    if first_line.endswith("\\"):
+        first_line = first_line[:-1].rstrip()
+    if not first_line:
+        return None
+    title = f"{_PROC_COMMAND_TITLE_PREFIX}{first_line}"
+    if len(nonblank_lines) > 1 or cell_len(title) > _PROC_COMMAND_TITLE_MAX_CELLS:
+        return _ellipsize_cells(title, _PROC_COMMAND_TITLE_MAX_CELLS)
+    return title
+
+
+def _ellipsize_cells(value: str, max_cells: int) -> str:
+    ellipsis_cells = cell_len(_ELLIPSIS)
+    if max_cells <= ellipsis_cells:
+        return _ELLIPSIS
+    if cell_len(value) + ellipsis_cells <= max_cells:
+        return f"{value}{_ELLIPSIS}"
+    budget = max_cells - ellipsis_cells
+    out = ""
+    cells = 0
+    for character in value:
+        character_cells = cell_len(character)
+        if cells + character_cells > budget:
+            break
+        out += character
+        cells += character_cells
+    return f"{out.rstrip()}{_ELLIPSIS}"
+
+
+def _explicit_proc_label(row: ObservedProc, meta: Mapping[str, Any]) -> str | None:
+    label = _string_meta(meta, "label")
+    if label:
+        return label
+    if row.shell_name:
+        return row.shell_name
+    logical_id = _string_meta(meta, "logical_id")
+    if row.display_name and row.display_name != logical_id:
+        # Compatibility for proc-shell rows submitted before label provenance existed.
+        return row.display_name
+    return None
 
 
 def _display_status_value(status: str) -> str:
@@ -290,6 +344,7 @@ def _bounded_json(value: Mapping[str, Any], max_chars: int) -> str:
 
 __all__ = [
     "merge_proc_shell_agents",
+    "proc_shell_command_title",
     "proc_shell_agent_signature",
     "proc_shell_agents_from_observed",
 ]

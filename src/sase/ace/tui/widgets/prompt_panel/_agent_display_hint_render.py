@@ -316,14 +316,14 @@ class AgentHintRenderMixin:
                 if isinstance(lane_fold_overrides, Mapping)
                 else lane_fold_level
             )
+            for part in build_proc_shell_preview(agent, annotate=annotate):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
             for part in build_proc_shell_section(
                 agent,
                 panel_level=section_level,
                 annotate=annotate,
             ):
-                if isinstance(part, Text):
-                    header_text.append_text(part)
-            for part in build_proc_shell_preview(agent, annotate=annotate):
                 if isinstance(part, Text):
                     header_text.append_text(part)
             for part in build_proc_shell_output(agent, annotate=annotate):

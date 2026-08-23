@@ -137,8 +137,8 @@ class AgentStepDisplayMixin:
         renderables: list[Any] = [header_text]
         if error_tb_syntax:
             renderables.append(error_tb_syntax)
-        renderables.extend(build_proc_shell_section(agent, panel_level=section_level))
         renderables.extend(build_proc_shell_preview(agent))
+        renderables.extend(build_proc_shell_section(agent, panel_level=section_level))
         renderables.extend(build_proc_shell_output(agent))
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]

@@ -240,7 +240,12 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # from the temporary broken export; the dispatch node passes on this tree.
 # fixed-at: 2026-08-23T16:39:34Z tests/main/test_agents_dispatch_handler.py::test_dispatch_wait
 #
-# sase-sf: filed flake task for the full-parallel-only archive publication
-# ordering node. Focused serial and isolated xdist reruns passed on the filing
-# tree; remove when the timing root cause is fixed.
+# sase-si: Models-panel runner-limit footer/chooser node exceeds the baseline
+# under full/cost lanes and passes focused on this tree. Related to the older
+# Models-panel flake tasks sase-n5 and sase-oh, but a distinct node/assertion.
+tests/test_models_panel_runner_limit.py::test_title_footer_and_chooser_show_effective_and_configured_limits
+#
+# sase-sf: plan-approval archive-publication ordering param flakes under the
+# full parallel lane and passes serial/isolated reruns; ready flake task has
+# independent corroboration from this check-full monitor.
 tests/test_plan_approval_launch_reliability_integration.py::test_archive_publication_order_survives_inverted_scheduling[host_first-2]

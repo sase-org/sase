@@ -56,7 +56,7 @@ def _proc_shell_index(page: AcePage, label: str) -> int:
 def _assert_procs_are_top_level_rows(page: AcePage) -> None:
     """Procs must be their own kind, not agents wearing a proc costume."""
     proc_rows = [agent for agent in page.app._agents if agent.is_proc_shell]
-    assert len(proc_rows) == 5
+    assert len(proc_rows) == 7
     for row in proc_rows:
         assert row.is_agent_entry is False
         assert row.parent_workflow is None
@@ -85,7 +85,8 @@ async def test_agents_proc_shell_list_png_snapshot(
         await _seeded_agents_tab(page)
 
         _assert_procs_are_top_level_rows(page)
-        assert_page_svg_contains(page, "▣")
+        assert_page_svg_contains(page, "⚙")
+        assert_page_svg_contains(page, "❯")
         assert_page_svg_contains(page, "[bash]")
         assert_page_svg_contains(page, "[python]")
 
@@ -118,6 +119,9 @@ async def test_agents_proc_shell_detail_png_snapshot(
         assert detail._current_agent.is_proc_shell
         rendered = renderable_to_text(prompt.content)
         assert "PROC SHELL" in rendered
+        assert "COMMAND" in rendered
+        assert "SAFE PREVIEW" not in rendered
+        assert rendered.index("COMMAND") < rendered.index("PROC DETAILS")
         assert "just check" in rendered
 
         # Zoom the summary panel so the golden shows the whole proc-shell

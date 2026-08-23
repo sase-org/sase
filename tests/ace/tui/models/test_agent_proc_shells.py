@@ -6,14 +6,19 @@ from datetime import datetime
 from typing import Any
 
 import pytest
+from rich.cells import cell_len
 
 from sase.ace.tui._proc_observer_models import ObservedProc
 from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.actions.agents._monitor_stop_flow import MonitorStopActionFlowMixin
 from sase.ace.tui.models._agent_clan import sase_agent_status_counts
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_proc_shells import proc_shell_agents_from_observed
+from sase.ace.tui.models.agent_proc_shells import (
+    proc_shell_agents_from_observed,
+    proc_shell_command_title,
+)
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
+from sase.ace.tui.widgets._agent_list_render_cache import agent_render_key
 from sase.ops.names import PROC_KILL
 from sase.procs import PROC_LIFECYCLE_PROC_SHELL, XPROMPT_PROC_ORIGIN
 
@@ -28,9 +33,20 @@ def _proc(
     status: str = "running",
     lifecycle: str = PROC_LIFECYCLE_PROC_SHELL,
     origin: str = XPROMPT_PROC_ORIGIN,
-    label: str = "Build docs",
+    label: str | None = "Build docs",
+    shell_name: str | None = "agent--build",
     xprompt_proc: dict[str, Any] | None = None,
 ) -> ObservedProc:
+    meta = {
+        "logical_id": "unit-1",
+        "label": label,
+        "shell_name": shell_name,
+        "code_digest": "sha256:code",
+        "code_language": "bash",
+        "safe_preview": "echo ok\napi_key=hidden",
+        "waits": [{"kind": "bead", "target": "sase-s6.7"}, "quiet"],
+        "condition_result": {"status": "passed", "reason": "cache warm"},
+    }
     return ObservedProc(
         proc_id=proc_id,
         proc_type="command",
@@ -48,22 +64,14 @@ def _proc(
         project="sase",
         workspace_num=12,
         phase="execute",
-        shell_name="agent--build",
+        shell_name=shell_name,
         shell_kind="bash",
         timeout_seconds=600,
         idle_timeout_seconds=120,
         request_fingerprint="sha256:proc",
         supervisor_id="supervisor-1",
         output="ready\npassword=hunter2\ncomplete",
-        xprompt_proc=xprompt_proc
-        if xprompt_proc is not None
-        else {
-            "code_digest": "sha256:code",
-            "code_language": "bash",
-            "safe_preview": "echo ok\napi_key=hidden",
-            "waits": [{"kind": "bead", "target": "sase-s6.7"}, "quiet"],
-            "condition_result": {"status": "passed", "reason": "cache warm"},
-        },
+        xprompt_proc=xprompt_proc if xprompt_proc is not None else meta,
     )
 
 
@@ -96,6 +104,7 @@ def test_proc_shell_projection_selects_standalone_xprompt_procs_and_dedupes(
     assert agent.pid is None
     assert agent.proc_id == "abc123def456"
     assert agent.display_name == "Build docs"
+    assert agent.proc_label == "Build docs"
     assert agent.proc_language == "bash"
     assert agent.proc_waits == ["bead: sase-s6.7", "quiet"]
     assert agent.proc_condition_result == "passed: cache warm"
@@ -132,7 +141,79 @@ def test_proc_shell_projection_maps_proc_statuses(
     assert agent.proc_status == proc_status
 
 
-def test_proc_shell_row_renders_identity_status_phase_and_language(
+def test_proc_shell_projection_resolves_explicit_label_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection_io(monkeypatch)
+
+    rows = [
+        _proc(
+            "label123456",
+            label="Chosen label",
+            shell_name="named-shell",
+            xprompt_proc={
+                "logical_id": "unit-1",
+                "label": "Chosen label",
+                "safe_preview": "echo label",
+            },
+        ),
+        _proc(
+            "shell123456",
+            label="unit-1",
+            shell_name="named-shell",
+            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo shell"},
+        ),
+        _proc(
+            "compat123456",
+            label="Old display",
+            shell_name=None,
+            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo compat"},
+        ),
+        _proc(
+            "unit123456",
+            label="unit-1",
+            shell_name=None,
+            xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo synthetic"},
+        ),
+    ]
+
+    agents = proc_shell_agents_from_observed(rows)
+
+    assert [agent.proc_label for agent in agents] == [
+        "Chosen label",
+        "named-shell",
+        "Old display",
+        None,
+    ]
+    assert agents[-1].display_name == "unit12"
+
+
+@pytest.mark.parametrize(
+    ("preview", "expected"),
+    [
+        ("  echo   hello  \\\n  echo world\n", "❯ echo hello…"),
+        ("\n\nprintf ready\n", "❯ printf ready"),
+        ("", None),
+        ("   \n\t", None),
+    ],
+)
+def test_proc_shell_command_title_compacts_preview(
+    preview: str,
+    expected: str | None,
+) -> None:
+    assert proc_shell_command_title(preview) == expected
+
+
+def test_proc_shell_command_title_truncates_to_cell_budget() -> None:
+    title = proc_shell_command_title("echo " + ("x" * 80))
+
+    assert title is not None
+    assert title.startswith("❯ echo ")
+    assert title.endswith("…")
+    assert cell_len(title) <= 48
+
+
+def test_proc_shell_row_renders_explicit_identity_status_and_language(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
@@ -140,12 +221,81 @@ def test_proc_shell_row_renders_identity_status_phase_and_language(
 
     left, _suffix, _option_id = format_agent_option(agent, 0, is_selected=False)
 
-    assert "▣" in left.plain
+    assert "⚙" in left.plain
     assert "Build docs" in left.plain
     assert "(RUNNING)" in left.plain
-    assert "execute" in left.plain
     assert "[bash]" in left.plain
-    assert "abc123" in left.plain
+    assert "execute" not in left.plain
+    assert "abc123" not in left.plain
+
+
+def test_proc_shell_row_renders_derived_command_title(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection_io(monkeypatch)
+    [agent] = proc_shell_agents_from_observed(
+        [
+            _proc(
+                label="unit-1",
+                shell_name=None,
+                xprompt_proc={
+                    "logical_id": "unit-1",
+                    "code_language": "bash",
+                    "safe_preview": "echo hello && sleep 30 && echo world",
+                },
+            )
+        ]
+    )
+
+    left, _suffix, _option_id = format_agent_option(agent, 0, is_selected=False)
+
+    assert agent.proc_label is None
+    assert "⚙" in left.plain
+    assert "❯ echo hello && sleep 30 && echo world" in left.plain
+    assert "unit-1" not in left.plain
+    assert "abc123" not in left.plain
+    assert "execute" not in left.plain
+    assert "[bash]" in left.plain
+
+
+def test_proc_shell_render_key_tracks_derived_title_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_projection_io(monkeypatch)
+    [first] = proc_shell_agents_from_observed(
+        [
+            _proc(
+                label="unit-1",
+                shell_name=None,
+                xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo one"},
+            )
+        ]
+    )
+    [second] = proc_shell_agents_from_observed(
+        [
+            _proc(
+                label="unit-1",
+                shell_name=None,
+                xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo two"},
+            )
+        ]
+    )
+
+    assert agent_render_key(
+        first,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    ) != agent_render_key(
+        second,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+    )
 
 
 def test_proc_shell_counts_stay_out_of_agent_lanes(

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from rich.text import Text
 
 from sase.ace.hooks.timestamps import format_duration
-from sase.procs import short_proc_id
+from sase.procs import TERMINAL_PROC_STATUSES, short_proc_id
 
 from ...models.agent import Agent
 from ...models.agent_time import compute_row_runtime
@@ -22,6 +22,7 @@ from ._helpers import append_section_heading
 PROC_SHELL_SECTION_ID = "proc-shell"
 _COLOR_HEADER = "bold #5FD7FF underline"
 _FIELD_LABEL_WIDTH = 15
+_DIAGNOSTIC_LEVELS = frozenset({FoldLevel.FULLY_EXPANDED, FoldLevel.EXHAUSTIVE})
 
 ProcShellTextAnnotator = Callable[[str | Text], Text]
 
@@ -60,9 +61,33 @@ def _proc_output_source_id(agent: Agent) -> str:
     return f"proc-shell:{agent.proc_id or agent.identity}"
 
 
+def _show_proc_phase(agent: Agent) -> bool:
+    return bool(
+        agent.proc_phase and (agent.proc_status or "") not in TERMINAL_PROC_STATUSES
+    )
+
+
+def _diagnostic_count(agent: Agent) -> int:
+    values = (
+        agent.proc_origin,
+        agent.proc_code_digest,
+        agent.proc_request_fingerprint,
+        agent.proc_supervisor_id,
+        agent.proc_settlement_state,
+        agent.monitor_command,
+    )
+    return sum(1 for value in values if value)
+
+
+def _diagnostic_summary(agent: Agent) -> str | None:
+    count = _diagnostic_count(agent)
+    return f"+{count} diagnostics" if count else None
+
+
 def _proc_field_parts(
     agent: Agent,
     *,
+    include_diagnostics: bool,
     annotate: ProcShellTextAnnotator | None = None,
     prefix: Text | None = None,
 ) -> list[object]:
@@ -75,14 +100,9 @@ def _proc_field_parts(
         exit_style = "dim" if agent.monitor_exit_code == 0 else "bold red"
         text.append(f"  (exit {agent.monitor_exit_code})", style=exit_style)
     text.append("\n")
-    _append_label_value(text, "Phase", agent.proc_phase, value_style="#FFAF5F")
-    _append_label_value(text, "Label", agent.proc_label)
     _append_label_value(text, "Language", agent.proc_language, value_style="#87D7FF")
-    _append_label_value(text, "Digest", agent.proc_code_digest, value_style="#D7D7FF")
-    _append_label_value(text, "Origin", agent.proc_origin, value_style="#D7D7FF")
-    _append_label_value(text, "Supervisor", agent.proc_supervisor_id)
-    _append_label_value(text, "Settlement", agent.proc_settlement_state)
-    _append_label_value(text, "Fingerprint", agent.proc_request_fingerprint)
+    if _show_proc_phase(agent):
+        _append_label_value(text, "Phase", agent.proc_phase, value_style="#FFAF5F")
 
     _, elapsed = compute_row_runtime(agent)
     if agent.monitor_timeout_seconds is not None:
@@ -96,14 +116,14 @@ def _proc_field_parts(
         text.append(_field_label("Idle timeout:"), style=COLOR_SUMMARY)
         text.append(f"{idle_label} without output\n", style=COLOR_REASON)
 
-    if agent.proc_condition_result:
-        _append_label_value(text, "Condition", agent.proc_condition_result)
     if agent.proc_waits:
         text.append(_field_label("Waits:"), style=COLOR_SUMMARY)
         text.append(", ".join(agent.proc_waits[:8]), style=COLOR_REASON)
         if len(agent.proc_waits) > 8:
             text.append(f" +{len(agent.proc_waits) - 8}", style="dim")
         text.append("\n")
+    if agent.proc_condition_result:
+        _append_label_value(text, "Condition", agent.proc_condition_result)
 
     if agent.proc_id:
         proc_short = short_proc_id(agent.proc_id)
@@ -115,15 +135,28 @@ def _proc_field_parts(
     if agent.proc_log_path:
         _append_label_value(text, "Log path", agent.proc_log_path)
 
-    if agent.monitor_command:
-        text.append(_field_label("Command:") + "\n", style=COLOR_SUMMARY)
-        parts.append(text)
-        command = agent.monitor_command + "\n"
-        if annotate is None:
-            parts.append(lazy_renderable(command, "bash"))
-        else:
-            parts.append(annotate(command))
-        text = Text(end="")
+    if include_diagnostics:
+        _append_label_value(text, "Origin", agent.proc_origin, value_style="#D7D7FF")
+        _append_label_value(
+            text, "Digest", agent.proc_code_digest, value_style="#D7D7FF"
+        )
+        _append_label_value(
+            text,
+            "Fingerprint",
+            agent.proc_request_fingerprint,
+            value_style="#D7D7FF",
+        )
+        _append_label_value(text, "Supervisor", agent.proc_supervisor_id)
+        _append_label_value(text, "Settlement", agent.proc_settlement_state)
+        if agent.monitor_command:
+            text.append(_field_label("Runtime argv:") + "\n", style=COLOR_SUMMARY)
+            parts.append(text)
+            command = agent.monitor_command + "\n"
+            if annotate is None:
+                parts.append(lazy_renderable(command, "bash"))
+            else:
+                parts.append(annotate(command))
+            text = Text(end="")
 
     parts.append(text)
     return parts
@@ -139,6 +172,7 @@ def build_proc_shell_section(
     """Return the foldable proc-shell metadata section."""
     text = Text(end="")
     level = effective_fold_level(panel_level, scale)
+    include_diagnostics = level in _DIAGNOSTIC_LEVELS
     heading = Text(end="")
     append_fold_section_heading(
         heading,
@@ -146,10 +180,16 @@ def build_proc_shell_section(
         section_id=PROC_SHELL_SECTION_ID,
         level=level,
         scale=scale,
+        summary=None if include_diagnostics else _diagnostic_summary(agent),
         style=_COLOR_HEADER,
     )
     text.append_text(heading)
-    return _proc_field_parts(agent, annotate=annotate, prefix=text)
+    return _proc_field_parts(
+        agent,
+        include_diagnostics=include_diagnostics,
+        annotate=annotate,
+        prefix=text,
+    )
 
 
 def build_proc_shell_preview(
@@ -164,7 +204,7 @@ def build_proc_shell_preview(
     header.append("\n")
     header.append("─" * 50 + "\n", style="dim")
     header.append("\n")
-    append_section_heading(header, "SAFE PREVIEW")
+    append_section_heading(header, "COMMAND")
     language = agent.proc_language or "bash"
     if annotate is not None:
         return [header, annotate(agent.proc_safe_preview + "\n")]

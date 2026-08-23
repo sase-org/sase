@@ -69,6 +69,7 @@ def _proc_unit(
     workspace: bool = False,
     cwd: str | None = None,
     shell_name: str | None = None,
+    label: str | None = None,
     timeout: str | None = None,
     logical_id: str = "unit-1",
     selected_project: str | None = None,
@@ -81,6 +82,7 @@ def _proc_unit(
             workspace=workspace,
             cwd=cwd,
             shell_name=shell_name,
+            label=label,
             timeout=timeout,
             selected_project=selected_project,
         ),
@@ -158,6 +160,42 @@ def test_bash_proc_runs_without_agent_artifacts(
     assert not (proc_runtime_dir(finished.proc_id) / "script.sh").exists()
     artifacts = tmp_path / "home" / "projects"
     assert not any(artifacts.rglob("done.json")) if artifacts.exists() else True
+
+
+def test_proc_metadata_preserves_label_provenance_through_prepare(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    unit = _proc_unit(
+        "printf ready\n",
+        cwd=str(tmp_path),
+        shell_name="checks",
+        label="Verify docs",
+    )
+
+    ok, identity, message, _spawned = dispatch_proc_unit(
+        unit,
+        "fp-label",
+        {"source_cwd": str(tmp_path), "python_executable": sys.executable},
+    )
+
+    assert ok, message
+    assert identity is not None
+    from sase.procs.store import get_proc
+
+    submitted = get_proc(identity)
+    assert submitted is not None
+    assert submitted.xprompt_proc is not None
+    assert submitted.xprompt_proc["label"] == "Verify docs"
+    assert submitted.xprompt_proc["shell_name"] == "checks"
+
+    finished = wait_for_proc(identity, timeout=10)
+    assert finished.status == "success"
+    assert finished.xprompt_proc is not None
+    assert finished.xprompt_proc["label"] == "Verify docs"
+    assert finished.xprompt_proc["shell_name"] == "checks"
+    assert finished.xprompt_proc["code_digest"]
 
 
 def test_python_proc_uses_sase_interpreter(monkeypatch: Any, tmp_path: Path) -> None:

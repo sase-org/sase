@@ -10,6 +10,7 @@ from sase.core.agent_clan_context import (
 
 from ._agent_clan import aggregate_clan_status, clan_member_status_priority
 from .agent import Agent, AgentType
+from .agent_proc_shells import proc_shell_command_title
 
 ClanKey = tuple[str, str | None]
 
@@ -99,6 +100,8 @@ def agent_tree_title(agent: Agent) -> str | None:
     if agent.is_workflow_step_child and agent.step_type in _NAMED_WORKFLOW_STEP_TYPES:
         title = agent.step_name or agent.display_name
         return title or None
+    if agent.is_proc_shell:
+        return agent.proc_label or proc_shell_command_title(agent.proc_safe_preview)
     if _is_untitled_sase_shell(agent):
         return None
     return agent.display_name or None

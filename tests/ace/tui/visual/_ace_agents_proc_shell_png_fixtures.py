@@ -2,8 +2,8 @@
 
 `%proc` launch units surface in the Agents tab as presentation-only rows backed
 by the proc store, never as agents. These fixtures seed a deterministic observer
-projection so the goldens can show the row glyph, Bash/Python badge, phase, and
-every active and terminal state next to ordinary agent rows.
+projection so the goldens can show the row glyph, derived titles, Bash/Python
+badges, and every active and terminal state next to ordinary agent rows.
 """
 
 from __future__ import annotations
@@ -49,6 +49,8 @@ def _proc_shell_row(
     output: str = "",
     waits: list[Any] | None = None,
     condition_result: dict[str, str] | None = None,
+    logical_id: str = "unit-1",
+    record_label: bool = True,
 ) -> ObservedProc:
     started_at = PROC_SHELL_VISUAL_NOW - timedelta(seconds=age_seconds)
     return ObservedProc(
@@ -77,6 +79,9 @@ def _proc_shell_row(
         supervisor_id="supervisor-1",
         output=output,
         xprompt_proc={
+            "logical_id": logical_id,
+            "label": label if record_label else None,
+            "shell_name": shell_name,
             "code_digest": f"sha256:{proc_id}",
             "code_language": language,
             "safe_preview": preview,
@@ -142,6 +147,35 @@ def proc_shell_visual_rows() -> tuple[ObservedProc, ...]:
             age_seconds=2400,
             preview="sase index rebuild",
             output="interrupted\n",
+        ),
+        _proc_shell_row(
+            "f60718293041",
+            label="unit-1",
+            status="success",
+            phase="running",
+            language="bash",
+            age_seconds=3100,
+            shell_name=None,
+            preview="echo hello && sleep 30 && echo world",
+            output="hello\nworld\n",
+            logical_id="unit-1",
+            record_label=False,
+        ),
+        _proc_shell_row(
+            "071829304152",
+            label="unit-2",
+            status="running",
+            phase="running",
+            language="bash",
+            age_seconds=45,
+            shell_name=None,
+            preview=(
+                "echo alpha beta gamma delta epsilon zeta eta theta iota kappa\n"
+                "echo lambda mu nu xi omicron"
+            ),
+            output="alpha beta gamma\n",
+            logical_id="unit-2",
+            record_label=False,
         ),
     )
 

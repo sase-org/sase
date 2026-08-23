@@ -94,8 +94,6 @@ from ._agent_list_styling import (
     _PROC_SHELL_GLYPH,
     _PROC_SHELL_GLYPH_STYLE,
     _PROC_SHELL_ID_STYLE,
-    _PROC_SHELL_LANGUAGE_STYLE,
-    _PROC_SHELL_PHASE_STYLE,
     _PROC_SHELL_ROW_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
@@ -481,12 +479,6 @@ def format_agent_option(
             f" {_MONITOR_FOLLOWUP_ERROR_GLYPH}",
             style=_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
         )
-    if agent.is_proc_shell:
-        if agent.proc_phase:
-            text.append(f" · {agent.proc_phase}", style=_PROC_SHELL_PHASE_STYLE)
-        if agent.proc_language:
-            text.append(f" [{agent.proc_language}]", style=_PROC_SHELL_LANGUAGE_STYLE)
-
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:
         annotation = f" ↻{agent.retry_count}"
@@ -566,7 +558,7 @@ def format_agent_option(
         presented_name = agent.display_name
     elif agent.is_proc_shell:
         identity_name_style = _PROC_SHELL_ID_STYLE
-        presented_name = agent.proc_id[:6] if agent.proc_id else agent.agent_name
+        presented_name = f"[{agent.proc_language}]" if agent.proc_language else None
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
         if is_family_container_row:

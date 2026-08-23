@@ -48,7 +48,7 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 _PANEL_MONITOR_GLYPH = MONITOR_GLYPH
 _PANEL_MONITOR_RUNNING_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 _PANEL_MONITOR_SETTLED_STYLE = MONITOR_SETTLED_GLYPH_COLOR
-_PANEL_PROC_GLYPH = "▣"
+_PANEL_PROC_GLYPH = "⚙"
 _PANEL_PROC_STYLE = "bold #5FD7FF"
 
 
@@ -173,6 +173,11 @@ def agent_panel_border_title(
         if chip:
             title.append(" ", style=_PANEL_COUNT_STYLE)
             title.append_text(chip)
+        if counts.proc_shells:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_PROC_GLYPH}{counts.proc_shells}", style=_PANEL_PROC_STYLE
+            )
         if counts.running_monitors:
             title.append(" ", style=_PANEL_COUNT_STYLE)
             title.append(
@@ -184,10 +189,5 @@ def agent_panel_border_title(
             title.append(
                 f"{_PANEL_MONITOR_GLYPH}{counts.settled_monitors}",
                 style=_PANEL_MONITOR_SETTLED_STYLE,
-            )
-        if counts.proc_shells:
-            title.append(" ", style=_PANEL_COUNT_STYLE)
-            title.append(
-                f"{_PANEL_PROC_GLYPH}{counts.proc_shells}", style=_PANEL_PROC_STYLE
             )
     return title

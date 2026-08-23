@@ -176,6 +176,8 @@ def prepare_xprompt_proc_supervisor(
     write_json_atomic(sidecar_path, sidecar)
     xprompt_meta = {
         "logical_id": str(meta.get("logical_id") or ""),
+        "label": meta.get("label") or None,
+        "shell_name": meta.get("shell_name") or None,
         "code_language": prepared.get("code_language"),
         "code_digest": prepared.get("code_digest"),
         "code_preview": prepared.get("code_preview"),
@@ -243,6 +245,8 @@ def _submit_unit(
         raise ProcSubmitError("cancelled")
     xprompt_meta = {
         "logical_id": unit.logical_id,
+        "label": payload.label or None,
+        "shell_name": payload.shell_name or None,
         "fingerprint": fingerprint,
         "code": agent_launch_wire_to_json_dict(payload.code),
         "workspace": workspace,

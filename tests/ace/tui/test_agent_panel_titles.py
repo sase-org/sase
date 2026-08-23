@@ -5,6 +5,9 @@ from __future__ import annotations
 from sase.ace.tui.actions.agents._display_panel_titles import (
     _PANEL_FOLD_RESTORE_STYLE,
     _PANEL_ISOLATION_RESTORE_STYLE,
+    _PANEL_MONITOR_RUNNING_STYLE,
+    _PANEL_MONITOR_SETTLED_STYLE,
+    _PANEL_PROC_STYLE,
     _PANEL_SELECTED_CHROME_STYLE,
     AgentPanelCounts,
     agent_panel_border_title,
@@ -185,6 +188,46 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         end=separator_start + 3,
         style=_PANEL_COUNT_STYLE,
         text=" · ",
+    )
+
+
+def test_panel_title_renders_proc_chip_before_monitor_chips() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        16,
+        counts=AgentPanelCounts(
+            running=1,
+            read=15,
+            proc_shells=1,
+            running_monitors=10,
+            settled_monitors=1,
+        ),
+    )
+
+    assert title.plain == "@chop · 16 [R1 D15] ⚙1 ⚙10 ⚙1"
+    proc_start = title.plain.index("⚙1")
+    running_start = title.plain.index("⚙10", proc_start + 1)
+    settled_start = title.plain.index("⚙1", running_start + 1)
+    _assert_title_span(
+        title,
+        start=proc_start,
+        end=proc_start + 2,
+        style=_PANEL_PROC_STYLE,
+        text="⚙1",
+    )
+    _assert_title_span(
+        title,
+        start=running_start,
+        end=running_start + 3,
+        style=_PANEL_MONITOR_RUNNING_STYLE,
+        text="⚙10",
+    )
+    _assert_title_span(
+        title,
+        start=settled_start,
+        end=settled_start + 2,
+        style=_PANEL_MONITOR_SETTLED_STYLE,
+        text="⚙1",
     )
 
 
