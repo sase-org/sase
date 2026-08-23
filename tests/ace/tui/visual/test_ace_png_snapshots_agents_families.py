@@ -11,7 +11,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
-from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
+from tests.ace.tui.visual._ace_agents_png_snapshot_family_fixtures import (
     family_and_lone_planner_agents,
     parallel_family_agents,
     parent_navigation_family_agents,
