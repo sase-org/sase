@@ -75,6 +75,23 @@ def store_proc_row(
         origin=proc.origin,
         log_path=proc.log_path,
         shell_name=proc.shell_name,
+        lifecycle=proc.lifecycle,
+        project=proc.project,
+        workspace_num=proc.workspace_num,
+        cwd=proc.cwd,
+        shell_kind=proc.shell_kind,
+        request_fingerprint=proc.request_fingerprint,
+        reserved_at=_local_datetime(proc.reserved_at),
+        supervisor_id=proc.supervisor_id,
+        stop_requested_by=proc.stop_requested_by,
+        stop_requested_at=_local_datetime(proc.stop_requested_at),
+        stop_reason=proc.stop_reason,
+        timeout_seconds=proc.timeout_seconds,
+        idle_timeout_seconds=proc.idle_timeout_seconds,
+        settling_started_at=_local_datetime(proc.settling_started_at),
+        settled_by=proc.settled_by,
+        settled_at=_local_datetime(proc.settled_at),
+        xprompt_proc=proc.xprompt_proc,
     )
 
 

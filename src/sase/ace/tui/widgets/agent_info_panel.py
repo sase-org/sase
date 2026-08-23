@@ -35,6 +35,7 @@ class AgentInfoPanel(Static):
         self._failed_count = 0
         self._read_count = 0
         self._sase_agent_count = 0
+        self._proc_shell_count = 0
         self._runner_limit = 0
         self._runner_queue_count = 0
         self._neighbor_count = 0
@@ -85,6 +86,7 @@ class AgentInfoPanel(Static):
         total: int,
         *,
         starting: int = 0,
+        proc_shells: int = 0,
     ) -> None:
         """Compatibility adapter for the headline and concrete metric strip.
 
@@ -106,6 +108,7 @@ class AgentInfoPanel(Static):
         self._failed_count = failed
         self._read_count = read
         self._sase_agent_count = total
+        self._proc_shell_count = proc_shells
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -177,6 +180,7 @@ class AgentInfoPanel(Static):
         read: int,
         sase_agent_count: int,
         starting: int,
+        proc_shell_count: int = 0,
         neighbor_count: int = 0,
         countdown: int,
         interval: int,
@@ -205,6 +209,7 @@ class AgentInfoPanel(Static):
             failed,
             read,
             sase_agent_count,
+            proc_shell_count,
             runner_limit,
             runner_queue_count,
             max(0, neighbor_count),
@@ -224,6 +229,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._sase_agent_count,
+            self._proc_shell_count,
             self._runner_limit,
             self._runner_queue_count,
             self._neighbor_count,
@@ -246,6 +252,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._sase_agent_count,
+            self._proc_shell_count,
             self._runner_limit,
             self._runner_queue_count,
             self._neighbor_count,
@@ -371,6 +378,11 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             return text
         text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
+        if self._proc_shell_count:
+            text.append(" agents", style="dim")
+            text.append(" · ", style="dim")
+            text.append(str(self._proc_shell_count), style="bold #5FD7FF")
+            text.append(" procs", style="dim")
         self._append_status_strip(text)
         self._append_neighbor_badge(text)
         if self._search_query:

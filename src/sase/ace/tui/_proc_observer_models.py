@@ -7,7 +7,7 @@ the observer thread decodes for durable operations.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any
@@ -61,6 +61,23 @@ class ObservedProc:
     # (``origin == MONITOR_PROC_ORIGIN``) this is the monitor's member agent
     # name (``acme--mon``).
     shell_name: str | None = None
+    lifecycle: str = ""
+    project: str | None = None
+    workspace_num: int | None = None
+    cwd: str = ""
+    shell_kind: str | None = None
+    request_fingerprint: str | None = None
+    reserved_at: datetime | None = None
+    supervisor_id: str | None = None
+    stop_requested_by: str | None = None
+    stop_requested_at: datetime | None = None
+    stop_reason: str | None = None
+    timeout_seconds: int | None = None
+    idle_timeout_seconds: int | None = None
+    settling_started_at: datetime | None = None
+    settled_by: str | None = None
+    settled_at: datetime | None = None
+    xprompt_proc: Mapping[str, Any] | None = None
 
     @property
     def label(self) -> str:

@@ -40,6 +40,7 @@ PLUGIN_UNINSTALL = "plugin.uninstall"
 PLUGIN_UPDATE = "plugin.update"
 
 MONITOR_STOP = "monitor.stop"
+PROC_KILL = "proc.kill"
 RUN_LAUNCH = "run.launch"
 SASE_UPDATE = "sase.update"
 
@@ -74,6 +75,7 @@ __all__ = [
     "PLUGIN_INSTALL",
     "PLUGIN_UNINSTALL",
     "PLUGIN_UPDATE",
+    "PROC_KILL",
     "RUN_LAUNCH",
     "SASE_UPDATE",
 ]

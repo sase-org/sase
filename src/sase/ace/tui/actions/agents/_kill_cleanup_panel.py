@@ -179,6 +179,8 @@ class AgentCleanupPanelMixin:
                 return
             if agent.identity in seen:
                 return
+            if agent.is_proc_shell:
+                return
             seen.add(agent.identity)
             targets.append(agent)
             if (

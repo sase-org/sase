@@ -53,6 +53,18 @@ def test_agent_info_panel_loading_clears() -> None:
     assert "…" not in plain
 
 
+def test_agent_info_panel_splits_agent_and_proc_counts() -> None:
+    """Proc shell rows are surfaced separately from sase-agent capacity."""
+    panel = AgentInfoPanel()
+    panel._sase_agent_count = 3
+    panel._proc_shell_count = 2
+    panel._loading = False
+
+    plain = _collect_text(panel)
+
+    assert plain.startswith("3 agents · 2 procs")
+
+
 def test_axe_info_panel_loading_renders_ellipsis() -> None:
     """AxeInfoPanel shows 'AXE …' while loading."""
     panel = AxeInfoPanel()

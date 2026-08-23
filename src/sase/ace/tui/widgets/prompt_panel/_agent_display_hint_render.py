@@ -43,6 +43,13 @@ from ._agent_monitor_section import (
     build_monitor_section,
     monitor_phase_text,
 )
+from ._agent_proc_shell_section import (
+    PROC_SHELL_SECTION_ID,
+    ProcShellTextAnnotator,
+    build_proc_shell_output,
+    build_proc_shell_preview,
+    build_proc_shell_section,
+)
 from ._agent_xprompt_highlighting import (
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
@@ -113,6 +120,29 @@ def _hint_monitor_annotator(
     workspace_dir: str | None,
 ) -> tuple[MonitorTextAnnotator, Callable[[], int]]:
     """Annotate free-form monitor text and expose the updated hint counter."""
+
+    def annotate(content: str | Text) -> Text:
+        nonlocal hint_counter
+        target = Text(end="")
+        raw = content.plain if isinstance(content, Text) else content
+        hint_counter = append_bounded_text_with_file_hints(
+            target,
+            raw,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
+        )
+        return target
+
+    return annotate, lambda: hint_counter
+
+
+def _hint_proc_shell_annotator(
+    hint_counter: int,
+    hint_mappings: dict[int, str],
+    workspace_dir: str | None,
+) -> tuple[ProcShellTextAnnotator, Callable[[], int]]:
+    """Annotate free-form proc-shell text and expose the updated hint counter."""
 
     def annotate(content: str | Text) -> Text:
         nonlocal hint_counter
@@ -273,6 +303,40 @@ class AgentHintRenderMixin:
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
+            )
+
+        if agent.is_proc_shell:
+            annotate, hint_count = _hint_proc_shell_annotator(
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
+            section_level = (
+                lane_fold_overrides.get(PROC_SHELL_SECTION_ID, lane_fold_level)
+                if isinstance(lane_fold_overrides, Mapping)
+                else lane_fold_level
+            )
+            for part in build_proc_shell_section(
+                agent,
+                panel_level=section_level,
+                annotate=annotate,
+            ):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
+            for part in build_proc_shell_preview(agent, annotate=annotate):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
+            for part in build_proc_shell_output(agent, annotate=annotate):
+                if isinstance(part, Text):
+                    header_text.append_text(part)
+            hint_counter = hint_count()
+            self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+            return AgentHintRender(
+                file_hints=hint_mappings,
+                tool_call_reports=tool_call_reports,
+                commit_views=header_hint_state.commit_views,
+                glossary_reports=header_hint_state.glossary_reports,
+                header_enrichment_pending=False,
             )
 
         if agent.is_monitor:

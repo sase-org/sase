@@ -22,6 +22,7 @@ from ...models.agent import Agent
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _FAMILY_NAME_STYLE,
+    _PROC_SHELL_ID_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ...models.agent_time import queued_for_label
@@ -106,6 +107,8 @@ def _append_identity_fields(
         name_style = (
             _FAMILY_NAME_STYLE
             if agent.is_family_container_row
+            else _PROC_SHELL_ID_STYLE
+            if agent.is_proc_shell
             else _AGENT_NAME_ANNOTATION_STYLE
         )
         text.append(f"{presented_name}\n", style=name_style)
@@ -157,6 +160,19 @@ def _append_project_fields(
     meta_patch: object,
 ) -> None:
     """Append project, workspace, and workflow identity fields."""
+    if agent.is_proc_shell:
+        if agent.cl_name and agent.cl_name != "proc":
+            text.append("Project: ", style="bold #87D7FF")
+            label = agent.project_display_name or humanize_cl_name(agent.cl_name)
+            text.append(f"{label}\n", style="#00D7AF")
+        if agent.workspace_num is not None and agent.workspace_num > 0:
+            text.append("Workspace: ", style="bold #87D7FF")
+            text.append(f"#{agent.workspace_num}\n", style="#5FD7FF")
+        if agent.monitor_cwd:
+            text.append("Cwd: ", style="bold #87D7FF")
+            text.append(f"{agent.monitor_cwd}\n", style="#D7D7FF")
+        return
+
     if (
         agent.is_workflow_step_child
         and agent.step_type in {"bash", "python"}
@@ -378,7 +394,7 @@ def append_agent_metadata_fields(
     _append_auto_approve_field(text, agent)
     shell_section = _append_shell_or_model_fields(text, agent, responsive_ranges)
 
-    if not cheap and summary is not None:
+    if not agent.is_proc_shell and not cheap and summary is not None:
         from ._agent_xprompts import append_agent_xprompts_section
 
         project_key = (
@@ -401,17 +417,20 @@ def append_agent_metadata_fields(
         text.append("BUG: ", style="bold #87D7FF")
         text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
-    wait_section = _append_wait_field(
-        text,
-        agent,
-        agent_status_buckets,
-        clan_wait_member_statuses,
-        tribe_wait_bindings,
-        runner_queue_ahead_count,
-        summary.wait_bead_statuses if summary is not None else None,
-        responsive_ranges,
-    )
-    _append_retry_fields(text, agent)
+    if agent.is_proc_shell:
+        wait_section = None
+    else:
+        wait_section = _append_wait_field(
+            text,
+            agent,
+            agent_status_buckets,
+            clan_wait_member_statuses,
+            tribe_wait_bindings,
+            runner_queue_ahead_count,
+            summary.wait_bead_statuses if summary is not None else None,
+            responsive_ranges,
+        )
+        _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
     return _AgentMetadataFields(meta_fields, page_section, wait_section, shell_section)
 

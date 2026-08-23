@@ -116,6 +116,7 @@ class AgentDetailRenderMixin:
             return False
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        self._sync_selected_proc_shell_detail_proc(current_agent)
         if current_agent is None:
             agent_detail.show_empty()
             return False
@@ -231,6 +232,7 @@ class AgentDetailRenderMixin:
             return
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        self._sync_selected_proc_shell_detail_proc(current_agent)
         if current_agent is not None:
             from ._loading_helpers import hydrate_agent_attempt_history
 
@@ -253,6 +255,28 @@ class AgentDetailRenderMixin:
             agent_detail.show_empty()
 
         self._apply_agent_footer_update(agent_detail, footer_widget, current_agent)
+
+    def _sync_selected_proc_shell_detail_proc(
+        self, current_agent: Agent | None
+    ) -> None:
+        """Ask the proc observer to hydrate log output for the selected proc shell."""
+        proc_id = (
+            current_agent.proc_id
+            if current_agent is not None and current_agent.is_proc_shell
+            else None
+        )
+        if getattr(self, "_selected_proc_shell_detail_proc_id", None) == proc_id:
+            return
+        self._selected_proc_shell_detail_proc_id = proc_id  # type: ignore[attr-defined]
+        observer = getattr(self, "_proc_observer", None)
+        if observer is None:
+            return
+        set_detail_proc = getattr(observer, "set_detail_proc", None)
+        request_poll = getattr(observer, "request_poll", None)
+        if callable(set_detail_proc):
+            set_detail_proc(proc_id)
+        if callable(request_poll):
+            request_poll()
 
     def _should_render_agent_detail_with_hints(self) -> bool:
         """Return whether Agents-tab detail repaints preserve active hints."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from inspect import signature
 from typing import TYPE_CHECKING, Any
 
 from ...models._agent_clan import sase_agent_status_counts
@@ -38,7 +39,7 @@ class AgentInfoDisplayMixin:
         with tui_trace("agents.update_info_panel", agents=len(self._agents)):
             self._update_agents_info_panel_impl()
 
-    def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int]:
+    def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int, int]:
         """Return cached sase-agent status and headline counts."""
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
@@ -55,6 +56,9 @@ class AgentInfoDisplayMixin:
         hidden_starting_agents = [
             self._agents[i] for i in panel_index.hidden_starting_indices
         ]
+        proc_shell_count = sum(
+            1 for agent in visible_top_level_agents if agent.is_proc_shell
+        )
         projected = sase_agent_status_counts(
             visible_top_level_agents,
             unread_ids,
@@ -70,6 +74,7 @@ class AgentInfoDisplayMixin:
             projected.done,
             lane_total,
             starting_count,
+            proc_shell_count,
         )
         self._agent_info_metrics_cache = (cache_key, metrics)
         return metrics
@@ -130,6 +135,7 @@ class AgentInfoDisplayMixin:
             read_count,
             sase_agent_count,
             starting_count,
+            proc_shell_count,
         ) = self._agent_info_metrics()
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         neighbor_count = self._selected_agent_neighbor_count(current_agent)
@@ -166,6 +172,7 @@ class AgentInfoDisplayMixin:
                 read=read_count,
                 sase_agent_count=sase_agent_count,
                 starting=starting_count,
+                proc_shell_count=proc_shell_count,
                 neighbor_count=neighbor_count,
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
@@ -189,6 +196,9 @@ class AgentInfoDisplayMixin:
                 runner_capacity.effective_limit,
                 runner_capacity.queued_count,
             )
+        update_count_kwargs: dict[str, int] = {"starting": starting_count}
+        if "proc_shells" in signature(agent_info_panel.update_agent_counts).parameters:
+            update_count_kwargs["proc_shells"] = proc_shell_count
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,
@@ -197,7 +207,7 @@ class AgentInfoDisplayMixin:
             failed_count,
             read_count,
             sase_agent_count,
-            starting=starting_count,
+            **update_count_kwargs,
         )
         agent_info_panel.update_countdown(
             self._countdown_remaining, self.refresh_interval

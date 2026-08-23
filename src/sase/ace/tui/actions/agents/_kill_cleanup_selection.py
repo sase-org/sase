@@ -161,6 +161,8 @@ class AgentCleanupSelectionMixin:
         for agent in self._agents_with_children:
             if agent.identity not in selected:
                 continue
+            if agent.is_proc_shell:
+                continue
             candidates = (
                 clan_members_for_container(agent, self._agents_with_children)
                 if agent.is_clan_container

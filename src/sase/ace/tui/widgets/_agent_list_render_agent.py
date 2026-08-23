@@ -91,6 +91,12 @@ from ._agent_list_styling import (
     _MONITOR_SETTLED_GLYPH_STYLE,
     _MONITOR_STALLED_GLYPH,
     _MONITOR_STALLED_GLYPH_STYLE,
+    _PROC_SHELL_GLYPH,
+    _PROC_SHELL_GLYPH_STYLE,
+    _PROC_SHELL_ID_STYLE,
+    _PROC_SHELL_LANGUAGE_STYLE,
+    _PROC_SHELL_PHASE_STYLE,
+    _PROC_SHELL_ROW_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
@@ -218,6 +224,8 @@ def format_agent_option(
                 text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
     elif agent.is_monitor:
         text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
+    elif agent.is_proc_shell:
+        text.append(f"{_PROC_SHELL_GLYPH} ", style=_PROC_SHELL_GLYPH_STYLE)
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:
@@ -241,6 +249,8 @@ def format_agent_option(
     )
     if agent.is_monitor:
         color = _MONITOR_ROW_STYLE
+    elif agent.is_proc_shell:
+        color = _PROC_SHELL_ROW_STYLE
     elif is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
     elif agent.is_workflow_step_child and agent.step_type in _STEP_TYPE_COLORS:
@@ -254,7 +264,10 @@ def format_agent_option(
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
     if not (agent.is_clan_container or is_family_container_row) and not (
-        is_appears_as_agent or agent_is_tree_child(agent) or agent.is_monitor
+        is_appears_as_agent
+        or agent_is_tree_child(agent)
+        or agent.is_monitor
+        or agent.is_proc_shell
     ):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
@@ -270,7 +283,9 @@ def format_agent_option(
 
     if not agent.is_clan_container:
         is_reverted_root = _should_render_reverted_badge(agent)
-        if is_reverted_root:
+        if agent.is_proc_shell:
+            name_style = f"bold {color}" if is_selected else color
+        elif is_reverted_root:
             text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
             text.append(" ")
             name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
@@ -300,6 +315,8 @@ def format_agent_option(
         text.append(display_status, style=style)
         if glyph:
             text.append(f" {glyph}", style=style)
+    elif agent.is_proc_shell and agent.status == "SETTLING":
+        text.append(display_status, style="bold #FFAF5F")
     elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
@@ -448,6 +465,11 @@ def format_agent_option(
             f" {_MONITOR_FOLLOWUP_ERROR_GLYPH}",
             style=_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
         )
+    if agent.is_proc_shell:
+        if agent.proc_phase:
+            text.append(f" · {agent.proc_phase}", style=_PROC_SHELL_PHASE_STYLE)
+        if agent.proc_language:
+            text.append(f" [{agent.proc_language}]", style=_PROC_SHELL_LANGUAGE_STYLE)
 
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:
@@ -526,6 +548,9 @@ def format_agent_option(
     if agent.is_clan_container:
         identity_name_style = _CLAN_NAME_STYLE
         presented_name = agent.display_name
+    elif agent.is_proc_shell:
+        identity_name_style = _PROC_SHELL_ID_STYLE
+        presented_name = agent.proc_id[:6] if agent.proc_id else agent.agent_name
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
         if is_family_container_row:

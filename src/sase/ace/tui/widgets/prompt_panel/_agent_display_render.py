@@ -359,6 +359,16 @@ class AgentDisplayRenderMixin(
             )
             return
 
+        if agent.is_proc_shell:
+            self._update_proc_shell_display(
+                agent,
+                header_text,
+                error_tb_syntax,
+                panel_level=lane_fold_level,
+                section_fold_overrides=lane_fold_overrides,
+            )
+            return
+
         # A monitor member's work is one supervised OS command, not an LLM
         # turn — it has no prompt file and its output is not prose.
         if agent.is_monitor:

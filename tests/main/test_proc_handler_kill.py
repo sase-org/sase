@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
+from sase.ops import RESULT_ENV, read_operation_result
+from sase.ops.names import PROC_KILL
 from sase.procs import get_proc
 from tests.main.proc_handler_helpers import dispatch, stored, proc_home
 
@@ -35,6 +38,35 @@ def test_kill_resolves_prefix_and_marks_active_proc_killed(
     assert proc.status == "killed"
 
 
+def test_kill_emits_typed_operation_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Durable proc-kill calls settle through a typed result sidecar."""
+    monkeypatch.setattr("sase.main.proc_handler._reconcile_quietly", lambda: None)
+    result_path = tmp_path / "proc-kill-result.json"
+    monkeypatch.setenv(RESULT_ENV, str(result_path))
+    monkeypatch.setenv("SASE_PROC_ID", "proc-kill-op")
+    stored(
+        "aaaaaaaaaaaa",
+        status="running",
+        finished_at=None,
+        exit_code=None,
+    )
+
+    assert dispatch(["proc", "kill", "aaa"]) == 0
+
+    result = read_operation_result(
+        result_path,
+        expected_operation=PROC_KILL,
+        expected_proc_id="proc-kill-op",
+    )
+    assert result.success is True
+    assert result.payload is not None
+    assert result.payload["changed"] is True
+    assert result.payload["proc"]["proc_id"] == "aaaaaaaaaaaa"
+
+
 def test_kill_terminal_proc_is_a_json_noop(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -50,11 +82,24 @@ def test_kill_terminal_proc_is_a_json_noop(
 
 
 def test_kill_reports_bad_proc_references(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Unknown kill targets are usage errors, just like ``proc show``."""
+    result_path = tmp_path / "proc-kill-failed.json"
+    monkeypatch.setenv(RESULT_ENV, str(result_path))
+    monkeypatch.setenv("SASE_PROC_ID", "proc-kill-op")
+
     assert dispatch(["proc", "kill", "zzz"]) == 2
     assert "no proc matches reference" in capsys.readouterr().err
+    result = read_operation_result(
+        result_path,
+        expected_operation=PROC_KILL,
+        expected_proc_id="proc-kill-op",
+    )
+    assert result.success is False
+    assert "no proc matches reference" in result.message
 
 
 def test_kill_resolves_named_proc_shell(

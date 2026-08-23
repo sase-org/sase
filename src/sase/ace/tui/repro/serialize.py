@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .agent_factory import agent_has_repro_identity, agent_type_to_repro
 from .schema import ReproAgentRow
 
 if TYPE_CHECKING:
@@ -15,6 +16,11 @@ if TYPE_CHECKING:
 def serialize_agent_row(agent: Agent) -> ReproAgentRow:
     """Return the commit-safe row fields needed by Phase 1 invariants."""
 
+    agent_type = agent_type_to_repro(agent.agent_type)
+    if agent_type is None:
+        raise ValueError(
+            f"agent type {agent.agent_type.value!r} is not repro-serializable"
+        )
     metadata = {
         "llm_provider": agent.llm_provider,
         "vcs_provider": agent.vcs_provider,
@@ -23,7 +29,7 @@ def serialize_agent_row(agent: Agent) -> ReproAgentRow:
         "appears_as_agent": agent.appears_as_agent,
     }
     return ReproAgentRow(
-        agent_type=agent.agent_type.value,
+        agent_type=agent_type,
         cl_name=agent.cl_name,
         raw_suffix=agent.raw_suffix,
         status=agent.status,
@@ -41,4 +47,8 @@ def serialize_agent_row(agent: Agent) -> ReproAgentRow:
 
 
 def serialize_agent_rows(agents: Iterable[Agent]) -> list[ReproAgentRow]:
-    return [serialize_agent_row(agent) for agent in agents]
+    return [
+        serialize_agent_row(agent)
+        for agent in agents
+        if agent_has_repro_identity(agent)
+    ]

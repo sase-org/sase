@@ -23,7 +23,7 @@ from ...models.fold_scale import (
     lane_fold_scale,
 )
 from ...models.fold_state import FoldLevel
-from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _PROC_SHELL_ROW_STYLE
 from ._agent_bead_section import (
     BEAD_SECTION_ID,
     ResponsiveBeadSection,
@@ -170,6 +170,8 @@ def build_header_text(
     responsive_ranges: dict[str, tuple[int, int]] = {}
     if agent.is_family_container_row:
         append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
+    elif agent.is_proc_shell:
+        append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
     elif agent.is_agent_entry:
         append_kind_header(header_text, "AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
     metadata = append_agent_metadata_fields(

@@ -23,6 +23,24 @@ def _make_agent(
     )
 
 
+def _make_proc_shell(
+    status: str = "RUNNING",
+    proc_status: str = "running",
+) -> Agent:
+    """Create a projected proc shell for binding tests."""
+    return Agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="sase",
+        project_file="",
+        status=status,
+        start_time=None,
+        raw_suffix="abc123def456",
+        proc_id="abc123def456",
+        proc_status=proc_status,
+        proc_label="Build docs",
+    )
+
+
 def test_keybinding_footer_agent_bindings_none_agent() -> None:
     """Test agent bindings when no agent selected."""
     footer = KeybindingFooter()
@@ -55,6 +73,33 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
     assert "x" in binding_keys  # Kill is available
     assert _edit_hooks_key(footer) not in binding_keys  # No fork chat
     assert ("r", "retry") in bindings
+
+
+def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
+    """Active proc shells expose native kill but not agent-only actions."""
+    footer = KeybindingFooter()
+    agent = _make_proc_shell()
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "kill proc") in bindings
+    assert ("r", "retry") not in bindings
+    assert (_edit_hooks_key(footer), "fork") not in bindings
+    assert (_edit_hooks_key(footer), "fork tribe") not in bindings
+    assert ("W", "wait for tribe") not in bindings
+
+
+def test_keybinding_footer_agent_bindings_terminal_proc_shell() -> None:
+    """Terminal proc shells are visible history rows, not agent controls."""
+    footer = KeybindingFooter()
+    agent = _make_proc_shell(status="DONE", proc_status="success")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "kill proc") not in bindings
+    assert ("x", "dismiss") not in bindings
+    assert ("r", "retry") not in bindings
+    assert (_edit_hooks_key(footer), "fork") not in bindings
 
 
 def test_keybinding_footer_agent_bindings_starting_agent() -> None:

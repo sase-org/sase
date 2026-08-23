@@ -60,6 +60,8 @@ def is_agents_tab_agent_node(agent: Agent) -> bool:
         return False
     if getattr(agent, "is_monitor", False):
         return False
+    if getattr(agent, "is_proc_shell", False):
+        return False
     if getattr(agent, "is_workflow_step_child", False):
         return False
     if getattr(agent, "is_family_member_child", False):

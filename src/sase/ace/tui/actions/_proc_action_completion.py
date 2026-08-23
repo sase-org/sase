@@ -123,9 +123,65 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
     def _apply_proc_observer_snapshot(self, snapshot: ProcObserverSnapshot) -> None:
         """Apply observer projection and deliver decoded completions once."""
         self._proc_projection = snapshot.projection
+        projection = self._effective_proc_projection()
+        self._sync_proc_shell_agents_from_projection(projection)
         self._update_proc_indicator()
         for completion in snapshot.completions:
-            self._deliver_observed_completion(completion, snapshot.projection)
+            self._deliver_observed_completion(completion, projection)
+
+    def _sync_proc_shell_agents_from_projection(
+        self,
+        projection: ProcProjection | None = None,
+    ) -> None:
+        """Merge observer-cached proc-shell rows into the Agents-tab roster."""
+        from ..models.agent_proc_shells import (
+            merge_proc_shell_agents,
+            proc_shell_agent_signature,
+            proc_shell_agents_from_observed,
+        )
+
+        if projection is None:
+            projection = self._effective_proc_projection()
+        current_unfiltered = list(getattr(self, "_agents_with_children", []) or [])
+        current_proc_shells = [
+            agent for agent in current_unfiltered if agent.is_proc_shell
+        ]
+        proc_shells = proc_shell_agents_from_observed(projection.rows)
+        if proc_shell_agent_signature(
+            current_proc_shells
+        ) == proc_shell_agent_signature(proc_shells):
+            return
+
+        previous_agents = list(getattr(self, "_agents", []) or [])
+        self._agents_with_children = merge_proc_shell_agents(
+            current_unfiltered,
+            proc_shells,
+        )
+        self._agents = list(self._agents_with_children)
+        invalidate = getattr(self, "_invalidate_agent_panel_cache", None)
+        if callable(invalidate):
+            invalidate()
+
+        on_agents_tab = getattr(self, "current_tab", None) == "agents"
+        selected_identity = None
+        current_idx = getattr(self, "current_idx", -1)
+        if on_agents_tab and 0 <= current_idx < len(previous_agents):
+            selected_identity = previous_agents[current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
+
+        finalize = getattr(self, "_finalize_agent_list", None)
+        if callable(finalize):
+            finalize(
+                on_agents_tab,
+                selected_identity,
+                save_unfiltered=False,
+                previous_agents=previous_agents,
+            )
+        elif on_agents_tab:
+            refresh = getattr(self, "_refresh_agents_display", None)
+            if callable(refresh):
+                refresh(list_changed=True, defer_detail=True)
 
     def _deliver_observed_completion(
         self,

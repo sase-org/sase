@@ -185,6 +185,8 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
         return ()
     if agent.is_monitor:
         return ()
+    if agent.is_proc_shell:
+        return ()
 
     if _is_workflow_aggregate_row(agent):
         agent_steps = _dedupe_rows(

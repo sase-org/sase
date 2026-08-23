@@ -16,9 +16,12 @@ from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 
 from .agent_factory import (
+    agent_has_repro_identity,
     agent_to_repro_identity,
     agents_from_repro_rows,
     load_state_from_repro,
+    runtime_identity_has_repro_type,
+    runtime_identity_to_repro,
 )
 from .invariants import ReproInvariantReport, check_bundle_invariants
 from .schema import (
@@ -191,12 +194,21 @@ def _expand_visible_fixture_parents(app: AceApp, step: ReproLoadStep) -> None:
 def _capture_replay_step(page: AcePage, source: ReproLoadStep) -> ReproLoadStep:
     app = page.app
     app_state = ReproAppState(
-        visible_identities=[agent_to_repro_identity(agent) for agent in app._agents],
+        visible_identities=[
+            agent_to_repro_identity(agent)
+            for agent in app._agents
+            if agent_has_repro_identity(agent)
+        ],
         selected_identity=_selected_identity(app),
         dismissed_identities=[
-            (identity[0].value, identity[1], identity[2])
+            runtime_identity_to_repro(identity)
             for identity in sorted(
-                app._dismissed_agents, key=_runtime_identity_sort_key
+                (
+                    identity
+                    for identity in app._dismissed_agents
+                    if runtime_identity_has_repro_type(identity)
+                ),
+                key=_runtime_identity_sort_key,
             )
         ],
         flattened_parent_timestamps=[],
@@ -232,7 +244,9 @@ def _snapshot_from_page(
         step_id=observed.step_id,
         visible_identities=list(observed.app_state.visible_identities),
         agents_with_children_identities=[
-            agent_to_repro_identity(agent) for agent in app._agents_with_children
+            agent_to_repro_identity(agent)
+            for agent in app._agents_with_children
+            if agent_has_repro_identity(agent)
         ],
         selected_identity=observed.app_state.selected_identity,
         load_state=load_state,
@@ -245,7 +259,10 @@ def _snapshot_from_page(
 def _selected_identity(app: AceApp) -> AgentIdentity | None:
     if not app._agents or not (0 <= app.current_idx < len(app._agents)):
         return None
-    return agent_to_repro_identity(app._agents[app.current_idx])
+    selected = app._agents[app.current_idx]
+    if not agent_has_repro_identity(selected):
+        return None
+    return agent_to_repro_identity(selected)
 
 
 def _runtime_identity_sort_key(

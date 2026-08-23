@@ -437,6 +437,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             source="apply",
         )
 
+        sync_proc_shells = getattr(
+            self, "_sync_proc_shell_agents_from_projection", None
+        )
+        if callable(sync_proc_shells):
+            sync_proc_shells()
+
         # Live workspace pencil hints for active rows without a persisted
         # diff_path are computed off the loader path. Schedule the deferred,
         # coalesced background scan now that the agent list is finalized; it

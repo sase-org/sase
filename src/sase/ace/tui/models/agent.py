@@ -206,6 +206,8 @@ class Agent(AgentState):
             if self.is_anonymous:
                 return "workflow"
             return self.workflow if self.workflow else "agent"
+        if self.is_proc_shell:
+            return "proc"
         if self.is_workflow_child and self.step_type:
             return self.step_type
         if self.agent_type == AgentType.RUNNING:
@@ -226,6 +228,14 @@ class Agent(AgentState):
         """
         if self.is_clan_container and self.agent_clan:
             return self.presented_agent_name or self.agent_clan
+        if self.is_proc_shell:
+            return (
+                self.proc_label
+                or self.presented_agent_name
+                or self.agent_name
+                or self.proc_id
+                or "proc shell"
+            )
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent
@@ -251,6 +261,11 @@ class Agent(AgentState):
     def is_monitor(self) -> bool:
         """Whether this row is the monitor member, not the starter back-reference."""
         return is_monitor_member_role(self.agent_family_role, self.role_suffix)
+
+    @property
+    def is_proc_shell(self) -> bool:
+        """Whether this row projects one stand-alone durable proc shell."""
+        return self.agent_type == AgentType.PROC_SHELL
 
     @property
     def start_time_display(self) -> str:
@@ -435,6 +450,8 @@ class Agent(AgentState):
         if self.is_clan_container:
             return False
         if self.is_monitor:
+            return False
+        if self.is_proc_shell:
             return False
         if self.agent_type == AgentType.RUNNING:
             return True

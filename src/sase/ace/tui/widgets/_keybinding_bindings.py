@@ -13,6 +13,7 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
+from sase.procs import ACTIVE_PROC_STATUSES
 
 from .._artifact_tab_model import DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED
 from ...patch import Patch
@@ -287,6 +288,23 @@ class KeybindingBindingsMixin:
                 and family_roster_container(agent) is not None
             ):
                 bindings.append(("0-9", "shell"))
+            return bindings
+
+        if getattr(agent, "is_proc_shell", False):
+            if (
+                agent.proc_status in ACTIVE_PROC_STATUSES
+                and marked_count == 0
+                and not panel_focused
+                and not group_focused
+            ):
+                bindings.append((x, "kill proc"))
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
+                    )
+                )
             return bindings
 
         if not panel_focused and not group_focused:

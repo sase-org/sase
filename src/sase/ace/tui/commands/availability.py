@@ -422,6 +422,9 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
+    if getattr(agent, "is_proc_shell", False) and spec.id in _REQUIRES_AGENT:
+        return False
+
     if spec.id == "app.zoom_panel":
         return panel_focused or agent is not None
 

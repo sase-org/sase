@@ -7,10 +7,32 @@ from typing import TYPE_CHECKING
 
 from sase.ace.tui.models.agent import Agent, AgentType
 
-from .schema import AgentIdentity, ReproAgentRow, ReproLoadState
+from .schema import AgentIdentity, AgentTypeValue, ReproAgentRow, ReproLoadState
 
 if TYPE_CHECKING:
     from sase.ace.tui.models.agent_loader import AgentLoadState
+
+
+def agent_type_to_repro(agent_type: AgentType) -> AgentTypeValue | None:
+    """Return the commit-safe repro type for rows that belong in bundles."""
+    value = agent_type.value
+    if value == "run":
+        return "run"
+    if value == "workflow":
+        return "workflow"
+    return None
+
+
+def agent_has_repro_identity(agent: Agent) -> bool:
+    """Whether this live row should be serialized into agent repro bundles."""
+    return agent_type_to_repro(agent.agent_type) is not None
+
+
+def runtime_identity_has_repro_type(
+    identity: tuple[AgentType, str, str | None],
+) -> bool:
+    """Whether this runtime identity has a schema-supported repro type."""
+    return agent_type_to_repro(identity[0]) is not None
 
 
 def _agent_identity_to_repro(
@@ -18,11 +40,20 @@ def _agent_identity_to_repro(
 ) -> AgentIdentity:
     """Convert a runtime ``Agent.identity`` tuple to bundle identity form."""
 
-    return (identity[0].value, identity[1], identity[2])
+    agent_type = agent_type_to_repro(identity[0])
+    if agent_type is None:
+        raise ValueError(f"agent type {identity[0].value!r} is not repro-serializable")
+    return (agent_type, identity[1], identity[2])
 
 
 def agent_to_repro_identity(agent: Agent) -> AgentIdentity:
     return _agent_identity_to_repro(agent.identity)
+
+
+def runtime_identity_to_repro(
+    identity: tuple[AgentType, str, str | None],
+) -> AgentIdentity:
+    return _agent_identity_to_repro(identity)
 
 
 def load_state_from_repro(state: ReproLoadState) -> AgentLoadState:

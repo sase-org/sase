@@ -68,6 +68,23 @@ class ConfirmStopMonitorModal(ConfirmDialog):
         )
 
 
+class ConfirmKillProcShellModal(ConfirmDialog):
+    """Modal for confirming a stand-alone proc shell should be killed."""
+
+    def __init__(self, proc_description: str) -> None:
+        """Initialize the confirm kill-proc-shell modal."""
+        self.proc_description = proc_description
+        super().__init__(
+            "Kill Proc Shell",
+            "Kill this proc shell? Running command will stop immediately.",
+            subject=proc_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Kill proc",
+            cancel_label="Keep running",
+            default="cancel",
+        )
+
+
 class ConfirmKillAllModal(ConfirmDialog):
     """Modal for confirming kill & dismiss of all agents (double-confirmation)."""
 
@@ -103,5 +120,6 @@ __all__ = [
     "ConfirmDismissAllModal",
     "ConfirmKillAllModal",
     "ConfirmKillModal",
+    "ConfirmKillProcShellModal",
     "ConfirmStopMonitorModal",
 ]

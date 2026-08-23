@@ -72,6 +72,14 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     cancel_slow_tick()
                 self._start_clan_section_enrichment_from_context(agent)
                 return
+            if agent.is_proc_shell:
+                self._cancel_agent_bead_display_worker_for_selection_change(agent)
+                self._cancel_agent_linked_delta_worker_for_selection_change(agent)
+                self._cancel_agent_detail_header_worker_for_selection_change(agent)
+                cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+                if callable(cancel_slow_tick):
+                    cancel_slow_tick()
+                return
             self._start_agent_detail_header_enrichment_from_context(agent)
             self._start_agent_linked_delta_refresh_from_context(agent)
             self._start_agent_bead_display_resolve_from_context(agent)

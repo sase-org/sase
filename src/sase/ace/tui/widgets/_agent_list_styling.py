@@ -87,6 +87,7 @@ _STATUS_BUCKET_GLYPHS: dict[str, str] = {
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",  # Blue
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
+    AgentType.PROC_SHELL: "#5FD7FF",  # Cyan for stand-alone proc shells
 }
 
 # Per-step-type colors for workflow child entries
@@ -145,6 +146,13 @@ _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE = "bold #FFAF00"
 # so the flag has to key off the outcome as well.
 _MONITOR_FOLLOWUP_DEGRADED_OUTCOME = "launched-degraded"
 
+_PROC_SHELL_GLYPH = "▣"
+_PROC_SHELL_GLYPH_STYLE = "bold #5FD7FF"
+_PROC_SHELL_ROW_STYLE = "#5FD7FF"
+_PROC_SHELL_ID_STYLE = "dim #87D7FF"
+_PROC_SHELL_PHASE_STYLE = "dim #87D7FF"
+_PROC_SHELL_LANGUAGE_STYLE = "bold #87D7FF"
+
 # Icon for auto-approve agents. Rendered bare for a normal-plan approval and
 # suffixed ``E``/``T`` for epic/tale plan actions in
 # ``_agent_list_render_agent``.
@@ -194,6 +202,7 @@ _TYPE_GLYPHS: dict[str, str] = {
     "workflow": "≡",
     "cl": "❑",
     "patch": "❑",
+    "proc": _PROC_SHELL_GLYPH,
 }
 
 

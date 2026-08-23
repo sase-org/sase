@@ -10,6 +10,7 @@ class AgentType(Enum):
 
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
+    PROC_SHELL = "proc-shell"  # Stand-alone durable proc shell projection
 
 
 AgentIdentity = tuple[AgentType, str, str | None]

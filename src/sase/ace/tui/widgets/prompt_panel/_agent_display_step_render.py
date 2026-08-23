@@ -18,6 +18,12 @@ from ._agent_monitor_section import (
     build_monitor_output,
     build_monitor_section,
 )
+from ._agent_proc_shell_section import (
+    PROC_SHELL_SECTION_ID,
+    build_proc_shell_output,
+    build_proc_shell_preview,
+    build_proc_shell_section,
+)
 from ._helpers import append_section_heading, format_output
 
 
@@ -112,5 +118,27 @@ class AgentStepDisplayMixin:
             renderables.append(error_tb_syntax)
         renderables.extend(build_monitor_section(agent, panel_level=section_level))
         renderables.extend(build_monitor_output(agent))
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _update_proc_shell_display(
+        self,
+        agent: Agent,
+        header_text: AgentHeader,
+        error_tb_syntax: Syntax | None = None,
+        *,
+        panel_level: FoldLevel = FoldLevel.COLLAPSED,
+        section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    ) -> None:
+        """Display one stand-alone proc shell without probing agent artifacts."""
+        overrides = section_fold_overrides or {}
+        section_level = overrides.get(PROC_SHELL_SECTION_ID, panel_level)
+
+        renderables: list[Any] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.extend(build_proc_shell_section(agent, panel_level=section_level))
+        renderables.extend(build_proc_shell_preview(agent))
+        renderables.extend(build_proc_shell_output(agent))
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]

@@ -401,6 +401,7 @@ def test_plugin_monitor_and_run_result_helpers(
 ) -> None:
     from sase.ops.commands.monitor import emit_monitor_stop_result
     from sase.ops.commands.plugin import emit_plugin_install_result
+    from sase.ops.commands.proc import emit_proc_kill_result
     from sase.ops.commands.run import emit_run_launch_result
 
     monkeypatch.setenv("SASE_PROC_ID", "proc-family")
@@ -426,6 +427,19 @@ def test_plugin_monitor_and_run_result_helpers(
         ).success
         is False
     )
+
+    proc_path = tmp_path / "proc.json"
+    monkeypatch.setenv(RESULT_ENV, str(proc_path))
+    emit_proc_kill_result(
+        success=True,
+        message="killed proc",
+        payload={"proc_id": "abc123", "changed": True},
+    )
+    assert read_operation_result(
+        proc_path,
+        expected_operation="proc.kill",
+        expected_proc_id="proc-family",
+    ).payload == {"proc_id": "abc123", "changed": True}
 
     run_path = tmp_path / "run.json"
     monkeypatch.setenv(RESULT_ENV, str(run_path))

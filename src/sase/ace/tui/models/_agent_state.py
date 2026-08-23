@@ -180,6 +180,26 @@ class AgentState:
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None
 
+    # Stand-alone proc-shell projection. These rows come from the durable proc
+    # store and are presentation-only: they are not SASE agents, do not own
+    # artifacts, and must not flow into ordinary agent cleanup/dismiss paths.
+    proc_id: str | None = None
+    proc_status: str | None = None
+    proc_phase: str | None = None
+    proc_label: str | None = None
+    proc_origin: str | None = None
+    proc_language: str | None = None
+    proc_code_digest: str | None = None
+    proc_safe_preview: str | None = None
+    proc_log_path: str | None = None
+    proc_log_tail: str = ""
+    proc_output_truncated: bool = False
+    proc_waits: list[str] = field(default_factory=list)
+    proc_condition_result: str | None = None
+    proc_supervisor_id: str | None = None
+    proc_settlement_state: str | None = None
+    proc_request_fingerprint: str | None = None
+
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
 

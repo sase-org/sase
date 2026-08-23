@@ -285,6 +285,8 @@ def _handle_proc_show(args: argparse.Namespace) -> int:
 
 def _handle_proc_kill(args: argparse.Namespace) -> int:
     """Kill one proc, resolving the same id prefixes as ``proc show``."""
+    from sase.ops.commands.proc import emit_proc_kill_result
+
     _reconcile_quietly()
     try:
         proc = resolve_proc_ref(
@@ -292,38 +294,49 @@ def _handle_proc_kill(args: argparse.Namespace) -> int:
             read_procs(),
         )
     except ProcRefError as exc:
-        print(f"sase proc kill: {exc}", file=sys.stderr)
+        message = f"sase proc kill: {exc}"
+        emit_proc_kill_result(success=False, message=message, payload={})
+        print(message, file=sys.stderr)
         return 2
     except Exception as exc:
-        print(f"sase proc kill: cannot read procs: {exc}", file=sys.stderr)
+        message = f"sase proc kill: cannot read procs: {exc}"
+        emit_proc_kill_result(success=False, message=message, payload={})
+        print(message, file=sys.stderr)
         return 1
 
     was_active = proc.status not in TERMINAL_PROC_STATUSES
     try:
         result = kill_proc(proc.proc_id)
     except ProcControlError as exc:
-        print(f"sase proc kill: {exc}", file=sys.stderr)
+        message = f"sase proc kill: {exc}"
+        emit_proc_kill_result(
+            success=False,
+            message=message,
+            payload={"proc_id": proc.proc_id},
+        )
+        print(message, file=sys.stderr)
         return 1
 
     changed = was_active and result.status == "killed"
+    short_id = short_proc_id(result.proc_id)
+    message = (
+        f"Killed proc {short_id}."
+        if changed
+        else f"Proc {short_id} is already {result.status}; nothing to do."
+    )
+    payload = proc_kill_json(
+        result,
+        changed=changed,
+        live_session_ids=_live_session_ids(),
+    )
+    emit_proc_kill_result(success=True, message=message, payload=payload)
     if bool(getattr(args, "json", False)):
-        json.dump(
-            proc_kill_json(
-                result,
-                changed=changed,
-                live_session_ids=_live_session_ids(),
-            ),
-            sys.stdout,
-            indent=2,
-        )
+        json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
     elif changed:
-        print(f"Killed proc {short_proc_id(result.proc_id)}.")
+        print(message)
     else:
-        print(
-            f"Proc {short_proc_id(result.proc_id)} is already "
-            f"{result.status}; nothing to do."
-        )
+        print(message)
     return 0
 
 

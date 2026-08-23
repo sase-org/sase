@@ -142,6 +142,10 @@ _LAZY_EXPORTS = {
     "ConfirmKind": (".confirm_dialog", "ConfirmKind"),
     "ConfirmKillAllModal": (".confirm_kill_modal", "ConfirmKillAllModal"),
     "ConfirmKillModal": (".confirm_kill_modal", "ConfirmKillModal"),
+    "ConfirmKillProcShellModal": (
+        ".confirm_kill_modal",
+        "ConfirmKillProcShellModal",
+    ),
     "ConfirmRerunModal": (".confirm_rerun_modal", "ConfirmRerunModal"),
     "ConfirmRevertAgentModal": (
         ".confirm_revert_agent_modal",
@@ -514,6 +518,7 @@ __all__ = [
     "ConfirmKind",
     "ConfirmKillAllModal",
     "ConfirmKillModal",
+    "ConfirmKillProcShellModal",
     "ConfirmRerunModal",
     "ConfirmRevertAgentModal",
     "ConfirmStopMonitorModal",

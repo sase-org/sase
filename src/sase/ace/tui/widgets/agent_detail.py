@@ -251,6 +251,21 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             self._expand_prompt_only()
             self._update_panel_indicators()
             return
+        if agent.is_proc_shell:
+            self._has_file_content = False
+            self._has_tools_content = False
+            self._file_count = 0
+            self._file_index = 0
+            self._file_visible_lines = 0
+            self._file_total_lines = 0
+            self._file_content_capped = False
+            file_panel.show_empty()
+            tools_panel.show_empty()
+            tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+            tools_scroll.add_class("hidden")
+            self._expand_prompt_only()
+            self._update_panel_indicators()
+            return
         self._update_panel_indicators()
 
         # Attempt-pinned view: bypass file/tools panels — we can't

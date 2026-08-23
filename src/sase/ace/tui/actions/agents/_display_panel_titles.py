@@ -48,6 +48,8 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 _PANEL_MONITOR_GLYPH = MONITOR_GLYPH
 _PANEL_MONITOR_RUNNING_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
 _PANEL_MONITOR_SETTLED_STYLE = MONITOR_SETTLED_GLYPH_COLOR
+_PANEL_PROC_GLYPH = "▣"
+_PANEL_PROC_STYLE = "bold #5FD7FF"
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,7 @@ class AgentPanelCounts:
     read: int = 0
     running_monitors: int = 0
     settled_monitors: int = 0
+    proc_shells: int = 0
 
     def metric_items(self) -> list[tuple[str, int]]:
         return [
@@ -94,6 +97,7 @@ def agent_panel_counts(
         unread_ids,
     )
     monitor_lanes = panel_monitor_lane_counts(visible_top_level_agents)
+    proc_shells = sum(1 for agent in visible_top_level_agents if agent.is_proc_shell)
     return AgentPanelCounts(
         lane_count=projected.total,
         asking=projected.stopped,
@@ -105,6 +109,7 @@ def agent_panel_counts(
         read=projected.done,
         running_monitors=monitor_lanes.running,
         settled_monitors=monitor_lanes.settled,
+        proc_shells=proc_shells,
     )
 
 
@@ -179,5 +184,10 @@ def agent_panel_border_title(
             title.append(
                 f"{_PANEL_MONITOR_GLYPH}{counts.settled_monitors}",
                 style=_PANEL_MONITOR_SETTLED_STYLE,
+            )
+        if counts.proc_shells:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append(
+                f"{_PANEL_PROC_GLYPH}{counts.proc_shells}", style=_PANEL_PROC_STYLE
             )
     return title
