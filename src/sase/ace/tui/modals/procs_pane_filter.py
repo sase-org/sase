@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.ace.query.limit_token import LimitTokenError, apply_limit, extract_limit
 from sase.ace.tui._proc_query import ProcQueryFilter, ProfileQueryError
 from sase.core.time import local_now
+from sase.filter_tokens import toggle_flag_token
 
 from ..proc_observer import ObservedProc
 from .procs_filter_bar import ProcsFilterBar
@@ -65,6 +66,25 @@ class ProcsPaneFilterMixin(_MixinBase):
     def action_focus_filter(self) -> None:
         """Reveal (or refocus) the Procs filter bar."""
         self.show_filters()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "toggle_monitor_filter" and self._filter_session_open:
+            return False
+        return super().check_action(action, parameters)
+
+    def action_toggle_monitor_filter(self) -> None:
+        """Cycle the monitor flag through on, inverted, and off.
+
+        Rewrites the committed query in place, shows the bar in its resting
+        highlighted state when the query is non-empty, and removes it when
+        the monitor term was the last one. Focus stays on the row list.
+        """
+        if self._filter_session_open:
+            return
+        query = toggle_flag_token(self._filter_query, "monitor")
+        self._commit_filter_query(query)
+        self.query_one(ProcsFilterBar).set_query(query)
+        self._focus_task_list()
 
     def _sync_filter_bar(self) -> None:
         """Reflect a query persisted from a prior session in the bar's rest state."""

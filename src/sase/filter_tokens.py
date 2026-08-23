@@ -249,6 +249,67 @@ def quote_value(value: str, *, keyed: bool) -> str:
     return f'"{escaped}"'
 
 
+def toggle_flag_token(text: str, key: str) -> str:
+    """Cycle a boolean flag through on, inverted, and off.
+
+    Quote-aware: a wholly quoted ``"key"`` or a negated quoted ``-"key"``
+    stays free text. An existing ``key`` / ``key:true`` / ``key:false`` /
+    ``-key`` spelling is rewritten in place rather than appended (which the
+    grammar would reject as a duplicate). Other tokens keep their original
+    spelling and order; removing the last occurrence collapses the separator
+    whitespace around it the same way a single-space join would.
+    """
+    key = key.casefold()
+    match: FilterToken | None = None
+    state: str | None = None
+    for token in tokenize(text, strict=False):
+        state = _flag_token_state(token, key)
+        if state is not None:
+            match = token
+            break
+    if match is None:
+        return _append_query_token(text, key)
+    if state == "on":
+        return f"{text[: match.start]}-{key}{text[match.end :]}"
+    return _remove_token_span(text, match.start, match.end)
+
+
+def _flag_token_state(token: FilterToken, key: str) -> str | None:
+    """Return ``"on"`` or ``"inverted"`` when *token* is a flag for *key*."""
+    if token.wholly_quoted:
+        return None
+    colon = unquoted_index(token, ":")
+    key_start = 1 if token.negated else 0
+    if colon < 0:
+        if any(token.body_quoted) or token.body.casefold() != key:
+            return None
+        return "inverted" if token.negated else "on"
+    if token.value[key_start:colon].casefold() != key:
+        return None
+    value = token.value[colon + 1 :].casefold()
+    is_false = value == "false"
+    if is_false:
+        return "on" if token.negated else "inverted"
+    return "inverted" if token.negated else "on"
+
+
+def _append_query_token(text: str, token: str) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return token
+    return f"{stripped} {token}"
+
+
+def _remove_token_span(text: str, start: int, end: int) -> str:
+    """Drop ``text[start:end]`` and the separator whitespace around it."""
+    while end < len(text) and text[end].isspace():
+        end += 1
+    if end >= len(text):
+        while start > 0 and text[start - 1].isspace():
+            start -= 1
+    return text[:start] + text[end:]
+
+
 __all__ = [
     "FilterQueryError",
     "FilterToken",
@@ -257,6 +318,7 @@ __all__ = [
     "quote_value",
     "split_unquoted",
     "tokenize",
+    "toggle_flag_token",
     "unknown_key_error",
     "unquoted_index",
 ]

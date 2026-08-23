@@ -66,6 +66,7 @@ class ProcsPane(
         ("enter", "open_monitor_agent", "Open Agent"),
         ("apostrophe", "jump_to_entry", "Jump"),
         ("slash", "focus_filter", "Filter"),
+        ("m", "toggle_monitor_filter", "Monitor"),
     ]
 
     def __init__(
@@ -190,6 +191,7 @@ class ProcsPane(
         tokens = [
             "j/k: move",
             "/: filter",
+            "m: monitor",
             "a: scope",
             "d/D: dismiss",
             "K: kill",
@@ -206,7 +208,9 @@ class ProcsPane(
                 "Esc: close",
             )
         )
-        return self._fit_hints(tokens, protected={agent_hint, "': jump", "/: filter"})
+        return self._fit_hints(
+            tokens, protected={agent_hint, "': jump", "/: filter", "m: monitor"}
+        )
 
     def _hint_width(self) -> int:
         try:

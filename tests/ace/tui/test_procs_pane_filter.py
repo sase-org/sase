@@ -10,6 +10,8 @@ from sase.ace.tui.modals.config_center_session import (
     ProcsSessionState,
 )
 from sase.ace.tui.modals.procs_filter_bar import ProcsFilterBar
+from sase.ace.tui.proc_observer import ObservedProc
+from sase.monitor_state import MONITOR_PROC_ORIGIN
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
     open_procs_pane,
@@ -303,3 +305,128 @@ async def test_consume_priority_tab_tracks_the_completion_menu() -> None:
         await pilot.press("escape")
         await pilot.pause()
         assert pane.consume_priority_tab() is False
+
+
+def _monitor_and_plain() -> tuple[ObservedProc, ObservedProc]:
+    monitor = task(
+        "mon",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    plain = task("plain", label="sync sase-1", status="running", age_seconds=2)
+    return monitor, plain
+
+
+async def test_m_cycles_monitor_filter_from_empty_and_hides_the_bar() -> None:
+    monitor, plain = _monitor_and_plain()
+
+    async with ProcsTestApp(queue(monitor, plain)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
+        bar = pane.query_one(ProcsFilterBar)
+        assert option_list.option_count == 2
+        assert bar.display is False
+        assert "m: monitor" in pane._hints()
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == "monitor"  # type: ignore[attr-defined]
+        assert pane._session_state.query == "monitor"  # type: ignore[attr-defined]
+        assert bar.display is True
+        assert not bar._editing  # type: ignore[attr-defined]
+        assert option_list.has_focus
+        assert option_list.option_count == 1
+        assert "just check-full" in _option_labels(option_list)[0]
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == "-monitor"  # type: ignore[attr-defined]
+        assert option_list.has_focus
+        assert option_list.option_count == 1
+        assert "sync sase-1" in _option_labels(option_list)[0]
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == ""  # type: ignore[attr-defined]
+        assert pane._session_state.query == ""  # type: ignore[attr-defined]
+        assert bar.display is False
+        assert option_list.has_focus
+        assert option_list.option_count == 2
+
+
+async def test_m_cycles_only_the_monitor_term_when_other_terms_are_present() -> None:
+    monitor, plain = _monitor_and_plain()
+    session_state = AdminCenterSessionState(procs=ProcsSessionState(query="name:sync"))
+
+    async with ProcsTestApp(queue(monitor, plain)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=session_state)
+        option_list = pane.query_one("#procs-list", OptionList)
+        bar = pane.query_one(ProcsFilterBar)
+        assert option_list.option_count == 1
+        assert bar.display is True
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == "name:sync monitor"  # type: ignore[attr-defined]
+        assert bar.display is True
+        assert not bar._editing  # type: ignore[attr-defined]
+        assert option_list.has_focus
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == "name:sync -monitor"  # type: ignore[attr-defined]
+        assert option_list.has_focus
+        assert option_list.option_count == 1
+        assert "sync sase-1" in _option_labels(option_list)[0]
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == "name:sync"  # type: ignore[attr-defined]
+        assert bar.display is True
+        assert option_list.has_focus
+
+
+async def test_m_normalizes_a_hand_typed_monitor_false_and_clears_last_term() -> None:
+    monitor, plain = _monitor_and_plain()
+    session_state = AdminCenterSessionState(
+        procs=ProcsSessionState(query="monitor:false")
+    )
+
+    async with ProcsTestApp(queue(monitor, plain)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=session_state)
+        option_list = pane.query_one("#procs-list", OptionList)
+        bar = pane.query_one(ProcsFilterBar)
+        assert pane._filter_query == "monitor:false"  # type: ignore[attr-defined]
+        assert option_list.option_count == 1
+        assert "sync sase-1" in _option_labels(option_list)[0]
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert pane._filter_query == ""  # type: ignore[attr-defined]
+        assert bar.display is False
+        assert option_list.has_focus
+        assert option_list.option_count == 2
+
+
+async def test_m_inside_open_editor_types_the_letter() -> None:
+    monitor, plain = _monitor_and_plain()
+
+    async with ProcsTestApp(queue(monitor, plain)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        pane.show_filters()
+        await pilot.pause()
+        bar = pane.query_one(ProcsFilterBar)
+        editor = bar.query_one(f"#{bar.INPUT_ID}")
+        assert bar._editing  # type: ignore[attr-defined]
+        assert editor.has_focus
+
+        await pilot.press("m")
+        await pilot.pause()
+
+        assert editor.text == "m"  # type: ignore[attr-defined]
+        assert pane._filter_query == ""  # type: ignore[attr-defined]
+        assert pane._session_state.query == ""  # type: ignore[attr-defined]
+        assert bar._editing  # type: ignore[attr-defined]
