@@ -2693,8 +2693,10 @@ and its checkpoint policy is `on_observation`, `on_action_accepted`, or
 honor guards; with `agent_runners`, a manual run while agents hold runner slots skips
 unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string
 or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key` values
-take precedence. When dedupe removes a proposal from a `wait_on` chain, AXE walks
-through the skipped dependencies to the nearest earlier proposal that survives
+take precedence. A content-only `dedupe_key` stays reserved after a successful no-op
+launch, so chops that should retry as the codebase advances should include the target
+repository's revision in the key. When dedupe removes a proposal from a `wait_on` chain,
+AXE walks through the skipped dependencies to the nearest earlier proposal that survives
 filtering. If none survives, AXE removes the wait. Proposal previews expose the
 resulting `wait_on` value and explain a relink in `dedupe_reason`.
 

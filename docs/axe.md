@@ -909,7 +909,9 @@ Policy is runner-owned and evaluated before the script:
   precedence. Duplicate proposals are skipped without relaunching work. Accepted keys
   remain reserved for successful launches, but are released when their proposal never
   starts or its launched agent reaches terminal failure, allowing a later run to retry
-  that work.
+  that work. A key derived only from file content therefore suppresses that work
+  permanently once an agent succeeds without changing the file; chops that should retry
+  as the codebase advances should include the target repository's revision in the key.
 - `for_each` accepts literal target rows or `source: projects`. Expansion creates stable
   instances such as `refresh_docs[sase-core]`, each with independent cadence, history,
   checkpoints, and dedupe state. Target overrides can patch per-instance fields such as
