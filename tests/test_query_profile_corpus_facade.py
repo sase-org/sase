@@ -11,12 +11,17 @@ from sase.ace.query.profile_reference import (
     evaluate_query_many_for_profile,
     parse_query_for_profile,
 )
-from sase.ace.query_profile import compile_query_profile
+from sase.ace.query_profile import (
+    ArtifactQuerySchema,
+    QueryFieldSpec,
+    compile_query_profile,
+)
 from sase.ace.query_profile.profiles import (
     beads_query_schema,
     files_query_schema,
     patches_query_schema,
     provider_query_schema,
+    stitches_query_schema,
 )
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryCacheKey,
@@ -307,3 +312,183 @@ def test_flat_parse_and_canonicalize_through_rust_match_python_reference(
     assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
         query, profile
     )
+
+
+def _flags_query_schema() -> ArtifactQuerySchema:
+    return ArtifactQuerySchema(
+        pane_id="flags",
+        boolean=False,
+        fields=(
+            QueryFieldSpec(key="flag", value_kind="bool", negatable=True),
+            QueryFieldSpec(key="title", filterable=False, searchable=True),
+        ),
+    )
+
+
+def _bounds_query_schema() -> ArtifactQuerySchema:
+    return ArtifactQuerySchema(
+        pane_id="bounds",
+        boolean=False,
+        fields=(
+            QueryFieldSpec(key="after", value_kind="date"),
+            QueryFieldSpec(key="before", value_kind="date"),
+            QueryFieldSpec(key="since", value_kind="date"),
+            QueryFieldSpec(key="until", value_kind="date"),
+            QueryFieldSpec(key="created", value_kind="date"),
+            QueryFieldSpec(key="min", value_kind="int"),
+            QueryFieldSpec(key="max", value_kind="int"),
+            QueryFieldSpec(key="exit", value_kind="int"),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("schema_builder", "query"),
+    [
+        (stitches_query_schema, "sidecar"),
+        (stitches_query_schema, '"sidecar"'),
+        (stitches_query_schema, '-"sidecar"'),
+        (stitches_query_schema, "sidecar:true"),
+        (_flags_query_schema, "flag"),
+        (_flags_query_schema, "-flag"),
+        (_flags_query_schema, '"flag"'),
+        (_flags_query_schema, '-"flag"'),
+        (_bounds_query_schema, "min:5m"),
+        (_bounds_query_schema, "max:2h"),
+        (_bounds_query_schema, "min:300"),
+        (_bounds_query_schema, "exit:300"),
+    ],
+)
+def test_flat_bare_flag_and_bound_key_parse_and_canonicalize_match_python(
+    schema_builder,
+    query: str,
+) -> None:
+    profile = compile_query_profile(schema_builder())
+    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
+        query, profile
+    )
+    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
+        query, profile
+    )
+
+
+def test_flat_duration_pair_canonicalizes_through_rust_like_python() -> None:
+    """AND operand order still follows each parser's emission walk, so parse
+    trees can disagree while the cache-key canonical form stays identical.
+    """
+
+    profile = compile_query_profile(_bounds_query_schema())
+    query = "min:30s max:2h"
+    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
+        query, profile
+    )
+
+
+def test_rust_facade_matches_python_for_bare_flags_and_bound_keys() -> None:
+    profile = compile_query_profile(_bounds_query_schema())
+    canonical_after = canonical_query_for_profile("after:2026-08-20T12:00", profile)
+    after_epoch = int(canonical_after.removeprefix("after:"))
+    rows = [
+        {
+            "stable_id": "low",
+            "fields": {
+                "after": after_epoch - 1,
+                "before": after_epoch - 1,
+                "since": after_epoch - 1,
+                "until": after_epoch - 1,
+                "created": after_epoch - 1,
+                "min": 299,
+                "max": 299,
+                "exit": 299,
+            },
+        },
+        {
+            "stable_id": "equal",
+            "fields": {
+                "after": after_epoch,
+                "before": after_epoch,
+                "since": after_epoch,
+                "until": after_epoch,
+                "created": after_epoch,
+                "min": 300,
+                "max": 300,
+                "exit": 300,
+            },
+        },
+        {
+            "stable_id": "high",
+            "fields": {
+                "after": after_epoch + 1,
+                "before": after_epoch + 1,
+                "since": after_epoch + 1,
+                "until": after_epoch + 1,
+                "created": after_epoch + 1,
+                "min": 301,
+                "max": 301,
+                "exit": 301,
+            },
+        },
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+    queries = (
+        "after:2026-08-20T12:00",
+        "since:2026-08-20T12:00",
+        "before:2026-08-20T12:00",
+        "until:2026-08-20T12:00",
+        "created:2026-08-20T12:00",
+        "min:5m",
+        "max:5m",
+        "exit:300",
+    )
+    for query in queries:
+        rust_matched = set(evaluate_artifact_query_many(query, index).matched_row_ids)
+        reference_matches = evaluate_query_many_for_profile(query, rows, profile)
+        reference_matched = {
+            row["stable_id"]
+            for row, matched in zip(rows, reference_matches, strict=True)
+            if matched
+        }
+        assert rust_matched == reference_matched, query
+
+    flags = compile_query_profile(_flags_query_schema())
+    flag_rows = [
+        {"stable_id": "true", "fields": {"flag": True}, "searchable_text": "plain"},
+        {"stable_id": "false", "fields": {"flag": False}, "searchable_text": "flag"},
+    ]
+    flag_index = compile_artifact_query_index(
+        pane_id=flags.pane_id, generation=1, profile=flags, entries=flag_rows
+    )
+    for query in ("flag", "-flag", '"flag"', '-"flag"'):
+        rust_matched = set(
+            evaluate_artifact_query_many(query, flag_index).matched_row_ids
+        )
+        reference_matches = evaluate_query_many_for_profile(query, flag_rows, flags)
+        reference_matched = {
+            row["stable_id"]
+            for row, matched in zip(flag_rows, reference_matches, strict=True)
+            if matched
+        }
+        assert rust_matched == reference_matched, query
+
+    stitches = compile_query_profile(stitches_query_schema())
+    stitch_rows = [
+        {"stable_id": "sidecar", "fields": {"sidecar": True}, "searchable_text": ""},
+        {
+            "stable_id": "text",
+            "fields": {"sidecar": False},
+            "searchable_text": "sidecar",
+        },
+    ]
+    stitch_index = compile_artifact_query_index(
+        pane_id=stitches.pane_id, generation=1, profile=stitches, entries=stitch_rows
+    )
+    rust_matched = set(
+        evaluate_artifact_query_many("sidecar", stitch_index).matched_row_ids
+    )
+    assert rust_matched == {"sidecar"}
+    assert evaluate_query_many_for_profile("sidecar", stitch_rows, stitches) == [
+        True,
+        False,
+    ]
