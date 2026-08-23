@@ -120,7 +120,7 @@ tests/main/test_project_handler_list_show.py::TestListAndShow::test_project_hand
 # sase-lf
 tests/monitor/test_monitor_start.py::test_start_monitor_promotes_a_bare_lane_and_runs_to_completion
 # sase-j7
-tests/monitor/test_monitor_supervise.py::test_run_supervisor_kills_the_whole_process_group_on_timeout
+tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_kills_the_whole_process_group_on_timeout
 # sase-lc
 tests/test_agent_artifact_marker_path_passing_audit.py::test_tracked_marker_path_passing_sites_are_reviewed
 # sase-lb.1
