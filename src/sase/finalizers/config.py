@@ -259,9 +259,9 @@ def _normalize_instance_field(
         state.diagnostics.append(_type_error(layer, path, "an integer >= 1"))
         return 1
     if key == "refusal":
-        if value == "fail":
-            return "fail"
-        state.diagnostics.append(_type_error(layer, path, "'fail'"))
+        if value in ("fail", "defer"):
+            return value
+        state.diagnostics.append(_type_error(layer, path, "'fail' or 'defer'"))
         return "fail"
     if key == "config":
         if isinstance(value, Mapping):

@@ -20,6 +20,7 @@ from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerAttemptWire,
     FinalizerContextWire,
+    FinalizerDeferralWire,
     FinalizerInstancePolicyWire,
     FinalizerInstanceResultWire,
     FinalizerInstanceSpecWire,
@@ -146,6 +147,30 @@ def test_finalizer_facade_aggregates_instance_outcomes() -> None:
         "commit",
     ]
     assert aggregate.diagnostics[0].instance_id == "commit"
+
+
+def test_finalizer_facade_round_trips_deferred_instance_result() -> None:
+    aggregate = aggregate_finalizer_outcomes(
+        [
+            FinalizerInstanceResultWire(instance_id="lint", status="success"),
+            FinalizerInstanceResultWire(
+                instance_id="commit",
+                status="deferred",
+                deferral=FinalizerDeferralWire(
+                    reason="foreign_work",
+                    paths=["sase/repos/linked/sase-core"],
+                ),
+            ),
+        ]
+    )
+
+    assert aggregate.status == "deferred"
+    commit = next(
+        instance for instance in aggregate.instances if instance.instance_id == "commit"
+    )
+    assert commit.deferral is not None
+    assert commit.deferral.reason == "foreign_work"
+    assert commit.deferral.paths == ["sase/repos/linked/sase-core"]
 
 
 def test_finalizer_facade_all_skipped_and_all_failed_aggregation() -> None:

@@ -323,12 +323,17 @@ def _render_show_pretty(payload: Mapping[str, Any], console: Console) -> None:
     table.add_row("after", ", ".join(instance["after"]) if instance["after"] else "-")
     table.add_row("source", str(instance["source_layer"]))
     table.add_row("health", str(instance["health"]))
+    table.add_row("refusal", _refusal_text(str(instance["refusal"])))
     table.add_row("config", json.dumps(instance["config"], sort_keys=True))
     if provider is not None:
         table.add_row("provider package", str(provider["package"]))
         table.add_row("provider version", str(provider["version"]))
         table.add_row("entry point", str(provider["entry_point"] or "-"))
     console.print(table)
+
+
+def _refusal_text(refusal: str) -> str:
+    return f"[yellow]{refusal}[/yellow]" if refusal == "defer" else refusal
 
 
 def _state_text(item: Mapping[str, Any]) -> str:

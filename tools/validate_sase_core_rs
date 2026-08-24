@@ -290,19 +290,16 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         _error(
             "finalizer_wire_schema_version() returned stale schema: "
             f"got {actual_version}, expected "
-            f"{EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION}"
-        )
+            f"{EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION}"        )
         return False
 
     instance = {
-        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
-        "instance_id": "commit",
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,        "instance_id": "commit",
         "provider_ref": "builtin@commit",
         "policy": {"max_attempts": 2, "refusal": "fail"},
     }
     plan_input = {
-        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
-        "instances": [instance],
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,        "instances": [instance],
         "defaults": ["commit"],
         "required": [],
         "selectors": [],
@@ -310,8 +307,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
     try:
         module.validate_finalizer_provider_spec(
             {
-                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
-                "provider_ref": "builtin@commit",
+                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,                "provider_ref": "builtin@commit",
                 "capabilities": ["requires_submission", "mutates_repository"],
             }
         )
@@ -327,8 +323,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
     if (
         not isinstance(plan, dict)
         or plan.get("schema_version") != EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION
-    ):
-        _error(f"finalizer plan probe returned stale payload: {plan!r}")
+    ):        _error(f"finalizer plan probe returned stale payload: {plan!r}")
         return False
     if plan.get("plan_digest") != plan_digest:
         _error("finalizer plan digest probe did not match resolved plan")
@@ -338,8 +333,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         return False
 
     context = {
-        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
-        "run_id": "validator-run",
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,        "run_id": "validator-run",
         "agent_id": "validator-agent",
         "turn_nonce": "validator-nonce",
         "plan_digest": plan_digest,
@@ -367,8 +361,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
             plan,
             context,
             {
-                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
-                "run_id": "validator-run",
+                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,                "run_id": "validator-run",
                 "agent_id": "validator-agent",
                 "turn_nonce": "validator-nonce",
                 "plan_digest": plan_digest,

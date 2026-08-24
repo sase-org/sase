@@ -7,6 +7,7 @@ runner rather than the full CommitWorkflow so the suite stays hermetic.
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -28,6 +29,8 @@ from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 
 from .finalizers_live_e2e_test_helpers import (
     attach_bare_remote,
+    commit_instance,
+    config_for,
     init_live_repo,
     isolate_host_config,
     load_result,
@@ -35,6 +38,7 @@ from .finalizers_live_e2e_test_helpers import (
     run_controller,
     run_git,
     submit_from_context,
+    use_config,
     use_real_git_stitch,
 )
 
@@ -147,6 +151,40 @@ def test_live_refusal_preserves_dirty_work(
     (repo / "agent.py").write_text("print('keep')\n", encoding="utf-8")
     runner = MagicMock()
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_from_context(artifacts, action="refuse")
+    with pytest.raises(BuiltinCommitFinalizerError, match="not mine"):
+        run_controller(artifacts)
+
+    runner.assert_not_called()
+    payload = load_result(artifacts)
+    assert payload["status"] == "refused"
+    assert payload["instances"][0]["refusal_reason"] == "not mine"
+    assert git_changed_files(str(repo)) == ["agent.py"]
+    assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+
+def test_live_refusal_preserves_dirty_work_with_defer_policy_configured(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A configured ``refusal: defer`` policy is inert until the escape phase."""
+
+    from sase.finalizers.commit import BuiltinCommitFinalizerError
+
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    (repo / "agent.py").write_text("print('keep')\n", encoding="utf-8")
+    runner = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    config = config_for(
+        {"commit": replace(commit_instance(), refusal="defer")}, ("commit",)
+    )
+    use_config(monkeypatch, config)
 
     resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
     submit_from_context(artifacts, action="refuse")

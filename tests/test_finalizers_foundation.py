@@ -88,6 +88,40 @@ def test_legacy_commit_finalizer_settings_are_ignored(
     assert config.diagnostics == ()
 
 
+def test_refusal_defer_is_accepted_but_fail_remains_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layer = _default_finalizer_layer()
+    layer.data["finalizers"]["instances"]["commit"]["refusal"] = "defer"
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [layer],
+    )
+
+    config = load_finalizer_config()
+
+    assert config.instances["commit"].refusal == "defer"
+    assert config.diagnostics == ()
+
+
+def test_refusal_rejects_unknown_values_and_names_both_legal_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layer = _default_finalizer_layer()
+    layer.data["finalizers"]["instances"]["commit"]["refusal"] = "ignore"
+    monkeypatch.setattr(
+        "sase.finalizers.config.load_config_layers",
+        lambda: [layer],
+    )
+
+    config = load_finalizer_config()
+
+    assert config.instances["commit"].refusal == "fail"
+    assert any(
+        "'fail' or 'defer'" in diagnostic.message for diagnostic in config.diagnostics
+    )
+
+
 def test_disable_commit_stop_hook_env_is_ignored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

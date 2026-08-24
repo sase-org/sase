@@ -23,6 +23,14 @@ class FinalizerProviderSpecWire:
     provenance_id: str | None = None
 
 
+FINALIZER_DEFERRAL_REASONS = (
+    "protected_paths",
+    "foreign_work",
+    "unsafe_content",
+    "belongs_to_another_turn",
+)
+
+
 @dataclass(frozen=True)
 class FinalizerInstancePolicyWire:
     max_attempts: int = 1
@@ -155,11 +163,18 @@ class FinalizerOutcomeEvidenceWire:
 
 
 @dataclass(frozen=True)
+class FinalizerDeferralWire:
+    reason: str
+    paths: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class FinalizerInstanceResultWire:
     instance_id: str
     status: str
     attempts: list[FinalizerAttemptWire] = field(default_factory=list)
     refusal_reason: str | None = None
+    deferral: FinalizerDeferralWire | None = None
     evidence: list[FinalizerOutcomeEvidenceWire] = field(default_factory=list)
     diagnostics: list[FinalizerDiagnosticWire] = field(default_factory=list)
 
@@ -337,9 +352,17 @@ def finalizer_attempt_from_dict(data: dict[str, Any]) -> FinalizerAttemptWire:
     )
 
 
+def finalizer_deferral_from_dict(data: dict[str, Any]) -> FinalizerDeferralWire:
+    return FinalizerDeferralWire(
+        reason=str(data["reason"]),
+        paths=[str(item) for item in data.get("paths", [])],
+    )
+
+
 def finalizer_instance_result_from_dict(
     data: dict[str, Any],
 ) -> FinalizerInstanceResultWire:
+    deferral = data.get("deferral")
     return FinalizerInstanceResultWire(
         instance_id=str(data["instance_id"]),
         status=str(data["status"]),
@@ -348,6 +371,7 @@ def finalizer_instance_result_from_dict(
             for attempt in data.get("attempts", [])
         ],
         refusal_reason=_optional_str(data.get("refusal_reason")),
+        deferral=finalizer_deferral_from_dict(dict(deferral)) if deferral else None,
         evidence=[
             FinalizerOutcomeEvidenceWire(
                 kind=str(evidence["kind"]),
@@ -388,10 +412,12 @@ def _optional_int(value: Any) -> int | None:
 
 
 __all__ = [
+    "FINALIZER_DEFERRAL_REASONS",
     "FINALIZER_WIRE_SCHEMA_VERSION",
     "FinalizerAggregateResultWire",
     "FinalizerAttemptWire",
     "FinalizerContextWire",
+    "FinalizerDeferralWire",
     "FinalizerDiagnosticWire",
     "FinalizerInstancePolicyWire",
     "FinalizerInstanceResultWire",
@@ -412,6 +438,7 @@ __all__ = [
     "finalizer_aggregate_result_from_dict",
     "finalizer_clear",
     "finalizer_context_from_dict",
+    "finalizer_deferral_from_dict",
     "finalizer_instance_result_from_dict",
     "finalizer_instance_spec_from_dict",
     "finalizer_plan_from_dict",
