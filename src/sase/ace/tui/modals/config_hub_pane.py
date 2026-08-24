@@ -37,12 +37,12 @@ from .config_hub_session import (
 )
 
 _EMPTY_ID = "config-hub-empty"
-# Six-child strip: full labels are 85 cells, so compact starts at 86.
-_CONFIG_TABS_COMPACT_BELOW_WIDTH = 86
+# Six-child strip: full labels are 84 cells, so compact starts at 85.
+_CONFIG_TABS_COMPACT_BELOW_WIDTH = 85
 _CONFIG_TABS_MICRO_BELOW_WIDTH = 73
-# Seven-child strip (Flags on): full labels are 98 cells. Compact labels
-# (Flags/Gloss/Launch/Memory/Misc/Snip/XP) are 71 cells and still fit at 73.
-_CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 99
+# Seven-child strip (Flags on): full labels are 97 cells. Compact labels
+# (All/Flags/Gloss/Launch/Memory/Snip/XP) are 70 cells and still fit at 73.
+_CONFIG_TABS_COMPACT_BELOW_WIDTH_WITH_FLAGS = 98
 
 
 def _config_hub_strip_thresholds(tab_count: int) -> tuple[int, int]:

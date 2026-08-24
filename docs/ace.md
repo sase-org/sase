@@ -2544,7 +2544,7 @@ fields.
 
 ## Config Flags pane
 
-Open **SASE Admin Center** with `#`, then Config > **01 Flags**. The pane is the
+Open **SASE Admin Center** with `#`, then Config > **02 Flags**. The pane is the
 keyboard-first control surface for every code-owned SASE feature flag. It shows
 effective state, kind, default, provenance, saved machine preference, description,
 removal bead, and removal horizon; it does not edit portable configuration files.
@@ -2552,7 +2552,7 @@ removal bead, and removal horizon; it does not edit portable configuration files
 With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
 
 ```text
-01 Flags · 02 Glossary · 03 Launch · 04 Memory · 05 Misc · 06 Snippets · 07 XPrompts
+01 All · 02 Flags · 03 Glossary · 04 Launch · 05 Memory · 06 Snippets · 07 XPrompts
 ```
 
 Disable `admin_center_flags` to restore the six-child catalog numbered `01` Glossary
@@ -2640,12 +2640,12 @@ a hint character moves the selection there, `'` again returns to the previous po
 own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
-catalog is alphabetized as **01 Flags · 02 Glossary · 03 Launch · 04 Memory · 05 Misc ·
-06 Snippets · 07 XPrompts** when `admin_center_flags` is on, or **01 Glossary** through
-**06 XPrompts** when it is off; `0` then the matching digits selects those children,
-while bare digits continue to belong to the active child or the Admin Center's top-level
-tabs. The Updates tab's Core sub-tab has no list at all, so `'` is a silent no-op there
-while Plugins and Agent CLIs jump normally.
+catalog is alphabetized as **01 All · 02 Flags · 03 Glossary · 04 Launch · 05 Memory ·
+06 Snippets · 07 XPrompts** when `admin_center_flags` is on, or **01 All** through **06
+XPrompts** when it is off; `0` then the matching digits selects those children, while
+bare digits continue to belong to the active child or the Admin Center's top-level tabs.
+The Updates tab's Core sub-tab has no list at all, so `'` is a silent no-op there while
+Plugins and Agent CLIs jump normally.
 
 ### Quit / Restart Menu
 

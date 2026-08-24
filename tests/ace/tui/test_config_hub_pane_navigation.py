@@ -63,9 +63,9 @@ async def test_filter_brackets_cycle_config_subtabs(
         await wait_for(pilot, lambda: isinstance(pilot.app.focused, Input))
 
         await pilot.press("right_square_bracket")
-        await wait_for(pilot, lambda: hub._active_subtab == "flags")
-        assert calls == ["xprompts", "flags"]
-        _assert_hub_caption(hub, "flags")
+        await wait_for(pilot, lambda: hub._active_subtab == "misc")
+        assert calls == ["xprompts", "misc"]
+        _assert_hub_caption(hub, "misc")
 
 
 async def test_config_number_prefix_selects_alphabetic_subtabs(
@@ -79,13 +79,13 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("0", "1")
+        await pilot.press("0", "2")
         await wait_for(pilot, lambda: hub._active_subtab == "flags")
         assert modal._active_tab == "config"
         assert hub._pending_subtab_select is False
         _assert_hub_caption(hub, "flags")
 
-        await pilot.press("0", "4")
+        await pilot.press("0", "5")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
         _assert_hub_caption(hub, "memory")
         await pilot.press("0", "7")
@@ -107,7 +107,7 @@ async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("0", "0", "3")
+        await pilot.press("0", "0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert hub._pending_subtab_select is False
 
@@ -167,7 +167,7 @@ async def test_bare_child_digit_stays_local_until_config_prefix(
         assert created["xprompts"].digits == [1]
 
         await pilot.press("0", "1")
-        await wait_for(pilot, lambda: hub._active_subtab == "flags")
+        await wait_for(pilot, lambda: hub._active_subtab == "misc")
         assert created["xprompts"].digits == [1]
 
 

@@ -153,6 +153,15 @@ def _entry_trigger(entry: ConfigHubEntry | None) -> str | None:
 
 CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
     ConfigSubTabSpec(
+        "misc",
+        "All",
+        "All",
+        "All",
+        "Inspect effective values, source layers, and schema-backed settings.",
+        "Inspect effective values, sources, and other settings.",
+        _misc_factory,
+    ),
+    ConfigSubTabSpec(
         "flags",
         "Flags",
         "Flags",
@@ -187,15 +196,6 @@ CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
         "Browse, edit, and publish the durable context agents receive.",
         "Manage the durable context agents receive.",
         _memory_factory,
-    ),
-    ConfigSubTabSpec(
-        "misc",
-        "Misc",
-        "Misc",
-        "Misc",
-        "Inspect effective values, source layers, and schema-backed settings.",
-        "Inspect effective values, sources, and other settings.",
-        _misc_factory,
     ),
     ConfigSubTabSpec(
         "snippets",

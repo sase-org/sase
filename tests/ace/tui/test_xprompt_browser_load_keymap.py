@@ -391,7 +391,7 @@ async def test_brackets_cycle_config_subtabs_from_xprompt_list_and_filter(
         hub = modal.query_one(ConfigHubPane)
 
         await page.press("right_square_bracket")
-        await page.wait_for(lambda _s: hub._active_subtab == "flags")
+        await page.wait_for(lambda _s: hub._active_subtab == "misc")
         await page.press("left_square_bracket")
         await page.wait_for(lambda _s: hub._active_subtab == "xprompts")
         option_list = pane.query_one("#browser-list", OptionList)

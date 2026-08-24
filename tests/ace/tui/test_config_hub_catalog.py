@@ -37,6 +37,10 @@ _CENTER_CATALOG_PATH = (
     _ROOT / "src" / "sase" / "ace" / "tui" / "modals" / "config_center_catalog.py"
 )
 _REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+    "misc": (
+        "Inspect effective values, source layers, and schema-backed settings.",
+        "Inspect effective values, sources, and other settings.",
+    ),
     "flags": (
         "Review feature rollouts, effective state, provenance, and saved overrides.",
         "Control feature rollouts and saved overrides.",
@@ -52,10 +56,6 @@ _REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
     "memory": (
         "Browse, edit, and publish the durable context agents receive.",
         "Manage the durable context agents receive.",
-    ),
-    "misc": (
-        "Inspect effective values, source layers, and schema-backed settings.",
-        "Inspect effective values, sources, and other settings.",
     ),
     "snippets": (
         "Build reusable prompt fragments and preview their composed output.",
@@ -86,22 +86,22 @@ def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
     assert admin_center_opener_help_label() == "Admin Center: 1-6 jump, # back"
 
 
-def test_registered_catalog_includes_flags_first() -> None:
+def test_registered_catalog_is_alphabetized_with_all_first() -> None:
     assert SESSION_SUBTAB_ORDER == (
+        "misc",
         "flags",
         "glossary",
         "launch",
         "memory",
-        "misc",
         "snippets",
         "xprompts",
     )
     assert CONFIG_SUBTAB_ORDER == SESSION_SUBTAB_ORDER
     assert CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS == (
+        "misc",
         "glossary",
         "launch",
         "memory",
-        "misc",
         "snippets",
         "xprompts",
     )
@@ -122,6 +122,10 @@ def test_config_subtab_order_includes_flags_when_rollout_is_on() -> None:
             "06",
             "07",
         )
+        misc_spec = next(spec for spec in config_subtab_specs() if spec.id == "misc")
+        assert misc_spec.label == "All"
+        assert misc_spec.compact_label == "All"
+        assert misc_spec.micro_label == "All"
         flags_spec = next(spec for spec in config_subtab_specs() if spec.id == "flags")
         assert flags_spec.label == "Flags"
         assert flags_spec.micro_label == "Flag"

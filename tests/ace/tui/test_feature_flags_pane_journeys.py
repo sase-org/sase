@@ -119,10 +119,10 @@ async def test_disabling_rollout_flag_omits_flags_from_post_restart_catalog() ->
         assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
         assert "flags" not in config_subtab_order()
         assert tuple(tab.id for tab in config_panel_tabs()) == (
+            "misc",
             "glossary",
             "launch",
             "memory",
-            "misc",
             "snippets",
             "xprompts",
         )

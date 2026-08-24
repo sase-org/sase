@@ -159,9 +159,9 @@ Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press a
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
 their data. Config's nested catalog is alphabetized. With the default-on
-`admin_center_flags` sunset flag it is **Flags**, **Glossary**, **Launch**, **Memory**,
-**Misc**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that flag
-omits Flags and numbers the remaining six children `01` through `06`. While home is
+`admin_center_flags` sunset flag it is **All**, **Flags**, **Glossary**, **Launch**,
+**Memory**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that
+flag omits Flags and numbers the remaining six children `01` through `06`. While home is
 visible, press `#` again to resume the last section that was successfully active in this
 ACE process. Before the first section visit, the repeated key leaves home unchanged and
 constructs no pane. Press `1`–`6` or click the numbered tab strip to enter a section.
@@ -194,11 +194,11 @@ The Config tab answers four questions for every field — what value is effectiv
 (its provenance), where an edit will go, and whether it validates:
 
 The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
-default), it is **01 Flags**, **02 Glossary**, **03 Launch**, **04 Memory**, **05
-Misc**, **06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and
-then `1`-`7` to open those children. When the flag is off, the catalog is **01
-Glossary** through **06 XPrompts**, and `0` then `1`-`6` selects them. Remap the prefix
-with `ace.keymaps.config.select_subtab` without changing the visible default badges.
+default), it is **01 All**, **02 Flags**, **03 Glossary**, **04 Launch**, **05 Memory**,
+**06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and then
+`1`-`7` to open those children. When the flag is off, the catalog is **01 All** through
+**06 XPrompts**, and `0` then `1`-`6` selects them. Remap the prefix with
+`ace.keymaps.config.select_subtab` without changing the visible default badges.
 
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi

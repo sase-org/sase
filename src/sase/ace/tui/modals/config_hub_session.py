@@ -11,15 +11,17 @@ ConfigSubTab = Literal[
     "flags", "glossary", "launch", "memory", "misc", "snippets", "xprompts"
 ]
 CONFIG_SUBTAB_ORDER: tuple[ConfigSubTab, ...] = (
+    "misc",
     "flags",
     "glossary",
     "launch",
     "memory",
-    "misc",
     "snippets",
     "xprompts",
 )
-CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS: tuple[ConfigSubTab, ...] = CONFIG_SUBTAB_ORDER[1:]
+CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS: tuple[ConfigSubTab, ...] = tuple(
+    subtab for subtab in CONFIG_SUBTAB_ORDER if subtab != "flags"
+)
 
 
 def config_subtab_order() -> tuple[ConfigSubTab, ...]:

@@ -160,7 +160,7 @@ async def test_config_hub_strip_thresholds_grow_for_seven_labels(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            assert hub._compact_below == 86
+            assert hub._compact_below == 85
             assert hub._micro_below == 73
     with override_flags(admin_center_flags=True):
         async with _HostApp().run_test() as pilot:
@@ -168,7 +168,7 @@ async def test_config_hub_strip_thresholds_grow_for_seven_labels(
             pilot.app.push_screen(modal)
             await wait_for(pilot, lambda: modal._active_tab == "config")
             hub = modal.query_one("#config", ConfigHubPane)
-            assert hub._compact_below == 99
+            assert hub._compact_below == 98
             assert hub._micro_below == 73
 
 
@@ -206,8 +206,8 @@ async def test_flags_off_prefix_keeps_six_child_numbering(
             await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
             await pilot.press("0", "1")
-            await wait_for(pilot, lambda: hub._active_subtab == "glossary")
-            _assert_hub_caption(hub, "glossary")
+            await wait_for(pilot, lambda: hub._active_subtab == "misc")
+            _assert_hub_caption(hub, "misc")
             await pilot.press("0", "6")
             await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
             await pilot.press("0", "7")

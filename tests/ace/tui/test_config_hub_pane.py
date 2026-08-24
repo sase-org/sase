@@ -25,14 +25,14 @@ from tests.ace.tui._config_hub_pane_helpers import (
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
-        (98, "full"),
+        (97, "full"),
         (73, "compact"),
         (70, "micro"),
     ),
 )
 def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> None:
     tabs = config_panel_tabs()
-    compact_below, micro_below = (99, 73) if len(tabs) >= 7 else (86, 73)
+    compact_below, micro_below = (98, 73) if len(tabs) >= 7 else (85, 73)
     strip = PanelTabStrip(
         tabs,
         "flags",
@@ -122,7 +122,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
         before = _caption_text(hub).plain
 
-        await pilot.press("0", "2")
+        await pilot.press("0", "3")
         await pilot.pause()
 
         assert hub._active_subtab == "xprompts"
