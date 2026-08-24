@@ -121,12 +121,17 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                     for agent in exact_agents
                     if agent.status in DISMISSABLE_STATUSES or agent.pid is None
                 ]
-                self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
-                self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
-                    prompts,
-                    first.project_file,
-                    first.cl_name,
-                    first.is_project_agent,
+
+                def mount_prompt_stack() -> None:
+                    self._edit_and_relaunch_agents_bulk(  # type: ignore[attr-defined]
+                        prompts,
+                        first.project_file,
+                        first.cl_name,
+                        first.is_project_agent,
+                    )
+
+                self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                    killable, dismissable, on_settled=mount_prompt_stack
                 )
 
             self._present_bulk_kill_modal(present_agents, on_confirm=on_confirm)

@@ -152,6 +152,11 @@ from sase.agent.names._wipe import (
     preview_agent_name_wipe,
     wipe_agent_name_for_reuse,
 )
+from sase.agent.names._forced_reuse import (
+    ForcedReuseCleanupError,
+    release_stale_container,
+    wipe_force_reuse_owner,
+)
 
 
 def resolve_agent_patch(name: str) -> str:
@@ -245,6 +250,7 @@ __all__ = [
     "AgentRefError",
     "AgentNameWipePreview",
     "AgentNameWipeResult",
+    "ForcedReuseCleanupError",
     "AgentFamily",
     "AgentFamilyMember",
     "AGENT_NAME_TEMPLATE_MARKER",
@@ -340,6 +346,7 @@ __all__ = [
     "require_latest_agent_name_template",
     "rebuild_name_registry",
     "release_planned_registered_name",
+    "release_stale_container",
     "most_recent_completed_family_member",
     "most_recent_completed_clan_member",
     "reserve_registered_name",
@@ -361,4 +368,5 @@ __all__ = [
     "wait_agent_name_template",
     "preview_agent_name_wipe",
     "wipe_agent_name_for_reuse",
+    "wipe_force_reuse_owner",
 ]

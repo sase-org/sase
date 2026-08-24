@@ -8,6 +8,7 @@ forced-name-reuse rule used by the focused-row ``,x`` path.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -81,7 +82,11 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         self.pushed_callbacks.append(callback)
 
     def _do_bulk_kill_agents(
-        self, killable: list[Any], dismissable: list[Any] | None = None
+        self,
+        killable: list[Any],
+        dismissable: list[Any] | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
         dismissable = dismissable or []
         self.bulk_kill_calls.append((list(killable), list(dismissable)))
@@ -91,6 +96,8 @@ class _FakeBulkEditApp(AgentMarkingMixin):
             a for a in self._agents_with_children if a.identity not in ids
         ]
         self._reset_marked_agents()
+        if on_settled is not None:
+            on_settled()
 
     def _edit_and_relaunch_agents_bulk(
         self,
@@ -135,9 +142,13 @@ class _MountedBulkEditApp(AgentMarkingMixin, EntryRelaunchMixin, App[None]):
         self,
         killable: list[Agent],
         dismissable: list[Agent] | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
         self.bulk_kill_calls.append((list(killable), list(dismissable or [])))
         self._reset_marked_agents()
+        if on_settled is not None:
+            on_settled()
 
 
 def _mark_in_order(app: _FakeBulkEditApp, *agents: _FakeAgent) -> None:

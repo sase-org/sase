@@ -409,6 +409,12 @@ def _remove_artifact_dirs(paths: set[Path], errors: list[str]) -> set[Path]:
         try:
             shutil.rmtree(path)
             removed.add(path)
+        except FileNotFoundError:
+            # A concurrent cleanup proc (or a second forced-reuse pass) may
+            # have already removed this directory between the exists()
+            # check above and rmtree(); that race is a success, not a
+            # failure, matching the already-missing-bundle case below.
+            continue
         except OSError as exc:
             errors.append(f"failed removing artifact dir {path}: {exc}")
     return removed

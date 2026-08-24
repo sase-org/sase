@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
@@ -27,12 +28,22 @@ class AgentKillPersistenceProcMixin:
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         recent_group: SavedAgentGroupWire | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
-        """Submit bulk kill/dismiss persistence as a tracked background proc."""
+        """Submit bulk kill/dismiss persistence as a tracked background proc.
+
+        *on_settled*, when given, is composed with the in-flight-release
+        callback below so it always fires exactly once: from the proc's
+        settled callback when submission succeeds, or immediately when
+        submission is rejected.
+        """
         from . import _killing as killing_compat
 
         inflight = {item.agent.identity for item in kill_items}
         if inflight & self._kill_persistence_inflight:
+            if on_settled is not None:
+                on_settled()
             return
         self._kill_persistence_inflight.update(inflight)
 
@@ -77,6 +88,8 @@ class AgentKillPersistenceProcMixin:
 
         def _release() -> None:
             self._kill_persistence_inflight.difference_update(inflight)
+            if on_settled is not None:
+                on_settled()
 
         if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
             proc_type="kill",
@@ -97,10 +110,20 @@ class AgentKillPersistenceProcMixin:
         agents_with_children_snapshot: list[Agent] | None = None,
         dismissed_snapshot: set[AgentIdentity] | None = None,
         cleanup_plan: AgentCleanupPlanWire | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
-        """Submit single-agent kill persistence as a tracked background proc."""
+        """Submit single-agent kill persistence as a tracked background proc.
+
+        *on_settled*, when given, is composed with the in-flight-release
+        callback below so it always fires exactly once: from the proc's
+        settled callback when submission succeeds, or immediately when
+        submission is rejected.
+        """
         identity = agent.identity
         if identity in self._kill_persistence_inflight:
+            if on_settled is not None:
+                on_settled()
             return
         self._kill_persistence_inflight.add(identity)
 
@@ -138,6 +161,8 @@ class AgentKillPersistenceProcMixin:
 
         def _release() -> None:
             self._kill_persistence_inflight.discard(identity)
+            if on_settled is not None:
+                on_settled()
 
         if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
             proc_type="kill",

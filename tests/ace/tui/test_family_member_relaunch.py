@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 import json
 from pathlib import Path
@@ -49,13 +50,21 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
             row for row in self._agents_with_children if row.identity != agent.identity
         ]
 
-    def _dismiss_done_agent(self, agent: Agent) -> None:
+    def _dismiss_done_agent(
+        self, agent: Agent, *, on_settled: Callable[[], None] | None = None
+    ) -> None:
         self.dismissed.append(agent)
         self._remove(agent)
+        if on_settled is not None:
+            on_settled()
 
-    def _do_kill_agent(self, agent: Agent) -> None:
+    def _do_kill_agent(
+        self, agent: Agent, *, on_settled: Callable[[], None] | None = None
+    ) -> None:
         self.killed.append(agent)
         self._remove(agent)
+        if on_settled is not None:
+            on_settled()
 
 
 def _prompt_bar_ready(app: _FamilyRelaunchApp) -> bool:

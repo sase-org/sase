@@ -263,8 +263,19 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         ):
             _release()
 
-    def _dismiss_done_agent(self, agent: Agent) -> None:
-        """Dismiss a DONE or completed workflow agent."""
+    def _dismiss_done_agent(
+        self,
+        agent: Agent,
+        *,
+        on_settled: Callable[[], None] | None = None,
+    ) -> None:
+        """Dismiss a DONE or completed workflow agent.
+
+        *on_settled*, when given, runs once the dismissal's durable
+        persistence proc has settled (or immediately, if submission itself
+        is rejected) so a caller composing a kill-and-edit relaunch can defer
+        mounting the prompt bar until it is safe to do so.
+        """
         if agent.raw_suffix is None:
             self.notify("Cannot dismiss agent: no timestamp", severity="error")  # type: ignore[attr-defined]
             return
@@ -274,13 +285,20 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             [agent],
             agents_with_children_snapshot,
         )
-        self._dismiss_planned_agent(agent, cleanup_plan, agents_with_children_snapshot)
+        self._dismiss_planned_agent(
+            agent,
+            cleanup_plan,
+            agents_with_children_snapshot,
+            on_settled=on_settled,
+        )
 
     def _dismiss_planned_agent(
         self,
         agent: Agent,
         cleanup_plan: AgentCleanupPlanWire,
         agents_with_children_snapshot: list[Agent] | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
         """Dismiss one agent using an already-computed cleanup plan."""
         from ...models.agent import AgentType
@@ -325,6 +343,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             cleanup_plan,
             new_identities,
             recent_group,
+            on_settled=on_settled,
         )
 
     def _submit_dismiss_persistence_task(
@@ -335,10 +354,20 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         cleanup_plan: object | None = None,
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
-        """Submit single-agent dismiss persistence as a tracked proc."""
+        """Submit single-agent dismiss persistence as a tracked proc.
+
+        *on_settled*, when given, is composed with the in-flight-release
+        callback below so it always fires exactly once: from the proc's
+        settled callback when submission succeeds, or immediately when
+        submission is rejected (e.g. a collision with an in-flight proc).
+        """
         identity = agent.identity
         if identity in self._dismiss_persistence_inflight:
+            if on_settled is not None:
+                on_settled()
             return
         self._dismiss_persistence_inflight.add(identity)
 
@@ -373,6 +402,8 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
         def _release() -> None:
             self._dismiss_persistence_inflight.discard(identity)
+            if on_settled is not None:
+                on_settled()
 
         if not self._submit_cleanup_proc(
             proc_type="dismiss",

@@ -501,19 +501,19 @@ def _force_reuse_bead_associations_for_prompt(
 
 
 def wipe_names_for_forced_reuse(names: list[str]) -> None:
-    """Remove explicit force-reuse owners or fail before launch mutation."""
-    for name in names:
-        from sase.agent.names import wipe_agent_name_for_reuse
+    """Remove explicit force-reuse owners or fail before launch mutation.
 
-        result = wipe_agent_name_for_reuse(name)
-        if result.errors:
-            detail = "; ".join(result.errors)
-            raise RuntimeError(f"Failed to wipe agent name '{name}': {detail}")
-        if result.skipped_container_kind:
-            raise RuntimeError(
-                f"Cannot force-reuse {result.skipped_container_kind} "
-                f"container '{name}'."
-            )
+    Routes through the shared agent-name forced-reuse primitive so relaunching
+    a family root (``%id(!1, clan=..., ...)`` rewritten from an epic phase
+    root) deterministically replaces the newest family generation instead of
+    refusing every populated container outright. A populated clan container
+    remains refused: it is a rootless parallel group, not one replaceable
+    agent, and its members keep their own explicit relaunch path.
+    """
+    from sase.agent.names import wipe_force_reuse_owner
+
+    for name in names:
+        wipe_force_reuse_owner(name, allow_container_skip=False)
 
 
 def _extract_explicit_name(

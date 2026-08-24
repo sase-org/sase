@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
 from ._dismiss_cleanup import agent_identity_from_wire, dismissed_identities_from_plan
@@ -29,9 +30,19 @@ class AgentKillFlowMixin:
     _dismissed_agents: set[AgentIdentity]
 
     def _do_kill_agent(
-        self, agent: Agent, cleanup_plan: AgentCleanupPlanWire | None = None
+        self,
+        agent: Agent,
+        cleanup_plan: AgentCleanupPlanWire | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
-        """Perform the actual agent kill after confirmation."""
+        """Perform the actual agent kill after confirmation.
+
+        *on_settled*, when given, runs once the kill's durable persistence
+        proc has settled (or immediately, if submission itself is rejected)
+        so a caller composing a kill-and-edit relaunch can defer mounting
+        the prompt bar until it is safe to do so.
+        """
         started = time.perf_counter()
         kind: KillKind | None = self._classify_kill_kind(agent)  # type: ignore[attr-defined]
         if cleanup_plan is not None:
@@ -51,6 +62,8 @@ class AgentKillFlowMixin:
             self.notify(  # type: ignore[attr-defined]
                 f"Unknown agent type: {agent.agent_type}", severity="error"
             )
+            if on_settled is not None:
+                on_settled()
             return
 
         agents_with_children_snapshot = list(self._agents_with_children)
@@ -94,6 +107,8 @@ class AgentKillFlowMixin:
             if target.pid is not None and not self._kill_agent_process_group(target):  # type: ignore[attr-defined]
                 signal_failed = True
         if signal_failed:
+            if on_settled is not None:
+                on_settled()
             return
         self._notify_killed_agent(agent, kind)  # type: ignore[attr-defined]
 
@@ -115,6 +130,7 @@ class AgentKillFlowMixin:
             agents_with_children_snapshot,
             dismissed_snapshot,
             cleanup_plan,
+            on_settled=on_settled,
         )
         log.debug(
             "agent kill immediate stage: kind=%s identity=%s elapsed=%.3fs",
@@ -124,9 +140,20 @@ class AgentKillFlowMixin:
         )
 
     def _do_bulk_kill_agents(
-        self, killable: list[Agent], dismissable: list[Agent] | None = None
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        *,
+        on_settled: Callable[[], None] | None = None,
     ) -> None:
-        """Kill/dismiss marked agents as one optimistic UI transaction."""
+        """Kill/dismiss marked agents as one optimistic UI transaction.
+
+        *on_settled*, when given, runs once the bulk kill/dismiss's durable
+        persistence proc has settled (or immediately, if nothing was
+        submitted or submission itself is rejected) so a caller composing a
+        marked kill-and-edit relaunch can defer mounting the prompt stack
+        until it is safe to do so.
+        """
         from . import _killing as killing_compat
 
         started = time.perf_counter()
@@ -219,7 +246,10 @@ class AgentKillFlowMixin:
                 agents_with_children_snapshot,
                 cleanup_plan,
                 recent_group,
+                on_settled=on_settled,
             )
+        elif on_settled is not None:
+            on_settled()
         log.debug(
             "bulk agent kill immediate stage: killed=%d dismissed=%d elapsed=%.3fs",
             killed_count,

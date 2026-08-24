@@ -274,20 +274,31 @@ class EntryRelaunchMixin:
         identity: object,
         raw_prompt: str,
     ) -> None:
-        """Apply a resolved relaunch prompt to a still-current row."""
+        """Apply a resolved relaunch prompt to a still-current row.
+
+        The prompt is captured up front, the kill/dismiss is applied
+        optimistically in memory, and the prompt bar mounts only once that
+        cleanup's durable persistence proc has settled. This keeps the
+        already-prepared prompt from being stranded while still ensuring a
+        late bundle write from the old cleanup cannot resurrect the name a
+        replacement agent is about to reuse.
+        """
         # Capture agent info before killing (agent is removed from _agents on kill)
         agent_project_file = agent.project_file
         agent_cl_name = agent.cl_name
         agent_is_project_agent = agent.is_project_agent
 
-        from ..agents._core import DISMISSABLE_STATUSES
-
-        if agent.status in DISMISSABLE_STATUSES or agent.pid is None:
-            # No confirmation needed - dismiss and show prompt bar
-            self._dismiss_done_agent(agent)  # type: ignore[attr-defined]
+        def mount_prompt_bar() -> None:
             self._edit_and_relaunch_agent(
                 raw_prompt, agent_project_file, agent_cl_name, agent_is_project_agent
             )
+
+        from ..agents._core import DISMISSABLE_STATUSES
+
+        if agent.status in DISMISSABLE_STATUSES or agent.pid is None:
+            # No confirmation needed - dismiss, then show the prompt bar once
+            # the dismiss persistence proc has settled.
+            self._dismiss_done_agent(agent, on_settled=mount_prompt_bar)  # type: ignore[attr-defined]
             return
 
         # Build description for confirmation dialog.
@@ -329,13 +340,7 @@ class EntryRelaunchMixin:
                     severity="warning",
                 )
                 return
-            self._do_kill_agent(current)  # type: ignore[attr-defined]
-            self._edit_and_relaunch_agent(
-                raw_prompt,
-                agent_project_file,
-                agent_cl_name,
-                agent_is_project_agent,
-            )
+            self._do_kill_agent(current, on_settled=mount_prompt_bar)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import pytest
@@ -85,5 +86,8 @@ class _App(EntryPointsMixin):
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
 
-    def _dismiss_done_agent(self, agent: _Agent) -> None:
-        return None
+    def _dismiss_done_agent(
+        self, agent: _Agent, *, on_settled: Callable[[], None] | None = None
+    ) -> None:
+        if on_settled is not None:
+            on_settled()
