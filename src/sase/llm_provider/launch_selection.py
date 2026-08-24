@@ -1,16 +1,14 @@
-"""The authoritative provider/model/effort choice for one real LLM invocation.
+"""The authoritative provider/model/effort choice for LLM launch routing.
 
-A pooled model alias (for example ``@large``) advances a machine-global
-round-robin cursor exactly once per real launch.
-:func:`resolve_launch_selection` is the single place that resolution happens
-with ``consume=True``; every other caller (runner metadata preview, step-marker
-display, doctor/validation) resolves with ``consume=False`` and never advances
-the cursor.
+For pooled model aliases (for example ``@large``), the runner bootstrap
+reserves a cursor slot and publishes that selection in ``agent_meta.json``.
+The first prompt step redeems the reservation before invoking the provider;
+later prompt steps resolve fresh and consume their own cursor slots.
 
 :func:`sase.llm_provider.invoke_agent` accepts an already-resolved
-:class:`LaunchSelection` so a caller that consumed the pool once (e.g. the
-workflow executor's prompt step) can hand that exact selection to the
-provider call instead of triggering a second, independent resolution.
+:class:`LaunchSelection` so the caller that owns selection can hand that exact
+provider/model/effort choice to the provider call instead of triggering a
+second, independent resolution.
 """
 
 from __future__ import annotations
@@ -18,9 +16,15 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from sase.xprompt.directives import PromptDirectives
 
+from .load_balancing import MemberAvailability
+from .model_alias_resolution_types import (
+    resolved_target_availability,
+    resolved_target_is_available,
+)
 from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
 from .types import ModelTier
 
@@ -35,6 +39,8 @@ __all__ = [
     "ALIAS_ORIGIN_DIRECTIVE",
     "ALIAS_ORIGIN_NONE",
     "LaunchSelection",
+    "launch_selection_from_reservation",
+    "reservation_from_launch_selection",
     "resolve_launch_selection",
 ]
 
@@ -51,6 +57,94 @@ class LaunchSelection:
     effort_explicit: bool
     alias_trail: tuple[str, ...] = ()
     alias_origin: str = ALIAS_ORIGIN_NONE
+    cursor_alias: str | None = None
+
+
+def reservation_from_launch_selection(
+    selection: LaunchSelection,
+    *,
+    alias: str | None,
+) -> dict[str, Any]:
+    """Return the persisted reservation shape for *selection*."""
+    return {
+        "alias": alias,
+        "target": f"{selection.provider}/{selection.model}",
+        "effort": selection.reasoning_effort,
+        "alias_trail": list(selection.alias_trail),
+        "alias_origin": selection.alias_origin,
+        "redeemed": False,
+    }
+
+
+def launch_selection_from_reservation(
+    reservation: object,
+    *,
+    directives: PromptDirectives,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> LaunchSelection | None:
+    """Return the reserved selection when it still applies and is routable."""
+    if not isinstance(reservation, Mapping):
+        return None
+    if reservation.get("redeemed") is not False:
+        return None
+    alias = reservation.get("alias")
+    if not isinstance(alias, str) or not alias:
+        return None
+    target = reservation.get("target")
+    if not isinstance(target, str) or "/" not in target:
+        return None
+    provider, model = target.split("/", 1)
+    if not provider or not model:
+        return None
+    effort = reservation.get("effort")
+    if effort is not None and not isinstance(effort, str):
+        return None
+    alias_trail = reservation.get("alias_trail")
+    if not isinstance(alias_trail, list) or not all(
+        isinstance(item, str) and item for item in alias_trail
+    ):
+        return None
+    alias_origin = reservation.get("alias_origin")
+    if not isinstance(alias_origin, str):
+        return None
+
+    current = resolve_launch_selection(
+        directives,
+        directives.model_alias_overrides,
+        consume=False,
+        provider_disables=provider_disables,
+    )
+    if current is None:
+        return None
+    trail = tuple(alias_trail)
+    if (
+        current.cursor_alias != alias
+        or current.alias_trail != trail
+        or current.alias_origin != alias_origin
+    ):
+        return None
+
+    available = resolved_target_is_available(
+        target,
+        provider_disables=provider_disables,
+    )
+    state = resolved_target_availability(
+        target,
+        provider_disables,
+        available=available,
+    )
+    if state == MemberAvailability.UNAVAILABLE:
+        return None
+
+    return LaunchSelection(
+        provider=provider,
+        model=model,
+        reasoning_effort=effort,
+        effort_explicit=current.effort_explicit,
+        alias_trail=trail,
+        alias_origin=alias_origin,
+        cursor_alias=alias,
+    )
 
 
 def resolve_launch_selection(
@@ -77,10 +171,7 @@ def resolve_launch_selection(
     its cursor; pass ``True`` at most once per real provider invocation.
     """
     from .config import resolve_effective_effort
-    from .registry import get_default_provider_name, resolve_model_provider_with_trail
-    from .temporary_override import (
-        resolve_effective_default_provider_model_with_trail,
-    )
+    from .registry import get_default_provider_name
 
     overrides = model_alias_overrides or None
     disables = (
@@ -91,27 +182,38 @@ def resolve_launch_selection(
     model_override = directives.model
     alias_effort: str | None = None
     alias_trail: tuple[str, ...] = ()
+    cursor_alias: str | None = None
     alias_origin = ALIAS_ORIGIN_NONE
 
     if model_override and not provider_name:
+        from .registry import resolve_model_provider_with_cursor
+
         if disables is None:
-            resolved_provider, model_override, alias_effort, alias_trail = (
-                resolve_model_provider_with_trail(
-                    model_override,
-                    overrides,
-                    consume=consume,
-                    model_tier=model_tier,
-                )
+            (
+                resolved_provider,
+                model_override,
+                alias_effort,
+                alias_trail,
+                cursor_alias,
+            ) = resolve_model_provider_with_cursor(
+                model_override,
+                overrides,
+                consume=consume,
+                model_tier=model_tier,
             )
         else:
-            resolved_provider, model_override, alias_effort, alias_trail = (
-                resolve_model_provider_with_trail(
-                    model_override,
-                    overrides,
-                    consume=consume,
-                    model_tier=model_tier,
-                    provider_disables=disables,
-                )
+            (
+                resolved_provider,
+                model_override,
+                alias_effort,
+                alias_trail,
+                cursor_alias,
+            ) = resolve_model_provider_with_cursor(
+                model_override,
+                overrides,
+                consume=consume,
+                model_tier=model_tier,
+                provider_disables=disables,
             )
         if alias_trail:
             alias_origin = ALIAS_ORIGIN_DIRECTIVE
@@ -134,22 +236,31 @@ def resolve_launch_selection(
                 provider_name,
             )
 
-    def _resolve_default_alias() -> tuple[str, str, str | None, tuple[str, ...]]:
-        if disables is None:
-            return resolve_effective_default_provider_model_with_trail(
-                model_tier,
-                overrides,
-                consume=consume,
-            )
-        return resolve_effective_default_provider_model_with_trail(
-            model_tier,
+    def _resolve_default_alias() -> tuple[
+        str, str, str | None, tuple[str, ...], str | None
+    ]:
+        from .model_launch_settings import (
+            DEFAULT_MODEL_FIELD,
+            build_launch_model_setting_snapshot,
+        )
+
+        snapshot = build_launch_model_setting_snapshot(
+            DEFAULT_MODEL_FIELD,
             overrides,
+            model_tier=model_tier,
             consume=consume,
             provider_disables=disables,
         )
+        return (
+            snapshot.provider,
+            snapshot.model,
+            snapshot.effort,
+            snapshot.alias_trail,
+            snapshot.cursor_alias,
+        )
 
     if not model_override and not provider_name:
-        provider_name, model_override, alias_effort, alias_trail = (
+        provider_name, model_override, alias_effort, alias_trail, cursor_alias = (
             _resolve_default_alias()
         )
         if alias_trail:
@@ -170,4 +281,5 @@ def resolve_launch_selection(
         effort_explicit=effort_explicit,
         alias_trail=alias_trail,
         alias_origin=alias_origin,
+        cursor_alias=cursor_alias,
     )

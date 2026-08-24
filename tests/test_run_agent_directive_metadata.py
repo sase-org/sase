@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -124,6 +125,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         model_alias=None,
         model_alias_trail=[],
         model_alias_origin=None,
+        model_alias_reservation=None,
         model_alias_overrides={},
         vcs_provider=None,
         auto_dismiss=None,
@@ -169,6 +171,41 @@ def test_preserved_agent_metadata_keeps_model_alias_provenance(
     assert preserved["model_alias"] == "medium"
     assert preserved["model_alias_trail"] == ["medium", "worker"]
     assert preserved["model_alias_origin"] == "directive"
+
+
+def test_preserved_agent_metadata_keeps_model_alias_reservation(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "model": "opus",
+                "llm_provider": "claude",
+                "model_alias_reservation": {
+                    "alias": "large",
+                    "target": "claude/opus",
+                    "effort": "high",
+                    "alias_trail": ["large"],
+                    "alias_origin": "default_model",
+                    "redeemed": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["model_alias_reservation"] == {
+        "alias": "large",
+        "target": "claude/opus",
+        "effort": "high",
+        "alias_trail": ["large"],
+        "alias_origin": "default_model",
+        "redeemed": False,
+    }
 
 
 @pytest.mark.parametrize(

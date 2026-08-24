@@ -11,6 +11,7 @@ from .load_balancing import (
     ModelAliasSelectorError,
     concatenated_selector_members,
     parse_model_alias_selector,
+    pool_availability_mask,
     select_model_alias_selector_index,
 )
 from .model_alias_resolution import normalize_model_alias_reference
@@ -73,6 +74,7 @@ class LaunchModelSettingSnapshot:
     selector_mode: str | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     override_paused_by_provider_disable: TemporaryProviderDisable | None = None
+    cursor_alias: str | None = None
 
 
 def get_default_model() -> str:
@@ -130,7 +132,7 @@ def build_launch_model_setting_snapshot(
     from .registry import (
         get_configured_default_provider_name,
         resolve_model_provider_with_effort,
-        resolve_model_provider_with_trail,
+        resolve_model_provider_with_cursor,
     )
     from .temporary_override import get_active_alias_override
     from .config import model_alias_selector_details
@@ -177,13 +179,16 @@ def build_launch_model_setting_snapshot(
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     selector_mode = selector.mode if selector is not None else None
     alias_trail: tuple[str, ...] = ()
+    cursor_alias: str | None = None
     if selector is not None:
-        provider, model, effort, alias_trail = resolve_model_provider_with_trail(
-            raw_value,
-            overrides,
-            consume=consume,
-            model_tier=model_tier,
-            provider_disables=disables,
+        provider, model, effort, alias_trail, cursor_alias = (
+            resolve_model_provider_with_cursor(
+                raw_value,
+                overrides,
+                consume=consume,
+                model_tier=model_tier,
+                provider_disables=disables,
+            )
         )
         selector_members = selector.members
     else:
@@ -223,6 +228,10 @@ def build_launch_model_setting_snapshot(
                 states,
                 consume=consume,
             )
+            if raw_selector.mode == "round_robin":
+                pool_mask = pool_availability_mask(states[:pool_count])
+                if any(pool_mask) and selected_index < pool_count:
+                    cursor_alias = override_key
             selected = resolved_members[selected_index]
             provider, model, _target_effort = resolve_model_provider_with_effort(
                 selected.target,
@@ -261,12 +270,14 @@ def build_launch_model_setting_snapshot(
                 )
             )
         else:
-            provider, model, effort, alias_trail = resolve_model_provider_with_trail(
-                raw_value,
-                overrides,
-                consume=consume,
-                model_tier=model_tier,
-                provider_disables=disables,
+            provider, model, effort, alias_trail, cursor_alias = (
+                resolve_model_provider_with_cursor(
+                    raw_value,
+                    overrides,
+                    consume=consume,
+                    model_tier=model_tier,
+                    provider_disables=disables,
+                )
             )
     return LaunchModelSettingSnapshot(
         field=field,
@@ -285,6 +296,7 @@ def build_launch_model_setting_snapshot(
         selector_mode=selector_mode,
         selector_members=selector_members,
         override_paused_by_provider_disable=paused_disable,
+        cursor_alias=cursor_alias,
     )
 
 

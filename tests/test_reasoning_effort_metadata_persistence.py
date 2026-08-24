@@ -161,16 +161,14 @@ def test_agent_meta_omits_model_alias_for_concrete_model(
     )
     assert "model_alias" not in meta
     assert "model_alias_trail" not in meta
+    assert "model_alias_reservation" not in meta
     assert meta["model_alias_origin"] == "none"
 
 
-def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_selection(
+def test_agent_meta_reserves_alias_pool_and_resume_reuses_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The axe metadata lane only previews the pool; a re-exec reuses the
-    preserved selection without re-resolving. The pool's cursor only
-    advances when the anonymous workflow's prompt step performs the real,
-    consuming resolution immediately before invoking the provider."""
+    """The axe metadata lane reserves the pool once; a re-exec reuses it."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
 
@@ -228,10 +226,16 @@ def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_sele
     assert first["model_alias"] == "pool"
     assert first["model_alias_trail"] == ["pool"]
     assert first["model_alias_origin"] == "directive"
+    assert first["model_alias_reservation"] == {
+        "alias": "pool",
+        "target": "claude/opus",
+        "effort": "medium",
+        "alias_trail": ["pool"],
+        "alias_origin": "directive",
+        "redeemed": False,
+    }
 
-    # A second, independent launch's metadata preview sees the same
-    # unconsumed cursor position as the first, since neither call is a real
-    # invocation.
+    # A second, independent launch reserves the next cursor position.
     extract_directives_and_write_meta(
         prompt=prompt,
         workspace_dir=workspace_dir,
@@ -240,23 +244,26 @@ def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_sele
     second = json.loads(
         (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert (second["llm_provider"], second["model"], second["reasoning_effort"]) == (
-        "claude",
-        "opus",
-        "medium",
-    )
+    assert (second["llm_provider"], second["model"]) == ("codex", "gpt-5.5")
+    assert "reasoning_effort" not in second
     assert second["model_alias"] == "pool"
     assert second["model_alias_trail"] == ["pool"]
     assert second["model_alias_origin"] == "directive"
+    assert second["model_alias_reservation"] == {
+        "alias": "pool",
+        "target": "codex/gpt-5.5",
+        "effort": None,
+        "alias_trail": ["pool"],
+        "alias_origin": "directive",
+        "redeemed": False,
+    }
 
 
-def test_agent_meta_default_lane_previews_pool_without_consuming(
+def test_agent_meta_default_lane_reserves_pool_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The implicit default launch lane previews the pool but never advances
-    its shared cursor; only a real invocation does that (see
-    ``test_workflow_executor.py`` for the composed, consuming path)."""
+    """The implicit default launch lane reserves a pool member at bootstrap."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
     from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
@@ -309,7 +316,15 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
     assert first["model_alias"] == "large"
     assert first["model_alias_trail"] == ["large"]
     assert first["model_alias_origin"] == "default_model"
-    assert cursor() == 0
+    assert first["model_alias_reservation"] == {
+        "alias": LARGE_MODEL_ALIAS_NAME,
+        "target": f"{first_provider}/{first_model}",
+        "effort": first_effort,
+        "alias_trail": ["large"],
+        "alias_origin": "default_model",
+        "redeemed": False,
+    }
+    assert cursor() == 1
 
     extract_directives_and_write_meta(
         prompt="do the work",
@@ -326,10 +341,10 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         first_provider,
         first_model,
     )
-    assert cursor() == 0
+    assert preserved["model_alias_reservation"] == first["model_alias_reservation"]
+    assert cursor() == 1
 
-    # A second, independent launch's preview also sees member 0: previewing
-    # never advances the cursor, regardless of how many previews run.
+    # A second, independent launch reserves the next pool member.
     extract_directives_and_write_meta(
         prompt="do the work",
         workspace_dir=workspace_dir,
@@ -338,14 +353,25 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
     second = json.loads(
         (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
+    second_provider, second_model, second_effort = (
+        frozen_selector_provider_model_effort(LARGE_MODEL_ALIAS_NAME, 1)
+    )
     assert (second["llm_provider"], second["model"], second["reasoning_effort"]) == (
-        first_provider,
-        first_model,
-        first_effort,
+        second_provider,
+        second_model,
+        second_effort,
     )
     assert second["model_alias"] == "large"
     assert second["model_alias_trail"] == ["large"]
     assert second["model_alias_origin"] == "default_model"
+    assert second["model_alias_reservation"] == {
+        "alias": LARGE_MODEL_ALIAS_NAME,
+        "target": f"{second_provider}/{second_model}",
+        "effort": second_effort,
+        "alias_trail": ["large"],
+        "alias_origin": "default_model",
+        "redeemed": False,
+    }
     assert cursor() == 0
 
 

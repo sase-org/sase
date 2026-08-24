@@ -12,8 +12,11 @@ pass the already-resolved provider/model target for each member when asking
 about availability, then select from the resulting boolean mask.
 
 Rotation state is machine-global and best-effort.  The persisted cursor is
-the next position in the pool's (possibly weighted) cycle schedule.  A
-missing, corrupt, locked, or otherwise unreadable state file always behaves
+the next position in the pool's (possibly weighted) cycle schedule.  Agent
+bootstrap reserves a cursor slot at launch and the first prompt step redeems
+that reservation; an agent killed before its first invocation leaves the slot
+spent, which is an accepted fairness blip rather than a correctness failure.
+A missing, corrupt, locked, or otherwise unreadable state file always behaves
 like a fresh rotation; an LLM launch must never fail merely because usage
 accounting could not be saved.
 """

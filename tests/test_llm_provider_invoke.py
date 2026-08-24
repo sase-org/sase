@@ -448,8 +448,8 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
 
     with (
         patch(
-            "sase.llm_provider.registry.resolve_model_provider_with_trail",
-            return_value=(None, "unregistered-model", None, ()),
+            "sase.llm_provider.registry.resolve_model_provider_with_cursor",
+            return_value=(None, "unregistered-model", None, (), None),
         ) as mock_resolve,
         patch(
             "sase.llm_provider.registry.get_default_provider_name",

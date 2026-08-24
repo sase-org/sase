@@ -1,11 +1,11 @@
-"""Composed regression tests for the pooled-alias single-consumption fix.
+"""Composed regression tests for pooled-alias launch reservations.
 
-Exercises the runner metadata preview (``extract_directives_and_write_meta``)
-together with the anonymous workflow's real prompt-step invocation
+Exercises runner bootstrap (``extract_directives_and_write_meta``) together
+with the anonymous workflow's real prompt-step invocation
 (``WorkflowExecutor`` / ``invoke_agent``) against the shipped two-member
-``@large`` pool that ``llm_provider.default_model`` delegates to. A pooled alias must advance
-its machine-global round-robin cursor exactly once per real LLM invocation:
-never during the runner's metadata preview, and never twice for one launch.
+``@large`` pool that ``llm_provider.default_model`` delegates to. A pooled
+alias must advance its machine-global round-robin cursor exactly once per
+launched agent: during bootstrap reservation, never again during redemption.
 """
 
 from __future__ import annotations
@@ -65,12 +65,12 @@ def _run_composed_launch(
     name: str,
     prompt: str,
 ) -> tuple[dict, dict, dict]:
-    """Preview via runner metadata, then run the real anonymous-workflow step.
+    """Reserve via runner metadata, then run the real anonymous-workflow step.
 
     Mirrors the two real call sites in production: the runner's bootstrap
-    calls ``extract_directives_and_write_meta`` (a non-consuming preview)
+    calls ``extract_directives_and_write_meta`` (a consuming reservation)
     before ``run_execution_loop`` hands the prompt to a ``WorkflowExecutor``
-    running an anonymous, single-step workflow (the one real invocation).
+    running an anonymous, single-step workflow that redeems it.
 
     Returns ``(root_meta, step_marker, captured)`` where ``captured`` holds
     the ``invoke_agent``/``save_chat_history`` kwargs under
@@ -160,6 +160,8 @@ def _run_renamed_gh_launch(
     from sase.llm_provider.launch_selection import resolve_launch_selection
     from sase.xprompt.directives import PromptDirectives
 
+    # Prove redemption uses the bootstrap reservation even if another launch
+    # advances the same pool before this workflow reaches its prompt step.
     intervening = resolve_launch_selection(PromptDirectives(), consume=True)
     assert intervening is not None
 
@@ -257,8 +259,7 @@ def test_root_metadata_step_marker_and_chat_agree_with_invoked_model(
     tmp_path: Path,
 ) -> None:
     """agent_meta.json, the step marker, and chat metadata all name the same
-    model actually passed to the provider — not a separately re-resolved
-    preview that could pick a different pool member."""
+    model actually passed to the provider."""
     root_meta, marker, captured = _run_composed_launch(tmp_path, "solo", "do the work")
     provider, model = _selected(captured)
 
@@ -281,7 +282,7 @@ def test_root_metadata_reconciles_after_gh_wrapper_display_rename(
     tmp_path: Path,
 ) -> None:
     """A ``#gh:`` wrapper keeps anonymous-launch identity after display rename."""
-    member1 = frozen_selector_provider_model_effort(_POOL_ALIAS, 1)
+    member0 = frozen_selector_provider_model_effort(_POOL_ALIAS, 0)
 
     root_meta, marker, captured = _run_renamed_gh_launch(
         tmp_path,
@@ -290,7 +291,7 @@ def test_root_metadata_reconciles_after_gh_wrapper_display_rename(
     )
     provider, model = _selected(captured)
 
-    assert (provider, model) == (member1[0], member1[1])
+    assert (provider, model) == (member0[0], member0[1])
     assert root_meta["model"] == model
     assert root_meta["llm_provider"] == provider
     assert root_meta["model_alias_trail"] == ["large"]
@@ -343,10 +344,10 @@ def test_workflow_with_no_agent_step_does_not_advance_cursor(tmp_path: Path) -> 
     assert _pool_cursor() == 0
 
 
-def test_runner_metadata_preview_never_advances_cursor_even_on_reexec(
+def test_runner_metadata_reserves_once_even_on_reexec(
     tmp_path: Path,
 ) -> None:
-    """Metadata preparation (including a simulated re-exec) only previews."""
+    """Metadata preparation consumes once; simulated re-exec preserves it."""
     workspace_dir = str(tmp_path / "workspace")
     artifacts_dir = str(tmp_path / "artifacts")
     os.makedirs(workspace_dir, exist_ok=True)
@@ -357,15 +358,147 @@ def test_runner_metadata_preview_never_advances_cursor_even_on_reexec(
         workspace_dir=workspace_dir,
         artifacts_dir=artifacts_dir,
     )
-    assert _pool_cursor() == 0
+    first_meta = json.loads(
+        (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert _pool_cursor() == 1
+    assert first_meta["model_alias_reservation"]["redeemed"] is False
 
-    # Simulate a runner re-exec: preserved metadata is reused, still no consume.
+    # Simulate a runner re-exec: preserved metadata is reused, no second consume.
     extract_directives_and_write_meta(
         prompt="do the work",
         workspace_dir=workspace_dir,
         artifacts_dir=artifacts_dir,
     )
+    preserved_meta = json.loads(
+        (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert _pool_cursor() == 1
+    assert (
+        preserved_meta["model_alias_reservation"]
+        == (first_meta["model_alias_reservation"])
+    )
+
+
+def test_batch_bootstrap_reservations_follow_weighted_schedule(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A batch of bootstraps reserves successive weighted pool positions."""
+    from tests.llm_provider._load_balanced_alias_helpers import configure_pool
+
+    configure_pool(
+        monkeypatch,
+        "claude/sonnet | codex/gpt-5.5 | 2 grok/grok-4.6",
+    )
+
+    workspace_dir = str(tmp_path / "workspace")
+    os.makedirs(workspace_dir, exist_ok=True)
+    prompt = "%model:@pool\ndo the work"
+    actual: list[tuple[str, str]] = []
+    reservations: list[dict[str, object]] = []
+
+    for index in range(4):
+        artifacts_dir = tmp_path / f"batch_{index}"
+        artifacts_dir.mkdir()
+        extract_directives_and_write_meta(
+            prompt=prompt,
+            workspace_dir=workspace_dir,
+            artifacts_dir=str(artifacts_dir),
+        )
+        meta = json.loads(
+            (artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        actual.append((meta["llm_provider"], meta["model"]))
+        reservations.append(meta["model_alias_reservation"])
+
+    assert actual == [
+        ("grok", "grok-4.6"),
+        ("claude", "sonnet"),
+        ("codex", "gpt-5.5"),
+        ("grok", "grok-4.6"),
+    ]
+    assert [item["target"] for item in reservations] == [
+        "grok/grok-4.6",
+        "claude/sonnet",
+        "codex/gpt-5.5",
+        "grok/grok-4.6",
+    ]
+    assert all(item["alias"] == "pool" for item in reservations)
+    assert all(item["redeemed"] is False for item in reservations)
+
+
+def test_unavailable_reservation_falls_back_without_hanging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale reserved target is spent and the prompt step repicks."""
+    member0 = frozen_selector_provider_model_effort(_POOL_ALIAS, 0)
+    member1 = frozen_selector_provider_model_effort(_POOL_ALIAS, 1)
+    stale_target = f"{member0[0]}/{member0[1]}"
+
+    def _target_available(target: str, **_kwargs: object) -> bool:
+        return target != stale_target
+
+    monkeypatch.setattr(
+        "sase.llm_provider.launch_selection.resolved_target_is_available",
+        _target_available,
+    )
+
+    root_meta, marker, captured = _run_composed_launch(
+        tmp_path,
+        "stale",
+        "do the work",
+    )
+    provider, model = _selected(captured)
+
+    assert (provider, model) == (member1[0], member1[1])
+    assert root_meta["model"] == model
+    assert root_meta["llm_provider"] == provider
+    assert marker["model"] == model
+    assert marker["llm_provider"] == provider
+    assert root_meta["model_alias_reservation"]["target"] == stale_target
+    assert root_meta["model_alias_reservation"]["redeemed"] is True
     assert _pool_cursor() == 0
+
+
+def test_non_pooled_aliases_write_no_reservation_and_do_not_touch_cursor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.llm_provider._load_balanced_alias_helpers import configure_pool
+
+    workspace_dir = str(tmp_path / "workspace")
+    concrete_artifacts = str(tmp_path / "concrete")
+    fallback_artifacts = str(tmp_path / "fallback")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(concrete_artifacts, exist_ok=True)
+    os.makedirs(fallback_artifacts, exist_ok=True)
+    state_path = Path.home() / ".sase" / "llm_lb.json"
+
+    extract_directives_and_write_meta(
+        prompt="%model:claude/opus\ndo the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=concrete_artifacts,
+    )
+    concrete = json.loads(
+        (Path(concrete_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert "model_alias_reservation" not in concrete
+    assert not state_path.exists()
+
+    configure_pool(monkeypatch, "claude/opus || codex/gpt-5.5")
+    extract_directives_and_write_meta(
+        prompt="%model:@pool\ndo the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=fallback_artifacts,
+    )
+    fallback = json.loads(
+        (Path(fallback_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert fallback["model_alias"] == "pool"
+    assert "model_alias_reservation" not in fallback
+    assert not state_path.exists()
 
 
 def test_concurrent_consuming_resolutions_serialize_without_double_consumption(
@@ -373,10 +506,9 @@ def test_concurrent_consuming_resolutions_serialize_without_double_consumption(
 ) -> None:
     """Concurrent real invocations each consume the shared pool exactly once.
 
-    Exercises ``resolve_launch_selection(consume=True)`` directly (the exact
-    boundary the workflow executor's prompt step calls) rather than the full
-    runner pipeline, so the assertion isolates pool-cursor serialization from
-    unrelated global state the broader runner touches.
+    Exercises ``resolve_launch_selection(consume=True)`` directly rather than
+    the full runner pipeline, so the assertion isolates pool-cursor
+    serialization from unrelated global state the broader runner touches.
     """
     from sase.llm_provider.launch_selection import resolve_launch_selection
     from sase.xprompt.directives import PromptDirectives

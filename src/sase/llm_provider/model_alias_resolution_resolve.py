@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.effort import split_model_effort
@@ -13,6 +14,7 @@ from .load_balancing import (
     ModelAliasSelectorError,
     concatenated_selector_members,
     parse_model_alias_selector,
+    pool_availability_mask,
     select_model_alias_selector_index,
 )
 from .model_alias_policy import implicit_alias_targets, role_alias_fallbacks
@@ -36,15 +38,10 @@ def _with_suspended_override(
     override: Any,
     disable: TemporaryProviderDisable,
 ) -> ResolvedModelAlias:
-    return ResolvedModelAlias(
-        result.target,
-        result.effort,
-        result.selector_alias,
-        result.applied_override,
-        override,
-        disable,
-        result.valid,
-        result.alias_trail,
+    return replace(
+        result,
+        suspended_override=override,
+        suspended_provider_disable=disable,
     )
 
 
@@ -82,13 +79,20 @@ def _pick_selector_member(
 ) -> ResolvedModelAlias | None:
     if any(not result.valid for result in member_results):
         return None
+    states = _selector_member_states(member_results, disables)
     index = select_model_alias_selector_index(
         alias,
         selector,
-        _selector_member_states(member_results, disables),
+        states,
         consume=consume,
     )
-    return member_results[index]
+    result = member_results[index]
+    if selector.mode != "round_robin":
+        return result
+    pool_mask = pool_availability_mask(states[: len(selector.members)])
+    if any(pool_mask) and index < len(selector.members):
+        return replace(result, cursor_alias=alias)
+    return result
 
 
 def _resolve_model_alias_result(

@@ -428,7 +428,7 @@ def resolve_model_provider_with_effort(
     fallback member is unavailable, instead of silently rerouting the model to
     the default provider.
     """
-    provider, model, effort, _alias_trail = resolve_model_provider_with_trail(
+    provider, model, effort, _alias_trail = _resolve_model_provider_with_trail(
         model_override,
         model_alias_overrides,
         consume=consume,
@@ -438,7 +438,7 @@ def resolve_model_provider_with_effort(
     return provider, model, effort
 
 
-def resolve_model_provider_with_trail(
+def _resolve_model_provider_with_trail(
     model_override: str,
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
@@ -447,6 +447,27 @@ def resolve_model_provider_with_trail(
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str | None, str, str | None, tuple[str, ...]]:
     """Resolve a model override to provider/model/effort plus alias hops."""
+    provider, model, effort, alias_trail, _cursor_alias = (
+        resolve_model_provider_with_cursor(
+            model_override,
+            model_alias_overrides,
+            consume=consume,
+            model_tier=model_tier,
+            provider_disables=provider_disables,
+        )
+    )
+    return provider, model, effort, alias_trail
+
+
+def resolve_model_provider_with_cursor(
+    model_override: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+    model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> tuple[str | None, str, str | None, tuple[str, ...], str | None]:
+    """Resolve a model override plus the load-balanced cursor owner, if any."""
     resolved = resolve_model_alias_with_effort(
         model_override,
         model_alias_overrides,
@@ -460,15 +481,33 @@ def resolve_model_provider_with_trail(
     if "/" in model_override:
         prefix, rest = model_override.split("/", 1)
         if prefix in _provider_names() or resolved.selector_alias is not None:
-            return prefix, rest, resolved.effort, resolved.alias_trail
+            return (
+                prefix,
+                rest,
+                resolved.effort,
+                resolved.alias_trail,
+                resolved.cursor_alias,
+            )
 
     # 2. Check the plugin-supplied model-to-provider map
     provider = model_to_provider_map().get(model_override)
     if provider:
-        return provider, model_override, resolved.effort, resolved.alias_trail
+        return (
+            provider,
+            model_override,
+            resolved.effort,
+            resolved.alias_trail,
+            resolved.cursor_alias,
+        )
 
     # 3. Unknown model — fall back to default provider
-    return None, model_override, resolved.effort, resolved.alias_trail
+    return (
+        None,
+        model_override,
+        resolved.effort,
+        resolved.alias_trail,
+        (resolved.cursor_alias),
+    )
 
 
 def get_configured_default_provider_name(

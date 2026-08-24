@@ -108,6 +108,7 @@ class ResolvedModelAlias:
     suspended_provider_disable: TemporaryProviderDisable | None = None
     valid: bool = True
     alias_trail: tuple[str, ...] = ()
+    cursor_alias: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

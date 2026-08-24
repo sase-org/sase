@@ -257,6 +257,7 @@ def extract_directives_and_write_meta(
     agent_model_alias: str | None
     agent_model_alias_trail: list[str]
     agent_model_alias_origin: str | None
+    agent_model_alias_reservation: dict[str, Any] | None
     if isinstance(preserved_model, str) and isinstance(preserved_provider, str):
         # Runner re-execs/resumptions reuse the authoritative launch selection
         # recorded in metadata and must not advance a load-balanced pool again.
@@ -266,6 +267,9 @@ def extract_directives_and_write_meta(
         preserved_model_alias = preserved_metadata.get("model_alias")
         preserved_model_alias_trail = preserved_metadata.get("model_alias_trail")
         preserved_model_alias_origin = preserved_metadata.get("model_alias_origin")
+        preserved_model_alias_reservation = preserved_metadata.get(
+            "model_alias_reservation"
+        )
         agent_reasoning_effort = (
             preserved_effort if isinstance(preserved_effort, str) else None
         )
@@ -288,35 +292,49 @@ def extract_directives_and_write_meta(
             if isinstance(preserved_model_alias_origin, str)
             else None
         )
+        agent_model_alias_reservation = (
+            dict(preserved_model_alias_reservation)
+            if isinstance(preserved_model_alias_reservation, dict)
+            else None
+        )
     else:
-        # A non-consuming preview: the real, consuming resolution happens once,
-        # under the pool lock, immediately before the anonymous workflow's
-        # prompt step invokes the provider — see WorkflowExecutor. This
-        # preview never advances a load-balanced alias pool's cursor, and its
-        # metadata is reconciled with the authoritative selection afterward.
+        # Reserve the launch selection now, before dependency and runner-slot
+        # waits. The first prompt step redeems this metadata instead of
+        # advancing the same load-balanced pool a second time.
         from sase.llm_provider.config import (
             DEFAULT_MODEL_FIELD,
             launch_model_setting_alias,
         )
-        from sase.llm_provider.launch_selection import resolve_launch_selection
+        from sase.llm_provider.launch_selection import (
+            reservation_from_launch_selection,
+            resolve_launch_selection,
+        )
 
-        preview = resolve_launch_selection(
+        selection = resolve_launch_selection(
             directives,
             model_alias_overrides,
-            consume=False,
+            consume=True,
         )
-        assert preview is not None
-        agent_model = preview.model
-        agent_llm_provider = preview.provider
-        agent_reasoning_effort = preview.reasoning_effort
-        agent_model_alias_trail = list(preview.alias_trail)
-        agent_model_alias_origin = preview.alias_origin
+        assert selection is not None
+        agent_model = selection.model
+        agent_llm_provider = selection.provider
+        agent_reasoning_effort = selection.reasoning_effort
+        agent_model_alias_trail = list(selection.alias_trail)
+        agent_model_alias_origin = selection.alias_origin
         agent_model_alias = directives.model_alias
         if not directives.model:
             agent_model_alias = launch_model_setting_alias(
                 DEFAULT_MODEL_FIELD,
                 model_alias_overrides,
             )
+        agent_model_alias_reservation = (
+            reservation_from_launch_selection(
+                selection,
+                alias=selection.cursor_alias,
+            )
+            if selection.cursor_alias
+            else None
+        )
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:
@@ -340,6 +358,7 @@ def extract_directives_and_write_meta(
         model_alias=agent_model_alias,
         model_alias_trail=agent_model_alias_trail,
         model_alias_origin=agent_model_alias_origin,
+        model_alias_reservation=agent_model_alias_reservation,
         model_alias_overrides=model_alias_overrides,
         vcs_provider=agent_vcs_provider,
         auto_dismiss=auto_dismiss,

@@ -657,9 +657,7 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
             encoding="utf-8",
         )
         (artifact_dir / "xprompts.json").write_text(
-            json.dumps(
-                [{"name": "gh", "kind": "workflow", "tags": ["vcs"]}]
-            ),
+            json.dumps([{"name": "gh", "kind": "workflow", "tags": ["vcs"]}]),
             encoding="utf-8",
         )
         index_path = root / "agent_artifact_index.sqlite"
@@ -1244,9 +1242,13 @@ def _validate_provider_disable_first_writer(module: ModuleType) -> bool:
         return False
 
     now = 1_800_000_000.0
-    with tempfile.TemporaryDirectory(prefix="sase-core-rs-provider-disable-probe-") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="sase-core-rs-provider-disable-probe-"
+    ) as tmp:
         try:
-            first = try_relative(tmp, "claude", "usage_limit", duration_seconds=900.0, now=now)
+            first = try_relative(
+                tmp, "claude", "usage_limit", duration_seconds=900.0, now=now
+            )
             sibling = try_until(tmp, "codex", now + 1_200.0, "test", now=now)
             lost = try_until(tmp, "claude", now + 3_600.0, "ace", now=now)
             snapshot = get_snapshot(tmp, now)
@@ -1292,7 +1294,8 @@ def _validate_provider_disable_first_writer(module: ModuleType) -> bool:
         return False
     disables = snapshot.get("disables")
     if not isinstance(disables, list) or [
-        record.get("provider") if isinstance(record, dict) else None for record in disables
+        record.get("provider") if isinstance(record, dict) else None
+        for record in disables
     ] != ["claude", "codex"]:
         _error(
             "provider-disable snapshot probe did not preserve both records: "

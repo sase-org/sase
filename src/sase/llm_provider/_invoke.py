@@ -179,9 +179,8 @@ def invoke_agent(
             model_alias_overrides,
         )
 
-    # A caller that already consumed a pooled model alias (e.g. the workflow
-    # executor's prompt step, immediately before this call) hands over that
-    # exact selection so it is never resolved — and never consumed — twice.
+    # A caller that already owns a concrete launch selection hands over that
+    # exact provider/model/effort so it is never resolved or consumed twice.
     provider_disables = capture_provider_disable_snapshot() or None
     if launch_selection is not None:
         provider_name = launch_selection.provider

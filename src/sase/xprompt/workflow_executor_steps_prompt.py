@@ -1,6 +1,7 @@
 """Prompt step execution mixin."""
 
 from dataclasses import replace
+import json
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -114,6 +115,32 @@ def _resolve_embedded_path_fields(
             for field_name in path_fields:
                 if field_name in mapped and field_name not in output:
                     output[field_name] = mapped[field_name]
+
+
+def _read_model_alias_reservation(artifacts_dir: str) -> dict[str, Any] | None:
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as stream:
+            meta = json.load(stream)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(meta, dict):
+        return None
+    reservation = meta.get("model_alias_reservation")
+    return dict(reservation) if isinstance(reservation, dict) else None
+
+
+def _mark_model_alias_reservation_redeemed(
+    artifacts_dir: str,
+    reservation: dict[str, Any] | None,
+) -> None:
+    if not reservation:
+        return
+    from sase.axe.run_agent_helpers import update_meta_fields
+
+    redeemed = dict(reservation)
+    redeemed["redeemed"] = True
+    update_meta_fields(artifacts_dir, {"model_alias_reservation": redeemed})
 
 
 class PromptStepMixin:
@@ -273,20 +300,40 @@ class PromptStepMixin:
         if pre_step_meta:
             step_state.output = dict(pre_step_meta)
 
-        # Resolve the concrete provider/model/effort for this step's one real
-        # invocation. This consumes a load-balanced alias pool's cursor
-        # exactly once, under the machine-wide lock, and the resulting
-        # selection is reused for the step marker, the root launch metadata
-        # (for the primary anonymous prompt step), the provider call itself,
-        # and the saved chat history — so all of them name the model that
-        # actually answered instead of a separately re-resolved preview.
-        from sase.llm_provider.launch_selection import resolve_launch_selection
-
-        launch_selection = resolve_launch_selection(
-            effective_directives,
-            effective_directives.model_alias_overrides,
-            consume=True,
+        # Resolve the concrete provider/model/effort for this step's real
+        # invocation. The first prompt step redeems the bootstrap reservation
+        # when it still matches the effective routing directives; stale or
+        # unavailable reservations fall back to a fresh consuming resolution.
+        from sase.llm_provider.launch_selection import (
+            launch_selection_from_reservation,
+            resolve_launch_selection,
         )
+        from sase.llm_provider.provider_disable import get_active_provider_disables
+
+        provider_disables = get_active_provider_disables() or None
+        reservation = _read_model_alias_reservation(self.artifacts_dir)
+        launch_selection = launch_selection_from_reservation(
+            reservation,
+            directives=effective_directives,
+            provider_disables=provider_disables,
+        )
+        if launch_selection is not None:
+            _mark_model_alias_reservation_redeemed(
+                self.artifacts_dir,
+                reservation,
+            )
+        else:
+            if isinstance(reservation, dict) and reservation.get("redeemed") is False:
+                _mark_model_alias_reservation_redeemed(
+                    self.artifacts_dir,
+                    reservation,
+                )
+            launch_selection = resolve_launch_selection(
+                effective_directives,
+                effective_directives.model_alias_overrides,
+                consume=True,
+                provider_disables=provider_disables,
+            )
         assert launch_selection is not None
         step_model = launch_selection.model
         step_llm_provider = launch_selection.provider
@@ -315,7 +362,7 @@ class PromptStepMixin:
             # The anonymous workflow's single step is the top-level agent
             # invocation: reconcile agent_meta.json with the authoritative
             # selection so `sase agent list`, the ACE row, and any launch
-            # metadata preview written before this real invocation all agree
+            # reservation metadata written before this real invocation agree
             # with what actually ran.
             from sase.axe.run_agent_helpers import update_meta_fields
             from sase.llm_provider.config import (
