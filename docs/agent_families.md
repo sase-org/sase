@@ -193,7 +193,10 @@ statuses change. The runtime is the union of member run intervals, with human-wa
 windows excluded, so concurrent members are not double-counted. When a sequential family
 has a concrete agent or monitor shell currently executing, the collapsed and expanded
 family container row shows `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the
-active shell duration is visible without opening the family.
+active shell duration is visible without opening the family. A clan container's live
+suffix collapses its parallel lanes with a minimum instead, since more than one lane can
+be live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
+sequential-family lane contributes its own currently executing shell.
 
 ### Clan summary folding
 

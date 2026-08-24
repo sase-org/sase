@@ -118,6 +118,88 @@ def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
     )
 
 
+def running_clan_runtime_agents() -> list[Agent]:
+    """Return a clan with two running lanes -- one a family -- and one settled.
+
+    ``solo`` and the family's ``family_coder`` lane are both live at snapshot
+    time with different run starts, so the clan's live suffix carries the
+    lower of the two; ``settled`` is finished and contributes nothing.
+    """
+    generation = "20260719090000"
+    solo = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-clan-solo",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 19, 9, 0, 0),
+        run_start_time=datetime(2026, 7, 19, 9, 0, 0),
+        raw_suffix="20260719090000-solo",
+        agent_name="runtime-clan.solo",
+        agent_clan="runtime-clan",
+        agent_clan_generation=generation,
+        tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    family_root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-clan-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 19, 9, 5, 0),
+        run_start_time=datetime(2026, 7, 19, 9, 5, 0),
+        stop_time=datetime(2026, 7, 19, 9, 6, 0),
+        raw_suffix="20260719090500-family",
+        agent_name="runtime-clan.family--0",
+        agent_family="runtime-clan.family",
+        agent_family_role="root",
+        role_suffix="--0",
+        agent_clan="runtime-clan",
+        agent_clan_generation=generation,
+        tribe="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    family_coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-clan-family-code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 19, 9, 10, 0),
+        run_start_time=datetime(2026, 7, 19, 9, 10, 0),
+        raw_suffix="20260719091000-family-code",
+        parent_timestamp=family_root.raw_suffix,
+        role_suffix="--code",
+        agent_name="runtime-clan.family--code",
+        agent_family="runtime-clan.family",
+        agent_family_role="code",
+        agent_clan="runtime-clan",
+        agent_clan_generation=generation,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    settled = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-runtime-clan-settled",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 19, 9, 15, 0),
+        run_start_time=datetime(2026, 7, 19, 9, 15, 0),
+        stop_time=datetime(2026, 7, 19, 9, 20, 0),
+        raw_suffix="20260719091500-settled",
+        agent_name="runtime-clan.settled",
+        agent_clan="runtime-clan",
+        agent_clan_generation=generation,
+        tribe="epic",
+        llm_provider="gemini",
+        model="gemini-pro",
+    )
+    return sort_and_reorder(
+        [solo, family_root, family_coder, settled],
+        [],
+    )
+
+
 def epic_clan_agents(*, clan_summary: str | None = None) -> list[Agent]:
     generation = "20260717120000"
 

@@ -22,7 +22,9 @@ if TYPE_CHECKING:
 from .agent_status import DISMISSABLE_STATUSES
 from .agent_family_members import (
     ConcreteAgentStatus,
+    agent_row_is_in_flight,
     concrete_agent_statuses,
+    current_family_shell_row,
     is_sequential_family_container,
 )
 from .agent_nodes import is_agents_tab_agent_node
@@ -122,6 +124,35 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
         for child in agent.runtime_children
         if child is not agent and child.agent_family_parallel
     )
+
+
+def clan_current_lane_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return one representative in-flight row per running lane of a clan.
+
+    A sequential family lane resolves to the same row the family row shows
+    on the left of its own ``current-shell / total`` runtime suffix. Any
+    other lane represents itself, but only while it is actually in flight.
+    A lane with nothing executing contributes nothing. Nested clan
+    containers are not clan members (matching :func:`clan_members` and
+    ``_lane_summary_projections``), so they are not walked.
+    """
+    if not agent.is_clan_container:
+        return ()
+    representatives: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in clan_members(agent):
+        if not is_agents_tab_agent_node(member):
+            continue
+        representative = current_family_shell_row(member)
+        if representative is None:
+            if not agent_row_is_in_flight(member):
+                continue
+            representative = member
+        if representative.identity in seen:
+            continue
+        seen.add(representative.identity)
+        representatives.append(representative)
+    return tuple(representatives)
 
 
 def clan_member_counts(
@@ -368,6 +399,7 @@ __all__ = [
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",
+    "clan_current_lane_rows",
     "clan_member_status_priority",
     "clan_member_counts",
     "clan_members",

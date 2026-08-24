@@ -1,5 +1,6 @@
 """Time/duration formatting helpers for the Agent model."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -514,6 +515,32 @@ def compute_leaf_row_runtime(
             format_compact_duration(interval.elapsed_seconds),
         )
     return (None, format_compact_duration(interval.elapsed_seconds))
+
+
+def compute_lowest_row_runtime(
+    rows: Sequence["Agent"],
+    now: datetime | None = None,
+) -> str | None:
+    """Return the smallest still-active elapsed duration among *rows*."""
+    reference = now if now is not None else local_now()
+    lowest: float | None = None
+    for row in rows:
+        if not should_display_runtime_suffix(row):
+            continue
+        interval = _leaf_runtime_interval(row, reference)
+        if interval is None or not interval.active:
+            interval = _runtime_interval(row, reference)
+        if (
+            interval is None
+            or not interval.active
+            or interval.terminal_time is not None
+        ):
+            continue
+        if lowest is None or interval.elapsed_seconds < lowest:
+            lowest = interval.elapsed_seconds
+    if lowest is None:
+        return None
+    return format_compact_duration(lowest)
 
 
 def runtime_suffix_ticks(

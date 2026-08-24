@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
     queued_clan_agents,
+    running_clan_runtime_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -74,6 +75,44 @@ async def test_queued_clan_counts_png_snapshot(
             page,
             "agents_queued_clan_counts_120x40",
             title="ACE queued clan counts",
+        )
+
+
+async def test_running_clan_runtime_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 19, 9, 45, 0))
+    patch_startup_loaders(monkeypatch, agents=running_clan_runtime_agents())
+
+    async with AcePage(query='"visual-runtime-clan"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[0].is_clan_container is True
+        assert_page_svg_contains(page, "runtime-clan")
+        assert_page_svg_contains(page, "35m")
+        assert_page_svg_contains(page, "45m")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_running_clan_runtime_collapsed_120x40",
+            title="ACE running clan runtime collapsed",
+        )
+
+        await page.press("l")
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "runtime-clan.family")
+        assert_page_svg_contains(page, "35m")
+        assert_page_svg_contains(page, "45m")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_running_clan_runtime_expanded_120x40",
+            title="ACE running clan runtime expanded",
         )
 
 

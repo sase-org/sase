@@ -13,6 +13,7 @@ from textual.widgets.option_list import Option
 from sase.agent.status_buckets import agent_is_asking, agent_status_bucket
 
 from ..models import agent_time as agent_time_model
+from ..models._agent_clan import clan_current_lane_rows
 from ..models.agent import (
     Agent,
     AttemptRecord,
@@ -99,6 +100,10 @@ def build_runtime_suffix(
                     current_shell,
                     now=reference,
                 )
+            )
+        elif agent.is_clan_container:
+            current_shell_elapsed = agent_time_model.compute_lowest_row_runtime(
+                clan_current_lane_rows(agent), now=reference
             )
     show_unread_marker = is_unread and not is_ticking
     show_user_paused_marker = (

@@ -21,6 +21,7 @@ from sase.ace.tui.widgets._agent_list_rendering import (
 from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
 from ._agent_render_cache_helpers import agent as _agent
+from ._agent_render_cache_helpers import bead_key as _bead_key
 from ._agent_render_cache_helpers import style_at as _style_at
 
 
@@ -346,6 +347,45 @@ def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() ->
     assert before[1].plain == "🏃‍♂️ 5m / 5m"
     assert after[1].plain == "🏃‍♂️ 3m / 3m"
     assert before[1] is not after[1]
+
+
+def _clan_with_lane() -> tuple[Agent, Agent]:
+    container = _agent(
+        cl_name="research", agent_name="research", raw_suffix="clan-root"
+    )
+    container.is_clan_container = True
+    container.agent_clan = "research"
+    container.agent_clan_generation = "gen-1"
+    lane = _agent(
+        cl_name="research.one", agent_name="research.one", raw_suffix="lane-one"
+    )
+    lane.agent_clan = "research"
+    lane.agent_clan_generation = "gen-1"
+    container.runtime_children = [lane]
+    return container, lane
+
+
+def test_agent_render_key_changes_when_clan_lane_flips_running_to_settled() -> None:
+    container, lane = _clan_with_lane()
+    lane.status = "RUNNING"
+    lane.run_start_time = datetime(2026, 4, 25, 14, 30, 0)
+    running_key = _bead_key(container)
+
+    lane.status = "DONE"
+    lane.stop_time = datetime(2026, 4, 25, 14, 35, 0)
+    settled_key = _bead_key(container)
+
+    assert running_key != settled_key
+
+
+def test_agent_render_key_changes_when_member_leaves_clan() -> None:
+    container, lane = _clan_with_lane()
+    in_clan_key = _bead_key(container)
+
+    lane.agent_clan = "other"
+    out_of_clan_key = _bead_key(container)
+
+    assert in_clan_key != out_of_clan_key
 
 
 def test_invalidate_agent_drops_only_that_identity() -> None:
