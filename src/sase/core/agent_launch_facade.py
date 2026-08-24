@@ -160,13 +160,20 @@ def plan_typed_launch_units(
     launch_kind: str | None = None,
     selected_project: str | None = None,
 ) -> LaunchPlanWire:
-    """Return a pure typed Agent/Proc launch graph for *prompt*."""
+    """Return a pure typed Agent/Proc launch graph for *prompt*.
 
+    Keyed ``{@<id>}`` agent-name markers resolve once across the complete
+    expanded prompt before Rust splits it into durable logical units, so a
+    restarted coordinator never reallocates the same key per unit.
+    """
+
+    from sase.agent.agent_name_keys import resolve_agent_name_key_markers
     from sase.xprompt.code_value import reject_disabled_code_directives
 
     reject_disabled_code_directives(prompt)
+    resolved_prompt = resolve_agent_name_key_markers([prompt])[0]
     binding = require_rust_binding("plan_typed_launch_units")
-    payload = binding(prompt, launch_kind, selected_project)
+    payload = binding(resolved_prompt, launch_kind, selected_project)
     return launch_plan_from_dict(dict(payload))
 
 

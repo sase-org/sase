@@ -1656,6 +1656,19 @@ the proc store. Stop/kill is routed through the native proc-stop path and is res
 in every phase — waiting, checking, acquiring the workspace, preparing the script,
 running, and settling.
 
+Typed admission preserves the complete identity binding for each agent unit, not only
+the positional `%id` name: `%id` keywords (`clan=`, `family=`, `tribe=`, `bead=`), an
+optional `%clan` declaration (`tribe=`, `summary=`, `summary_script=`), and force-reuse
+`!` prefixes all survive planning. Dispatch reconstructs the equivalent `%id` and
+`%clan` directives, then the existing model/effort/auto/final/hide/wait-runner
+directives, and still omits admission-only `%if` and logical dependency waits.
+
+Keyed `{@<id>}` agent-name markers resolve once across the complete expanded typed batch
+before it is split into durable logical units. The concrete tokens are stored on the
+immutable plan, so a delayed or restarted coordinator never reallocates the same key
+independently per unit. Literal markers inside fenced code and xprompt-disabled regions
+stay unresolved, matching ordinary launch-time keyed-marker rules.
+
 Coordinator restarts replay the journal: a persisted terminal condition result is not
 re-run, a reserved proc id is not duplicated, and agent/proc dispatch uses the stable
 request fingerprint written at approval. CLI and ACE notifications report the same
@@ -1904,11 +1917,14 @@ text; in one multi-agent launch, SASE rewrites those references to the concrete 
 already planned for that template before spawning dependent agents.
 
 Keyed markers resolve once per dispatch before directives are extracted or agent
-processes spawn. Every occurrence of the same key in the prompt text gets the same
-concrete token, including `%id`, `%clan`, `clan=`, `%wait`, `#fork`, `#resume`, and
-ordinary prose references such as `research.{@1}.cdx`. The same separator rule as bare
-templates applies: with token `o`, `research.{@1!}` becomes `research.o`, `foo{@1!}`
-becomes `foo-o`, and a marker at the start of a line becomes `o`.
+processes spawn. On the typed-admission path that resolution happens when the immutable
+launch plan is created — across the complete expanded batch, before it is split into
+durable logical units — so later admission and coordinator restarts reuse the planned
+tokens. Every occurrence of the same key in the prompt text gets the same concrete
+token, including `%id`, `%clan`, `clan=`, `%wait`, `#fork`, `#resume`, and ordinary
+prose references such as `research.{@1}.cdx`. The same separator rule as bare templates
+applies: with token `o`, `research.{@1!}` becomes `research.o`, `foo{@1!}` becomes
+`foo-o`, and a marker at the start of a line becomes `o`.
 
 Inside an xprompt swarm, unqualified keyed markers are implicitly qualified to
 `{@<xprompt>.<stamp>.<id>!}` while the swarm expands. That qualification gives each

@@ -119,11 +119,27 @@ class LaunchConditionWire:
 
 @dataclass(frozen=True)
 class AgentUnitWire:
-    """Agent payload inside a typed launch unit."""
+    """Agent payload inside a typed launch unit.
+
+    ``identity`` is the positional ``%id`` member id or a declarer's full name.
+    Clan joiners keep that member id here and put the clan on ``clan`` so
+    dispatch can rebuild ``%id(<member>, clan=<clan>)`` without treating the
+    member as the complete agent name. Missing optional grouping fields
+    deserialize to today's plain-identity behavior.
+    """
 
     prompt: str
     identity: str | None = None
     identity_explicit: bool = False
+    identity_force_reuse: bool = False
+    clan: str | None = None
+    clan_declared: bool = False
+    clan_tribe: str | None = None
+    clan_summary: str | None = None
+    clan_summary_script: str | None = None
+    family_attach_parent: str | None = None
+    family_attach_suffix: str | None = None
+    tribe: str | None = None
     model: str | None = None
     reasoning_effort: str | None = None
     bead_id: str | None = None
@@ -229,6 +245,27 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
     if isinstance(record, AgentUnitWire):
         agent_payload = asdict(record)
         agent_payload["kind"] = "agent"
+        for key in (
+            "identity",
+            "clan",
+            "clan_tribe",
+            "clan_summary",
+            "clan_summary_script",
+            "family_attach_parent",
+            "family_attach_suffix",
+            "tribe",
+            "model",
+            "reasoning_effort",
+            "bead_id",
+            "auto_mode",
+            "wait_runners",
+            "wait_priority",
+        ):
+            if agent_payload.get(key) is None:
+                agent_payload.pop(key, None)
+        for key in ("identity_force_reuse", "clan_declared"):
+            if not agent_payload.get(key):
+                agent_payload.pop(key, None)
         return agent_launch_wire_to_json_dict(agent_payload)
     if isinstance(record, ProcUnitWire):
         proc_payload: dict[str, Any] = {
@@ -285,6 +322,10 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
     if hasattr(record, "__dataclass_fields__"):
         return agent_launch_wire_to_json_dict(asdict(record))
     return record
+
+
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
 
 
 def _wait_target_to_json_dict(wait: WaitTargetWire) -> dict[str, Any]:
@@ -423,18 +464,23 @@ def _launch_unit_payload_from_dict(
     if kind == "agent":
         return AgentUnitWire(
             prompt=str(data["prompt"]),
-            identity=None if data.get("identity") is None else str(data["identity"]),
+            identity=_optional_str(data.get("identity")),
             identity_explicit=bool(data.get("identity_explicit", False)),
-            model=None if data.get("model") is None else str(data["model"]),
-            reasoning_effort=(
-                None
-                if data.get("reasoning_effort") is None
-                else str(data["reasoning_effort"])
-            ),
-            bead_id=None if data.get("bead_id") is None else str(data["bead_id"]),
+            identity_force_reuse=bool(data.get("identity_force_reuse", False)),
+            clan=_optional_str(data.get("clan")),
+            clan_declared=bool(data.get("clan_declared", False)),
+            clan_tribe=_optional_str(data.get("clan_tribe")),
+            clan_summary=_optional_str(data.get("clan_summary")),
+            clan_summary_script=_optional_str(data.get("clan_summary_script")),
+            family_attach_parent=_optional_str(data.get("family_attach_parent")),
+            family_attach_suffix=_optional_str(data.get("family_attach_suffix")),
+            tribe=_optional_str(data.get("tribe")),
+            model=_optional_str(data.get("model")),
+            reasoning_effort=_optional_str(data.get("reasoning_effort")),
+            bead_id=_optional_str(data.get("bead_id")),
             hidden=bool(data.get("hidden", False)),
             auto_enabled=bool(data.get("auto_enabled", False)),
-            auto_mode=None if data.get("auto_mode") is None else str(data["auto_mode"]),
+            auto_mode=_optional_str(data.get("auto_mode")),
             finalizers=[str(item) for item in data.get("finalizers", [])],
             wait_runners=(
                 None if data.get("wait_runners") is None else int(data["wait_runners"])
