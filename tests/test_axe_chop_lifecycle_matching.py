@@ -22,57 +22,9 @@ from sase.axe.state import (
 )
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 
+from tests._axe_chop_lifecycle_helpers import launched_entry, record_agent
+
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
-
-
-def _launched_entry(
-    run_id: str,
-    *,
-    pid: int,
-    launches: list[dict[str, object]] | None = None,
-) -> None:
-    entry = ChopRunEntry(
-        run_id=run_id,
-        lumberjack_name="docs",
-        chop_name="docs",
-        started_at="2026-07-18T12:00:00+00:00",
-        finished_at=None,
-        duration_ms=0,
-        status="running",
-    )
-    start_chop_run(entry)
-    finish_chop_run(
-        "docs",
-        "docs",
-        run_id,
-        status="launched",
-        finished_at=None,
-        duration_ms=1,
-        exit_code=0,
-        agent_pid=pid,
-        launches=launches or [{"pid": pid}],
-    )
-
-
-def _record_agent(
-    run_id: str,
-    *,
-    pid: int,
-    timestamp: str,
-) -> None:
-    _record_chop_agent_launch(
-        lumberjack_name="docs",
-        chop_name="docs",
-        run_id=run_id,
-        pid=pid,
-        project_file="/projects/sase/sase.sase",
-        project_name="sase",
-        workspace_num=1,
-        workflow_name="ace(run)-260718_120000",
-        cl_name="sase",
-        timestamp=timestamp,
-        prompt="refresh",
-    )
 
 
 def test_lifecycle_ignores_unmatched_registry_records(
@@ -82,13 +34,13 @@ def test_lifecycle_ignores_unmatched_registry_records(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     run_id = "20260718T120005_000000"
-    _launched_entry(
+    launched_entry(
         run_id,
         pid=321,
         launches=[{"pid": 321, "artifacts_timestamp": "20260718120005"}],
     )
-    _record_agent(run_id, pid=321, timestamp="260718_120005")
-    _record_agent(run_id, pid=4321, timestamp="260101_120000")
+    record_agent(run_id, pid=321, timestamp="260718_120005")
+    record_agent(run_id, pid=4321, timestamp="260101_120000")
     artifacts = resolve_agent_artifact_timestamp_path(
         "sase", "ace-run", "20260718120005"
     )
@@ -115,14 +67,14 @@ def test_lifecycle_follows_retry_chain_until_successor_finishes(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     run_id = "20260718T120006_000000"
     timestamps = ["20260718120006", "20260718120007", "20260718120008"]
-    _launched_entry(
+    launched_entry(
         run_id,
         pid=321,
         launches=[{"pid": 321, "artifacts_timestamp": timestamps[0]}],
     )
-    _record_agent(run_id, pid=321, timestamp="260718_120006")
-    _record_agent(run_id, pid=654, timestamp="260718_120007")
-    _record_agent(run_id, pid=987, timestamp="260718_120008")
+    record_agent(run_id, pid=321, timestamp="260718_120006")
+    record_agent(run_id, pid=654, timestamp="260718_120007")
+    record_agent(run_id, pid=987, timestamp="260718_120008")
 
     for timestamp, successor in zip(timestamps, timestamps[1:], strict=False):
         artifacts = resolve_agent_artifact_timestamp_path("sase", "ace-run", timestamp)
@@ -166,12 +118,12 @@ def test_lifecycle_fails_closed_when_equal_count_record_does_not_match_launch(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     run_id = "20260718T120009_000000"
-    _launched_entry(
+    launched_entry(
         run_id,
         pid=321,
         launches=[{"pid": 321, "artifacts_timestamp": "20260718120009"}],
     )
-    _record_agent(run_id, pid=321, timestamp="260101_120000")
+    record_agent(run_id, pid=321, timestamp="260101_120000")
 
     assert finalize_launched_chop_runs("docs", ["docs"]) == 1
 
@@ -237,8 +189,8 @@ def test_lifecycle_garbage_collects_orphaned_and_terminal_run_records(
     )
 
     active_run_id = "20260718T120016_000000"
-    _launched_entry(active_run_id, pid=333)
-    _record_agent(active_run_id, pid=333, timestamp="260718_120016")
+    launched_entry(active_run_id, pid=333)
+    record_agent(active_run_id, pid=333, timestamp="260718_120016")
 
     with patch(
         "sase.axe._chop_lifecycle_completion.is_process_running", return_value=True
