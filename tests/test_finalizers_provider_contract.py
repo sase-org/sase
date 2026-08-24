@@ -18,6 +18,7 @@ from sase.finalizers.config import (
     FinalizerConfig,
     load_finalizer_config,
 )
+from sase.finalizers.executor_protocol import validate_provider_result
 from sase.finalizers.providers import (
     FinalizerProviderRecord,
     collect_finalizer_providers,
@@ -350,3 +351,29 @@ def test_worker_preserves_internal_typeerror_identity(
     assert payload["diagnostics"][0]["message"] == "TypeError: internal boom"
     assert "does not implement operation" not in payload["diagnostics"][0]["message"]
     assert imported.CALLS == 1
+
+
+def test_host_accepts_the_envelope_version_installed_plugins_ship() -> None:
+    """A sase-core wire bump must not invalidate published plugin envelopes.
+
+    ``sase_finalizers`` providers hard-code their envelope version as a
+    literal -- ``tests/fixtures/finalizer_plugin/example_finalizers.py``
+    models one. The host validated that literal against
+    ``FINALIZER_WIRE_SCHEMA_VERSION`` until the core moved to wire 2 for
+    typed deferrals, which would have failed every installed provider for a
+    change that does not touch this envelope at all. The literal below is
+    deliberately not spelled as a constant: it is what plugins actually send.
+    """
+    instance = ConfiguredFinalizerInstance(
+        instance_id="audit",
+        provider_ref="example-finalizers@audit",
+    )
+    result = {
+        "schema_version": 1,
+        "operation": "validate",
+        "provider_ref": "example-finalizers@audit",
+        "instance_id": "audit",
+        "status": "ok",
+    }
+
+    validate_provider_result(instance, "validate", result)

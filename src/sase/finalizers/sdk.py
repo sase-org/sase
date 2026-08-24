@@ -9,6 +9,10 @@ import json
 import sys
 from typing import Any, Literal, Protocol, cast
 
+from sase.finalizers.provider_protocol import (
+    FINALIZER_PROVIDER_PROTOCOL_VERSION,
+)
+
 
 class FinalizerProvider(Protocol):
     """Object protocol accepted by the worker dispatcher."""
@@ -75,7 +79,7 @@ def sdk_worker_main(
         return 0
     except Exception as exc:
         payload = {
-            "schema_version": 1,
+            "schema_version": FINALIZER_PROVIDER_PROTOCOL_VERSION,
             "operation": args.operation,
             "status": "failed",
             "diagnostics": [

@@ -8,6 +8,9 @@ import json
 import sys
 from collections.abc import Sequence
 
+from sase.finalizers.provider_protocol import (
+    FINALIZER_PROVIDER_PROTOCOL_VERSION,
+)
 from sase.finalizers.providers import (
     FINALIZER_ENTRY_POINT_GROUP,
     canonical_provider_ref,
@@ -43,7 +46,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else "worker_exception"
         )
         payload = {
-            "schema_version": 1,
+            "schema_version": FINALIZER_PROVIDER_PROTOCOL_VERSION,
             "operation": args.operation,
             "provider_ref": args.provider_ref,
             "status": "failed",

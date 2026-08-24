@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.finalizer_wire import (
-    FINALIZER_WIRE_SCHEMA_VERSION,
     FinalizerDiagnosticWire,
     FinalizerOutcomeEvidenceWire,
 )
@@ -16,6 +15,9 @@ from sase.finalizers.config import ConfiguredFinalizerInstance, FinalizerConfig
 from sase.finalizers.executor_support import (
     FinalizerExecutionContext,
     FinalizerExecutionError,
+)
+from sase.finalizers.provider_protocol import (
+    FINALIZER_PROVIDER_PROTOCOL_VERSION,
 )
 from sase.finalizers.providers import provider_ref_key
 
@@ -61,7 +63,7 @@ def provider_request(
         )
         selected = list(context.selected)
     request: dict[str, Any] = {
-        "schema_version": FINALIZER_WIRE_SCHEMA_VERSION,
+        "schema_version": FINALIZER_PROVIDER_PROTOCOL_VERSION,
         "operation": operation,
         "provider_ref": instance.provider_ref,
         "instance_id": instance.instance_id,
@@ -93,7 +95,7 @@ def validate_provider_result(
             f"provider operation {operation!r} returned unknown field(s): "
             + ", ".join(unknown)
         )
-    if result.get("schema_version") != FINALIZER_WIRE_SCHEMA_VERSION:
+    if result.get("schema_version") != FINALIZER_PROVIDER_PROTOCOL_VERSION:
         raise FinalizerExecutionError(
             f"provider operation {operation!r} returned unsupported schema "
             f"{result.get('schema_version')!r}"

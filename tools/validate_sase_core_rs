@@ -30,6 +30,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 DISTRIBUTION_NAME = "sase-core-rs"
 
+# The finalizer wire version this checkout speaks. Keep it in lockstep with
+# sase.core.finalizer_wire.FINALIZER_WIRE_SCHEMA_VERSION; the Rust core
+# rejects any payload stamped with a different version.
+EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION = 2
+
 REQUIRED_BINDINGS = (
     "parse_patch_project_bytes",
     "parse_project_bytes",
@@ -281,21 +286,22 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
     except Exception as exc:
         _error(f"finalizer_wire_schema_version() probe failed: {exc}")
         return False
-    if actual_version != 1:
+    if actual_version != EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION:
         _error(
             "finalizer_wire_schema_version() returned stale schema: "
-            f"got {actual_version}, expected 1"
+            f"got {actual_version}, expected "
+            f"{EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION}"
         )
         return False
 
     instance = {
-        "schema_version": 1,
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
         "instance_id": "commit",
         "provider_ref": "builtin@commit",
         "policy": {"max_attempts": 2, "refusal": "fail"},
     }
     plan_input = {
-        "schema_version": 1,
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
         "instances": [instance],
         "defaults": ["commit"],
         "required": [],
@@ -304,7 +310,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
     try:
         module.validate_finalizer_provider_spec(
             {
-                "schema_version": 1,
+                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
                 "provider_ref": "builtin@commit",
                 "capabilities": ["requires_submission", "mutates_repository"],
             }
@@ -318,7 +324,10 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         _error(f"finalizer plan probe failed: {exc}")
         return False
 
-    if not isinstance(plan, dict) or plan.get("schema_version") != 1:
+    if (
+        not isinstance(plan, dict)
+        or plan.get("schema_version") != EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION
+    ):
         _error(f"finalizer plan probe returned stale payload: {plan!r}")
         return False
     if plan.get("plan_digest") != plan_digest:
@@ -329,7 +338,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
         return False
 
     context = {
-        "schema_version": 1,
+        "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
         "run_id": "validator-run",
         "agent_id": "validator-agent",
         "turn_nonce": "validator-nonce",
@@ -358,7 +367,7 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
             plan,
             context,
             {
-                "schema_version": 1,
+                "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
                 "run_id": "validator-run",
                 "agent_id": "validator-agent",
                 "turn_nonce": "validator-nonce",

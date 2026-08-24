@@ -264,12 +264,13 @@ def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     )
 
 
-def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
+def test_validate_sase_core_rs_requires_expected_finalizer_schema() -> None:
     validator = load_validate_sase_core_rs()
+    expected = validator.EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION
 
     class FinalizerModule(SimpleNamespace):
         def finalizer_wire_schema_version(self) -> int:
-            return 1
+            return int(expected)
 
         def validate_finalizer_provider_spec(self, _spec: dict[str, object]) -> None:
             return None
@@ -281,7 +282,7 @@ def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
             self, _plan_input: dict[str, object]
         ) -> dict[str, object]:
             return {
-                "schema_version": 1,
+                "schema_version": expected,
                 "entries": [
                     {
                         "instance_id": "commit",
@@ -326,7 +327,7 @@ def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
             _submission: dict[str, object],
         ) -> dict[str, object]:
             return {
-                "schema_version": 1,
+                "schema_version": expected,
                 "submission_digest": "sha256:submission",
                 "accepted_instances": ["commit"],
             }
@@ -335,7 +336,7 @@ def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
             self, _results: list[dict[str, object]]
         ) -> dict[str, object]:
             return {
-                "schema_version": 1,
+                "schema_version": expected,
                 "status": "success",
                 "instances": [{"instance_id": "commit", "status": "success"}],
                 "diagnostics": [],
@@ -344,8 +345,12 @@ def test_validate_sase_core_rs_requires_finalizer_schema_one() -> None:
     assert validator._validate_finalizer_contract(FinalizerModule())
 
     stale = FinalizerModule()
-    stale.finalizer_wire_schema_version = lambda: 2
+    stale.finalizer_wire_schema_version = lambda: expected - 1
     assert not validator._validate_finalizer_contract(stale)
+
+    ahead = FinalizerModule()
+    ahead.finalizer_wire_schema_version = lambda: expected + 1
+    assert not validator._validate_finalizer_contract(ahead)
 
 
 def _skill_layout_payload(
