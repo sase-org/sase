@@ -12,6 +12,7 @@ from sase.xprompt._disabled_regions import (
     protect_disabled_regions,
     unprotect_disabled_regions,
 )
+from sase.xprompt.jinja_filters import register_prompt_filters
 
 
 def _finalize_value(value: Any) -> Any:
@@ -41,6 +42,7 @@ def create_jinja_env() -> Environment:
         return json.dumps(value)
 
     env.filters["tojson"] = _tojson
+    register_prompt_filters(env)
     return env
 
 

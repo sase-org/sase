@@ -13,6 +13,7 @@ from ._fenced_blocks import (
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
+from .jinja_filters import register_prompt_filters
 from .models import XPrompt
 
 # Lazy-initialized Jinja2 environment
@@ -63,6 +64,7 @@ def _get_jinja_env() -> Environment:
             undefined=StrictUndefined,
             autoescape=False,
         )
+        register_prompt_filters(_jinja_env)
     return _jinja_env
 
 

@@ -822,6 +822,12 @@ Named arguments and positional-to-name mappings take priority; if an xprompt is 
 within a workflow step, the workflow's execution scope is also available (xprompt args
 override scope values on conflict).
 
+### Filters
+
+| Filter                             | Description                                                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `{{ plan_file \| plan_ref_path }}` | Returns the `YYYYmm/<name>.md` portion of a plan path or `plan:` reference; passes non-plan values through unchanged |
+
 ## Legacy Placeholders
 
 For templates that do not use Jinja2 syntax, a legacy placeholder mode is available.
@@ -2306,11 +2312,14 @@ In the TUI, the agent shows a PLAN status after submitting the plan for review, 
 PLAN APPROVED once the user approves it. The `%auto:tale` and `%auto:epic` modes opt a
 planning agent into this same pipeline with automatic tale or epic approval.
 
-Once the plan is approved, sase launches a follow-up **coder** agent using the same
-handoff body as the `#coder` built-in xprompt (see
+Once the plan is approved, sase launches a follow-up **coder** agent. That automated
+hand-off still inlines the approved plan with `@` and does not share a body with the
+`#coder` built-in xprompt (see
 [sase/xprompts/coder.md](https://github.com/sase-org/sase/blob/main/src/sase/xprompts/coder.md)).
-`#coder` takes the approved plan file as its `plan_file` input, injects it with `@`, and
-instructs the agent to implement the plan. The coder starts with a fresh context window;
+`#coder` instead takes the approved plan file as its `plan_file` input, names it by its
+`YYYYmm/<name>.md` reference, and asks the agent to locate and read the plan itself (for
+example with `sase artifact read plan:<reference> "<reason>"`) rather than receiving it
+pre-inlined. The coder starts with a fresh context window;
 the plan file is the hand-off artifact and the coder does not inherit the planner's chat
 transcript. The coder prompt also carries a `%model:` directive. A model chosen at
 approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When no

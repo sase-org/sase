@@ -7,6 +7,5 @@ input:
     description: Path to the approved plan the agent should implement.
 ---
 
-@{{ plan_file }}
-
-The above plan has been reviewed and approved. Implement it now.
+The {{ plan_file | plan_ref_path }} plan file has been reviewed and approved. Implement
+it now.

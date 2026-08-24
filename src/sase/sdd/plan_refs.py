@@ -178,6 +178,40 @@ def resolve_plan_reference_from_roots(
     )
 
 
+def plan_reference_display_path(
+    value: str,
+    *,
+    roots: tuple[Path, ...] | None = None,
+) -> str:
+    """Return the ``YYYYmm/<name>.md`` portion of a plan path or reference.
+
+    Only strips *value* down to that portion when it is provably a plan: a
+    canonical ``plan:`` reference, or a filesystem path that resolves below
+    an active plan root. Anything else is returned unchanged so callers
+    always name something that can be located.
+    """
+    text = value.strip()
+    if not text:
+        return value
+
+    try:
+        parsed = parse_plan_reference(text)
+        if not parsed.legacy:
+            return parsed.path
+
+        resolved_roots = (
+            resolve_plan_roots(*workspace_context_for_plan_resolution(Path.cwd()))
+            if roots is None
+            else roots
+        )
+        canonical = canonicalize_plan_reference_from_roots(text, roots=resolved_roots)
+        if canonical is None:
+            return value
+        return canonical.removeprefix(PLAN_REFERENCE_PREFIX)
+    except Exception:
+        return value
+
+
 def plan_ref_for_store(
     plan_path: Path,
     store: SddStore,
