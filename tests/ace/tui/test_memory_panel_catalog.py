@@ -13,6 +13,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
+from sase.feature_flags import override_flags
 from sase.memory.notes import AGENTS_PARENT
 from sase.memory.read_log import MemoryReadPathSummary
 from sase.xprompt import glossary_catalog as xprompt_catalog
@@ -387,6 +388,88 @@ def test_snapshot_tree_nests_child_under_long_parent(
     short_parent, short_children = panel_catalog.memory_note_relations(snapshot, short)
     assert short_parent == ()
     assert short_children == ()
+
+
+def test_snapshot_includes_collapsed_web_rows_and_strand_metadata(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "demo"
+    memory_root = workspace / "sase" / "memory"
+    memory_root.mkdir(parents=True)
+    (memory_root / "decisions.md").write_text(
+        "---\n"
+        "type: core\n"
+        "web: true\n"
+        "description: Decision index.\n"
+        "strand_noun: decision\n"
+        "---\n"
+        "Descriptor body.\n",
+        encoding="utf-8",
+    )
+    strand_dir = memory_root / "decisions"
+    strand_dir.mkdir()
+    (strand_dir / "alpha.md").write_text(
+        "---\n"
+        "keyword: Alpha Decision\n"
+        "aliases: [alpha]\n"
+        "summary: Alpha summary.\n"
+        "metadata: {status: accepted}\n"
+        "---\n"
+        "Alpha body.\n",
+        encoding="utf-8",
+    )
+
+    ref = panel_catalog.MemoryScopeRef(
+        kind="project",
+        key="gh_demo__demo",
+        display_name="Demo",
+        content_root=str(workspace),
+        memory_read_root=str(memory_root),
+        has_memory=True,
+    )
+    with override_flags(memory_webs=True):
+        snapshot = panel_catalog.load_memory_scope_snapshot(ref)
+
+    assert [node.identity for node in snapshot.tree] == ["sase/memory/decisions.md"]
+    web_node = snapshot.tree[0]
+    assert web_node.is_web
+    assert web_node.web is not None
+    assert web_node.web.slug == "decisions"
+    assert len(web_node.web.strands) == 1
+    assert snapshot.webs == (web_node.web,)
+    assert snapshot.stats["decisions:alpha"].line_count > 0
+    assert snapshot.digests["decisions:alpha"].sha256
+
+
+def test_snapshot_treats_web_descriptor_as_note_when_flag_disabled(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "demo"
+    memory_root = workspace / "sase" / "memory"
+    memory_root.mkdir(parents=True)
+    (memory_root / "decisions.md").write_text(
+        "---\n"
+        "type: core\n"
+        "web: true\n"
+        "description: Decision index.\n"
+        "---\n"
+        "Descriptor body.\n",
+        encoding="utf-8",
+    )
+    ref = panel_catalog.MemoryScopeRef(
+        kind="project",
+        key="gh_demo__demo",
+        display_name="Demo",
+        content_root=str(workspace),
+        memory_read_root=str(memory_root),
+        has_memory=True,
+    )
+    with override_flags(memory_webs=False):
+        snapshot = panel_catalog.load_memory_scope_snapshot(ref)
+
+    assert snapshot.webs == ()
+    assert [node.identity for node in snapshot.tree] == ["sase/memory/decisions.md"]
+    assert snapshot.tree[0].web is None
 
 
 def test_snapshot_marks_generated_and_shadowed_stems(

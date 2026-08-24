@@ -121,6 +121,9 @@ def test_memory_panel_keys_can_be_overridden_independently() -> None:
                     "next_scope": "f11",
                     "prev_scope": "f10",
                     "pick_scope": "f8",
+                    "toggle_web": "space",
+                    "next_strand": "f7",
+                    "prev_strand": "f6",
                     "help": "f9",
                 }
             }
@@ -133,6 +136,9 @@ def test_memory_panel_keys_can_be_overridden_independently() -> None:
     assert reg.memory.next_scope == "f11"
     assert reg.memory.prev_scope == "f10"
     assert reg.memory.pick_scope == "f8"
+    assert reg.memory.toggle_web == "space"
+    assert reg.memory.next_strand == "f7"
+    assert reg.memory.prev_strand == "f6"
     assert reg.memory.help == "f9"
     # Unoverridden fields keep their bundled defaults.
     assert reg.memory.add_note == "a"

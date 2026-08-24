@@ -1673,6 +1673,18 @@
                   "type": "string",
                   "description": "Jump to the last memory note"
                 },
+                "toggle_web": {
+                  "type": "string",
+                  "description": "Expand or collapse the selected memory web"
+                },
+                "next_strand": {
+                  "type": "string",
+                  "description": "Jump to the next strand in the selected memory web"
+                },
+                "prev_strand": {
+                  "type": "string",
+                  "description": "Jump to the previous strand in the selected memory web"
+                },
                 "scroll_body_down": {
                   "type": "string",
                   "description": "Scroll the note body down by half a page"

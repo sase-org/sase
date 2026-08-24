@@ -22,13 +22,13 @@ from .memory_panel_rendering import (
     build_empty_scope_message,
     build_empty_scope_no_root_message,
     build_no_match_message,
-    build_note_card_meta,
-    build_note_card_title,
-    build_note_description,
     build_panel_footer,
     build_panel_header,
+    build_rail_node_card_title,
+    build_rail_node_description,
     note_rail_width,
 )
+from .memory_panel_web_rendering import build_rail_node_card_meta
 
 if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
@@ -62,6 +62,7 @@ class MemoryPanelViewMixin(_MixinBase):
         _ring: tuple[MemoryScopeRef, ...]
         _scope_index: int
         _snapshot: MemoryScopeSnapshot | None
+        _strand_read_status: dict[str, str]
         _trail: list[str]
 
         def _note_list(self) -> OptionList: ...
@@ -83,9 +84,10 @@ class MemoryPanelViewMixin(_MixinBase):
             scope_display_name = (
                 self._snapshot.scope.display_name if self._snapshot else ""
             )
+            note_count = len(self._snapshot.notes) if self._snapshot else 0
             header = build_panel_header(
                 scope_display_name=scope_display_name,
-                note_count=len(self._all_rows),
+                note_count=note_count,
                 scope_index=self._scope_index,
                 scope_count=len(self._ring),
                 accent=self._accent,
@@ -130,6 +132,10 @@ class MemoryPanelViewMixin(_MixinBase):
             has_links=bool(self._chip_notes),
             has_trail=bool(self._trail),
             focused_link_stem=focused_link_stem,
+            web_action=self._web_footer_action(node),
+            has_strand_navigation=bool(
+                node is not None and node.web is not None and node.web.strands
+            ),
             can_mutate=self._selected_is_writable(),
             unpublished=self._scope_is_unpublished(),
         )
@@ -149,6 +155,13 @@ class MemoryPanelViewMixin(_MixinBase):
         trail_widget.display = True
         labels = tuple(Path(path).stem for path in (*self._trail, self._current_note))
         trail_widget.update(build_trail_strip(labels, accent=self._accent))
+
+    def _web_footer_action(self, node: MemoryRailNode | None) -> str | None:
+        if node is None or node.web is None:
+            return None
+        if node.is_strand:
+            return "collapse web"
+        return "collapse" if node.expanded else "expand"
 
     def _render_note_card(self) -> None:
         self._update_trail_strip()
@@ -210,31 +223,43 @@ class MemoryPanelViewMixin(_MixinBase):
                 meta_widget.update("")
             return
 
-        note = node.note
         title_widget.update(
-            build_note_card_title(
-                note,
+            build_rail_node_card_title(
+                node,
                 scope_display_name=snapshot.scope.display_name,
                 accent=self._accent,
             )
         )
-        description_widget.update(build_note_description(note))
-        body_widget.update(note.body if note.body.strip() else "_No body content._")
+        description_widget.update(build_rail_node_description(node))
+        body_widget.update(self._body_preview_for_node(node))
         parent = self._chip_notes[: self._chip_parent_count]
         children = self._chip_notes[self._chip_parent_count :]
         focused_link_number = (
             self._chip_cursor + 1 if self._chip_cursor is not None else None
         )
         meta_widget.update(
-            build_note_card_meta(
+            build_rail_node_card_meta(
                 snapshot,
-                note,
+                node,
                 accent=self._accent,
                 parent=parent,
                 children=children,
                 focused_link_number=focused_link_number,
+                strand_read_state=self._strand_read_status.get(node.identity),
             )
         )
+
+    def _body_preview_for_node(self, node: MemoryRailNode) -> str:
+        if not node.is_strand:
+            return node.note.body if node.note.body.strip() else "_No body content._"
+        state = self._strand_read_status.get(node.identity)
+        if state == "ok":
+            return node.note.body if node.note.body.strip() else "_No body content._"
+        if state == "pending" or state is None:
+            return "_Recording audited read before previewing this strand..._"
+        if state.startswith("error:"):
+            return f"_Could not record audited read: {state.removeprefix('error:')}_"
+        return "_Could not record audited read._"
 
 
 __all__ = ["MemoryPanelViewMixin"]

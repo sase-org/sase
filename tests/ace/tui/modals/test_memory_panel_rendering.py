@@ -8,10 +8,10 @@ from sase.ace.tui.keymaps.app_keymaps import MemoryPanelKeymaps
 from sase.ace.tui.memory_panel_catalog import MemoryRailNode
 from sase.ace.tui.modals.memory_panel_help_modal import MemoryPanelHelpModal
 from sase.ace.tui.modals.memory_panel_rendering import (
+    _build_note_property_grid,
     build_empty_scope_message,
     build_empty_scope_no_root_message,
-    _build_note_badge_row,
-    _build_note_property_grid,
+    build_note_badge_row,
     build_note_card_meta,
     build_note_row_text,
     build_panel_footer,
@@ -188,14 +188,14 @@ def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None
 
     short_note = memory_note("always", note_type="core")
     assert (
-        _build_note_badge_row(
+        build_note_badge_row(
             scope_snapshot(ref, (short_note,)), short_note, accent="#fff"
         ).plain
     ) == " TIER 1 · always loaded "
 
     long_note = memory_note("hub")
     assert (
-        _build_note_badge_row(
+        build_note_badge_row(
             scope_snapshot(ref, (long_note,)), long_note, accent="#fff"
         ).plain
     ) == " TIER 2 "
@@ -206,7 +206,7 @@ def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None
     )
     assert (
         "GENERATED"
-        in _build_note_badge_row(snapshot, generated_note, accent="#fff").plain
+        in build_note_badge_row(snapshot, generated_note, accent="#fff").plain
     )
 
     shadowed_note = memory_note("shared")
@@ -215,19 +215,19 @@ def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None
     )
     assert (
         "SHADOWS HOME"
-        in _build_note_badge_row(snapshot, shadowed_note, accent="#fff").plain
+        in build_note_badge_row(snapshot, shadowed_note, accent="#fff").plain
     )
 
     orphan_note = memory_note("orphan", parent="sase/memory/missing.md")
     snapshot = scope_snapshot(ref, (orphan_note,))
     assert (
-        "ORPHANED" in _build_note_badge_row(snapshot, orphan_note, accent="#fff").plain
+        "ORPHANED" in build_note_badge_row(snapshot, orphan_note, accent="#fff").plain
     )
 
     invalid_note = memory_note("broken", parent_source="invalid")
     snapshot = scope_snapshot(ref, (invalid_note,))
     assert (
-        "INVALID" in _build_note_badge_row(snapshot, invalid_note, accent="#fff").plain
+        "INVALID" in build_note_badge_row(snapshot, invalid_note, accent="#fff").plain
     )
 
 

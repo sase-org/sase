@@ -25,6 +25,7 @@ from sase.ace.tui.modals.memory_panel_load import (
 from sase.memory.inventory import MemoryStats
 from sase.memory.notes import AGENTS_PARENT, MemoryNote
 from sase.memory.read_log import MemoryReadPathSummary
+from sase.memory.web.models import MemoryWeb
 
 
 class MemoryPanelTestApp(App[None]):
@@ -106,6 +107,7 @@ def scope_snapshot(
     ref: MemoryScopeRef,
     notes: tuple[MemoryNote, ...] = (),
     *,
+    webs: tuple[MemoryWeb, ...] = (),
     diagnostics: tuple[str, ...] = (),
     generated_paths: frozenset[str] = frozenset(),
     shadowed_stems: frozenset[str] = frozenset(),
@@ -116,13 +118,14 @@ def scope_snapshot(
     return MemoryScopeSnapshot(
         scope=ref,
         notes=notes,
-        tree=panel_catalog._build_note_tree(notes),
+        tree=panel_catalog._build_note_tree(notes, webs),
         digests=digests or {},
         stats=stats or {},
         shadowed_stems=shadowed_stems,
         generated_paths=generated_paths,
         read_summaries=read_summaries or {},
         diagnostics=diagnostics,
+        webs=webs,
     )
 
 

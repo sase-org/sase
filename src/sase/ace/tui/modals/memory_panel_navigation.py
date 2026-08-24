@@ -35,9 +35,11 @@ class MemoryPanelNavigationMixin(_MixinBase):
     """Note cursor, body scrolling, filtering, and scope cycling/picking."""
 
     if TYPE_CHECKING:
+        _all_rows: tuple[MemoryRailNode, ...]
         _current_note: str | None
         _filter_bodies: bool
         _filter_text: str
+        _expanded_webs: set[str]
         _loading: bool
         _rows: tuple[MemoryRailNode, ...]
         _ring: tuple[MemoryScopeRef, ...]
@@ -61,11 +63,19 @@ class MemoryPanelNavigationMixin(_MixinBase):
 
         def _note_list(self) -> OptionList: ...
 
+        def _refresh_expanded_rows(
+            self, *, preferred_note: str | None = None
+        ) -> None: ...
+
+        def _selected_row(self) -> MemoryRailNode | None: ...
+
         def _start_scope_load(self) -> None: ...
 
         def _start_scope_picker_load(self) -> None: ...
 
         def _record_session_selection(self) -> None: ...
+
+        def _land_on_identity(self, identity: str) -> None: ...
 
     # --- note navigation ------------------------------------------------
 
@@ -84,6 +94,53 @@ class MemoryPanelNavigationMixin(_MixinBase):
     def action_last_note(self) -> None:
         if self._rows:
             self._note_list().highlighted = len(self._rows) - 1
+
+    def action_toggle_web(self) -> None:
+        node = self._selected_row()
+        if node is None or node.web is None:
+            return
+        slug = node.web.slug
+        collapsing = slug in self._expanded_webs
+        if collapsing:
+            self._expanded_webs.remove(slug)
+        else:
+            self._expanded_webs.add(slug)
+        preferred = (
+            node.web.relative_path if node.is_strand and collapsing else node.identity
+        )
+        self._refresh_expanded_rows(preferred_note=preferred)
+
+    def action_next_strand(self) -> None:
+        self._move_strand(1)
+
+    def action_prev_strand(self) -> None:
+        self._move_strand(-1)
+
+    def _move_strand(self, delta: int) -> None:
+        node = self._selected_row()
+        if node is None or node.web is None:
+            return
+        slug = node.web.slug
+        if slug not in self._expanded_webs:
+            self._expanded_webs.add(slug)
+            self._refresh_expanded_rows(preferred_note=node.identity)
+        strand_nodes = tuple(
+            row
+            for row in self._all_rows
+            if row.strand is not None and row.web is not None and row.web.slug == slug
+        )
+        if not strand_nodes:
+            return
+        current_index = next(
+            (
+                index
+                for index, row in enumerate(strand_nodes)
+                if row.identity == self._current_note
+            ),
+            -1 if delta > 0 else 0,
+        )
+        target = strand_nodes[(current_index + delta) % len(strand_nodes)]
+        self._land_on_identity(target.identity)
 
     def action_scroll_body_down(self) -> None:
         scroll = self.query_one("#memory-panel-detail", VerticalScroll)
@@ -151,6 +208,7 @@ class MemoryPanelNavigationMixin(_MixinBase):
         self._chip_notes = ()
         self._chip_parent_count = 0
         self._chip_cursor = None
+        self._expanded_webs.clear()
         self._start_scope_load()
 
     def action_refresh(self) -> None:

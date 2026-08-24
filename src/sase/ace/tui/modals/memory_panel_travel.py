@@ -52,6 +52,8 @@ class MemoryPanelTravelMixin(_MixinBase):
 
         def _filter_input(self) -> Input: ...
 
+        def _ensure_strand_read_for_current_selection(self) -> None: ...
+
         def _render_note_card(self) -> None: ...
 
         def _selected_row(self) -> MemoryRailNode | None: ...
@@ -115,37 +117,41 @@ class MemoryPanelTravelMixin(_MixinBase):
         self._trail.append(self._current_note)
         if len(self._trail) > _MAX_TRAIL_LENGTH:
             del self._trail[0]
-        self._land_on_note(target_note)
+        self._land_on_identity(target_note)
 
     def action_travel_back(self) -> None:
         while self._trail:
-            note_path = self._trail.pop()
-            if any(node.note.relative_path == note_path for node in self._all_rows):
-                self._land_on_note(note_path)
+            identity = self._trail.pop()
+            if any(node.identity == identity for node in self._all_rows):
+                self._land_on_identity(identity)
                 return
 
-    def _land_on_note(self, note_path: str) -> None:
-        if self._select_note_by_identity(note_path):
+    def _land_on_identity(self, identity: str) -> None:
+        if self._select_note_by_identity(identity):
             self._render_note_card()
             self._update_footer()
         else:
-            stem = Path(note_path).stem
+            stem = Path(identity).stem
             self.notify(f'Filter cleared to show "{stem}"')
             self._filter_input().value = ""
-            self._apply_filter("", include_bodies=False, preferred_note=note_path)
+            self._apply_filter("", include_bodies=False, preferred_note=identity)
         self.query_one("#memory-panel-detail", VerticalScroll).scroll_home(
             animate=False
         )
 
-    def _select_note_by_identity(self, note_path: str) -> bool:
-        """Move the note-list highlight to *note_path* if it is currently visible."""
+    def _land_on_note(self, note_path: str) -> None:
+        self._land_on_identity(note_path)
+
+    def _select_note_by_identity(self, identity: str) -> bool:
+        """Move the rail highlight to *identity* if it is currently visible."""
         option_list = self._note_list()
         for row, node in enumerate(self._rows):
-            if node.note.relative_path == note_path:
-                self._selection_guard.prepare(note_path, row)
+            if node.identity == identity:
+                self._selection_guard.prepare(identity, row)
                 option_list.highlighted = row
-                self._current_note = note_path
+                self._current_note = identity
                 self._refresh_links_for_current_note()
+                self._ensure_strand_read_for_current_selection()
                 return True
         return False
 

@@ -31,7 +31,7 @@ def handle_memory_read_command(
         reason = normalize_read_reason(args.reason)
         agent = require_agent_identity()
         view = resolve_memory_view(args)
-        event = _build_read_event(view, reason=reason, agent=agent)
+        event = build_memory_read_event_for_view(view, reason=reason, agent=agent)
         append_memory_read_event(event)
     except (AgentIdentityError, MemoryReadError, OSError, UnicodeError) as exc:
         print(f"sase memory read: {exc}", file=sys.stderr)
@@ -40,15 +40,22 @@ def handle_memory_read_command(
     emit_memory_view(view, args, console=console)
 
 
-def _build_read_event(
-    view: ResolvedMemorySelectorBatch, *, reason: str, agent: AgentIdentity
+def build_memory_read_event_for_view(
+    view: ResolvedMemorySelectorBatch,
+    *,
+    reason: str,
+    agent: AgentIdentity,
+    cwd: Path | None = None,
 ) -> MemoryReadEvent:
+    """Build the audited read event for a resolved memory selector view."""
+    cwd_path = cwd or Path.cwd()
     if view.is_single_note:
         return build_memory_read_event(
             view.notes[0].content,
             reason=reason,
             agent=agent,
-            cwd=Path.cwd(),
+            project=view.project_name,
+            cwd=cwd_path,
         )
 
     resolved_targets, included_targets, scope_origin = _batch_targets(view)
@@ -69,7 +76,8 @@ def _build_read_event(
         frontmatter_stripped=frontmatter_stripped,
         reason=reason,
         agent=agent,
-        cwd=Path.cwd(),
+        project=view.project_name,
+        cwd=cwd_path,
     )
 
 
@@ -90,4 +98,4 @@ def _batch_targets(
     return tuple(resolved), tuple(included), tuple(scope_origin)
 
 
-__all__ = ["handle_memory_read_command"]
+__all__ = ["build_memory_read_event_for_view", "handle_memory_read_command"]

@@ -33,6 +33,9 @@ from sase.memory.read_log import (
     read_memory_read_events,
     summarize_memory_reads_by_path,
 )
+from sase.memory.web.discovery import discover_memory_webs
+from sase.memory.web.feature import memory_webs_enabled
+from sase.memory.web.models import MemoryStrand, MemoryWeb, WebScope
 from sase.xprompt.glossary_catalog import (
     enabled_project_records,
     glossary_project_record_for_workspace,
@@ -66,10 +69,31 @@ class MemoryNoteDigest:
 
 @dataclass(frozen=True, slots=True)
 class MemoryRailNode:
-    """One row in the panel's note rail, with tree indent depth."""
+    """One row in the panel's rail, with tree indent depth."""
 
     note: MemoryNote
     depth: int
+    web: MemoryWeb | None = None
+    strand: MemoryStrand | None = None
+    strand_scope: WebScope | None = None
+    expanded: bool = False
+
+    @property
+    def identity(self) -> str:
+        """Return the stable selection identity for this rail row."""
+        if self.strand is not None:
+            return f"{self.strand.web_slug}:{self.strand.slug}"
+        return self.note.relative_path
+
+    @property
+    def is_web(self) -> bool:
+        """Return whether this row is a web descriptor row."""
+        return self.web is not None and self.strand is None
+
+    @property
+    def is_strand(self) -> bool:
+        """Return whether this row previews one web strand."""
+        return self.strand is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,6 +109,7 @@ class MemoryScopeSnapshot:
     generated_paths: frozenset[str]
     read_summaries: Mapping[str, MemoryReadPathSummary]
     diagnostics: tuple[str, ...]
+    webs: tuple[MemoryWeb, ...] = ()
 
 
 @dataclass
@@ -192,6 +217,26 @@ def memory_note_relations(
     return parent, children
 
 
+def memory_strand_note(web: MemoryWeb, strand: MemoryStrand) -> MemoryNote:
+    """Return the pseudo-note used to render and source one strand row."""
+    description_parts = []
+    if strand.summary:
+        description_parts.append(strand.summary)
+    if strand.aliases:
+        description_parts.append("Aliases: " + ", ".join(strand.aliases))
+    return MemoryNote(
+        path=Path(f"{web.slug}:{strand.slug}"),
+        type=web.rendering_type,
+        parent=web.relative_path,
+        description=" ".join(description_parts) or None,
+        body=strand.body,
+        frontmatter=strand.frontmatter,
+        type_source="frontmatter",
+        parent_source="frontmatter",
+        source_path=Path(strand.relative_path),
+    )
+
+
 def _home_content_root() -> Path:
     if get_use_chezmoi():
         return Path(CHEZMOI_HOME)
@@ -287,14 +332,20 @@ def _scope_stat(
         return (0, 0, ())
     note_stats: list[tuple[str, int, int]] = []
     try:
-        for path in sorted(memory_root.glob("*.md")):
+        for path in sorted(memory_root.rglob("*.md")):
             if not path.is_file() or path.name == README_FILENAME:
                 continue
             try:
                 file_stat = path.stat()
             except OSError:
                 continue
-            note_stats.append((path.name, file_stat.st_mtime_ns, file_stat.st_size))
+            note_stats.append(
+                (
+                    path.relative_to(memory_root).as_posix(),
+                    file_stat.st_mtime_ns,
+                    file_stat.st_size,
+                )
+            )
     except OSError:
         return (dir_stat.st_mtime_ns, dir_stat.st_size, ())
     return (dir_stat.st_mtime_ns, dir_stat.st_size, tuple(note_stats))
@@ -320,17 +371,32 @@ def _load_memory_scope_snapshot(ref: MemoryScopeRef) -> MemoryScopeSnapshot:
     except (OSError, UnicodeDecodeError) as exc:
         return _empty_snapshot(ref, generated_paths, diagnostics=(str(exc),))
 
-    digests, stats = _note_file_metadata(content_root, notes)
+    webs: tuple[MemoryWeb, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+    if memory_webs_enabled():
+        try:
+            discovery = discover_memory_webs(
+                content_root,
+                source_memory_root=memory_root,
+            )
+        except (OSError, UnicodeDecodeError) as exc:
+            diagnostics = (str(exc),)
+        else:
+            webs = discovery.webs
+            diagnostics = tuple(issue.message for issue in discovery.issues)
+
+    digests, stats = _memory_file_metadata(content_root, notes, webs)
     return MemoryScopeSnapshot(
         scope=ref,
         notes=notes,
-        tree=_build_note_tree(notes),
+        tree=_build_note_tree(notes, webs),
         digests=digests,
         stats=stats,
         shadowed_stems=_shadowed_stems_for(ref, notes),
         generated_paths=generated_paths,
         read_summaries=_read_summaries_for(ref),
-        diagnostics=(),
+        diagnostics=diagnostics,
+        webs=webs,
     )
 
 
@@ -350,36 +416,55 @@ def _empty_snapshot(
         generated_paths=generated_paths,
         read_summaries={},
         diagnostics=diagnostics,
+        webs=(),
     )
 
 
-def _note_file_metadata(
-    content_root: Path, notes: tuple[MemoryNote, ...]
+def _memory_file_metadata(
+    content_root: Path, notes: tuple[MemoryNote, ...], webs: tuple[MemoryWeb, ...]
 ) -> tuple[dict[str, MemoryNoteDigest], dict[str, MemoryStats]]:
     digests: dict[str, MemoryNoteDigest] = {}
     stats: dict[str, MemoryStats] = {}
     for note in notes:
-        path = content_root / note.source_relative_path
-        try:
-            data = path.read_bytes()
-            file_stat = path.stat()
-        except OSError:
-            continue
-        digests[note.relative_path] = MemoryNoteDigest(
-            mtime_ns=file_stat.st_mtime_ns,
-            size=file_stat.st_size,
-            sha256=hashlib.sha256(data).hexdigest(),
-        )
-        stats[note.relative_path] = stats_for_text(
-            data.decode("utf-8", errors="replace")
-        )
+        _add_file_metadata(content_root, note, digests, stats)
+    for web in webs:
+        for strand in web.strands:
+            _add_file_metadata(
+                content_root,
+                memory_strand_note(web, strand),
+                digests,
+                stats,
+            )
     return digests, stats
 
 
-def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...]:
+def _add_file_metadata(
+    content_root: Path,
+    note: MemoryNote,
+    digests: dict[str, MemoryNoteDigest],
+    stats: dict[str, MemoryStats],
+) -> None:
+    path = content_root / note.source_relative_path
+    try:
+        data = path.read_bytes()
+        file_stat = path.stat()
+    except OSError:
+        return
+    digests[note.relative_path] = MemoryNoteDigest(
+        mtime_ns=file_stat.st_mtime_ns,
+        size=file_stat.st_size,
+        sha256=hashlib.sha256(data).hexdigest(),
+    )
+    stats[note.relative_path] = stats_for_text(data.decode("utf-8", errors="replace"))
+
+
+def _build_note_tree(
+    notes: tuple[MemoryNote, ...], webs: tuple[MemoryWeb, ...] = ()
+) -> tuple[MemoryRailNode, ...]:
     """Order notes as Tier 1, then Tier 2 roots with children indented once."""
     emitted: set[str] = set()
     tree: list[MemoryRailNode] = []
+    webs_by_path = {web.relative_path: web for web in webs}
     children_by_parent: dict[str, list[MemoryNote]] = {}
     for note in notes:
         if note.type == "reference":
@@ -388,10 +473,10 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
         children.sort(key=lambda note: note.relative_path)
 
     def emit_root(root: MemoryNote) -> None:
-        tree.append(MemoryRailNode(note=root, depth=0))
+        tree.append(_rail_node_for_note(root, depth=0, webs_by_path=webs_by_path))
         emitted.add(root.relative_path)
         for child in children_by_parent.get(root.relative_path, ()):
-            tree.append(MemoryRailNode(note=child, depth=1))
+            tree.append(_rail_node_for_note(child, depth=1, webs_by_path=webs_by_path))
             emitted.add(child.relative_path)
 
     shorts = sorted(
@@ -399,7 +484,7 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
         key=lambda note: note.relative_path,
     )
     for note in shorts:
-        tree.append(MemoryRailNode(note=note, depth=0))
+        tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
         emitted.add(note.relative_path)
 
     long_roots = sorted(
@@ -429,14 +514,22 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
         emit_root(note)
     for note in leftover_long:
         if note.relative_path not in emitted:
-            tree.append(MemoryRailNode(note=note, depth=0))
+            tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
             emitted.add(note.relative_path)
 
     for note in sorted(notes, key=lambda item: item.relative_path):
         if note.relative_path not in emitted:
-            tree.append(MemoryRailNode(note=note, depth=0))
+            tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))
             emitted.add(note.relative_path)
     return tuple(tree)
+
+
+def _rail_node_for_note(
+    note: MemoryNote, *, depth: int, webs_by_path: dict[str, MemoryWeb]
+) -> MemoryRailNode:
+    return MemoryRailNode(
+        note=note, depth=depth, web=webs_by_path.get(note.relative_path)
+    )
 
 
 def _shadowed_stems_for(
@@ -489,5 +582,6 @@ __all__ = [
     "build_memory_scope_ring",
     "invalidate_memory_scope",
     "load_memory_scope_snapshot",
+    "memory_strand_note",
     "memory_note_relations",
 ]

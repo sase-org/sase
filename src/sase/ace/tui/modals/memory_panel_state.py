@@ -8,20 +8,23 @@ selected?" for every other mixin.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets import Input, OptionList
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.memory_panel_catalog import MemoryRailNode, memory_strand_note
 from sase.ace.tui.util.selection import restore_selection_by_identity
 from sase.memory.text_filter import filter_memory_notes
+from sase.memory.web.models import WebScope
 
 from .memory_panel_rendering import build_note_row_text
 
 if TYPE_CHECKING:
     from textual.widget import Widget as _MixinBase
 
-    from sase.ace.tui.memory_panel_catalog import MemoryRailNode, MemoryScopeSnapshot
+    from sase.ace.tui.memory_panel_catalog import MemoryScopeSnapshot
     from sase.ace.tui.util.debounce import DetailPanelDebouncer
     from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 else:
@@ -41,11 +44,14 @@ class MemoryPanelStateMixin(_MixinBase):
         _filter_bodies: bool
         _filter_text: str
         _rows: tuple[MemoryRailNode, ...]
+        _expanded_webs: set[str]
         _selection_guard: ProgrammaticSelectionGuard
         _ring: tuple[Any, ...]
         _scope_index: int
         _snapshot: MemoryScopeSnapshot | None
         _unpublished_scopes: set[str]
+
+        def _ensure_strand_read_for_current_selection(self) -> None: ...
 
         def _refresh_links_for_current_note(self) -> None: ...
 
@@ -59,11 +65,50 @@ class MemoryPanelStateMixin(_MixinBase):
 
         def _record_session_selection(self) -> None: ...
 
+        def _reset_strand_read_state(self) -> None: ...
+
     def _apply_snapshot(
         self, snapshot: MemoryScopeSnapshot | None, *, preferred_note: str | None
     ) -> None:
+        self._reset_strand_read_state()
         self._snapshot = snapshot
-        self._all_rows = snapshot.tree if snapshot is not None else ()
+        self._all_rows = self._expanded_rows(snapshot) if snapshot is not None else ()
+        self._resize_note_rail()
+        self._apply_filter(
+            self._filter_text,
+            include_bodies=self._filter_bodies,
+            preferred_note=preferred_note,
+        )
+
+    def _expanded_rows(
+        self, snapshot: MemoryScopeSnapshot
+    ) -> tuple[MemoryRailNode, ...]:
+        rows: list[MemoryRailNode] = []
+        strand_scope: WebScope = "home" if snapshot.scope.kind == "home" else "project"
+        for node in snapshot.tree:
+            if node.web is None:
+                rows.append(node)
+                continue
+            expanded = node.web.slug in self._expanded_webs
+            rows.append(replace(node, expanded=expanded))
+            if not expanded:
+                continue
+            rows.extend(
+                MemoryRailNode(
+                    note=memory_strand_note(node.web, strand),
+                    depth=node.depth + 1,
+                    web=node.web,
+                    strand=strand,
+                    strand_scope=strand_scope,
+                )
+                for strand in node.web.strands
+            )
+        return tuple(rows)
+
+    def _refresh_expanded_rows(self, *, preferred_note: str | None = None) -> None:
+        if self._snapshot is None:
+            return
+        self._all_rows = self._expanded_rows(self._snapshot)
         self._resize_note_rail()
         self._apply_filter(
             self._filter_text,
@@ -105,7 +150,7 @@ class MemoryPanelStateMixin(_MixinBase):
             nodes,
             prior_identity=preferred_note,
             prior_visual_row=prior_row,
-            identity_fn=lambda node: node.note.relative_path,
+            identity_fn=lambda node: node.identity,
         )
         generated_paths = (
             self._snapshot.generated_paths
@@ -118,12 +163,12 @@ class MemoryPanelStateMixin(_MixinBase):
         option_list.add_options(
             Option(
                 build_note_row_text(node, generated_paths=generated_paths),
-                id=node.note.relative_path,
+                id=node.identity,
             )
             for node in nodes
         )
         if nodes:
-            identity = nodes[row].note.relative_path
+            identity = nodes[row].identity
             self._selection_guard.prepare(identity, row)
             option_list.highlighted = row
             self._current_note = identity
@@ -131,6 +176,7 @@ class MemoryPanelStateMixin(_MixinBase):
             self._current_note = None
         self._record_session_selection()
         self._refresh_links_for_current_note()
+        self._ensure_strand_read_for_current_selection()
         self._render_note_card()
 
     # --- selection helpers ------------------------------------------------
@@ -160,6 +206,7 @@ class MemoryPanelStateMixin(_MixinBase):
         snapshot = self._snapshot
         return (
             node is not None
+            and not node.is_strand
             and snapshot is not None
             and node.note.relative_path not in snapshot.generated_paths
         )
@@ -198,8 +245,8 @@ class MemoryPanelStateMixin(_MixinBase):
         current_idx = self._current_note_row()
         if not 0 <= current_idx < len(self._rows):
             return
-        identity = self._rows[idx].note.relative_path
-        current_identity = self._rows[current_idx].note.relative_path
+        identity = self._rows[idx].identity
+        current_identity = self._rows[current_idx].identity
         if self._selection_guard.should_ignore(
             identity, idx, current_identity=current_identity, current_row=current_idx
         ):
@@ -207,6 +254,7 @@ class MemoryPanelStateMixin(_MixinBase):
         self._current_note = identity
         self._record_session_selection()
         self._refresh_links_for_current_note()
+        self._ensure_strand_read_for_current_selection()
         self._update_footer()
         if self._debouncer is not None:
             self._debouncer.schedule(self._render_note_card)

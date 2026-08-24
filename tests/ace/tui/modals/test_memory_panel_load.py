@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.tui.memory_panel_catalog import (
@@ -10,6 +12,8 @@ from sase.ace.tui.memory_panel_catalog import (
 )
 from sase.ace.tui.modals import memory_panel_load as mpl
 from sase.current_project import CurrentProject
+from sase.feature_flags import override_flags
+from sase.memory.read_log import memory_read_log_path, read_memory_read_events
 
 
 def _scope(key: str, display_name: str) -> MemoryScopeRef:
@@ -187,3 +191,46 @@ def test_empty_ring_returns_no_snapshot(monkeypatch: pytest.MonkeyPatch) -> None
     assert result.ring == ()
     assert result.scope_index == 0
     assert result.snapshot is None
+
+
+def test_record_strand_read_uses_memory_read_audit_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    memory_root = tmp_path / "sase" / "memory"
+    memory_root.mkdir(parents=True)
+    (memory_root / "decisions.md").write_text(
+        "---\ntype: core\nweb: true\n---\nDescriptor.\n",
+        encoding="utf-8",
+    )
+    strand_dir = memory_root / "decisions"
+    strand_dir.mkdir()
+    (strand_dir / "alpha.md").write_text(
+        "---\nkeyword: Alpha\nsummary: Alpha summary.\n---\nAlpha body.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-a")
+    monkeypatch.chdir(tmp_path)
+    scope = MemoryScopeRef(
+        kind="project",
+        key="gh_demo__demo",
+        display_name="Demo",
+        content_root=str(tmp_path),
+        memory_read_root=str(memory_root),
+        has_memory=True,
+    )
+
+    with override_flags(memory_webs=True):
+        result = mpl.record_memory_panel_strand_read(
+            scope,
+            web_slug="decisions",
+            strand_slug="alpha",
+        )
+
+    assert result.identity == "decisions:alpha"
+    events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert len(events) == 1
+    assert events[0].kind == "strand"
+    assert events[0].selectors == ("decisions:alpha",)
+    assert events[0].resolved_targets == ("decisions:alpha",)
+    assert events[0].included_targets == ()
+    assert events[0].agent_name == "agent-a"

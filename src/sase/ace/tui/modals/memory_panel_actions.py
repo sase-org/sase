@@ -103,6 +103,12 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         scope = self._current_scope()
         if node is None or snapshot is None or scope is None:
             return
+        if node.is_strand:
+            self.app.notify(
+                "memory strands are edited from their source file",
+                severity="warning",
+            )
+            return
         if node.note.relative_path in snapshot.generated_paths:
             self.app.notify(
                 f"generated memory note is read-only: {node.note.relative_path}",
@@ -133,6 +139,12 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
         node = self._selected_row()
         snapshot = self._snapshot
         if node is None or snapshot is None:
+            return
+        if node.is_strand:
+            self.app.notify(
+                "memory strands are deleted from their source directory",
+                severity="warning",
+            )
             return
         if node.note.relative_path in snapshot.generated_paths:
             self.app.notify(

@@ -18,8 +18,16 @@ from sase.ace.tui.memory_panel_catalog import (
     load_memory_scope_snapshot,
 )
 from sase.current_project import resolve_current_project
+from sase.memory.cli_read import build_memory_read_event_for_view
 from sase.memory.mutation import memory_note_digest
 from sase.memory.notes import MemoryNote
+from sase.memory.read_log import (
+    MemoryReadEvent,
+    append_memory_read_event,
+    normalize_read_reason,
+    require_agent_identity,
+)
+from sase.memory.selector import resolve_memory_selector_batch
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +46,14 @@ class MemoryScopeChoice:
     key: str
     display_name: str
     note_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryPanelStrandRead:
+    """Audit result for one Memory panel strand preview."""
+
+    identity: str
+    event: MemoryReadEvent
 
 
 def load_memory_panel_initial_state(
@@ -139,10 +155,43 @@ def note_digest_changed(
     return memory_note_digest(data) != previous.sha256
 
 
+def record_memory_panel_strand_read(
+    scope: MemoryScopeRef,
+    *,
+    web_slug: str,
+    strand_slug: str,
+) -> MemoryPanelStrandRead:
+    """Record the audited read required before previewing a strand body.
+
+    This is intentionally the same selector-resolution and event-building path
+    as ``sase memory read``. Call it only from a worker thread.
+    """
+    identity = f"{web_slug}:{strand_slug}"
+    reason = normalize_read_reason(f"ACE MemoryPane previewed {identity}")
+    agent = require_agent_identity()
+    root = Path(scope.content_root)
+    view = resolve_memory_selector_batch(
+        [identity],
+        depth=0,
+        project_root=root,
+        home_root=root,
+    )
+    event = build_memory_read_event_for_view(
+        view,
+        reason=reason,
+        agent=agent,
+        cwd=root,
+    )
+    append_memory_read_event(event)
+    return MemoryPanelStrandRead(identity=identity, event=event)
+
+
 __all__ = [
     "MemoryPanelInitialLoad",
+    "MemoryPanelStrandRead",
     "MemoryScopeChoice",
     "load_memory_panel_initial_state",
     "load_memory_scope_choices",
     "note_digest_changed",
+    "record_memory_panel_strand_read",
 ]

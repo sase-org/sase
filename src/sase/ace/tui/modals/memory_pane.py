@@ -50,10 +50,12 @@ from .memory_panel_actions import MemoryPanelActionsMixin
 from .memory_panel_help_modal import MemoryPanelHelpModal
 from .memory_panel_load import (
     MemoryPanelInitialLoad,
+    MemoryPanelStrandRead,
     MemoryScopeChoice,
     load_memory_panel_initial_state,
     load_memory_scope_choices,
     note_digest_changed,
+    record_memory_panel_strand_read,
 )
 from .memory_panel_navigation import MemoryPanelNavigationMixin
 from .memory_panel_rendering import memory_card_accent, memory_note_source_path
@@ -166,9 +168,13 @@ class MemoryPane(
         self._scope_worker: Worker[MemoryScopeSnapshot] | None = None
         self._picker_worker: Worker[tuple[MemoryScopeChoice, ...]] | None = None
         self._restat_worker: Worker[bool] | None = None
+        self._strand_read_worker: Worker[MemoryPanelStrandRead] | None = None
+        self._strand_read_worker_identity: str | None = None
+        self._strand_read_status: dict[str, str] = {}
         self._selection_guard = ProgrammaticSelectionGuard()
         self._debouncer: DetailPanelDebouncer | None = None
         self._scope_selection_memory: dict[str, str] = {}
+        self._expanded_webs: set[str] = set()
         self._chip_notes: tuple[MemoryNote, ...] = ()
         self._chip_parent_count = 0
         self._chip_cursor: int | None = None
@@ -227,6 +233,7 @@ class MemoryPane(
             self._scope_worker,
             self._picker_worker,
             self._restat_worker,
+            self._strand_read_worker,
         ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
@@ -266,19 +273,46 @@ class MemoryPane(
         self, snapshot: MemoryScopeSnapshot | None
     ) -> str | None:
         """Honor a direct-entry seed, then the session bookmark, then fallback."""
-        paths = (
-            {node.note.relative_path for node in snapshot.tree}
-            if snapshot is not None
-            else set()
-        )
+        paths = self._snapshot_identities(snapshot)
         if self._initial_note and self._initial_note in paths:
+            self._expand_web_for_identity(self._initial_note, snapshot)
             return self._initial_note
         remembered = self._session.note
         if remembered and remembered in paths:
+            self._expand_web_for_identity(remembered, snapshot)
             return remembered
         if self._initial_note:
             return self._initial_note
         return remembered
+
+    def _snapshot_identities(self, snapshot: MemoryScopeSnapshot | None) -> set[str]:
+        if snapshot is None:
+            return set()
+        identities = {node.identity for node in snapshot.tree}
+        for web in snapshot.webs:
+            identities.update(f"{web.slug}:{strand.slug}" for strand in web.strands)
+        return identities
+
+    def _expand_web_for_identity(
+        self, identity: str, snapshot: MemoryScopeSnapshot | None
+    ) -> None:
+        if snapshot is None or ":" not in identity:
+            return
+        web_slug, _, strand_slug = identity.partition(":")
+        if not strand_slug:
+            return
+        if any(web.slug == web_slug for web in snapshot.webs):
+            self._expanded_webs.add(web_slug)
+
+    def _reset_strand_read_state(self) -> None:
+        if (
+            self._strand_read_worker is not None
+            and not self._strand_read_worker.is_finished
+        ):
+            self._strand_read_worker.cancel()
+        self._strand_read_worker = None
+        self._strand_read_worker_identity = None
+        self._strand_read_status.clear()
 
     # --- loading --------------------------------------------------------
 
@@ -354,6 +388,8 @@ class MemoryPane(
             self._on_scope_picker_load_state_changed(event)
         elif event.worker is self._restat_worker:
             self._on_restat_state_changed(event)
+        elif event.worker is self._strand_read_worker:
+            self._on_strand_read_state_changed(event)
 
     def _on_initial_load_state_changed(self, event: Worker.StateChanged) -> None:
         if self._closed or not self.is_mounted:
@@ -438,6 +474,7 @@ class MemoryPane(
             self._chip_notes = ()
             self._chip_parent_count = 0
             self._chip_cursor = None
+            self._expanded_webs.clear()
             self._start_scope_load()
             return
 
@@ -455,6 +492,62 @@ class MemoryPane(
             )
         self._mark_scope_unpublished()
         self._start_scope_load()
+
+    def _ensure_strand_read_for_current_selection(self) -> None:
+        node = self._selected_row()
+        if node is None or node.strand is None or node.web is None or not self._ring:
+            return
+        identity = node.identity
+        state = self._strand_read_status.get(identity)
+        if state in {"pending", "ok"} or (
+            state is not None and state.startswith("error:")
+        ):
+            return
+        if (
+            self._strand_read_worker is not None
+            and not self._strand_read_worker.is_finished
+        ):
+            old_identity = self._strand_read_worker_identity
+            if (
+                old_identity is not None
+                and self._strand_read_status.get(old_identity) == "pending"
+            ):
+                self._strand_read_status.pop(old_identity, None)
+            self._strand_read_worker.cancel()
+        scope = self._ring[self._scope_index]
+        web_slug = node.web.slug
+        strand_slug = node.strand.slug
+        self._strand_read_status[identity] = "pending"
+        self._strand_read_worker_identity = identity
+
+        def task() -> MemoryPanelStrandRead:
+            return record_memory_panel_strand_read(
+                scope,
+                web_slug=web_slug,
+                strand_slug=strand_slug,
+            )
+
+        self._strand_read_worker = self.run_worker(
+            task, thread=True, exclusive=True, group="memory-panel-strand-read"
+        )
+
+    def _on_strand_read_state_changed(self, event: Worker.StateChanged) -> None:
+        identity = self._strand_read_worker_identity
+        if identity is None:
+            return
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if isinstance(result, MemoryPanelStrandRead):
+                self._strand_read_status[result.identity] = "ok"
+        elif event.state == WorkerState.ERROR:
+            detail = str(event.worker.error or "unknown error")
+            self._strand_read_status[identity] = f"error:{detail}"
+        elif event.state == WorkerState.CANCELLED:
+            if self._strand_read_status.get(identity) == "pending":
+                self._strand_read_status.pop(identity, None)
+        if self._current_note == identity and self.is_mounted and not self._closed:
+            self._render_note_card()
+            self._update_footer()
 
     # --- passive actions ------------------------------------------------
 
@@ -482,6 +575,9 @@ class MemoryPane(
     def action_copy_body(self) -> None:
         node = self._selected_row()
         if node is None:
+            return
+        if node.is_strand and self._strand_read_status.get(node.identity) != "ok":
+            self.notify("strand body is waiting on audited read", severity="warning")
             return
         schedule_copy_delivery(
             self,

@@ -41,6 +41,9 @@ _FALLBACK_ACCENT = "#87D7FF"
 _TIER1_MARK = "●"  # ●
 _TIER2_MARK = "○"  # ○
 _CHILD_INDENT = "└ "  # └
+_WEB_COLLAPSED_MARK = "▸"  # ▸
+_WEB_EXPANDED_MARK = "▾"  # ▾
+_STRAND_MARK = "•"  # •
 _GENERATED_MARK = "⚙"  # ⚙
 _INVALID_MARK = "⚠"  # ⚠
 
@@ -118,6 +121,10 @@ def build_note_row_text(
     node: MemoryRailNode, *, generated_paths: frozenset[str]
 ) -> Text:
     """Build one note-rail row: tree indent, glyphs, stem, and description."""
+    if node.is_web and node.web is not None:
+        return _build_web_row_text(node, generated_paths=generated_paths)
+    if node.is_strand and node.strand is not None:
+        return _build_strand_row_text(node)
     note = node.note
     text = Text()
     if node.depth > 0:
@@ -133,6 +140,45 @@ def build_note_row_text(
     if snippet:
         text.append("  ")
         text.append(snippet, style="dim")
+    return text
+
+
+def _build_web_row_text(
+    node: MemoryRailNode, *, generated_paths: frozenset[str]
+) -> Text:
+    web = node.web
+    assert web is not None
+    text = Text()
+    if node.depth > 0:
+        text.append(_CHILD_INDENT, style="dim")
+    text.append(f"{_WEB_EXPANDED_MARK if node.expanded else _WEB_COLLAPSED_MARK} ")
+    marker = _TIER1_MARK if web.rendering_type == "core" else _TIER2_MARK
+    text.append(f"{marker} ")
+    if node.note.relative_path in generated_paths:
+        text.append(f"{_GENERATED_MARK} ")
+    text.append(web.slug)
+    strand_word = web.strand_noun if len(web.strands) == 1 else f"{web.strand_noun}s"
+    text.append(f"  {len(web.strands)} {strand_word}", style="dim")
+    snippet = collapse_description(web.description)
+    if snippet:
+        text.append("  ")
+        text.append(snippet, style="dim")
+    return text
+
+
+def _build_strand_row_text(node: MemoryRailNode) -> Text:
+    strand = node.strand
+    assert strand is not None
+    text = Text()
+    text.append("  " * max(0, node.depth), style="dim")
+    text.append(f"{_STRAND_MARK} ")
+    text.append(strand.keyword)
+    if strand.aliases:
+        text.append("  ")
+        text.append("aka " + " · ".join(strand.aliases), style="dim")
+    elif strand.summary:
+        text.append("  ")
+        text.append(strand.summary, style="dim")
     return text
 
 
@@ -169,7 +215,7 @@ def memory_note_source_path(scope: MemoryScopeRef, note: MemoryNote) -> str:
     return str(Path(scope.content_root) / note.source_relative_path)
 
 
-def build_note_card_title(
+def _build_note_card_title(
     note: MemoryNote,
     *,
     scope_display_name: str,
@@ -195,20 +241,74 @@ def build_note_card_title(
     return Group(*lines)
 
 
-def build_note_description(note: MemoryNote) -> RenderableType:
+def build_rail_node_card_title(
+    node: MemoryRailNode,
+    *,
+    scope_display_name: str,
+    accent: str,
+) -> RenderableType:
+    """Build the card title for a note, web, or strand row."""
+    if node.strand is None and node.web is None:
+        return _build_note_card_title(
+            node.note,
+            scope_display_name=scope_display_name,
+            accent=accent,
+        )
+
+    identity = Text()
+    if node.strand is not None:
+        identity.append("S", style=f"bold {accent}")
+        identity.append(" ")
+        identity.append("STRAND", style=f"bold {accent}")
+        identity.append("  ")
+        identity.append(node.strand.keyword, style="bold")
+        path_label = node.identity
+    else:
+        assert node.web is not None
+        identity.append("W", style=f"bold {accent}")
+        identity.append(" ")
+        identity.append("MEMORY WEB", style=f"bold {accent}")
+        identity.append("  ")
+        identity.append(node.web.slug, style="bold")
+        path_label = node.note.relative_path
+
+    if scope_display_name:
+        first_line = Table.grid(expand=True, padding=(0, 0, 0, 2))
+        first_line.add_column(ratio=1, overflow="ellipsis")
+        first_line.add_column(justify="right", no_wrap=True)
+        first_line.add_row(identity, Text(scope_display_name, style=f"bold {accent}"))
+        lines: list[RenderableType] = [first_line]
+    else:
+        lines = [identity]
+    lines.append(Text(path_label, style="dim"))
+    return Group(*lines)
+
+
+def _build_note_description(note: MemoryNote) -> RenderableType:
     """Build the note card's description line, or ``""`` when absent."""
     if not note.description:
         return ""
     return Text(note.description, style="italic")
 
 
-def _append_badge(text: Text, label: str, *, accent: str) -> None:
+def build_rail_node_description(node: MemoryRailNode) -> RenderableType:
+    """Build the card description for a note, web, or strand row."""
+    if node.strand is not None:
+        return Text(node.strand.summary, style="italic") if node.strand.summary else ""
+    if node.web is not None:
+        return (
+            Text(node.web.description, style="italic") if node.web.description else ""
+        )
+    return _build_note_description(node.note)
+
+
+def append_badge(text: Text, label: str, *, accent: str) -> None:
     if text.plain:
         text.append(" ")
     text.append(f" {label} ", style=f"bold {_BADGE_FOREGROUND} on {accent}")
 
 
-def _build_note_badge_row(
+def build_note_badge_row(
     snapshot: MemoryScopeSnapshot, note: MemoryNote, *, accent: str
 ) -> Text | None:
     """Build the tier/generated/shadow/orphan/invalid badge row."""
@@ -227,7 +327,7 @@ def _build_note_badge_row(
         return None
     text = Text()
     for badge in badges:
-        _append_badge(text, badge, accent=accent)
+        append_badge(text, badge, accent=accent)
     return text
 
 
@@ -245,7 +345,7 @@ def _parent_label(note: MemoryNote) -> str:
     return note.parent
 
 
-def _iso_from_mtime_ns(mtime_ns: int) -> str:
+def iso_from_mtime_ns(mtime_ns: int) -> str:
     return datetime.fromtimestamp(mtime_ns / 1_000_000_000, tz=UTC).isoformat()
 
 
@@ -275,7 +375,7 @@ def _build_note_property_grid(
         )
     if digest is not None:
         rows.append(
-            ("Last modified", format_relative_time(_iso_from_mtime_ns(digest.mtime_ns)))
+            ("Last modified", format_relative_time(iso_from_mtime_ns(digest.mtime_ns)))
         )
     if read_summary is not None:
         rows.append(
@@ -287,6 +387,11 @@ def _build_note_property_grid(
         )
     rows.append(("Source", source_path))
 
+    return build_property_grid(rows, accent=accent)
+
+
+def build_property_grid(rows: list[tuple[str, str]], *, accent: str) -> RenderableType:
+    """Build an aligned two-column metadata grid."""
     grid = Table.grid(expand=True, padding=(0, 2, 0, 0))
     grid.add_column(no_wrap=True)
     grid.add_column(ratio=1, overflow="fold")
@@ -314,7 +419,7 @@ def build_note_card_meta(
     if parent is None or children is None:
         parent, children = memory_note_relations(snapshot, note)
     sections: list[RenderableType] = []
-    badges = _build_note_badge_row(snapshot, note, accent=accent)
+    badges = build_note_badge_row(snapshot, note, accent=accent)
     if badges is not None:
         sections.append(badges)
     chip_rows = build_numbered_chip_rows(
@@ -394,6 +499,8 @@ def build_panel_footer(
     has_links: bool = False,
     has_trail: bool = False,
     focused_link_stem: str | None = None,
+    web_action: str | None = None,
+    has_strand_navigation: bool = False,
     can_mutate: bool = False,
     unpublished: bool = False,
 ) -> str:
@@ -414,6 +521,13 @@ def build_panel_footer(
         parts.append(f"{key_display_name(keymaps.follow_link)} follow")
         if focused_link_stem:
             parts.append(f"→ {focused_link_stem}")
+    if web_action:
+        parts.append(f"{key_display_name(keymaps.toggle_web)} {web_action}")
+    if has_strand_navigation:
+        parts.append(
+            f"{key_display_name(keymaps.next_strand)}/"
+            f"{key_display_name(keymaps.prev_strand)} strand"
+        )
     if has_trail:
         parts.append(f"{key_display_name(keymaps.travel_back)} back")
     if can_mutate:
@@ -430,16 +544,20 @@ def build_panel_footer(
 
 
 __all__ = [
+    "append_badge",
     "build_diagnostics_message",
     "build_empty_scope_message",
     "build_empty_scope_no_root_message",
     "build_no_match_message",
+    "build_note_badge_row",
     "build_note_card_meta",
-    "build_note_card_title",
-    "build_note_description",
+    "build_property_grid",
+    "build_rail_node_card_title",
+    "build_rail_node_description",
     "build_note_row_text",
     "build_panel_footer",
     "build_panel_header",
+    "iso_from_mtime_ns",
     "memory_card_accent",
     "memory_note_source_path",
     "note_rail_width",
