@@ -69,7 +69,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "projection can skip the vestigial launch-scaffolding row."
         ),
     ),
-    "src/sase/axe/chop_lifecycle.py:_agent_completion": PathPassingReview(
+    "src/sase/axe/_chop_lifecycle_completion.py:_agent_completion": PathPassingReview(
         exemption=(
             "Read-only chop action finalization: done.json is inspected only "
             "to classify the terminal outcome of a registry-linked agent."
