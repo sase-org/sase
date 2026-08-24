@@ -190,7 +190,7 @@ async def test_agents_auto_approve_workflow_child_alignment_png_snapshot(
         for token in ("sase", "setup", "diff", "❯ ", "visual.sase--plan"):
             assert token in svg_plain
         connector_positions = re.findall(
-            r'x="([^"]+)" y="([^"]+)"[^>]*>  └─ </text>',
+            r'x="([^"]+)" y="([^"]+)"[^>]*>└─ </text>',
             svg_plain,
         )
         assert len(connector_positions) == 3

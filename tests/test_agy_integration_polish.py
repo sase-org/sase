@@ -301,12 +301,12 @@ def test_core_skills_generated_for_agy_under_antigravity_subpath(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A real generation pass gives ``agy`` the core SASE skills, not hg_commit.
+    """A real generation pass gives ``agy`` core skills without resurrecting hg.
 
     This is the Phase 4 smoke check: after ``sase skill init`` the Antigravity
     runtime can see ``/sase_git_commit`` and the other provider-neutral core
-    skills under ``~/.gemini/antigravity-cli/skills/``. ``sase_hg_commit`` stays
-    Gemini-only (``skill: [gemini]``), so it must NOT be deployed for ``agy``.
+    skills under ``~/.gemini/antigravity-cli/skills/``. The removed
+    ``sase_hg_commit`` source must not be synthesized for ``agy``.
     """
     monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -336,7 +336,7 @@ def test_core_skills_generated_for_agy_under_antigravity_subpath(
         assert ".gemini/antigravity-cli/skills/" in str(target)
 
     hg_target = _get_target_path("agy", "sase_hg_commit", use_chezmoi=False)
-    assert not hg_target.exists(), "sase_hg_commit must stay Gemini-only"
+    assert not hg_target.exists(), "sase_hg_commit must not be generated for agy"
 
 
 def test_commit_finalizer_skill_is_vcs_resolved_for_agy_runtime(

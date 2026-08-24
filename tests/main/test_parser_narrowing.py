@@ -37,6 +37,11 @@ def test_narrow_parser_rejects_removed_commit_command() -> None:
         create_parser(only="commit")
 
 
+@pytest.mark.skipif(
+    # CPython added construction-time help validation in argparse for 3.14.
+    not hasattr(argparse.ArgumentParser, "_check_help"),
+    reason="argparse validates help strings only on Python 3.14+",
+)
 def test_construction_still_rejects_badly_formed_help() -> None:
     """Shared validation formatters must still catch broken help templates."""
     parser = create_parser(only="version")

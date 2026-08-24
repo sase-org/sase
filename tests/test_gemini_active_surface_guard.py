@@ -14,7 +14,7 @@ migration plan keeps:
 - the OpenCode-routed ``google/gemini-3-flash-preview`` model alias,
 - the ``GEMINI.md`` provider context shim and ``GEMINI_PROJECT_DIR`` env var
   that the Antigravity CLI inherited from the ``.gemini`` namespace,
-- the intentionally Gemini-scoped ``sase_hg_commit`` skill (not migrated to agy).
+- tests that assert the removed ``sase_hg_commit`` skill is not generated for agy.
 
 None of those are matched by the forbidden patterns below, so they pass without
 an explicit allowlist.

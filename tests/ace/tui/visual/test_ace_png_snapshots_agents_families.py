@@ -236,8 +236,8 @@ async def test_parallel_family_root_omits_counts_png_snapshot(
         assert_page_svg_contains(page, "visual-parallel-family")
         svg_plain = page.export_svg(title="ACE visual assertion").replace("&#160;", " ")
         assert "[R2 D1]" not in svg_plain
-        # (unread, stopped, running, waiting, failed, done, total, starting)
-        assert page.app._agent_info_metrics() == (0, 0, 1, 0, 0, 0, 1, 0)
+        # (unread, stopped, running, waiting, failed, done, total, starting, procs)
+        assert page.app._agent_info_metrics() == (0, 0, 1, 0, 0, 0, 1, 0, 0)
         ace_png_visual.assert_page_png(
             page,
             "agents_parallel_family_no_counts_120x40",

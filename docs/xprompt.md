@@ -1247,7 +1247,6 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_final`         | Submit the current turn's SASE finalizer declaration                                          |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
-| `sase_hg_commit`     | Commit through `sase stitch create` for the fig VCS workflow where deployed                   |
 | `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
 | `sase_monitor`       | Run a long command without blocking your turn                                                 |
 | `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |

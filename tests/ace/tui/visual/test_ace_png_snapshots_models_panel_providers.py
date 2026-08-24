@@ -78,6 +78,11 @@ async def test_models_panel_provider_disabled_png_snapshot(
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(models_panel_provider_state, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
+        models_panel,
+        "load_provider_routing_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
+    monkeypatch.setattr(
         models_panel_providers,
         "load_provider_routing_snapshot",
         lambda *_a, **_k: snapshot,

@@ -240,6 +240,11 @@ tests/test_global_state_leak_detector.py::test_snapshot_includes_live_config_tok
 # from the temporary broken export; the dispatch node passes on this tree.
 # fixed-at: 2026-08-23T16:39:34Z tests/main/test_agents_dispatch_handler.py::test_dispatch_wait
 #
+# sase-qr: plugins-pane SASE update confirmation wait_for times out under the
+# full parallel lane and passes serially/focused. Ready flake task has +4
+# independent reports; the 2026-08-24 check-full gate now promotes it.
+tests/ace/tui/test_plugins_browser_pane_sase_update.py::test_updates_pane_sase_update_confirm_executes_and_refreshes
+#
 # sase-si: Models-panel runner-limit footer/chooser node exceeds the baseline
 # under full/cost lanes and passes focused on this tree. Related to the older
 # Models-panel flake tasks sase-n5 and sase-oh, but a distinct node/assertion.

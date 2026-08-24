@@ -23,7 +23,7 @@ Agent edits files
 Provider-neutral commit finalizer
         |
         v
-Commit skill wrapper (/sase_git_commit, /sase_hg_commit, ...)
+Commit skill wrapper (/sase_git_commit, ...)
         |
         v
 sase stitch create -> CommitWorkflow -> VCS provider -> tracked output
@@ -58,14 +58,14 @@ There is one special case before the normal enforced-work follow-up path:
   `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes
   remain, the finalizer starts bounded follow-up passes with the same provider. Each
   pass sends one follow-up prompt that lists dirty files and instructs the agent to use
-  a commit skill such as `/sase_git_commit` or `/sase_hg_commit`. For the main
-  workspace, the skill name is selected from the detected VCS provider;
-  provider-specific generated skills can be scoped to the runtimes that support that
-  provider. For configured linked repos, the current finalizer checks `git status` only
-  in the resolved linked-repo `workspace_dir` assigned to the same workspace number
-  after that linked-repo name appears in `opened_linked_workspaces.json`, and emits Git
-  commit-skill instructions that first `cd` into that linked workspace. Dirty linked
-  repos are enforced after they are opened.
+  a commit skill such as `/sase_git_commit`. For the main workspace, the skill name is
+  selected from the detected VCS provider; provider-specific generated skills can be
+  scoped to the runtimes that support that provider. For configured linked repos, the
+  current finalizer checks `git status` only in the resolved linked-repo `workspace_dir`
+  assigned to the same workspace number after that linked-repo name appears in
+  `opened_linked_workspaces.json`, and emits Git commit-skill instructions that first
+  `cd` into that linked workspace. Dirty linked repos are enforced after they are
+  opened.
 
 Generated skills normally run an observable wrapper such as `sase_git_commit`, which
 records skill invocation evidence and then delegates to `sase stitch create`. A typical

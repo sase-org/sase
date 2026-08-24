@@ -30,9 +30,11 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def _pin_axe_output_top(page: AcePage) -> None:
+async def _pin_axe_output_top(page: AcePage, *, hide_scrollbar: bool = False) -> None:
     page.app._axe_pinned_to_bottom = False
     scroll = page.app.query_one("#axe-output-scroll", VerticalScroll)
+    if hide_scrollbar:
+        scroll.styles.overflow_y = "hidden"
     scroll.scroll_to(y=0, animate=False, immediate=True)
     await wait_for_state(
         page,
@@ -135,7 +137,7 @@ async def test_axe_chop_overrun_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        await _pin_axe_output_top(page)
+        await _pin_axe_output_top(page, hide_scrollbar=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
