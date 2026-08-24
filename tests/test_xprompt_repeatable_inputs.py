@@ -110,8 +110,50 @@ def test_repeatable_agent_rejects_empty_elements_in_both_call_syntaxes() -> None
 
 
 def test_non_repeatable_inputs_still_reject_surplus_positionals() -> None:
-    with pytest.raises(InputBindingError, match="Too many positional"):
+    with pytest.raises(InputBindingError) as exc_info:
         bind_input_args([InputArg(name="one")], ["first", "second"], {})
+
+    message = str(exc_info.value)
+    assert "received 2 positional arguments but declares 1 input" in message
+    assert "surplus positional 2 has no declaration" in message
+
+
+def test_surplus_positional_type_error_names_count_and_landed_input() -> None:
+    inputs = [
+        InputArg(name="prompt", type=InputType.TEXT),
+        InputArg(name="wait", type=InputType.WORD, default=None),
+        InputArg(name="priority", type=InputType.INT, default=None),
+    ]
+    surplus = [
+        "the research prose",
+        "for example).\n  - If the command is used without any keyword",
+        "1",
+        "extra",
+        "overflow",
+        "still",
+        "more",
+        "args",
+        "here",
+        "too",
+    ]
+
+    with pytest.raises(InputBindingError) as exc_info:
+        bind_input_args(inputs, surplus, {})
+
+    message = str(exc_info.value)
+    assert "received 10 positional arguments but declares 3 inputs" in message
+    assert "surplus positional 2 bound to 'wait'" in message
+    assert "expects word (no spaces)" in message
+
+
+def test_type_error_without_overflow_is_not_labeled_surplus() -> None:
+    with pytest.raises(InputBindingError) as exc_info:
+        bind_input_args([InputArg(name="n", type=InputType.INT)], ["nope"], {})
+
+    message = str(exc_info.value)
+    assert "surplus" not in message
+    assert "received" not in message
+    assert "expects int" in message
 
 
 def test_jinja_binding_exposes_repeatable_input_as_ordered_list() -> None:

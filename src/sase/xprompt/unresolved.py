@@ -50,6 +50,9 @@ def scan_query_for_unresolved_references(query: str) -> tuple[str, ...]:
 
     This diagnostic is best-effort by design. The real launch path owns
     expansion errors, so failures here never block or alter a launch.
+    Expansion uses ``raise_on_error=True`` so a failed expand raises
+    ``XPromptError`` instead of printing a fatal message that this
+    function would then swallow.
     """
     if "#" not in query:
         return ()
@@ -64,6 +67,7 @@ def scan_query_for_unresolved_references(query: str) -> tuple[str, ...]:
             expanded = process_xprompt_references(
                 segment,
                 extra_xprompts=local_xprompts,
+                raise_on_error=True,
             )
             for name in find_unresolved_reference_names(
                 expanded,

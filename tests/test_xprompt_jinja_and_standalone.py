@@ -188,8 +188,34 @@ def test_validate_and_convert_args_extra_positional() -> None:
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE)],
     )
-    with pytest.raises(XPromptArgumentError, match="Too many positional arguments"):
+    with pytest.raises(XPromptArgumentError) as exc_info:
         validate_and_convert_args(xp, ["a", "extra"], {})
+    message = str(exc_info.value)
+    assert "XPrompt '#test' argument error:" in message
+    assert "received 2 positional arguments but declares 1 input" in message
+    assert "surplus positional 2 has no declaration" in message
+
+
+def test_validate_and_convert_args_surplus_type_error_names_call() -> None:
+    xp = XPrompt(
+        name="research_swarm",
+        content="{{ prompt }}",
+        inputs=[
+            InputArg(name="prompt", type=InputType.TEXT),
+            InputArg(name="wait", type=InputType.WORD, default=None),
+            InputArg(name="priority", type=InputType.INT, default=None),
+        ],
+    )
+    with pytest.raises(XPromptArgumentError) as exc_info:
+        validate_and_convert_args(
+            xp,
+            ["prose", "for example). leftover", "1", "fourth"],
+            {},
+        )
+    message = str(exc_info.value)
+    assert "XPrompt '#research_swarm' argument error:" in message
+    assert "received 4 positional arguments but declares 3 inputs" in message
+    assert "surplus positional 2 bound to 'wait'" in message
 
 
 def test_validate_and_convert_args_unknown_named() -> None:

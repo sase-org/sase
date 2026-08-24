@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Collection
-from typing import Any
+from typing import Any, NoReturn
 
 from sase.xprompt._disabled_regions import (
     ensure_disabled_region_at_line_start,
@@ -180,6 +180,7 @@ def expand_single_xprompt(
     *,
     preserve_segment_separators: bool = False,
     defer_xprompt_names: Collection[str] = frozenset(),
+    raise_on_error: bool = False,
 ) -> str:
     """Expand a single xprompt with its arguments.
 
@@ -192,12 +193,16 @@ def expand_single_xprompt(
         preserve_segment_separators: When True, return a rendered multi-prompt
             xprompt body intact. Normal prompt-part expansion keeps only the
             first rendered segment.
+        raise_on_error: When True, nested local-helper expansion raises
+            ``XPromptError`` instead of printing and exiting.
 
     Returns:
         The expanded xprompt content.
 
     Raises:
-        _XPromptArgumentError: If arguments don't match placeholders.
+        XPromptArgumentError: If arguments don't match placeholders.
+        XPromptError: If nested local-helper expansion fails and
+            ``raise_on_error`` is True.
     """
     # Validate and convert args if xprompt has typed inputs
     conv_positional, conv_named = validate_and_convert_args(
@@ -216,6 +221,7 @@ def expand_single_xprompt(
         render_scope,
         preserve_segment_separators=preserve_segment_separators,
         defer_xprompt_names=defer_xprompt_names,
+        raise_on_error=raise_on_error,
     )
     if preserve_segment_separators:
         return rendered
@@ -335,6 +341,7 @@ def _expand_local_xprompt_references(
     *,
     preserve_segment_separators: bool,
     defer_xprompt_names: Collection[str],
+    raise_on_error: bool = False,
 ) -> str:
     """Expand helpers scoped to *xprompt* without consulting the global catalog."""
     if not xprompt.local_xprompts or "#" not in rendered:
@@ -348,6 +355,7 @@ def _expand_local_xprompt_references(
         aliases_resolved=True,
         preserve_segment_separators=preserve_segment_separators,
         defer_xprompt_names=defer_xprompt_names,
+        raise_on_error=raise_on_error,
     )
 
 
@@ -358,6 +366,7 @@ def process_xprompt_references(
     *,
     trace: ExpansionTrace | None = None,
     defer_xprompt_names: Collection[str] = frozenset(),
+    raise_on_error: bool = False,
 ) -> str:
     """Process xprompt references in the prompt.
 
@@ -388,12 +397,18 @@ def process_xprompt_references(
             iteration, source, arguments, and result.
         defer_xprompt_names: Xprompt names to leave verbatim while expanding all
             other references, including references introduced recursively.
+        raise_on_error: When True, raise ``XPromptError`` instead of printing
+            the failure and exiting. The default print-and-exit path is
+            unchanged so existing callers keep their current behavior.
 
     Returns:
         The transformed prompt with xprompts expanded
 
     Raises:
-        SystemExit: If any xprompt processing error occurs
+        SystemExit: If any xprompt processing error occurs and
+            ``raise_on_error`` is False
+        XPromptError: If any xprompt processing error occurs and
+            ``raise_on_error`` is True
     """
     if "#" not in prompt:
         return prompt
@@ -421,6 +436,7 @@ def process_xprompt_references(
         trace=trace,
         aliases_resolved=True,
         defer_xprompt_names=defer_xprompt_names,
+        raise_on_error=raise_on_error,
     )
 
 
@@ -434,6 +450,7 @@ def process_xprompt_references_with_catalog(
     aliases_resolved: bool = False,
     preserve_segment_separators: bool = False,
     defer_xprompt_names: Collection[str] = frozenset(),
+    raise_on_error: bool = False,
 ) -> str:
     """Process xprompt references using an already-loaded xprompt catalog."""
     if "#" not in prompt:
@@ -579,6 +596,7 @@ def process_xprompt_references_with_catalog(
                     scope=scope,
                     preserve_segment_separators=preserve_segment_separators,
                     defer_xprompt_names=defer_xprompt_names,
+                    raise_on_error=raise_on_error,
                 )
 
                 if trace is not None:
@@ -616,8 +634,7 @@ def process_xprompt_references_with_catalog(
 
                 prompt = prompt[: match.start()] + expanded + prompt[match_end:]
         except XPromptError as e:
-            print_status(str(e), "error")
-            sys.exit(1)
+            _abort_expansion(e, raise_on_error=raise_on_error)
 
         # Protect any new owned fences, then ordinary fences, from expansion.
         prompt = protect_owned_code_directives(prompt, owned_blocks)
@@ -636,8 +653,7 @@ def process_xprompt_references_with_catalog(
                 f"Maximum xprompt expansion depth ({_MAX_EXPANSION_ITERATIONS}) "
                 "exceeded. Check for circular references."
             )
-        print_status(msg, "error")
-        sys.exit(1)
+        _abort_expansion(XPromptError(msg), raise_on_error=raise_on_error)
 
     # Restore disabled regions (markers preserved for downstream stages)
     prompt = unprotect_disabled_regions(prompt, disabled_regions)
@@ -647,6 +663,14 @@ def process_xprompt_references_with_catalog(
     prompt = unprotect_owned_code_directives(prompt, owned_blocks)
 
     return prompt
+
+
+def _abort_expansion(error: XPromptError, *, raise_on_error: bool) -> NoReturn:
+    """Raise *error* or print it and exit, depending on the caller opt-in."""
+    if raise_on_error:
+        raise error
+    print_status(str(error), "error")
+    sys.exit(1)
 
 
 __all__ = [

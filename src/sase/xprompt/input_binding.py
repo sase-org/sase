@@ -70,7 +70,12 @@ def bind_input_args(
         input_arg = input_for_position(inputs, position)
         if input_arg is None:
             raise InputBindingError(
-                f"Too many positional arguments: input {position + 1} has no declaration"
+                _surplus_positional_message(
+                    inputs,
+                    positional_args,
+                    position,
+                    landed_on=None,
+                )
             )
         if raw_value == "null":
             if input_arg.repeatable and len(positional_args) > position + 1:
@@ -79,7 +84,18 @@ def bind_input_args(
                 )
             converted_positional.append(raw_value)
             continue
-        converted = _convert_value(input_arg, raw_value)
+        try:
+            converted = _convert_value(input_arg, raw_value)
+        except InputBindingError as exc:
+            surplus = _surplus_positional_prefix(
+                inputs,
+                positional_args,
+                position,
+                landed_on=input_arg.name,
+            )
+            if surplus is not None:
+                raise InputBindingError(f"{surplus}: {exc}") from exc
+            raise
         converted_positional.append(converted)
         if input_arg.repeatable:
             repeated_values.setdefault(input_arg.name, []).append(converted)
@@ -114,6 +130,53 @@ def bind_input_args(
         values=values,
         explicit_values=explicit,
     )
+
+
+def _counted(n: int, singular: str) -> str:
+    if n == 1:
+        return f"1 {singular}"
+    return f"{n} {singular}s"
+
+
+def _surplus_positional_prefix(
+    inputs: list[InputArg],
+    positional_args: list[Any],
+    position: int,
+    *,
+    landed_on: str | None,
+) -> str | None:
+    """Describe an overflowing positional, or None when the failure is not surplus."""
+    if any(input_arg.repeatable for input_arg in inputs):
+        return None
+    declared = len(inputs)
+    received = len(positional_args)
+    if landed_on is not None and (received <= declared or position == 0):
+        return None
+    prefix = (
+        f"received {_counted(received, 'positional argument')} but declares "
+        f"{_counted(declared, 'input')}; surplus positional {position + 1}"
+    )
+    if landed_on is None:
+        return f"{prefix} has no declaration"
+    return f"{prefix} bound to '{landed_on}'"
+
+
+def _surplus_positional_message(
+    inputs: list[InputArg],
+    positional_args: list[Any],
+    position: int,
+    *,
+    landed_on: str | None,
+) -> str:
+    surplus = _surplus_positional_prefix(
+        inputs,
+        positional_args,
+        position,
+        landed_on=landed_on,
+    )
+    if surplus is not None:
+        return surplus
+    return f"Too many positional arguments: input {position + 1} has no declaration"
 
 
 def _convert_value(input_arg: InputArg, raw_value: Any) -> Any:

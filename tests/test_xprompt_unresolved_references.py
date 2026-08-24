@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.xprompt.models import XPrompt
+from sase.xprompt._exceptions import XPromptError
+from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.processor import process_xprompt_references
 from sase.xprompt.unresolved import (
     find_unresolved_reference_names,
     scan_query_for_unresolved_references,
@@ -127,3 +129,77 @@ def test_scan_query_is_exception_safe(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sase.agent.multi_prompt.parse_multi_prompt", fail)
 
     assert scan_query_for_unresolved_references("#missing") == ()
+
+
+def _typed_failing_xprompt() -> XPrompt:
+    return XPrompt(
+        name="typed",
+        content="{{ prompt }}",
+        inputs=[
+            InputArg(name="prompt", type=InputType.TEXT),
+            InputArg(name="wait", type=InputType.WORD, default=None),
+            InputArg(name="priority", type=InputType.INT, default=None),
+        ],
+    )
+
+
+def test_scan_query_emits_nothing_when_expansion_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failing = _typed_failing_xprompt()
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_all_prompts",
+        lambda: {"typed": failing},
+    )
+    monkeypatch.setattr(
+        "sase.xprompt.processor.get_all_xprompts",
+        lambda *args, **kwargs: {"typed": failing},
+    )
+    query = "#typed(hello, has spaces, 1, extra)"
+
+    with patch("sase.xprompt.processor.print_status") as print_status:
+        assert scan_query_for_unresolved_references(query) == ()
+
+    print_status.assert_not_called()
+
+
+def test_process_xprompt_references_raise_on_error_skips_print_and_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failing = _typed_failing_xprompt()
+    monkeypatch.setattr(
+        "sase.xprompt.processor.get_all_xprompts",
+        lambda *args, **kwargs: {"typed": failing},
+    )
+
+    with patch("sase.xprompt.processor.print_status") as print_status:
+        with pytest.raises(XPromptError) as exc_info:
+            process_xprompt_references(
+                "#typed(hello, has spaces, 1, extra)",
+                raise_on_error=True,
+            )
+
+    print_status.assert_not_called()
+    message = str(exc_info.value)
+    assert "XPrompt '#typed' argument error:" in message
+    assert "received 4 positional arguments but declares 3 inputs" in message
+    assert "surplus positional 2 bound to 'wait'" in message
+
+
+def test_process_xprompt_references_default_still_prints_and_exits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failing = _typed_failing_xprompt()
+    monkeypatch.setattr(
+        "sase.xprompt.processor.get_all_xprompts",
+        lambda *args, **kwargs: {"typed": failing},
+    )
+
+    with patch("sase.xprompt.processor.print_status") as print_status:
+        with pytest.raises(SystemExit):
+            process_xprompt_references("#typed(hello, has spaces, 1, extra)")
+
+    print_status.assert_called_once()
+    printed = print_status.call_args.args[0]
+    assert "XPrompt '#typed' argument error:" in printed
+    assert "surplus positional 2 bound to 'wait'" in printed
