@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
 
@@ -35,6 +36,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.provider_drain: FeatureFlagDefinition(
+        key=FeatureFlag.provider_drain,
+        kind="beta",
+        description=(
+            "Hard-disabling an LLM provider drains it: a usage-limit disable "
+            "submits a durable 'sase agent drain' proc that relaunches the "
+            "agents that provider stranded and sends one enriched usage-limit "
+            "notification naming what moved and what did not, and a manual "
+            "disable in Launch Control offers the same relaunch."
+        ),
+        bead="sase-sx",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

@@ -1977,6 +1977,10 @@ Provider plugins supply conservative built-in patterns through
   small grace buffer of 60 seconds. See [Reset-hint forms](#reset-hint-forms) for what
   it parses.
 - `notify` controls the notification created for a new automatic disable window.
+- `relaunch` and `relaunch_limit`, behind the `provider_drain` beta flag, control
+  whether a hard disable submits a durable drain that relaunches the agents it stranded
+  and how many it moves at most. See
+  [Draining a Disabled Provider](#draining-a-disabled-provider).
 - `providers.<provider>.patterns` adds positive provider-specific substrings.
 - `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses
   such as "approaching your usage limit".

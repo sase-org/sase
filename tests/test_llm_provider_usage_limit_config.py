@@ -48,6 +48,8 @@ class TestUsageLimitSettings:
         assert settings.max_disable_seconds == 604800
         assert settings.honor_reset_hint is True
         assert settings.notify is True
+        assert settings.relaunch is True
+        assert settings.relaunch_limit == 20
 
 
 # --- get_usage_limit_config tests ---
@@ -307,6 +309,8 @@ class TestGetUsageLimitSettings:
                     "max_disable_seconds": 7200,
                     "honor_reset_hint": False,
                     "notify": False,
+                    "relaunch": False,
+                    "relaunch_limit": 5,
                 }
             }
         }
@@ -317,6 +321,8 @@ class TestGetUsageLimitSettings:
         assert settings.max_disable_seconds == 7200
         assert settings.honor_reset_hint is False
         assert settings.notify is False
+        assert settings.relaunch is False
+        assert settings.relaunch_limit == 5
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_returns_defaults_on_exception(self, mock_config: object) -> None:

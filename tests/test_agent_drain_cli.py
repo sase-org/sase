@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -346,3 +347,73 @@ def test_move_failure_exits_1_and_reports_result(
     assert payload["counts"]["failed"] == 1
     assert payload["results"][0]["status"] == "kill_failed"
     assert payload["error"]["reason"] == "move_failed"
+
+
+def test_report_fn_receives_final_result_on_success(tmp_path: Path) -> None:
+    plan = _plan([_move(tmp_path)])
+    seen: list[Any] = []
+
+    rc = run_agents_drain(
+        _args(yes=True),
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=lambda *_a, **_k: _ok_outcome(plan),
+        report_fn=seen.append,
+    ).exit_code
+
+    assert rc == 0
+    assert len(seen) == 1
+    assert seen[0] is not None
+    assert seen[0].success is True
+
+
+def test_report_fn_receives_result_on_planning_error() -> None:
+    error = ProviderDrainError(
+        reason="not_disabled", message="nope", hint="Disable it first."
+    )
+    seen: list[Any] = []
+
+    def raise_error(*_a: object, **_k: object) -> ProviderDrainPlan:
+        raise error
+
+    rc = run_agents_drain(
+        _args(json_mode=True),
+        plan_fn=raise_error,
+        report_fn=seen.append,
+    ).exit_code
+
+    assert rc == 2
+    assert len(seen) == 1
+    assert seen[0] is not None
+    assert seen[0].success is False
+
+
+def test_report_fn_receives_none_when_execution_raises_unexpectedly(
+    tmp_path: Path,
+) -> None:
+    plan = _plan([_move(tmp_path)])
+    seen: list[Any] = []
+
+    def boom(*_a: object, **_k: object) -> ProviderDrainOutcome:
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        run_agents_drain(
+            _args(yes=True),
+            plan_fn=lambda *_a, **_k: plan,
+            execute_fn=boom,
+            report_fn=seen.append,
+        )
+
+    assert seen == [None]
+
+
+def test_no_report_fn_is_a_no_op(tmp_path: Path) -> None:
+    plan = _plan([_move(tmp_path)])
+
+    rc = run_agents_drain(
+        _args(yes=True),
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=lambda *_a, **_k: _ok_outcome(plan),
+    ).exit_code
+
+    assert rc == 0

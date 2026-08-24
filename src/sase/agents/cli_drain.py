@@ -32,6 +32,7 @@ PlanFn = Callable[..., ProviderDrainPlan]
 ExecuteFn = Callable[..., ProviderDrainOutcome]
 ConfirmFn = Callable[[ProviderDrainPlan, Console], bool]
 IsTtyFn = Callable[[], bool]
+ReportFn = Callable[["_AgentDrainCommandResult | None"], None]
 
 _LIVE_CONFIRM_STATUSES = frozenset({"STARTING", "RUNNING", "WAITING"})
 
@@ -47,6 +48,42 @@ class _AgentDrainCommandResult:
 
 
 def run_agents_drain(
+    args: argparse.Namespace,
+    *,
+    console: Console | None = None,
+    err_console: Console | None = None,
+    plan_fn: PlanFn = plan_provider_drain,
+    execute_fn: ExecuteFn = execute_provider_drain,
+    confirm_fn: ConfirmFn | None = None,
+    is_tty_fn: IsTtyFn | None = None,
+    report_fn: ReportFn | None = None,
+) -> _AgentDrainCommandResult:
+    """Plan, optionally confirm, execute, render, and summarize a provider drain.
+
+    *report_fn*, when given, always runs from a ``finally`` block with the
+    final result (``None`` only if planning or execution raised something
+    other than :class:`ProviderDrainError`) -- this is the seam an automatic
+    usage-limit drain uses to send its one enriched notification even when
+    the drain itself fails partway through.
+    """
+    result: _AgentDrainCommandResult | None = None
+    try:
+        result = _run_agents_drain(
+            args,
+            console=console,
+            err_console=err_console,
+            plan_fn=plan_fn,
+            execute_fn=execute_fn,
+            confirm_fn=confirm_fn,
+            is_tty_fn=is_tty_fn,
+        )
+        return result
+    finally:
+        if report_fn is not None:
+            report_fn(result)
+
+
+def _run_agents_drain(
     args: argparse.Namespace,
     *,
     console: Console | None = None,

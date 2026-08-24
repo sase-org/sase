@@ -25,6 +25,8 @@ class UsageLimitSettings:
     max_disable_seconds: int = 604800  # 7d cap on any parsed reset time
     honor_reset_hint: bool = True
     notify: bool = True
+    relaunch: bool = True
+    relaunch_limit: int = 20
 
 
 @dataclass(frozen=True)

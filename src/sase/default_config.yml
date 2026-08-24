@@ -1159,6 +1159,11 @@ llm_provider:
   #   honor_reset_hint: true     # parse reset hints (e.g. "resets Aug 22, 8pm
   #                              # (America/New_York)", clock time, or duration)
   #   notify: true               # notify once for each new disable window
+  #   relaunch: true              # (beta: provider_drain) submit a drain proc
+  #                              # that relaunches the agents a hard disable
+  #                              # stranded and folds the report into the
+  #                              # notify: true notification
+  #   relaunch_limit: 20          # most agents an automatic drain relaunches
   #   providers:
   #     claude:
   #       # User patterns are additive with provider defaults by default.

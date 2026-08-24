@@ -2857,6 +2857,16 @@
               "description": "Send a notification when a provider is automatically disabled.",
               "default": true
             },
+            "relaunch": {
+              "type": "boolean",
+              "description": "Behind the provider_drain beta flag: submit a durable 'sase agent drain' proc when a usage-limit disable hard-disables a provider, relaunching the agents it stranded and folding the drain report into the notify notification. Ignored while the flag is off.",
+              "default": true
+            },
+            "relaunch_limit": {
+              "type": "integer",
+              "description": "Most agents an automatic usage-limit drain relaunches (the drain's --limit).",
+              "default": 20
+            },
             "providers": {
               "type": "object",
               "description": "Per-provider usage-limit overrides. Keys are provider names (e.g., 'agy', 'claude', 'codex').",
@@ -3710,6 +3720,11 @@
           "description": "The Config catalog exposes the Flags pane for persistent feature-flag control.",
           "default": true,
           "deprecated": true
+        },
+        "provider_drain": {
+          "type": "boolean",
+          "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",
+          "default": false
         },
         "ref_sync_gesture": {
           "type": "boolean",

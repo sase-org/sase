@@ -184,6 +184,8 @@ def get_usage_limit_settings() -> UsageLimitSettings:
             section.get("honor_reset_hint", defaults.honor_reset_hint)
         ),
         notify=bool(section.get("notify", defaults.notify)),
+        relaunch=bool(section.get("relaunch", defaults.relaunch)),
+        relaunch_limit=int(section.get("relaunch_limit", defaults.relaunch_limit)),
     )
 
 

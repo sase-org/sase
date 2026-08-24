@@ -1,5 +1,6 @@
 """Convenience functions that construct and store notifications."""
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -321,6 +322,7 @@ def notify_provider_usage_limit_disabled(
     *,
     agent_name: str | None = None,
     model: str | None = None,
+    drain_notes: Sequence[str] | None = None,
 ) -> str:
     """Send a notification when a provider is auto-disabled for a usage limit.
 
@@ -328,6 +330,13 @@ def notify_provider_usage_limit_disabled(
     actually writing a new :class:`TemporaryProviderDisable`, never when an
     already-active disable was left untouched, so this is naturally
     deduplicated per window without any bookkeeping here.
+
+    *drain_notes*, when given, are one or two pre-rendered lines describing
+    what a provider drain relaunched and left alone (see
+    ``sase.agents._drain_render.usage_limit_drain_report_notes``). Passing
+    them makes this the single enriched notification for a disable window
+    that also drained; the caller that submitted the drain sends none of
+    its own.
     """
     from sase.llm_provider.registry import get_llm_metadata_payload
     from sase.llm_provider.retry_config import truncate_error_snippet
@@ -361,6 +370,9 @@ def notify_provider_usage_limit_disabled(
         notes.append(f"Triggered by agent {agent_name}.")
     elif model:
         notes.append(f"Triggered on model {model}.")
+
+    if drain_notes:
+        notes.extend(drain_notes)
 
     notes.append(f'Provider said: "{truncate_error_snippet(detection.raw_message)}"')
     notes.append("Launches now route to the next enabled provider in each alias.")

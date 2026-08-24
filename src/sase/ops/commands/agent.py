@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from functools import partial
 from typing import Any, Literal
 
 from sase.ops.cli import add_operation_io_flags, load_request
@@ -88,8 +89,19 @@ def handle_agent_operation(args: argparse.Namespace) -> int:
 
 def _run_drain(args: argparse.Namespace) -> OperationCommandResult:
     from sase.agents.cli_drain import run_agents_drain
+    from sase.ops.commands._agent_drain_notify import (
+        send_usage_limit_drain_notification,
+        settle_drain_trigger_agent,
+    )
 
-    result = run_agents_drain(args)
+    request = load_request(AGENT_DRAIN, args)
+    trigger = dict(request.payload) if request.payload.get("notify") else None
+    report_fn: Callable[[Any], None] | None = None
+    if trigger is not None:
+        settle_drain_trigger_agent(trigger.get("trigger_agent"))
+        report_fn = partial(send_usage_limit_drain_notification, trigger)
+
+    result = run_agents_drain(args, report_fn=report_fn)
     return OperationCommandResult(
         success=result.success,
         message=result.message,

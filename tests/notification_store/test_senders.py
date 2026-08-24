@@ -267,6 +267,42 @@ class TestNotifyProviderUsageLimitDisabled:
         loaded = load_notifications()
         assert loaded[0].id == notification_id
 
+    def test_drain_notes_appear_after_triggered_and_before_provider_said(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            _usage_limit_detection(),
+            agent_name="sase-mf",
+            model="opus@high",
+            drain_notes=[
+                "Relaunched 1 agent(s) on CODEX: sase-mf",
+                "Left alone: 1 pinned to claude/opus (nine)",
+            ],
+        )
+
+        n = load_notifications()[0]
+        triggered_index = n.notes.index("Triggered by agent sase-mf on opus@high.")
+        provider_said_index = next(
+            i for i, note in enumerate(n.notes) if note.startswith("Provider said:")
+        )
+        assert n.notes[triggered_index + 1] == "Relaunched 1 agent(s) on CODEX: sase-mf"
+        assert (
+            n.notes[triggered_index + 2] == "Left alone: 1 pinned to claude/opus (nine)"
+        )
+        assert triggered_index + 2 < provider_said_index
+
+    def test_no_drain_notes_omits_nothing_extra(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(_usage_limit_detection())
+
+        n = load_notifications()[0]
+        assert not any("Relaunched" in note or "Left alone" in note for note in n.notes)
+
 
 class TestNotifyMemoryProposed:
     def test_emits_memory_review_action_data(

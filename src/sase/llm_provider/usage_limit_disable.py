@@ -17,11 +17,13 @@ import time
 from sase.telemetry.metrics import LLM_PROVIDER_AUTO_DISABLES
 
 from .provider_disable import (
+    ProviderDisableWriteOutcome,
     try_disable_provider,
     try_disable_provider_until,
 )
 from .usage_limit_config import (
     UsageLimitDetection,
+    UsageLimitSettings,
     detect_usage_limit,
     get_usage_limit_settings,
 )
@@ -29,6 +31,11 @@ from .usage_limit_config import (
 logger = logging.getLogger(__name__)
 
 USAGE_LIMIT_DISABLE_SOURCE = "usage_limit"
+
+# Generous: draining sequentially relaunches up to relaunch_limit agents
+# through the same restart machinery a human `sase agent restart` uses,
+# each involving a kill and a fresh launch.
+_DRAIN_PROC_TIMEOUT_SECONDS = 1800
 
 
 def handle_possible_usage_limit(
@@ -115,12 +122,46 @@ def _handle_possible_usage_limit(
         artifacts_dir,
     )
 
-    if get_usage_limit_settings().notify:
-        _notify_usage_limit_disabled(
-            detection, model=model, artifacts_dir=artifacts_dir
+    settings = get_usage_limit_settings()
+    if settings.notify:
+        _dispatch_disable_followup(
+            detection, settings, outcome, model=model, artifacts_dir=artifacts_dir
         )
 
     return detection
+
+
+def _dispatch_disable_followup(
+    detection: UsageLimitDetection,
+    settings: UsageLimitSettings,
+    outcome: ProviderDisableWriteOutcome,
+    *,
+    model: str | None,
+    artifacts_dir: str | None,
+) -> None:
+    """Own the one notification for this disable: inline, or via a drain.
+
+    A drain is only attempted when the flag is on, ``relaunch`` is enabled,
+    and the record this call just won is a hard disable -- a soft disable
+    spares the provider in pools but still allows launches, so nothing is
+    stranded. When a drain is submitted it owns the (enriched) notification;
+    this process sends none. A submission failure falls back to today's
+    inline notification so the user is never left silent.
+    """
+    if not (settings.relaunch and outcome.record.is_hard and _provider_drain_enabled()):
+        _notify_usage_limit_disabled(
+            detection, model=model, artifacts_dir=artifacts_dir
+        )
+        return
+    if _submit_drain(detection, settings, model=model, artifacts_dir=artifacts_dir):
+        return
+    _notify_usage_limit_disabled(detection, model=model, artifacts_dir=artifacts_dir)
+
+
+def _provider_drain_enabled() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.provider_drain)
 
 
 def _notify_usage_limit_disabled(
@@ -145,6 +186,68 @@ def _notify_usage_limit_disabled(
             detection.provider,
             exc_info=True,
         )
+
+
+def _submit_drain(
+    detection: UsageLimitDetection,
+    settings: UsageLimitSettings,
+    *,
+    model: str | None,
+    artifacts_dir: str | None,
+) -> bool:
+    """Submit a durable drain proc that owns the enriched notification.
+
+    Returns True once submission succeeds (the drain proc now owns
+    notifying), False when submission itself raised.
+    """
+    try:
+        from sase.ops.names import AGENT_DRAIN
+        from sase.procs import ProcSubmitRequest, submit_proc_request
+
+        provider = detection.provider
+        argv = [
+            "sase",
+            "agent",
+            "drain",
+            provider,
+            "--yes",
+            "--json",
+            "--limit",
+            str(settings.relaunch_limit),
+        ]
+        payload = {
+            "notify": True,
+            "provider": provider,
+            "matched_pattern": detection.matched_pattern,
+            "raw_message": detection.raw_message,
+            "disable_seconds": detection.disable_seconds,
+            "expires_at": detection.expires_at,
+            "used_reset_hint": detection.used_reset_hint,
+            "trigger_agent": _agent_name_from_artifacts_dir(artifacts_dir),
+            "trigger_model": model,
+        }
+        submit_proc_request(
+            ProcSubmitRequest(
+                argv=argv,
+                label=f"Drain {provider.upper()} (usage limit)",
+                cwd=str(Path.home()),
+                origin=USAGE_LIMIT_DISABLE_SOURCE,
+                operation=AGENT_DRAIN,
+                operation_payload=payload,
+                tags=["llm", "usage-limit", provider],
+                concurrency_keys=[f"provider-drain:{provider}"],
+                timeout_seconds=_DRAIN_PROC_TIMEOUT_SECONDS,
+            )
+        )
+        return True
+    except Exception:
+        logger.warning(
+            "provider-drain submission failed for %r; falling back to the "
+            "inline usage-limit notification",
+            detection.provider,
+            exc_info=True,
+        )
+        return False
 
 
 def _agent_name_from_artifacts_dir(artifacts_dir: str | None) -> str | None:

@@ -276,10 +276,93 @@ def _result_status_text(result: AgentRestartOutcome) -> Text:
 
 
 def _agent_list(rows: list[ProviderDrainSkip]) -> str:
-    names = [row.presented_name for row in rows]
-    if len(names) <= 5:
+    return _truncated_names([row.presented_name for row in rows])
+
+
+_SKIP_REASON_LABELS = {
+    "monitor": "supervising a command",
+    "pending_question": "waiting on a question",
+    "caller": "the triggering agent itself",
+    "capped": "dropped by --limit",
+}
+
+
+def usage_limit_drain_report_notes(payload: dict[str, Any] | None) -> list[str]:
+    """Render the drain-outcome lines for the usage-limit disable notification.
+
+    Works off the same stable JSON envelope ``envelope_from_plan``/
+    ``envelope_from_error`` produce, so it reads the exact result a drain
+    proc's ``sase agent drain --json`` run reported -- never a second,
+    independently-computed summary.
+    """
+    if not payload:
+        return ["Drain did not finish; see the drain proc log for details."]
+    moves = payload.get("moves") or []
+    skips = payload.get("skips") or []
+    if not moves and not skips:
+        return ["Drain found no agents on this provider to relaunch or leave alone."]
+    lines: list[str] = []
+    if moves:
+        lines.append(_relaunched_line(moves, payload.get("results") or []))
+    if skips:
+        lines.append(_left_alone_line(skips))
+    return lines
+
+
+def _relaunched_line(moves: list[dict[str, Any]], results: list[dict[str, Any]]) -> str:
+    moves_by_name = {move["name"]: move for move in moves}
+    ok_names = [result["name"] for result in results if result.get("status") == "ok"]
+    if not ok_names:
+        return f"Relaunch attempted for {len(moves)} agent(s); none completed."
+    providers: list[str] = []
+    names: list[str] = []
+    for name in ok_names:
+        move = moves_by_name.get(name)
+        if move is None:
+            continue
+        target = str((move.get("route") or {}).get("target_provider") or "?").upper()
+        if target not in providers:
+            providers.append(target)
+        names.append(str(move.get("presented_name") or name))
+    return (
+        f"Relaunched {len(ok_names)} agent(s) on {_join_and(providers)}: "
+        f"{_truncated_names(names)}"
+    )
+
+
+def _left_alone_line(skips: list[dict[str, Any]]) -> str:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for skip in skips:
+        grouped[str(skip.get("reason") or "")].append(skip)
+    parts = [
+        f"{len(rows)} {_skip_reason_label(reason, rows[0])} "
+        f"({_truncated_names([str(row.get('presented_name') or row.get('name')) for row in rows])})"
+        for reason, rows in sorted(grouped.items())
+    ]
+    return "Left alone: " + ", ".join(parts)
+
+
+def _skip_reason_label(reason: str, row: dict[str, Any]) -> str:
+    if reason == "stranded":
+        detail = str(row.get("detail") or "")
+        return detail.split(";", 1)[0].strip() or "stranded"
+    return _SKIP_REASON_LABELS.get(reason, reason.replace("_", " "))
+
+
+def _join_and(items: list[str]) -> str:
+    if not items:
+        return "another provider"
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _truncated_names(names: list[str], *, limit: int = 5) -> str:
+    if len(names) <= limit:
         return ", ".join(names)
-    return ", ".join(names[:5]) + f", +{len(names) - 5} more"
+    return ", ".join(names[:limit]) + f", +{len(names) - limit} more"
 
 
 def _disable_json(plan: ProviderDrainPlan) -> dict[str, Any]:
