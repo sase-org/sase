@@ -16,6 +16,7 @@ from sase.core.glossary_facade import (
     scan_glossary_spans,
 )
 from sase.glossary.resolution import resolve_glossary_closure
+from sase.memory.web.catalog import glossary_source_from_wire
 from sase.xprompt.highlight_theme import derive_argument_color
 
 _COLOR_MUTED = "dim"
@@ -234,10 +235,9 @@ def glossary_source_display(catalog: Any, entry: GlossaryEntry) -> str | None:
 
 def glossary_source_path(catalog: Any, entry: GlossaryEntry) -> str | None:
     """Return the source path for a glossary entry, if resolvable."""
-    source = entry.source if isinstance(entry.source, dict) else None
-    path = source.get("config_path") if source is not None else None
-    if isinstance(path, str) and path:
-        return path
+    source = glossary_source_from_wire(entry.source)
+    if source is not None and source.source_path is not None:
+        return source.source_path
     config_path = getattr(catalog, "config_path", None)
     return str(config_path) if config_path is not None else None
 
@@ -246,11 +246,10 @@ def glossary_definition_position(
     entry: GlossaryEntry,
 ) -> tuple[int | None, int | None]:
     """Return one-based definition line/column metadata for editor handoffs."""
-    source = entry.source if isinstance(entry.source, dict) else None
-    definition_range = source.get("definition_range") if source is not None else None
-    if not isinstance(definition_range, dict):
+    source = glossary_source_from_wire(entry.source)
+    if source is None or source.body_range is None:
         return None, None
-    start = definition_range.get("start")
+    start = source.body_range.get("start")
     if not isinstance(start, dict):
         return None, None
     line = start.get("line")

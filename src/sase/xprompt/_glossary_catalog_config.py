@@ -155,14 +155,14 @@ def _glossary_source(
     *,
     config_key_path: tuple[str, ...],
 ) -> GlossarySource:
-    term_range = key_range(glossary_node, term)
-    definition_range = value_range(entry_node, "definition", lines)
+    keyword_range = key_range(glossary_node, term)
+    body_range = value_range(entry_node, "definition", lines)
     aliases_range = value_range(entry_node, "aliases", lines)
     return GlossarySource(
-        config_path=str(config_path),
-        config_key_path=(*config_key_path, term),
-        term_range=term_range,
-        definition_range=definition_range,
+        source_path=str(config_path),
+        key_path=(*config_key_path, term),
+        keyword_range=keyword_range,
+        body_range=body_range,
         aliases_range=aliases_range,
     )
 

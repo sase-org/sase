@@ -41,14 +41,19 @@ def test_glossary_facade_normalizes_catalog_entries(monkeypatch) -> None:
                 definition="A clan.",
                 aliases=("agent clans",),
                 source=glossary.GlossarySource(
-                    config_path="/repo/sase/sase.yml",
-                    config_key_path=("memory", "glossary", "Agent Clan"),
+                    source_path="/repo/sase/sase.yml",
+                    key_path=("memory", "glossary", "Agent Clan"),
                 ),
             )
         ]
     )
 
-    assert seen["entries"][0]["source"]["config_path"] == "/repo/sase/sase.yml"
+    assert seen["entries"][0]["source"]["source_path"] == "/repo/sase/sase.yml"
+    assert seen["entries"][0]["source"]["key_path"] == [
+        "memory",
+        "glossary",
+        "Agent Clan",
+    ]
     assert catalog.entries[0].display_aliases == ()
     assert catalog.entries[0].effective_aliases == ("Agent Clan", "agent clans")
 

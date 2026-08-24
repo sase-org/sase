@@ -42,7 +42,7 @@ def resolve_strand_closure(
             term=strand.keyword,
             definition=strand.body,
             aliases=strand.aliases,
-            source={"slug": strand.slug, "path": str(strand.path)},
+            source={"slug": strand.slug, "source_path": str(strand.path)},
         )
         for strand in universe
     ]

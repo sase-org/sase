@@ -1,9 +1,10 @@
 """Rust-backed glossary catalog facade.
 
 The Rust core owns glossary validation, effective aliases, and phrase
-matching. Python callers own file discovery, source-preserving YAML parsing,
-and editor presentation; this module only converts small Python records to and
-from the ``sase_core_rs`` wire dictionaries.
+matching. Python callers own config and strand file discovery,
+source-preserving YAML parsing, and editor presentation; this module only
+converts small Python records to and from the ``sase_core_rs`` wire
+dictionaries.
 """
 
 from __future__ import annotations
@@ -19,22 +20,22 @@ from sase.core.rust import require_rust_binding
 class GlossarySource:
     """Optional source metadata attached to one glossary entry."""
 
-    config_path: str | None = None
-    config_key_path: tuple[str, ...] = ()
-    term_range: dict[str, Any] | None = None
-    definition_range: dict[str, Any] | None = None
+    source_path: str | None = None
+    key_path: tuple[str, ...] = ()
+    keyword_range: dict[str, Any] | None = None
+    body_range: dict[str, Any] | None = None
     aliases_range: dict[str, Any] | None = None
 
     def to_wire(self) -> dict[str, Any]:
         wire: dict[str, Any] = {
-            "config_key_path": list(self.config_key_path),
+            "key_path": list(self.key_path),
         }
-        if self.config_path is not None:
-            wire["config_path"] = self.config_path
-        if self.term_range is not None:
-            wire["term_range"] = self.term_range
-        if self.definition_range is not None:
-            wire["definition_range"] = self.definition_range
+        if self.source_path is not None:
+            wire["source_path"] = self.source_path
+        if self.keyword_range is not None:
+            wire["keyword_range"] = self.keyword_range
+        if self.body_range is not None:
+            wire["body_range"] = self.body_range
         if self.aliases_range is not None:
             wire["aliases_range"] = self.aliases_range
         return wire

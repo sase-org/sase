@@ -115,7 +115,7 @@ def _glossary_validation_blockers(web: MemoryWeb) -> tuple[str, ...]:
             term=strand.keyword,
             definition=strand.body,
             aliases=strand.aliases,
-            source={"config_path": str(strand.path)},
+            source={"source_path": str(strand.path)},
         )
         for strand in web.strands
     ]

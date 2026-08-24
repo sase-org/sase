@@ -15,6 +15,7 @@ from sase.ace.tui.modals.glossary_preview_render import (
     build_property_grid,
     build_relation_chip_rows,
     glossary_definition_markdown,
+    glossary_definition_position,
     glossary_cross_references,
     glossary_source_display,
 )
@@ -77,6 +78,39 @@ def test_property_grid_omits_source_when_no_path_resolves() -> None:
     assert "Project" in text
     assert "Matches" in text
     assert "Source" not in text
+
+
+def test_source_helpers_accept_v1_and_v2_source_payloads() -> None:
+    catalog = SimpleNamespace(config_path=None)
+    v1_entry = _entry(
+        0,
+        "Agent Clan",
+        source={
+            "config_path": "/repo/sase/sase.yml",
+            "definition_range": {
+                "start": {"line": 4, "character": 16},
+                "end": {"line": 4, "character": 27},
+            },
+        },
+    )
+    v2_entry = _entry(
+        1,
+        "Memory Web",
+        source={
+            "source_path": "/repo/sase/memory/glossary/memory-web.md",
+            "body_range": {
+                "start": {"line": 8, "character": 0},
+                "end": {"line": 10, "character": 9},
+            },
+        },
+    )
+
+    assert glossary_source_display(catalog, v1_entry) == "/repo/sase/sase.yml:5:17"
+    assert glossary_definition_position(v1_entry) == (5, 17)
+    assert glossary_source_display(catalog, v2_entry) == (
+        "/repo/sase/memory/glossary/memory-web.md:9:1"
+    )
+    assert glossary_definition_position(v2_entry) == (9, 1)
 
 
 def test_title_omits_matched_line_when_match_equals_term_case_insensitive() -> None:

@@ -19,6 +19,7 @@ from sase.core.project_lifecycle_wire import (
     PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
     ProjectRecordWire,
 )
+from sase.memory.web.catalog import glossary_source_from_wire
 from sase.xprompt import _glossary_catalog_config as catalog_config
 from sase.xprompt import glossary_catalog as catalog
 
@@ -127,6 +128,39 @@ _NO_WORKSPACE_MATCH = (
 )
 
 
+def test_glossary_source_from_wire_accepts_v1_source_mapping() -> None:
+    source = glossary_source_from_wire(
+        {
+            "config_path": "/repo/sase/sase.yml",
+            "config_key_path": ["memory", "glossary", "Agent Clan"],
+            "term_range": {
+                "start": {"line": 2, "character": 4},
+                "end": {"line": 2, "character": 14},
+            },
+            "definition_range": {
+                "start": {"line": 5, "character": 18},
+                "end": {"line": 7, "character": 19},
+            },
+            "aliases_range": {
+                "start": {"line": 4, "character": 8},
+                "end": {"line": 4, "character": 14},
+            },
+        }
+    )
+
+    assert source is not None
+    assert source.source_path == "/repo/sase/sase.yml"
+    assert source.key_path == ("memory", "glossary", "Agent Clan")
+    assert source.keyword_range == {
+        "start": {"line": 2, "character": 4},
+        "end": {"line": 2, "character": 14},
+    }
+    assert source.body_range == {
+        "start": {"line": 5, "character": 18},
+        "end": {"line": 7, "character": 19},
+    }
+
+
 def test_catalog_for_project_uses_project_alias_and_source_ranges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -170,13 +204,13 @@ def test_catalog_for_project_uses_project_alias_and_source_ranges(
     assert entry.display_aliases == ("clan",)
     assert entry.effective_aliases == ("Agent Clan", "clan")
     assert entry.source == {
-        "config_path": str(config_path),
-        "config_key_path": ["memory", "glossary", "Agent Clan"],
-        "term_range": {
+        "source_path": str(config_path),
+        "key_path": ["memory", "glossary", "Agent Clan"],
+        "keyword_range": {
             "start": {"line": 2, "character": 4},
             "end": {"line": 2, "character": 14},
         },
-        "definition_range": {
+        "body_range": {
             "start": {"line": 5, "character": 18},
             "end": {"line": 7, "character": 19},
         },
