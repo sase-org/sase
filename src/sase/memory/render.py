@@ -28,7 +28,7 @@ _ACCENT = SECTION_COLOR
 
 @dataclass(frozen=True, slots=True)
 class ResolvedMemoryNote:
-    """A validated long-term memory note plus the context show/read print."""
+    """A validated reference memory note plus the context show/read print."""
 
     content: MemoryReadContent
     children: tuple[MemoryNote, ...]
@@ -66,7 +66,7 @@ def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
     children = (
         note
         for note in view.children
-        if note.type == "long" and note.parent == parent_key
+        if note.type == "reference" and note.parent == parent_key
     )
     return tuple(sorted(children, key=lambda note: note.relative_path))
 
@@ -144,7 +144,7 @@ def _build_header(view: ResolvedMemoryNote) -> RenderableType:
     left.append("  ")
     left.append(note.relative_path, style=f"bold {PATH_COLOR}")
 
-    parts = [view.origin, note.type or "long"]
+    parts = [view.origin, note.type or "reference"]
     child_count = len(_note_children(view))
     if child_count:
         word = "child" if child_count == 1 else "children"

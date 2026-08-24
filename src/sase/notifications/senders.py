@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def notify_memory_proposed(proposal: Any) -> str:
-    """Send a notification for a pending long-term memory proposal."""
+    """Send a notification for a pending reference memory proposal."""
     notification_id = str(uuid4())
     evidence_count = len(getattr(proposal, "evidence", ()) or ())
     n = Notification(

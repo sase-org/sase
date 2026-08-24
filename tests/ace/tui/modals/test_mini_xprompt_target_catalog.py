@@ -199,7 +199,7 @@ def test_catalog_only_workflows_skills_and_memory_are_incompatible(
                 name="memory/obsidian",
                 content="memory",
                 source_path="memory/obsidian.md",
-                memory_type="long",
+                memory_type="reference",
             ),
         },
     )

@@ -29,7 +29,7 @@ def _populated_setup(monkeypatch: pytest.MonkeyPatch) -> None:
     ref = scope_ref("sase", "sase")
     notes = (
         memory_note(
-            "always_note", note_type="short", description="Always loaded context."
+            "always_note", note_type="core", description="Always loaded context."
         ),
         memory_note(
             "agent_hood",

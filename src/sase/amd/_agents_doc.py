@@ -10,20 +10,24 @@ from ._headings import fence_marker, heading_level
 from sase.memory.paths import canonical_memory_reference
 
 
-_SHORT_SECTION_RE = re.compile(
-    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 1 \(short-term\) Memory$"
+_CORE_SECTION_RE = re.compile(
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 1 \((?:"
+    r"short"
+    r"-term|core)\) Memory$"
 )
-_LONG_SECTION_RE = re.compile(
-    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 2 \(long-term\) Memory$"
+_REFERENCE_SECTION_RE = re.compile(
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 2 \((?:"
+    r"long"
+    r"-term|reference)\) Memory$"
 )
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
 _SHORT_MEMORY_BULLET_RE = re.compile(
     r"^- @(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)$"
 )
-# Inlined short notes render as ``### Title (file)`` headers, optionally
+# Inlined core notes render as ``### Title (file)`` headers, optionally
 # prefixed as ``### N. Title (file)``; the legacy ``- @memory/<file>.md`` bullet
-# form is still recognized for documents generated before short-term memory was
+# form is still recognized for documents generated before core memory was
 # inlined.
 _SHORT_MEMORY_HEADER_RE = re.compile(r"^### (?:.* )?\((?P<name>[A-Za-z0-9_.-]+)\)$")
 _LONG_MEMORY_ENTRY_RE = re.compile(
@@ -37,7 +41,7 @@ _LEGACY_READ_WHEN_SUFFIX_RE = re.compile(r"\s+_Read when\b.*?_$")
 
 @dataclass(frozen=True)
 class _AmdLongMemoryEntry:
-    """One long-memory entry parsed from a managed or legacy AGENTS.md."""
+    """One reference-memory entry parsed from a managed or legacy AGENTS.md."""
 
     path: str
     description: str
@@ -84,7 +88,7 @@ def _normalized_description_lines(lines: Iterable[str]) -> str:
 
 
 def _normalize_long_memory_description_lines(lines: Iterable[str]) -> str:
-    """Normalize an AGENTS.md long-memory description without flattening it."""
+    """Normalize an AGENTS.md reference-memory description without flattening it."""
     normalized = _normalized_description_lines(lines)
     if not normalized:
         return ""
@@ -145,7 +149,7 @@ def _description_text(lines: list[str]) -> str:
 
 
 def _long_memory_entry_path(line: str) -> str | None:
-    """Return the canonical path if *line* starts a long-memory entry."""
+    """Return the canonical path if *line* starts a reference-memory entry."""
     stripped = line.strip()
     section_match = _LONG_MEMORY_SECTION_RE.match(stripped)
     if section_match is not None:
@@ -168,9 +172,9 @@ def collect_long_memory_entries(
     start: int,
     end: int,
 ) -> tuple[_AmdLongMemoryEntry, ...]:
-    """Parse long-memory entries from ``lines[start:end]``.
+    """Parse reference-memory entries from ``lines[start:end]``.
 
-    Description collection stops at the next long-memory entry or at any
+    Description collection stops at the next reference-memory entry or at any
     unfenced heading that is not itself an entry, so a sibling heading after
     an entry is not absorbed. Headings inside fenced code blocks stay part of
     the description.
@@ -251,8 +255,8 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
         )
 
     lines = text.splitlines()
-    short_bounds = _section_bounds(lines, _SHORT_SECTION_RE)
-    long_bounds = _section_bounds(lines, _LONG_SECTION_RE)
+    short_bounds = _section_bounds(lines, _CORE_SECTION_RE)
+    long_bounds = _section_bounds(lines, _REFERENCE_SECTION_RE)
     return _AmdAgentsDocument(
         has_short_section=short_bounds is not None,
         has_long_section=long_bounds is not None,

@@ -1,7 +1,7 @@
 """Add/edit form for the Memory panel.
 
 Validation is pure computation over the already-loaded note set:
-``validate_memory_note_draft()`` runs on a short debounce, and submit is
+``validate_memory_note_draft()`` runs on a brief debounce, and submit is
 refused while any blocking diagnostic stands. The write itself stays on
 the panel.
 """
@@ -35,7 +35,7 @@ _FormField = Literal["stem", "type", "parent", "description"]
 _DEFERRED_UNTIL_SUBMIT = frozenset(
     {
         "memory note stem is required",
-        "long memory notes require a description",
+        "reference memory notes require a description",
     }
 )
 
@@ -72,14 +72,14 @@ def _memory_parent_options(
 ) -> tuple[tuple[str, str], ...]:
     """Return ``(label, value)`` parent choices for the add/edit form.
 
-    ``AGENTS.md`` is always first, then every ``long`` note except the note
+    ``AGENTS.md`` is always first, then every reference note except the note
     being edited. An orphaned current parent is appended so edit mode does
     not silently rewrite it.
     """
     options: list[tuple[str, str]] = [("AGENTS.md", AGENTS_PARENT)]
     seen = {AGENTS_PARENT}
     for note in notes:
-        if note.type != "long":
+        if note.type != "reference":
             continue
         if note.relative_path == current_relative_path:
             continue
@@ -138,7 +138,7 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
         scope_display_name: str = "",
         include_project_memory: bool = True,
         initial_stem: str = "",
-        initial_type: str = "long",
+        initial_type: str = "reference",
         initial_parent: str = AGENTS_PARENT,
         initial_description: str = "",
         current_relative_path: str | None = None,
@@ -151,7 +151,7 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
         self._include_project_memory = include_project_memory
         self._initial_stem = initial_stem
         self._initial_type = (
-            initial_type if initial_type in {"short", "long"} else "long"
+            initial_type if initial_type in {"core", "reference"} else "reference"
         )
         self._initial_parent = initial_parent or AGENTS_PARENT
         self._initial_description = initial_description
@@ -190,8 +190,8 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
                 yield Static("Tier", classes="memory-note-form-label")
                 yield Select(
                     (
-                        ("short — Tier 1, always loaded", "short"),
-                        ("long — Tier 2", "long"),
+                        ("core — Tier 1, always loaded", "core"),
+                        ("reference — Tier 2", "reference"),
                     ),
                     value=self._initial_type,
                     allow_blank=False,
@@ -208,7 +208,7 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
                     value=self._parent_select_value(parent_options),
                     allow_blank=False,
                     id="memory-note-form-parent",
-                    disabled=self._initial_type == "short",
+                    disabled=self._initial_type == "core",
                 )
                 yield Static(
                     "",
@@ -313,7 +313,7 @@ class MemoryNoteFormModal(ModalScreen[MemoryNoteFormDraft | None]):
 
     def _sync_parent_for_type(self) -> None:
         parent_select = self.query_one("#memory-note-form-parent", Select)
-        if self._type_value() == "short":
+        if self._type_value() == "core":
             parent_select.value = AGENTS_PARENT
             parent_select.disabled = True
         else:

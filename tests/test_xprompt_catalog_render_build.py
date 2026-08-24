@@ -72,7 +72,7 @@ def test_render_html_contains_memory_badges() -> None:
             make_xprompt(
                 "memory/glossary",
                 source_path="config",
-                memory_type="long",
+                memory_type="reference",
             ),
             bucket="config",
             project=None,
@@ -82,7 +82,7 @@ def test_render_html_contains_memory_badges() -> None:
     document = _build_document(entries, stats)
     html = _render_html(document)
 
-    assert "memory · long" in html
+    assert "memory · reference" in html
     assert "1 memory notes" in html
 
 

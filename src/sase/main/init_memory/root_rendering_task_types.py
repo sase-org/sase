@@ -127,10 +127,10 @@ def render_generated_task_types_memory_body() -> tuple[str | None, str | None]:
 
 
 def generated_task_types_memory_content(generated_task_types_body: str) -> str:
-    """Return ``sase/memory/task_types.md`` with generated short-note frontmatter."""
+    """Return ``sase/memory/task_types.md`` with generated core-note frontmatter."""
     return apply_memory_frontmatter(
         generated_task_types_body,
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
     )
 
@@ -144,7 +144,7 @@ def is_generated_task_types_memory_content(text: str) -> bool:
     last generated.
     """
     note = parse_memory_note_text(text, generated_task_types_memory_relative_path())
-    if note.type != "short":
+    if note.type != "core":
         return False
     headings = set(note.body.splitlines())
     return (

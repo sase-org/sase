@@ -15,7 +15,7 @@ def _write(path: Path, content: str) -> None:
 
 
 def _long_note(*, parent: str = "AGENTS.md", title: str = "Note") -> str:
-    return f"---\ntype: long\nparent: {parent}\ndescription: {title}.\n---\n# {title}\n"
+    return f"---\ntype: reference\nparent: {parent}\ndescription: {title}.\n---\n# {title}\n"
 
 
 def test_inventory_tracks_transitive_loaded_references(tmp_path: Path) -> None:
@@ -203,10 +203,10 @@ def test_init_reachability_still_traverses_plain_memory_references(
 def test_init_reachability_treats_short_notes_as_inlined(tmp_path: Path) -> None:
     # Short notes are inlined into AGENTS.md rather than ``@``-imported, so they
     # are reachable even when AGENTS.md does not reference them at all.
-    _write(tmp_path / "AGENTS.md", "# Title\n\n## Tier 1 (short-term) Memory\n")
+    _write(tmp_path / "AGENTS.md", "# Title\n\n## Tier 1 (core) Memory\n")
     _write(
         tmp_path / "sase" / "memory" / "note.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# Note\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Note\n",
     )
 
     assert unreferenced_memory_files_for_init(tmp_path) == ()
@@ -215,12 +215,12 @@ def test_init_reachability_treats_short_notes_as_inlined(tmp_path: Path) -> None
 def test_inlined_short_note_is_loaded_in_inventory(tmp_path: Path) -> None:
     _write(
         tmp_path / "AGENTS.md",
-        "# Title\n\n## Tier 1 (short-term) Memory\n\n"
+        "# Title\n\n## Tier 1 (core) Memory\n\n"
         "### 1. Note (draft) (note)\n\nInlined body.\n",
     )
     _write(
         tmp_path / "sase" / "memory" / "note.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# Note (draft)\n\nInlined body.\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Note (draft)\n\nInlined body.\n",
     )
 
     inventory = build_memory_inventory(tmp_path)

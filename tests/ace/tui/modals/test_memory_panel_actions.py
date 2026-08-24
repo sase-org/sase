@@ -67,7 +67,7 @@ async def test_valid_add_writes_through_engine_and_selects_note(
         assert "UNPUBLISHED" in panel_static_text(panel, "memory-panel-header")
 
     assert recorded[0]["stem"] == "beta"
-    assert recorded[0]["note_type"] == "long"
+    assert recorded[0]["note_type"] == "reference"
     assert recorded[0]["scope_key"] == "sase"
     assert app.session_calls == ["memory-add"]
     assert app.session_kwargs[0]["dedup_key"] == "memory-write:sase"
@@ -168,7 +168,7 @@ async def test_delete_selects_neighbor_and_names_backup(
         assert isinstance(confirm, ConfirmActionModal)
         assert confirm._subject is not None
         assert "sase/memory/beta.md" in confirm._subject
-        assert "Tier: 2 (long)" in confirm._subject
+        assert "Tier: 2 (reference)" in confirm._subject
         await pilot.press("y")
         await wait_for(pilot, lambda: panel._current_note == "sase/memory/gamma.md")
         await skip_post_write_offers(pilot, app)
@@ -182,7 +182,7 @@ async def test_short_note_delete_warns_about_always_loaded_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     ref = scope_ref("sase", "sase")
-    note = memory_note("always", note_type="short", description="Always loaded.")
+    note = memory_note("always", note_type="core", description="Always loaded.")
     snapshots = {
         "sase": scope_snapshot(
             ref, (note,), digests=note_digest("sase/memory/always.md")
@@ -199,7 +199,7 @@ async def test_short_note_delete_warns_about_always_loaded_context(
         confirm = app.screen
         assert isinstance(confirm, ConfirmActionModal)
         assert confirm._subject is not None
-        assert "Tier: 1 (short)" in confirm._subject
+        assert "Tier: 1 (core)" in confirm._subject
         assert "always-loaded agent context" in confirm._subject
         await pilot.press("escape")
         await wait_for(pilot, lambda: not isinstance(app.screen, ConfirmActionModal))

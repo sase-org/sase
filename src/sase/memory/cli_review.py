@@ -31,7 +31,7 @@ from sase.memory.proposals import (
 
 
 def handle_memory_review_command(args: argparse.Namespace) -> None:
-    """Review pending long-term memory proposals."""
+    """Review pending reference memory proposals."""
     try:
         _validate_review_args(args)
         action = _selected_action(args)

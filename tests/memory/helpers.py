@@ -22,7 +22,7 @@ def write_file(path: Path, content: str) -> None:
 
 def note_text(
     *,
-    note_type: str = "long",
+    note_type: str = "reference",
     parent: str = AGENTS_PARENT,
     description: str | None = "A note.",
     body: str = "# Body\n",
@@ -49,7 +49,7 @@ def create_note(
     root: Path,
     stem: str,
     *,
-    note_type: str = "long",
+    note_type: str = "reference",
     parent: str = AGENTS_PARENT,
     description: str | None = "A note.",
     body: str = "",

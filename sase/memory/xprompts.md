@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow

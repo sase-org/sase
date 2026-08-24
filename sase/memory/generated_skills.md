@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read when working with sase agent skills (aka xprompt skills), which are generated

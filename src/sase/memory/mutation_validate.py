@@ -23,6 +23,7 @@ from sase.memory.notes import (
     MemoryNote,
     MemoryNoteType,
     apply_memory_frontmatter,
+    normalize_memory_note_type,
     parse_memory_note_text,
 )
 from sase.memory.paths import (
@@ -65,14 +66,15 @@ def validate_memory_note_draft(
     errors["stem"].extend(stem_errors)
 
     cleaned_type = note_type.strip()
+    normalized_type = normalize_memory_note_type(cleaned_type)
     parsed_type: MemoryNoteType | None
-    if cleaned_type == "short":
-        parsed_type = "short"
-    elif cleaned_type == "long":
-        parsed_type = "long"
+    if normalized_type == "core":
+        parsed_type = "core"
+    elif normalized_type == "reference":
+        parsed_type = "reference"
     else:
         parsed_type = None
-        errors["type"].append("memory note type must be short or long")
+        errors["type"].append("memory note type must be core or reference")
 
     parsed_parent, parent_parse_errors = _parse_parent(parent)
     errors["parent"].extend(parent_parse_errors)
@@ -102,15 +104,15 @@ def validate_memory_note_draft(
         errors["stem"].append(f"a memory note already exists at {relative_path}")
 
     parsed_description = _normalize_description(description)
-    if parsed_type == "long" and parsed_description is None:
-        errors["description"].append("long memory notes require a description")
+    if parsed_type == "reference" and parsed_description is None:
+        errors["description"].append("reference memory notes require a description")
 
-    if parsed_type == "short" and parsed_parent is not None:
+    if parsed_type == "core" and parsed_parent is not None:
         if parsed_parent != AGENTS_PARENT:
-            errors["parent"].append("short memory notes must parent to AGENTS.md")
+            errors["parent"].append("core memory notes must parent to AGENTS.md")
 
     if (
-        parsed_type == "long"
+        parsed_type == "reference"
         and parsed_parent is not None
         and parsed_parent != AGENTS_PARENT
         and relative_path is not None
@@ -125,10 +127,10 @@ def validate_memory_note_draft(
 
     if current_canonical is not None and parsed_type is not None:
         children = children_of_memory_note(existing_notes, current_canonical)
-        if children and parsed_type != "long":
+        if children and parsed_type != "reference":
             named = ", ".join(child.relative_path for child in children)
             errors["type"].append(
-                f"cannot change type to short while children exist ({named})"
+                f"cannot change type to core while children exist ({named})"
             )
 
     draft: MemoryNoteDraft | None = None
@@ -260,10 +262,10 @@ def _parent_legality_errors(
     parent_note = notes_by_path.get(parent)
     if parent_note is None:
         return (f"memory note parent does not exist: {parent}",)
-    if parent_note.type == "short":
-        return (f"memory note parent is a short note: {parent}",)
-    if parent_note.type != "long":
-        return (f"memory note parent is not a long note: {parent}",)
+    if parent_note.type == "core":
+        return (f"memory note parent is a core note: {parent}",)
+    if parent_note.type != "reference":
+        return (f"memory note parent is not a reference note: {parent}",)
     if _parent_chain_contains(
         start=parent,
         target=note_relative_path,
@@ -299,7 +301,7 @@ def _normalize_description(description: str | None) -> str | None:
         return None
     probe = apply_memory_frontmatter(
         "",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description=description,
     )

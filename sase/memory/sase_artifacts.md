@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read before creating, consuming, resolving, linking, or managing retention for SASE

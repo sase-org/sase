@@ -57,7 +57,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
     write(
         project_root / "sase" / "memory" / "detail.md",
-        "---\ntype: long\nparent: AGENTS.md\n---\n# Detail\n",
+        "---\ntype: reference\nparent: AGENTS.md\n---\n# Detail\n",
     )
 
     plan = plan_memory()
@@ -94,11 +94,11 @@ def test_memory_plan_repairs_unreferenced_long_memory_without_title(
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@sase/memory/sase.md\n")
     write(
         project_root / "sase" / "memory" / "sase.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# SASE\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# SASE\n",
     )
     write(
         project_root / "sase" / "memory" / "cli_rules.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
 
@@ -132,7 +132,7 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@sase/memory/sase.md\n")
     write(
         project_root / "sase" / "memory" / "cli_rules.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
 
@@ -142,8 +142,8 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
     first_line = agents.splitlines()[0]
     assert first_line.startswith("# ")
     assert first_line.endswith(" - Agent Instructions")
-    assert "## 1. Tier 1 (short-term) Memory" in agents
-    assert "## 2. Tier 2 (long-term) Memory" in agents
+    assert "## 1. Tier 1 (core) Memory" in agents
+    assert "## 2. Tier 2 (reference) Memory" in agents
     assert "### 2.1 `sase/memory/cli_rules.md`" in agents
     # The repaired graph must validate cleanly on a follow-up run.
     assert run_memory() == 0
@@ -171,7 +171,7 @@ def test_memory_plan_invalid_amd_title_still_blocks(
     )
     write(
         project_root / "sase" / "memory" / "cli_rules.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
 
@@ -189,7 +189,7 @@ def test_memory_plan_invalid_amd_title_still_blocks(
             {
                 "child.md": (
                     "---\n"
-                    "type: long\n"
+                    "type: reference\n"
                     "parent: memory/missing.md\n"
                     "description: Child.\n"
                     "---\n"
@@ -204,10 +204,10 @@ def test_memory_plan_invalid_amd_title_still_blocks(
         ),
         (
             {
-                "parent.md": "---\ntype: short\nparent: AGENTS.md\n---\n# Parent\n",
+                "parent.md": "---\ntype: core\nparent: AGENTS.md\n---\n# Parent\n",
                 "child.md": (
                     "---\n"
-                    "type: long\n"
+                    "type: reference\n"
                     "parent: sase/memory/parent.md\n"
                     "description: Child.\n"
                     "---\n"
@@ -217,14 +217,14 @@ def test_memory_plan_invalid_amd_title_still_blocks(
             (
                 "invalid memory parent for sase/memory/child.md",
                 "sase/memory/parent.md",
-                "parent target is a short memory note",
+                "parent target is a core memory note",
             ),
         ),
         (
             {
                 "self.md": (
                     "---\n"
-                    "type: long\n"
+                    "type: reference\n"
                     "parent: sase/memory/self.md\n"
                     "description: Self.\n"
                     "---\n"
@@ -240,11 +240,11 @@ def test_memory_plan_invalid_amd_title_still_blocks(
         (
             {
                 "a.md": (
-                    "---\ntype: long\nparent: sase/memory/b.md\n"
+                    "---\ntype: reference\nparent: sase/memory/b.md\n"
                     "description: A.\n---\n# A\n"
                 ),
                 "b.md": (
-                    "---\ntype: long\nparent: sase/memory/a.md\n"
+                    "---\ntype: reference\nparent: sase/memory/a.md\n"
                     "description: B.\n---\n# B\n"
                 ),
             },
@@ -257,15 +257,15 @@ def test_memory_plan_invalid_amd_title_still_blocks(
         (
             {
                 "a.md": (
-                    "---\ntype: long\nparent: sase/memory/b.md\n"
+                    "---\ntype: reference\nparent: sase/memory/b.md\n"
                     "description: A.\n---\n# A\n"
                 ),
                 "b.md": (
-                    "---\ntype: long\nparent: sase/memory/c.md\n"
+                    "---\ntype: reference\nparent: sase/memory/c.md\n"
                     "description: B.\n---\n# B\n"
                 ),
                 "c.md": (
-                    "---\ntype: long\nparent: sase/memory/a.md\n"
+                    "---\ntype: reference\nparent: sase/memory/a.md\n"
                     "description: C.\n---\n# C\n"
                 ),
             },

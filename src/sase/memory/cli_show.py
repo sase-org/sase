@@ -52,7 +52,7 @@ def emit_memory_view(
 def handle_memory_show_command(
     args: argparse.Namespace, *, console: Console | None = None
 ) -> None:
-    """Print one long-term memory note without recording an audited read."""
+    """Print one reference memory note without recording an audited read."""
     try:
         view = resolve_memory_view(args)
     except (MemoryReadError, OSError, UnicodeError) as exc:

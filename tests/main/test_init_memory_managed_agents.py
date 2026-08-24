@@ -128,7 +128,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
-    assert "## 1. Tier 1 (short-term) Memory" in agents
+    assert "## 1. Tier 1 (core) Memory" in agents
     assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
     assert "### 1.1 Artifact Relation Registry (artifact_relations)" in agents
@@ -140,8 +140,8 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
-    assert "## 2. Tier 2 (long-term) Memory" in agents
-    assert "## Tier 3 (long-term) Memory" not in agents
+    assert "## 2. Tier 2 (reference) Memory" in agents
+    assert "## Tier 3 (reference) Memory" not in agents
     assert "Long-Term Memory Files" not in agents
     assert "Glossary Terms" not in agents
     assert "### 2.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
@@ -153,7 +153,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     )
     assert curated.startswith(
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: Curated description survives.\n"
         "---\n"
@@ -259,7 +259,7 @@ def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
     write(
         project_root / "sase" / "memory" / "block.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: |-\n"
         "  Lead paragraph.\n"
@@ -381,6 +381,93 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     assert plan.actions == ()
 
 
+def test_init_memory_migrates_legacy_memory_note_types_idempotently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+
+    assert run_handler() == 0
+
+    legacy_core = project_root / "sase" / "memory" / "legacy_core.md"
+    legacy_reference = project_root / "sase" / "memory" / "legacy_reference.md"
+    canonical_core = project_root / "sase" / "memory" / "canonical_core.md"
+    write(
+        legacy_core,
+        "---\n"
+        "type: short\n"
+        "parent: AGENTS.md\n"
+        "owner: preserved\n"
+        "---\n"
+        "# Legacy Core\n\n"
+        "Core body.\n",
+    )
+    write(
+        legacy_reference,
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: Legacy reference.\n"
+        "owner: preserved\n"
+        "---\n"
+        "# Legacy Reference\n\n"
+        "Reference body.\n",
+    )
+    write(
+        canonical_core,
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "owner: preserved\n"
+        "---\n"
+        "# Canonical Core\n\n"
+        "Core body.\n",
+    )
+
+    plan = plan_memory()
+    frontmatter_actions = [
+        action for action in plan.actions if action.detail == "memory note frontmatter"
+    ]
+    assert {(action.operation, action.path) for action in frontmatter_actions} == {
+        ("update", legacy_core),
+        ("update", legacy_reference),
+    }
+    assert canonical_core not in {action.path for action in frontmatter_actions}
+
+    assert run_handler() == 0
+
+    legacy_core_text = legacy_core.read_text(encoding="utf-8")
+    legacy_reference_text = legacy_reference.read_text(encoding="utf-8")
+    assert "type: core\n" in legacy_core_text
+    assert "type: short\n" not in legacy_core_text
+    assert "owner: preserved\n" in legacy_core_text
+    assert legacy_core_text.endswith("# Legacy Core\n\nCore body.\n")
+    assert "type: reference\n" in legacy_reference_text
+    assert "type: long\n" not in legacy_reference_text
+    assert "description: Legacy reference.\n" in legacy_reference_text
+    assert "owner: preserved\n" in legacy_reference_text
+    assert legacy_reference_text.endswith("# Legacy Reference\n\nReference body.\n")
+    assert [
+        action
+        for action in plan_memory().actions
+        if action.detail == "memory note frontmatter"
+    ] == []
+
+
 def test_init_memory_rejects_short_memory_with_deep_heading(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -401,7 +488,7 @@ def test_init_memory_rejects_short_memory_with_deep_heading(
         project_root / "sase.yml",
         'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
     )
-    # A short note with an H4 heading cannot be inlined and must block init.
+    # A core note with an H4 heading cannot be inlined and must block init.
     write(
         project_root / "sase" / "memory" / "bad.md",
         short_note("# Bad\n\n#### Too Deep\n"),
@@ -432,7 +519,7 @@ def test_init_memory_rejects_missing_memory_parent(
     write(project_root / "AGENTS.md", "@sase/memory/sase.md\n")
     write(
         project_root / "sase" / "memory" / "orphan.md",
-        "---\ntype: long\nparent: sase/memory/ghost.md\ndescription: Orphan.\n---\n"
+        "---\ntype: reference\nparent: sase/memory/ghost.md\ndescription: Orphan.\n---\n"
         "# Orphan\n",
     )
 
@@ -498,7 +585,7 @@ def test_init_memory_rejects_long_memory_description_with_heading(
     write(
         project_root / "sase" / "memory" / "foo.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: |-\n"
         "  Intro.\n"
@@ -538,7 +625,7 @@ def test_init_memory_allows_fenced_hash_in_long_memory_description(
     write(
         project_root / "sase" / "memory" / "foo.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: |-\n"
         "  Intro.\n"

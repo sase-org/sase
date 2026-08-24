@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read before fixing Symvision lint failures, including unused symbols, private misuse,

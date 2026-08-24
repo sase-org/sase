@@ -21,7 +21,7 @@ def build_memory_delete_subject(
         ),
         "",
     )
-    tier = "1 (short)" if note.type == "short" else "2 (long)"
+    tier = "1 (core)" if note.type == "core" else "2 (reference)"
     child_word = "child" if child_count == 1 else "children"
     lines = [
         f"Note: {note.relative_path}",
@@ -29,9 +29,9 @@ def build_memory_delete_subject(
         f"Description: {first_line or '(empty)'}",
         f"Children: {child_count} {child_word}",
     ]
-    if note.type == "short":
+    if note.type == "core":
         lines.append(
-            "WARNING: deleting a short note removes always-loaded agent context."
+            "WARNING: deleting a core note removes always-loaded agent context."
         )
     return "\n".join(lines)
 

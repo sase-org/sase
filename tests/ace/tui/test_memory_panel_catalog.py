@@ -49,7 +49,7 @@ def _write_note(
     root: Path,
     stem: str,
     *,
-    note_type: str = "long",
+    note_type: str = "reference",
     parent: str = AGENTS_PARENT,
     description: str = "A note.",
     body: str = "# Body\n",
@@ -345,7 +345,7 @@ def test_snapshot_tree_nests_child_under_long_parent(
 ) -> None:
     workspace = tmp_path / "demo"
     workspace.mkdir()
-    _write_note(workspace, "short", note_type="short", description="Always loaded.")
+    _write_note(workspace, "short", note_type="core", description="Always loaded.")
     _write_note(workspace, "hub", description="Hub.")
     _write_note(
         workspace,
@@ -399,9 +399,9 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     workspace = tmp_path / "demo"
     workspace.mkdir()
     _write_note(workspace, "shared")
-    _write_note(workspace, "sase", note_type="short")
-    _write_note(workspace, "task_types", note_type="short")
-    _write_note(workspace, "glossary", note_type="short")
+    _write_note(workspace, "sase", note_type="core")
+    _write_note(workspace, "task_types", note_type="core")
+    _write_note(workspace, "glossary", note_type="core")
     _write_note(workspace, "sase_artifacts")
     _write_note(workspace, "sase_beads")
     _write_note(workspace, "sase_sizes", parent="sase/memory/sase_beads.md")
@@ -433,8 +433,8 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     home = tmp_path / "isolated-home"
-    _write_note(home, "sase", note_type="short")
-    _write_note(home, "glossary", note_type="short")
+    _write_note(home, "sase", note_type="core")
+    _write_note(home, "glossary", note_type="core")
     _write_note(home, "sase_artifacts")
     _write_note(home, "sase_beads")
     monkeypatch.setattr(panel_catalog, "_home_content_root", lambda: home)

@@ -116,12 +116,12 @@ def test_assist_adapter_preserves_structured_catalog_fields(tmp_path: Path) -> N
 def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
     source = tmp_path / "sase" / "memory" / "glossary.md"
     source.parent.mkdir(parents=True)
-    source.write_text("---\ntype: short\n---\nbody\n")
+    source.write_text("---\ntype: core\n---\nbody\n")
     xp = _make_xprompt(
         "memory/glossary",
         source_path=str(source),
         description="Glossary terms.",
-        memory_type="short",
+        memory_type="core",
     )
 
     with (
@@ -138,7 +138,7 @@ def test_assist_adapter_preserves_memory_identity(tmp_path: Path) -> None:
     assert entry.name == "memory/glossary"
     assert entry.insertion == "#memory/glossary"
     assert entry.kind == "memory"
-    assert entry.memory_type == "short"
+    assert entry.memory_type == "core"
     assert entry.is_skill is False
     assert entry.skill_name is None
 

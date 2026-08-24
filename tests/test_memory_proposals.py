@@ -332,7 +332,7 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
     assert result.canonical_path == canonical_path
     assert canonical_path.read_text(encoding="utf-8") == (
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: Memory\n"
         f"source_candidate: {proposal.proposal_id}\n"
@@ -351,7 +351,7 @@ def test_approve_memory_proposal_preserves_valid_authored_parent(
     ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
     _write(
         tmp_path / "sase" / "memory" / "hub.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Hub.\n---\n# Hub\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Hub.\n---\n# Hub\n",
     )
     proposal = create_memory_proposal(
         title="Child Memory",
@@ -377,7 +377,7 @@ def test_approve_memory_proposal_preserves_valid_authored_parent(
     assert result.canonical_path == tmp_path / "sase" / "memory" / "child.md"
     assert result.canonical_path.read_text(encoding="utf-8") == (
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: Child Memory\n"
         "reviewer_note: keep\n"

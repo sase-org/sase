@@ -44,21 +44,19 @@ def managed_agents(
     numbered: bool = False,
     long_sections: bool = False,
 ) -> str:
-    short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
-        [legacy_marker("short-memory:end")] if markered else []
+    short_markers = ([legacy_marker("core-memory:start")] if markered else []) + (
+        [legacy_marker("core-memory:end")] if markered else []
     )
-    long_markers = ([legacy_marker("long-memory:start")] if markered else []) + (
-        [legacy_marker("long-memory:end")] if markered else []
+    long_markers = ([legacy_marker("reference-memory:start")] if markered else []) + (
+        [legacy_marker("reference-memory:end")] if markered else []
     )
     tier1_heading = (
-        "## 1. Tier 1 (short-term) Memory"
-        if numbered
-        else "## Tier 1 (short-term) Memory"
+        "## 1. Tier 1 (core) Memory" if numbered else "## Tier 1 (core) Memory"
     )
     tier2_heading = (
-        "## 2. Tier 2 (long-term) Memory"
+        "## 2. Tier 2 (reference) Memory"
         if numbered
-        else "## Tier 2 (long-term) Memory"
+        else "## Tier 2 (reference) Memory"
     )
     first_short = "### 1.1 Extra (extra)" if numbered else "### 1. Extra (extra)"
     second_short = (
@@ -383,7 +381,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
             [
                 "# Managed Instructions",
                 "",
-                "## Tier 1 (short-term) Memory",
+                "## Tier 1 (core) Memory",
                 "",
                 "The following memories contain core (always loaded) context:",
                 "",
@@ -399,7 +397,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
                 "",
                 "more body",
                 "",
-                "## Tier 2 (long-term) Memory",
+                "## Tier 2 (reference) Memory",
                 "",
                 "**`sase/memory/generated_skills.md`**  ",
                 "Skill pipeline notes.",
@@ -418,7 +416,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
     entry = entry_by_path("AGENTS.md", inventory.entries)
     assert entry.management == "managed"
     # The two numbered ``### Title (file)`` headers count; the inlined ``####``
-    # body headings must not be miscounted as short memory.
+    # body headings must not be miscounted as core memory.
     assert entry.short_memory_refs == 2
     assert entry.long_memory_refs == 1
 
@@ -432,7 +430,7 @@ def test_build_inventory_reports_partial_visible_amd_structure(tmp_path: Path) -
             [
                 "# Partial Managed Instructions",
                 "",
-                "## Tier 1 (short-term) Memory",
+                "## Tier 1 (core) Memory",
                 "",
                 "- @sase/memory/sase.md",
                 "",

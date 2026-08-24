@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: sase/memory/sase_beads.md
 description:
   SASE size scale guidance for epic phases, task beads, and tale plans, including

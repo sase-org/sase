@@ -168,7 +168,7 @@ def test_format_keeps_dash_separators_off_list_continuation_starts() -> None:
 
 def test_format_preserves_frontmatter() -> None:
     content = """---
-type: long
+type: reference
 parent: AGENTS.md
 description: Detailed reference.
 ---

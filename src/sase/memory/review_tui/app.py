@@ -45,7 +45,7 @@ from sase.memory.review_tui._styles import MEMORY_REVIEW_CSS
 
 
 class MemoryReviewTuiApp(App[None]):
-    """Textual app for reviewing pending long-term memory proposals."""
+    """Textual app for reviewing pending reference memory proposals."""
 
     ENABLE_COMMAND_PALETTE = False
     CSS = MEMORY_REVIEW_CSS

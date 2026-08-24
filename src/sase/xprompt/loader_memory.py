@@ -12,7 +12,7 @@ from sase.content_layout import (
     memory_reference_name,
     resolve_memory_file_sources,
 )
-from sase.memory.notes import collapse_description
+from sase.memory.notes import collapse_description, normalize_memory_note_type
 
 from .discovery_order import RANK_MEMORY_BASE, merge_by_discovery_order, source_rank
 from .load_issues import record_load_issue
@@ -108,7 +108,7 @@ def _memory_note_to_xprompt(
         # Defense in depth when the shared checker is older than the parser.
         record_load_issue(
             note_source,
-            "memory note must declare type: short or type: long",
+            "memory note must declare type: core or type: reference",
             kind=MEMORY_LOAD_ISSUE_KIND,
         )
         return None
@@ -125,10 +125,11 @@ def _memory_note_to_xprompt(
 
 
 def _memory_type(value: str | None) -> MemoryType | None:
-    if value == "short":
-        return "short"
-    if value == "long":
-        return "long"
+    normalized = normalize_memory_note_type(value)
+    if normalized == "core":
+        return "core"
+    if normalized == "reference":
+        return "reference"
     return None
 
 

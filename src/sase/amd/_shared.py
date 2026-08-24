@@ -74,8 +74,8 @@ class ProviderShimPlan:
 
 
 @dataclass(frozen=True)
-class AmdLongMemoryDescriptionUpdate:
-    """Planned frontmatter update for a long-term memory file."""
+class AmdMemoryFrontmatterUpdate:
+    """Planned frontmatter update for a memory note."""
 
     path: Path
     content: str
@@ -87,7 +87,7 @@ class AmdMemorySyncPlan:
 
     title: str | None
     agents_content: str | None
-    description_updates: tuple[AmdLongMemoryDescriptionUpdate, ...]
+    frontmatter_updates: tuple[AmdMemoryFrontmatterUpdate, ...]
     blockers: tuple[str, ...] = ()
     fallback_agents_content: str | None = None
 

@@ -32,9 +32,7 @@ def _write(path: Path, content: str) -> None:
 
 
 def _long_note(body: str = "# Foo\n", *, description: str = "Foo.") -> str:
-    return (
-        f"---\ntype: long\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
-    )
+    return f"---\ntype: reference\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
 
 
 def test_validate_memory_read_path_allows_flat_long_markdown(tmp_path: Path) -> None:
@@ -45,7 +43,7 @@ def test_validate_memory_read_path_allows_flat_long_markdown(tmp_path: Path) -> 
     assert result.canonical_path == "foo.md"
     assert result.path == tmp_path / "sase" / "memory" / "foo.md"
     assert result.note.relative_path == "sase/memory/foo.md"
-    assert result.note.type == "long"
+    assert result.note.type == "reference"
     assert result.resolved_path == (tmp_path / "sase" / "memory" / "foo.md").resolve()
 
 
@@ -54,7 +52,7 @@ def test_validate_memory_read_path_accepts_optional_memory_prefix(
 ) -> None:
     _write(
         tmp_path / "sase" / "memory" / "foo.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Foo.\n---\n# Foo\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Foo.\n---\n# Foo\n",
     )
 
     result = validate_memory_read_path("sase/memory/foo.md", project_root=tmp_path)
@@ -156,7 +154,7 @@ def test_validate_memory_read_path_rejects_nested_legacy_short_path(
 def test_validate_memory_read_path_rejects_flat_short_memory(tmp_path: Path) -> None:
     _write(
         tmp_path / "sase" / "memory" / "foo.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# Foo\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Foo\n",
     )
 
     with pytest.raises(MemoryReadPathError, match="always-loaded"):

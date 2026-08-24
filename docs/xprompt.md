@@ -1272,7 +1272,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_final`         | Submit the current turn's SASE finalizer declaration                                          |
 | `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
 | `sase_git_commit`    | Commit through `sase stitch create` for git and GitHub workflows                              |
-| `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
+| `sase_memory_read`   | Perform audited reference memory reads through `sase memory read`                             |
 | `sase_monitor`       | Run a long command without blocking your turn                                                 |
 | `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
@@ -1287,10 +1287,10 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 
 ## Memory Field
 
-Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: short`
-or `type: long` frontmatter is automatically an xprompt — no opt-in field is required. A
-note's filename remains its identity: `sase/memory/sase_beads.md` (or the home
-equivalent) is invoked as `#memory/sase_beads`. Nested files such as
+Every valid, flat, non-README [SASE memory note](memory.md) that declares `type: core`
+or `type: reference` frontmatter is automatically an xprompt — no opt-in field is
+required. A note's filename remains its identity: `sase/memory/sase_beads.md` (or the
+home equivalent) is invoked as `#memory/sase_beads`. Nested files such as
 `sase/memory/assets/**` and `README.md` are never catalog entries. A nonempty project
 glossary generates `sase/memory/glossary.md`, so `#memory/glossary` is a valid
 reference; full definitions still come from `sase glossary read`.
@@ -1314,7 +1314,7 @@ appends. Xprompt references already authored in the note body still expand recur
 `#memory/<stem>` is a launch-time, explicitly authored inclusion, not an audited
 agent-side lookup: catalog discovery, previews, and expansion never append
 `sase memory read` audit events. Use `/sase_memory_read` (`sase memory read`) instead
-when an already-running agent needs to consult long-term memory on its own and have that
+when an already-running agent needs to consult reference memory on its own and have that
 access recorded. This is explicit prompt composition only — it does not restore the
 retired dynamic-memory runtime, so there is no keyword matching, prompt scanning, or
 automatic context injection.

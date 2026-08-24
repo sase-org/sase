@@ -79,7 +79,7 @@ def scope_ref(
 def memory_note(
     stem: str,
     *,
-    note_type: str | None = "long",
+    note_type: str | None = "reference",
     parent: str = AGENTS_PARENT,
     description: str | None = None,
     body: str = "",

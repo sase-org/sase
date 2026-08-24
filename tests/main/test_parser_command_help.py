@@ -254,7 +254,7 @@ def test_memory_help_marks_primary_command_and_init_alias() -> None:
     assert "generated-change source edits" in init_alias_help
     assert "loaded @ references" in memory_list_help
     assert "referenced-only plain memory paths" in memory_list_help
-    assert "long-term memory markdown file" in memory_read_help
+    assert "reference memory markdown file" in memory_read_help
     assert "falling back to ~/sase/memory/" in memory_read_help
     assert "flat note name such as generated_skills.md" in memory_read_help
     _assert_metavar_option_documented(memory_read_help, "-r", "--reason", "REASON")

@@ -72,7 +72,7 @@ def _retired_note_paths(
     SASE-managed project) still deletes previously generated copies so it converges in a
     single ``sase memory init`` pass. Only a file that is byte-identical to the current
     packaged render is considered SASE-owned; a human-edited copy is left alone and
-    keeps behaving as an ordinary long note.
+    keeps behaving as an ordinary reference note.
     """
     if include_project_memory:
         return ()

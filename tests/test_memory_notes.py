@@ -26,7 +26,7 @@ def _write(path: Path, content: str) -> None:
 def _note(
     path: str,
     *,
-    note_type: str = "long",
+    note_type: str = "reference",
     parent: str = AGENTS_PARENT,
     description: str | None = "Description.",
 ) -> MemoryNote:
@@ -60,7 +60,7 @@ def test_parse_note_without_frontmatter_marks_required_fields_missing() -> None:
 def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None:
     note = parse_memory_note_text(
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: |\n"
         "  Child note\n"
@@ -70,7 +70,7 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
         "sase/memory/child.md",
     )
 
-    assert note.type == "long"
+    assert note.type == "reference"
     assert note.type_source == "frontmatter"
     assert note.parent == "sase/memory/hub.md"
     assert note.parent_source == "frontmatter"
@@ -78,12 +78,44 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
     assert note.body == "# Child\n"
 
 
+def test_parse_memory_note_text_normalizes_legacy_types() -> None:
+    short_note = parse_memory_note_text(
+        "---\ntype: short\nparent: AGENTS.md\n---\n# Core\n",
+        "sase/memory/core.md",
+    )
+    long_note = parse_memory_note_text(
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Detail.\n---\n# Ref\n",
+        "sase/memory/ref.md",
+    )
+    core_note = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Core\n",
+        "sase/memory/core2.md",
+    )
+    reference_note = parse_memory_note_text(
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Detail.\n---\n# Ref\n",
+        "sase/memory/ref2.md",
+    )
+    bogus_note = parse_memory_note_text(
+        "---\ntype: bogus\nparent: AGENTS.md\n---\n# Bogus\n",
+        "sase/memory/bogus.md",
+    )
+
+    assert short_note.type == "core"
+    assert short_note.type_source == "frontmatter"
+    assert long_note.type == "reference"
+    assert long_note.type_source == "frontmatter"
+    assert core_note.type == "core"
+    assert reference_note.type == "reference"
+    assert bogus_note.type == "bogus"
+    assert bogus_note.type_source == "invalid"
+
+
 def test_multiline_description_round_trips_as_literal_block() -> None:
     description = "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
 
     content = apply_memory_frontmatter(
         "# Body\n",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description=description,
     )
@@ -96,7 +128,7 @@ def test_multiline_description_round_trips_as_literal_block() -> None:
     assert (
         apply_memory_frontmatter(
             content,
-            note_type="long",
+            note_type="reference",
             parent=AGENTS_PARENT,
             description=note.description,
         )
@@ -107,7 +139,7 @@ def test_multiline_description_round_trips_as_literal_block() -> None:
 def test_multiline_description_with_frontmatter_marker_collapses_safely() -> None:
     content = apply_memory_frontmatter(
         "# Body\n",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Lead.\n---\nTrailer.",
     )
@@ -128,7 +160,7 @@ def test_collapse_description_flattens_block_to_one_line() -> None:
 
 
 def test_prettier_stable_frontmatter_leaves_literal_block_scalar_untouched() -> None:
-    dumped = "type: long\nparent: AGENTS.md\ndescription: |-\n  Lead.\n\n  - One\n"
+    dumped = "type: reference\nparent: AGENTS.md\ndescription: |-\n  Lead.\n\n  - One\n"
 
     assert _prettier_stable_frontmatter(dumped) == dumped.rstrip("\n")
 
@@ -136,7 +168,7 @@ def test_prettier_stable_frontmatter_leaves_literal_block_scalar_untouched() -> 
 def test_apply_memory_frontmatter_drops_keywords_and_preserves_other_extra() -> None:
     content = apply_memory_frontmatter(
         "---\nkeywords: [skills]\ndescription: Old description.\n---\n# Body\n",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="New description.",
         extra={"keywords": ["replacement"], "owner": "docs"},
@@ -144,7 +176,7 @@ def test_apply_memory_frontmatter_drops_keywords_and_preserves_other_extra() -> 
 
     assert content == (
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: New description.\n"
         "owner: docs\n"
@@ -158,7 +190,7 @@ def test_discover_memory_notes_reads_flat_layout_only(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "README.md", "# Memory\n")
     _write(
         tmp_path / "sase" / "memory" / "flat.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Flat note.\n---\n# Flat\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Flat note.\n---\n# Flat\n",
     )
     _write(tmp_path / "sase" / "memory" / "short" / "base.md", "# Base\n")
     _write(tmp_path / "sase" / "memory" / "long" / "nested" / "detail.md", "# Detail\n")
@@ -166,7 +198,7 @@ def test_discover_memory_notes_reads_flat_layout_only(tmp_path: Path) -> None:
     notes = discover_memory_notes(tmp_path)
 
     assert tuple(note.relative_path for note in notes) == ("sase/memory/flat.md",)
-    assert tuple(note.type for note in notes) == ("long",)
+    assert tuple(note.type for note in notes) == ("reference",)
 
 
 def test_discover_memory_notes_reads_legacy_tree_with_canonical_references(
@@ -175,7 +207,7 @@ def test_discover_memory_notes_reads_legacy_tree_with_canonical_references(
     _write(
         tmp_path / "memory" / "child.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: memory/parent.md\n"
         "description: Legacy child.\n"
         "---\n"
@@ -203,7 +235,7 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
     )
     short_child = _note(
         "sase/memory/short_child.md",
-        note_type="short",
+        note_type="core",
         parent="sase/memory/hub.md",
         description=None,
     )
@@ -237,7 +269,7 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
 def test_render_long_memory_sections_orders_and_filters_notes() -> None:
     short_note = _note(
         "sase/memory/aaa.md",
-        note_type="short",
+        note_type="core",
         description="Must not appear.",
     )
     later = _note("sase/memory/later.md", description="Later.")
@@ -257,7 +289,7 @@ def test_render_long_memory_sections_orders_and_filters_notes() -> None:
 def test_render_long_memory_sections_preserves_block_descriptions() -> None:
     note = MemoryNote(
         path=Path("sase/memory/block.md"),
-        type="long",
+        type="reference",
         parent=AGENTS_PARENT,
         description="Lead paragraph.\n\n- One\n- Two\n\nTrailer.",
         body="# Block\n",
@@ -274,7 +306,7 @@ def test_render_long_memory_sections_preserves_block_descriptions() -> None:
 def test_render_long_memory_sections_omits_empty_description_body() -> None:
     empty = MemoryNote(
         path=Path("sase/memory/empty.md"),
-        type="long",
+        type="reference",
         parent=AGENTS_PARENT,
         description="",
         body="",
@@ -284,7 +316,7 @@ def test_render_long_memory_sections_omits_empty_description_body() -> None:
     )
     missing = MemoryNote(
         path=Path("sase/memory/missing.md"),
-        type="long",
+        type="reference",
         parent=AGENTS_PARENT,
         description=None,
         body="",
@@ -302,7 +334,7 @@ def test_filter_memory_notes_matches_stem_and_description_not_body_by_default() 
     stem_hit = _note("sase/memory/alpha.md", description="Hub note.")
     description_hit = _note("sase/memory/beta.md", description="Mentions Alpha here.")
     body_only = parse_memory_note_text(
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Other.\n---\n# Alpha in body\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Other.\n---\n# Alpha in body\n",
         "sase/memory/gamma.md",
     )
 

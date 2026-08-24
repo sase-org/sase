@@ -174,7 +174,7 @@ def test_memory_review_approve_writes_canonical_file(
     assert payload["event"]["event_type"] == "approved"
     assert payload["canonical_path"] == str(canonical_path)
     assert canonical_path.read_text(encoding="utf-8").startswith(
-        "---\ntype: long\nparent: AGENTS.md\n"
+        "---\ntype: reference\nparent: AGENTS.md\n"
     )
     assert "keywords:" not in canonical_path.read_text(encoding="utf-8")
 

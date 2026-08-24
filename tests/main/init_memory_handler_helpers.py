@@ -40,7 +40,7 @@ def single_line(text: str) -> str:
 
 
 def short_note(body: str) -> str:
-    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
+    return "---\ntype: core\nparent: AGENTS.md\n---\n" + body
 
 
 def long_note(
@@ -49,7 +49,7 @@ def long_note(
     description: str | None = "Long description.",
     extra_frontmatter: str = "",
 ) -> str:
-    lines = ["---", "type: long", "parent: AGENTS.md"]
+    lines = ["---", "type: reference", "parent: AGENTS.md"]
     if description is not None:
         lines.append(f"description: {description}")
     if extra_frontmatter:

@@ -108,7 +108,7 @@ def test_prompt_source_token_changes_for_memory_file_create(
     )
 
     before = prompt_catalog._prompt_source_token([None])
-    (memory_dir / "glossary.md").write_text("---\ntype: short\n---\nbody\n")
+    (memory_dir / "glossary.md").write_text("---\ntype: core\n---\nbody\n")
     after = prompt_catalog._prompt_source_token([None])
 
     assert before != after

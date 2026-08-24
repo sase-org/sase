@@ -113,10 +113,10 @@ alias for `sase memory init`, and `sase init config` remains a compatibility ali
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.             |
 | `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                          |
 | `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.       |
-| `sase memory read <path>`               | Agent-side read of one long-term memory file with an attributable audit event.                    |
-| `sase memory write`                     | Create an attributable long-term memory proposal for human review.                                |
+| `sase memory read <path>`               | Agent-side read of one reference memory file with an attributable audit event.                    |
+| `sase memory write`                     | Create an attributable reference memory proposal for human review.                                |
 | `sase memory review`                    | List, inspect, approve, edit, or reject pending memory proposals.                                 |
-| `sase memory log`                       | Summarize audited long-term memory reads.                                                         |
+| `sase memory log`                       | Summarize audited reference memory reads.                                                         |
 | `sase memory log --include proposals`   | Include proposal and review events in the memory audit surface.                                   |
 | `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                    |
 | `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                  |
@@ -159,7 +159,7 @@ sase memory agent-docs list
 
 With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`.
 The inventory shows project, subdirectory, home, and chezmoi-source `AGENTS.md` files,
-their H1 titles, whether they look managed, short/long memory reference counts, and
+their H1 titles, whether they look managed, core/reference memory reference counts, and
 nearby provider instruction file status. It never writes files; `sase memory init` is
 the command that creates or refreshes these documents.
 
@@ -176,7 +176,7 @@ compatibility option name `--enable-project-memory`, this does not change Projec
 lifecycle state and is independent of `sase project enable`.
 
 - Project memory under `./sase/memory/`, including `sase/memory/README.md`, the
-  project-only generated short `sase/memory/task_types.md` catalog note, the committed
+  project-only generated core `sase/memory/task_types.md` catalog note, the committed
   `sase/task_types.json` snapshot, and flat note files with `type`/`parent` frontmatter,
   only when the project's own `sase/sase.yml` contains `is_sase_managed: true`.
   `plugins.required` is verified before any snapshot or note comparison, so a missing
@@ -195,7 +195,7 @@ lifecycle state and is independent of `sase project enable`.
 
 Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal
 agent instructions, `sase/memory/sase.md`, and `sase/memory/README.md` with
-root-relative paths in `sase/sase.yml`. The generated project-only long notes
+root-relative paths in `sase/sase.yml`. The generated project-only reference notes
 `sase/memory/sase_artifacts.md`, `sase/memory/sase_beads.md`, and
 `sase/memory/sase_sizes.md` are fixed packaged assets with no override keys, generated
 only for SASE-managed project repositories and never for home or chezmoi-home roots.
@@ -204,7 +204,7 @@ chezmoi source counterpart). Template variables and validation rules are listed 
 [generated templates configuration](configuration.md#generated-templates).
 
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
-during memory initialization. A nonempty glossary generates a short-term
+during memory initialization. A nonempty glossary generates a core
 `sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that
 `sase memory init` inlines into Tier 1 of `AGENTS.md` and the provider instruction files
 as `Glossary Terms (glossary)`. The note is a compact instruction paragraph plus one
@@ -212,22 +212,22 @@ semicolon-separated `**GLOSSARY TERMS:**` roster, with aliases in parentheses, a
 points agents at `sase glossary read <term> [<term> ...] -r "<why>"` to fetch those
 definitions plus the terms they depend on. Pass every term you need in one command. An
 empty or absent glossary writes no note and deletes a leftover marked
-`sase/memory/glossary.md`. A marked leftover (including a stale `type: long` copy) is
-overwritten in place when terms are configured. An unmarked, hand-authored
+`sase/memory/glossary.md`. A marked leftover (including a stale `type: reference` copy)
+is overwritten in place when terms are configured. An unmarked, hand-authored
 `sase/memory/glossary.md` plus configured terms is a blocker — migrate its content into
 `memory.glossary` entries in `sase.yml` or remove it before initializing. Without
 configured terms the unmarked note stays an ordinary hand-authored note. See
 [glossary configuration](configuration.md#memoryglossary) for the schema and matching
 behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command group.
 
-For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
-and numbers every heading in the generated document, renders Tier 2 as one numbered H3
-subsection per long note (headed by the note path, with the description as the body),
-adds missing canonical frontmatter, and validates reachability. The instruction
+For a SASE-managed project, `sase memory init` inlines each core note into Tier 1 and
+numbers every heading in the generated document, renders Tier 2 as one numbered H3
+subsection per reference note (headed by the note path, with the description as the
+body), adds missing canonical frontmatter, and validates reachability. The instruction
 paragraph pointing agents at `/sase_memory_read` is direct body content of the
-`## Tier 2 (long-term) Memory` heading, immediately followed by those per-note H3
+`## Tier 2 (reference) Memory` heading, immediately followed by those per-note H3
 subsections; both the paragraph and the subsections are omitted when a root has no
-top-level long notes. Missing, false, merged-global, or `memory.h1_title`-only
+top-level reference notes. Missing, false, merged-global, or `memory.h1_title`-only
 configuration does not authorize any project memory or root `AGENTS.md` creation,
 refresh, or validation. The retired `memory.enabled` key is not an alias. Existing
 projects must replace it once with:
@@ -252,22 +252,23 @@ command can then commit those home changes and run `chezmoi apply --force`;
 
 The generated `sase/memory/sase.md` summarizes workspace naming, linked repositories,
 and the `/sase_final` terminal-action contract for end-of-turn declarations. The
-generated long-term `sase/memory/sase_artifacts.md` note owns artifact-reference and
-indexed-file workflow guidance. The generated long-term `sase/memory/sase_beads.md` note
+generated reference `sase/memory/sase_artifacts.md` note owns artifact-reference and
+indexed-file workflow guidance. The generated reference `sase/memory/sase_beads.md` note
 provides shared bead workflow guidance and has `sase/memory/sase_sizes.md` as a child
-size-scale note. Top-level project-only long notes are listed in Tier 2 of managed agent
-instructions, generated for SASE-managed project repositories only and never for home or
-chezmoi-home roots. The short `sase/memory/task_types.md` catalog note is likewise
-project-only. A root that no longer manages those notes (for example, a home root that
-previously generated them) deletes generated copies on the next `sase memory init` pass;
-copies a human has since edited are left alone and keep behaving as ordinary notes.
-Project memory reads linked-repo descriptions from the project-local `sase/sase.yml`;
-home memory reads them from the global config `~/.config/sase/sase.yml`, or from the
-chezmoi-managed config path when `use_chezmoi: true`. Generated memory requires agents
-to use `/sase_repo` before reading or modifying any repository outside their own
-workspace checkout. This rule applies to configured linked repos and sidecars, other
-SASE projects, and unlinked GitHub repos even when no linked repositories are
-configured; the skill carries the command grammar and workspace-selection details.
+size-scale note. Top-level project-only reference notes are listed in Tier 2 of managed
+agent instructions, generated for SASE-managed project repositories only and never for
+home or chezmoi-home roots. The core `sase/memory/task_types.md` catalog note is
+likewise project-only. A root that no longer manages those notes (for example, a home
+root that previously generated them) deletes generated copies on the next
+`sase memory init` pass; copies a human has since edited are left alone and keep
+behaving as ordinary notes. Project memory reads linked-repo descriptions from the
+project-local `sase/sase.yml`; home memory reads them from the global config
+`~/.config/sase/sase.yml`, or from the chezmoi-managed config path when
+`use_chezmoi: true`. Generated memory requires agents to use `/sase_repo` before reading
+or modifying any repository outside their own workspace checkout. This rule applies to
+configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos
+even when no linked repositories are configured; the skill carries the command grammar
+and workspace-selection details.
 
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must
 have a non-empty `description`. Initialization fails instead of generating ambiguous
@@ -312,23 +313,23 @@ directory. It reports:
 
 The dashboard includes approximate local token estimates for loaded memory context.
 
-For day-to-day read/write operations, including audited reads and reviewed long-term
+For day-to-day read/write operations, including audited reads and reviewed reference
 memory proposals, see [Memory](memory.md).
 
 ## Memory Read Audit Log
 
 `sase memory read <memory-relative-path> -r <reason>` is the audited path for
-agent-initiated long-term memory reads. The argument is relative to the selected project
-or home `sase/memory/` root; the command allows `type: long` Markdown notes and rejects
-`type: short` notes because short-term memory is expected to arrive through instruction
+agent-initiated reference memory reads. The argument is relative to the selected project
+or home `sase/memory/` root; the command allows `type: reference` Markdown notes and
+rejects `type: core` notes because core memory is expected to arrive through instruction
 loading. The command strips one leading YAML frontmatter block from stdout and appends
-`## Children` when nested long notes exist, but the audit log records only metadata such
-as path, agent name, timestamp, cwd, byte count, and reason.
+`## Children` when nested reference notes exist, but the audit log records only metadata
+such as path, agent name, timestamp, cwd, byte count, and reason.
 
 This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch
-time, for both `type: short` and `type: long` notes, without writing an audit event. See
-[Memory Field](xprompt.md#memory-field).
+time, for both `type: core` and `type: reference` notes, without writing an audit event.
+See [Memory Field](xprompt.md#memory-field).
 
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or

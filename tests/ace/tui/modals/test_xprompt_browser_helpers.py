@@ -50,7 +50,7 @@ def test_classify_source_project_memory_note(tmp_path: Path, monkeypatch) -> Non
     project_root = tmp_path / "workspace"
     memory_source = project_root / "sase" / "memory" / "glossary.md"
     memory_source.parent.mkdir(parents=True)
-    memory_source.write_text("---\ntype: short\n---\nbody\n")
+    memory_source.write_text("---\ntype: core\n---\nbody\n")
     monkeypatch.chdir(project_root)
 
     category, display_path, is_editable = classify_source(str(memory_source))
@@ -164,7 +164,7 @@ def test_browser_labels_and_previews_memory_entries() -> None:
     workflow = Workflow(
         name="memory/glossary",
         description="Glossary terms.",
-        memory_type="long",
+        memory_type="reference",
         steps=[WorkflowStep(name="prompt", prompt_part="Memory body")],
     )
     item = BrowserItem(
@@ -179,8 +179,8 @@ def test_browser_labels_and_previews_memory_entries() -> None:
         insertion="#memory/glossary",
     )
 
-    assert create_item_label(item).plain == "  #memory/glossary  memory · long"
+    assert create_item_label(item).plain == "  #memory/glossary  memory · reference"
     preview = create_simple_preview(workflow)
     assert "# Memory: memory/glossary" in preview
-    assert "memory type: long" in preview
-    assert "Type: memory · long (simple)" in create_meta_text(item).plain
+    assert "memory type: reference" in preview
+    assert "Type: memory · reference (simple)" in create_meta_text(item).plain

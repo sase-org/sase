@@ -83,6 +83,11 @@ memory:
     Chop:
       definition: >-
         A chop is one short, script-only unit of AXE automation. AXE supplies its context and applies configured cadence, triggers, guards, timeouts, and deduplication; a structured result may request follow-up launches, which only the runner performs.
+    Core Memory:
+      aliases:
+        - core memory
+      definition: >-
+        A SASE memory that renders as always-loaded Tier 1 context, declared by type: core frontmatter and inlined into AGENTS.md and every provider instruction shim. Legacy type: short means the same thing.
     Current Project:
       definition: >-
         The current project is the one sase project SASE treats as your working context: in practice, the one you most recently launched an agent on. It is derived, not stored — the first entry in the shared VCS xprompt MRU store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project, where a Patch entry yields its owning project. `sase project set-current` and the ACE Projects tab promote a project without launching; the working directory never does, and there may be none. It supplies only display and defaults, namely the ACE top-bar `+<project>` chip and the first-open value of project filters, so it never overrides an explicit choice, project lifecycle state, or what a command targets. `sase project current` prints it.
@@ -104,6 +109,12 @@ memory:
     Lumberjack:
       definition: >-
         An AXE lumberjack is an independently supervised scheduler process that runs its configured chops concurrently on a fixed interval and records its own state and metrics. The AXE orchestrator starts it and restarts it after crashes.
+    Memory Strand:
+      definition: >-
+        One small note inside a Memory Web, never inlined into a generated document and read on demand by keyword. Not yet implemented.
+    Memory Web:
+      definition: >-
+        A memory note that names a keyed collection of small sibling notes. Not yet implemented; the term is reserved now so the vocabulary is stable. A web renders as Core Memory or Reference Memory rather than being either render tier.
     Patch:
       definition: >-
         A Patch is SASE's local unit of change. Every PR created or managed by SASE is
@@ -130,6 +141,11 @@ memory:
         A proc shell is a named supervised proc belonging to a sase agent, with durable
         output and lifecycle state. A family-attached proc shell is a monitor and may
         carry timeout, workspace-claim, and follow-up policy.
+    Reference Memory:
+      aliases:
+        - reference memory
+      definition: >-
+        A SASE memory that renders as Tier 2 detail, declared by type: reference frontmatter, named in AGENTS.md with a description, and fetched explicitly through an audited sase memory read. Legacy type: long means the same thing. Reference Memory is read on demand, unlike Core Memory.
     Required Plugin:
       aliases:
         - required plugin
@@ -211,6 +227,9 @@ memory:
         numeric stitch, but a stitch need not have a commit: proposals retain
         numeric-plus-letter IDs such as `(2a)`. The `sase stitch create` command and
         real Git/Mercurial commits are still called commits.
+    Strand Keyword:
+      definition: >-
+        The display key a Memory Strand is addressed by, distinct from its filename slug, which is its identity. Not yet implemented.
     Task Type:
       aliases:
         - task type

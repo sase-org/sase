@@ -63,11 +63,12 @@ _MEMORY_README_TEMPLATE_VARS = frozenset(
     {
         "memory_notes",
         "total_notes",
-        "short_notes",
-        "long_notes",
         "total_lines",
         "total_tokens",
     }
+)
+_MEMORY_README_OPTIONAL_TEMPLATE_VARS = frozenset(
+    {"core_notes", "reference_notes", "short_notes", "long_notes"}
 )
 
 
@@ -132,7 +133,7 @@ def _discover_memory_readme_notes(
 
     rows.sort(
         key=lambda row: (
-            {"short": 0, "long": 1}.get(row.note.type or "", 2),
+            {"core": 0, "reference": 1}.get(row.note.type or "", 2),
             row.note.relative_path,
         )
     )
@@ -200,11 +201,17 @@ def _render_memory_readme(
         context={
             "memory_notes": _render_memory_notes(note_rows),
             "total_notes": len(note_rows),
-            "short_notes": sum(1 for row in note_rows if row.note.type == "short"),
-            "long_notes": sum(1 for row in note_rows if row.note.type == "long"),
+            "core_notes": sum(1 for row in note_rows if row.note.type == "core"),
+            "reference_notes": sum(
+                1 for row in note_rows if row.note.type == "reference"
+            ),
+            # User template overrides may still reference the old variable names.
+            "short_notes": sum(1 for row in note_rows if row.note.type == "core"),
+            "long_notes": sum(1 for row in note_rows if row.note.type == "reference"),
             "total_lines": sum(row.stats.line_count for row in note_rows),
             "total_tokens": sum(row.stats.approx_token_count for row in note_rows),
         },
+        optional_variables=_MEMORY_README_OPTIONAL_TEMPLATE_VARS,
         override_path=override,
     )
     if render_error is not None or rendered is None:
@@ -299,7 +306,7 @@ def render_expected_memory_files(
             note_overlay[root / relative_path] = content
     if amd_sync is not None:
         note_overlay.update(
-            {update.path: update.content for update in amd_sync.description_updates}
+            {update.path: update.content for update in amd_sync.frontmatter_updates}
         )
     rendered_readme, readme_error = _render_memory_readme(
         root,
@@ -393,10 +400,10 @@ def render_expected_memory_files(
             MemoryExpectedFile(
                 path=update.path,
                 content=update.content,
-                detail="long-memory description frontmatter",
+                detail="memory note frontmatter",
                 stale_operation="update",
             )
-            for update in amd_sync.description_updates
+            for update in amd_sync.frontmatter_updates
         )
         expected.append(
             MemoryExpectedFile(

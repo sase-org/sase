@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read before adding, deferring, or removing a SASE feature flag or flag bead.

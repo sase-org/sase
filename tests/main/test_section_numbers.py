@@ -9,25 +9,25 @@ def test_numbers_managed_document_shape() -> None:
     text = (
         "# Structured Agentic Software Engineering (SASE) - Agent Instructions\n"
         "\n"
-        "## Tier 1 (short-term) Memory\n"
+        "## Tier 1 (core) Memory\n"
         "\n"
         "### Build & Run Commands (build_and_run)\n"
         "\n"
         "#### IMPORTANT: Two-Speed Verification\n"
         "\n"
-        "## Tier 2 (long-term) Memory\n"
+        "## Tier 2 (reference) Memory\n"
     )
 
     assert number_agent_document_sections(text) == (
         "# Structured Agentic Software Engineering (SASE) - Agent Instructions\n"
         "\n"
-        "## 1. Tier 1 (short-term) Memory\n"
+        "## 1. Tier 1 (core) Memory\n"
         "\n"
         "### 1.1 Build & Run Commands (build_and_run)\n"
         "\n"
         "#### 1.1.1 IMPORTANT: Two-Speed Verification\n"
         "\n"
-        "## 2. Tier 2 (long-term) Memory\n"
+        "## 2. Tier 2 (reference) Memory\n"
     )
 
 

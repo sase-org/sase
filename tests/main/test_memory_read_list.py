@@ -19,9 +19,7 @@ from .memory_handler_helpers import write
 
 
 def _long_note(body: str, *, description: str = "Memory note.") -> str:
-    return (
-        f"---\ntype: long\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
-    )
+    return f"---\ntype: reference\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
 
 
 def test_memory_list_dashboard_renders_inventory_statuses(tmp_path: Path) -> None:
@@ -135,7 +133,7 @@ def test_memory_read_accepts_flat_path_and_omits_empty_children(
     home = tmp_path / "home"
     write(
         tmp_path / "sase" / "memory" / "foo.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Foo memory.\n---\n# Body\n\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Foo memory.\n---\n# Body\n\n",
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)
@@ -161,12 +159,12 @@ def test_memory_read_appends_children_section(
     home = tmp_path / "home"
     write(
         tmp_path / "sase" / "memory" / "hub.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Hub memory.\n---\n# Hub\n\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Hub memory.\n---\n# Hub\n\n",
     )
     write(
         tmp_path / "sase" / "memory" / "child_b.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: Beta child.\n"
         "---\n"
@@ -175,7 +173,7 @@ def test_memory_read_appends_children_section(
     write(
         tmp_path / "sase" / "memory" / "child_a.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: Alpha child.\n"
         "---\n"
@@ -269,7 +267,7 @@ def test_memory_read_rejects_flat_short_memory_without_logging(
     home = tmp_path / "home"
     write(
         tmp_path / "sase" / "memory" / "foo.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# Short\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Short\n",
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)

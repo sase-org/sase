@@ -291,7 +291,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "memory",
-        "Inspect loaded memory, review proposals, and audit long-term memory activity.",
+        "Inspect loaded memory, review proposals, and audit reference memory activity.",
     ),
     _CompactRootCommand(
         "patch",

@@ -312,7 +312,14 @@ def _validate_finalizer_contract(module: ModuleType) -> bool:
             {
                 "schema_version": EXPECTED_FINALIZER_WIRE_SCHEMA_VERSION,
                 "provider_ref": "builtin@commit",
-                "capabilities": ["requires_submission", "mutates_repository"],
+                "capabilities": [
+                    "validate",
+                    "execute",
+                    "verify",
+                    "requires_submission",
+                    "mutates_repository",
+                ],
+                "provenance_id": "builtin",
             }
         )
         module.validate_finalizer_instance_spec(instance)

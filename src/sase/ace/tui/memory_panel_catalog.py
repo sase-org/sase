@@ -184,7 +184,7 @@ def memory_note_relations(
             (
                 item
                 for item in snapshot.notes
-                if item.type == "long" and item.parent == note.relative_path
+                if item.type == "reference" and item.parent == note.relative_path
             ),
             key=lambda item: item.relative_path,
         )
@@ -382,7 +382,7 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
     tree: list[MemoryRailNode] = []
     children_by_parent: dict[str, list[MemoryNote]] = {}
     for note in notes:
-        if note.type == "long":
+        if note.type == "reference":
             children_by_parent.setdefault(note.parent, []).append(note)
     for children in children_by_parent.values():
         children.sort(key=lambda note: note.relative_path)
@@ -395,7 +395,7 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
             emitted.add(child.relative_path)
 
     shorts = sorted(
-        (note for note in notes if note.type == "short"),
+        (note for note in notes if note.type == "core"),
         key=lambda note: note.relative_path,
     )
     for note in shorts:
@@ -406,7 +406,7 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
         (
             note
             for note in notes
-            if note.type == "long" and note.parent == AGENTS_PARENT
+            if note.type == "reference" and note.parent == AGENTS_PARENT
         ),
         key=lambda note: note.relative_path,
     )
@@ -417,7 +417,7 @@ def _build_note_tree(notes: tuple[MemoryNote, ...]) -> tuple[MemoryRailNode, ...
         (
             note
             for note in notes
-            if note.type == "long" and note.relative_path not in emitted
+            if note.type == "reference" and note.relative_path not in emitted
         ),
         key=lambda note: note.relative_path,
     )

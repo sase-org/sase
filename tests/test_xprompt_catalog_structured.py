@@ -302,13 +302,13 @@ def test_structured_catalog_marks_packaged_skill_xprompts() -> None:
 def test_structured_catalog_marks_memory_xprompts(tmp_path: Path) -> None:
     source = tmp_path / "sase" / "memory" / "glossary.md"
     source.parent.mkdir(parents=True)
-    source.write_text("---\ntype: long\n---\nGlossary body\n")
+    source.write_text("---\ntype: reference\n---\nGlossary body\n")
     memory_xp = make_xprompt(
         "memory/glossary",
         source_path=str(source),
         description="Glossary terms.",
         content="Glossary body",
-        memory_type="long",
+        memory_type="reference",
     )
 
     with (
@@ -326,7 +326,7 @@ def test_structured_catalog_marks_memory_xprompts(tmp_path: Path) -> None:
     assert entry.insertion == "#memory/glossary"
     assert entry.reference_prefix == "#"
     assert entry.kind == "memory"
-    assert entry.memory_type == "long"
+    assert entry.memory_type == "reference"
     assert entry.is_skill is False
     assert entry.skill_name is None
     assert entry.definition_path == str(source.resolve())

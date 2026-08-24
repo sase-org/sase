@@ -84,17 +84,17 @@ def test_generated_notes_are_refused_for_create_update_and_delete(
 ) -> None:
     seed_scope(tmp_path)
     generated = tmp_path / "sase" / "memory" / "sase.md"
-    write_file(generated, note_text(note_type="short", description="Generated."))
+    write_file(generated, note_text(note_type="core", description="Generated."))
     digest = memory_note_digest(generated.read_bytes())
 
     with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/sase.md"):
-        create_note(tmp_path, "sase", note_type="short", description="Nope.")
+        create_note(tmp_path, "sase", note_type="core", description="Nope.")
     with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/sase.md"):
         update_memory_note(
             scope_key="demo",
             content_root=tmp_path,
             relative_path="sase/memory/sase.md",
-            note_type="short",
+            note_type="core",
             parent=AGENTS_PARENT,
             description="Nope.",
             expected_digest=digest,
@@ -117,19 +117,17 @@ def test_generated_notes_are_refused_for_create_update_and_delete(
 def test_generated_glossary_note_is_refused_in_a_project_scope(tmp_path: Path) -> None:
     seed_scope(tmp_path)
     glossary = tmp_path / "sase" / "memory" / "glossary.md"
-    write_file(
-        glossary, note_text(note_type="short", description="Generated glossary.")
-    )
+    write_file(glossary, note_text(note_type="core", description="Generated glossary."))
     digest = memory_note_digest(glossary.read_bytes())
 
     with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/glossary.md"):
-        create_note(tmp_path, "glossary", note_type="short", description="Nope.")
+        create_note(tmp_path, "glossary", note_type="core", description="Nope.")
     with pytest.raises(MemoryGeneratedNoteError, match="sase/memory/glossary.md"):
         update_memory_note(
             scope_key="demo",
             content_root=tmp_path,
             relative_path="sase/memory/glossary.md",
-            note_type="short",
+            note_type="core",
             parent=AGENTS_PARENT,
             description="Nope.",
             expected_digest=digest,
@@ -149,7 +147,7 @@ def test_home_scope_allows_the_project_only_task_types_name(tmp_path: Path) -> N
     outcome = create_note(
         tmp_path,
         "task_types",
-        note_type="short",
+        note_type="core",
         description="Home-authored task types.",
         scope_key="home",
         scope_kind="home",
@@ -163,7 +161,7 @@ def test_home_scope_allows_the_project_only_glossary_name(tmp_path: Path) -> Non
     outcome = create_note(
         tmp_path,
         "glossary",
-        note_type="short",
+        note_type="core",
         description="Home-authored glossary note.",
         scope_key="home",
         scope_kind="home",

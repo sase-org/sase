@@ -111,7 +111,7 @@ sibling_repos:
         assert "`memory_sase_template`" in readme
         assert "`memory_readme_template`" in readme
         assert "Non-README Markdown files live directly under `sase/memory/`" in readme
-        assert "`type: long` notes are detailed reference material" in readme
+        assert "`type: reference` notes are detailed reference material" in readme
         agents = (root / "AGENTS.md").read_text()
         assert (
             "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents

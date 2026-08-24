@@ -176,7 +176,7 @@ def test_xprompt_select_labels_and_previews_memory_entries() -> None:
         "memory/glossary": Workflow(
             name="memory/glossary",
             description="Glossary terms.",
-            memory_type="long",
+            memory_type="reference",
             steps=[WorkflowStep(name="prompt", prompt_part="Memory body")],
         )
     }
@@ -187,10 +187,10 @@ def test_xprompt_select_labels_and_previews_memory_entries() -> None:
         modal = XPromptSelectModal()
 
     label = modal._create_styled_label("memory/glossary")
-    assert label.plain == "#memory/glossary  memory · long"
+    assert label.plain == "#memory/glossary  memory · reference"
     preview = modal._all_items["memory/glossary"][0]
     assert "# Memory: memory/glossary" in preview
-    assert "memory type: long" in preview
+    assert "memory type: reference" in preview
 
 
 async def test_xprompt_select_action_opens_selected_source_path(
@@ -312,7 +312,7 @@ async def test_xprompt_select_ctrl_o_loads_selected_definition_for_editing(
         "build": _source_workflow("build", str(tmp_path / "build.md")),
         "memory/glossary": Workflow(
             name="memory/glossary",
-            memory_type="long",
+            memory_type="reference",
             source_path=str(source_path),
             steps=[WorkflowStep(name="prompt", prompt_part="Memory body.")],
         ),

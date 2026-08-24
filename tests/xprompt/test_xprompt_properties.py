@@ -86,7 +86,7 @@ def test_xprompt_properties_projects_everything_declared() -> None:
         skill=["claude", "codex"],
         snippet="rv",
         log_skill_use=False,
-        memory_type="long",
+        memory_type="reference",
         local_xprompts={"_helper": XPrompt(name="_helper", content="helper body")},
     )
 
@@ -107,7 +107,7 @@ def test_xprompt_properties_projects_everything_declared() -> None:
     assert properties.skill == ["claude", "codex"]
     assert properties.snippet == "rv"
     assert properties.log_skill_use is False
-    assert properties.memory_type == "long"
+    assert properties.memory_type == "reference"
     assert [item.name for item in properties.local_xprompts] == ["_helper"]
     assert properties.project == "sase"
     assert properties.source_bucket == "config"
@@ -162,7 +162,7 @@ def test_xprompt_properties_is_empty_true_for_bare_body_xprompt() -> None:
         lambda: XPrompt(name="d", content="x", inputs=[InputArg("a", InputType.WORD)]),
         lambda: XPrompt(name="d", content="x", tags=frozenset({XPromptTag.vcs})),
         lambda: XPrompt(name="d", content="x", skill=True),
-        lambda: XPrompt(name="d", content="x", memory_type="short"),
+        lambda: XPrompt(name="d", content="x", memory_type="core"),
         lambda: XPrompt(name="d", content="one\n---\ntwo"),
     ],
 )

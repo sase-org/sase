@@ -21,7 +21,7 @@ from tests.ace.tui.modals.memory_panel_test_helpers import memory_note
 
 async def test_form_parent_options_and_path_preview() -> None:
     notes = (
-        memory_note("always", note_type="short"),
+        memory_note("always", note_type="core"),
         memory_note("hub", description="Hub."),
         memory_note("child", parent="sase/memory/hub.md"),
     )
@@ -106,7 +106,7 @@ async def test_add_form_refuses_illegal_parent_and_cycle() -> None:
         existing_notes=notes,
         scope_display_name="sase",
         initial_stem="hub",
-        initial_type="long",
+        initial_type="reference",
         initial_parent=AGENTS_PARENT,
         initial_description="Hub.",
         current_relative_path="sase/memory/hub.md",
@@ -129,13 +129,13 @@ async def test_add_form_valid_submit_returns_draft() -> None:
     async with app.run_test(size=(100, 40)) as pilot:
         await wait_for(pilot, lambda: isinstance(app.screen, MemoryNoteFormModal))
         form = await fill_form(
-            app, stem="beta", note_type="long", description="The middle note."
+            app, stem="beta", note_type="reference", description="The middle note."
         )
         form.action_submit()
         await wait_for(pilot, lambda: isinstance(app.result, MemoryNoteFormDraft))
     assert app.result == MemoryNoteFormDraft(
         stem="beta",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="The middle note.",
     )

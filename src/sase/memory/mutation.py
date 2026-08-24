@@ -197,7 +197,7 @@ def delete_memory_note(
     if current != original:
         raise MemoryConflictError(source)
     source.unlink()
-    resolved_type: MemoryNoteType = "short" if note.type == "short" else "long"
+    resolved_type: MemoryNoteType = "core" if note.type == "core" else "reference"
     return MemoryMutationOutcome(
         scope_key=scope_key,
         content_root=root,

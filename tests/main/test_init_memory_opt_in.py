@@ -49,7 +49,7 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
     write(config_dir / "sase.yml", "is_sase_managed: true\n")
     agents_content = "# Custom Project Instructions\n\nDo not replace this.\n"
     memory_content = (
-        "---\ntype: long\nparent: sase/memory/missing.md\n---\n# Existing\n"
+        "---\ntype: reference\nparent: sase/memory/missing.md\n---\n# Existing\n"
     )
     write(project_root / "AGENTS.md", agents_content)
     write(project_root / "sase" / "memory" / "existing.md", memory_content)

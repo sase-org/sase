@@ -13,7 +13,7 @@ from ._agents_doc import (
 from ._config import resolve_amd_h1_title
 from ._headings import iter_headings
 from ._shared import (
-    AmdLongMemoryDescriptionUpdate,
+    AmdMemoryFrontmatterUpdate,
     AmdMemorySyncPlan,
     read_text,
 )
@@ -26,6 +26,7 @@ from sase.memory.notes import (
     MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
+    normalize_memory_note_type,
     render_long_memory_sections,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
@@ -132,7 +133,7 @@ def _long_memory_descriptions(
             existing_agents_descriptions=existing_agents_descriptions,
         )
         for note in notes
-        if note.type == "long"
+        if note.type == "reference"
     }
     descriptions.update(
         {
@@ -143,34 +144,50 @@ def _long_memory_descriptions(
     return descriptions
 
 
-def _long_memory_description_updates(
+def _memory_frontmatter_updates(
     root: Path,
     descriptions: dict[str, str],
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote],
     *,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
-) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
-    updates: list[AmdLongMemoryDescriptionUpdate] = []
+) -> tuple[AmdMemoryFrontmatterUpdate, ...]:
+    updates: list[AmdMemoryFrontmatterUpdate] = []
     for note in _discover_memory_notes_excluding(
         root,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     ):
-        if note.type != "long":
+        if note.type not in {"core", "reference"}:
+            continue
+        if note.type_source in {"invalid", "missing"}:
             continue
         source_path = root / note.source_relative_path
         path = root / note.path
         rel = note.relative_path
         if rel in generated_long_notes:
             continue
-        description = descriptions[rel]
+        raw_note_type = _normalized_frontmatter_type(note)
+        type_needs_migration = (
+            normalize_memory_note_type(raw_note_type) != raw_note_type
+        )
+        if (
+            note.type == "core"
+            and not type_needs_migration
+            and note.parent_source == "frontmatter"
+        ):
+            continue
+        description = (
+            descriptions.get(rel, note.description)
+            if note.type == "reference"
+            else note.description
+        )
         text, error = read_text(source_path)
         if error is not None or text is None:
             continue
         content = apply_memory_frontmatter(
             text,
-            note_type="long",
+            note_type=note.type,
             parent=(
                 note.parent if note.parent_source == "frontmatter" else AGENTS_PARENT
             ),
@@ -178,12 +195,20 @@ def _long_memory_description_updates(
         )
         if content != text:
             updates.append(
-                AmdLongMemoryDescriptionUpdate(
+                AmdMemoryFrontmatterUpdate(
                     path=path,
                     content=content,
                 )
             )
     return tuple(updates)
+
+
+def _normalized_frontmatter_type(note: MemoryNote) -> str | None:
+    raw_type = note.frontmatter.get("type")
+    if not isinstance(raw_type, str):
+        return None
+    normalized = " ".join(raw_type.split())
+    return normalized or None
 
 
 def _short_memory_bodies(
@@ -194,13 +219,13 @@ def _short_memory_bodies(
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
-    """Return short-note bodies to inline, keyed by root-relative path.
+    """Return core-note bodies to inline, keyed by root-relative path.
 
     Bodies discovered on disk are overlaid with the freshly generated bodies in
     *generated_short_notes* (for example ``sase/memory/sase.md``) so a single
     ``sase memory init`` pass inlines the just-written note content rather than a
-    stale on-disk copy. Paths owned by generated long notes are excluded from the
-    discovered short-note set so type migrations converge in the same pass. The
+    stale on-disk copy. Paths owned by generated reference notes are excluded from the
+    discovered core-note set so type migrations converge in the same pass. The
     result is sorted by path so the rendered ``AGENTS.md`` section order is
     deterministic.
     """
@@ -208,7 +233,7 @@ def _short_memory_bodies(
     bodies: dict[str, str] = {
         note.relative_path: note.body
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
-        if note.type == "short"
+        if note.type == "core"
         and note.relative_path not in excluded_note_paths
         and note.relative_path not in generated_long_note_paths
     }
@@ -219,7 +244,7 @@ def _short_memory_bodies(
 def _short_memory_structure_blockers(
     short_memory_bodies: Mapping[str, str],
 ) -> tuple[str, ...]:
-    """Return blockers for short notes that cannot be inlined safely."""
+    """Return blockers for core notes that cannot be inlined safely."""
     blockers: list[str] = []
     for relative_path, body in short_memory_bodies.items():
         error = validate_short_memory_structure(body)
@@ -231,12 +256,12 @@ def _short_memory_structure_blockers(
 def _long_memory_description_blockers(
     descriptions: Mapping[str, str],
 ) -> tuple[str, ...]:
-    """Return blockers for long notes whose descriptions would break Tier 2."""
+    """Return blockers for reference notes whose descriptions would break Tier 2."""
     blockers: list[str] = []
     for relative_path, description in sorted(descriptions.items()):
         if iter_headings(description):
             blockers.append(
-                f"{relative_path}: long memory note description must not contain "
+                f"{relative_path}: reference memory note description must not contain "
                 "Markdown headings"
             )
     return tuple(blockers)
@@ -266,7 +291,7 @@ def _render_managed_agents(
         existing = notes_by_relative_path.get(relative_path)
         notes_by_relative_path[relative_path] = MemoryNote(
             path=Path(relative_path),
-            type="long",
+            type="reference",
             parent=generated.parent,
             description=generated.description,
             body="" if existing is None else existing.body,
@@ -279,7 +304,7 @@ def _render_managed_agents(
             (
                 note
                 for note in notes_by_relative_path.values()
-                if note.type == "long" and note.parent == AGENTS_PARENT
+                if note.type == "reference" and note.parent == AGENTS_PARENT
             ),
             key=lambda note: note.relative_path,
         )
@@ -321,13 +346,13 @@ def _render_managed_agents(
         return (
             None,
             "rendered AGENTS template is missing structural anchor "
-            "`## Tier 1 (short-term) Memory`",
+            "`## Tier 1 (core) Memory`",
         )
     if not parsed.has_long_section:
         return (
             None,
             "rendered AGENTS template is missing structural anchor "
-            "`## Tier 2 (long-term) Memory`",
+            "`## Tier 2 (reference) Memory`",
         )
     expected_short_paths = tuple(bodies)
     if parsed.short_memory_paths != expected_short_paths:
@@ -347,7 +372,7 @@ def _render_managed_agents(
     if top_level_long_notes and _LONG_MEMORY_INTRO_FIRST_SENTENCE not in rendered:
         return (
             None,
-            "rendered AGENTS template is missing the Tier 2 long-memory "
+            "rendered AGENTS template is missing the Tier 2 reference-memory "
             "instruction paragraph",
         )
     return rendered, None
@@ -372,13 +397,13 @@ def plan_minimal_agents_sync(
         return AmdMemorySyncPlan(
             title=None,
             agents_content=None,
-            description_updates=(),
+            frontmatter_updates=(),
             blockers=(render_error or "failed to render minimal AGENTS template",),
         )
     return AmdMemorySyncPlan(
         title=None,
         agents_content=None,
-        description_updates=(),
+        frontmatter_updates=(),
         fallback_agents_content=rendered,
     )
 
@@ -394,17 +419,17 @@ def plan_amd_memory_sync(
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
-    *generated_short_notes* maps a root-relative short-note path to its freshly
+    *generated_short_notes* maps a root-relative core-note path to its freshly
     generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
     ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
-    *generated_long_notes* maps generated long-note paths to their metadata so a
+    *generated_long_notes* maps generated reference-note paths to their metadata so a
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
     """
     root = root or Path.cwd()
     generated_short_notes = generated_short_notes or {}
     generated_long_notes = generated_long_notes or {}
-    # Generated short notes overlay disk in the same pass, including type
-    # migrations from a leftover long note at the same path.
+    # Generated core notes overlay disk in the same pass, including type
+    # migrations from a leftover reference note at the same path.
     excluded_note_paths = excluded_note_paths | frozenset(generated_short_notes)
     title, title_error = resolve_amd_h1_title(
         root, derive_project_title=derive_project_title
@@ -413,7 +438,7 @@ def plan_amd_memory_sync(
         return AmdMemorySyncPlan(
             title=None,
             agents_content=None,
-            description_updates=(),
+            frontmatter_updates=(),
             blockers=(title_error,),
         )
     if title is None:
@@ -434,7 +459,7 @@ def plan_amd_memory_sync(
         return AmdMemorySyncPlan(
             title=title,
             agents_content=None,
-            description_updates=(),
+            frontmatter_updates=(),
             blockers=structure_blockers,
         )
 
@@ -449,10 +474,10 @@ def plan_amd_memory_sync(
         return AmdMemorySyncPlan(
             title=title,
             agents_content=None,
-            description_updates=(),
+            frontmatter_updates=(),
             blockers=description_blockers,
         )
-    updates = _long_memory_description_updates(
+    updates = _memory_frontmatter_updates(
         root,
         descriptions,
         generated_long_notes,
@@ -472,11 +497,11 @@ def plan_amd_memory_sync(
         return AmdMemorySyncPlan(
             title=title,
             agents_content=None,
-            description_updates=(),
+            frontmatter_updates=(),
             blockers=(template_error or "failed to render AGENTS template",),
         )
     return AmdMemorySyncPlan(
         title=title,
         agents_content=agents_content,
-        description_updates=updates,
+        frontmatter_updates=updates,
     )

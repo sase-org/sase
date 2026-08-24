@@ -153,10 +153,10 @@ def render_generated_sase_memory_body(
 
 
 def generated_sase_memory_content(generated_sase_body: str) -> str:
-    """Return ``sase/memory/sase.md`` with generated short-note frontmatter."""
+    """Return ``sase/memory/sase.md`` with generated core-note frontmatter."""
     return apply_memory_frontmatter(
         generated_sase_body,
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
     )
 
@@ -229,10 +229,10 @@ def render_generated_glossary_memory_body(
 
 
 def generated_glossary_memory_content(generated_glossary_body: str) -> str:
-    """Return ``sase/memory/glossary.md`` with generated short-note frontmatter."""
+    """Return ``sase/memory/glossary.md`` with generated core-note frontmatter."""
     return apply_memory_frontmatter(
         generated_glossary_body,
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
         extra={GENERATED_GLOSSARY_MARKER_KEY: GENERATED_GLOSSARY_MARKER_VALUE},
     )
@@ -244,7 +244,7 @@ def _render_generated_long_memory_content(
     relative_path: Path,
     parent: str,
 ) -> tuple[str | None, str | None]:
-    """Render a packaged generated long memory note."""
+    """Render a packaged generated reference memory note."""
     rendered, render_error = render_markdown_template(
         package=_MEMORY_TEMPLATE_PACKAGE,
         filename=f"templates/{template_filename}",
@@ -265,7 +265,7 @@ def _render_generated_long_memory_content(
         return (
             None,
             f"packaged {template_filename}: "
-            "generated long memory note must have a description",
+            "generated reference memory note must have a description",
         )
     canonical_parent = (
         AGENTS_PARENT
@@ -275,7 +275,7 @@ def _render_generated_long_memory_content(
     return (
         apply_memory_frontmatter(
             formatted,
-            note_type="long",
+            note_type="reference",
             parent=canonical_parent,
             description=note.description,
         ),
@@ -286,7 +286,7 @@ def _render_generated_long_memory_content(
 def _render_generated_project_long_memory_content(
     spec: _GeneratedLongMemorySpec,
 ) -> tuple[str | None, str | None]:
-    """Render one generated project-only long memory note."""
+    """Render one generated project-only reference memory note."""
     return _render_generated_long_memory_content(
         template_filename=spec.template_filename,
         relative_path=spec.relative_path,
@@ -297,7 +297,7 @@ def _render_generated_project_long_memory_content(
 def render_generated_project_long_memory_contents() -> tuple[
     dict[str, str], str | None
 ]:
-    """Render generated project-only long memory notes keyed by relative path."""
+    """Render generated project-only reference memory notes keyed by relative path."""
     contents: dict[str, str] = {}
     for spec in _GENERATED_PROJECT_LONG_MEMORY_SPECS:
         content, error = _render_generated_project_long_memory_content(spec)
@@ -311,7 +311,7 @@ def generated_project_long_expected_files(
     root: Path,
     contents: Mapping[str, str],
 ) -> tuple[MemoryExpectedFile, ...]:
-    """Return expected files for generated project-only long memory notes."""
+    """Return expected files for generated project-only reference memory notes."""
     expected: list[MemoryExpectedFile] = []
     for spec in _GENERATED_PROJECT_LONG_MEMORY_SPECS:
         generated_long_content = contents.get(spec.relative_path.as_posix())
@@ -333,7 +333,7 @@ def generated_short_notes(
     generated_artifact_relations_body: str | None = None,
     generated_glossary_body: str | None = None,
 ) -> dict[str, str]:
-    """Return freshly generated short-note bodies keyed by relative path."""
+    """Return freshly generated core-note bodies keyed by relative path."""
     notes = {
         generated_sase_memory_relative_path().as_posix(): generated_sase_body,
     }
@@ -355,13 +355,13 @@ def generated_short_notes(
 def generated_long_notes(
     generated_contents: Mapping[str, str],
 ) -> dict[str, GeneratedLongMemoryNote]:
-    """Return generated long-note metadata keyed by relative path."""
+    """Return generated reference-note metadata keyed by relative path."""
     result: dict[str, GeneratedLongMemoryNote] = {}
     for relative_path, content in generated_contents.items():
         note = parse_memory_note_text(content, relative_path)
         if note.description is None:
             raise ValueError(
-                f"generated long memory note lacks a description: {relative_path}"
+                f"generated reference memory note lacks a description: {relative_path}"
             )
         result[relative_path] = GeneratedLongMemoryNote(
             description=note.description,

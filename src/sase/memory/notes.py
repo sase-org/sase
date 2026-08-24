@@ -21,11 +21,12 @@ AGENTS_PARENT = "AGENTS.md"
 MEMORY_DIR = CANONICAL_MEMORY_RELATIVE_ROOT.as_posix()
 README_FILENAME = "README.md"
 
-MemoryNoteType = Literal["short", "long"]
+MemoryNoteType = Literal["core", "reference"]
 MemoryNoteTypeSource = Literal["frontmatter", "missing", "invalid"]
 MemoryNoteParentSource = Literal["frontmatter", "missing", "invalid"]
 
-_VALID_NOTE_TYPES = frozenset({"short", "long"})
+_LEGACY_NOTE_TYPES = {"short": "core", "long": "reference"}
+_VALID_NOTE_TYPES = frozenset({"core", "reference"})
 _CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "description"})
 _RETIRED_FRONTMATTER_KEYS = frozenset({"keywords"})
 _NON_EXTENSION_FRONTMATTER_KEYS = (
@@ -65,7 +66,7 @@ class MemoryNote:
 
 @dataclass(frozen=True)
 class GeneratedLongMemoryNote:
-    """Metadata for a generated long memory note keyed by root-relative path."""
+    """Metadata for a generated reference memory note keyed by root-relative path."""
 
     description: str
     parent: str = AGENTS_PARENT
@@ -163,6 +164,13 @@ def collapse_description(description: str | None) -> str | None:
     return _normalized_scalar(description)
 
 
+def normalize_memory_note_type(value: str | None) -> str | None:
+    """Return the canonical memory note type for current or legacy spelling."""
+    if value is None:
+        return None
+    return _LEGACY_NOTE_TYPES.get(value, value)
+
+
 def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
     """Parse a markdown memory note from ``text`` and root-relative ``path``."""
     relative_path = Path(path)
@@ -172,9 +180,12 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
     raw_type = frontmatter.get("type")
     if "type" in frontmatter:
         parsed_type = _normalized_scalar(raw_type)
-        note_type = parsed_type
+        normalized_type = normalize_memory_note_type(parsed_type)
+        note_type = (
+            normalized_type if normalized_type in _VALID_NOTE_TYPES else parsed_type
+        )
         type_source: MemoryNoteTypeSource = (
-            "frontmatter" if parsed_type in _VALID_NOTE_TYPES else "invalid"
+            "frontmatter" if normalized_type in _VALID_NOTE_TYPES else "invalid"
         )
     else:
         note_type = None
@@ -409,20 +420,22 @@ def _children_of(
     notes: Iterable[MemoryNote],
     parent: MemoryNote | str | Path,
 ) -> tuple[MemoryNote, ...]:
-    """Return long-term notes parented under ``parent``, sorted by path."""
+    """Return reference notes parented under ``parent``, sorted by path."""
     key = _parent_key(parent)
-    children = [note for note in notes if note.type == "long" and note.parent == key]
+    children = [
+        note for note in notes if note.type == "reference" and note.parent == key
+    ]
     return tuple(sorted(children, key=lambda note: note.relative_path))
 
 
 def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
-    """Render notes in the long-memory reference-list shape."""
+    """Render notes in the reference-memory list shape."""
     lines: list[str] = []
-    long_notes = sorted(
-        (note for note in notes if note.type == "long"),
+    reference_notes = sorted(
+        (note for note in notes if note.type == "reference"),
         key=lambda note: note.relative_path,
     )
-    for index, note in enumerate(long_notes):
+    for index, note in enumerate(reference_notes):
         if index:
             lines.append("")
         lines.append(f"**`{note.relative_path}`**  ")
@@ -431,13 +444,13 @@ def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
 
 
 def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
-    """Render notes as AGENTS.md Tier 2 H3 subsections."""
+    """Render reference notes as AGENTS.md Tier 2 H3 subsections."""
     lines: list[str] = []
-    long_notes = sorted(
-        (note for note in notes if note.type == "long"),
+    reference_notes = sorted(
+        (note for note in notes if note.type == "reference"),
         key=lambda note: note.relative_path,
     )
-    for index, note in enumerate(long_notes):
+    for index, note in enumerate(reference_notes):
         if index:
             lines.append("")
         lines.append(f"### `{note.relative_path}`")
@@ -478,6 +491,7 @@ __all__ = [
     "apply_memory_frontmatter",
     "collapse_description",
     "discover_memory_notes",
+    "normalize_memory_note_type",
     "parse_memory_note_text",
     "render_children_section",
     "render_long_memory_sections",

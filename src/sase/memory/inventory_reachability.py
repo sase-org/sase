@@ -55,9 +55,9 @@ def _is_short_memory_note(
     *,
     overlay: Mapping[Path, str],
 ) -> bool:
-    """Return whether the memory file at *path* is a ``type: short`` note."""
+    """Return whether the memory file at *path* is a ``type: core`` note."""
     note = _memory_note_for_init(root, path, overlay=overlay)
-    return note is not None and note.type == "short"
+    return note is not None and note.type == "core"
 
 
 def inlined_short_memory_files(
@@ -67,9 +67,9 @@ def inlined_short_memory_files(
     overlay: Mapping[Path, str],
     source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
-    """Return short notes inlined as ``### [N. ]Title (file)`` sections.
+    """Return core notes inlined as ``### [N. ]Title (file)`` sections.
 
-    ``sase memory init`` inlines each short note's body under such a header, so a
+    ``sase memory init`` inlines each core note's body under such a header, so a
     note reached this way has its bytes loaded as part of *source* (an
     ``AGENTS.md``) even though there is no ``@`` import.
     """
@@ -111,14 +111,14 @@ def _children_by_parent_for_init(
     }
     children_by_parent: dict[Path, list[Path]] = {}
     for path, note in notes_by_path.items():
-        if note.type != "long" or note.parent == AGENTS_PARENT:
+        if note.type != "reference" or note.parent == AGENTS_PARENT:
             continue
 
         parent_path = path_by_reference.get(note.parent)
         if parent_path is None:
             continue
         parent_note = notes_by_path.get(parent_path)
-        if parent_note is None or parent_note.type != "long":
+        if parent_note is None or parent_note.type != "reference":
             continue
         children_by_parent.setdefault(parent_path, []).append(path)
 
@@ -224,16 +224,16 @@ def memory_parent_blockers_for_init(
             continue
 
         parent_note = notes_by_path[parent_path]
-        if parent_note.type == "short":
+        if parent_note.type == "core":
             blockers.append(
                 f"{root_resolved}: invalid memory parent for {note.relative_path}: "
-                f"{note.parent} (parent target is a short memory note)"
+                f"{note.parent} (parent target is a core memory note)"
             )
             continue
-        if parent_note.type != "long":
+        if parent_note.type != "reference":
             blockers.append(
                 f"{root_resolved}: invalid memory parent for {note.relative_path}: "
-                f"{note.parent} (parent target is not a long memory note)"
+                f"{note.parent} (parent target is not a reference memory note)"
             )
             continue
 

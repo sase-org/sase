@@ -111,7 +111,7 @@ def generated_artifact_relations_memory_content(
 
     return apply_memory_frontmatter(
         generated_artifact_relations_body,
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
     )
 

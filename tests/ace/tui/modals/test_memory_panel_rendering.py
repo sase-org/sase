@@ -149,7 +149,7 @@ def test_panel_header_shows_unpublished_badge() -> None:
 
 
 def test_note_row_text_marks_tier_and_child_indent() -> None:
-    short_row = _row(memory_note("always", note_type="short"))
+    short_row = _row(memory_note("always", note_type="core"))
     long_row = _row(memory_note("hub"))
     child_row = _row(memory_note("child", parent="sase/memory/hub.md"), depth=1)
 
@@ -186,7 +186,7 @@ def test_note_row_text_includes_description_snippet() -> None:
 def test_note_badge_row_marks_tier_generated_shadowed_orphaned_invalid() -> None:
     ref = scope_ref("sase", "sase")
 
-    short_note = memory_note("always", note_type="short")
+    short_note = memory_note("always", note_type="core")
     assert (
         _build_note_badge_row(
             scope_snapshot(ref, (short_note,)), short_note, accent="#fff"

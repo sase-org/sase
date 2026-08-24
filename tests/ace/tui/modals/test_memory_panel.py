@@ -31,7 +31,7 @@ async def test_panel_mounts_and_selects_first_note(
 ) -> None:
     ref = scope_ref("sase", "sase")
     notes = (
-        memory_note("zebra", note_type="short", description="Always loaded."),
+        memory_note("zebra", note_type="core", description="Always loaded."),
         memory_note("agent_hood", description="Hub note."),
     )
     install_fixed_load(monkeypatch, (ref,), {"sase": scope_snapshot(ref, notes)})
@@ -40,7 +40,7 @@ async def test_panel_mounts_and_selects_first_note(
     app = MemoryPanelTestApp(panel)
     async with app.run_test(size=(120, 40)) as pilot:
         await wait_for(pilot, lambda: not panel._loading)
-        # Tier 1 (short) notes sort before Tier 2 regardless of stem, so the
+        # Tier 1 (core) notes sort before Tier 2 regardless of stem, so the
         # short "zebra" note is selected first even though "agent_hood" is
         # alphabetically earlier.
         assert panel._current_note == "sase/memory/zebra.md"
@@ -52,7 +52,7 @@ async def test_tree_ordering_nests_children_under_their_parent(
 ) -> None:
     ref = scope_ref("sase", "sase")
     notes = (
-        memory_note("always", note_type="short", description="Always loaded."),
+        memory_note("always", note_type="core", description="Always loaded."),
         memory_note("hub", description="Hub."),
         memory_note("child", parent="sase/memory/hub.md", description="Child."),
         memory_note("zeta", description="Later root."),

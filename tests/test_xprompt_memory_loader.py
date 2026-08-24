@@ -25,7 +25,7 @@ def _write(path: Path, content: str) -> None:
 def _memory_note(
     body: str,
     *,
-    note_type: str = "long",
+    note_type: str = "reference",
     description: str = "Memory note.",
 ) -> str:
     return (
@@ -54,7 +54,7 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     project = tmp_path / "repo"
     _write(
         project / "sase" / "memory" / "glossary.md",
-        _memory_note("# Glossary\n", note_type="long", description="Terms."),
+        _memory_note("# Glossary\n", note_type="reference", description="Terms."),
     )
     _write(project / "sase" / "memory" / "README.md", "# Ignored\n")
     _write(project / "sase" / "memory" / "nested" / "ignored.md", "# Ignored\n")
@@ -66,7 +66,7 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     assert glossary.inputs == []
     assert glossary.content == "# Glossary\n"
     assert glossary.description == "Terms."
-    assert glossary.memory_type == "long"
+    assert glossary.memory_type == "reference"
     assert glossary.source_path == str(project / "sase" / "memory" / "glossary.md")
 
 
@@ -78,7 +78,7 @@ def test_memory_loader_collapses_block_description(
     _write(
         project / "sase" / "memory" / "glossary.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: |-\n"
         "  Lead.\n"
@@ -144,7 +144,7 @@ def test_invalid_memory_type_and_stem_record_load_issues(
         MEMORY_LOAD_ISSUE_KIND,
     ]
     errors = [issue.error for issue in issues]
-    assert any("declare `type: short` or `type: long`" in error for error in errors)
+    assert any("declare `type: core` or `type: reference`" in error for error in errors)
     assert any(
         "cannot be referenced as `#memory/bad-name`" in error for error in errors
     )
@@ -269,7 +269,7 @@ def test_direct_lookup_and_trace_include_memory_metadata(
     )
 
     assert xprompt is not None
-    assert getattr(xprompt, "memory_type", None) == "long"
+    assert getattr(xprompt, "memory_type", None) == "reference"
     assert expanded == "Foo\n"
     assert [(record.name, record.source_path) for record in trace.records] == [
         ("memory/foo", str(project / "sase" / "memory" / "foo.md"))
@@ -278,7 +278,7 @@ def test_direct_lookup_and_trace_include_memory_metadata(
 
 def test_memory_type_propagates_to_converted_workflow() -> None:
     workflow = xprompt_to_workflow(
-        XPrompt(name="memory/foo", content="Foo", memory_type="long")
+        XPrompt(name="memory/foo", content="Foo", memory_type="reference")
     )
 
-    assert workflow.memory_type == "long"
+    assert workflow.memory_type == "reference"

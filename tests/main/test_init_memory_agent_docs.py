@@ -38,7 +38,7 @@ def _assert_derived_managed_agents(agents: str) -> None:
         "`sase memory init` to regenerate `AGENTS.md`, the provider instruction "
         "shims, and the memory README. Do NOT ask for separate permission to "
         "initialize sase memory in that case. "
-        "## 1. Tier 1 (short-term) Memory "
+        "## 1. Tier 1 (core) Memory "
         "The following memories contain core (always loaded) context: "
         "### 1.1 Artifact Relation Registry (artifact_relations)"
     )
@@ -49,7 +49,7 @@ def _assert_derived_managed_agents(agents: str) -> None:
 
 
 def short_note(body: str) -> str:
-    return "---\ntype: short\nparent: AGENTS.md\n---\n" + body
+    return "---\ntype: core\nparent: AGENTS.md\n---\n" + body
 
 
 def test_init_memory_manages_live_home_from_user_overlay(
@@ -75,7 +75,7 @@ def test_init_memory_manages_live_home_from_user_overlay(
 
     agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Athena Home\n")
-    assert "## 1. Tier 1 (short-term) Memory" in agents
+    assert "## 1. Tier 1 (core) Memory" in agents
     assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "- @sase/memory/sase.md" not in agents
     # Provider files are byte-for-byte copies of ``AGENTS.md``.

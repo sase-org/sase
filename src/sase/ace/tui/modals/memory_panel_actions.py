@@ -110,7 +110,7 @@ class MemoryPanelActionsMixin(MemoryPanelPublishActionsMixin):
             )
             return
         note = node.note
-        note_type = note.type if note.type in {"short", "long"} else "long"
+        note_type = note.type if note.type in {"core", "reference"} else "reference"
         self.app.push_screen(
             MemoryNoteFormModal(
                 mode="edit",

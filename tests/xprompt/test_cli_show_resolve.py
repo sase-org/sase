@@ -345,13 +345,13 @@ def test_memory_record_projects_kind_and_type(
     import sase.xprompt.cli_show_resolve as resolve_module
 
     path = tmp_path / "glossary.md"
-    path.write_text("---\ntype: long\n---\nbody\n")
+    path.write_text("---\ntype: reference\n---\nbody\n")
     xprompt = XPrompt(
         name="memory/glossary",
         content="body\n",
         source_path=str(path),
         description="Glossary terms.",
-        memory_type="long",
+        memory_type="reference",
     )
     _patch_catalog(
         monkeypatch,
@@ -364,10 +364,10 @@ def test_memory_record_projects_kind_and_type(
     assert isinstance(record, XPromptShowRecord)
     assert record.reference == "#memory/glossary"
     assert record.kind == "memory"
-    assert record.memory_type == "long"
+    assert record.memory_type == "reference"
     projection = record.to_json_dict()
     assert projection["kind"] == "memory"
-    assert projection["memory_type"] == "long"
+    assert projection["memory_type"] == "reference"
 
 
 def test_step_record_reuses_shared_type_and_output_schema(

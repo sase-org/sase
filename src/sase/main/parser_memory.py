@@ -111,10 +111,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     read_parser = memory_subparsers.add_parser(
         "read",
-        help="Read and audit a long-term memory file",
+        help="Read and audit a reference memory file",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Read a long-term memory markdown file from project sase/memory/, "
+            "Read a reference memory markdown file from project sase/memory/, "
             "falling back to ~/sase/memory/ when the project file is absent. "
             "Pass a flat note name such as generated_skills.md. Leading YAML "
             "frontmatter is stripped before printing, child notes are listed "
@@ -132,10 +132,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     show_parser = memory_subparsers.add_parser(
         "show",
-        help="Print a long-term memory note without recording a read",
+        help="Print a reference memory note without recording a read",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Resolve a long-term memory note exactly like `sase memory read` "
+            "Resolve a reference memory note exactly like `sase memory read` "
             "— project sase/memory/ first, then ~/sase/memory/ — strip "
             "leading YAML frontmatter, and append the `## Children` section "
             "when children exist. Unlike `read`, this command records no "
@@ -153,10 +153,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     write_parser = memory_subparsers.add_parser(
         "write",
-        help="Propose a long-term memory file for user review",
+        help="Propose a reference memory file for user review",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Create an attributable, reviewable long-term memory proposal. "
+            "Create an attributable, reviewable reference memory proposal. "
             "This command writes only proposal state under ~/.sase/projects; "
             "it never modifies canonical memory files."
         ),
@@ -198,7 +198,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
     target_group.add_argument(
         "--target",
         metavar="<slug>.md",
-        help="One-level canonical long-memory target filename",
+        help="One-level canonical reference-memory target filename",
     )
     target_group.add_argument(
         "--slug",
@@ -238,10 +238,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     review_parser = memory_subparsers.add_parser(
         "review",
-        help="Review pending long-term memory proposals",
+        help="Review pending reference memory proposals",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List, inspect, approve, edit, or reject pending long-term memory "
+            "List, inspect, approve, edit, or reject pending reference memory "
             "proposals. On a TTY, a bare command launches the interactive "
             "review app; otherwise it prints the pending proposal list."
         ),
@@ -313,10 +313,10 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
 
     log_parser = memory_subparsers.add_parser(
         "log",
-        help="Summarize or inspect auditable long-term memory reads",
+        help="Summarize or inspect auditable reference memory reads",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Summarize auditable long-term memory reads recorded by "
+            "Summarize auditable reference memory reads recorded by "
             "`sase memory read`, or inspect matching read events with "
             "--path, --agent, or --id."
         ),

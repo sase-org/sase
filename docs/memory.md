@@ -4,37 +4,41 @@ SASE memory is durable context that survives individual agent chats. Project not
 as Markdown files directly under `sase/memory/`; home notes live under `~/sase/memory/`.
 Each non-README note declares its tier in YAML frontmatter:
 
-- **Short-term memory** uses `type: short`. It is always-loaded instruction context:
-  `sase memory init` inlines each short-term note into the
-  `## 1. Tier 1 (short-term) Memory` block of the managed `AGENTS.md`; generated section
-  numbers span the whole document (e.g. `### 1.1 Build & Run Commands (build_and_run)`
-  and `#### 1.1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with
+- **Core memory** uses `type: core`. It is always-loaded instruction context:
+  `sase memory init` inlines each core note into the `## 1. Tier 1 (core) Memory` block
+  of the managed `AGENTS.md`; generated section numbers span the whole document (e.g.
+  `### 1.1 Build & Run Commands (build_and_run)` and
+  `#### 1.1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with
   project-local `is_sase_managed: true`. `memory.h1_title` optionally customizes the
   generated title. The retired `memory.enabled` key no longer authorizes management.
-- **Long-term memory** uses `type: long`. It is reference context, requires
+- **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
-  another long note's `## Children` section. A long note description may be a Markdown
-  block authored as a YAML literal block scalar; that block renders verbatim as the body
-  of the note's numbered Tier 2 section, while single-line surfaces collapse it.
+  another reference note's `## Children` section. A reference note description may be a
+  Markdown block authored as a YAML literal block scalar; that block renders verbatim as
+  the body of the note's numbered Tier 2 section, while single-line surfaces collapse
+  it.
 - **Audited memory operations** live under the project state directory and record agent
   reads plus proposed writes and human review decisions.
 
+The legacy frontmatter values `type: short` and `type: long` are still accepted and mean
+`type: core` and `type: reference` respectively.
+
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
-provider instruction file status. Initialization always generates the short
+provider instruction file status. Initialization always generates the core
 `sase/memory/sase.md` workspace note — workspace naming, linked repositories, and the
 `/sase_final` terminal-action contract. For SASE-managed project repositories it
-additionally generates the short `sase/memory/task_types.md` catalog note
+additionally generates the core `sase/memory/task_types.md` catalog note
 (agent-creatable types, their `when_to_use` text, and field names),
 `sase/memory/sase_artifacts.md` for artifact-reference and indexed-file workflows,
 `sase/memory/sase_beads.md` for bead workflows, and `sase/memory/sase_sizes.md`
 size-scale guidance nested under `sase_beads.md` and surfaced through that note's
-`## Children` section on an audited read. The top-level long notes are listed in Tier 2
-of managed agent instructions. The project-root task-type note and
+`## Children` section on an audited read. The top-level reference notes are listed in
+Tier 2 of managed agent instructions. The project-root task-type note and
 `sase/task_types.json` snapshot render from the committed catalog (builtins,
 `plugins.required` types, and `bead.task_types`). Day to day, the usual order is:
 inspect loaded context with `sase memory list`, have agents use `sase memory read` for
-audited long-term reads, have agents use `sase memory write` only to create proposals,
+audited reference reads, have agents use `sase memory write` only to create proposals,
 then have a human approve or reject those proposals with `sase memory review`.
 
 ACE's **Memory panel** is the interactive surface for browsing, adding, editing, and
@@ -53,16 +57,16 @@ xprompt reference: `sase/memory/sase_artifacts.md` expands with
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence
 described in [Audited Reads](#audited-reads) below. A nonempty project glossary
-generates the short-term note `sase/memory/glossary.md`, so `#memory/glossary` is a
-valid xprompt reference and the note appears in `sase memory list`. Full definitions
-still come from `sase glossary read`, covered in [Glossary](#glossary) below;
-`sase memory read glossary.md` still fails because `read` rejects short notes as
+generates the core note `sase/memory/glossary.md`, so `#memory/glossary` is a valid
+xprompt reference and the note appears in `sase memory list`. Full definitions still
+come from `sase glossary read`, covered in [Glossary](#glossary) below;
+`sase memory read glossary.md` still fails because `read` rejects core notes as
 already-loaded context.
 
 This is explicit, launch-time prompt composition, not an audited lookup: expanding
 `#memory/<stem>` strips frontmatter and inlines the note body but does not append the
 `## Children` section, and never writes a `sase memory read` audit event. Use
-`sase memory read` (below) when an already-running agent needs to consult long-term
+`sase memory read` (below) when an already-running agent needs to consult reference
 memory on its own and have that access recorded. It is not a restoration of the retired
 dynamic-memory runtime — there is no keyword matching, prompt scanning, or automatic
 context injection. See [Memory Field](xprompt.md#memory-field) for the full expansion
@@ -95,7 +99,7 @@ an agent launch.
 
 ## Show a Note
 
-`sase memory show <memory-relative-path>` resolves and prints a long-term memory note
+`sase memory show <memory-relative-path>` resolves and prints a reference memory note
 the same way `sase memory read` does, minus the audit event:
 
 ```bash
@@ -105,16 +109,16 @@ sase memory show cli_rules.md -f json
 ```
 
 Path resolution is identical to `read`: project `sase/memory/` first, then
-`~/sase/memory/`, and only `type: long` notes are accepted. Leading YAML frontmatter is
-stripped, and a `## Children` section (or, in `rich`, a `Children` block) is appended
-when the note has nested long-term children. `-f/--format` selects `markdown` (the
-default, byte-identical to `read`'s stdout for the same note), `rich` (a styled terminal
-view), or `json` (a structured payload with `project`, `origin`, `note`, and
-`children`). No audit event is written and no agent identity is required.
+`~/sase/memory/`, and only `type: reference` notes are accepted. Leading YAML
+frontmatter is stripped, and a `## Children` section (or, in `rich`, a `Children` block)
+is appended when the note has nested reference children. `-f/--format` selects
+`markdown` (the default, byte-identical to `read`'s stdout for the same note), `rich` (a
+styled terminal view), or `json` (a structured payload with `project`, `origin`, `note`,
+and `children`). No audit event is written and no agent identity is required.
 
 ## Audited Reads
 
-Agents should read long-term memory through `sase memory read` so the access is
+Agents should read reference memory through `sase memory read` so the access is
 attributable:
 
 ```bash
@@ -128,10 +132,10 @@ sase memory log --id <read-id>
 
 The read argument remains relative to the selected project or home memory root, so
 callers pass `generated_skills.md`, not `sase/memory/generated_skills.md`. It accepts
-long-term notes (`type: long`). Short-term notes are excluded because they are intended
+reference notes (`type: reference`). Core notes are excluded because they are intended
 to arrive through instruction loading rather than ad hoc reads. The command strips one
 leading YAML frontmatter block from stdout and appends a `## Children` section when the
-note has nested long-term children. The audit event records metadata such as path, agent
+note has nested reference children. The audit event records metadata such as path, agent
 name, timestamp, cwd, byte count, and reason.
 
 Every read requires a non-empty reason via `-r` or `--reason` and agent attribution from
@@ -149,13 +153,13 @@ proposal/review actors.
 ## Glossary
 
 Project glossary entries authored under `memory.glossary` in `sase/sase.yml` (see
-[glossary configuration](configuration.md#memoryglossary)) generate a short-term
+[glossary configuration](configuration.md#memoryglossary)) generate a core
 `sase/memory/glossary.md` note. `sase memory init` inlines that note into Tier 1 of
 `AGENTS.md` as `Glossary Terms (glossary)`: a compact instruction paragraph plus a
 single `**GLOSSARY TERMS:**` roster naming every term, semicolon-separated, with aliases
 in parentheses. The note is listed by `sase memory list` and is available as
 `#memory/glossary`; `sase memory read glossary.md` still fails because `read` rejects
-short notes. Agents fetch a definition on demand with the `sase glossary` command group:
+core notes. Agents fetch a definition on demand with the `sase glossary` command group:
 
 ```bash
 sase glossary list
@@ -255,7 +259,7 @@ see [Glossary panel](ace.md#glossary-panel).
 
 ## Propose Memory
 
-Agents do not write canonical long-term memory files directly. They create proposals:
+Agents do not write canonical reference memory files directly. They create proposals:
 
 ```bash
 sase memory write \
@@ -284,10 +288,10 @@ proposal needs:
 Use `--file -` when a wrapper needs the explicit `--file` form but should still pass the
 body on stdin.
 
-Targets must be one-level long-memory paths such as `generated_skills.md`; slugs must
-match `[a-z0-9][a-z0-9_-]*`. Evidence can be a path, `chat:<id>`, `--from-chat <id>`,
-`url:<url>`, a bare HTTP(S) URL, or a supplemental `note:<text>`. Note-only evidence is
-rejected.
+Targets must be one-level reference-memory paths such as `generated_skills.md`; slugs
+must match `[a-z0-9][a-z0-9_-]*`. Evidence can be a path, `chat:<id>`,
+`--from-chat <id>`, `url:<url>`, a bare HTTP(S) URL, or a supplemental `note:<text>`.
+Note-only evidence is rejected.
 
 Proposal bodies must be non-empty UTF-8 and at most 256 KiB. Bodies above 16 KiB produce
 a warning unless `--allow-large` is passed. Prompt-injection-like text is also recorded
@@ -336,7 +340,7 @@ prepends frontmatter:
 
 ```yaml
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description: Generated skills
 source_candidate: mem-20260523-142233-a1b2c3d4

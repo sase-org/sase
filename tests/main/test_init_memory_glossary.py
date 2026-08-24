@@ -41,13 +41,13 @@ def _setup_project(
 
 
 def _tier1_memory(agents: str) -> str:
-    return agents.split("## 1. Tier 1 (short-term) Memory", 1)[1].split(
-        "## 2. Tier 2 (long-term) Memory", 1
+    return agents.split("## 1. Tier 1 (core) Memory", 1)[1].split(
+        "## 2. Tier 2 (reference) Memory", 1
     )[0]
 
 
 def _tier2_memory(agents: str) -> str:
-    return agents.split("## 2. Tier 2 (long-term) Memory", 1)[1]
+    return agents.split("## 2. Tier 2 (reference) Memory", 1)[1]
 
 
 def _normalized(text: str) -> str:
@@ -72,7 +72,7 @@ def _glossary_note_path(project_root: Path) -> Path:
     return project_root / "sase" / "memory" / "glossary.md"
 
 
-def _marked_glossary_note(*, note_type: str = "long") -> str:
+def _marked_glossary_note(*, note_type: str = "reference") -> str:
     return (
         "---\n"
         f"type: {note_type}\n"
@@ -89,7 +89,7 @@ def _marked_glossary_note(*, note_type: str = "long") -> str:
 def _unmarked_glossary_note() -> str:
     return (
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: AGENTS.md\n"
         "description: Human glossary note.\n"
         "---\n\n"
@@ -127,7 +127,7 @@ memory:
     note_path = _glossary_note_path(project_root)
     assert note_path in action_by_path
     note = str(action_by_path[note_path].new_content)
-    assert note.startswith("---\ntype: short\nparent: AGENTS.md\n")
+    assert note.startswith("---\ntype: core\nparent: AGENTS.md\n")
     assert "sase_generated: glossary" in note
     assert "# Glossary Terms" in note
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
@@ -159,7 +159,7 @@ memory:
     heading_index = readme.index(glossary_heading)
     next_heading = readme.find("\n### ", heading_index + 1)
     glossary_row = readme[heading_index : next_heading if next_heading != -1 else None]
-    assert "- Type: `short`" in glossary_row
+    assert "- Type: `core`" in glossary_row
 
 
 def test_memory_plan_omits_parens_when_only_alias_is_term_plural(
@@ -316,7 +316,7 @@ memory:
     assert "Glossary Terms" not in _tier2_memory(agents)
     assert "GLOSSARY TERMS" not in _tier2_memory(agents)
     assert "**GLOSSARY TERMS:** Workspace" in _normalized(_tier1_memory(agents))
-    assert "type: short" in note
+    assert "type: core" in note
     assert "sase_generated: glossary" in note
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
@@ -340,12 +340,12 @@ memory:
       definition: A numbered project checkout.
 """,
     )
-    write(_glossary_note_path(project_root), _marked_glossary_note(note_type="short"))
+    write(_glossary_note_path(project_root), _marked_glossary_note(note_type="core"))
 
     assert run_memory() == 0
 
     note = _glossary_note_path(project_root).read_text(encoding="utf-8")
-    assert "type: short" in note
+    assert "type: core" in note
     assert "sase_generated: glossary" in note
     assert "A stale generated definition" not in note
     assert "**GLOSSARY TERMS:** Workspace" in _normalized(note)
@@ -371,14 +371,16 @@ memory:
       definition: A numbered project checkout.
 """,
     )
-    write(_glossary_note_path(project_root), _marked_glossary_note(note_type="long"))
+    write(
+        _glossary_note_path(project_root), _marked_glossary_note(note_type="reference")
+    )
 
     assert run_memory() == 0
 
     note = _glossary_note_path(project_root).read_text(encoding="utf-8")
-    assert note.startswith("---\ntype: short\n")
+    assert note.startswith("---\ntype: core\n")
     assert "sase_generated: glossary" in note
-    assert "type: long" not in note
+    assert "type: reference" not in note
     assert "A stale generated definition" not in note
     assert run_memory(check=True) == 0
 
@@ -537,11 +539,11 @@ memory:
     )
     write(
         project_root / "sase" / "memory" / "aaa.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: First.\n---\n# First\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: First.\n---\n# First\n",
     )
     write(
         project_root / "sase" / "memory" / "bbb.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Second.\n---\n# Second\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Second.\n---\n# Second\n",
     )
 
     plan = plan_memory()

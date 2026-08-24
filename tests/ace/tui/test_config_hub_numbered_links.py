@@ -35,7 +35,7 @@ from tests.ace.tui.modals.snippets_panel_test_helpers import (
 
 def _linked_notes() -> tuple[MemoryNote, ...]:
     return (
-        memory_note("always", note_type="short", description="Always loaded."),
+        memory_note("always", note_type="core", description="Always loaded."),
         memory_note("hub", description="Hub."),
         memory_note("both", parent="sase/memory/hub.md", description="Has a child."),
         memory_note("grand", parent="sase/memory/both.md", description="Grandchild."),

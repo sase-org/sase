@@ -116,7 +116,7 @@ def mutation_outcome(
     stem: str,
     *,
     scope_key: str = "sase",
-    note_type: str = "long",
+    note_type: str = "reference",
     parent: str = AGENTS_PARENT,
     description: str | None = "A note.",
     backup_path: Path | None = None,

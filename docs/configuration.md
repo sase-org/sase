@@ -527,10 +527,10 @@ memory:
 | `memory.sase_template`           | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
 | `memory.readme_template`         | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
 
-`{{ tier2_entries }}` renders the entire Tier 2 body: the long-memory instruction
-paragraph plus one H3 subsection per top-level long note. A custom `agents_template`
-must not repeat that prose above `{{ tier2_entries }}`. When a root has no top-level
-long notes, `{{ tier2_entries }}` is empty.
+`{{ tier2_entries }}` renders the entire Tier 2 body: the reference-memory instruction
+paragraph plus one H3 subsection per top-level reference note. A custom
+`agents_template` must not repeat that prose above `{{ tier2_entries }}`. When a root
+has no top-level reference notes, `{{ tier2_entries }}` is empty.
 
 The legacy top-level `amd_agents_template`, `amd_agents_minimal_template`,
 `memory_sase_template`, and `memory_readme_template` keys are deprecated but still read
@@ -579,9 +579,9 @@ memory:
 
 The legacy top-level `glossary` key has been removed; it is now reported as an
 unsupported key by `sase config layers` instead of being silently ignored. Run
-`sase memory init` after editing glossary entries. A nonempty glossary generates a
-short-term `sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that
-is inlined into Tier 1 of `AGENTS.md` and the provider instruction copies as
+`sase memory init` after editing glossary entries. A nonempty glossary generates a core
+`sase/memory/glossary.md` note (frontmatter `sase_generated: glossary`) that is inlined
+into Tier 1 of `AGENTS.md` and the provider instruction copies as
 `Glossary Terms (glossary)`. The note ends with a single semicolon-separated
 `**GLOSSARY TERMS:**` paragraph that names every displayed term and alias and points
 agents at `sase glossary read <term> [<term> ...] -r "<why>"` — see
@@ -4611,14 +4611,14 @@ With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form                      | Flags                                                                                                                                                   | Description                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `sase memory`             | -                                                                                                                                                       | Show the same read-only memory context dashboard as `sase memory list`.                         |
-| `sase memory list`        | -                                                                                                                                                       | Show loaded, referenced, available, and missing memory files for the current launch context.    |
-| `sase memory read <path>` | `-r, --reason <reason>` required                                                                                                                        | Agent-side read of a `type: long` memory note without leading frontmatter, plus an audit event. |
-| `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable long-term memory proposal without modifying canonical memory files.      |
-| `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                       | Human review of pending memory proposals; a bare TTY command opens the interactive review app.  |
-| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                      | Summarize or inspect audited memory reads, optionally including proposal and review events.     |
+| Form                      | Flags                                                                                                                                                   | Description                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sase memory`             | -                                                                                                                                                       | Show the same read-only memory context dashboard as `sase memory list`.                              |
+| `sase memory list`        | -                                                                                                                                                       | Show loaded, referenced, available, and missing memory files for the current launch context.         |
+| `sase memory read <path>` | `-r, --reason <reason>` required                                                                                                                        | Agent-side read of a `type: reference` memory note without leading frontmatter, plus an audit event. |
+| `sase memory write`       | `--title`, `--target` or `--slug`, repeatable `--evidence`, `--from-chat`, `--body`, `--file`, `--allow-large`, `--manual-author`, `--notify`, `--json` | Create an attributable reference memory proposal without modifying canonical memory files.           |
+| `sase memory review [id]` | `--list`, `--show`, `--approve`, `--edit`, `--reject`, `--all`, `--target`, `--edited-file`, `--reason`, `--json`                                       | Human review of pending memory proposals; a bare TTY command opens the interactive review app.       |
+| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json`                                                                                                      | Summarize or inspect audited memory reads, optionally including proposal and review events.          |
 
 Examples:
 
@@ -4645,16 +4645,16 @@ instruction file (`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a
 byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl` import
 shims are recognized and migrated to full copies). This copy applies to every existing
 project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
-memory init synchronizes memory: short-term notes are inlined into the Tier 1 block of
-`AGENTS.md`, every heading in the generated document is numbered, long-term notes are
+memory init synchronizes memory: core notes are inlined into the Tier 1 block of
+`AGENTS.md`, every heading in the generated document is numbered, reference notes are
 rendered as numbered sections headed by the note path with the description as the body,
-and missing long-memory `description` frontmatter is inserted. By default it also tries
-to commit, rebase-pull, and push generated project-side files. `sase init memory` is a
-compatibility alias for this command. Generated repository memory requires agents to use
-`/sase_repo` before reading or modifying any repo outside their own workspace checkout.
-The rule covers linked repos, sidecars, different SASE projects, and unlinked GitHub
-repos even when no linked repositories are configured. When a managed project has a
-nonempty `memory.glossary` section, the same run also refreshes the generated
+and missing reference-memory `description` frontmatter is inserted. By default it also
+tries to commit, rebase-pull, and push generated project-side files. `sase init memory`
+is a compatibility alias for this command. Generated repository memory requires agents
+to use `/sase_repo` before reading or modifying any repo outside their own workspace
+checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
+GitHub repos even when no linked repositories are configured. When a managed project has
+a nonempty `memory.glossary` section, the same run also refreshes the generated
 `sase/memory/glossary.md` note and its Tier 1 inlining; `sase memory init --check`
 reports drift if the note or its inlined section is stale.
 

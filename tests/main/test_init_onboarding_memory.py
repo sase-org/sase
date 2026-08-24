@@ -206,7 +206,7 @@ def test_bare_init_yes_repairs_unreferenced_long_memory(
     write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
     write(
         project_root / "memory" / "cli_rules.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
 
@@ -228,7 +228,7 @@ def test_bare_init_yes_repairs_unreferenced_long_memory(
 
     assert exit_code == 0
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "## 2. Tier 2 (long-term) Memory" in agents
+    assert "## 2. Tier 2 (reference) Memory" in agents
     assert "### 2.1 `sase/memory/cli_rules.md`" in agents
     assert (project_root / "sase" / "memory" / "sase.md").exists()
     assert not (project_root / "memory").exists()

@@ -33,20 +33,18 @@ _HUB_MARKDOWN = (
 
 
 def _long_note(body: str, *, description: str = "Memory note.") -> str:
-    return (
-        f"---\ntype: long\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
-    )
+    return f"---\ntype: reference\nparent: AGENTS.md\ndescription: {description}\n---\n{body}"
 
 
 def _write_hub_fixture(root: Path) -> None:
     write(
         root / "sase" / "memory" / "hub.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Hub memory.\n---\n# Hub\n\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Hub memory.\n---\n# Hub\n\n",
     )
     write(
         root / "sase" / "memory" / "child_b.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: Beta child.\n"
         "---\n"
@@ -55,7 +53,7 @@ def _write_hub_fixture(root: Path) -> None:
     write(
         root / "sase" / "memory" / "child_a.md",
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: sase/memory/hub.md\n"
         "description: Alpha child.\n"
         "---\n"
@@ -157,7 +155,7 @@ def test_show_json_payload_includes_note_and_children(
     assert payload["project"] == project_memory_name(tmp_path)
     assert payload["origin"] == "project"
     assert payload["note"]["canonical_path"] == "hub.md"
-    assert payload["note"]["type"] == "long"
+    assert payload["note"]["type"] == "reference"
     assert payload["note"]["description"] == "Hub memory."
     assert payload["note"]["body"] == "# Hub\n\n"
     assert payload["note"]["frontmatter_stripped"] is True
@@ -183,7 +181,7 @@ def test_show_rich_format_renders_path_type_and_children(
 
     text = output.getvalue()
     assert "sase/memory/hub.md" in text
-    assert "long" in text
+    assert "reference" in text
     assert "Hub memory." in text
     assert "sase/memory/child_a.md" in text
     assert "sase/memory/child_b.md" in text
@@ -259,7 +257,7 @@ def test_show_type_short_note_exits_nonzero(
     home = tmp_path / "home"
     write(
         tmp_path / "sase" / "memory" / "foo.md",
-        "---\ntype: short\nparent: AGENTS.md\n---\n# Short\n",
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Short\n",
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda: home)

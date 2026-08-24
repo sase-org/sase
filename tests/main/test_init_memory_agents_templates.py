@@ -21,9 +21,9 @@ from tests.main.init_memory_handler_helpers import (
 
 def test_amd_parser_normalizes_legacy_memory_references() -> None:
     parsed = parse_amd_agents_document(
-        "## Tier 1 (short-term) Memory\n\n"
+        "## Tier 1 (core) Memory\n\n"
         "- @memory/sase.md\n\n"
-        "## Tier 2 (long-term) Memory\n\n"
+        "## Tier 2 (reference) Memory\n\n"
         "**`memory/detail.md`**  \nDetails.\n"
     )
 
@@ -33,11 +33,29 @@ def test_amd_parser_normalizes_legacy_memory_references() -> None:
     )
 
 
+def test_amd_parser_accepts_legacy_memory_section_anchors() -> None:
+    parsed = parse_amd_agents_document(
+        "## Tier 1 (short"
+        "-term) Memory\n\n"
+        "### SASE (sase)\n\n"
+        "## Tier 2 (long"
+        "-term) Memory\n\n"
+        "**`memory/detail.md`**  \nDetails.\n"
+    )
+
+    assert parsed.has_short_section
+    assert parsed.has_long_section
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/detail.md",
+    )
+
+
 def test_amd_parser_preserves_block_long_memory_descriptions() -> None:
     parsed = parse_amd_agents_document(
-        "## Tier 1 (short-term) Memory\n\n"
+        "## Tier 1 (core) Memory\n\n"
         "### 1. SASE (sase)\n\n"
-        "## Tier 2 (long-term) Memory\n\n"
+        "## Tier 2 (reference) Memory\n\n"
         "**`sase/memory/block.md`**  \n"
         "Lead paragraph.\n"
         "\n"
@@ -64,9 +82,9 @@ def test_amd_parser_preserves_block_long_memory_descriptions() -> None:
 
 def test_amd_parser_reads_numbered_and_unnumbered_long_memory_sections() -> None:
     unnumbered = parse_amd_agents_document(
-        "## Tier 1 (short-term) Memory\n\n"
+        "## Tier 1 (core) Memory\n\n"
         "### SASE (sase)\n\n"
-        "## Tier 2 (long-term) Memory\n\n"
+        "## Tier 2 (reference) Memory\n\n"
         "### `sase/memory/block.md`\n\n"
         "Lead paragraph.\n\n"
         "- One\n"
@@ -76,7 +94,7 @@ def test_amd_parser_reads_numbered_and_unnumbered_long_memory_sections() -> None
         "Next description.\n"
     )
     numbered = parse_amd_agents_document(
-        "## 2. Tier 2 (long-term) Memory\n\n"
+        "## 2. Tier 2 (reference) Memory\n\n"
         "### 2.1 `sase/memory/block.md`\n\n"
         "Lead paragraph.\n\n"
         "- One\n"
@@ -99,7 +117,7 @@ def test_amd_parser_reads_numbered_and_unnumbered_long_memory_sections() -> None
 
 def test_amd_parser_reads_mixed_legacy_and_section_long_memory_entries() -> None:
     parsed = parse_amd_agents_document(
-        "## Tier 2 (long-term) Memory\n\n"
+        "## Tier 2 (reference) Memory\n\n"
         "### `sase/memory/section.md`\n\n"
         "Section description.\n\n"
         "**`memory/legacy.md`**  \n"
@@ -116,7 +134,7 @@ def test_amd_parser_reads_mixed_legacy_and_section_long_memory_entries() -> None
 
 def test_amd_parser_reads_legacy_h4_long_memory_sections() -> None:
     parsed = parse_amd_agents_document(
-        "## 2. Tier 2 (long-term) Memory\n\n"
+        "## 2. Tier 2 (reference) Memory\n\n"
         "### 2.1 Long-Term Memory Files\n\n"
         "The below files contain detailed reference material. When working in "
         "their domain, you MUST use your `/sase_memory_read` skill.\n\n"
@@ -136,7 +154,7 @@ def test_amd_parser_reads_legacy_h4_long_memory_sections() -> None:
 
 def test_amd_parser_does_not_absorb_tier2_intro_into_description() -> None:
     parsed = parse_amd_agents_document(
-        "## 2. Tier 2 (long-term) Memory\n\n"
+        "## 2. Tier 2 (reference) Memory\n\n"
         "The below files contain detailed reference material. When working in "
         "their domain, you MUST use your `/sase_memory_read` skill to review "
         "their contents. Do not read canonical memory files directly.\n\n"
@@ -183,11 +201,11 @@ def _managed_template(marker: str) -> str:
 
 {marker}
 
-## Tier 1 (short-term) Memory
+## Tier 1 (core) Memory
 
 {{{{ tier1_sections }}}}
 
-## Tier 2 (long-term) Memory
+## Tier 2 (reference) Memory
 
 {{{{ tier2_entries }}}}
 """
@@ -428,8 +446,8 @@ def test_invalid_minimal_template_blocks_without_writing(
     [
         (
             "# {{ title }}\n\n"
-            "## Tier 1 (short-term) Memory\n\n{{ tier1_sections }}\n\n"
-            "## Tier 2 (long-term) Memory\n",
+            "## Tier 1 (core) Memory\n\n{{ tier1_sections }}\n\n"
+            "## Tier 2 (reference) Memory\n",
             "template must contain {{ tier2_entries }}",
         ),
         ("{% if %}\n", "template error"),
@@ -439,17 +457,17 @@ def test_invalid_minimal_template_blocks_without_writing(
         ),
         (
             _managed_template("frame").replace(
-                "## Tier 1 (short-term) Memory",
+                "## Tier 1 (core) Memory",
                 "## Short Memory",
             ),
-            "missing structural anchor `## Tier 1 (short-term) Memory`",
+            "missing structural anchor `## Tier 1 (core) Memory`",
         ),
         (
             _managed_template("frame").replace(
-                "## Tier 2 (long-term) Memory",
+                "## Tier 2 (reference) Memory",
                 "## Long Memory",
             ),
-            "missing structural anchor `## Tier 2 (long-term) Memory`",
+            "missing structural anchor `## Tier 2 (reference) Memory`",
         ),
         (
             _managed_template("frame").replace(

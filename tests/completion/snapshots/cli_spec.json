@@ -12110,7 +12110,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "2d51c5d78ac5041c",
+            "description_digest": "86bc941182414027",
             "hidden": false,
             "mutex_groups": [],
             "name": "log",
@@ -12195,7 +12195,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "bd37f54249ba4350",
+            "description_digest": "d933f0a43dc49afe",
             "hidden": false,
             "mutex_groups": [],
             "name": "read",
@@ -12260,7 +12260,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "fb8fe4948896f5d7",
+            "description_digest": "43720062ed37c8b6",
             "hidden": false,
             "mutex_groups": [
               [
@@ -12415,7 +12415,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "457d073d7155ae69",
+            "description_digest": "ae94ab106a879828",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -12468,7 +12468,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "da72f7d0f5c634a3",
+            "description_digest": "173a7f16de9aeff3",
             "hidden": false,
             "mutex_groups": [
               [

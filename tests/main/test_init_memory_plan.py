@@ -452,12 +452,12 @@ def test_memory_init_migrates_legacy_tree_and_rewrites_parent_paths(
     legacy_parent = project_root / "memory" / "parent.md"
     write(
         legacy_parent,
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
     )
     write(
         legacy_note,
         "---\n"
-        "type: long\n"
+        "type: reference\n"
         "parent: memory/parent.md\n"
         "description: Detail.\n"
         "---\n"

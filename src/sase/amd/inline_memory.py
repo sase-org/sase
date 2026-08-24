@@ -1,8 +1,8 @@
-"""Pure helpers for inlining short-term memory notes into ``AGENTS.md``.
+"""Pure helpers for inlining core memory notes into ``AGENTS.md``.
 
 These functions translate a memory note's Markdown body into the inlined
-``### Title (file)`` section shape used inside the ``## Tier 1 (short-term)
-Memory`` block. They also validate that a short note's heading structure can be
+``### Title (file)`` section shape used inside the ``## Tier 1 (core)
+Memory`` block. They also validate that a core note's heading structure can be
 inlined safely. Generated agent-document headings are numbered by the
 document-wide pass in ``sase.amd._section_numbers`` after template rendering.
 
@@ -32,7 +32,7 @@ def _extract_memory_title(body: str) -> str | None:
 
 
 def validate_short_memory_structure(body: str) -> str | None:
-    """Validate that *body* can be inlined as a short-term memory section.
+    """Validate that *body* can be inlined as a core memory section.
 
     Returns an error message describing the first structural violation, or
     ``None`` when *body* is valid. The contract enforced is:
@@ -43,17 +43,17 @@ def validate_short_memory_structure(body: str) -> str | None:
     """
     headings = iter_headings(body)
     if not headings or headings[0][0] != 1:
-        return "short memory note must begin with a single H1 (`# Title`) heading"
+        return "core memory note must begin with a single H1 (`# Title`) heading"
     h1_count = sum(1 for level, _ in headings if level == 1)
     if h1_count != 1:
         return (
-            "short memory note must contain exactly one H1 (`# `) heading, "
+            "core memory note must contain exactly one H1 (`# `) heading, "
             f"found {h1_count}"
         )
     for level, line in headings:
         if level > 3:
             return (
-                "short memory note must not contain headings deeper than H3; "
+                "core memory note must not contain headings deeper than H3; "
                 f"found {line.strip()!r}"
             )
     return None

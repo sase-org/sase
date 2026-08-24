@@ -1,5 +1,5 @@
 ---
-type: long
+type: reference
 parent: AGENTS.md
 description:
   Read before creating, updating, closing, or querying sase beads — bead types and
@@ -34,7 +34,7 @@ Output and stored relationships always use full IDs.
   agent-creatable slugs. `task_type` is immutable once set (`sase bead update` has no
   `--task-type`), and a typed task takes repeatable `-f/--field k=v` values for its
   declared fields (`@<path>` reads a value from a file). Read the generated
-  `task_types.md` short note for the current catalog and
+  `task_types.md` core note for the current catalog and
   `sase bead task-type show <slug>` for one type in full.
 
 `sase bead work <epic-id|plan.md|task-id>` launches an epic's phase and land agents or

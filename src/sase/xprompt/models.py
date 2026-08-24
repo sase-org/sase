@@ -18,7 +18,7 @@ Use ``UNSET`` when an input has no default (i.e. it is required).
 ``None`` means the YAML value was explicitly ``null`` (pass-through to callee).
 """
 
-MemoryType = Literal["short", "long"]
+MemoryType = Literal["core", "reference"]
 
 
 class InputType(Enum):

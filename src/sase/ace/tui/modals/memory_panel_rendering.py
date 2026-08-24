@@ -107,7 +107,7 @@ def _note_is_invalid(note: MemoryNote) -> bool:
 
 
 def _note_is_orphaned(note: MemoryNote, notes_by_path: dict[str, MemoryNote]) -> bool:
-    if note.type != "long":
+    if note.type != "reference":
         return False
     if note.parent == AGENTS_PARENT:
         return False
@@ -122,7 +122,7 @@ def build_note_row_text(
     text = Text()
     if node.depth > 0:
         text.append(_CHILD_INDENT, style="dim")
-    marker = _TIER1_MARK if note.type == "short" else _TIER2_MARK
+    marker = _TIER1_MARK if note.type == "core" else _TIER2_MARK
     text.append(f"{marker} ")
     if note.relative_path in generated_paths:
         text.append(f"{_GENERATED_MARK} ")
@@ -213,7 +213,7 @@ def _build_note_badge_row(
 ) -> Text | None:
     """Build the tier/generated/shadow/orphan/invalid badge row."""
     badges: list[str] = []
-    badges.append("TIER 1 · always loaded" if note.type == "short" else "TIER 2")
+    badges.append("TIER 1 · always loaded" if note.type == "core" else "TIER 2")
     if note.relative_path in snapshot.generated_paths:
         badges.append("GENERATED")
     if note.path.stem in snapshot.shadowed_stems:

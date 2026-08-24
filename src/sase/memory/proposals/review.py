@@ -122,7 +122,7 @@ def approve_memory_proposal(
     now: datetime | None = None,
     ledger_path: Path | None = None,
 ) -> MemoryProposalReviewResult:
-    """Approve a pending proposal and create its canonical long-memory file."""
+    """Approve a pending proposal and create its canonical reference memory file."""
     proposal_reviewer = reviewer or require_proposal_reviewer()
     cwd_path = (cwd or Path.cwd()).resolve(strict=False)
     final_ledger_path = ledger_path or memory_proposal_ledger_path(
@@ -306,9 +306,9 @@ def _memory_proposal_parent(body: str, *, cwd: Path) -> str:
         raise MemoryProposalBodyError(
             f"memory proposal parent does not exist: {parent}"
         )
-    if parent_note.type != "long":
+    if parent_note.type != "reference":
         raise MemoryProposalBodyError(
-            f"memory proposal parent is not a long memory note: {parent}"
+            f"memory proposal parent is not a reference memory note: {parent}"
         )
     return parent
 
@@ -318,7 +318,7 @@ def _canonical_memory_content(
 ) -> str:
     content = apply_memory_frontmatter(
         body,
-        note_type="long",
+        note_type="reference",
         parent=parent,
         description=title,
         extra={"source_candidate": proposal_id},

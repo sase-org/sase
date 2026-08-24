@@ -35,14 +35,14 @@ def test_create_writes_canonical_short_and_long_frontmatter(tmp_path: Path) -> N
     short_outcome = create_note(
         tmp_path,
         "gotchas",
-        note_type="short",
+        note_type="core",
         description="Always-loaded context.",
         body="# Gotchas\n",
     )
     long_outcome = create_note(
         tmp_path,
         "hub",
-        note_type="long",
+        note_type="reference",
         description="Long-term hub.",
         body="# Hub\n",
     )
@@ -51,21 +51,21 @@ def test_create_writes_canonical_short_and_long_frontmatter(tmp_path: Path) -> N
     long_path = tmp_path / "sase" / "memory" / "hub.md"
     assert short_path.read_text(encoding="utf-8") == apply_memory_frontmatter(
         "# Gotchas\n",
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
         description="Always-loaded context.",
     )
     assert long_path.read_text(encoding="utf-8") == apply_memory_frontmatter(
         "# Hub\n",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Long-term hub.",
     )
     assert short_outcome.relative_path == "sase/memory/gotchas.md"
     assert long_outcome.relative_path == "sase/memory/hub.md"
     assert short_outcome.stem == "gotchas"
-    assert short_outcome.type == "short"
-    assert long_outcome.type == "long"
+    assert short_outcome.type == "core"
+    assert long_outcome.type == "reference"
 
 
 def test_create_child_note_uses_canonical_parent(tmp_path: Path) -> None:
@@ -84,7 +84,7 @@ def test_create_child_note_uses_canonical_parent(tmp_path: Path) -> None:
         path.read_text(encoding="utf-8"), outcome.relative_path
     )
     assert note.parent == "sase/memory/hub.md"
-    assert note.type == "long"
+    assert note.type == "reference"
     assert note.description == "Child of the hub."
 
 
@@ -105,7 +105,7 @@ def test_update_preserves_body_and_rewrites_frontmatter(tmp_path: Path) -> None:
         scope_key="demo",
         content_root=tmp_path,
         relative_path=created.relative_path,
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="New description.",
         expected_digest=digest,
@@ -131,7 +131,7 @@ def test_update_and_delete_raise_on_digest_conflict(tmp_path: Path) -> None:
             scope_key="demo",
             content_root=tmp_path,
             relative_path=created.relative_path,
-            note_type="long",
+            note_type="reference",
             parent=AGENTS_PARENT,
             description="Hub.",
             expected_digest=stale,
@@ -226,7 +226,7 @@ def test_refuses_traversal_and_non_flat_paths(tmp_path: Path) -> None:
             scope_key="demo",
             content_root=tmp_path,
             relative_path="sase/memory/../hub.md",
-            note_type="long",
+            note_type="reference",
             parent=AGENTS_PARENT,
             description="Hub.",
             expected_digest="0" * 64,
@@ -272,7 +272,7 @@ def test_create_round_trip_passes_init_reachability(tmp_path: Path) -> None:
     create_note(
         tmp_path,
         "gotchas",
-        note_type="short",
+        note_type="core",
         description="Always loaded.",
         body="# Gotchas\n",
     )
@@ -312,7 +312,7 @@ def test_update_legacy_source_preserves_legacy_path(tmp_path: Path) -> None:
         scope_key="demo",
         content_root=tmp_path,
         relative_path="sase/memory/legacy.md",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Updated legacy.",
         expected_digest=digest,

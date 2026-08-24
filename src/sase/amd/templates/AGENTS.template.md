@@ -7,12 +7,12 @@ edit to the canonical note under `sase/memory/`, then you MUST run `sase memory 
 regenerate `AGENTS.md`, the provider instruction shims, and the memory README. Do NOT
 ask for separate permission to initialize sase memory in that case.
 
-## Tier 1 (short-term) Memory
+## Tier 1 (core) Memory
 
 The following memories contain core (always loaded) context:
 
 {{ tier1_sections }}
 
-## Tier 2 (long-term) Memory
+## Tier 2 (reference) Memory
 
 {{ tier2_entries }}

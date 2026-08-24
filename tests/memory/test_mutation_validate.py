@@ -32,7 +32,7 @@ from .helpers import note_text
 def test_validate_rejects_illegal_stems(stem: str, field: str, snippet: str) -> None:
     result = validate_memory_note_draft(
         stem=stem,
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Ok.",
     )
@@ -44,7 +44,7 @@ def test_validate_rejects_illegal_stems(stem: str, field: str, snippet: str) -> 
 def test_validate_strips_md_suffix_and_accepts_valid_stem() -> None:
     result = validate_memory_note_draft(
         stem="gotchas.md",
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
         description=None,
     )
@@ -53,7 +53,7 @@ def test_validate_strips_md_suffix_and_accepts_valid_stem() -> None:
     assert result.draft is not None
     assert result.draft.stem == "gotchas"
     assert result.draft.relative_path == "sase/memory/gotchas.md"
-    assert result.draft.note_type == "short"
+    assert result.draft.note_type == "core"
     assert result.draft.parent == AGENTS_PARENT
 
 
@@ -65,12 +65,12 @@ def test_validate_rejects_invalid_type_and_empty_long_description() -> None:
         description="   ",
     )
 
-    assert "short or long" in " ".join(result.by_field["type"])
+    assert "core or reference" in " ".join(result.by_field["type"])
     assert "description" not in result.by_field
 
     result = validate_memory_note_draft(
         stem="hub",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="\n\t\n",
     )
@@ -80,7 +80,7 @@ def test_validate_rejects_invalid_type_and_empty_long_description() -> None:
 def test_validate_requires_short_notes_to_parent_agents() -> None:
     result = validate_memory_note_draft(
         stem="gotchas",
-        note_type="short",
+        note_type="core",
         parent="sase/memory/hub.md",
         description="Always loaded.",
     )
@@ -91,7 +91,7 @@ def test_validate_requires_short_notes_to_parent_agents() -> None:
 def test_validate_parent_must_exist_and_be_long() -> None:
     notes = (
         parse_memory_note_text(
-            note_text(note_type="short", description="Short.", body="# S\n"),
+            note_text(note_type="core", description="Short.", body="# S\n"),
             "sase/memory/brief.md",
         ),
         parse_memory_note_text(
@@ -102,7 +102,7 @@ def test_validate_parent_must_exist_and_be_long() -> None:
 
     missing = validate_memory_note_draft(
         stem="child",
-        note_type="long",
+        note_type="reference",
         parent="sase/memory/missing.md",
         description="Child.",
         existing_notes=notes,
@@ -111,16 +111,16 @@ def test_validate_parent_must_exist_and_be_long() -> None:
 
     short_parent = validate_memory_note_draft(
         stem="child",
-        note_type="long",
+        note_type="reference",
         parent="brief",
         description="Child.",
         existing_notes=notes,
     )
-    assert "short note" in " ".join(short_parent.by_field["parent"])
+    assert "core note" in " ".join(short_parent.by_field["parent"])
 
     ok = validate_memory_note_draft(
         stem="child",
-        note_type="long",
+        note_type="reference",
         parent="hub.md",
         description="Child.",
         existing_notes=notes,
@@ -142,7 +142,7 @@ def test_validate_rejects_self_parent_and_cycles() -> None:
 
     self_parent = validate_memory_note_draft(
         stem="parent",
-        note_type="long",
+        note_type="reference",
         parent="sase/memory/parent.md",
         description="Parent.",
         existing_notes=(parent, child),
@@ -152,7 +152,7 @@ def test_validate_rejects_self_parent_and_cycles() -> None:
 
     cycle = validate_memory_note_draft(
         stem="parent",
-        note_type="long",
+        note_type="reference",
         parent="sase/memory/child.md",
         description="Parent.",
         existing_notes=(parent, child),
@@ -168,7 +168,7 @@ def test_validate_rejects_collision_and_generated_stems() -> None:
     )
     collision = validate_memory_note_draft(
         stem="hub",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Other.",
         existing_notes=(existing,),
@@ -177,7 +177,7 @@ def test_validate_rejects_collision_and_generated_stems() -> None:
 
     generated = validate_memory_note_draft(
         stem="sase",
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
         description="Generated.",
         include_project_memory=True,
@@ -186,7 +186,7 @@ def test_validate_rejects_collision_and_generated_stems() -> None:
 
     project_only = validate_memory_note_draft(
         stem="sase_beads",
-        note_type="long",
+        note_type="reference",
         parent=AGENTS_PARENT,
         description="Beads.",
         include_project_memory=False,
@@ -206,7 +206,7 @@ def test_validate_rejects_retyping_parent_with_children() -> None:
 
     result = validate_memory_note_draft(
         stem="parent",
-        note_type="short",
+        note_type="core",
         parent=AGENTS_PARENT,
         description="Parent.",
         existing_notes=(parent, child),

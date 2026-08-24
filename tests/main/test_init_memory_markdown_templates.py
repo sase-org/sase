@@ -44,7 +44,13 @@ def _sase_template(marker: str = "Custom SASE frame.") -> str:
 """
 
 
-def _readme_template(marker: str = "Custom README frame.") -> str:
+def _readme_template(
+    marker: str = "Custom README frame.",
+    *,
+    legacy_counts: bool = False,
+) -> str:
+    core_count = "short_notes" if legacy_counts else "core_notes"
+    reference_count = "long_notes" if legacy_counts else "reference_notes"
     return f"""# Custom Memory README
 
 {marker}
@@ -56,8 +62,8 @@ def _readme_template(marker: str = "Custom README frame.") -> str:
 ## Counts
 
 - Total: {{{{ total_notes }}}}
-- Short: {{{{ short_notes }}}}
-- Long: {{{{ long_notes }}}}
+- Core: {{{{ {core_count} }}}}
+- Reference: {{{{ {reference_count} }}}}
 - Lines: {{{{ total_lines }}}}
 - Tokens: {{{{ total_tokens }}}}
 """
@@ -96,7 +102,7 @@ def test_default_beads_template_renders_canonical_long_note() -> None:
 
     relative_path = "sase/memory/sase_beads.md"
     note = parse_memory_note_text(content, relative_path)
-    assert note.type == "long"
+    assert note.type == "reference"
     assert note.parent == "AGENTS.md"
     assert note.description
     generated = generated_long_notes({relative_path: content})[relative_path]
@@ -109,7 +115,7 @@ def test_default_artifacts_template_renders_canonical_long_note() -> None:
 
     relative_path = "sase/memory/sase_artifacts.md"
     note = parse_memory_note_text(content, relative_path)
-    assert note.type == "long"
+    assert note.type == "reference"
     assert note.parent == "AGENTS.md"
     assert note.description
     generated = generated_long_notes({relative_path: content})[relative_path]
@@ -156,7 +162,7 @@ def test_default_sizes_template_renders_canonical_child_long_note() -> None:
 
     relative_path = "sase/memory/sase_sizes.md"
     note = parse_memory_note_text(content, relative_path)
-    assert note.type == "long"
+    assert note.type == "reference"
     assert note.parent == "sase/memory/sase_beads.md"
     assert note.description
     generated = generated_long_notes({relative_path: content})[relative_path]
@@ -182,7 +188,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
     write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
     write(
         tmp_path / "sase" / "memory" / "parent.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
     )
     parent = parse_memory_note_text(
         (tmp_path / "sase" / "memory" / "parent.md").read_text(encoding="utf-8"),
@@ -194,7 +200,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
     )
     generated_child = MemoryNote(
         path=Path("sase/memory/generated_child.md"),
-        type="long",
+        type="reference",
         parent=generated.parent,
         description=generated.description,
         body="",
@@ -229,7 +235,7 @@ def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
     write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
     write(
         tmp_path / "sase" / "memory" / "parent.md",
-        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+        "---\ntype: reference\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
     )
 
     plan = plan_amd_memory_sync(
@@ -241,12 +247,12 @@ def test_tier2_renders_intro_then_h3_note_entries(tmp_path: Path) -> None:
     assert plan.blockers == ()
     assert plan.agents_content is not None
     content = plan.agents_content
-    tier2_index = content.index("## 2. Tier 2 (long-term) Memory")
+    tier2_index = content.index("## 2. Tier 2 (reference) Memory")
     intro_index = content.index("The below files contain detailed reference material")
     note_index = content.index("### 2.1 `sase/memory/parent.md`")
     assert tier2_index < intro_index < note_index
     between_h2_and_intro = content[
-        tier2_index + len("## 2. Tier 2 (long-term) Memory") : intro_index
+        tier2_index + len("## 2. Tier 2 (reference) Memory") : intro_index
     ]
     assert between_h2_and_intro.strip() == ""
     assert "Long-Term Memory Files" not in content
@@ -289,6 +295,25 @@ def test_root_memory_templates_beat_user_templates(
     assert "User SASE." not in sase_memory
     assert "Root README." in readme
     assert "User README." not in readme
+
+
+def test_readme_template_override_accepts_legacy_count_variables(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _project_root, home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(home_root / "sase.yml", "memory_readme_template: templates/readme.md\n")
+    write(
+        home_root / "templates" / "readme.md",
+        _readme_template("Legacy counts.", legacy_counts=True),
+    )
+
+    assert run_handler() == 0
+
+    readme = (home_root / "sase" / "memory" / "README.md").read_text(encoding="utf-8")
+    assert "Legacy counts." in readme
+    assert "- Core: 1" in readme
+    assert "- Reference: 0" in readme
 
 
 def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
@@ -467,7 +492,7 @@ def test_invalid_sase_template_structure_blocks_without_writing(
 
     plan = plan_memory()
 
-    assert any("short memory note" in blocker for blocker in plan.blockers)
+    assert any("core memory note" in blocker for blocker in plan.blockers)
     assert run_handler() == 1
     assert not (project_root / "sase" / "memory").exists()
     assert not (home_root / "sase" / "memory").exists()

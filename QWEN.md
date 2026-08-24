@@ -7,7 +7,7 @@ edit to the canonical note under `sase/memory/`, then you MUST run `sase memory 
 regenerate `AGENTS.md`, the provider instruction shims, and the memory README. Do NOT
 ask for separate permission to initialize sase memory in that case.
 
-## 1. Tier 1 (short-term) Memory
+## 1. Tier 1 (core) Memory
 
 The following memories contain core (always loaded) context:
 
@@ -116,11 +116,13 @@ are separated by semicolons; aliases follow in parentheses.
 **GLOSSARY TERMS:** Agent Clan; Agent Family; Agent Hood (hood, agent neighborhood);
 Agent Instruction File (agents.md file); Agent Neighbor; Agent Node; Agent Shell; Agent
 Tribe; Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact
-Reference (ref); Chop; Current Project; Feature Flag; Flag Bead (flag bead); Lumberjack;
-Patch; Proc (background task); Proc Shell; Required Plugin (required plugin); Sase Agent
-(agent); Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase Repo
-(repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Task Type (task type);
-Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt Swarm; Xprompt Workflow
+Reference (ref); Chop; Core Memory (core memory); Current Project; Feature Flag; Flag
+Bead (flag bead); Lumberjack; Memory Strand; Memory Web; Patch; Proc (background task);
+Proc Shell; Reference Memory (reference memory); Required Plugin (required plugin); Sase
+Agent (agent); Sase Monitor (monitor); Sase Node (node); Sase Project (project); Sase
+Repo (repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Strand Keyword;
+Task Type (task type); Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt
+Swarm; Xprompt Workflow
 
 ### 1.5 Code Conventions and Gotchas (gotchas)
 
@@ -315,7 +317,7 @@ link, and records the issue in the right place. Only a genuinely new task become
 beads are proposed to the project owner, who either launches an agent to work them or
 closes them with a reason.
 
-## 2. Tier 2 (long-term) Memory
+## 2. Tier 2 (reference) Memory
 
 The below files contain detailed reference material. When working in their domain, you
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical

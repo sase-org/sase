@@ -18,7 +18,7 @@ from sase.notifications.senders import notify_memory_proposed
 
 
 def handle_memory_write_command(args: argparse.Namespace) -> None:
-    """Create a pending long-term memory proposal."""
+    """Create a pending reference memory proposal."""
     try:
         body = _read_body(args)
         evidence_values = _evidence_values(args)

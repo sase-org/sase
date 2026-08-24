@@ -40,6 +40,7 @@ def render_markdown_template(
     filename: str,
     required_variables: Set[str],
     context: Mapping[str, Any],
+    optional_variables: Set[str] = frozenset(),
     override_path: Path | None = None,
 ) -> tuple[str | None, str | None]:
     """Render a Markdown template or return an actionable labeled error."""
@@ -69,7 +70,7 @@ def render_markdown_template(
     if missing:
         placeholders = ", ".join(f"{{{{ {name} }}}}" for name in missing)
         return None, f"{label}: template must contain {placeholders}"
-    unknown = sorted(variables - required_variables)
+    unknown = sorted(variables - required_variables - optional_variables)
     if unknown:
         placeholders = ", ".join(f"{{{{ {name} }}}}" for name in unknown)
         return None, f"{label}: unknown template placeholder {placeholders}"

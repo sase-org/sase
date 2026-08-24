@@ -49,7 +49,7 @@ def seed_entries() -> list[_CatalogEntry]:
             project="alpha",
         ),
         _CatalogEntry(
-            make_xprompt("c", memory_type="short"),
+            make_xprompt("c", memory_type="core"),
             bucket="config",
             project=None,
         ),

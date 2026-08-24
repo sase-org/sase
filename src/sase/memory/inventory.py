@@ -199,7 +199,7 @@ def build_memory_inventory(
                 loaded_line_count += stats.line_count
                 loaded_token_count += stats.approx_token_count
         elif path in inlined_short_files:
-            # Inlined short notes are loaded as part of their ``AGENTS.md``; their
+            # Inlined core notes are loaded as part of their ``AGENTS.md``; their
             # bytes are already counted via that loaded instruction file, so they
             # contribute their status but not their stats.
             status = "loaded"

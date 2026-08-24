@@ -220,13 +220,13 @@ def _validate_memory_read_candidate(
         path=candidate,
         raw_path=raw_path,
     )
-    if note.type == "short":
+    if note.type == "core":
         raise MemoryReadPathError(
             f"{note.relative_path} is always-loaded context and cannot be read with this command"
         )
-    if note.type != "long":
+    if note.type != "reference":
         raise MemoryReadPathError(
-            f"memory file is not a long-term memory note: {note.relative_path}"
+            f"memory file is not a reference memory note: {note.relative_path}"
         )
 
     canonical_path = Path(*parts).as_posix()

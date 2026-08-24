@@ -139,8 +139,8 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert readme.index("### `sase/memory/sase_beads.md`") < readme.index(
         "### `sase/memory/sase_sizes.md`"
     )
-    assert "- Type: `short`" in readme
-    assert "- Type: `long`" in readme
+    assert "- Type: `core`" in readme
+    assert "- Type: `reference`" in readme
     assert "- Description: Detailed reference note." in readme
     assert "- Parent: `AGENTS.md`" in readme
     extra_stats = stats_for_text(
@@ -154,8 +154,8 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert f"- Lines: {reference_stats.line_count}" in readme
     assert f"- Approx. tokens: {reference_stats.approx_token_count}" in readme
     assert "- Total notes: 8" in readme
-    assert "- Short notes: 4" in readme
-    assert "- Long notes: 4" in readme
+    assert "- Core notes: 4" in readme
+    assert "- Reference notes: 4" in readme
 
     asset_path = (
         project_root / "sase" / "memory" / "assets" / "memory-directory-map.png"

@@ -76,7 +76,7 @@ def _home_root_path(use_chezmoi: bool) -> Path:
 
 
 def _home_memory_path(use_chezmoi: bool) -> Path:
-    """Return the home-level short memory target for the active config mode."""
+    """Return the home-level core memory target for the active config mode."""
     return _sase_memory_path(_home_root_path(use_chezmoi))
 
 

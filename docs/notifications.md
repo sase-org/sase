@@ -309,7 +309,7 @@ The following events generate notifications:
 | `launch`                       | A running agent requested a new agent launch for approval                                                                                       |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                  |
 | `hitl`                         | A workflow HITL step is waiting for user input                                                                                                  |
-| `memory.proposed`              | A long-term memory proposal is ready for human review                                                                                           |
+| `memory.proposed`              | A reference memory proposal is ready for human review                                                                                           |
 | `sync`                         | A sync operation completed for a Patch                                                                                                          |
 | `axe`                          | Hourly error digest summarizing recent axe errors                                                                                               |
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                        |
