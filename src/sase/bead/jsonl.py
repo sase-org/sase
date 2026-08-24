@@ -32,6 +32,7 @@ from sase.bead.model import (
     Status,
     TaskPlusOneEvidence,
 )
+from sase.core.bead_wire import notes_text_from_data
 
 
 def _optional_str(value: object) -> str:
@@ -221,7 +222,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
             Resolution(str(data["resolution"])) if data.get("resolution") else None
         ),
         description=_optional_str(data.get("description", "")),
-        notes=_optional_str(data.get("notes", "")),
+        notes=notes_text_from_data(data.get("notes")),
         design=_optional_str(data.get("design", "")),
         refs=_optional_str_list(data.get("refs")),
         links=_links_from_data(data.get("links")),

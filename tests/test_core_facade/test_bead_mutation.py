@@ -225,8 +225,18 @@ def test_append_note_facade_returns_issue_and_repairs_projection(
     assert outcome["operation"] == "note"
     assert outcome["issue_ids"] == [issue.id]
     assert noted.notes == "[2026-01-01T00:01:00Z · agent-1] done"
-    projection = (root / "sdd/beads/issues.jsonl").read_text(encoding="utf-8")
-    assert "[2026-01-01T00:01:00Z · agent-1] done" in projection
+    projection = json.loads(
+        (root / "sdd/beads/issues.jsonl").read_text(encoding="utf-8")
+    )
+    assert projection["notes"][0]["id"].startswith(
+        "gold-1:000002:note_appended:gold-1:"
+    )
+    assert projection["notes"][0] | {"id": ""} == {
+        "id": "",
+        "timestamp": "2026-01-01T00:01:00Z",
+        "author": "agent-1",
+        "text": "done",
+    }
 
 
 def test_mutation_facade_refuses_unsandboxed_pytest_store_before_binding(

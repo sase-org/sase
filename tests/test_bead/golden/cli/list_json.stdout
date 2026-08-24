@@ -147,7 +147,7 @@
       "snooze": null,
       "flag": null,
       "description": "",
-      "notes": "Beta note",
+      "notes": "[2026-01-01T00:04:00Z \u00b7 owner@example.com] Beta note",
       "design": "plans/beta.md",
       "links": [],
       "plus_one_count": 0,

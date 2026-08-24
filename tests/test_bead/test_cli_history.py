@@ -21,9 +21,46 @@ def _revision_chain(project_dir: Path) -> str:
             IssueType.PLAN,
             notes="first note",
         )
-        project.update(issue.id, notes="second note")
-        project.update(issue.id, notes="third note")
+    _append_legacy_notes_update(project_dir, issue.id, "second note")
+    _append_legacy_notes_update(project_dir, issue.id, "third note")
+    _reproject_from_events(project_dir)
     return issue.id
+
+
+def _append_legacy_notes_update(project_dir: Path, issue_id: str, notes: str) -> None:
+    stream_path = project_dir / f"sdd/beads/events/streams/{issue_id}.jsonl"
+    lines = stream_path.read_text(encoding="utf-8").splitlines()
+    sequence = len(lines) + 1
+    event = {
+        "schema_version": 1,
+        "event_id": (
+            f"{issue_id}:{sequence:06}:issue_updated:{issue_id}:"
+            f"legacy-notes-{sequence:06}"
+        ),
+        "timestamp": f"2026-07-27T00:00:{sequence:02}Z",
+        "actor": "legacy@example.com",
+        "operation": "issue_updated",
+        "issue_id": issue_id,
+        "payload": {
+            "kind": "issue_updated",
+            "fields": {"notes": notes},
+        },
+    }
+    stream_path.write_text(
+        "\n".join(
+            [
+                *lines,
+                json.dumps(event, separators=(",", ":"), sort_keys=True),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _reproject_from_events(project_dir: Path) -> None:
+    with BeadProject(project_dir) as project:
+        project.reproject_from_events()
 
 
 def _append_redundant_close_event(
@@ -186,10 +223,11 @@ def test_history_full_makes_overwritten_note_revisions_readable(
         capsys,
     )
 
-    assert "from: first note" in output
-    assert "to: second note" in output
-    assert "from: second note" in output
-    assert "to: third note" in output
+    assert "from: [2026-08-24" in output
+    assert "unknown] first note" in output
+    assert "to: [2026-07-27T00:00:03Z · legacy@example.com] second note" in output
+    assert "from: [2026-07-27T00:00:03Z · legacy@example.com] second note" in output
+    assert "to: [2026-07-27T00:00:04Z · legacy@example.com] third note" in output
     assert "title:" not in output
 
 
@@ -241,8 +279,8 @@ def test_history_json_envelope_field_filter_and_newest_limit(
     assert payload["entries"][0]["changes"] == [
         {
             "field": "notes",
-            "from": "second note",
-            "to": "third note",
+            "from": "[2026-07-27T00:00:03Z · legacy@example.com] second note",
+            "to": "[2026-07-27T00:00:04Z · legacy@example.com] third note",
         }
     ]
 
@@ -276,8 +314,9 @@ def test_lost_notes_reports_overwrites_in_stable_order_and_supports_scope(
             IssueType.PLAN,
             notes="second original",
         )
-        project.update(second.id, notes="second current")
-        project.update(first.id, notes="first current")
+    _append_legacy_notes_update(project_dir, second.id, "second current")
+    _append_legacy_notes_update(project_dir, first.id, "first current")
+    _reproject_from_events(project_dir)
 
     output = _run_history(["--lost-notes"], capsys)
     assert output.index(first.id) < output.index(second.id)
@@ -319,7 +358,8 @@ def test_lost_notes_restore_is_provenanced_and_idempotent(
             IssueType.PLAN,
             notes="lost handoff",
         )
-        project.update(issue.id, notes="current summary")
+    _append_legacy_notes_update(project_dir, issue.id, "current summary")
+    _reproject_from_events(project_dir)
 
     monkeypatch.setattr(
         cli_history,
@@ -338,13 +378,15 @@ def test_lost_notes_restore_is_provenanced_and_idempotent(
 
     output = _run_history(["--lost-notes", "--restore"], capsys)
     assert "Lost-note restoration preview:" in output
-    assert "(restored 2026-07-27) lost handoff" in output
+    assert "(restored 2026-07-27)" in output
+    assert "lost handoff" in output
     assert "✓ Restored 1 lost note revision across 1 bead" in output
 
     with BeadProject(project_dir) as project:
         restored = project.show(issue.id).notes
     assert "current summary" in restored
-    assert "(restored 2026-07-27) lost handoff" in restored
+    assert "(restored 2026-07-27)" in restored
+    assert "lost handoff" in restored
 
     assert _run_history(["--lost-notes"], capsys) == "No lost note revisions found.\n"
 
@@ -360,7 +402,8 @@ def test_lost_notes_restore_yes_skips_non_tty_confirmation(
             IssueType.PLAN,
             notes="lost handoff",
         )
-        project.update(issue.id, notes="current summary")
+    _append_legacy_notes_update(project_dir, issue.id, "current summary")
+    _reproject_from_events(project_dir)
 
     monkeypatch.setattr(
         cli_history,
@@ -382,7 +425,8 @@ def test_lost_notes_restore_yes_skips_non_tty_confirmation(
 
     with BeadProject(project_dir) as project:
         restored = project.show(issue.id).notes
-    assert "(restored 2026-07-27) lost handoff" in restored
+    assert "(restored 2026-07-27)" in restored
+    assert "lost handoff" in restored
 
 
 def test_lost_notes_declined_confirmation_writes_nothing(
@@ -396,7 +440,9 @@ def test_lost_notes_declined_confirmation_writes_nothing(
             IssueType.PLAN,
             notes="do not restore",
         )
-        project.update(issue.id, notes="current")
+    _append_legacy_notes_update(project_dir, issue.id, "current")
+    _reproject_from_events(project_dir)
+    with BeadProject(project_dir) as project:
         before = project.show(issue.id).notes
 
     monkeypatch.setattr(

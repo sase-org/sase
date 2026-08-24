@@ -310,6 +310,10 @@ sync-feature-flags-schema: _setup
 sync-completion-spec: _setup
     {{ venv_bin }}/python tools/sync_completion_spec --write
 
+# Compare legacy bead note blobs with the structured note projection.
+check-bead-note-migration *args: _setup
+    {{ venv_bin }}/python tools/check_bead_note_migration {{ args }}
+
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260801

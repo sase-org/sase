@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+"""Check structured bead notes against the legacy notes projection."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+NOTE_HEADER_RE = re.compile(r"^\[[^\]\n]+ · [^\]\n]+\] ")
+
+
+@dataclass(frozen=True)
+class Classification:
+    issue_id: str
+    status: str
+    old_notes: str
+    new_notes: str
+
+
+def _normalize_text(value: str) -> str:
+    return value.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _note_records_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, list):
+        return "" if value is None else str(value)
+    rendered: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        timestamp = "" if item.get("timestamp") is None else str(item["timestamp"])
+        author = "" if item.get("author") is None else str(item["author"])
+        text = "" if item.get("text") is None else str(item["text"]).strip()
+        if text:
+            rendered.append(f"[{timestamp} · {author}] {text}")
+    return "\n\n".join(rendered)
+
+
+def _note_body_text(value: object) -> str:
+    if not isinstance(value, list):
+        return ""
+    bodies: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            text = "" if item.get("text") is None else str(item["text"]).strip()
+            if text:
+                bodies.append(text)
+    return "\n\n".join(bodies)
+
+
+def _strip_note_header(value: str) -> str:
+    return NOTE_HEADER_RE.sub("", value, count=1)
+
+
+def _paragraphs(value: str) -> list[str]:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return []
+    return [item.strip() for item in re.split(r"\n{2,}", normalized) if item.strip()]
+
+
+def _matches_with_added_attribution(old_notes: str, new_notes: str) -> bool:
+    old_paragraphs = _paragraphs(old_notes)
+    new_paragraphs = _paragraphs(new_notes)
+    if len(old_paragraphs) != len(new_paragraphs):
+        return False
+    return all(
+        old == new or old == _strip_note_header(new)
+        for old, new in zip(old_paragraphs, new_paragraphs)
+    )
+
+
+def _legacy_issue_notes(beads_dir: Path) -> dict[str, str]:
+    path = beads_dir / "issues.jsonl"
+    if not path.exists():
+        return {}
+    notes: dict[str, str] = {}
+    with path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"{path}:{line_number}: invalid JSON: {exc}") from exc
+            issue_id = row.get("id")
+            if not issue_id:
+                continue
+            notes[str(issue_id)] = _note_records_text(row.get("notes"))
+    return notes
+
+
+def _current_issues(beads_dir: Path) -> list[dict[str, Any]]:
+    try:
+        import sase_core_rs  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise SystemExit(
+            "cannot import sase_core_rs; run `just install` first"
+        ) from exc
+    payload = sase_core_rs.bead_read_store(str(beads_dir))
+    if not isinstance(payload, list):
+        raise SystemExit("sase_core_rs.bead_read_store returned a non-list payload")
+    return [dict(item) for item in payload if isinstance(item, dict)]
+
+
+def _classify(
+    issue_id: str,
+    old_notes: str,
+    current_notes: object,
+) -> Classification:
+    old_normalized = _normalize_text(old_notes)
+    new_text = _note_records_text(current_notes)
+    new_normalized = _normalize_text(new_text)
+    if old_normalized == new_normalized:
+        status = "identical"
+    elif old_normalized == _normalize_text(
+        _note_body_text(current_notes)
+    ) or _matches_with_added_attribution(old_notes, new_text):
+        status = "attributed"
+    else:
+        status = "differs"
+    return Classification(
+        issue_id=issue_id,
+        status=status,
+        old_notes=old_notes,
+        new_notes=new_text,
+    )
+
+
+def _default_beads_dir() -> Path:
+    env_path = os.environ.get("SASE_SDD_BEADS_DIR")
+    if env_path:
+        return Path(env_path)
+    return REPO_ROOT / "sase" / "repos" / "beads"
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Compare legacy issues.jsonl note text with structured note "
+            "projection from sase_core_rs."
+        )
+    )
+    parser.add_argument(
+        "beads_dir",
+        nargs="?",
+        type=Path,
+        default=_default_beads_dir(),
+        help="bead store directory; defaults to SASE_SDD_BEADS_DIR or ./sase/repos/beads",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the classification summary as JSON",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    beads_dir = args.beads_dir
+    legacy = _legacy_issue_notes(beads_dir)
+    current = _current_issues(beads_dir)
+    classifications = [
+        _classify(
+            str(issue["id"]), legacy.get(str(issue["id"]), ""), issue.get("notes")
+        )
+        for issue in current
+        if issue.get("id") is not None
+    ]
+    counts = {"identical": 0, "attributed": 0, "differs": 0}
+    for item in classifications:
+        counts[item.status] += 1
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "beads_dir": str(beads_dir),
+                    "checked": len(classifications),
+                    **counts,
+                    "differs_ids": [
+                        item.issue_id
+                        for item in classifications
+                        if item.status == "differs"
+                    ],
+                },
+                sort_keys=True,
+            )
+        )
+    else:
+        print(
+            f"checked={len(classifications)} "
+            f"identical={counts['identical']} "
+            f"attributed={counts['attributed']} "
+            f"differs={counts['differs']}"
+        )
+        for item in classifications:
+            if item.status == "differs":
+                print(f"differs: {item.issue_id}")
+    return 1 if counts["differs"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

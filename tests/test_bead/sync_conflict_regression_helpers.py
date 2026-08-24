@@ -149,12 +149,7 @@ def _build_replay_histories(
         ),
     ]
     for index, (issue_id, now, fields) in enumerate(local_updates, start=1):
-        bead_mutation_facade.update(
-            local / "beads",
-            issue_id,
-            **fields,
-            now=now,
-        )
+        _apply_replay_update(local / "beads", issue_id, fields, now=now)
         _commit(local, f"local bead mutation {index}", "beads")
 
     upstream_updates = [
@@ -170,13 +165,27 @@ def _build_replay_histories(
         ),
     ]
     for index, (issue_id, now, fields) in enumerate(upstream_updates, start=1):
-        bead_mutation_facade.update(
-            upstream / "beads",
-            issue_id,
-            **fields,
-            now=now,
-        )
+        _apply_replay_update(upstream / "beads", issue_id, fields, now=now)
         _commit(upstream, f"upstream bead mutation {index}", "beads")
+
+
+def _apply_replay_update(
+    beads_dir: Path,
+    issue_id: str,
+    fields: dict[str, str],
+    *,
+    now: str,
+) -> None:
+    note = fields.get("notes")
+    if note is not None:
+        bead_mutation_facade.append_note(beads_dir, issue_id, note, now=now)
+        return
+    bead_mutation_facade.update(
+        beads_dir,
+        issue_id,
+        **fields,
+        now=now,
+    )
 
 
 def _read_streams(repo: Path) -> list[dict[str, Any]]:

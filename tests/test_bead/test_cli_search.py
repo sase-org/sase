@@ -91,7 +91,8 @@ def test_handle_bead_search_compact_includes_closed_and_match_reason(
     assert "○" in out
     assert "Needle Epic" in out
     assert "Needle in description" in out
-    assert 'notes: "private needle note"' in out
+    assert 'notes: "' in out
+    assert "unknown] private needle note" in out
     assert "✓" in out
     assert "Closed Needle" in out
 

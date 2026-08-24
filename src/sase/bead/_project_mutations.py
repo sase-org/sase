@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING, Any
 
 from sase.bead._project_types import EpicPreclaimRollback
@@ -19,6 +20,9 @@ from sase.bead.model import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+_NOTE_HEADER_RE = re.compile(r"^\[[^\]\n]+ · [^\]\n]+\] ")
 
 
 class BeadProjectMutationMixin:
@@ -109,6 +113,7 @@ class BeadProjectMutationMixin:
         from sase.core import bead_mutation_facade as rust_beads
 
         issue_id = self.resolve_id(issue_id)
+        notes_update = fields.pop("notes", None)
         try:
             old_issue: Issue | None = self.show(issue_id)
         except KeyError:
@@ -116,10 +121,26 @@ class BeadProjectMutationMixin:
         if old_issue is not None:
             fields = _normalize_patch_fields(fields)
             _validate_issue_update(old_issue, fields)
-        issue, outcome = rust_beads.update(
-            self.beads_dir, issue_id, **fields, now=self._current_time()
-        )
-        self._record_mutation_outcome(outcome)
+        outcomes: list[dict[str, object]] = []
+        now = self._current_time()
+        if fields:
+            issue, outcome = rust_beads.update(
+                self.beads_dir, issue_id, **fields, now=now
+            )
+            outcomes.append(outcome)
+        else:
+            issue = old_issue if old_issue is not None else self.show(issue_id)
+        if notes_update is not None:
+            entry = _note_append_entry(issue.notes, notes_update)
+            if entry is not None:
+                issue, outcome = rust_beads.append_note(
+                    self.beads_dir,
+                    issue_id,
+                    entry,
+                    now=now,
+                )
+                outcomes.append(outcome)
+        self._record_mutation_outcome(_combine_mutation_outcomes("update", outcomes))
         self._refresh_db_from_jsonl()
         return issue
 
@@ -138,21 +159,50 @@ class BeadProjectMutationMixin:
         from sase.core import bead_mutation_facade as rust_beads
 
         resolved_ids = [self.resolve_id(issue_id) for issue_id in issue_ids]
+        notes_update = fields.pop("notes", None)
         normalized_fields = _normalize_patch_fields(fields)
+        old_issues: dict[str, Issue] = {}
         for issue_id in resolved_ids:
             try:
                 old_issue: Issue | None = self.show(issue_id)
             except KeyError:
                 old_issue = None
             if old_issue is not None:
+                old_issues[issue_id] = old_issue
+            if old_issue is not None:
                 _validate_issue_update(old_issue, normalized_fields)
-        issues, outcome = rust_beads.update_many(
-            self.beads_dir,
-            resolved_ids,
-            **normalized_fields,
-            now=self._current_time(),
-        )
-        self._record_mutation_outcome(outcome)
+        outcomes: list[dict[str, object]] = []
+        now = self._current_time()
+        if normalized_fields:
+            issues, outcome = rust_beads.update_many(
+                self.beads_dir,
+                resolved_ids,
+                **normalized_fields,
+                now=now,
+            )
+            outcomes.append(outcome)
+            issue_by_id = {issue.id: issue for issue in issues}
+        else:
+            issue_by_id = {
+                issue_id: old_issues.get(issue_id, self.show(issue_id))
+                for issue_id in resolved_ids
+            }
+        if notes_update is not None:
+            for issue_id in resolved_ids:
+                issue = issue_by_id[issue_id]
+                entry = _note_append_entry(issue.notes, notes_update)
+                if entry is None:
+                    continue
+                issue, outcome = rust_beads.append_note(
+                    self.beads_dir,
+                    issue_id,
+                    entry,
+                    now=now,
+                )
+                outcomes.append(outcome)
+                issue_by_id[issue_id] = issue
+        issues = [issue_by_id[issue_id] for issue_id in resolved_ids]
+        self._record_mutation_outcome(_combine_mutation_outcomes("update", outcomes))
         self._refresh_db_from_jsonl()
         return issues
 
@@ -524,6 +574,65 @@ class BeadProjectMutationMixin:
         self._record_mutation_outcome(outcome)
         self._refresh_db_from_jsonl()
         return outcome
+
+
+def _normalize_notes_text(value: object) -> str:
+    return str(value).replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
+def _notes_body_projection(value: str) -> str:
+    paragraphs = [item.strip() for item in re.split(r"\n{2,}", value) if item.strip()]
+    return "\n\n".join(
+        _NOTE_HEADER_RE.sub("", paragraph, count=1) for paragraph in paragraphs
+    )
+
+
+def _note_append_entry(current_notes: str, requested_notes: object) -> str | None:
+    requested = _normalize_notes_text(requested_notes)
+    current = _normalize_notes_text(current_notes)
+    if not requested:
+        if current:
+            raise ValueError(
+                "notes cannot be replaced via update(); use append_note() instead."
+            )
+        return None
+    if not current:
+        return requested
+    for baseline in (current, _notes_body_projection(current)):
+        if requested == baseline:
+            return None
+        if requested.startswith(baseline):
+            suffix = requested[len(baseline) :].strip()
+            return suffix or None
+    return requested
+
+
+def _combine_mutation_outcomes(
+    operation: str,
+    outcomes: list[dict[str, object]],
+) -> dict[str, object]:
+    if not outcomes:
+        return {"operation": operation, "issue_ids": []}
+    issue_ids: list[str] = []
+    reopened_ancestor_ids: list[str] = []
+    for outcome in outcomes:
+        _extend_unique(issue_ids, outcome.get("issue_ids"))
+        _extend_unique(reopened_ancestor_ids, outcome.get("reopened_ancestor_ids"))
+    combined = outcomes[-1].copy()
+    combined["operation"] = operation
+    combined["issue_ids"] = issue_ids
+    if reopened_ancestor_ids:
+        combined["reopened_ancestor_ids"] = reopened_ancestor_ids
+    return combined
+
+
+def _extend_unique(target: list[str], raw: object) -> None:
+    if not isinstance(raw, list):
+        return
+    for item in raw:
+        if not isinstance(item, str) or item in target:
+            continue
+        target.append(item)
 
 
 def _optional_text(value: str | int | None) -> str:

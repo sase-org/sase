@@ -234,7 +234,7 @@ def test_beads_show_bridge_returns_detail(
     assert stderr == ""
     assert data["bead"]["summary"]["id"] == alpha_epic.id  # type: ignore[index]
     assert data["bead"]["description"] == "Alpha description"  # type: ignore[index]
-    assert data["bead"]["notes"] == "Alpha note"  # type: ignore[index]
+    assert str(data["bead"]["notes"]).endswith("Alpha note")  # type: ignore[index]
     assert data["bead"]["design_path_display"] == "plans/alpha.md"  # type: ignore[index]
     assert data["bead"]["children"] == [alpha_phase.id]  # type: ignore[index]
     assert data["bead"]["blocks"] == [alpha_phase.id]  # type: ignore[index]

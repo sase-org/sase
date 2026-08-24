@@ -70,6 +70,26 @@ def _optional_aliased_text(
     return "" if value is None else str(value)
 
 
+def notes_text_from_data(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, list):
+        return str(value)
+    entries: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        timestamp = "" if item.get("timestamp") is None else str(item["timestamp"])
+        author = "" if item.get("author") is None else str(item["author"])
+        text = "" if item.get("text") is None else str(item["text"]).strip()
+        if not text:
+            continue
+        entries.append(f"[{timestamp} · {author}] {text}")
+    return "\n\n".join(entries)
+
+
 def issue_from_dict(data: dict[str, Any]) -> Issue:
     return Issue(
         id=str(data["id"]),
@@ -99,7 +119,7 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         description=(
             "" if data.get("description") is None else str(data.get("description", ""))
         ),
-        notes="" if data.get("notes") is None else str(data.get("notes", "")),
+        notes=notes_text_from_data(data.get("notes")),
         design="" if data.get("design") is None else str(data.get("design", "")),
         refs=[
             str(reference)

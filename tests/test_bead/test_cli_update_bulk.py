@@ -277,7 +277,7 @@ def test_update_description_and_notes_read_at_path(
     with BeadProject(project_dir) as proj:
         updated = proj.show(issue.id)
     assert updated.description == "description from file\n"
-    assert updated.notes == "notes from file\n"
+    assert updated.notes.endswith("notes from file")
 
 
 def test_update_empty_description_still_clears(project_dir: Path) -> None:
