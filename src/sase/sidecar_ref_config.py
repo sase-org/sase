@@ -84,8 +84,14 @@ def effective_sidecar_ref_policies(
         roles=roles,
         source_path=source_path,
     )
+    location = "" if source_path is None else f" ({source_path})"
     for diagnostic in report.diagnostics:
-        log.warning("%s", diagnostic.message)
+        log.warning(
+            "sidecar ref config%s %s: %s",
+            location,
+            diagnostic.key,
+            diagnostic.message,
+        )
     return report.policies
 
 

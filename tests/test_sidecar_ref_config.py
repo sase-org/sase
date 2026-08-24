@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
+import pytest
 
 from sase.artifact_providers import builtin_plan_ref_provider_spec
 from sase.sidecar_ref_config import (
@@ -311,6 +314,33 @@ def test_sidecar_ref_use_without_plugin_prefix_fails_soft(tmp_path: Path) -> Non
     assert "plans" not in report.policies
     assert report.diagnostics[0].code == "missing_use_prefix"
     assert "builtin@plan" in report.diagnostics[0].message
+
+
+def test_sidecar_ref_warning_names_source_key_and_message(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source_path = tmp_path / "sase.yml"
+
+    with caplog.at_level(logging.WARNING, logger="sase.sidecar_ref_config"):
+        effective_sidecar_ref_policies(
+            {
+                "repos": {
+                    "sidecar": {
+                        "builtin": {"plans": {"ref": {"use": "plan"}}},
+                    }
+                }
+            },
+            primary_workspace_dir=tmp_path / "workspace",
+            roles=("plans",),
+            source_path=source_path,
+        )
+
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert ".plans.ref.use" in message
+    assert str(source_path) in message
+    assert "'plan' is missing its plugin prefix; use 'builtin@plan'" in message
 
 
 def test_sidecar_ref_use_with_mismatched_plugin_prefix_fails_soft(
