@@ -611,9 +611,13 @@ are bound structurally during expansion. The captured text is not rewritten into
 `#name([[...]])` and re-lexed, so commas, `]]`, `+`, and unbalanced parentheses in user
 prose stay inside the bound value.
 
-A text block whose content itself ends with `]]` (`#name([[foo]]]])`) resolves one `]`
-short, because first-match cannot distinguish that content from the terminator. Prefer
-an explicit quoted argument in that case, for example `#name("foo]]")`.
+One residual ambiguity remains: a text block whose content holds a `]]` that is itself
+followed by an argument terminator closes there, because first-match cannot distinguish
+that content from the real terminator. `#name([[a]], b]])` binds two arguments (`a` and
+`b]]`), not one. Content ending in `]]` is fine — `#name([[foo]]]])` binds `foo]]` —
+because only the final `]]` sits in terminator position. Prefer an explicit quoted
+argument when a `]]` must be followed by `,`, `)`, `}`, or `|`, for example
+`#name("a]], b")`.
 
 ## Shorthand Syntax
 
