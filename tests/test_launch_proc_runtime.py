@@ -114,8 +114,8 @@ def test_rust_helpers_cover_workspace_cwd_and_env_contracts(tmp_path: Path) -> N
         validate_standalone_proc_shell_name("agent--checks")
     assert parse_proc_duration_seconds("20m") == 1200
     env = sanitized_proc_env(
+        {"PATH": "/home/user/.cargo/bin:/usr/bin:/bin"},
         "proc-one",
-        str(tmp_path),
         str(tmp_path),
         sys.executable,
         selected_project="sase",
@@ -125,6 +125,8 @@ def test_rust_helpers_cover_workspace_cwd_and_env_contracts(tmp_path: Path) -> N
     assert env["SASE_PROC_ID"] == "proc-one"
     assert env["SASE_PROJECT"] == "sase"
     assert "SASE_AGENT" not in env
+    assert "HOME" not in env
+    assert env["PATH"].endswith("/home/user/.cargo/bin:/usr/bin:/bin")
     assert xprompt_proc_origin() == "xprompt-proc"
 
 
@@ -160,6 +162,138 @@ def test_bash_proc_runs_without_agent_artifacts(
     assert not (proc_runtime_dir(finished.proc_id) / "script.sh").exists()
     artifacts = tmp_path / "home" / "projects"
     assert not any(artifacts.rglob("done.json")) if artifacts.exists() else True
+
+
+def _write_fake_just(bin_dir: Path, marker: Path) -> None:
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    fake_just = bin_dir / "just"
+    fake_just.write_text(
+        "#!/bin/sh\n"
+        f'printf "HOST_VAR=%s\\n" "$MARK_HOST_VAR" > {marker}\n'
+        f'printf "SASE_AGENT=%s\\n" "${{SASE_AGENT:-}}" >> {marker}\n'
+        f'printf "SASE_AGENT_NAME=%s\\n" "${{SASE_AGENT_NAME:-}}" >> {marker}\n'
+        f'printf "SASE_CHOP_ID=%s\\n" "${{SASE_CHOP_ID:-}}" >> {marker}\n'
+        f'printf "SASE_ARTIFACTS_DIR=%s\\n" "${{SASE_ARTIFACTS_DIR:-}}" >> {marker}\n'
+        f'printf "SASE_PROC_SESSION_ID=%s\\n" "${{SASE_PROC_SESSION_ID:-}}" >> {marker}\n',
+        encoding="utf-8",
+    )
+    fake_just.chmod(0o755)
+
+
+def _set_hostile_ambient_env(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("MARK_HOST_VAR", "still-here")
+    monkeypatch.setenv("SASE_AGENT", "some-agent")
+    monkeypatch.setenv("SASE_AGENT_NAME", "some-agent")
+    monkeypatch.setenv("SASE_CHOP_ID", "some-chop")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.setenv("SASE_PROC_ID", "stale-proc")
+    monkeypatch.setenv("SASE_PROC_SESSION_ID", "stale-session")
+
+
+def _assert_marker_shows_clean_host_environment(marker: Path) -> None:
+    lines = dict(
+        line.split("=", 1) for line in marker.read_text(encoding="utf-8").splitlines()
+    )
+    assert lines["HOST_VAR"] == "still-here"
+    assert lines["SASE_AGENT"] == ""
+    assert lines["SASE_AGENT_NAME"] == ""
+    assert lines["SASE_CHOP_ID"] == ""
+    assert lines["SASE_ARTIFACTS_DIR"] == ""
+    assert lines["SASE_PROC_SESSION_ID"] != "stale-session"
+
+
+def test_standalone_proc_resolves_user_installed_command_and_preserves_host_env(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A stand-alone `%proc` must run tools from the caller's PATH.
+
+    Regression test: the xprompt-proc branch used to build the child
+    environment purely from a hermetic Rust overlay, so `just`, `uv`, and
+    Cargo were invisible even though the launching shell had them on PATH.
+    """
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    _set_hostile_ambient_env(monkeypatch, tmp_path)
+    user_bin = tmp_path / "user-bin"
+    marker = tmp_path / "just-ran.txt"
+    _write_fake_just(user_bin, marker)
+    monkeypatch.setenv("PATH", f"{user_bin}:{os.environ.get('PATH', '')}")
+
+    unit = _proc_unit("just", cwd=str(tmp_path), shell_name="checks")
+    ok, identity, message, _spawned = dispatch_proc_unit(
+        unit,
+        "fp-just-immediate",
+        {"source_cwd": str(tmp_path), "python_executable": sys.executable},
+    )
+    assert ok, message
+    assert identity is not None
+    finished = wait_for_proc(identity, timeout=10)
+    assert finished.status == "success", finished.message
+    _assert_marker_shows_clean_host_environment(marker)
+
+
+def test_delayed_proc_after_wait_preserves_the_same_executable_environment(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A `%proc` admitted only after its wait target resolves must see the
+    same executable environment as one admitted immediately."""
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    _set_hostile_ambient_env(monkeypatch, tmp_path)
+    user_bin = tmp_path / "user-bin"
+    marker = tmp_path / "just-ran.txt"
+    _write_fake_just(user_bin, marker)
+    monkeypatch.setenv("PATH", f"{user_bin}:{os.environ.get('PATH', '')}")
+
+    agent = LaunchUnitWire(
+        logical_id="unit-1",
+        source_order=0,
+        payload=AgentUnitWire(prompt="review"),
+    )
+    proc = LaunchUnitWire(
+        logical_id="unit-2",
+        source_order=1,
+        waits=[WaitTargetWire(kind="logical", logical_id="unit-1")],
+        payload=ProcUnitWire(
+            code=make_code_value("just", "bash", "bash"),
+            workspace=False,
+            cwd=str(tmp_path),
+        ),
+    )
+
+    def agent_dispatcher(
+        unit: LaunchUnitWire, fingerprint: str
+    ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
+        del fingerprint
+        return (
+            True,
+            "reviewer",
+            None,
+            [
+                AgentLaunchResult(
+                    pid=9,
+                    workspace_num=2,
+                    workspace_dir=str(tmp_path / "ws"),
+                    output_path=str(tmp_path / "out.log"),
+                    agent_name=unit.logical_id,
+                )
+            ],
+        )
+
+    progress, _response_dir = _run_plan(
+        tmp_path,
+        _plan(agent, proc, project="sase"),
+        agent_dispatcher=agent_dispatcher,
+    )
+    assert progress.summary is not None
+    assert progress.summary.launched == 2
+    from sase.procs.store import read_procs
+
+    rows = [row for row in read_procs() if row.origin == "xprompt-proc"]
+    assert len(rows) == 1
+    finished = wait_for_proc(rows[0].proc_id, timeout=10)
+    assert finished.status == "success", finished.message
+    _assert_marker_shows_clean_host_environment(marker)
 
 
 def test_proc_metadata_preserves_label_provenance_through_prepare(

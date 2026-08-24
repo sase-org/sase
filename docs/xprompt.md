@@ -1665,11 +1665,20 @@ as a private `0600` script, executes it by argv — `/bin/bash --noprofile --nor
 <script>` or the SASE interpreter plus that script, never shell interpolation — and
 releases the lease through the existing resumable settlement path on every terminal
 outcome. Execution and idle timeouts begin when the child starts, not while waits, the
-condition, or the workspace lease are pending. The child's environment is sanitized and
-adds only documented proc context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, selected
-project, project file, and workspace number); it never sets `SASE_AGENT` or another
-agent-artifact variable. A stand-alone `%proc` unit never allocates an agent runner
-slot, family, `done.json`, or finalizer obligation.
+condition, or the workspace lease are pending. The child's environment inherits the
+detached supervisor's own ordinary tool environment — `PATH`, `HOME`, locale, and
+toolchain configuration — rather than a private hermetic one, so user-installed tools
+such as `just`, `uv`, and Cargo resolve exactly as they do outside the proc. Parent
+agent, chop, and artifact identity are scrubbed from that inherited environment, along
+with any stale `SASE_PROC_*` sidecar left over from an earlier proc, before the SASE
+interpreter directory is prefixed onto `PATH` and only the current documented proc
+context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`, selected project,
+project file, and workspace number) is added; the proc never sets `SASE_AGENT` or
+another agent-artifact variable. The private script directory holds only the `0600`
+script and is not a replacement user home, and this scrubbing is not a filesystem or
+network sandbox — the child still runs with the supervisor's filesystem and network
+permissions. A stand-alone `%proc` unit never allocates an agent runner slot, family,
+`done.json`, or finalizer obligation.
 
 In project context `workspace` defaults to `true` and an optional relative `cwd` is
 resolved beneath the leased checkout; `workspace="false"` opts out and requires an

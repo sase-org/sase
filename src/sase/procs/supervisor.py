@@ -370,23 +370,13 @@ def _wait_for_child(
 
 
 def _child_environment(proc: Proc, overlay: dict[str, Any] | None) -> dict[str, str]:
-    if proc.origin == "xprompt-proc":
-        env = {
-            str(key): str(value)
-            for key, value in (overlay or {}).items()
-            if isinstance(key, str) and isinstance(value, str)
-        }
-        env["SASE_PROC_ID"] = proc.proc_id
-        env["SASE_PROC_LOG_PATH"] = proc.log_path
-        env.pop("SASE_AGENT", None)
-        for key in list(env):
-            if key.startswith("SASE_AGENT_"):
-                env.pop(key, None)
-        return env
     env = os.environ.copy()
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
     env.pop("SASE_ARTIFACTS_DIR", None)
+    for key in list(env):
+        if key.startswith("SASE_PROC_"):
+            env.pop(key, None)
     if overlay is not None:
         for key, value in overlay.items():
             if isinstance(key, str) and isinstance(value, str):

@@ -129,6 +129,7 @@ def prepare_xprompt_proc_supervisor(
     if _cancelled(cancelled) or _cancel_requested(work_dir):
         return "proc killed"
     python_executable = str(meta.get("python_executable") or sys.executable)
+    base_env = {"PATH": os.environ.get("PATH", "")}
     request = {
         "schema_version": proc_dispatch_wire_schema_version(),
         "logical_id": str(meta.get("logical_id") or proc.proc_id),
@@ -147,6 +148,7 @@ def prepare_xprompt_proc_supervisor(
         "timeout": meta.get("timeout"),
         "idle_timeout": meta.get("idle_timeout"),
         "shell_name": proc.shell_name,
+        "base_env": base_env,
     }
     try:
         prepared = prepare_proc_script(request)
@@ -156,9 +158,9 @@ def prepare_xprompt_proc_supervisor(
         return "prepared proc argv does not match the reserved request"
     selected = proc.project or meta.get("selected_project")
     env = sanitized_proc_env(
+        base_env,
         proc.proc_id,
         str(prepared.get("cwd") or proc.cwd),
-        str(work_dir),
         python_executable,
         selected_project=None if selected is None else str(selected),
         project_file=None if project_file is None else str(project_file),

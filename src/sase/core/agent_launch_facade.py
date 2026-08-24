@@ -358,21 +358,21 @@ def prepare_proc_script(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def sanitized_proc_env(
+    base_env: dict[str, str],
     proc_id: str,
     cwd: str,
-    work_dir: str,
     python_executable: str,
     *,
     selected_project: str | None = None,
     project_file: str | None = None,
     workspace_num: int | None = None,
 ) -> dict[str, str]:
-    """Return the documented sanitized `%proc` child environment."""
+    """Return the `%proc` execution-derived overlay for *base_env*."""
 
     payload = require_rust_binding("sanitized_proc_env")(
+        base_env,
         proc_id,
         cwd,
-        work_dir,
         python_executable,
         selected_project,
         project_file,
