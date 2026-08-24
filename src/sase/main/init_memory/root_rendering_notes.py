@@ -332,21 +332,21 @@ def generated_project_long_expected_files(
 
 def generated_short_notes(
     generated_sase_body: str,
-    generated_task_types_body: str | None = None,
     generated_artifact_relations_body: str | None = None,
     generated_glossary_body: str | None = None,
 ) -> dict[str, GeneratedShortMemoryNote]:
-    """Return freshly generated core notes keyed by relative path."""
+    """Return freshly generated core notes keyed by relative path.
+
+    ``sase/memory/task_types.md`` is a generated memory web, not a plain note,
+    so its body flows through ``_memory_web_root_plan``'s core-note-body
+    overlay instead of this function.
+    """
     notes = {
         generated_sase_memory_relative_path().as_posix(): GeneratedShortMemoryNote(
             body=generated_sase_body,
             priority=GENERATED_SASE_MEMORY_PRIORITY,
         ),
     }
-    if generated_task_types_body is not None:
-        notes[generated_task_types_memory_relative_path().as_posix()] = (
-            GeneratedShortMemoryNote(generated_task_types_body)
-        )
     if generated_artifact_relations_body is not None:
         notes[generated_artifact_relations_memory_relative_path().as_posix()] = (
             GeneratedShortMemoryNote(generated_artifact_relations_body)

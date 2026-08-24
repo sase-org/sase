@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+import re
 import textwrap
 from typing import Any, Literal, cast
 
@@ -337,12 +338,36 @@ def _render_memory_frontmatter(
     return f"---\n{dumped}\n---\n\n"
 
 
+def render_frontmatter_block(data: Mapping[str, Any]) -> str:
+    """Render a standalone, prettier-stable YAML frontmatter block for *data*.
+
+    Unlike :func:`apply_memory_frontmatter`, this declares no ``type:`` or
+    ``parent:`` — a memory-web strand must not carry either.
+    """
+    dumped = cast(
+        str,
+        yaml.dump(
+            dict(data),
+            Dumper=_MemoryFrontmatterDumper,
+            allow_unicode=True,
+            default_flow_style=False,
+            sort_keys=False,
+            width=_YAML_WIDTH,
+        ),
+    ).strip()
+    dumped = _prettier_stable_frontmatter(dumped)
+    return f"---\n{dumped}\n---\n\n"
+
+
+_FRONTMATTER_SCALAR_LINE_RE = re.compile(r"^([a-zA-Z_][\w-]*): (.+)$")
+
+
 def _prettier_stable_frontmatter(dumped: str) -> str:
     """Return frontmatter shaped the same way Prettier will keep it."""
     # Shaped deliberately to match what prettier would keep at the configured
-    # prose width, so wrapped `description:` frontmatter survives
-    # `fmt-md-check`. Resolved here rather than at import time so the value
-    # follows `markdown.print_width`.
+    # prose width, so a wrapped long scalar (`description:`, `summary:`, …)
+    # survives `fmt-md-check`. Resolved here rather than at import time so
+    # the value follows `markdown.print_width`.
     # Literal block scalars pass through untouched: the `description: |-`
     # header is short enough to skip wrapping, and indented block-body lines
     # are not treated as YAML sequence items.
@@ -350,14 +375,13 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
     lines: list[str] = []
     in_sequence = False
     for line in dumped.splitlines():
-        prefix = "description: "
-        value = line.removeprefix(prefix)
+        match = _FRONTMATTER_SCALAR_LINE_RE.match(line)
         if (
-            line.startswith(prefix)
+            match is not None
             and len(line) > frontmatter_wrap_width
-            and _can_wrap_plain_description(value)
+            and _can_wrap_plain_description(match.group(2))
         ):
-            lines.append("description:")
+            lines.append(f"{match.group(1)}:")
             wrapper = textwrap.TextWrapper(
                 width=frontmatter_wrap_width,
                 initial_indent="  ",
@@ -365,7 +389,7 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
                 break_long_words=False,
                 break_on_hyphens=False,
             )
-            lines.extend(wrapper.wrap(value))
+            lines.extend(wrapper.wrap(match.group(2)))
             in_sequence = False
             continue
         if in_sequence and line.startswith("- "):
@@ -541,5 +565,6 @@ __all__ = [
     "normalize_memory_note_type",
     "parse_memory_note_text",
     "render_children_section",
+    "render_frontmatter_block",
     "render_long_memory_sections",
 ]

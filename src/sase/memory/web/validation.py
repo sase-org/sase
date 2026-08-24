@@ -43,11 +43,12 @@ def validate_memory_webs(
     for web in discovery.webs:
         if normalize_memory_web_reference(web.slug) in reserved_keys:
             blockers.append(f"{web.path}: memory web name {web.slug!r} is reserved")
-        strand_dir = web.memory_root / web.slug
-        if not strand_dir.exists() or not strand_dir.is_dir():
-            blockers.append(
-                f"{web.path}: memory web descriptor has no strand directory"
-            )
+        if web.source == "file":
+            strand_dir = web.memory_root / web.slug
+            if not strand_dir.exists() or not strand_dir.is_dir():
+                blockers.append(
+                    f"{web.path}: memory web descriptor has no strand directory"
+                )
         marker_error = roster_region_error(web.body)
         if marker_error is not None:
             blockers.append(f"{web.path}: {marker_error}")

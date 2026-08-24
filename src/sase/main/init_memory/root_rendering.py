@@ -47,10 +47,8 @@ from .root_rendering_notes import (
 )
 from .root_rendering_task_types import (
     generated_task_type_snapshot_path,
-    generated_task_types_memory_content,
     generated_task_types_memory_relative_path,
     render_generated_task_type_snapshot_json,
-    render_generated_task_types_memory_body,
 )
 
 MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
@@ -227,7 +225,6 @@ def render_expected_memory_files(
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
     generated_artifact_relations_body: str | None = None,
-    generated_task_types_body: str | None = None,
     generated_glossary_body: str | None = None,
     generated_project_long_contents: Mapping[str, str] | None = None,
     source_memory_root: Path | None = None,
@@ -241,15 +238,6 @@ def render_expected_memory_files(
         )
         if render_error is not None or generated_sase_body is None:
             return (), render_error or "failed to render sase/memory/sase.md template"
-    if include_project_memory and generated_task_types_body is None:
-        generated_task_types_body, render_error = (
-            render_generated_task_types_memory_body()
-        )
-        if render_error is not None or generated_task_types_body is None:
-            return (
-                (),
-                render_error or "failed to render sase/memory/task_types.md template",
-            )
     if include_project_memory and generated_project_long_contents is None:
         generated_project_long_contents, render_error = (
             render_generated_project_long_memory_contents()
@@ -279,12 +267,6 @@ def render_expected_memory_files(
         if generated_artifact_relations_body is not None
         else None
     )
-    generated_task_types_path = root / generated_task_types_memory_relative_path()
-    generated_task_types_content = (
-        generated_task_types_memory_content(generated_task_types_body)
-        if generated_task_types_body is not None
-        else None
-    )
     generated_glossary_path = root / generated_glossary_memory_relative_path()
     generated_glossary_content = (
         generated_glossary_memory_content(generated_glossary_body)
@@ -294,8 +276,6 @@ def render_expected_memory_files(
     note_overlay = {
         generated_sase_path: generated_sase_content,
     }
-    if generated_task_types_content is not None:
-        note_overlay[generated_task_types_path] = generated_task_types_content
     if generated_artifact_relations_content is not None:
         note_overlay[generated_artifact_relations_path] = (
             generated_artifact_relations_content
@@ -326,14 +306,6 @@ def render_expected_memory_files(
             detail="generated SASE memory",
         ),
     ]
-    if generated_task_types_content is not None:
-        expected.append(
-            MemoryExpectedFile(
-                path=generated_task_types_path,
-                content=generated_task_types_content,
-                detail="generated task-type memory note",
-            )
-        )
     if generated_artifact_relations_content is not None:
         expected.append(
             MemoryExpectedFile(

@@ -131,8 +131,8 @@ memory.
 - Type: `core`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 94
-- Approx. tokens: 925
+- Lines: 49
+- Approx. tokens: 539
 
 ### `sase/memory/cli_rules.md`
 
@@ -223,8 +223,8 @@ memory.
 - Total notes: 18
 - Core notes: 9
 - Reference notes: 9
-- Total lines: 1135
-- Total approx. tokens: 13997
+- Total lines: 1089
+- Total approx. tokens: 13608
 
 ## Commands
 

@@ -11,6 +11,7 @@ from sase.memory.notes import DEFAULT_MEMORY_PRIORITY
 WebRosterStyle = Literal["inline", "list"]
 WebClosureMode = Literal["none", "mentions"]
 WebScope = Literal["project", "home"]
+WebSource = Literal["file", "generated"]
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class MemoryWeb:
     frontmatter: dict[str, Any]
     priority: int = DEFAULT_MEMORY_PRIORITY
     strands: tuple[MemoryStrand, ...] = ()
+    source: WebSource = "file"
 
 
 @dataclass(frozen=True)
@@ -115,5 +117,6 @@ __all__ = [
     "WebClosureMode",
     "WebRosterStyle",
     "WebScope",
+    "WebSource",
     "WebStrandOrigin",
 ]

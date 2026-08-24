@@ -2,9 +2,9 @@
 
 Every task bead can carry a `task_type` drawn from this project's catalog. `sase bead task-type list` always shows the live catalog and `sase bead task-type show <slug>` shows one type in full; this note is the generated, always-current snapshot of the agent-creatable types below.
 
-## Types
+<!-- sase:strands -->
 
-{{ task_type_entries }}
+<!-- /sase:strands -->
 
 ## File Discovered Work As Task Beads
 

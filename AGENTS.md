@@ -267,67 +267,19 @@ Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase bead task-type show <slug>` shows one type in full; this note is the generated,
 always-current snapshot of the agent-creatable types below.
 
-#### 1.9.1 Types
+<!-- sase:strands -->
 
-##### 1.9.1.1 `bug` — Bug
+- **Bug** (`bug`) - A defect an agent found while doing unrelated work, not an external
+  tracker bug.
+- **CI failure** (`ci`) - A confirmed true test or lint failure, not a flake.
+- **Feature** (`feature`) - An out-of-scope product idea that should not become a wish
+  list.
+- **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
+- **Memory** (`memory`) - A sase memory note or skill that is out of date.
 
-File one when you found a defect while doing unrelated work and it is not an external
-tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use
-this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.
+<!-- /sase:strands -->
 
-- Required fields: `location`, `repro`
-- Optional fields: `impact`
-
-Run `sase bead task-type show bug` for the full field list, validators, and body
-template.
-
-##### 1.9.1.2 `ci` — CI failure
-
-File one when a test or lint failed and you confirmed it is a true failure, not a flake.
-Record the pytest node ID, the failing SHA if known, and why this is not intermittent.
-Use flake instead when a rerun on the same tree passed.
-
-- Required fields: `node_id`, `why_not_flake`
-- Optional fields: `sha`
-
-Run `sase bead task-type show ci` for the full field list, validators, and body
-template.
-
-##### 1.9.1.3 `feature` — Feature
-
-File one when you discovered a product or capability idea that is outside the current
-task or epic. State the proposal and why it is out of scope for the work you were doing.
-Do not file one for in-scope follow-up that belongs on the current epic.
-
-- Required fields: `proposal`, `why_out_of_scope`
-
-Run `sase bead task-type show feature` for the full field list, validators, and body
-template.
-
-##### 1.9.1.4 `flake` — Flaky test
-
-File one when a test or lint failed, a rerun on the same tree passed, and you did not
-cause the failure. Record the fail rate and whether it reproduces serially. Use ci
-instead when the failure is confirmed and reproducible.
-
-- Required fields: `node_id`, `evidence`
-- Optional fields: `repro_cmd`
-
-Run `sase bead task-type show flake` for the full field list, validators, and body
-template.
-
-##### 1.9.1.5 `memory` — Memory
-
-File one when a sase memory file or skill contains out-of-date information that should
-be updated. Closing still requires explicit user permission plus `sase memory init`.
-Record the memory path and the proposed change.
-
-- Required fields: `path`, `proposed_change`
-
-Run `sase bead task-type show memory` for the full field list, validators, and body
-template.
-
-#### 1.9.2 File Discovered Work As Task Beads
+#### 1.9.1 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD

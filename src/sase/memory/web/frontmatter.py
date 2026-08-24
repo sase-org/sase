@@ -17,7 +17,7 @@ from sase.memory.notes import (
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-from .models import MemoryStrand, MemoryWeb, WebClosureMode, WebRosterStyle
+from .models import MemoryStrand, MemoryWeb, WebClosureMode, WebRosterStyle, WebSource
 
 _SLUG_WORD_RE = re.compile(r"[-_\s]+")
 _VALID_ROSTERS: frozenset[str] = frozenset({"inline", "list"})
@@ -165,17 +165,22 @@ def parse_web_descriptor(
     root: Path,
     memory_root: Path,
     path: Path,
+    text: str | None = None,
+    source: WebSource = "file",
 ) -> tuple[MemoryWeb | None, str | None]:
     """Parse *path* as a web descriptor.
 
     ``(None, None)`` means the note is not a web descriptor. ``(None, error)`` means
-    it tried to declare web metadata but failed validation.
+    it tried to declare web metadata but failed validation. Pass *text* to parse
+    in-memory content (a :class:`GeneratedMemoryWebProvider` source) instead of
+    reading *path* from disk.
     """
 
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return None, f"{path}: failed to read memory web descriptor: {exc}"
+    if text is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return None, f"{path}: failed to read memory web descriptor: {exc}"
 
     parsed = _parse_frontmatter_text(text)
     if parsed.error is not None:
@@ -247,6 +252,7 @@ def parse_web_descriptor(
             body_start=parsed.body_start,
             frontmatter=dict(parsed.frontmatter),
             priority=priority,
+            source=source,
         ),
         None,
     )
@@ -258,13 +264,18 @@ def parse_memory_strand(
     memory_root: Path,
     web_slug: str,
     path: Path,
+    text: str | None = None,
 ) -> tuple[MemoryStrand | None, str | None]:
-    """Parse one strand file."""
+    """Parse one strand file.
 
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return None, f"{path}: failed to read memory strand: {exc}"
+    Pass *text* to parse in-memory content instead of reading *path* from disk.
+    """
+
+    if text is None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return None, f"{path}: failed to read memory strand: {exc}"
 
     parsed = _parse_frontmatter_text(text)
     if parsed.error is not None:

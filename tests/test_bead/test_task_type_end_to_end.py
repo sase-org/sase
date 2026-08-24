@@ -18,7 +18,9 @@ from sase.doctor.checks_plugins import _check_plugins_required
 from sase.doctor.runner import DoctorContext
 from sase.main.parser import create_parser
 from sase.task_type_presentation import task_type_chip, task_type_cli_cell
-from sase.main.init_memory.root_rendering import render_generated_task_types_memory_body
+from sase.main.init_memory.root_rendering_task_types import (
+    _render_generated_task_types_web_sources,
+)
 from sase.task_types import (
     TaskTypeCreateError,
     assemble_task_type_registry,
@@ -238,16 +240,17 @@ def test_optional_plugin_types_do_not_change_generated_note(
         "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: with_optional,
     )
-    with_note, with_error = render_generated_task_types_memory_body()
+    with_source, with_error = _render_generated_task_types_web_sources()
     monkeypatch.setattr(
         "sase.main.init_memory.root_rendering_task_types.get_task_type_registry",
         lambda: without_optional,
     )
-    without_note, without_error = render_generated_task_types_memory_body()
+    without_source, without_error = _render_generated_task_types_web_sources()
     assert with_error is None and without_error is None
-    assert with_note == without_note
-    assert with_note is not None
-    assert "incident" not in with_note
+    assert with_source == without_source
+    assert with_source is not None
+    assert "incident" not in with_source.descriptor_content
+    assert all("incident" not in strand.content for strand in with_source.strands)
 
 
 def test_doctor_reports_plugins_required_and_task_types(

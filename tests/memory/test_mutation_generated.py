@@ -54,7 +54,6 @@ def test_generated_paths_cover_every_note_sase_memory_init_generates() -> None:
     written = {
         *generated_short_notes(
             "generated sase body",
-            "generated task types body",
             "generated artifact relations body",
             "generated glossary body",
         ),

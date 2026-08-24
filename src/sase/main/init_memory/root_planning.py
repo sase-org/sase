@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sase.amd._shared import ProviderShimPlan, provider_shim_plan
@@ -13,6 +13,7 @@ from sase.amd.init import (
     plan_minimal_agents_sync,
 )
 from sase.memory.notes import GeneratedLongMemoryNote, GeneratedShortMemoryNote
+from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 from sase.memory.web import (
     discover_memory_webs,
     render_web_body_with_roster,
@@ -46,15 +47,20 @@ from .root_rendering import (
     generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
-    generated_task_types_memory_relative_path,
     render_generated_artifact_relations_memory_body,
     render_generated_glossary_memory_body,
     render_generated_project_long_memory_contents,
     render_generated_sase_memory_body,
-    render_generated_task_types_memory_body,
     render_expected_memory_files,
 )
-from .root_rendering_task_types import is_generated_task_types_memory_content
+from .root_rendering_task_types import (
+    TASK_TYPES_WEB_SLUG,
+    build_generated_task_types_web,
+    current_agent_creatable_task_type_slugs,
+    generated_task_types_memory_relative_path,
+    is_generated_task_type_strand_content,
+    is_generated_task_types_memory_content,
+)
 
 
 @dataclass(frozen=True)
@@ -155,6 +161,41 @@ def _retired_task_types_note_path(
     return (path,)
 
 
+def _retired_task_types_strand_paths(
+    root: Path, *, include_project_memory: bool
+) -> tuple[Path, ...]:
+    """Return generated task-type strand files this root no longer manages.
+
+    When *include_project_memory* is true, only a strand whose slug fell out
+    of the committed, agent-creatable catalog retires; the rest keep
+    regenerating through the web's expected files. Otherwise every strand
+    matching the generated signature retires, mirroring
+    ``_retired_task_types_note_path``. A hand-edited file at either path is
+    left alone.
+    """
+    strand_dir = root / CANONICAL_MEMORY_RELATIVE_ROOT / TASK_TYPES_WEB_SLUG
+    if not strand_dir.exists() or not strand_dir.is_dir():
+        return ()
+    current_slugs = (
+        current_agent_creatable_task_type_slugs()
+        if include_project_memory
+        else frozenset()
+    )
+    retired: list[Path] = []
+    for path in sorted(strand_dir.glob("*.md")):
+        slug = path.stem
+        if include_project_memory and slug in current_slugs:
+            continue
+        try:
+            current = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if not is_generated_task_type_strand_content(slug, current):
+            continue
+        retired.append(path)
+    return tuple(retired)
+
+
 def _glossary_collision_blocker(
     root: Path, *, glossary_terms: ProjectGlossaryTerms | None
 ) -> str | None:
@@ -206,8 +247,22 @@ def _memory_web_root_plan(
     root: Path,
     *,
     source_memory_root: Path,
+    include_project_memory: bool,
 ) -> _MemoryWebRootPlan:
-    discovery = discover_memory_webs(root, source_memory_root=source_memory_root)
+    file_discovery = discover_memory_webs(root, source_memory_root=source_memory_root)
+    webs = tuple(web for web in file_discovery.webs if web.slug != TASK_TYPES_WEB_SLUG)
+    if include_project_memory:
+        generated_web, generated_error = build_generated_task_types_web(root)
+        if generated_error is not None or generated_web is None:
+            return _MemoryWebRootPlan(
+                blockers=(
+                    generated_error
+                    or "failed to render the generated task_types memory web",
+                ),
+            )
+        webs = (*webs, generated_web)
+    discovery = replace(file_discovery, webs=webs)
+
     validation = validate_memory_webs(discovery)
     if validation.blockers:
         return _MemoryWebRootPlan(
@@ -239,6 +294,15 @@ def _memory_web_root_plan(
                     content=content,
                     detail="memory web strand roster",
                 )
+            )
+        if web.source == "generated":
+            expected.extend(
+                MemoryExpectedFile(
+                    path=strand.path,
+                    content=strand.raw_text,
+                    detail=f"generated {web.strand_noun} strand",
+                )
+                for strand in web.strands
             )
 
     return _MemoryWebRootPlan(
@@ -305,6 +369,9 @@ def memory_root_context(
         *_retired_task_types_note_path(
             root, include_project_memory=include_project_memory
         ),
+        *_retired_task_types_strand_paths(
+            root, include_project_memory=include_project_memory
+        ),
     )
     root_resolved = root.resolve(strict=False)
     excluded_note_paths = frozenset(
@@ -314,6 +381,7 @@ def memory_root_context(
     memory_web_plan = _memory_web_root_plan(
         root,
         source_memory_root=migration.source_memory_root,
+        include_project_memory=include_project_memory,
     )
     if memory_web_plan.blockers:
         return _MemoryRootContext(
@@ -340,24 +408,8 @@ def memory_root_context(
                 sase_render_error or "failed to render sase/memory/sase.md template",
             ),
         )
-    generated_task_types_body: str | None = None
     generated_artifact_relations_body: str | None = None
     if include_project_memory:
-        generated_task_types_body, task_types_render_error = (
-            render_generated_task_types_memory_body()
-        )
-        if task_types_render_error is not None or generated_task_types_body is None:
-            return _MemoryRootContext(
-                amd_sync=None,
-                expected_files=(),
-                shim_plan=ProviderShimPlan(writes=(), deletes=()),
-                additional_shim_plans=(),
-                source_memory_root=migration.source_memory_root,
-                blockers=(
-                    task_types_render_error
-                    or "failed to render sase/memory/task_types.md template",
-                ),
-            )
         generated_artifact_relations_body, artifact_relations_render_error = (
             render_generated_artifact_relations_memory_body()
         )
@@ -409,7 +461,6 @@ def memory_root_context(
             )
     generated_short_note_bodies = generated_short_notes(
         generated_sase_body,
-        generated_task_types_body,
         generated_artifact_relations_body,
         generated_glossary_body,
     )
@@ -434,7 +485,6 @@ def memory_root_context(
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
         generated_artifact_relations_body=generated_artifact_relations_body,
-        generated_task_types_body=generated_task_types_body,
         generated_glossary_body=generated_glossary_body,
         generated_project_long_contents=generated_project_long_contents,
         source_memory_root=migration.source_memory_root,

@@ -82,6 +82,10 @@ def _delete_retired_note_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
         except FileNotFoundError:
             continue
         deleted.append(path)
+        try:
+            path.parent.rmdir()
+        except OSError:
+            pass
     return tuple(deleted)
 
 
