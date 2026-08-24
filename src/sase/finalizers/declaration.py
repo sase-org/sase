@@ -38,6 +38,9 @@ from sase.core.finalizer_wire import (
 )
 from sase.finalizers.declaration_format import format_context_pretty
 from sase.finalizers.declaration_deferrals import adjudicate_commit_deferrals
+from sase.finalizers.declaration_context_evidence import (
+    build_commit_declaration_context,
+)
 from sase.finalizers.declaration_manifest import (
     FINAL_CONTEXT_FILENAME,
     FINAL_SUBMISSION_ATTEMPTS_FILENAME,
@@ -376,6 +379,7 @@ def _build_live_context(
     run_id, agent_id, turn_nonce = _run_identity(root, command)
     dirty_state = _collect_dirty_state(root)
     requirements, obligations = _build_context_requirements(plan, dirty_state)
+    host_records = _host_repository_records(dirty_state)
 
     context = FinalizerContextWire(
         schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
@@ -389,9 +393,14 @@ def _build_live_context(
     context_digest = validate_finalizer_context(plan, context)
     context = replace(context, context_digest=context_digest)
     return _LiveFinalizerContext(
-        payload=_context_payload(plan, context),
+        payload=_context_payload(
+            plan,
+            context,
+            root=root,
+            host_records=host_records,
+        ),
         context=context,
-        host_records=_host_repository_records(dirty_state),
+        host_records=host_records,
     )
 
 
@@ -407,6 +416,9 @@ def _host_repository_record_set(
 def _context_payload(
     plan: FinalizerPlanWire,
     context: FinalizerContextWire,
+    *,
+    root: Path,
+    host_records: tuple[HostRepositoryRecord, ...],
 ) -> dict[str, Any]:
     requirement_by_id = {item.instance_id: item for item in context.requirements}
     selected = []
@@ -429,6 +441,11 @@ def _context_payload(
         "context": finalizer_wire_to_json_dict(context),
         "selected_instances": selected,
         "submission_required": _context_requires_submission(context),
+        "commit_declaration": build_commit_declaration_context(
+            root=root,
+            context=context,
+            host_records=host_records,
+        ),
         "manifest_template": _manifest_template(context),
     }
 

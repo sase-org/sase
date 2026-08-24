@@ -111,9 +111,11 @@ def test_missing_required_declaration_gets_one_fresh_recovery_turn(
 
     def recover(prompt: str, **_kwargs: object) -> InvokeResult:
         assert "single declaration-recovery turn" in prompt
+        assert "Declaring a commit is not an edit you perform" in prompt
         assert "/sase_final" in prompt
         assert "src/app.py" in prompt
-        assert "not a valid refusal reason" in prompt
+        assert "A deferral needs a typed reason" in prompt
+        assert "`protected_paths`, `foreign_work`, `unsafe_content`" in prompt
         assert os.environ[SASE_FINAL_TURN_NONCE_ENV] != "nonce-1"
         publication = publish_final_context()
         submit_final_manifest(valid_manifest(publication))

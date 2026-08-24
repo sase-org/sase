@@ -56,6 +56,40 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
         if isinstance(paths, list):
             for path in paths:
                 lines.append(f"      {path}")
+
+    commit_declaration = payload.get("commit_declaration")
+    if isinstance(commit_declaration, Mapping):
+        rule = commit_declaration.get("rule")
+        lines.extend(["", "Commit declaration:"])
+        if isinstance(rule, str) and rule:
+            lines.append(f"  {rule}")
+        deferral = commit_declaration.get("deferral")
+        if isinstance(deferral, Mapping):
+            reasons = deferral.get("reasons")
+            if isinstance(reasons, list) and reasons:
+                lines.append(
+                    "  Deferral reasons: "
+                    + ", ".join(str(reason) for reason in reasons)
+                )
+        evidence = commit_declaration.get("repository_evidence")
+        if isinstance(evidence, list) and evidence:
+            lines.append("  Evidence:")
+            for item in evidence:
+                if not isinstance(item, Mapping):
+                    continue
+                display = item.get("display_name") or item.get("repo_id")
+                lines.append(f"    - {display}")
+                for label, key in (
+                    ("run wrote", "run_written_paths"),
+                    ("already dirty", "already_dirty_at_run_start_paths"),
+                    ("protected", "protected_paths"),
+                ):
+                    values = item.get(key)
+                    if isinstance(values, list) and values:
+                        lines.append(
+                            f"        {label}: "
+                            + ", ".join(str(path) for path in values)
+                        )
     return "\n".join(lines)
 
 

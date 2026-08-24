@@ -20,8 +20,8 @@ _logger = logging.getLogger(__name__)
 
 _PROMPT_CHAR_LIMIT = 2000
 _RESPONSE_CHAR_LIMIT = 4000
-_MAX_PATHS_PER_REPO = 100
-_MAX_TOOL_CALL_PATHS = 100
+MAX_PATHS_PER_REPO = 100
+MAX_TOOL_CALL_PATHS = 100
 _WRITE_TOOL_NAMES = frozenset({"Edit", "Write", "NotebookEdit"})
 _TOOL_CALLS_FILENAME = "tool_calls.jsonl"
 
@@ -185,7 +185,7 @@ def _path_provenance(
 
 def _render_capped_path_lines(paths: list[str], labels: list[str]) -> str:
     lines = [f"- `{path}` — {label}" for path, label in zip(paths, labels, strict=True)]
-    return _cap_lines(lines, _MAX_PATHS_PER_REPO)
+    return _cap_lines(lines, MAX_PATHS_PER_REPO)
 
 
 def _provenance_section(baseline_available: bool) -> str:
@@ -201,7 +201,7 @@ def _written_files_section(root: Path | None) -> str | None:
         return None
     lines = [f"- `{path}`" for path in paths]
     return "## Files this run wrote directly\n\n" + _cap_lines(
-        lines, _MAX_TOOL_CALL_PATHS
+        lines, MAX_TOOL_CALL_PATHS
     )
 
 

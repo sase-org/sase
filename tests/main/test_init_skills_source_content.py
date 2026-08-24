@@ -171,6 +171,14 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
         "Do not invoke `/sase_git_commit` after reading a required final context"
         in flat
     )
+    assert "uncommitted work is lost work" in flat
+    assert "does not need the user to ask" in flat
+    assert "repository_evidence" in flat
+    assert "protected_paths" in flat
+    assert "foreign_work" in flat
+    assert "unsafe_content" in flat
+    assert "belongs_to_another_turn" in flat
+    assert "`refuse`" not in body
     assert (
         "If submit reports `stale_final_context`, rerun `sase final context -f json`"
         in flat

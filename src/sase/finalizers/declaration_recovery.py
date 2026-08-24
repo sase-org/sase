@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.pending_handoff import has_pending_handoff
+from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
 from sase.finalizers.declaration_recovery_evidence import build_recovery_evidence
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
@@ -126,10 +127,12 @@ def _declaration_recovery_prompt(
         "normal response.",
         "",
         "This is the single declaration-recovery turn. Do not perform unrelated "
-        "work, do not mutate repositories, and do not answer the user yet. Use "
-        "your `/sase_final` skill now; it must publish a fresh context for this "
-        "turn and submit one valid declaration for every required finalizer "
-        "payload. After the declaration succeeds, return briefly.",
+        "work, make no new repository edits, and do not answer the user yet. "
+        "Declaring a commit is not an edit you perform; it authorizes the host "
+        "finalizer to preserve the work after your turn. Use your `/sase_final` "
+        "skill now; it must publish a fresh context for this turn and submit "
+        "one valid declaration for every required finalizer payload. After the "
+        "declaration succeeds, return briefly.",
     ]
     if evidence.strip():
         parts.extend(
@@ -144,13 +147,15 @@ def _declaration_recovery_prompt(
     parts.extend(
         [
             "",
-            "A refuse decision needs a substantive reason about the changes "
-            "themselves. Missing conversational context is not a valid refusal "
-            'reason. Do not refuse because "I have no context", "this is only '
-            'a recovery turn", "these files predate me", or "I did not do this '
-            'work". Valid reasons include protected paths, changes that genuinely '
-            "belong to another repository or agent, or a tree you can see is "
-            "unsafe to commit.",
+            COMMIT_DECLARATION_RULE,
+            "",
+            "A deferral needs a typed reason about the repository tree itself: "
+            "`protected_paths`, `foreign_work`, `unsafe_content`, or "
+            "`belongs_to_another_turn`. Missing conversational context is not "
+            'valid. Do not defer because "I have no context", "this is only a '
+            'recovery turn", "these files predate me", or "I did not do this '
+            'work". When the evidence shows this turn wrote the paths, submit '
+            "a conventional commit message instead.",
             "",
             f"Current required context digest: {context.context.context_digest}",
             "",

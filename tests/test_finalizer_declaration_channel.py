@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.finalizer_wire import FINALIZER_DEFERRAL_REASONS
 from sase.finalizers import declaration as declaration_module
 from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
@@ -21,8 +22,10 @@ from sase.finalizers.declaration import (
     publish_final_context,
     submit_final_manifest,
 )
+from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
 from sase.llm_provider.commit_finalizer_baseline import FINALIZER_BASELINE_FILENAME
 from sase.llm_provider.commit_finalizer_git import normalize_path
+from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.main.parser import create_parser
 from sase.xprompt.directives import PromptDirectives
@@ -83,12 +86,93 @@ def test_context_publishes_opaque_dirty_repository_obligation(
     assert obligations[0]["obligation_id"].startswith("repo-")
     assert obligations[0]["kind"] == "repository"
     assert obligations[0]["paths"] == ["src/app.py"]
+    declaration = publication.payload["commit_declaration"]
+    assert declaration["rule"] == COMMIT_DECLARATION_RULE
+    assert declaration["default_action"] == "commit"
+    assert declaration["deferral"]["reasons"] == list(FINALIZER_DEFERRAL_REASONS)
     assert (
         publication.payload["manifest_template"]["payloads"][0]["payload"]["deferrals"]
         == []
     )
     assert str(tmp_path) not in json.dumps(publication.payload)
     assert (tmp_path / FINAL_CONTEXT_FILENAME).is_file()
+
+
+def test_context_publishes_bounded_repository_commit_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprints = {
+        "src/app.py": ("M", "abc123"),
+        "src/run.py": ("M", "run456"),
+        "src/protected.py": ("M", "protected789"),
+    }
+    dirty = DirtyState(
+        project_dir=str(tmp_path),
+        repos=(
+            DirtyRepo(
+                name="main",
+                path=str(tmp_path),
+                changed_files=("src/app.py", "src/run.py", "src/protected.py"),
+                kind="main",
+            ),
+        ),
+        details="dirty",
+    )
+    prepare_dirty_declaration(
+        monkeypatch,
+        tmp_path,
+        fingerprints=fingerprints,
+        collect=lambda _root: dirty,
+    )
+    _write_run_start_baseline(
+        tmp_path,
+        tmp_path,
+        fingerprints={
+            "src/app.py": ("M", "abc123"),
+            "src/protected.py": ("M", "protected789"),
+        },
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_git_status.dirty_path_fingerprints",
+        lambda _path: {
+            "src/app.py": ("M", "abc123"),
+            "src/protected.py": ("M", "protected789"),
+        },
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_context_evidence.protected_baseline_paths",
+        lambda _root, _repo_path, *, get_changed_files: ("src/protected.py",),
+    )
+    (tmp_path / "tool_calls.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "ToolUse",
+                "tool_name": "Edit",
+                "tool_input_summary": {"file_path": "src/run.py"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    publication = publish_final_context()
+
+    evidence = publication.payload["commit_declaration"]["repository_evidence"][0]
+    assert evidence["repo_id"] == publication.context.obligations[0].obligation_id
+    assert evidence["display_name"] == "main"
+    assert evidence["run_written_paths"] == ["src/run.py"]
+    assert evidence["already_dirty_at_run_start_paths"] == [
+        "src/app.py",
+        "src/protected.py",
+    ]
+    assert evidence["protected_paths"] == ["src/protected.py"]
+    paths = {item["path"]: item for item in evidence["paths"]}
+    assert paths["src/app.py"]["provenance"] == "already_dirty_at_run_start"
+    assert paths["src/run.py"]["provenance"] == "new_since_run_start"
+    assert paths["src/run.py"]["written_by_this_run"] is True
+    assert paths["src/protected.py"]["protected"] is True
+    assert str(tmp_path) not in json.dumps(publication.payload)
 
 
 def test_submit_accepts_manifest_and_retains_invalid_attempt_diagnostic(
