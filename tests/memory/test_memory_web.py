@@ -91,6 +91,81 @@ def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> Non
     assert "old" not in content
 
 
+def test_roster_inline_uses_rust_display_aliases(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "proc.md",
+        _strand(
+            keyword="Proc",
+            aliases="aliases: [procs, background task, background tasks]\n",
+            summary="summary: A background task.\n",
+            body="Procs live under ~/.sase/procs.\n",
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "agent-hood.md",
+        _strand(
+            keyword="Agent Hood",
+            aliases="aliases: [hood, agent neighborhood]\n",
+            summary="summary: A group of agents.\n",
+            body="An agent hood is a group of agents named alike.\n",
+        ),
+    )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    assert (
+        "**TERMS:** Agent Hood (hood, agent neighborhood); Proc (background task)"
+        in content
+    )
+
+
+def test_roster_inline_escapes_markdown_punctuation(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "star.md",
+        _strand(
+            keyword="Star*Term",
+            aliases="aliases: [under_score]\n",
+            summary="summary: Has punctuation.\n",
+            body="Body for a punctuated term.\n",
+        ),
+    )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    assert r"Star\*Term (under\_score)" in content
+
+
+def test_roster_inline_wraps_at_the_configured_prose_width(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "terms.md", _descriptor())
+    for index in range(20):
+        _write(
+            tmp_path / "sase" / "memory" / "terms" / f"term-{index}.md",
+            _strand(
+                keyword=f"Term Number {index}",
+                aliases=f"aliases: [alias-{index}-one, alias-{index}-two]\n",
+                summary=f"summary: Definition for term {index}.\n",
+                body=f"Body for term {index}.\n",
+            ),
+        )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    width = markdown_print_width()
+    assert all(len(line) <= width for line in content.splitlines())
+    assert "\n" in content.split(START_MARKER, 1)[1].split(END_MARKER, 1)[0].strip()
+
+
 def test_roster_wraps_long_list_bullets_to_the_configured_prose_width(
     tmp_path: Path,
 ) -> None:

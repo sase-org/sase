@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from sase.agents_sync.rendering_markdown import md_escape
 from sase.markdown_width import markdown_print_width
 from sase.markdown_wrap import wrap_markdown
 
 from .frontmatter import replace_web_body
-from .lookup import normalize_memory_web_reference
+from .lookup import normalize_memory_web_reference, strand_glossary_catalog
 from .models import MemoryStrand, MemoryWeb
 
 START_MARKER = "<!-- sase:strands -->"
@@ -37,11 +38,12 @@ def _ordered_strands(web: MemoryWeb) -> tuple[MemoryStrand, ...]:
     )
 
 
-def _inline_entry(strand: MemoryStrand) -> str:
-    if not strand.aliases:
-        return strand.keyword
-    aliases = ", ".join(strand.aliases)
-    return f"{strand.keyword} ({aliases})"
+def _inline_entry(keyword: str, display_aliases: tuple[str, ...]) -> str:
+    escaped_keyword = md_escape(keyword)
+    if not display_aliases:
+        return escaped_keyword
+    escaped_aliases = ", ".join(md_escape(alias) for alias in display_aliases)
+    return f"{escaped_keyword} ({escaped_aliases})"
 
 
 def render_strand_roster(web: MemoryWeb) -> str:
@@ -49,8 +51,13 @@ def render_strand_roster(web: MemoryWeb) -> str:
 
     strands = _ordered_strands(web)
     if web.roster == "inline":
-        entries = "; ".join(_inline_entry(strand) for strand in strands)
-        return f"**{web.roster_label}:** {entries}".rstrip()
+        catalog = strand_glossary_catalog(strands)
+        entries = "; ".join(
+            _inline_entry(strand.keyword, catalog_entry.display_aliases)
+            for strand, catalog_entry in zip(strands, catalog.entries, strict=True)
+        )
+        line = f"**{web.roster_label}:** {entries}".rstrip()
+        return wrap_markdown(line, width=markdown_print_width())
 
     width = markdown_print_width()
     lines: list[str] = []

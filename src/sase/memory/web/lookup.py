@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from sase.core.glossary_facade import GlossaryInputEntry, build_glossary_catalog
+from sase.core.glossary_facade import (
+    GlossaryCatalog,
+    GlossaryInputEntry,
+    build_glossary_catalog,
+)
 from sase.glossary.resolution import normalize_glossary_reference
 
 from .models import MemoryStrand, MemoryWeb
@@ -20,7 +24,9 @@ def normalize_memory_web_reference(value: str) -> str:
     return normalize_glossary_reference(value)
 
 
-def _effective_aliases(strands: tuple[MemoryStrand, ...]) -> dict[str, tuple[str, ...]]:
+def strand_glossary_catalog(strands: tuple[MemoryStrand, ...]) -> GlossaryCatalog:
+    """Return the Rust-derived glossary catalog for *strands*, in order."""
+
     entries = [
         GlossaryInputEntry(
             term=strand.keyword,
@@ -29,7 +35,11 @@ def _effective_aliases(strands: tuple[MemoryStrand, ...]) -> dict[str, tuple[str
         )
         for strand in strands
     ]
-    catalog = build_glossary_catalog(entries)
+    return build_glossary_catalog(entries)
+
+
+def _effective_aliases(strands: tuple[MemoryStrand, ...]) -> dict[str, tuple[str, ...]]:
+    catalog = strand_glossary_catalog(strands)
     return {
         strand.slug: catalog_entry.effective_aliases
         for strand, catalog_entry in zip(strands, catalog.entries, strict=True)
@@ -91,4 +101,5 @@ __all__ = [
     "MemoryWebLookupError",
     "normalize_memory_web_reference",
     "resolve_memory_strand",
+    "strand_glossary_catalog",
 ]
