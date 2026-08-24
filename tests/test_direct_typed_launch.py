@@ -10,7 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent.launch_admission import dispatch_typed_launch_request
+from sase.agent.launch_admission import (
+    dispatch_typed_launch_request,
+    run_coordinator_in_bundle,
+)
 from sase.agent.launch_request_response import read_launch_request
 from sase.agent.launch_request_types import (
     DIRECT_TYPED_LAUNCH_KIND,
@@ -33,6 +36,7 @@ from sase.feature_flags import override_flags
 from sase.notification_gates.paths import REQUEST_FILENAME
 from sase.ops.models import DurableOperationRequest
 from sase.ops.names import RUN_LAUNCH
+from sase.xprompt.code_value import CodeValue
 
 
 def _agent_result() -> AgentLaunchResult:
@@ -448,6 +452,63 @@ def test_direct_bundle_resumes_after_blocked_wait(
     assert second.admission_complete is True
     assert second.summary is not None
     assert second.summary.launched == 1
+
+
+def test_direct_proc_bundle_coordinator_completion_does_not_notify(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    from sase.agent.direct_typed_launch import _write_direct_typed_launch_bundle
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    plan = LaunchPlanWire(
+        schema_version=1,
+        launch_kind="multi_prompt",
+        selected_project="sase",
+        content_digest="d" * 64,
+        units=[
+            LaunchUnitWire(
+                logical_id="unit-1",
+                source_order=0,
+                payload=ProcUnitWire(
+                    code=CodeValue(
+                        source="just check",
+                        language="bash",
+                        info_string=None,
+                        digest="b" * 64,
+                        preview="just check",
+                    ),
+                    workspace=False,
+                    cwd=str(tmp_path),
+                ),
+            )
+        ],
+        approval_preview=["LaunchPlan v1"],
+    )
+    bundle_dir, _payload = _write_direct_typed_launch_bundle(
+        prompt='%proc("just check")',
+        expanded_prompt='%proc("just check")',
+        typed_plan=agent_launch_wire_to_json_dict(plan),
+        source_cwd=str(tmp_path),
+        source_surface="cli",
+        selected_project="sase",
+    )
+    with (
+        patch(
+            "sase.agent.launch_proc_runtime.dispatch_proc_unit",
+            return_value=(True, "proc-hook", None, []),
+        ) as dispatch_proc,
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        progress = run_coordinator_in_bundle(bundle_dir)
+
+    assert progress.complete
+    assert progress.summary.launched == 1
+    assert progress.unit_results[0].outcome == "launched"
+    dispatch_proc.assert_called_once()
+    assert (bundle_dir / "launch_admission" / "receipt.json").is_file()
+    notify.assert_not_called()
 
 
 def test_legacy_agent_path_rejects_enabled_proc_before_llm(

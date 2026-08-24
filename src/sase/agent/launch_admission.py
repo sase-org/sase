@@ -51,7 +51,12 @@ from sase.agent.launch_admission_store import (
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_request_types import ApprovedLaunchDispatchResult
-from sase.core.agent_launch_wire import LaunchAdmissionSummaryWire, LaunchUnitWire
+from sase.core.agent_launch_wire import (
+    LaunchAdmissionSummaryWire,
+    LaunchPlanWire,
+    LaunchUnitWire,
+    ProcUnitWire,
+)
 from sase.monitor.transaction import write_json_marker_atomic
 
 
@@ -101,7 +106,7 @@ def dispatch_typed_launch_request(
         from sase.agent.launch_admission_coordinator import start_detached_coordinator
 
         start_detached_coordinator(response_dir)
-    elif progress.complete and _should_notify_admission_complete(data):
+    elif progress.complete and _should_notify_admission_complete(data, plan, progress):
         _notify_admission_complete(request_id, progress, root / RECEIPT_FILENAME)
     return _dispatch_result(request_id, progress)
 
@@ -146,7 +151,7 @@ def run_coordinator_in_bundle(
             progress = engine.run(until_blocked=False)
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-    if _should_notify_admission_complete(data):
+    if _should_notify_admission_complete(data, plan, progress):
         _notify_admission_complete(
             str(data.get("request_id") or ""),
             progress,
@@ -230,13 +235,45 @@ def _agent_dispatcher_for_request(
     return None
 
 
-def _should_notify_admission_complete(data: Mapping[str, Any]) -> bool:
+def _should_notify_admission_complete(
+    data: Mapping[str, Any],
+    plan: LaunchPlanWire,
+    progress: AdmissionProgress,
+) -> bool:
     try:
         from sase.axe.chop_typed_admission import is_axe_chop_typed_request
 
-        return not is_axe_chop_typed_request(data)
+        if is_axe_chop_typed_request(data):
+            return False
     except Exception:
         return True
+    if _is_clean_proc_only_admission(plan, progress):
+        return False
+    return True
+
+
+def _is_clean_proc_only_admission(
+    plan: LaunchPlanWire,
+    progress: AdmissionProgress,
+) -> bool:
+    unit_count = len(plan.units)
+    if unit_count == 0:
+        return False
+    if not all(isinstance(unit.payload, ProcUnitWire) for unit in plan.units):
+        return False
+    summary = progress.summary
+    if (
+        not progress.complete
+        or summary.total != unit_count
+        or summary.eligible != unit_count
+        or summary.launched != unit_count
+        or summary.skipped != 0
+        or summary.condition_errors != 0
+        or summary.launch_errors != 0
+        or len(progress.unit_results) != unit_count
+    ):
+        return False
+    return all(result.outcome == "launched" for result in progress.unit_results)
 
 
 def _notify_admission_complete(
