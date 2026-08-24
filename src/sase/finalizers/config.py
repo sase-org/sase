@@ -100,6 +100,141 @@ class FinalizerConfig:
         )
 
 
+def configured_instance_to_json(
+    instance: ConfiguredFinalizerInstance,
+) -> dict[str, Any]:
+    """Serialize a configured instance, including field provenance, to JSON."""
+
+    return {
+        "instance_id": instance.instance_id,
+        "provider_ref": instance.provider_ref,
+        "after": list(instance.after),
+        "max_attempts": instance.max_attempts,
+        "refusal": instance.refusal,
+        "config": dict(instance.config),
+        "provenance": _provenance_to_json(instance.provenance),
+    }
+
+
+def configured_instance_from_json(payload: object) -> ConfiguredFinalizerInstance:
+    """Strictly rebuild a configured instance from its JSON snapshot.
+
+    A missing or malformed field is a tamper signal, not a fallback: this never
+    defaults a field the way live config merging does.
+    """
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("configured finalizer instance snapshot must be a mapping")
+    try:
+        instance_id = payload["instance_id"]
+        provider_ref = payload["provider_ref"]
+        after = payload["after"]
+        max_attempts = payload["max_attempts"]
+        refusal = payload["refusal"]
+        config = payload["config"]
+        provenance_raw = payload["provenance"]
+    except KeyError as exc:
+        raise ValueError(
+            f"configured finalizer instance snapshot is missing {exc}"
+        ) from exc
+    if not (
+        isinstance(instance_id, str)
+        and isinstance(provider_ref, str)
+        and isinstance(after, list)
+        and all(isinstance(item, str) for item in after)
+        and isinstance(max_attempts, int)
+        and not isinstance(max_attempts, bool)
+        and refusal in ("fail", "defer")
+        and isinstance(config, Mapping)
+        and isinstance(provenance_raw, Mapping)
+    ):
+        raise ValueError(
+            f"configured finalizer instance snapshot for {instance_id!r} is malformed"
+        )
+    return ConfiguredFinalizerInstance(
+        instance_id=instance_id,
+        provider_ref=provider_ref,
+        after=tuple(after),
+        max_attempts=max_attempts,
+        refusal=refusal,
+        config=dict(config),
+        provenance=_provenance_from_json(provenance_raw),
+    )
+
+
+def finalizer_config_to_json(config: FinalizerConfig) -> dict[str, Any]:
+    """Serialize the effective finalizer config, including provenance, to JSON."""
+
+    return {
+        "defaults": list(config.defaults),
+        "required": list(config.required),
+        "instances": {
+            instance_id: configured_instance_to_json(instance)
+            for instance_id, instance in config.instances.items()
+        },
+        "provenance": _provenance_to_json(config.provenance),
+    }
+
+
+def finalizer_config_from_json(payload: object) -> FinalizerConfig:
+    """Strictly rebuild the effective finalizer config from its JSON snapshot."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("finalizer config snapshot must be a mapping")
+    try:
+        defaults = payload["defaults"]
+        required = payload["required"]
+        instances_raw = payload["instances"]
+        provenance_raw = payload["provenance"]
+    except KeyError as exc:
+        raise ValueError(f"finalizer config snapshot is missing {exc}") from exc
+    if not (
+        isinstance(defaults, list)
+        and all(isinstance(item, str) for item in defaults)
+        and isinstance(required, list)
+        and all(isinstance(item, str) for item in required)
+        and isinstance(instances_raw, Mapping)
+        and isinstance(provenance_raw, Mapping)
+    ):
+        raise ValueError("finalizer config snapshot is malformed")
+    instances: dict[str, ConfiguredFinalizerInstance] = {}
+    for instance_id, raw_instance in instances_raw.items():
+        if not isinstance(instance_id, str) or not isinstance(raw_instance, Mapping):
+            raise ValueError("finalizer config snapshot instance entry is malformed")
+        instances[instance_id] = configured_instance_from_json(raw_instance)
+    return FinalizerConfig(
+        defaults=tuple(defaults),
+        required=tuple(required),
+        instances=instances,
+        provenance=_provenance_from_json(provenance_raw),
+        diagnostics=(),
+    )
+
+
+def _provenance_to_json(
+    provenance: Mapping[str, FinalizerFieldProvenance],
+) -> dict[str, dict[str, Any]]:
+    return {
+        key: {"layer": value.layer, "path": value.path}
+        for key, value in provenance.items()
+    }
+
+
+def _provenance_from_json(
+    payload: Mapping[str, Any],
+) -> dict[str, FinalizerFieldProvenance]:
+    provenance: dict[str, FinalizerFieldProvenance] = {}
+    for key, value in payload.items():
+        if not isinstance(key, str) or not isinstance(value, Mapping):
+            raise ValueError("finalizer config snapshot provenance entry is malformed")
+        layer = value.get("layer")
+        path = value.get("path")
+        if not isinstance(layer, str) or not (path is None or isinstance(path, str)):
+            raise ValueError("finalizer config snapshot provenance entry is malformed")
+        provenance[key] = FinalizerFieldProvenance(layer, path)
+    return provenance
+
+
 def load_finalizer_config() -> FinalizerConfig:
     """Replay config layers and retain source provenance for finalizers."""
 
@@ -389,5 +524,9 @@ __all__ = [
     "FinalizerConfig",
     "FinalizerConfigDiagnostic",
     "FinalizerFieldProvenance",
+    "configured_instance_from_json",
+    "configured_instance_to_json",
+    "finalizer_config_from_json",
+    "finalizer_config_to_json",
     "load_finalizer_config",
 ]

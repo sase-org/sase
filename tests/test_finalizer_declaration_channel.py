@@ -599,6 +599,102 @@ def test_submit_invokes_external_provider_validate(
         submit_final_manifest(manifest)
 
 
+def test_submit_validates_against_sealed_config_after_live_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``sase final submit`` is the other process the old check killed.
+
+    Seal the plan while "audit" is configured, then drift live config so
+    "audit" is no longer configured at all before submit validates the
+    payload. Submission must still validate against the sealed instance
+    instead of raising ``plan_integrity_failed`` or "unknown finalizer
+    instance".
+    """
+    from sase.finalizers.config import (
+        ConfiguredFinalizerInstance,
+        FinalizerConfig,
+        FinalizerFieldProvenance,
+    )
+    from sase.finalizers.providers import FinalizerProviderRecord
+
+    instance = ConfiguredFinalizerInstance(
+        instance_id="audit",
+        provider_ref="example-finalizers@audit",
+        provenance={"use": FinalizerFieldProvenance("test", None)},
+    )
+    sealed_config = FinalizerConfig(
+        defaults=("audit",),
+        required=(),
+        instances={"audit": instance},
+        provenance={},
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.plan.load_finalizer_config", lambda: sealed_config
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.plan.diagnose_finalizer_providers",
+        lambda *_args, **_kwargs: (),
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.declaration._collect_dirty_state",
+        lambda _root: clean_state(tmp_path),
+    )
+    prepare_agent_env(monkeypatch, tmp_path)
+    resolve_and_persist_finalizer_plan(
+        PromptDirectives(),
+        artifacts_dir=str(tmp_path),
+    )
+    publication = publish_final_context()
+    manifest = deepcopy(publication.payload["manifest_template"])
+    manifest["payloads"][0]["payload"] = {"note": "ok"}
+
+    # Live config drifts after the plan was sealed: "audit" is gone entirely.
+    drifted_config = FinalizerConfig(
+        defaults=(), required=(), instances={}, provenance={}
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.plan.load_finalizer_config", lambda: drifted_config
+    )
+    provider = FinalizerProviderRecord(
+        provider_ref="example-finalizers@audit",
+        provider_id="audit",
+        package="example-finalizers",
+        version="1.0.0",
+        entry_point="example_finalizers:provider",
+        builtin=False,
+    )
+    monkeypatch.setattr(
+        "sase.finalizers.executor.collect_finalizer_providers",
+        lambda: (provider,),
+    )
+    seen: list[str] = []
+
+    def run_operation(
+        _instance: object,
+        _provider: object,
+        operation: str,
+        _request: object,
+        _context: object,
+    ) -> dict[str, object]:
+        seen.append(operation)
+        return {
+            "schema_version": 1,
+            "operation": operation,
+            "provider_ref": "example-finalizers@audit",
+            "instance_id": "audit",
+            "status": "ok",
+        }
+
+    monkeypatch.setattr(
+        "sase.finalizers.executor.run_provider_operation", run_operation
+    )
+
+    submit_final_manifest(manifest)
+
+    assert seen == ["validate"]
+
+
 def test_context_host_snapshot_is_not_model_visible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

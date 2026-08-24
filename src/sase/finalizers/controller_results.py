@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -82,8 +83,13 @@ def write_aggregate_result(
     status: str,
     *,
     cycles: int,
+    extra_diagnostics: Sequence[FinalizerDiagnosticWire] = (),
 ) -> None:
-    """Aggregate instance results and publish the fail-closed controller result."""
+    """Aggregate instance results and publish the fail-closed controller result.
+
+    ``extra_diagnostics`` carries plan-level diagnostics (e.g. sealed-config
+    drift) that apply to the whole turn rather than to one instance's attempts.
+    """
     requested = status
     diagnostics: list[Any]
     if instance_results:
@@ -128,7 +134,8 @@ def write_aggregate_result(
             finalizer_wire_to_json_dict(result) for result in instance_results
         ],
         "diagnostics": [
-            finalizer_wire_to_json_dict(diagnostic) for diagnostic in diagnostics
+            finalizer_wire_to_json_dict(diagnostic)
+            for diagnostic in (*diagnostics, *extra_diagnostics)
         ],
     }
     write_finalizer_result(artifacts_dir, payload)

@@ -11,11 +11,7 @@ from sase.core.finalizer_wire import (
     FinalizerInstanceResultWire,
     finalizer_wire_to_json_dict,
 )
-from sase.finalizers.config import (
-    ConfiguredFinalizerInstance,
-    FinalizerConfig,
-    load_finalizer_config,
-)
+from sase.finalizers.config import ConfiguredFinalizerInstance, FinalizerConfig
 from sase.finalizers.executor_command import (
     execute_command_finalizer as _execute_command_finalizer,
 )
@@ -36,6 +32,7 @@ from sase.finalizers.executor_support import (
     failed_result as _failed_result,
 )
 from sase.finalizers.ledger import InstanceLedger
+from sase.finalizers.plan import authenticate_resolved_finalizer_plan_full
 from sase.finalizers.providers import (
     BUILTIN_COMMAND_PROVIDER_REF,
     BUILTIN_COMMIT_PROVIDER_REF,
@@ -128,14 +125,15 @@ def validate_external_declaration_payload(
         raise FinalizerExecutionError(
             f"finalizer payload for {instance_id} must be an object"
         )
-    config = load_finalizer_config()
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    config = authenticate_resolved_finalizer_plan_full(artifacts_dir).config
     instance = config.instances.get(instance_id)
     if instance is None or provider_ref_key(instance.provider_ref) != provider_ref_key(
         provider_ref
     ):
         raise FinalizerExecutionError(f"unknown finalizer instance {instance_id!r}")
     exec_context = FinalizerExecutionContext(
-        artifacts_dir=os.environ.get("SASE_ARTIFACTS_DIR"),
+        artifacts_dir=artifacts_dir,
         plan_digest=context.plan_digest,
         run_id=context.run_id,
         agent_id=context.agent_id,

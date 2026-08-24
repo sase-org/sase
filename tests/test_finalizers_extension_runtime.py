@@ -176,10 +176,6 @@ def test_builtin_command_finalizer_runs_and_records_artifacts(
         "sase.finalizers.plan.load_finalizer_config",
         lambda: config,
     )
-    monkeypatch.setattr(
-        "sase.finalizers.controller.load_finalizer_config",
-        lambda: config,
-    )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
     monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")

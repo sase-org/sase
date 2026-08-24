@@ -96,9 +96,10 @@ def use_config(monkeypatch: pytest.MonkeyPatch, config: FinalizerConfig) -> None
     def loader() -> FinalizerConfig:
         return config
 
+    # The controller and executor no longer read live config directly; they
+    # execute from the config snapshot sealed at plan-resolve time, so only
+    # the plan-resolution and diagnostic-comparison loaders need patching.
     monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", loader)
-    monkeypatch.setattr("sase.finalizers.controller.load_finalizer_config", loader)
-    monkeypatch.setattr("sase.finalizers.executor.load_finalizer_config", loader)
     monkeypatch.setattr("sase.finalizers.config.load_finalizer_config", loader)
 
 

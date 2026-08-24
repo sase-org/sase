@@ -5,13 +5,16 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from sase.core.finalizer_wire import FinalizerInstanceResultWire
+from sase.core.finalizer_wire import (
+    FinalizerDiagnosticWire,
+    FinalizerInstanceResultWire,
+)
 from sase.finalizers.commit import (
     BuiltinCommitExecution,
     BuiltinCommitFinalizerError,
     execute_commit_finalizer,
 )
-from sase.finalizers.config import load_finalizer_config
+from sase.finalizers.config import FinalizerConfigDiagnostic
 from sase.finalizers.controller_context import (
     FinalizerControllerError,
     bind_execution_context as _bind_execution_context,
@@ -42,13 +45,55 @@ from sase.finalizers.ledger import (
 )
 from sase.finalizers.plan import (
     FinalizerPlanIntegrityError,
-    authenticate_resolved_finalizer_plan,
+    authenticate_resolved_finalizer_plan_full,
 )
 from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
 from sase.llm_provider.types import ModelTier
 
 
 MAX_CONTROLLER_CYCLES = 8
+
+
+def _remember_drift(
+    drift_by_key: dict[tuple[str, str], FinalizerConfigDiagnostic],
+    drift: tuple[FinalizerConfigDiagnostic, ...],
+) -> None:
+    for item in drift:
+        drift_by_key[(item.code, item.path)] = item
+
+
+def _drift_diagnostic_wires(
+    drift_by_key: dict[tuple[str, str], FinalizerConfigDiagnostic],
+) -> tuple[FinalizerDiagnosticWire, ...]:
+    return tuple(
+        FinalizerDiagnosticWire(
+            code=item.code,
+            severity=item.severity,
+            message=item.message,
+        )
+        for item in drift_by_key.values()
+    )
+
+
+def _project_drift_to_agent_meta(
+    artifacts_dir: str,
+    drift_by_key: dict[tuple[str, str], FinalizerConfigDiagnostic],
+) -> None:
+    """Best-effort surface sealed-config drift on ``agent_meta.json`` for ACE."""
+
+    from sase.axe.run_agent_helpers import update_meta_field
+
+    try:
+        update_meta_field(
+            artifacts_dir,
+            "finalizers_drift",
+            [
+                {"code": item.code, "severity": item.severity, "message": item.message}
+                for item in drift_by_key.values()
+            ],
+        )
+    except Exception:
+        pass
 
 
 def run_finalizers(
@@ -73,13 +118,22 @@ def run_finalizers(
     if _should_skip_finalizers(artifacts_dir):
         return invoke_result
 
+    drift_by_key: dict[tuple[str, str], FinalizerConfigDiagnostic] = {}
     try:
-        plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+        authenticated = authenticate_resolved_finalizer_plan_full(artifacts_dir)
     except FinalizerPlanIntegrityError as exc:
         raise FinalizerControllerError(str(exc), code=exc.code) from exc
+    plan = authenticated.plan
+    _remember_drift(drift_by_key, authenticated.drift)
     entries = _entries_from_plan(plan)
     if not entries:
-        _write_aggregate_result(artifacts_dir, [], "success", cycles=0)
+        _write_aggregate_result(
+            artifacts_dir,
+            [],
+            "success",
+            cycles=0,
+            extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
+        )
         return invoke_result
 
     current_result = invoke_result
@@ -105,7 +159,9 @@ def run_finalizers(
         )
         for cycle in range(1, MAX_CONTROLLER_CYCLES + 1):
             cycles = cycle
-            plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+            authenticated = authenticate_resolved_finalizer_plan_full(artifacts_dir)
+            plan = authenticated.plan
+            _remember_drift(drift_by_key, authenticated.drift)
             entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
             context = _bind_execution_context(artifacts_dir, plan, publication)
@@ -133,9 +189,11 @@ def run_finalizers(
                 instance_id = entry["instance_id"]
                 if instance_id not in pending:
                     continue
-                plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+                authenticated = authenticate_resolved_finalizer_plan_full(artifacts_dir)
+                plan = authenticated.plan
+                _remember_drift(drift_by_key, authenticated.drift)
                 entries = _entries_from_plan(plan)
-                config = load_finalizer_config()
+                config = authenticated.config
                 context = _bind_execution_context(artifacts_dir, plan, publication)
                 provider_ref = entry["provider_ref"]
                 instance = config.instances.get(instance_id)
@@ -197,6 +255,7 @@ def run_finalizers(
                             list(results_by_id.values()),
                             execution.result.status,
                             cycles=cycles,
+                            extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
                         )
                         raise RuntimeError(_result_failure_message(execution.result))
                     progressed = True
@@ -235,6 +294,7 @@ def run_finalizers(
                         list(results_by_id.values()),
                         "failed",
                         cycles=cycles,
+                        extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
                     )
                     raise RuntimeError(_result_failure_message(result))
                 progressed = True
@@ -244,7 +304,9 @@ def run_finalizers(
                     "finalizer controller made no progress; no executor ran",
                     code="controller_no_progress",
                 )
-            plan = authenticate_resolved_finalizer_plan(artifacts_dir)
+            authenticated = authenticate_resolved_finalizer_plan_full(artifacts_dir)
+            plan = authenticated.plan
+            _remember_drift(drift_by_key, authenticated.drift)
             entries = _entries_from_plan(plan)
             publication = publish_final_context(artifacts_dir=artifacts_dir)
             context = _bind_execution_context(artifacts_dir, plan, publication)
@@ -282,6 +344,7 @@ def run_finalizers(
             if exc.result.status in {"failed", "refused"}
             else "failed",
             cycles=cycles,
+            extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
         )
         raise
     except FinalizerControllerError as exc:
@@ -299,6 +362,7 @@ def run_finalizers(
             list(results_by_id.values()),
             "failed",
             cycles=cycles,
+            extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
         )
         raise
     except Exception as exc:
@@ -324,14 +388,19 @@ def run_finalizers(
             list(results_by_id.values()),
             "failed",
             cycles=cycles,
+            extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
         )
         raise
+    finally:
+        if artifacts_dir and drift_by_key:
+            _project_drift_to_agent_meta(artifacts_dir, drift_by_key)
 
     _write_aggregate_result(
         artifacts_dir,
         list(results_by_id.values()),
         "success",
         cycles=cycles,
+        extra_diagnostics=_drift_diagnostic_wires(drift_by_key),
     )
     return current_result
 

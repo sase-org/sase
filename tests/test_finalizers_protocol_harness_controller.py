@@ -263,10 +263,6 @@ def test_later_finalizer_dirt_reactivates_commit(
         provenance={},
     )
     monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
-    monkeypatch.setattr(
-        "sase.finalizers.controller.load_finalizer_config",
-        lambda: config,
-    )
     calls: list[str] = []
     monkeypatch.setattr(
         "sase.finalizers.commit.run_stitch_create",
@@ -327,10 +323,6 @@ def test_retryable_stitch_failure_stops_at_commit_budget_boundary(
         provenance={},
     )
     monkeypatch.setattr("sase.finalizers.plan.load_finalizer_config", lambda: config)
-    monkeypatch.setattr(
-        "sase.finalizers.controller.load_finalizer_config",
-        lambda: config,
-    )
     calls = {"n": 0}
 
     def fail_stitch(
