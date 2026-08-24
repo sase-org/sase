@@ -173,6 +173,14 @@ _LAZY_EXPORTS = {
         ".disabled_provider_launch_modal",
         "DisabledProviderLaunchModal",
     ),
+    "ProviderDrainPromptDecision": (
+        ".provider_drain_prompt_modal",
+        "ProviderDrainPromptDecision",
+    ),
+    "ProviderDrainPromptModal": (
+        ".provider_drain_prompt_modal",
+        "ProviderDrainPromptModal",
+    ),
     "DismissedAgentSelectModal": (".revive_agent_modal", "DismissedAgentSelectModal"),
     "GateActionControls": (".gate_action_controls", "GateActionControls"),
     "GateActionOutputModal": (".gate_action_output_modal", "GateActionOutputModal"),

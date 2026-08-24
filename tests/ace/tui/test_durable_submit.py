@@ -141,6 +141,42 @@ def test_mixin_submits_argv_off_the_event_loop(
     assert seen["session_id"] == "session-a"
 
 
+def test_submit_provider_drain_uses_cli_and_provider_concurrency_key() -> None:
+    from sase.ace.tui.actions.agent_durable import submit_provider_drain
+    from sase.ops.names import AGENT_DRAIN
+
+    seen: dict[str, Any] = {}
+
+    class Host:
+        def _submit_durable_proc(self, argv: Any, **kwargs: Any) -> object:
+            seen["argv"] = list(argv)
+            seen.update(kwargs)
+            return object()
+
+    assert submit_provider_drain(
+        Host(),
+        provider="claude",
+        model="codex/gpt-5",
+    )
+    assert seen["argv"][-7:] == [
+        "agent",
+        "drain",
+        "claude",
+        "--yes",
+        "--json",
+        "--model",
+        "codex/gpt-5",
+    ]
+    assert seen["operation"] == AGENT_DRAIN
+    assert seen["request"] == {
+        "provider": "claude",
+        "origin": "ace_manual_disable",
+        "model": "codex/gpt-5",
+    }
+    assert seen["concurrency_keys"] == ("provider-drain:claude",)
+    assert seen["notify_on_complete"] is False
+
+
 def test_coerce_request_rejects_payload_callable() -> None:
     with pytest.raises(DurableSubmitError, match="callable"):
         coerce_operation_request("patch.status", {"payload": print})

@@ -110,6 +110,12 @@ from .disabled_provider_launch_modal import (
 from .disabled_provider_launch_modal import (
     DisabledProviderLaunchModal as DisabledProviderLaunchModal,
 )
+from .provider_drain_prompt_modal import (
+    ProviderDrainPromptDecision as ProviderDrainPromptDecision,
+)
+from .provider_drain_prompt_modal import (
+    ProviderDrainPromptModal as ProviderDrainPromptModal,
+)
 from .revive_agent_modal import DismissedAgentSelectModal as DismissedAgentSelectModal
 from .gate_action_controls import GateActionControls as GateActionControls
 from .gate_action_output_modal import GateActionOutputModal as GateActionOutputModal

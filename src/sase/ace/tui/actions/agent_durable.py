@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Any
 
 from sase.ace.tui.durable_ops import (
@@ -15,6 +16,7 @@ from sase.ace.tui.durable_ops import (
 )
 from sase.ops.names import (
     AGENT_CLEANUP,
+    AGENT_DRAIN,
     AGENT_PERSIST_DIRECTIVE,
     AGENT_REVERT,
     RUN_LAUNCH,
@@ -134,6 +136,38 @@ def submit_agent_launch(
     )
 
 
+def submit_provider_drain(
+    app: Any,
+    *,
+    provider: str,
+    model: str | None = None,
+    on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+) -> bool:
+    """Submit ``sase agent drain`` through the durable adapter."""
+    argv = sase_command_argv("agent", "drain", provider, "--yes", "--json")
+    payload: dict[str, Any] = {"provider": provider, "origin": "ace_manual_disable"}
+    if model:
+        argv.extend(["--model", model])
+        payload["model"] = model
+    label = f"Drain {provider.upper()}"
+    submitted = app._submit_durable_proc(
+        argv,
+        operation=AGENT_DRAIN,
+        request=payload,
+        request_fingerprint=operation_fingerprint(AGENT_DRAIN, payload),
+        concurrency_keys=(f"provider-drain:{provider}",),
+        proc_type="agent.drain",
+        label=label,
+        display_name=label,
+        cwd=Path.home(),
+        duplicate_message=f"A provider drain is already running for {provider.upper()}",
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return submitted is not None
+
+
 def submit_agent_cleanup(
     app: Any,
     *,
@@ -171,5 +205,6 @@ __all__ = [
     "submit_agent_cleanup",
     "submit_agent_directive",
     "submit_agent_launch",
+    "submit_provider_drain",
     "submit_agent_revert",
 ]
