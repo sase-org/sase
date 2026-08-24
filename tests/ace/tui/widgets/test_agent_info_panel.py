@@ -89,6 +89,42 @@ def test_sase_agent_headline_renders_before_concrete_metrics() -> None:
     assert "Agents: 2/12" not in plain
 
 
+def test_proc_shell_badge_renders_after_status_strip_with_light_blue_style() -> None:
+    panel = AgentInfoPanel()
+    panel._sase_agent_count = 21
+    panel._proc_shell_count = 23
+    panel._running_count = 6
+    panel._runner_limit = 10
+    panel._waiting_count = 8
+    panel._read_count = 7
+
+    text = _collect_rich_text(panel)
+    header_prefix = text.plain.split("   [group:", 1)[0]
+
+    assert header_prefix == "21 agents  [6/10 running · 8 waiting · 7 done] ⚙23"
+    assert header_prefix.index("]") < header_prefix.index("⚙")
+    assert header_prefix.index("⚙") < header_prefix.index("23")
+    assert "procs" not in header_prefix
+    assert "agents ·" not in header_prefix
+    badge_start = text.plain.index("⚙23")
+    assert _style_at_plain_index(text, badge_start) == "bold #5FD7FF"
+    assert _style_at_plain_index(text, badge_start + 1) == "bold #5FD7FF"
+    assert _style_at_plain_index(text, badge_start + 2) == "bold #5FD7FF"
+
+
+def test_proc_shell_badge_hidden_at_zero_keeps_agent_only_prefix() -> None:
+    panel = AgentInfoPanel()
+    panel._sase_agent_count = 5
+    panel._proc_shell_count = 0
+
+    plain = _collect_text(panel)
+    counts_prefix = plain.split("   [group:", 1)[0]
+
+    assert counts_prefix == "5  [0/0 running]"
+    assert "⚙" not in counts_prefix
+    assert "agents" not in counts_prefix
+
+
 def test_agent_count_strip_reports_starting_separately() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):

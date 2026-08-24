@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets import AgentDetail
+from sase.ace.tui.widgets import AgentDetail, AgentInfoPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -64,6 +64,16 @@ def _assert_procs_are_top_level_rows(page: AcePage) -> None:
         assert row.is_workflow_step_child is False
 
 
+def _assert_info_header_proc_badge(page: AcePage) -> None:
+    info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+    header = info._build_display_text().plain.split("   [view:", 1)[0]
+
+    assert header == "2 agents  [1/10 running · 1 waiting] ⚙7"
+    assert header.index("]") < header.index("⚙7")
+    assert "procs" not in header
+    assert "agents ·" not in header
+
+
 @pytest.mark.parametrize(
     ("size", "snapshot_name"),
     [
@@ -85,6 +95,7 @@ async def test_agents_proc_shell_list_png_snapshot(
         await _seeded_agents_tab(page)
 
         _assert_procs_are_top_level_rows(page)
+        _assert_info_header_proc_badge(page)
         assert_page_svg_contains(page, "⚙")
         assert_page_svg_contains(page, "❯")
         assert_page_svg_contains(page, "[bash]")

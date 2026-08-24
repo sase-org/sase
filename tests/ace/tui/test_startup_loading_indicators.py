@@ -53,8 +53,8 @@ def test_agent_info_panel_loading_clears() -> None:
     assert "…" not in plain
 
 
-def test_agent_info_panel_splits_agent_and_proc_counts() -> None:
-    """Proc shell rows are surfaced separately from sase-agent capacity."""
+def test_agent_info_panel_renders_proc_count_after_status_strip() -> None:
+    """Proc shell rows are surfaced after the concrete agent metrics."""
     panel = AgentInfoPanel()
     panel._sase_agent_count = 3
     panel._proc_shell_count = 2
@@ -62,7 +62,7 @@ def test_agent_info_panel_splits_agent_and_proc_counts() -> None:
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("3 agents · 2 procs")
+    assert plain.startswith("3 agents  [0/0 running] ⚙2")
 
 
 def test_axe_info_panel_loading_renders_ellipsis() -> None:

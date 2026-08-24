@@ -14,6 +14,7 @@ class AgentInfoPanel(Static):
     """Top bar showing agent metrics and auto-refresh countdown."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
+    _PROC_SHELL_BADGE_STYLE = "bold #5FD7FF"
     # Keep the neutral denominator in its own Rich span while matching adjacent
     # dim labels.  The explicit non-bold flag prevents modal overlays from
     # coalescing those spans and perturbing neighboring glyph antialiasing.
@@ -369,6 +370,12 @@ class AgentInfoPanel(Static):
         text.append(f" ({key})", style="dim")
         text.append("]", style="dim")
 
+    def _append_proc_shell_badge(self, text: Text) -> None:
+        if self._proc_shell_count <= 0:
+            return
+        text.append(" ")
+        text.append(f"⚙{self._proc_shell_count}", style=self._PROC_SHELL_BADGE_STYLE)
+
     def _build_display_text(self) -> Text:
         """Build the full Rich ``Text`` for the current panel state."""
         text = Text()
@@ -380,10 +387,8 @@ class AgentInfoPanel(Static):
         text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
         if self._proc_shell_count:
             text.append(" agents", style="dim")
-            text.append(" · ", style="dim")
-            text.append(str(self._proc_shell_count), style="bold #5FD7FF")
-            text.append(" procs", style="dim")
         self._append_status_strip(text)
+        self._append_proc_shell_badge(text)
         self._append_neighbor_badge(text)
         if self._search_query:
             text.append("   ")
