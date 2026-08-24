@@ -12,7 +12,6 @@ from sase.ace.tui.memory_panel_catalog import (
 )
 from sase.ace.tui.modals import memory_panel_load as mpl
 from sase.current_project import CurrentProject
-from sase.feature_flags import override_flags
 from sase.memory.read_log import memory_read_log_path, read_memory_read_events
 
 
@@ -219,12 +218,11 @@ def test_record_strand_read_uses_memory_read_audit_path(
         has_memory=True,
     )
 
-    with override_flags(memory_webs=True):
-        result = mpl.record_memory_panel_strand_read(
-            scope,
-            web_slug="decisions",
-            strand_slug="alpha",
-        )
+    result = mpl.record_memory_panel_strand_read(
+        scope,
+        web_slug="decisions",
+        strand_slug="alpha",
+    )
 
     assert result.identity == "decisions:alpha"
     events = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))

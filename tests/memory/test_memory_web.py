@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.markdown_width import markdown_print_width
 from sase.memory.notes import discover_memory_notes
 from sase.memory.web import (
     END_MARKER,
@@ -88,6 +89,34 @@ def test_roster_renders_inline_and_replaces_single_region(tmp_path: Path) -> Non
     assert content is not None
     assert "**TERMS:** Alpha Term (alpha)" in content
     assert "old" not in content
+
+
+def test_roster_wraps_long_list_bullets_to_the_configured_prose_width(
+    tmp_path: Path,
+) -> None:
+    long_summary = (
+        "summary: This decision summary is deliberately long enough that the "
+        "rendered bullet line must wrap to stay inside the configured prose "
+        "width instead of round-tripping as one unwrapped line.\n"
+    )
+    body = f"Intro.\n\n{START_MARKER}\n{END_MARKER}\n"
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md", _descriptor(roster="list", body=body)
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "alpha.md",
+        _strand(aliases="", summary=long_summary),
+    )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    width = markdown_print_width()
+    assert all(len(line) <= width for line in content.splitlines())
+    assert "- **Alpha Term** (`alpha`) - This decision summary" in content
+    assert "\n  round-tripping as one unwrapped line." in content
 
 
 def test_roster_marker_validation_blocks_unbalanced_or_duplicate_regions(

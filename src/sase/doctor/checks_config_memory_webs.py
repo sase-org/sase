@@ -10,7 +10,6 @@ from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
 from sase.memory.web import (
     cross_scope_keyword_warnings,
     discover_memory_webs,
-    memory_webs_enabled,
     validate_memory_webs,
 )
 
@@ -20,16 +19,6 @@ if TYPE_CHECKING:
 
 def check_config_memory_webs(context: DoctorContext) -> DiagnosticCheck:
     """Run memory-web discovery and validation without writing files."""
-
-    if not memory_webs_enabled():
-        return DiagnosticCheck(
-            id="config.memory_webs",
-            group="config",
-            status="OK",
-            title="Memory webs",
-            summary="memory_webs flag is disabled; web metadata is ignored",
-            data={"enabled": False},
-        )
 
     project_discovery = discover_memory_webs(context.cwd)
     home_root = _home_root(context)
@@ -82,7 +71,6 @@ def check_config_memory_webs(context: DoctorContext) -> DiagnosticCheck:
             else ()
         ),
         data={
-            "enabled": True,
             "project": _discovery_data(project_discovery),
             "home": None if home_discovery is None else _discovery_data(home_discovery),
             "blocker_count": len(blockers),

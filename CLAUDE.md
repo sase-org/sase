@@ -94,7 +94,36 @@ accept intentional visual changes. Local runs use exact pixel equality by defaul
 CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
 fontconfig/Fira Code to keep rendering deterministic.
 
-### 1.3 Feature Flags (feature_flags)
+### 1.3 Decisions (decisions)
+
+A decision record is not a design doc or a subsystem overview — those go stale as the
+code changes underneath them. A record is immutable once accepted: if the project
+changes course, a new record is written and the old one is marked superseded in prose,
+never edited in place. Read one on demand with
+`sase memory read decisions:<keyword> -r "<why>"`; each record states the claim, why it
+was chosen over the credible alternatives, what it costs, and the condition that would
+reopen it.
+
+<!-- sase:strands -->
+
+- **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
+  turn; continuation is always mechanical, never a promise to resume.
+- **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
+  commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
+- **Memory Webs** (`memory-webs`) - A keyed memory collection is a flat descriptor note
+  plus a sibling strand directory, addressed web:keyword.
+- **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+  not build memory retrieval or linking machinery ahead of a corpus that demonstrably
+  needs it.
+- **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+  in sase-core with no Python fallback and no env-var backend switch.
+- **Verification Is Two-Speed** (`two-speed-verification`) - just check is the agent
+  default and just check-full gates landing, because host capacity is the constraint,
+  not test speed.
+
+<!-- /sase:strands -->
+
+### 1.4 Feature Flags (feature_flags)
 
 You MUST put a feature flag on user-reaching behavior before it is ready: a disabled
 beta, an early landed path, or a deprecation whose old branch must stay reachable. You
@@ -105,7 +134,7 @@ Flags are a `sase`-project concern, and a flag bead is a task bead of type `flag
 `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
 removing any flag.
 
-### 1.4 Glossary Terms (glossary)
+### 1.5 Glossary Terms (glossary)
 
 Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on any of these
 SASE terms; it prints each term's definition plus every term those definitions depend
@@ -124,7 +153,7 @@ Repo (repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Strand Keyw
 Task Type (task type); Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt
 Swarm; Xprompt Workflow
 
-### 1.5 Code Conventions and Gotchas (gotchas)
+### 1.6 Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to
@@ -153,7 +182,7 @@ resolved `display_name`, falling back to the key only when no name is known. Thi
 includes query tokens, completions, picker rows, task labels, and notifications; keys
 remain identity and storage.
 
-### 1.6 Rust Core Backend Boundary (rust_core_backend_boundary)
+### 1.7 Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at
 `../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
@@ -167,9 +196,9 @@ Presentation-only Textual state, keybindings, layout, widget rendering, and Pyth
 can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
 bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
 
-### 1.7 SASE = Structured Agentic Software Engineering (sase)
+### 1.8 SASE = Structured Agentic Software Engineering (sase)
 
-#### 1.7.1 Ephemeral `sase_<N>` Workspace Directories
+#### 1.8.1 Ephemeral `sase_<N>` Workspace Directories
 
 SASE runs agents (like you) from ephemeral workspace directories, which are full clones
 of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
@@ -180,7 +209,7 @@ IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace dir
 in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
 implement the plan might not run in the same workspace directory as you!
 
-#### 1.7.2 Repositories
+#### 1.8.2 Repositories
 
 Configured linked and sidecar repositories for this context:
 
@@ -213,7 +242,7 @@ discussions.
 IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
 way than by using `/sase_repo`!
 
-#### 1.7.3 SASE Final Declaration
+#### 1.8.3 SASE Final Declaration
 
 Before any normal response that ends this SASE provider turn, use your `/sase_final`
 skill as the last action. This includes a final answer, an incomplete-status response,
@@ -231,16 +260,16 @@ resubmit before returning when possible. Only a successfully executed plan, moni
 pipe, or questions handoff is exempt, because those commands terminate the runner
 mechanically. Intending to resume later is not an exemption.
 
-### 1.8 Task Bead Types (task_types)
+### 1.9 Task Bead Types (task_types)
 
 Every task bead can carry a `task_type` drawn from this project's catalog.
 `sase bead task-type list` always shows the live catalog and
 `sase bead task-type show <slug>` shows one type in full; this note is the generated,
 always-current snapshot of the agent-creatable types below.
 
-#### 1.8.1 Types
+#### 1.9.1 Types
 
-##### 1.8.1.1 `bug` — Bug
+##### 1.9.1.1 `bug` — Bug
 
 File one when you found a defect while doing unrelated work and it is not an external
 tracker issue. Record where it lives, how to reproduce it, and who it hurts. Do not use
@@ -252,7 +281,7 @@ this for a flake, a confirmed CI failure, or a GitHub-mirrored bug.
 Run `sase bead task-type show bug` for the full field list, validators, and body
 template.
 
-##### 1.8.1.2 `ci` — CI failure
+##### 1.9.1.2 `ci` — CI failure
 
 File one when a test or lint failed and you confirmed it is a true failure, not a flake.
 Record the pytest node ID, the failing SHA if known, and why this is not intermittent.
@@ -264,7 +293,7 @@ Use flake instead when a rerun on the same tree passed.
 Run `sase bead task-type show ci` for the full field list, validators, and body
 template.
 
-##### 1.8.1.3 `feature` — Feature
+##### 1.9.1.3 `feature` — Feature
 
 File one when you discovered a product or capability idea that is outside the current
 task or epic. State the proposal and why it is out of scope for the work you were doing.
@@ -275,7 +304,7 @@ Do not file one for in-scope follow-up that belongs on the current epic.
 Run `sase bead task-type show feature` for the full field list, validators, and body
 template.
 
-##### 1.8.1.4 `flake` — Flaky test
+##### 1.9.1.4 `flake` — Flaky test
 
 File one when a test or lint failed, a rerun on the same tree passed, and you did not
 cause the failure. Record the fail rate and whether it reproduces serially. Use ci
@@ -287,7 +316,7 @@ instead when the failure is confirmed and reproducible.
 Run `sase bead task-type show flake` for the full field list, validators, and body
 template.
 
-##### 1.8.1.5 `memory` — Memory
+##### 1.9.1.5 `memory` — Memory
 
 File one when a sase memory file or skill contains out-of-date information that should
 be updated. Closing still requires explicit user permission plus `sase memory init`.
@@ -298,7 +327,7 @@ Record the memory path and the proposed change.
 Run `sase bead task-type show memory` for the full field list, validators, and body
 template.
 
-#### 1.8.2 File Discovered Work As Task Beads
+#### 1.9.2 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD

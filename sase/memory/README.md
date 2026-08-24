@@ -74,6 +74,15 @@ memory.
 - Lines: 65
 - Approx. tokens: 811
 
+### `sase/memory/decisions.md`
+
+- Type: `core`
+- Description: Architectural decision records — accepted choices, their rejected
+  alternatives, and what would reopen them.
+- Parent: `AGENTS.md`
+- Lines: 41
+- Approx. tokens: 449
+
 ### `sase/memory/feature_flags.md`
 
 - Type: `core`
@@ -208,11 +217,11 @@ memory.
 
 ## Statistics
 
-- Total notes: 17
-- Core notes: 8
+- Total notes: 18
+- Core notes: 9
 - Reference notes: 9
-- Total lines: 1093
-- Total approx. tokens: 13545
+- Total lines: 1134
+- Total approx. tokens: 13994
 
 ## Commands
 

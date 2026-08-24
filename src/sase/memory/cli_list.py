@@ -20,7 +20,7 @@ from sase.memory.inventory import (
     build_memory_inventory,
     display_path_for_context,
 )
-from sase.memory.web import discover_scoped_memory_webs, memory_webs_enabled
+from sase.memory.web import discover_scoped_memory_webs
 
 _STATUS_STYLES: dict[MemoryEntryStatus, str] = {
     "loaded": "green",
@@ -73,9 +73,6 @@ def _build_memory_inventory_dashboard(
 
 
 def _webs_panel(inventory: MemoryInventory) -> Panel | None:
-    if not memory_webs_enabled():
-        return None
-
     home_root = next(
         (root.root for root in inventory.context_roots if root.kind == "home"),
         Path.home(),

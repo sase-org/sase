@@ -5,7 +5,6 @@ from __future__ import annotations
 from .cli import handle_memory_web_list_command, handle_memory_web_show_command
 from .closure import resolve_strand_closure
 from .discovery import FileMemoryWebProvider, MemoryWebProvider, discover_memory_webs
-from .feature import memory_webs_enabled
 from .frontmatter import parse_memory_strand, parse_web_descriptor, slug_to_keyword
 from .lookup import (
     MemoryWebLookupError,
@@ -61,7 +60,6 @@ __all__ = [
     "discover_scoped_memory_webs",
     "handle_memory_web_list_command",
     "handle_memory_web_show_command",
-    "memory_webs_enabled",
     "merge_memory_web_scopes",
     "normalize_memory_web_reference",
     "parse_memory_strand",

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.memory_handler import handle_memory_command
 from sase.main.parser import create_parser
 
@@ -27,12 +26,6 @@ def _seed_glossary_web(root: Path) -> None:
         root / "sase" / "memory" / "glossary" / "patch.md",
         "---\nsummary: A proposed change.\n---\nPatch body.\n",
     )
-
-
-@pytest.fixture(autouse=True)
-def _memory_webs_enabled():
-    with override_flags(memory_webs=True):
-        yield
 
 
 def test_parser_registers_memory_web_namespace() -> None:

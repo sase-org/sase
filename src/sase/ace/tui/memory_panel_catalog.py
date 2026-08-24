@@ -34,7 +34,6 @@ from sase.memory.read_log import (
     summarize_memory_reads_by_path,
 )
 from sase.memory.web.discovery import discover_memory_webs
-from sase.memory.web.feature import memory_webs_enabled
 from sase.memory.web.models import MemoryStrand, MemoryWeb, WebScope
 from sase.xprompt.glossary_catalog import (
     enabled_project_records,
@@ -373,17 +372,16 @@ def _load_memory_scope_snapshot(ref: MemoryScopeRef) -> MemoryScopeSnapshot:
 
     webs: tuple[MemoryWeb, ...] = ()
     diagnostics: tuple[str, ...] = ()
-    if memory_webs_enabled():
-        try:
-            discovery = discover_memory_webs(
-                content_root,
-                source_memory_root=memory_root,
-            )
-        except (OSError, UnicodeDecodeError) as exc:
-            diagnostics = (str(exc),)
-        else:
-            webs = discovery.webs
-            diagnostics = tuple(issue.message for issue in discovery.issues)
+    try:
+        discovery = discover_memory_webs(
+            content_root,
+            source_memory_root=memory_root,
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        diagnostics = (str(exc),)
+    else:
+        webs = discovery.webs
+        diagnostics = tuple(issue.message for issue in discovery.issues)
 
     digests, stats = _memory_file_metadata(content_root, notes, webs)
     return MemoryScopeSnapshot(

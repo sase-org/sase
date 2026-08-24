@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser import create_parser
 from sase.memory.cli_read import handle_memory_read_command
 from sase.memory.cli_show import handle_memory_show_command
@@ -34,12 +33,6 @@ def _seed_glossary_web(root: Path, *, closure: str = "mentions") -> None:
         root / "sase" / "memory" / "glossary" / "patch.md",
         "---\nsummary: A proposed change.\n---\nA Patch precedes a Stitch.\n",
     )
-
-
-@pytest.fixture(autouse=True)
-def _memory_webs_enabled():
-    with override_flags(memory_webs=True):
-        yield
 
 
 def _prepare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:

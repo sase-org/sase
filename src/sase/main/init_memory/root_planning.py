@@ -15,7 +15,6 @@ from sase.amd.init import (
 from sase.memory.notes import GeneratedLongMemoryNote
 from sase.memory.web import (
     discover_memory_webs,
-    memory_webs_enabled,
     render_web_body_with_roster,
     render_web_descriptor_with_roster,
     validate_memory_webs,
@@ -208,9 +207,6 @@ def _memory_web_root_plan(
     *,
     source_memory_root: Path,
 ) -> _MemoryWebRootPlan:
-    if not memory_webs_enabled():
-        return _MemoryWebRootPlan()
-
     discovery = discover_memory_webs(root, source_memory_root=source_memory_root)
     validation = validate_memory_webs(discovery)
     if validation.blockers:

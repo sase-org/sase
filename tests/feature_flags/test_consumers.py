@@ -15,16 +15,12 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     definitions = feature_flag_definitions()
 
     flags_pane = definitions[FeatureFlag.admin_center_flags]
-    memory_webs = definitions[FeatureFlag.memory_webs]
     ref_sync = definitions[FeatureFlag.ref_sync_gesture]
     typed_launch = definitions[FeatureFlag.typed_launch_units]
 
     assert flags_pane.kind == "sunset"
     assert flags_pane.default is True
     assert flags_pane.bead == "sase-rx"
-    assert memory_webs.kind == "beta"
-    assert memory_webs.default is False
-    assert memory_webs.bead == "sase-sy"
     assert ref_sync.kind == "sunset"
     assert ref_sync.default is True
     assert ref_sync.bead == "sase-qu"
@@ -38,7 +34,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
 
     default = resolve_feature_flags(definitions=definitions, layers=[])
     assert default.enabled(FeatureFlag.admin_center_flags) is True
-    assert default.enabled(FeatureFlag.memory_webs) is False
     assert default.enabled(FeatureFlag.ref_sync_gesture) is True
     assert default.enabled(FeatureFlag.typed_launch_units) is False
 
@@ -49,7 +44,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                 "user",
                 {
                     "admin_center_flags": False,
-                    "memory_webs": True,
                     "ref_sync_gesture": False,
                     "typed_launch_units": True,
                 },
@@ -59,8 +53,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     )
     assert user.enabled(FeatureFlag.admin_center_flags) is False
     assert user.decision(FeatureFlag.admin_center_flags).source == "user"
-    assert user.enabled(FeatureFlag.memory_webs) is True
-    assert user.decision(FeatureFlag.memory_webs).source == "user"
     assert user.enabled(FeatureFlag.ref_sync_gesture) is False
     assert user.decision(FeatureFlag.ref_sync_gesture).source == "user"
     assert user.enabled(FeatureFlag.typed_launch_units) is True
@@ -69,12 +61,10 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     env = resolve_feature_flags(
         definitions=definitions,
         layers=[],
-        env_value='{"admin_center_flags":false,"memory_webs":true,"ref_sync_gesture":false,"typed_launch_units":true}',
+        env_value='{"admin_center_flags":false,"ref_sync_gesture":false,"typed_launch_units":true}',
     )
     assert env.enabled(FeatureFlag.admin_center_flags) is False
     assert env.decision(FeatureFlag.admin_center_flags).source == "env"
-    assert env.enabled(FeatureFlag.memory_webs) is True
-    assert env.decision(FeatureFlag.memory_webs).source == "env"
     assert env.enabled(FeatureFlag.ref_sync_gesture) is False
     assert env.decision(FeatureFlag.ref_sync_gesture).source == "env"
     assert env.enabled(FeatureFlag.typed_launch_units) is True
@@ -87,14 +77,11 @@ def test_consumer_flags_both_states_via_override(
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     with override_flags(
         admin_center_flags=False,
-        memory_webs=True,
         ref_sync_gesture=False,
         typed_launch_units=True,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
         assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
-        assert snapshot.enabled(FeatureFlag.memory_webs) is True
-        assert current_flags().enabled(FeatureFlag.memory_webs) is True
         assert snapshot.enabled(FeatureFlag.ref_sync_gesture) is False
         assert current_flags().enabled(FeatureFlag.ref_sync_gesture) is False
         assert snapshot.enabled(FeatureFlag.typed_launch_units) is True
@@ -102,6 +89,5 @@ def test_consumer_flags_both_states_via_override(
 
     restored = current_flags()
     assert restored.enabled(FeatureFlag.admin_center_flags) is True
-    assert restored.enabled(FeatureFlag.memory_webs) is False
     assert restored.enabled(FeatureFlag.ref_sync_gesture) is True
     assert restored.enabled(FeatureFlag.typed_launch_units) is False

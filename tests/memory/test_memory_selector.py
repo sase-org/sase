@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.memory.selector import _MemorySelectorError, resolve_memory_selector_batch
 
 
@@ -48,10 +47,9 @@ def _seed_glossary_web(root: Path, *, closure: str = "none") -> None:
 def test_single_note_selector_is_flagged_single_note(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "foo.md", _note())
 
-    with override_flags(memory_webs=True):
-        batch = resolve_memory_selector_batch(
-            ["foo.md"], project_root=tmp_path, home_root=tmp_path / "home"
-        )
+    batch = resolve_memory_selector_batch(
+        ["foo.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
 
     assert batch.is_single_note
     assert batch.kind == "note"
@@ -61,10 +59,9 @@ def test_single_note_selector_is_flagged_single_note(tmp_path: Path) -> None:
 def test_bare_web_selector_reads_every_strand(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with override_flags(memory_webs=True):
-        batch = resolve_memory_selector_batch(
-            ["glossary"], project_root=tmp_path, home_root=tmp_path / "home"
-        )
+    batch = resolve_memory_selector_batch(
+        ["glossary"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
 
     assert batch.kind == "web"
     (section,) = batch.web_sections
@@ -75,10 +72,9 @@ def test_bare_web_selector_reads_every_strand(tmp_path: Path) -> None:
 def test_strand_selector_with_closure_none_does_not_expand(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path, closure="none")
 
-    with override_flags(memory_webs=True):
-        batch = resolve_memory_selector_batch(
-            ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
-        )
+    batch = resolve_memory_selector_batch(
+        ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
 
     (section,) = batch.web_sections
     assert [node.strand.slug for node in section.nodes] == ["stitch"]
@@ -90,10 +86,9 @@ def test_strand_selector_with_closure_mentions_expands_to_related(
 ) -> None:
     _seed_glossary_web(tmp_path, closure="mentions")
 
-    with override_flags(memory_webs=True):
-        batch = resolve_memory_selector_batch(
-            ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
-        )
+    batch = resolve_memory_selector_batch(
+        ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
 
     (section,) = batch.web_sections
     slugs = {node.strand.slug: node.origin for node in section.nodes}
@@ -104,12 +99,11 @@ def test_mixed_note_and_strand_batch_resolves_both(tmp_path: Path) -> None:
     _write(tmp_path / "sase" / "memory" / "foo.md", _note())
     _seed_glossary_web(tmp_path)
 
-    with override_flags(memory_webs=True):
-        batch = resolve_memory_selector_batch(
-            ["glossary:stitch", "foo.md"],
-            project_root=tmp_path,
-            home_root=tmp_path / "home",
-        )
+    batch = resolve_memory_selector_batch(
+        ["glossary:stitch", "foo.md"],
+        project_root=tmp_path,
+        home_root=tmp_path / "home",
+    )
 
     assert len(batch.notes) == 1
     assert len(batch.web_sections) == 1
@@ -121,59 +115,45 @@ def test_unknown_strand_selector_fails_whole_batch_atomically(tmp_path: Path) ->
     _write(tmp_path / "sase" / "memory" / "foo.md", _note())
     _seed_glossary_web(tmp_path)
 
-    with override_flags(memory_webs=True):
-        with pytest.raises(_MemorySelectorError, match="unknown memory strand"):
-            resolve_memory_selector_batch(
-                ["foo.md", "glossary:bogus"],
-                project_root=tmp_path,
-                home_root=tmp_path / "home",
-            )
+    with pytest.raises(_MemorySelectorError, match="unknown memory strand"):
+        resolve_memory_selector_batch(
+            ["foo.md", "glossary:bogus"],
+            project_root=tmp_path,
+            home_root=tmp_path / "home",
+        )
 
 
 def test_unknown_web_selector_raises(tmp_path: Path) -> None:
-    with override_flags(memory_webs=True):
-        with pytest.raises(_MemorySelectorError, match="unknown memory web"):
-            resolve_memory_selector_batch(
-                ["bogus"], project_root=tmp_path, home_root=tmp_path / "home"
-            )
+    with pytest.raises(_MemorySelectorError, match="unknown memory web"):
+        resolve_memory_selector_batch(
+            ["bogus"], project_root=tmp_path, home_root=tmp_path / "home"
+        )
 
 
 def test_core_web_descriptor_cannot_be_read_but_strands_can(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with override_flags(memory_webs=True):
-        with pytest.raises(_MemorySelectorError, match="always-loaded"):
-            resolve_memory_selector_batch(
-                ["glossary.md"], project_root=tmp_path, home_root=tmp_path / "home"
-            )
-
-        # The descriptor is refused, but its strands are not.
-        batch = resolve_memory_selector_batch(
-            ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
+    with pytest.raises(_MemorySelectorError, match="always-loaded"):
+        resolve_memory_selector_batch(
+            ["glossary.md"], project_root=tmp_path, home_root=tmp_path / "home"
         )
-        assert batch.web_sections
 
-
-def test_flag_disabled_rejects_web_and_strand_selectors(tmp_path: Path) -> None:
-    _seed_glossary_web(tmp_path)
-
-    with override_flags(memory_webs=False):
-        with pytest.raises(_MemorySelectorError, match="unknown memory web"):
-            resolve_memory_selector_batch(
-                ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
-            )
+    # The descriptor is refused, but its strands are not.
+    batch = resolve_memory_selector_batch(
+        ["glossary:stitch"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+    assert batch.web_sections
 
 
 def test_nested_note_selector_suggests_web_keyword_form(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with override_flags(memory_webs=True):
-        with pytest.raises(_MemorySelectorError, match="glossary:stitch"):
-            resolve_memory_selector_batch(
-                ["glossary/stitch.md"],
-                project_root=tmp_path,
-                home_root=tmp_path / "home",
-            )
+    with pytest.raises(_MemorySelectorError, match="glossary:stitch"):
+        resolve_memory_selector_batch(
+            ["glossary/stitch.md"],
+            project_root=tmp_path,
+            home_root=tmp_path / "home",
+        )
 
 
 def test_empty_selector_batch_raises() -> None:

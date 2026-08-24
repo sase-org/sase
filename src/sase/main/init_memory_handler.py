@@ -11,6 +11,7 @@ import sys
 from typing import TextIO
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
+from sase.content_layout import LayoutCollisionError
 from sase.workflows.commit.command_hooks import run_before_commit_hook
 
 from ._init_chezmoi_deploy import (
@@ -36,7 +37,6 @@ from sase.memory.web import (
     MemoryWeb as _MemoryWeb,
     cross_scope_keyword_warnings as _memory_web_cross_scope_keyword_warnings,
     discover_memory_webs as _discover_memory_webs,
-    memory_webs_enabled as _memory_webs_enabled,
     validate_memory_webs as _validate_memory_webs,
 )
 from sase.project_management import enable_sase_management, project_management_status
@@ -383,15 +383,20 @@ def _memory_plan_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
 
 
 def _memory_web_scope_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
-    if not _memory_webs_enabled():
-        return ()
     project_webs: tuple[_MemoryWeb, ...] = ()
     if inputs.is_project_dir and inputs.is_sase_managed:
-        project_discovery = _discover_memory_webs(inputs.project_root)
-        project_report = _validate_memory_webs(project_discovery)
-        if not project_report.blockers:
-            project_webs = project_discovery.webs
-    home_discovery = _discover_memory_webs(inputs.home_root)
+        try:
+            project_discovery = _discover_memory_webs(inputs.project_root)
+        except LayoutCollisionError:
+            project_discovery = None
+        if project_discovery is not None:
+            project_report = _validate_memory_webs(project_discovery)
+            if not project_report.blockers:
+                project_webs = project_discovery.webs
+    try:
+        home_discovery = _discover_memory_webs(inputs.home_root)
+    except LayoutCollisionError:
+        return ()
     home_report = _validate_memory_webs(home_discovery)
     if home_report.blockers:
         return ()

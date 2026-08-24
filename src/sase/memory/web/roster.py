@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from sase.markdown_width import markdown_print_width
+from sase.markdown_wrap import wrap_markdown
+
 from .frontmatter import replace_web_body
 from .lookup import normalize_memory_web_reference
 from .models import MemoryStrand, MemoryWeb
@@ -49,10 +52,12 @@ def render_strand_roster(web: MemoryWeb) -> str:
         entries = "; ".join(_inline_entry(strand) for strand in strands)
         return f"**{web.roster_label}:** {entries}".rstrip()
 
+    width = markdown_print_width()
     lines: list[str] = []
     for strand in strands:
         summary = strand.summary or ""
-        lines.append(f"- **{strand.keyword}** (`{strand.slug}`) - {summary}".rstrip())
+        bullet = f"- **{strand.keyword}** (`{strand.slug}`) - {summary}".rstrip()
+        lines.append(wrap_markdown(bullet, width=width))
     return "\n".join(lines)
 
 
