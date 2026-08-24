@@ -13,6 +13,7 @@ from sase.mdtemplates import render_markdown_template
 from sase.memory.notes import (
     AGENTS_PARENT,
     GeneratedLongMemoryNote,
+    GeneratedShortMemoryNote,
     apply_memory_frontmatter,
     parse_memory_note_text,
 )
@@ -41,6 +42,7 @@ MEMORY_SASE_GLOSSARY_TEMPLATE_FILENAME = "memory-sase-glossary.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
 _MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
 _MEMORY_SASE_GLOSSARY_TEMPLATE_VARS = frozenset({"glossary_term_entries"})
+GENERATED_SASE_MEMORY_PRIORITY = 10
 
 
 @dataclass(frozen=True)
@@ -158,6 +160,7 @@ def generated_sase_memory_content(generated_sase_body: str) -> str:
         generated_sase_body,
         note_type="core",
         parent=AGENTS_PARENT,
+        priority=GENERATED_SASE_MEMORY_PRIORITY,
     )
 
 
@@ -332,22 +335,25 @@ def generated_short_notes(
     generated_task_types_body: str | None = None,
     generated_artifact_relations_body: str | None = None,
     generated_glossary_body: str | None = None,
-) -> dict[str, str]:
-    """Return freshly generated core-note bodies keyed by relative path."""
+) -> dict[str, GeneratedShortMemoryNote]:
+    """Return freshly generated core notes keyed by relative path."""
     notes = {
-        generated_sase_memory_relative_path().as_posix(): generated_sase_body,
+        generated_sase_memory_relative_path().as_posix(): GeneratedShortMemoryNote(
+            body=generated_sase_body,
+            priority=GENERATED_SASE_MEMORY_PRIORITY,
+        ),
     }
     if generated_task_types_body is not None:
         notes[generated_task_types_memory_relative_path().as_posix()] = (
-            generated_task_types_body
+            GeneratedShortMemoryNote(generated_task_types_body)
         )
     if generated_artifact_relations_body is not None:
         notes[generated_artifact_relations_memory_relative_path().as_posix()] = (
-            generated_artifact_relations_body
+            GeneratedShortMemoryNote(generated_artifact_relations_body)
         )
     if generated_glossary_body is not None:
         notes[generated_glossary_memory_relative_path().as_posix()] = (
-            generated_glossary_body
+            GeneratedShortMemoryNote(generated_glossary_body)
         )
     return notes
 

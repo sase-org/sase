@@ -11,13 +11,77 @@ ask for separate permission to initialize sase memory in that case.
 
 The following memories contain core (always loaded) context:
 
-### 1.1 Artifact Relation Registry (artifact_relations)
+### 1.1 SASE = Structured Agentic Software Engineering (sase)
+
+#### 1.1.1 Ephemeral `sase_<N>` Workspace Directories
+
+SASE runs agents (like you) from ephemeral workspace directories, which are full clones
+of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
+You need to be mindful not to run commands outside of these workspace directories, since
+they have their own isolated virtual environments.
+
+IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace directory)
+in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
+implement the plan might not run in the same workspace directory as you!
+
+#### 1.1.2 Repositories
+
+Configured linked and sidecar repositories for this context:
+
+- `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR
+  workflows.
+- `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and
+  notifications.
+- `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor
+  support.
+- `sase-research-artifacts`: Installable artifact-reference plugin that provides the
+  `@research` document provider, `research-highlights` file-hook template, and
+  `#research*` xprompts.
+- `sase--research`: Durable SASE research reports and generated media used by research
+  workflows.
+
+When you need to read or modify files in any repository other than your own workspace
+checkout, agents MUST use your `/sase_repo` skill first. This includes configured linked
+repos and sidecars, another SASE project's repo, and any GitHub repo not linked to the
+current project. Open different-project and unlinked GitHub repos as external repos
+through the skill. Use the path it prints as the only path for reads and writes.
+
+This rule applies regardless of transport. Fetching a repository's files or history over
+the web — github.com file/blob/raw URLs, raw.githubusercontent.com, repo tarballs, or
+GitHub-API/`gh` file-content reads — counts as reading that repo: open it with
+`/sase_repo` (unlinked GitHub repos open as external repos, e.g. `gh:<owner>/<repo>`)
+and read the local checkout instead. Web tools remain appropriate only for content a
+checkout does not contain, such as blog posts, docs sites, and GitHub issue/PR
+discussions.
+
+IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
+way than by using `/sase_repo`!
+
+#### 1.1.3 SASE Final Declaration
+
+Before any normal response that ends this SASE provider turn, use your `/sase_final`
+skill as the last action. This includes a final answer, an incomplete-status response,
+an "I will wait" response, or any reply that intends to resume in a later turn. It will
+call `sase final context`, inspect any selected finalizers and repository obligations,
+and submit one atomic declaration with `sase final submit` when the host requires one.
+The declaration must cover every repository you changed this turn, including linked,
+sidecar, or external repos opened through `/sase_repo`. A host prompt scoped to one
+repository's commit or conflict repair does not narrow that obligation for any other
+repository you changed.
+
+After a successful `sase final submit`, do not make more file or repository changes in
+this turn. If the declaration command reports validation errors, repair the manifest and
+resubmit before returning when possible. Only a successfully executed plan, monitor,
+pipe, or questions handoff is exempt, because those commands terminate the runner
+mechanically. Intending to resume later is not an exemption.
+
+### 1.2 Artifact Relation Registry (artifact_relations)
 
 Typed artifact links use this closed relation registry. Agents write deliberate links
 with `sase artifact link add <source> <relation> <target> "<why>"`; prompt citations and
 audited reads use the same row shape.
 
-#### 1.1.1 Relations
+#### 1.2.1 Relations
 
 - `cites`: inverse `cited-by`, directed yes, written by `prompt_ref`.
 - `read`: inverse `read-by`, directed yes, written by `read`.
@@ -26,14 +90,14 @@ audited reads use the same row shape.
 - `implements`: inverse `implemented-by`, directed yes, written by `cli`.
 - `derives-from`: inverse `derived-into`, directed yes, written by `cli`.
 
-#### 1.1.2 Reserved
+#### 1.2.2 Reserved
 
 The following slugs are scheduling concepts, not artifact-link relations:
 
 - `blocks`: use `sase bead dep` instead.
 - `depends-on`: use `sase bead dep` instead.
 
-### 1.2 Build & Run Commands (build_and_run)
+### 1.3 Build & Run Commands (build_and_run)
 
 ```bash
 just install       # Install in editable mode with dev deps
@@ -48,7 +112,7 @@ just test-cov      # pytest with coverage + 50% gate (used by CI); also
                    # excludes the visual snapshot suite
 ```
 
-#### 1.2.1 IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
+#### 1.3.1 IMPORTANT: Two-Speed Verification — Run `just check` if you Made File Changes
 
 If you made file changes in this repo (the sase repo), make sure to run the `just check`
 command before terminating / replying to the user. See the below subsection for
@@ -85,7 +149,7 @@ sase.md file in this directory) is that you need to run `just install` before ru
 other commands like `just check` (since it is possible we haven't used this workspace
 directory in a long time and package dependencies may have changed).
 
-#### 1.2.2 PNG Snapshot Tests
+#### 1.3.2 PNG Snapshot Tests
 
 Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
 `tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/`
@@ -94,7 +158,7 @@ accept intentional visual changes. Local runs use exact pixel equality by defaul
 CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
 fontconfig/Fira Code to keep rendering deterministic.
 
-### 1.3 Decisions (decisions)
+### 1.4 Decisions (decisions)
 
 A decision record is not a design doc or a subsystem overview — those go stale as the
 code changes underneath them. A record is immutable once accepted: if the project
@@ -123,7 +187,7 @@ reopen it.
 
 <!-- /sase:strands -->
 
-### 1.4 Feature Flags (feature_flags)
+### 1.5 Feature Flags (feature_flags)
 
 You MUST put a feature flag on user-reaching behavior before it is ready: a disabled
 beta, an early landed path, or a deprecation whose old branch must stay reachable. You
@@ -134,7 +198,7 @@ Flags are a `sase`-project concern, and a flag bead is a task bead of type `flag
 `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
 removing any flag.
 
-### 1.5 Glossary Terms (glossary)
+### 1.6 Glossary Terms (glossary)
 
 Run `sase glossary read <term> [<term> ...] -r "<why>"` before relying on any of these
 SASE terms; it prints each term's definition plus every term those definitions depend
@@ -153,7 +217,7 @@ Repo (repo); Sase Shell (shell); Sase Workspace (workspace); Stitch; Strand Keyw
 Task Type (task type); Xprompt; Xprompt Memory (memory file); Xprompt Part; Xprompt
 Swarm; Xprompt Workflow
 
-### 1.6 Code Conventions and Gotchas (gotchas)
+### 1.7 Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to
@@ -182,7 +246,7 @@ resolved `display_name`, falling back to the key only when no name is known. Thi
 includes query tokens, completions, picker rows, task labels, and notifications; keys
 remain identity and storage.
 
-### 1.7 Rust Core Backend Boundary (rust_core_backend_boundary)
+### 1.8 Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at
 `../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
@@ -195,70 +259,6 @@ need the behavior to match the TUI, treat it as core backend logic.
 Presentation-only Textual state, keybindings, layout, widget rendering, and Python glue
 can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
 bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
-
-### 1.8 SASE = Structured Agentic Software Engineering (sase)
-
-#### 1.8.1 Ephemeral `sase_<N>` Workspace Directories
-
-SASE runs agents (like you) from ephemeral workspace directories, which are full clones
-of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
-You need to be mindful not to run commands outside of these workspace directories, since
-they have their own isolated virtual environments.
-
-IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace directory)
-in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
-implement the plan might not run in the same workspace directory as you!
-
-#### 1.8.2 Repositories
-
-Configured linked and sidecar repositories for this context:
-
-- `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR
-  workflows.
-- `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and
-  notifications.
-- `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor
-  support.
-- `sase-research-artifacts`: Installable artifact-reference plugin that provides the
-  `@research` document provider, `research-highlights` file-hook template, and
-  `#research*` xprompts.
-- `sase--research`: Durable SASE research reports and generated media used by research
-  workflows.
-
-When you need to read or modify files in any repository other than your own workspace
-checkout, agents MUST use your `/sase_repo` skill first. This includes configured linked
-repos and sidecars, another SASE project's repo, and any GitHub repo not linked to the
-current project. Open different-project and unlinked GitHub repos as external repos
-through the skill. Use the path it prints as the only path for reads and writes.
-
-This rule applies regardless of transport. Fetching a repository's files or history over
-the web — github.com file/blob/raw URLs, raw.githubusercontent.com, repo tarballs, or
-GitHub-API/`gh` file-content reads — counts as reading that repo: open it with
-`/sase_repo` (unlinked GitHub repos open as external repos, e.g. `gh:<owner>/<repo>`)
-and read the local checkout instead. Web tools remain appropriate only for content a
-checkout does not contain, such as blog posts, docs sites, and GitHub issue/PR
-discussions.
-
-IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
-way than by using `/sase_repo`!
-
-#### 1.8.3 SASE Final Declaration
-
-Before any normal response that ends this SASE provider turn, use your `/sase_final`
-skill as the last action. This includes a final answer, an incomplete-status response,
-an "I will wait" response, or any reply that intends to resume in a later turn. It will
-call `sase final context`, inspect any selected finalizers and repository obligations,
-and submit one atomic declaration with `sase final submit` when the host requires one.
-The declaration must cover every repository you changed this turn, including linked,
-sidecar, or external repos opened through `/sase_repo`. A host prompt scoped to one
-repository's commit or conflict repair does not narrow that obligation for any other
-repository you changed.
-
-After a successful `sase final submit`, do not make more file or repository changes in
-this turn. If the declaration command reports validation errors, repair the manifest and
-resubmit before returning when possible. Only a successfully executed plan, monitor,
-pipe, or questions handoff is exempt, because those commands terminate the runner
-mechanically. Intending to resume later is not an exemption.
 
 ### 1.9 Task Bead Types (task_types)
 

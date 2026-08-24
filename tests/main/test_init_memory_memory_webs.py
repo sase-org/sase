@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.amd._agents_doc import parse_amd_agents_document
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -65,6 +66,33 @@ def test_memory_web_updates_roster_without_inlining_strand_bodies(
     assert "**TERMS:** Alpha Term (alpha)" in updated_descriptor
     assert "**TERMS:** Alpha Term (alpha)" in agents
     assert "Hidden strand body." not in agents
+
+
+def test_core_memory_web_priority_orders_tier1_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _setup_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    descriptor = project_root / "sase" / "memory" / "terms.md"
+    write(
+        descriptor,
+        _descriptor().replace("web: true\n", "web: true\npriority: 5\n"),
+    )
+    write(project_root / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    plan = plan_memory()
+
+    action_by_path = {action.path: action for action in plan.actions}
+    agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
+    parsed = parse_amd_agents_document(agents)
+    assert parsed.short_memory_paths[:2] == (
+        "sase/memory/terms.md",
+        "sase/memory/sase.md",
+    )
 
 
 def test_memory_web_blocks_invalid_webs_before_writing(

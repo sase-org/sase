@@ -119,6 +119,32 @@ def test_update_preserves_body_and_rewrites_frontmatter(tmp_path: Path) -> None:
     assert outcome.description == "New description."
 
 
+def test_update_preserves_priority_while_rewriting_frontmatter(tmp_path: Path) -> None:
+    seed_scope(tmp_path)
+    path = tmp_path / "sase" / "memory" / "core.md"
+    write_file(
+        path,
+        "---\ntype: core\nparent: AGENTS.md\npriority: 5\n---\n# Core\n",
+    )
+    digest = memory_note_digest(path.read_bytes())
+
+    update_memory_note(
+        scope_key="demo",
+        content_root=tmp_path,
+        relative_path="sase/memory/core.md",
+        note_type="core",
+        parent=AGENTS_PARENT,
+        description="New description.",
+        expected_digest=digest,
+    )
+
+    updated = path.read_text(encoding="utf-8")
+    note = parse_memory_note_text(updated, "sase/memory/core.md")
+    assert note.priority == 5
+    assert "priority: 5\n" in updated
+    assert "description: New description.\n" in updated
+
+
 def test_update_and_delete_raise_on_digest_conflict(tmp_path: Path) -> None:
     seed_scope(tmp_path)
     created = create_note(tmp_path, "hub", description="Hub.")

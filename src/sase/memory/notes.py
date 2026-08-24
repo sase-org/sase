@@ -18,16 +18,18 @@ from sase.memory.paths import (
 )
 
 AGENTS_PARENT = "AGENTS.md"
+DEFAULT_MEMORY_PRIORITY = 20
 MEMORY_DIR = CANONICAL_MEMORY_RELATIVE_ROOT.as_posix()
 README_FILENAME = "README.md"
 
 MemoryNoteType = Literal["core", "reference"]
 MemoryNoteTypeSource = Literal["frontmatter", "missing", "invalid"]
 MemoryNoteParentSource = Literal["frontmatter", "missing", "invalid"]
+MemoryNotePrioritySource = Literal["frontmatter", "missing", "invalid"]
 
 _LEGACY_NOTE_TYPES = {"short": "core", "long": "reference"}
 _VALID_NOTE_TYPES = frozenset({"core", "reference"})
-_CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "description"})
+_CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "priority", "description"})
 _RETIRED_FRONTMATTER_KEYS = frozenset({"keywords"})
 _NON_EXTENSION_FRONTMATTER_KEYS = (
     _CANONICAL_FRONTMATTER_KEYS | _RETIRED_FRONTMATTER_KEYS
@@ -52,6 +54,8 @@ class MemoryNote:
     type_source: MemoryNoteTypeSource
     parent_source: MemoryNoteParentSource
     source_path: Path | None = None
+    priority: int = DEFAULT_MEMORY_PRIORITY
+    priority_source: MemoryNotePrioritySource = "missing"
 
     @property
     def relative_path(self) -> str:
@@ -62,6 +66,14 @@ class MemoryNote:
     def source_relative_path(self) -> Path:
         """Return the root-relative on-disk source used to read this note."""
         return self.source_path or self.path
+
+
+@dataclass(frozen=True)
+class GeneratedShortMemoryNote:
+    """Metadata for a generated core memory note keyed by root-relative path."""
+
+    body: str
+    priority: int = DEFAULT_MEMORY_PRIORITY
 
 
 @dataclass(frozen=True)
@@ -157,6 +169,17 @@ def _normalized_path_scalar(value: Any) -> str | None:
     return normalized or None
 
 
+def normalize_memory_priority(value: Any) -> tuple[int, MemoryNotePrioritySource]:
+    """Return normalized memory priority and source state for a present value."""
+    if type(value) is int and value >= 0:
+        return value, "frontmatter"
+    return DEFAULT_MEMORY_PRIORITY, "invalid"
+
+
+def _normalized_priority(value: Any) -> tuple[int, MemoryNotePrioritySource]:
+    return normalize_memory_priority(value)
+
+
 def collapse_description(description: str | None) -> str | None:
     """Return a one-line description for compact display surfaces."""
     if description is None:
@@ -202,6 +225,11 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         parent = AGENTS_PARENT
         parent_source = "missing"
 
+    if "priority" in frontmatter:
+        priority, priority_source = _normalized_priority(frontmatter["priority"])
+    else:
+        priority = DEFAULT_MEMORY_PRIORITY
+        priority_source = "missing"
     description = _normalized_description(frontmatter.get("description"))
 
     return MemoryNote(
@@ -213,6 +241,8 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         frontmatter=frontmatter,
         type_source=type_source,
         parent_source=parent_source,
+        priority=priority,
+        priority_source=priority_source,
     )
 
 
@@ -268,6 +298,7 @@ def _render_memory_frontmatter(
     *,
     note_type: str,
     parent: str,
+    priority: int | None = None,
     description: str | None = None,
     extra: Mapping[str, Any] | None = None,
 ) -> str:
@@ -276,6 +307,8 @@ def _render_memory_frontmatter(
         "type": note_type.strip(),
         "parent": parent.strip().replace("\\", "/"),
     }
+    if priority is not None and priority != DEFAULT_MEMORY_PRIORITY:
+        data["priority"] = priority
     if description is not None:
         normalized_description = _normalized_description(description)
         if normalized_description is not None:
@@ -372,12 +405,21 @@ def apply_memory_frontmatter(
     *,
     note_type: str,
     parent: str = AGENTS_PARENT,
+    priority: int | None = None,
     description: str | None = None,
     extra: Mapping[str, Any] | None = None,
     preserve_existing_extra: bool = True,
+    preserve_existing_priority: bool = True,
 ) -> str:
     """Apply canonical memory frontmatter to existing markdown text."""
     block = _parse_frontmatter_block(text)
+    if priority is None and preserve_existing_priority:
+        if "priority" in block.frontmatter:
+            parsed_priority, priority_source = _normalized_priority(
+                block.frontmatter["priority"]
+            )
+            if priority_source == "frontmatter":
+                priority = parsed_priority
     preserved_extra: dict[str, Any] = {}
     if preserve_existing_extra:
         preserved_extra.update(
@@ -401,6 +443,7 @@ def apply_memory_frontmatter(
         _render_memory_frontmatter(
             note_type=note_type,
             parent=parent,
+            priority=priority,
             description=description,
             extra=preserved_extra,
         )
@@ -481,16 +524,20 @@ def render_children_section(
 
 __all__ = [
     "AGENTS_PARENT",
+    "DEFAULT_MEMORY_PRIORITY",
+    "GeneratedShortMemoryNote",
     "GeneratedLongMemoryNote",
     "MEMORY_DIR",
     "MemoryNote",
     "MemoryNoteParentSource",
+    "MemoryNotePrioritySource",
     "MemoryNoteType",
     "MemoryNoteTypeSource",
     "README_FILENAME",
     "apply_memory_frontmatter",
     "collapse_description",
     "discover_memory_notes",
+    "normalize_memory_priority",
     "normalize_memory_note_type",
     "parse_memory_note_text",
     "render_children_section",

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.memory.notes import DEFAULT_MEMORY_PRIORITY
+
 WebRosterStyle = Literal["inline", "list"]
 WebClosureMode = Literal["none", "mentions"]
 WebScope = Literal["project", "home"]
@@ -50,6 +52,7 @@ class MemoryWeb:
     raw_text: str
     body_start: int
     frontmatter: dict[str, Any]
+    priority: int = DEFAULT_MEMORY_PRIORITY
     strands: tuple[MemoryStrand, ...] = ()
 
 

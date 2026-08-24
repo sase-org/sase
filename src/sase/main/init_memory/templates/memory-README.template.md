@@ -7,8 +7,8 @@ detailed **reference** notes that agents read only when relevant.
 
 ## How Memory Files Are Used
 
-- Non-README Markdown files live directly under `sase/memory/` and use YAML frontmatter for `type`, `parent`, and
-  `description`.
+- Non-README Markdown files live directly under `sase/memory/` and use YAML frontmatter for `type`, `parent`,
+  `priority`, and `description`.
 - `type: core` notes are Tier 1 context. `sase memory init` inlines them into `AGENTS.md`, then copies that exact content
   to each provider instruction shim.
 - `type: reference` notes are detailed reference material for Tier 2. They require a `description` and are fetched
@@ -25,6 +25,8 @@ detailed **reference** notes that agents read only when relevant.
   are still accepted and mean the same thing.
 - `parent`: `AGENTS.md` for top-level notes, or `sase/memory/<note>.md` when a reference note belongs under another
   reference note.
+- `priority`: optional non-negative integer for core notes. The default is `20`; lower values render earlier in Tier 1,
+  with ties broken by path. The generated `sase/memory/sase.md` note uses `priority: 10`.
 - `description`: required for reference notes and used in generated agent instructions and this README. Reference-note
   descriptions may be Markdown blocks authored as YAML literal block scalars; Tier 2 sections render those blocks
   verbatim, while single-line surfaces collapse them.

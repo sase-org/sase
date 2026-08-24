@@ -479,7 +479,7 @@ def _build_note_tree(
 
     shorts = sorted(
         (note for note in notes if note.type == "core"),
-        key=lambda note: note.relative_path,
+        key=lambda note: (note.priority, note.relative_path),
     )
     for note in shorts:
         tree.append(_rail_node_for_note(note, depth=0, webs_by_path=webs_by_path))

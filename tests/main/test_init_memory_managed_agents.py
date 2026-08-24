@@ -10,6 +10,7 @@ import pytest
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd._memory import _existing_agents_long_descriptions
 from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.amd.init import plan_amd_memory_sync
 from sase.memory.inventory_reachability import unreferenced_memory_files_for_init
 from tests.main.init_memory_handler_helpers import (
     long_note,
@@ -131,10 +132,10 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "## 1. Tier 1 (core) Memory" in agents
     assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
-    assert "### 1.1 Artifact Relation Registry (artifact_relations)" in agents
-    assert "### 1.2 Extra (extra)" in agents
-    assert "#### 1.2.1 Section" in agents
-    assert "### 1.3 SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1.2 Artifact Relation Registry (artifact_relations)" in agents
+    assert "### 1.3 Extra (extra)" in agents
+    assert "#### 1.3.1 Section" in agents
     assert "@sase/memory/extra.md" not in agents
     assert "@sase/memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
@@ -147,6 +148,13 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "### 2.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
     assert "### 2.2 `sase/memory/described.md`\n\nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
+
+    generated_sase = (project_root / "sase" / "memory" / "sase.md").read_text(
+        encoding="utf-8"
+    )
+    assert generated_sase.startswith(
+        "---\ntype: core\nparent: AGENTS.md\npriority: 10\n---\n"
+    )
 
     curated = (project_root / "sase" / "memory" / "curated.md").read_text(
         encoding="utf-8"
@@ -371,7 +379,7 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 1.2 SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@sase/memory/sase.md" not in agents
 
     # ``sase/memory/sase.md`` is regenerated every run, and its *fresh* body is the one
@@ -379,6 +387,129 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     plan = plan_memory()
     assert plan.blockers == ()
     assert plan.actions == ()
+
+
+def test_init_memory_orders_tier1_by_priority_then_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    for stem in ("zeta", "alpha"):
+        write(
+            project_root / "sase" / "memory" / f"{stem}.md",
+            f"---\ntype: core\nparent: AGENTS.md\npriority: 5\n---\n# {stem.title()}\n",
+        )
+
+    assert run_handler() == 0
+
+    parsed = parse_amd_agents_document(
+        (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    )
+    assert parsed.short_memory_paths[:3] == (
+        "sase/memory/alpha.md",
+        "sase/memory/zeta.md",
+        "sase/memory/sase.md",
+    )
+
+
+def test_plan_amd_memory_sync_keeps_path_order_without_priorities(
+    tmp_path: Path,
+) -> None:
+    write(tmp_path / "sase.yml", 'memory:\n  h1_title: "Managed Instructions"\n')
+    write(tmp_path / "sase" / "memory" / "zeta.md", short_note("# Zeta\n"))
+    write(tmp_path / "sase" / "memory" / "alpha.md", short_note("# Alpha\n"))
+
+    plan = plan_amd_memory_sync(tmp_path, generated_short_notes={})
+
+    assert plan.blockers == ()
+    assert plan.agents_content is not None
+    parsed = parse_amd_agents_document(plan.agents_content)
+    assert parsed.short_memory_paths == (
+        "sase/memory/alpha.md",
+        "sase/memory/zeta.md",
+    )
+
+
+def test_init_memory_rejects_invalid_memory_priority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "bad.md",
+        "---\ntype: core\nparent: AGENTS.md\npriority: true\n---\n# Bad\n",
+    )
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "sase/memory/bad.md" in err
+    assert "memory note priority must be a non-negative integer" in err
+
+
+def test_init_memory_rejects_priority_on_reference_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "reference.md",
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "priority: 5\n"
+        "description: Reference.\n"
+        "---\n"
+        "# Reference\n",
+    )
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "sase/memory/reference.md" in err
+    assert "priority is only meaningful on core memory notes" in err
 
 
 def test_init_memory_migrates_legacy_memory_note_types_idempotently(
@@ -411,6 +542,7 @@ def test_init_memory_migrates_legacy_memory_note_types_idempotently(
         "---\n"
         "type: short\n"
         "parent: AGENTS.md\n"
+        "priority: 5\n"
         "owner: preserved\n"
         "---\n"
         "# Legacy Core\n\n"
@@ -454,6 +586,7 @@ def test_init_memory_migrates_legacy_memory_note_types_idempotently(
     legacy_reference_text = legacy_reference.read_text(encoding="utf-8")
     assert "type: core\n" in legacy_core_text
     assert "type: short\n" not in legacy_core_text
+    assert "priority: 5\n" in legacy_core_text
     assert "owner: preserved\n" in legacy_core_text
     assert legacy_core_text.endswith("# Legacy Core\n\nCore body.\n")
     assert "type: reference\n" in legacy_reference_text

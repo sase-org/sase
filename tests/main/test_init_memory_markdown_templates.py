@@ -516,8 +516,8 @@ def test_custom_sase_template_round_trips_into_agents(
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     parsed = parse_amd_agents_document(agents)
     assert parsed.short_memory_paths == (
-        "sase/memory/artifact_relations.md",
         "sase/memory/sase.md",
+        "sase/memory/artifact_relations.md",
         "sase/memory/task_types.md",
     )
     assert "Custom SASE frame." in agents

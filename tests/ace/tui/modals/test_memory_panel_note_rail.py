@@ -82,6 +82,25 @@ async def test_filter_extends_into_bodies_only_when_toggled(
         )
 
 
+def test_note_tree_orders_core_notes_by_priority_then_path() -> None:
+    ref = scope_ref("sase", "sase")
+    snapshot = scope_snapshot(
+        ref,
+        (
+            memory_note("zeta", note_type="core", priority=5),
+            memory_note("beta", note_type="core", priority=20),
+            memory_note("alpha", note_type="core", priority=5),
+            memory_note("hub", description="Reference."),
+        ),
+    )
+
+    assert [row.note.path.stem for row in snapshot.tree[:3]] == [
+        "alpha",
+        "zeta",
+        "beta",
+    ]
+
+
 async def test_empty_filter_shows_no_match_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

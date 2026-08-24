@@ -9,8 +9,11 @@ Each non-README note declares its tier in YAML frontmatter:
   of the managed `AGENTS.md`; generated section numbers span the whole document (e.g.
   `### 1.1 Build & Run Commands (build_and_run)` and
   `#### 1.1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with
-  project-local `is_sase_managed: true`. `memory.h1_title` optionally customizes the
-  generated title. The retired `memory.enabled` key no longer authorizes management.
+  project-local `is_sase_managed: true`. A core note may set `priority:` to a
+  non-negative integer; the default is `20`, lower values render earlier, and ties break
+  by path. The generated `sase/memory/sase.md` note uses `priority: 10`.
+  `memory.h1_title` optionally customizes the generated title. The retired
+  `memory.enabled` key no longer authorizes management.
 - **Reference memory** uses `type: reference`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another reference note's `## Children` section. A reference note description may be a

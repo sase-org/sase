@@ -12,7 +12,7 @@ from sase.amd.init import (
     plan_amd_memory_sync,
     plan_minimal_agents_sync,
 )
-from sase.memory.notes import GeneratedLongMemoryNote
+from sase.memory.notes import GeneratedLongMemoryNote, GeneratedShortMemoryNote
 from sase.memory.web import (
     discover_memory_webs,
     render_web_body_with_roster,
@@ -74,7 +74,7 @@ class _MemoryRootContext:
 class _MemoryWebRootPlan:
     expected_files: tuple[MemoryExpectedFile, ...] = ()
     note_overlay: Mapping[Path, str] | None = None
-    core_note_bodies: Mapping[str, str] | None = None
+    core_note_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None
     blockers: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
@@ -182,7 +182,7 @@ def _amd_sync_plan(
     *,
     enable_amd: bool,
     derive_project_title: bool,
-    generated_short_notes: dict[str, str],
+    generated_short_notes: dict[str, GeneratedShortMemoryNote],
     generated_long_notes: dict[str, GeneratedLongMemoryNote],
     source_memory_root: Path,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -217,7 +217,7 @@ def _memory_web_root_plan(
 
     expected: list[MemoryExpectedFile] = []
     note_overlay: dict[Path, str] = {}
-    core_note_bodies: dict[str, str] = {}
+    core_note_bodies: dict[str, GeneratedShortMemoryNote] = {}
     blockers: list[str] = []
     for web in discovery.webs:
         body, body_error = render_web_body_with_roster(web)
@@ -228,7 +228,10 @@ def _memory_web_root_plan(
             continue
         note_overlay[web.path] = content
         if web.rendering_type == "core":
-            core_note_bodies[web.relative_path] = body
+            core_note_bodies[web.relative_path] = GeneratedShortMemoryNote(
+                body=body,
+                priority=web.priority,
+            )
         if content != web.raw_text:
             expected.append(
                 MemoryExpectedFile(

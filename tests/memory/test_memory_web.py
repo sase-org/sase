@@ -260,6 +260,32 @@ def test_validation_blocks_orphan_mismatch_reserved_nested_and_symlink(
     assert "symlink resolves outside" in joined
 
 
+@pytest.mark.parametrize(
+    ("descriptor", "expected"),
+    [
+        (
+            _descriptor(extra="priority: true\n"),
+            "priority must be a non-negative integer",
+        ),
+        (
+            _descriptor(note_type="reference", extra="priority: 5\n"),
+            "priority is only meaningful on core memory webs",
+        ),
+    ],
+)
+def test_validation_blocks_bad_memory_web_priority(
+    tmp_path: Path,
+    descriptor: str,
+    expected: str,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "terms.md", descriptor)
+    _write(tmp_path / "sase" / "memory" / "terms" / "alpha.md", _strand())
+
+    report = validate_memory_webs(discover_memory_webs(tmp_path))
+
+    assert any(expected in blocker for blocker in report.blockers)
+
+
 def test_lookup_precedence_and_scope_origin_tracking(tmp_path: Path) -> None:
     _write(tmp_path / "project" / "sase" / "memory" / "terms.md", _descriptor())
     _write(

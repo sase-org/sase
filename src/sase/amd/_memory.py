@@ -23,6 +23,7 @@ from .inline_memory import inline_memory_section, validate_short_memory_structur
 from sase.memory.notes import (
     AGENTS_PARENT,
     GeneratedLongMemoryNote,
+    GeneratedShortMemoryNote,
     MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
@@ -213,12 +214,12 @@ def _normalized_frontmatter_type(note: MemoryNote) -> str | None:
 
 def _short_memory_bodies(
     root: Path,
-    generated_short_notes: Mapping[str, str],
+    generated_short_notes: Mapping[str, GeneratedShortMemoryNote],
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     *,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
-) -> dict[str, str]:
+) -> dict[str, GeneratedShortMemoryNote]:
     """Return core-note bodies to inline, keyed by root-relative path.
 
     Bodies discovered on disk are overlaid with the freshly generated bodies in
@@ -226,30 +227,55 @@ def _short_memory_bodies(
     ``sase memory init`` pass inlines the just-written note content rather than a
     stale on-disk copy. Paths owned by generated reference notes are excluded from the
     discovered core-note set so type migrations converge in the same pass. The
-    result is sorted by path so the rendered ``AGENTS.md`` section order is
-    deterministic.
+    result is ordered by ``(priority, path)`` so the rendered ``AGENTS.md``
+    section order is deterministic.
     """
     generated_long_note_paths = frozenset(generated_long_notes or {})
-    bodies: dict[str, str] = {
-        note.relative_path: note.body
+    bodies: dict[str, GeneratedShortMemoryNote] = {
+        note.relative_path: GeneratedShortMemoryNote(
+            body=note.body,
+            priority=note.priority,
+        )
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
         if note.type == "core"
         and note.relative_path not in excluded_note_paths
         and note.relative_path not in generated_long_note_paths
     }
     bodies.update(generated_short_notes)
-    return dict(sorted(bodies.items()))
+    return dict(
+        sorted(
+            bodies.items(),
+            key=lambda item: (item[1].priority, item[0]),
+        )
+    )
 
 
 def _short_memory_structure_blockers(
-    short_memory_bodies: Mapping[str, str],
+    short_memory_bodies: Mapping[str, GeneratedShortMemoryNote],
 ) -> tuple[str, ...]:
     """Return blockers for core notes that cannot be inlined safely."""
     blockers: list[str] = []
-    for relative_path, body in short_memory_bodies.items():
-        error = validate_short_memory_structure(body)
+    for relative_path, note in short_memory_bodies.items():
+        error = validate_short_memory_structure(note.body)
         if error is not None:
             blockers.append(f"{relative_path}: {error}")
+    return tuple(blockers)
+
+
+def _memory_priority_blockers(notes: tuple[MemoryNote, ...]) -> tuple[str, ...]:
+    """Return blockers for invalid or misplaced memory priority frontmatter."""
+    blockers: list[str] = []
+    for note in sorted(notes, key=lambda item: item.relative_path):
+        if note.priority_source == "invalid":
+            blockers.append(
+                f"{note.relative_path}: memory note priority must be a "
+                "non-negative integer"
+            )
+        elif note.type == "reference" and note.priority_source == "frontmatter":
+            blockers.append(
+                f"{note.relative_path}: priority is only meaningful on core "
+                "memory notes"
+            )
     return tuple(blockers)
 
 
@@ -273,7 +299,7 @@ def _render_managed_agents(
     *,
     long_memory_descriptions: dict[str, str] | None = None,
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
-    short_memory_bodies: Mapping[str, str] | None = None,
+    short_memory_bodies: Mapping[str, GeneratedShortMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
@@ -313,8 +339,8 @@ def _render_managed_agents(
 
     bodies = short_memory_bodies or {}
     tier1_sections = "\n\n".join(
-        inline_memory_section(relative_path, body).rstrip("\n")
-        for relative_path, body in bodies.items()
+        inline_memory_section(relative_path, note.body).rstrip("\n")
+        for relative_path, note in bodies.items()
     )
 
     rendered_long_notes = []
@@ -381,11 +407,12 @@ def _render_managed_agents(
 def plan_minimal_agents_sync(
     root: Path,
     *,
-    generated_short_notes: Mapping[str, str],
+    generated_short_notes: Mapping[str, GeneratedShortMemoryNote],
 ) -> AmdMemorySyncPlan:
     """Plan the create-if-missing fallback agent document from its template."""
     relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
-    body = generated_short_notes.get(relative_path, "")
+    generated_note = generated_short_notes.get(relative_path)
+    body = "" if generated_note is None else generated_note.body
     tier1_sections = inline_memory_section(relative_path, body).rstrip("\n")
     rendered, render_error = render_agents_template(
         root,
@@ -412,7 +439,7 @@ def plan_amd_memory_sync(
     root: Path | None = None,
     *,
     derive_project_title: bool = False,
-    generated_short_notes: Mapping[str, str] | None = None,
+    generated_short_notes: Mapping[str, GeneratedShortMemoryNote] | None = None,
     generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -420,8 +447,9 @@ def plan_amd_memory_sync(
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
     *generated_short_notes* maps a root-relative core-note path to its freshly
-    generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
-    ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
+    generated body and priority so the rendered ``AGENTS.md`` inlines current
+    content (e.g. ``sase/memory/sase.md``) in a single pass instead of a stale
+    on-disk copy.
     *generated_long_notes* maps generated reference-note paths to their metadata so a
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
     """
@@ -445,6 +473,20 @@ def plan_amd_memory_sync(
         return plan_minimal_agents_sync(
             root,
             generated_short_notes=generated_short_notes,
+        )
+
+    memory_notes = _discover_memory_notes_excluding(
+        root,
+        source_memory_root=source_memory_root,
+        excluded_note_paths=excluded_note_paths,
+    )
+    priority_blockers = _memory_priority_blockers(memory_notes)
+    if priority_blockers:
+        return AmdMemorySyncPlan(
+            title=title,
+            agents_content=None,
+            frontmatter_updates=(),
+            blockers=priority_blockers,
         )
 
     short_memory_bodies = _short_memory_bodies(

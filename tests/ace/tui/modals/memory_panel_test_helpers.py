@@ -82,6 +82,7 @@ def memory_note(
     *,
     note_type: str | None = "reference",
     parent: str = AGENTS_PARENT,
+    priority: int = 20,
     description: str | None = None,
     body: str = "",
     type_source: str = "frontmatter",
@@ -100,6 +101,7 @@ def memory_note(
         type_source=type_source,  # type: ignore[arg-type]
         parent_source=parent_source,  # type: ignore[arg-type]
         source_path=Path(relative_path),
+        priority=priority,
     )
 
 

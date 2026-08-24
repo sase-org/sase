@@ -10,7 +10,9 @@ from typing import Any, Literal, cast
 import yaml  # type: ignore[import-untyped]
 
 from sase.memory.notes import (
+    DEFAULT_MEMORY_PRIORITY,
     collapse_description,
+    normalize_memory_priority,
     normalize_memory_note_type,
 )
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
@@ -204,6 +206,17 @@ def parse_web_descriptor(
     if closure not in _VALID_CLOSURES:
         return None, f"{path}: closure must be none or mentions"
 
+    if "priority" in parsed.frontmatter:
+        priority, priority_source = normalize_memory_priority(
+            parsed.frontmatter["priority"]
+        )
+        if priority_source == "invalid":
+            return None, f"{path}: priority must be a non-negative integer"
+        if rendering_type == "reference":
+            return None, f"{path}: priority is only meaningful on core memory webs"
+    else:
+        priority = DEFAULT_MEMORY_PRIORITY
+
     strand_noun = _normalized_scalar(parsed.frontmatter.get("strand_noun")) or "strand"
     roster_label = _normalized_scalar(
         parsed.frontmatter.get("roster_label")
@@ -233,6 +246,7 @@ def parse_web_descriptor(
             raw_text=text,
             body_start=parsed.body_start,
             frontmatter=dict(parsed.frontmatter),
+            priority=priority,
         ),
         None,
     )

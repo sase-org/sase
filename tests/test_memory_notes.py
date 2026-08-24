@@ -4,6 +4,7 @@ from pathlib import Path
 
 from sase.memory.notes import (
     AGENTS_PARENT,
+    DEFAULT_MEMORY_PRIORITY,
     MemoryNote,
     _children_of,
     _prettier_stable_frontmatter,
@@ -76,6 +77,84 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
     assert note.parent_source == "frontmatter"
     assert note.description == "Child note\ndetails."
     assert note.body == "# Child\n"
+
+
+def test_parse_memory_note_priority_defaults_to_missing() -> None:
+    note = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\n---\n# Core\n",
+        "sase/memory/core.md",
+    )
+
+    assert note.priority == DEFAULT_MEMORY_PRIORITY
+    assert note.priority_source == "missing"
+
+
+def test_parse_memory_note_priority_accepts_non_negative_integer() -> None:
+    note = parse_memory_note_text(
+        "---\ntype: core\nparent: AGENTS.md\npriority: 0\n---\n# Core\n",
+        "sase/memory/core.md",
+    )
+
+    assert note.priority == 0
+    assert note.priority_source == "frontmatter"
+
+
+def test_parse_memory_note_priority_rejects_bool_and_non_integer_values() -> None:
+    for raw_value in ("true", '"5"', "5.5", "-1", "null"):
+        note = parse_memory_note_text(
+            f"---\ntype: core\nparent: AGENTS.md\npriority: {raw_value}\n---\n# Core\n",
+            "sase/memory/core.md",
+        )
+        assert note.priority == DEFAULT_MEMORY_PRIORITY
+        assert note.priority_source == "invalid"
+
+
+def test_apply_memory_frontmatter_renders_priority_only_when_non_default() -> None:
+    default_priority = apply_memory_frontmatter(
+        "# Core\n",
+        note_type="core",
+        priority=DEFAULT_MEMORY_PRIORITY,
+    )
+    explicit_priority = apply_memory_frontmatter(
+        "# Core\n",
+        note_type="core",
+        priority=5,
+        description="Core note.",
+    )
+
+    assert "priority:" not in default_priority
+    assert explicit_priority.startswith(
+        "---\n"
+        "type: core\n"
+        "parent: AGENTS.md\n"
+        "priority: 5\n"
+        "description: Core note.\n"
+        "---\n"
+    )
+
+
+def test_apply_memory_frontmatter_preserves_priority_on_unrelated_rewrite() -> None:
+    original = (
+        "---\n"
+        "type: reference\n"
+        "parent: AGENTS.md\n"
+        "priority: 5\n"
+        "description: Old.\n"
+        "---\n"
+        "# Body\n"
+    )
+
+    rewritten = apply_memory_frontmatter(
+        original,
+        note_type="reference",
+        parent=AGENTS_PARENT,
+        description="New.",
+    )
+
+    assert rewritten.startswith(
+        "---\ntype: reference\nparent: AGENTS.md\npriority: 5\ndescription: New.\n---\n"
+    )
+    assert parse_memory_note_text(rewritten, "sase/memory/ref.md").priority == 5
 
 
 def test_parse_memory_note_text_normalizes_legacy_types() -> None:
