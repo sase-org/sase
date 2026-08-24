@@ -19,7 +19,7 @@ from sase.bead._stream_integrity_files import (
     is_event_stream_relpath,
     parse_stream_text,
 )
-from sase.bead.model import IssueType
+from sase.bead.model import IssueType, Status
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead.sync import bead_sync_diagnostics, commit_epic_graph_checkpoint
 from sase.bead.sync_worker import run_managed_sync_worker
@@ -265,6 +265,62 @@ def test_commit_sdd_files_allows_append_and_refuses_to_commit_a_shrink(
         f"HEAD:pages/{issue_id}/README.md",
     )
     assert committed_page.stdout == "page after shrink\n"
+
+
+def test_close_with_note_preserves_a_legacy_notes_prefix_through_commit(
+    tmp_path: Path,
+) -> None:
+    """Regression for the sase-t2.2 failure.
+
+    An ``issue_created`` event published before the structured-note rollout
+    encodes ``payload.issue.notes`` as a free-text string, not the current
+    ``Vec<BeadNoteWire>`` shape. A later commit-time close+note mutation must
+    append its new events without rewriting (and thereby corrupting) that
+    already-published ancestor line.
+    """
+    repo = tmp_path / "beads"
+    repo.mkdir(parents=True)
+    init_git_repo(repo)
+    _git(repo, "branch", "-M", "main")
+    (repo / ".gitignore").write_text("beads.db*\n", encoding="utf-8")
+    with BeadProject.init(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Legacy notes epic", IssueType.PLAN)
+    stream = repo / f"events/streams/{issue.id}.jsonl"
+
+    events = parse_stream_text(stream.read_text(encoding="utf-8"))
+    assert len(events) == 1
+    assert "notes" not in events[0]["payload"]["issue"]
+    events[0]["payload"]["issue"]["notes"] = "a pre-existing legacy note"
+    _write_events(stream, events)
+    legacy_line = stream.read_text(encoding="utf-8")
+    _commit(repo, "seed legacy notes encoding")
+
+    with BeadProject(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        (closed,) = project.close([issue.id], reason="done", note="closing note")
+    assert closed.status is Status.CLOSED
+
+    after = stream.read_text(encoding="utf-8")
+    assert after.startswith(legacy_line), "the legacy ancestor line must be untouched"
+    after_events = parse_stream_text(after)
+    assert len(after_events) > len(events)
+
+    assert commit_sdd_files(repo, "chore(beads): close legacy-notes stream") is True
+    assert _git(repo, "status", "--porcelain").stdout == ""
+
+    committed_stream = _git(
+        repo, "show", f"HEAD:events/streams/{issue.id}.jsonl"
+    ).stdout
+    assert committed_stream == after
+    committed_issues = _git(repo, "show", "HEAD:issues.jsonl").stdout
+    assert f'"{issue.id}"' in committed_issues
+
+    with BeadProject(repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        replayed = project.show(issue.id)
+    assert replayed.status is Status.CLOSED
+    assert [note.text for note in replayed.notes] == [
+        "a pre-existing legacy note",
+        "closing note",
+    ]
 
 
 def test_publication_commit_cannot_delete_a_base_event(
