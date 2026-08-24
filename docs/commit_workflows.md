@@ -648,8 +648,10 @@ Final declarations have three distinct boundaries:
    submission is missing, stale, or rejected as `stale_final_context`, the host spends
    one recovery turn that explicitly requests `/sase_final` again.
 3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
-   `commit` decision with a Conventional Commit message or one `refuse` decision with a
-   nonblank reason.
+   `commit` decision with a Conventional Commit message; `commit` is the only legal
+   repository action. Typed `deferrals` entries can name explicit paths that must not be
+   committed, using the adjudicated reasons `protected_paths`, `foreign_work`,
+   `unsafe_content`, or `belongs_to_another_turn`.
 4. Resolve the project directory from provider/workspace environment variables, then
    check the main workspace, configured linked repos, and repos opened through
    `/sase_repo`.

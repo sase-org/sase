@@ -8,8 +8,12 @@ steps:
   - name: inject
     prompt_part: |
       ---
-      IMPORTANT: You should make the necessary file changes, but should NOT create a commit, branch, or PR yourself.
-      Exception: If a post-completion finalizer instructs you to commit, you MUST follow those instructions and commit.
+      IMPORTANT: Do not run git commit, git push, or a commit skill yourself. Commits are
+      created by the host finalizer from the declaration you submit at the end of the turn.
+      Make your file changes, then declare every repository you changed through
+      `/sase_final` -- that declaration is how your work gets committed, and it covers as
+      many repositories as you changed. Follow any explicit host finalizer instruction to
+      commit.
 
   - name: check_changes
     use: shared/check_changes

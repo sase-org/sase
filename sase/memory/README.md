@@ -111,8 +111,8 @@ memory.
 - Type: `core`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 64
-- Approx. tokens: 823
+- Lines: 68
+- Approx. tokens: 893
 
 ### `sase/memory/task_types.md`
 
@@ -203,16 +203,16 @@ memory.
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Parent: `AGENTS.md`
-- Lines: 110
-- Approx. tokens: 1636
+- Lines: 113
+- Approx. tokens: 1694
 
 ## Statistics
 
 - Total notes: 17
 - Core notes: 8
 - Reference notes: 9
-- Total lines: 1086
-- Total approx. tokens: 13417
+- Total lines: 1093
+- Total approx. tokens: 13545
 
 ## Commands
 

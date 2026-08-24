@@ -102,9 +102,12 @@ launches conflict help; `#git:<ref>` checks out a ref and reports the diff.
 **Rule:** Agents never create git commits, branches, or PRs directly. Host-owned
 finalizers run after the model returns. Finish with `/sase_final`, which reads
 `sase final context` and submits one `sase final submit` manifest when a payload is
-required. The default `builtin@commit` instance dispatches accepted decisions through
-`sase stitch create`, honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`,
-and `SASE_BUG_ID`. Intentional plan/monitor/pipe/questions handoffs skip declaration.
-Use `gh` only for GitHub API/PR reads when needed.
+required. That declaration covers every repository the agent changed during the turn,
+including linked, sidecar, or external repos opened through `/sase_repo`; it is not
+narrowed by the launch ref or by a host prompt scoped to one repository. The default
+`builtin@commit` instance dispatches accepted decisions through `sase stitch create`,
+honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`, and `SASE_BUG_ID`.
+Intentional plan/monitor/pipe/questions handoffs skip declaration. Use `gh` only for
+GitHub API/PR reads when needed.
 
 Typical project-task prompt: `#gh:sase %auto #pr:my_change <task text>`.

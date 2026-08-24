@@ -1967,12 +1967,14 @@ verifies finalizers after the model returns.
 The built-in `builtin@commit` provider checks the main workspace, configured linked Git
 worktrees, and repositories opened through `/sase_repo`. Dirty enforced repositories
 become declaration obligations; each repository must receive exactly one `commit`
-decision with a Conventional Commit message or one `refuse` decision with a nonblank
-reason. Commit decisions dispatch through `sase stitch create` sequentially, preserve
-protected pre-existing dirt, write stitch evidence, stop on the first conflict for
-repair/resume, and fail completion when a refusal or unrepaired dirty state remains.
-Later mutating finalizers can reactivate commit until the controller reaches its bounded
-fixed point.
+decision with a Conventional Commit message, and `commit` is the only legal repository
+action. Typed deferrals can name explicit paths that must not be committed, using the
+adjudicated reasons `protected_paths`, `foreign_work`, `unsafe_content`, or
+`belongs_to_another_turn`. Commit decisions dispatch through `sase stitch create`
+sequentially, preserve protected pre-existing dirt, write stitch evidence, stop on the
+first conflict for repair/resume, and fail completion when a rejected deferral or
+unrepaired dirty state remains. Later mutating finalizers can reactivate commit until
+the controller reaches its bounded fixed point.
 
 When `$SASE_ARTIFACTS_DIR` is set, new runs write generic finalizer artifacts:
 `finalizer_baseline.json`, `final_context.json`, `final_submission.json`,

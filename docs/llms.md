@@ -200,11 +200,12 @@ action. The skill publishes context and exits early when no payload is required.
 required declaration is missing or stale after the normal response, the host opens one
 bounded recovery turn that explicitly asks the agent to use `/sase_final`. The submitted
 declaration gives each dirty repository exactly one `commit` decision with a
-Conventional Commit message or one `refuse` decision with a nonblank reason, and
-accepted commit decisions dispatch through the appropriate stitch workflow. A narrow
-generated SDD plan closeout, where the only enforced change is one markdown file's
-frontmatter `status: wip` becoming `status: done`, is committed directly with a
-`SASE_TYPE=sdd` commit.
+Conventional Commit message; `commit` is the only legal repository action. Typed
+deferrals can name explicit paths that must not be committed, using host-adjudicated
+reasons such as `foreign_work` or `protected_paths`. Accepted commit decisions dispatch
+through the appropriate stitch workflow. A narrow generated SDD plan closeout, where the
+only enforced change is one markdown file's frontmatter `status: wip` becoming
+`status: done`, is committed directly with a `SASE_TYPE=sdd` commit.
 
 When an artifacts directory is available, the host writes generic artifacts such as
 `final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and

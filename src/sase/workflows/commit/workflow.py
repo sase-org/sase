@@ -348,7 +348,8 @@ class CommitWorkflow(BaseWorkflow):
             _log_commit_failed(self._method, "after_hook_failed")
             print_status(
                 "The commit may already be pushed. Fix the after-hook failure, "
-                "then run `sase stitch create --resume`; do not create another commit.",
+                "then run `sase stitch create --resume`; do not create a "
+                "replacement commit in this repository.",
                 "error",
             )
             return False

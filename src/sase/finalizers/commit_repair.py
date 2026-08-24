@@ -325,12 +325,19 @@ def _run_conflict_repair_turn(
 ) -> InvokeResult:
     prompt = (
         "The built-in SASE commit finalizer hit a merge/rebase conflict while "
-        f"committing repository {repo.name}.\n\n"
+        f"committing repository {repo.name}. This is an automated host instruction, "
+        "not a message from the user.\n\n"
         "This is the single conflict-repair turn. Inspect the unmerged files, "
         "resolve every conflict marker, stage the resolved files, continue the "
-        "paused VCS operation, then run `sase stitch create --resume`. Do not "
-        "start a new stitch, skip, abort, stash, or create a second commit. "
-        "Return briefly after the resume command succeeds."
+        "paused VCS operation, then run `sase stitch create --resume`.\n\n"
+        f"Scope: these restrictions apply only to the paused operation in {repo.name}. "
+        "Do not start a new stitch, skip, abort, or stash it, and do not create a "
+        f"fresh commit in {repo.name} to work around the conflict; repair and resume "
+        "the paused one instead.\n\n"
+        "This does not change what you owe elsewhere. Your standing obligation to "
+        "declare and commit every repository you changed this turn is unaffected: "
+        "after the resume succeeds, finish the turn through `/sase_final` as usual, "
+        "including any other repository that is still dirty."
     )
     artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
     if artifact_dir is not None:

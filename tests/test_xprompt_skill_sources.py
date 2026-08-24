@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
+import yaml
 
+from sase.core.finalizer_wire import FINALIZER_DEFERRAL_REASONS
 from sase.content_layout import (
     resolve_skill_file_sources,
     skill_placement_issue,
@@ -25,6 +28,10 @@ from sase.xprompt.loader_skills import (
 from sase.xprompt.loader_sources import load_xprompts_from_files
 from sase.xprompt.models import XPrompt
 from sase.xprompt.processor import expand_single_xprompt
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SKILL_SOURCE_DIR = _REPO_ROOT / "src" / "sase" / "xprompts" / "skills"
+_XPROMPT_SOURCE_DIR = _REPO_ROOT / "src" / "sase" / "xprompts"
 
 
 def _write(path: Path, content: str) -> None:
@@ -244,6 +251,34 @@ def test_builtin_skill_source_directory_is_nested_under_xprompts() -> None:
     assert skills_dir.parent.name == "xprompts"
     assert (skills_dir / SKILL_FRAME_TEMPLATE_FILENAME).is_file()
     assert (skills_dir / "sase_plan.md").is_file()
+
+
+def test_sase_final_skill_documents_typed_deferrals_not_refuse_action() -> None:
+    text = (_SKILL_SOURCE_DIR / "sase_final.md").read_text(encoding="utf-8")
+    normalized = re.sub(r"\s+", " ", text)
+
+    assert not re.search(r"`refuse`[^.]+(?:decision|action)", text)
+    assert not re.search(r"(?:decision|action)[^.]+`refuse`", text)
+    assert "the only legal repository action is `commit`" in normalized
+    match = re.search(r"Legal reasons are ([^.]+)\.", text)
+    assert match is not None
+    assert tuple(re.findall(r"`([^`]+)`", match.group(1))) == FINALIZER_DEFERRAL_REASONS
+
+
+def test_commit_rollover_injects_remain_identical() -> None:
+    injects: list[str] = []
+    for name in ("commit.yml", "pr.yml", "propose.yml"):
+        data = yaml.safe_load((_XPROMPT_SOURCE_DIR / name).read_text(encoding="utf-8"))
+        inject = next(
+            step["prompt_part"]
+            for step in data["steps"]
+            if step.get("name") == "inject"
+        )
+        injects.append(inject)
+
+    assert len(set(injects)) == 1
+    assert "/sase_final" in injects[0]
+    assert "every repository you changed" in injects[0]
 
 
 def test_builtin_xprompt_skill_migration_points_to_nested_skill_directory(
