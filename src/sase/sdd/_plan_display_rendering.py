@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import re
 
 from rich.cells import cell_len
 from rich.console import Console
@@ -15,6 +16,7 @@ from sase.phase_size_presentation import (
     phase_size_chip,
 )
 from sase.sdd.plan_header_block import PlanHeaderSectionKind
+from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 from sase.sdd.plan_waves import plan_phase_waves
 
 from ._plan_display_models import (
@@ -42,6 +44,7 @@ PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
 PLAN_PROVENANCE_AGENT_STYLE = "#87D7AF"
 PLAN_PROVENANCE_COMMIT_STYLE = "#D7AF87"
 PLAN_PROVENANCE_ENTRY_LIMIT = 6
+_MONTH_SHARDED_PLAN_LABEL_RE = re.compile(r"^\d{6}/\S+\.md$")
 
 _PROVENANCE_ROW_LABELS: dict[PlanHeaderSectionKind, str] = {
     PlanHeaderSectionKind.PLAN: "   Plan: ",
@@ -152,12 +155,22 @@ def _provenance_value(section: PlanProvenanceSection) -> Text:
     for index, entry in enumerate(shown):
         if index:
             text.append(", ", style=COLOR_PLAN_SUMMARY)
-        text.append(entry, style=style)
+        text.append(_provenance_display_entry(section, entry), style=style)
     if hidden > 0:
         if shown:
             text.append(", ", style=COLOR_PLAN_SUMMARY)
         text.append(f"+{hidden} more", style=COLOR_PLAN_EMPTY)
     return text
+
+
+def _provenance_display_entry(section: PlanProvenanceSection, entry: str) -> str:
+    if section.kind != PlanHeaderSectionKind.PARENT:
+        return entry
+    if entry.startswith(PLAN_REFERENCE_PREFIX):
+        return entry
+    if _MONTH_SHARDED_PLAN_LABEL_RE.fullmatch(entry):
+        return f"{PLAN_REFERENCE_PREFIX}{entry}"
+    return entry
 
 
 def bead_page_url_text(url: str) -> Text:

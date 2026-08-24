@@ -30,6 +30,8 @@ from sase.sdd.plan_display import (
     render_plan_document,
     render_plan_lines,
 )
+from sase.sdd._plan_display_models import PlanProvenanceSection
+from sase.sdd.plan_header_block import PlanHeaderSectionKind
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 _PROVENANCE_HEADER = """- **PROMPT:** [202607/prompts/tale.md](prompts/tale.md)
@@ -134,13 +136,53 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
     path_row_index = rows.index("   Path: plan:202607/tale.md")
     assert rows[path_row_index + 1 :] == [
         " Prompt: 202607/prompts/tale.md",
-        " Parent: 202607/epic.md",
+        " Parent: plan:202607/epic.md",
         "   Bead: sase-ai.8",
         " Agents: user.host.sase-1a.1, user.host.sase-1a.2",
         "Commits: 1a67048",
     ]
+    wrapped_rows = [line.plain for line in render_plan_lines(loaded, width=76)]
+    assert " Parent: plan:202607/epic.md" in wrapped_rows
     assert shared.plain == tui.plain
     assert shared.spans == tui.spans
+
+
+def test_parent_provenance_normalization_is_idempotent_and_display_only() -> None:
+    summary = PlanDisplay(
+        title="Child tale",
+        goal="Show parent provenance canonically.",
+        authored_tier="tale",
+        effective_tier="tale",
+        actual_path="/tmp/child.md",
+        display_path="plan:202608/child.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="not-applicable",
+        phases=(),
+        validation_ok=True,
+        size="small",
+        provenance=(
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.PARENT,
+                entries=("plan:202608/parent.md",),
+                targets=("202608/parent.md",),
+            ),
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.PROMPT,
+                entries=("202608/prompt.md",),
+                targets=("prompts/202608/prompt.md",),
+            ),
+        ),
+    )
+
+    rows = plan_logical_text(summary).plain.splitlines()
+
+    assert " Parent: plan:202608/parent.md" in rows
+    assert " Prompt: 202608/prompt.md" in rows
+    assert summary.provenance[0].entries == ("plan:202608/parent.md",)
+    assert summary.provenance[0].targets == ("202608/parent.md",)
 
 
 def test_provenance_rows_are_absent_without_a_header_block(tmp_path: Path) -> None:

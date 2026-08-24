@@ -253,6 +253,41 @@ def test_plan_summary_ignores_live_page_resolution_failure(
     assert captured.err == ""
 
 
+def test_plan_summary_renders_parent_provenance_as_logical_plan_ref() -> None:
+    target = "https://example.invalid/plans/blob/main/202608/parent.md"
+    summary = PlanDisplay(
+        title="Child plan",
+        goal="Keep parent provenance resolvable from clan hints.",
+        authored_tier="tale",
+        effective_tier="tale",
+        actual_path="/tmp/child.md",
+        display_path="plan:202608/child.md",
+        committed=True,
+        exists=True,
+        readable=True,
+        frontmatter_readable=True,
+        phase_availability="not-applicable",
+        phases=(),
+        validation_ok=True,
+        size="medium",
+        provenance=(
+            PlanProvenanceSection(
+                kind=PlanHeaderSectionKind.PARENT,
+                entries=("202608/parent.md",),
+                targets=(target,),
+            ),
+        ),
+    )
+
+    rendered = Text.from_markup(_render_plan_summary("sase-parent", summary))
+    lines = rendered.plain.splitlines()
+
+    assert " Parent: plan:202608/parent.md" in lines
+    assert " Parent: 202608/parent.md" not in lines
+    assert summary.provenance[0].entries == ("202608/parent.md",)
+    assert summary.provenance[0].targets == (target,)
+
+
 def test_epic_summary_resolves_absolute_plan_reference_directly(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
