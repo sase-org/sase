@@ -1023,11 +1023,13 @@ somewhere stale.
 
 ### Forking Agents and Groups
 
-With a named agent selected, press `f` to open a prompt prefilled with `#fork:<agent>`.
-Selecting a family root uses the family name instead. The same action works on the
-synthetic container row for a clan (`#fork:<clan>`) and while an expanded or collapsed
-named tribe panel has whole-panel focus (`#fork:@<tribe>`). The reserved `@default`
-panel and grouping banners are not fork targets.
+With a named agent selected, press `F` to open a prompt prefilled with `#fork:<agent>`.
+Selecting a family root uses the family name instead. Failed named rows are valid fork
+targets; the child receives the failed parent's transcript plus the recorded failure
+message when available. The same action works on the synthetic container row for a clan
+(`#fork:<clan>`) and while an expanded or collapsed named tribe panel has whole-panel
+focus (`#fork:@<tribe>`). The reserved `@default` panel and grouping banners are not
+fork targets.
 
 Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`, or
 `%w:@<tribe>`. A non-empty marked set takes precedence and produces one comma-separated

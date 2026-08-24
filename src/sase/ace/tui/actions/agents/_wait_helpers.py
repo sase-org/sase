@@ -14,7 +14,7 @@ from sase.ace.tui.agent_completion import (
 from sase.plan_chain import agent_family_role_for_suffix
 from sase.xprompt.directive_edit import PromptWaitDirective
 
-from ...models.agent_status import is_resumable_done_status
+from ...models.agent_status import is_failed_agent_status, is_resumable_done_status
 from ._fork_scope import (
     AgentPromptTargetScope,
     agent_prompt_target_scope,
@@ -247,7 +247,11 @@ def resolve_agent_prompt_target_scope(
             None,
         )
 
-    if agent.status not in DISMISSABLE_STATUSES and prompt_name:
+    if (
+        agent.status not in DISMISSABLE_STATUSES
+        and not is_failed_agent_status(agent.status)
+        and prompt_name
+    ):
         return (
             agent_prompt_target_scope(
                 agent,
@@ -276,6 +280,18 @@ def resolve_agent_prompt_target_scope(
                 ),
                 None,
             )
+
+    if is_failed_agent_status(agent.status):
+        if not prompt_name:
+            return None, "No agent name found"
+        return (
+            agent_prompt_target_scope(
+                agent,
+                prompt_name,
+                history_fallback="fork",
+            ),
+            None,
+        )
 
     if not is_resumable_done_status(agent.status):
         return None, "Agent not finished yet"

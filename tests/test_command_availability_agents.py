@@ -209,6 +209,15 @@ def test_edit_hooks_fork_requires_response_path_for_done_agent() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
+def test_edit_hooks_fork_allows_failed_agent_without_response_path() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+    failed = _make_agent(status="FAILED", response_path=None)
+    failed.agent_name = "bad"
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=failed))
+
+
 def test_edit_hooks_fork_allows_tale_done_with_response_path() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.edit_hooks"]

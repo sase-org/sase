@@ -1,8 +1,10 @@
 """Name derivation and precedence tests for agent directive extraction."""
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
+from tests._agent_chat_from_name_helpers import write_agent
 from tests._agent_names_extract_fixtures import run_extract
 
 
@@ -230,6 +232,81 @@ class TestExtractDirectivesImplicitForkWait:
         # Fork-derived naming still wins over the implicit wait.
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
+
+    def test_failed_fork_target_skips_implied_wait(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        write_agent(
+            tmp_path,
+            "20260504010101",
+            "failed-parent",
+            done={"outcome": "failed", "error": "boom"},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:failed-parent do stuff",
+            )
+
+        assert "wait_for" not in result["meta"]
+        assert result["info"].wait_names == []
+        assert result["info"].name == "failed-parent.f0"
+
+    def test_explicit_wait_for_failed_fork_target_is_preserved(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        write_agent(
+            tmp_path,
+            "20260504010101",
+            "failed-parent",
+            done={"outcome": "failed", "error": "boom"},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:failed-parent expanded prompt",
+                raw_resolved_prompt=(
+                    "%wait:failed-parent\n#fork:failed-parent do stuff"
+                ),
+            )
+
+        assert result["meta"].get("wait_for") == ["failed-parent"]
+        assert result["info"].wait_names == ["failed-parent"]
+
+    def test_failed_fork_target_shadowed_by_live_namesake_still_waits(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+        write_agent(
+            tmp_path,
+            "20260504010101",
+            "failed-parent",
+            done={"outcome": "failed", "error": "boom"},
+        )
+        write_agent(
+            tmp_path,
+            "20260504020202",
+            "failed-parent",
+            meta={"chat_path": str(tmp_path / "running.md"), "pid": os.getpid()},
+        )
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:failed-parent do stuff",
+            )
+
+        assert result["meta"].get("wait_for") == ["failed-parent"]
+        assert result["info"].wait_names == ["failed-parent"]
 
     def test_tribe_fork_implies_tribe_wait_and_neutral_name(
         self, tmp_path: Path

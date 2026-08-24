@@ -137,6 +137,15 @@ def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
     assert ("r", "resume") not in bindings
 
 
+def test_keybinding_footer_failed_agent_advertises_fork_without_chat() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="FAILED", response_path=None)
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert (_edit_hooks_key(footer), "fork") in bindings
+
+
 def test_keybinding_footer_approve_eligible_shows_auto_approve_label() -> None:
     """Approve-eligible agents advertise a single stable auto-approve label.
 

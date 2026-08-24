@@ -30,6 +30,7 @@ from sase.agent.names._lookup_named import (
     get_most_recent_agent_name,
 )
 from sase.agent.names._lookup_resolution import (
+    fork_parent_wait_is_unreachable,
     resolve_resume_agent_name,
     resolve_wait_dependency,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "find_agent_clan",
     "find_agent_family",
     "find_named_agent",
+    "fork_parent_wait_is_unreachable",
     "get_most_recent_agent_name",
     "is_agent_clan_complete",
     "is_agent_family_complete",

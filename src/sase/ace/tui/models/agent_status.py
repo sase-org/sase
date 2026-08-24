@@ -42,6 +42,11 @@ def is_stopped_agent_status(status: str) -> bool:
     return status_bucket_for_values(status) == "Stopped"
 
 
+def is_failed_agent_status(status: str) -> bool:
+    """Return True for displayed statuses that represent failed agents."""
+    return status.startswith("FAILED")
+
+
 def is_revertable_agent_status(status: str) -> bool:
     """Return True for terminal/done agent rows whose commits can be reverted.
 
@@ -56,4 +61,4 @@ def is_revertable_agent_status(status: str) -> bool:
     """
     if status == STOPPED_STATUS:
         return False
-    return status in DISMISSABLE_STATUSES or status.startswith("FAILED")
+    return status in DISMISSABLE_STATUSES or is_failed_agent_status(status)

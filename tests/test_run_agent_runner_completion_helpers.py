@@ -49,6 +49,28 @@ def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
     assert marker["video_paths"] == []
 
 
+def test_failed_done_marker_records_response_path_without_result_fields():
+    marker = build_done_marker(
+        "test-cl",
+        "/tmp/project.sase",
+        "20260430120000",
+        "20260430120000",
+        1,
+        "/tmp/workspace",
+        "/tmp/output.log",
+        "failed",
+        response_path="/tmp/failed-chat.md",
+        error="provider failed",
+    )
+
+    assert marker["response_path"] == "/tmp/failed-chat.md"
+    assert marker["error"] == "provider failed"
+    assert "step_output" not in marker
+    assert "diff_path" not in marker
+    assert "markdown_pdf_paths" not in marker
+    assert "image_paths" not in marker
+
+
 def test_failed_done_marker_copies_execution_provider_from_agent_meta(tmp_path):
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"exec_llm_provider": "fakey"}), encoding="utf-8"

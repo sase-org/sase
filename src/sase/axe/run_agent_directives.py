@@ -195,7 +195,7 @@ def extract_directives_and_write_meta(
     # Top-level `#fork:<name,...>` parents imply `%wait:<name,...>`. Bare
     # `#fork` and `#fork_by_chat` resolve their targets dynamically and are
     # excluded, while explicit waits are not duplicated.
-    from sase.agent.names import fork_agent_names
+    from sase.agent.names import fork_agent_names, fork_parent_wait_is_unreachable
 
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
@@ -213,8 +213,11 @@ def extract_directives_and_write_meta(
                 f"Invalid '#fork' tribe reference {fork_wait_target!r}: "
                 f"{reserved_tribe_target_reason(fork_tribe)}"
             )
-        if fork_wait_target not in wait_names:
-            wait_names.append(fork_wait_target)
+        if fork_wait_target in wait_names:
+            continue
+        if fork_parent_wait_is_unreachable(fork_wait_target):
+            continue
+        wait_names.append(fork_wait_target)
     if family_attach_plan and family_attach_plan.parent_is_running:
         if family_attach_plan.parent_name not in wait_names:
             wait_names.append(family_attach_plan.parent_name)

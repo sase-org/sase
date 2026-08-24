@@ -69,6 +69,48 @@ def test_fork_running_named_agent_omits_explicit_wait() -> None:
     assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
 
 
+def test_fork_failed_named_agent_prefills_fork_prompt() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="FAILED",
+        agent_name="alice",
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:alice "
+    assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
+
+
+def test_fork_failed_unnamed_agent_warns() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="FAILED",
+        agent_name=None,
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls == []
+    assert ("No agent name found", "warning") in app.notifications
+
+
+def test_fork_stopped_agent_still_warns_not_finished() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="STOPPED",
+        agent_name="alice",
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls == []
+    assert ("Agent not finished yet", "warning") in app.notifications
+
+
 def test_wait_for_agent_one_mark_falls_through_to_single_agent() -> None:
     """A single mark behaves identically to single-agent path (cursor irrelevant)."""
     a1 = _make_agent(cl_name="cl_a", raw_suffix="20240101120000", agent_name="alice")

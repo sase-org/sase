@@ -7,6 +7,7 @@ import json
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,15 +29,43 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
+    FAILURE_OUTCOMES,
     archived_response_path,
 )
 from sase.core.paths import sase_projects_dir
+from sase.core.time import format_local
 from sase.core.wait_dependency_resolution import (
     TribeCandidate,
     WaitDependencyIndex,
     read_json_dict,
 )
+from sase.history.chat_resume import sanitize_resume_prompt
+from sase.history.chat_storage import find_chat_by_timestamp
 from sase.plan_chain import agent_family_base
+
+_MAX_LAUNCH_PROMPT_CHARS = 2000
+
+
+@dataclass(frozen=True)
+class _ForkFailure:
+    """Terminal failure metadata for one agent fork source."""
+
+    outcome: str
+    error: str | None
+    traceback: str | None
+    ended_at: str | None
+    transcript_available: bool
+    launch_prompt: str | None = None
+
+    def to_json_data(self) -> dict[str, object]:
+        return {
+            "outcome": self.outcome,
+            "error": self.error,
+            "traceback": self.traceback,
+            "ended_at": self.ended_at,
+            "transcript_available": self.transcript_available,
+            "launch_prompt": self.launch_prompt,
+        }
 
 
 @dataclass(frozen=True)
@@ -77,11 +106,19 @@ class _ForkSource:
     tribe: str | None = None
     members: tuple[_ForkClanMemberSource | _ForkFamilyMemberSource, ...] = ()
     excluded: tuple[_ForkExcludedFamilyMember, ...] = ()
+    failure: _ForkFailure | None = None
 
     def to_json_data(self) -> dict[str, object]:
         """Return the stable wire shape consumed by the fork history builder."""
         if self.kind == "agent":
-            return {"kind": self.kind, "name": self.name, "path": self.path}
+            data: dict[str, object] = {
+                "kind": self.kind,
+                "name": self.name,
+                "path": self.path,
+            }
+            if self.failure is not None:
+                data["failure"] = self.failure.to_json_data()
+            return data
         if self.kind == "family":
             return {
                 "kind": self.kind,
@@ -190,6 +227,9 @@ def _coalesce_fork_sources(sources: Sequence[_ForkSource]) -> list[_ForkSource]:
 
     for source in sources:
         if source.kind == "agent":
+            if not source.path:
+                coalesced.append(source)
+                continue
             canonical_path = _canonical_transcript_path(source.path)
             if canonical_path in seen_transcripts:
                 continue
@@ -233,6 +273,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 # Keep the historical single-path field as a compatibility seam.
+                # Transcript-less failed parents intentionally report "" here;
+                # the fork workflow consumes sources_json for typed context.
                 "path": sources[0].path,
                 "sources_json": json.dumps(source_data),
             }
@@ -356,6 +398,31 @@ def _resolve_fork_source(name: str) -> _ForkSource:
             excluded=tuple(excluded),
         )
 
+    return _resolve_agent_fork_source(name)
+
+
+def _resolve_agent_fork_source(name: str) -> _ForkSource:
+    """Resolve one named agent, including terminal failure context."""
+    family_member = _find_family_member(name)
+    if family_member is not None:
+        done = _read_json_dict(family_member.artifacts_dir / "done.json") or {}
+        outcome = _json_string(done, "outcome") or family_member.outcome
+        if outcome in FAILURE_OUTCOMES:
+            return _failed_agent_fork_source(
+                name,
+                family_member.artifacts_dir,
+                done,
+                outcome,
+            )
+
+    agent = resolve_resume_agent_name(name)
+    if agent is not None:
+        artifact_dir = Path(agent.artifacts_dir)
+        done = _read_json_dict(artifact_dir / "done.json") or {}
+        outcome = _json_string(done, "outcome") or agent.outcome
+        if outcome in FAILURE_OUTCOMES:
+            return _failed_agent_fork_source(name, artifact_dir, done, outcome)
+
     source = _ForkSource(
         kind="agent",
         name=name,
@@ -363,6 +430,81 @@ def _resolve_fork_source(name: str) -> _ForkSource:
     )
     _validate_readable_transcript(source.name, source.path)
     return source
+
+
+def _failed_agent_fork_source(
+    name: str,
+    artifact_dir: Path,
+    done: dict[str, Any],
+    outcome: str,
+) -> _ForkSource:
+    transcript_path = _resolve_failed_agent_transcript(name, artifact_dir, done)
+    transcript_available = bool(transcript_path)
+    failure = _ForkFailure(
+        outcome=outcome,
+        error=_json_string(done, "error"),
+        traceback=_json_string(done, "traceback"),
+        ended_at=_format_finished_at(done.get("finished_at")),
+        transcript_available=transcript_available,
+        launch_prompt=(
+            None
+            if transcript_available
+            else _read_sanitized_launch_prompt(artifact_dir)
+        ),
+    )
+    return _ForkSource(
+        kind="agent",
+        name=name,
+        path=transcript_path,
+        failure=failure,
+    )
+
+
+def _resolve_failed_agent_transcript(
+    name: str,
+    artifact_dir: Path,
+    done: dict[str, Any],
+) -> str:
+    candidates = [
+        _json_string(done, "response_path"),
+        _read_json_string_field(artifact_dir / "agent_meta.json", "chat_path"),
+        find_chat_by_timestamp(artifact_dir.name),
+    ]
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            _validate_readable_transcript(name, candidate)
+        except OSError:
+            continue
+        return candidate
+    return ""
+
+
+def _format_finished_at(value: object) -> str | None:
+    if value is not None and not isinstance(value, str | int | float | datetime):
+        return None
+    rendered = format_local(
+        value,
+        "%Y-%m-%d %H:%M:%S %Z",
+        default="",
+    )
+    return rendered or None
+
+
+def _read_sanitized_launch_prompt(artifact_dir: Path) -> str | None:
+    try:
+        prompt = (artifact_dir / "raw_xprompt.md").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    sanitized = sanitize_resume_prompt(prompt)
+    if not sanitized:
+        return None
+    if len(sanitized) <= _MAX_LAUNCH_PROMPT_CHARS:
+        return sanitized
+    return sanitized[:_MAX_LAUNCH_PROMPT_CHARS].rstrip() + "\n… (truncated)"
 
 
 def _resolve_tribe_fork_source(reference: str, tribe: str) -> _ForkSource:
@@ -587,6 +729,10 @@ def _read_json_string_field(path: Path, field: str) -> str | None:
     data = _read_json_dict(path)
     if data is None:
         return None
+    return _json_string(data, field)
+
+
+def _json_string(data: dict[str, Any], field: str) -> str | None:
     value = data.get(field)
     return value if isinstance(value, str) and value else None
 

@@ -318,3 +318,127 @@ def test_unreadable_transcript_is_rejected_before_loading(
 
     with pytest.raises(RuntimeError, match="not readable"):
         _resolve_agent_chat_sources(["planner"])
+
+
+def test_failed_agent_with_done_response_path_carries_failure_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    chat = tmp_path / "failed.md"
+    write_agent(
+        tmp_path,
+        "20260504010101",
+        "bad",
+        done={
+            "response_path": str(chat),
+            "outcome": "failed",
+            "error": "RuntimeError: boom",
+            "traceback": "Traceback\nRuntimeError: boom",
+            "finished_at": 1_777_000_000.0,
+        },
+    )
+
+    source = _resolve_agent_chat_sources(["bad"])[0].to_json_data()
+
+    assert source["path"] == str(chat)
+    failure = source["failure"]
+    assert isinstance(failure, dict)
+    assert failure["outcome"] == "failed"
+    assert failure["error"] == "RuntimeError: boom"
+    assert failure["traceback"] == "Traceback\nRuntimeError: boom"
+    assert failure["transcript_available"] is True
+
+
+def test_failed_agent_without_marker_paths_uses_timestamp_chat_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    suffix = "20260504010101"
+    chat = tmp_path / ".sase" / "chats" / "202605" / f"main-run-bad-{suffix}.md"
+    chat.parent.mkdir(parents=True)
+    chat.write_text("legacy failed transcript", encoding="utf-8")
+    write_agent(
+        tmp_path,
+        suffix,
+        "bad",
+        done={"outcome": "failed", "error": "boom"},
+    )
+
+    source = _resolve_agent_chat_sources(["bad"])[0].to_json_data()
+
+    assert source["path"] == str(chat).replace(str(tmp_path), "~")
+    failure = source["failure"]
+    assert isinstance(failure, dict)
+    assert failure["transcript_available"] is True
+
+
+def test_failed_agent_without_transcript_emits_launch_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    artifacts_dir = write_agent(
+        tmp_path,
+        "20260504010101",
+        "bad",
+        done={"outcome": "failed", "error": "provider crashed"},
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "%wait:old\n#fork:older\nImplement the fix\n",
+        encoding="utf-8",
+    )
+
+    source = _resolve_agent_chat_sources(["bad"])[0].to_json_data()
+
+    assert source["path"] == ""
+    failure = source["failure"]
+    assert isinstance(failure, dict)
+    assert failure["transcript_available"] is False
+    assert failure["launch_prompt"] == "Implement the fix"
+
+
+def test_successful_agent_source_has_no_failure_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    chat = tmp_path / "good.md"
+    write_agent(
+        tmp_path,
+        "20260504010101",
+        "good",
+        done={"response_path": str(chat), "outcome": "completed"},
+    )
+
+    assert "failure" not in _resolve_agent_chat_sources(["good"])[0].to_json_data()
+
+
+def test_mixed_successful_and_failed_agents_keep_order_and_failure_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    good_chat = tmp_path / "good.md"
+    bad_chat = tmp_path / "bad.md"
+    write_agent(
+        tmp_path,
+        "20260504010101",
+        "good",
+        done={"response_path": str(good_chat), "outcome": "completed"},
+    )
+    write_agent(
+        tmp_path,
+        "20260504020202",
+        "bad",
+        done={
+            "response_path": str(bad_chat),
+            "outcome": "failed",
+            "error": "boom",
+        },
+    )
+
+    sources = [
+        source.to_json_data() for source in _resolve_agent_chat_sources(["good", "bad"])
+    ]
+
+    assert [source["name"] for source in sources] == ["good", "bad"]
+    assert "failure" not in sources[0]
+    assert isinstance(sources[1]["failure"], dict)

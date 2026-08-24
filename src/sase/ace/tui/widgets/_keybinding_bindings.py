@@ -338,7 +338,9 @@ class KeybindingBindingsMixin:
         if agent.status == "FAILED" or is_resumable_done_status(agent.status):
             if marked_count == 0:
                 bindings.append((x, "dismiss"))
-            if agent.status != "FAILED":
+            if agent.status == "FAILED":
+                bindings.append((self._kd("edit_hooks"), "fork"))
+            else:
                 if marked_count == 0 and is_resumable_done_status(agent.status):
                     bindings.append((self._kd("edit_spec"), "edit chat"))
                 if agent.response_path:

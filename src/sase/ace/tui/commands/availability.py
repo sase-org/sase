@@ -37,6 +37,7 @@ from sase.ace.tui.commands.types import CommandContext, CommandSpec
 from sase.ace.tui.models.agent_panels import is_reserved_default_panel
 from sase.ace.tui.models.agent_status import (
     DISMISSABLE_STATUSES,
+    is_failed_agent_status,
     is_resumable_done_status,
     is_revertable_agent_status,
 )
@@ -504,6 +505,8 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         if getattr(agent, "is_clan_container", False):
             return bool(getattr(agent, "agent_clan", None))
+        if is_failed_agent_status(agent.status):
+            return agent_prompt_name(agent) is not None
         if agent.status not in DISMISSABLE_STATUSES:
             return bool(getattr(agent, "agent_name", None)) or bool(
                 getattr(agent, "agent_family", None)

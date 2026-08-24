@@ -1383,6 +1383,13 @@ then injects the matching agent conversation or clan summary. Multiple `#fork(..
 parents can mix agent, clan, and tribe references; SASE preserves the declared parent
 order while removing duplicates.
 
+A terminally failed agent is also a valid `#fork:<agent>` source. Its injected history
+is marked `PARENT AGENT FAILED`, includes the recorded failure message and traceback
+tail when available, and treats the transcript as incomplete context to verify rather
+than successful work to trust. Because an already-failed parent can never satisfy a
+wait, SASE skips the normally implied `%wait:<agent>` for that fork target; an explicit
+`%wait:<agent>` you typed is still preserved.
+
 To see the exact body of any built-in inline xprompt, run
 `sase xprompt expand --trace '#<name>'` or browse the catalog with
 `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain

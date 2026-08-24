@@ -12,6 +12,7 @@ from sase.agent.names._lookup_artifacts import (
     read_json_dict,
 )
 from sase.agent.names._lookup_groups import (
+    find_agent_clan,
     find_agent_family,
     is_agent_clan_complete,
     is_agent_family_complete,
@@ -20,6 +21,8 @@ from sase.agent.names._lookup_groups import (
 )
 from sase.agent.names._lookup_named import find_named_agent
 from sase.agent.names._templates import resolve_agent_name_template_reference
+from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
+from sase.core.dismissed_agent_completion import FAILURE_OUTCOMES
 from sase.plan_chain import AGENT_FAMILY_FIELD, is_agent_family_member
 
 
@@ -103,8 +106,6 @@ def resolve_wait_dependency(name: str) -> bool:
     Tribe waits require the waiting artifact's launch cutoff and therefore
     resolve only through ``WaitDependencyIndex`` runner callers.
     """
-    from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
-
     try:
         if parse_tribe_reference(name) is not None:
             return False
@@ -126,3 +127,20 @@ def resolve_wait_dependency(name: str) -> bool:
 
     agent = find_named_agent(name, only_done=True)
     return agent is not None and is_success_outcome(agent.outcome)
+
+
+def fork_parent_wait_is_unreachable(name: str) -> bool:
+    """Return whether a ``#fork`` parent is terminally failed."""
+    try:
+        if parse_tribe_reference(name) is not None:
+            return False
+    except InvalidTribeError:
+        return False
+    if find_agent_clan(name) is not None:
+        return False
+    if find_agent_family(name) is not None:
+        return False
+    agent = find_named_agent(name)
+    return bool(
+        agent is not None and agent.is_done and agent.outcome in FAILURE_OUTCOMES
+    )

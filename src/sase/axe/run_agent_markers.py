@@ -137,6 +137,8 @@ def build_done_marker(
         marker["video_paths"] = video_paths or []
         if default_artifacts_persisted:
             marker["default_artifacts_persisted"] = True
+    elif response_path:
+        marker["response_path"] = response_path
     # Failed outcome includes error details.
     if error:
         marker["error"] = error
