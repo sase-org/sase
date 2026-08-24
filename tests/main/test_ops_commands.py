@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -355,6 +356,37 @@ def test_agent_persist_cleanup_applies_json_identities(
     assert loaded.success is True
     assert loaded.payload is not None
     assert loaded.payload["action"] == "dismiss"
+
+
+def test_agent_drain_operation_writes_result_and_preserves_exit_code(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    result_path = tmp_path / "drain-res.json"
+    expected_payload = {
+        "provider": "claude",
+        "counts": {"relaunched": 0, "failed": 0, "skipped": 0},
+    }
+
+    def fake_run(_args: argparse.Namespace) -> SimpleNamespace:
+        return SimpleNamespace(
+            exit_code=2,
+            success=False,
+            message="No agents can be relaunched for this disabled provider.",
+            payload=expected_payload,
+        )
+
+    monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
+    args = create_parser().parse_args(
+        ["agent", "drain", "claude", "-j", "-R", str(result_path)]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-drain")
+
+    assert handle_agent_operation(args) == 2
+    loaded = read_operation_result(
+        result_path, expected_operation="agent.drain", expected_proc_id="proc-drain"
+    )
+    assert loaded.success is False
+    assert loaded.payload == expected_payload
 
 
 def test_bead_apply_status_success_and_failure(

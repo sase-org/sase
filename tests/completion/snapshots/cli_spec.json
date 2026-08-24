@@ -767,6 +767,127 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "84b0764fe73c9b17",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "drain",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "model",
+                "hidden": false,
+                "kind": "model",
+                "repeatable": false,
+                "strings": [
+                  "-m",
+                  "--model"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-y",
+                  "--yes"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "operation_request_path",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-Q",
+                  "--request-path"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "operation_result_path",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-R",
+                  "--result-path"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "agent",
+              "drain"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "provider",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "PROVIDER",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "6848c504c6fe65f5",
             "hidden": false,
             "mutex_groups": [],

@@ -335,8 +335,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(get_usage_limit_config)" \
         --epic-symbol "sase-sp.3(FinalizerDeferralWire)" \
         --epic-symbol "sase-sp.3(finalizer_deferral_from_dict)" \
-        --epic-symbol "sase-su.2(plan_provider_drain)" \
-        --epic-symbol "sase-su.2(execute_provider_drain)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

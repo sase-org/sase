@@ -16,6 +16,7 @@ PATCH_SYNC = "patch.sync"
 PATCH_REWIND = "patch.rewind"
 
 AGENT_CLI_UPDATE = "agent-cli.update"
+AGENT_DRAIN = "agent.drain"
 AGENT_PERSIST_DIRECTIVE = "agent.persist-directive"
 AGENT_REVERT = "agent.revert"
 AGENT_CLEANUP = "agent.cleanup"
@@ -48,6 +49,7 @@ SASE_UPDATE = "sase.update"
 __all__ = [
     "AGENT_CLEANUP",
     "AGENT_CLI_UPDATE",
+    "AGENT_DRAIN",
     "AGENT_PERSIST_DIRECTIVE",
     "AGENT_REVERT",
     "AXE_BGCMD",

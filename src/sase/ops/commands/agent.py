@@ -7,8 +7,13 @@ from collections.abc import Mapping
 from typing import Any, Literal
 
 from sase.ops.cli import add_operation_io_flags, load_request
-from sase.ops.commands.common import run_and_finish
-from sase.ops.names import AGENT_CLEANUP, AGENT_PERSIST_DIRECTIVE, AGENT_REVERT
+from sase.ops.commands.common import OperationCommandResult, run_and_finish
+from sase.ops.names import (
+    AGENT_CLEANUP,
+    AGENT_DRAIN,
+    AGENT_PERSIST_DIRECTIVE,
+    AGENT_REVERT,
+)
 
 
 def add_agent_operation_parsers(subparsers: argparse._SubParsersAction) -> None:
@@ -53,6 +58,13 @@ def add_agent_operation_parsers(subparsers: argparse._SubParsersAction) -> None:
 def handle_agent_operation(args: argparse.Namespace) -> int:
     """Dispatch one focused agent operation command."""
     sub = getattr(args, "agent_subcommand", None)
+    if sub == "drain":
+        return run_and_finish(
+            operation=AGENT_DRAIN,
+            body=lambda: _run_drain(args),
+            args=args,
+            print_message=False,
+        )
     if sub == "persist-directive":
         return run_and_finish(
             operation=AGENT_PERSIST_DIRECTIVE,
@@ -72,6 +84,18 @@ def handle_agent_operation(args: argparse.Namespace) -> int:
             args=args,
         )
     return 2
+
+
+def _run_drain(args: argparse.Namespace) -> OperationCommandResult:
+    from sase.agents.cli_drain import run_agents_drain
+
+    result = run_agents_drain(args)
+    return OperationCommandResult(
+        success=result.success,
+        message=result.message,
+        payload=result.payload,
+        exit_code=result.exit_code,
+    )
 
 
 def _persist_directive_from_payload(

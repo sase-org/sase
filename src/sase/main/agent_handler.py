@@ -61,6 +61,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         print("Usage: sase agent artifacts {layout}")
         sys.exit(1)
 
+    if sub == "drain":
+        from sase.ops.commands.agent import handle_agent_operation
+
+        sys.exit(handle_agent_operation(args))
+
     if sub == "index":
         from sase.agents.cli_index import handle_agents_index
 
@@ -105,7 +110,7 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase agent "
-        "{archive,artifacts,index,kill,list,names,persist-cleanup,"
+        "{archive,artifacts,drain,index,kill,list,names,persist-cleanup,"
         "persist-directive,prompts,restart,"
         "retire-v1,revert,show,sync,tribe,wait}"
     )

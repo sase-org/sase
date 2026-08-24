@@ -5,6 +5,75 @@ from __future__ import annotations
 import argparse
 
 
+def register_agent_drain_parser(agents_sub: argparse._SubParsersAction) -> None:
+    """Register the 'sase agent drain' subcommand."""
+    from sase.ops.cli import add_operation_io_flags
+
+    drain_parser = agents_sub.add_parser(
+        "drain",
+        help="Relaunch agents stranded by one hard-disabled provider",
+        description=(
+            "Plan and apply a provider drain. The provider must have an active "
+            "hard disable; enabled and soft-disabled providers are refused so "
+            "agents cannot relaunch straight back onto them. Planning finishes "
+            "before anything is killed. Draining live agents discards their "
+            "in-flight work; chat transcripts are kept. Exit 0 means drained "
+            "or previewed, 2 means refused with nothing changed, and 1 means "
+            "at least one move failed after execution started."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase agent drain claude --dry-run\n"
+            "  sase agent drain claude --yes\n"
+            "  sase agent drain claude -m codex/gpt-5\n"
+            "  sase agent drain claude -j"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    drain_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one stable JSON envelope on stdout and nothing else",
+    )
+    drain_parser.add_argument(
+        "-l",
+        "--limit",
+        default=20,
+        metavar="N",
+        type=int,
+        help="Most agents to move (default: 20)",
+    )
+    drain_parser.add_argument(
+        "-m",
+        "--model",
+        metavar="MODEL",
+        help=(
+            "Relaunch every moved agent on this model. Accepts "
+            "[provider/]model[@effort], the same spelling `sase agent "
+            "restart -m` accepts."
+        ),
+    )
+    drain_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the preview and exit 0 without killing or launching",
+    )
+    drain_parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the interactive confirmation before discarding live work",
+    )
+    add_operation_io_flags(drain_parser)
+    drain_parser.add_argument(
+        "provider",
+        metavar="PROVIDER",
+        help="Hard-disabled provider to drain",
+    )
+
+
 def register_agent_list_parser(agents_sub: argparse._SubParsersAction) -> None:
     """Register the 'sase agent list' subcommand."""
     list_parser = agents_sub.add_parser(

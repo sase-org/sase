@@ -77,6 +77,25 @@ def test_dispatch_restart() -> None:
     assert excinfo.value.code == 0
 
 
+def test_dispatch_drain() -> None:
+    """``sase agent drain`` dispatches through the operation handler."""
+    args = argparse.Namespace(
+        agent_subcommand="drain",
+        provider="claude",
+        json=True,
+        dry_run=True,
+        yes=False,
+        model=None,
+        limit=20,
+    )
+    with (
+        patch("sase.ops.commands.agent.handle_agent_operation", return_value=0),
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agent_command(args)
+    assert excinfo.value.code == 0
+
+
 def test_dispatch_wait() -> None:
     """``sase agent wait`` dispatches to the wait handler."""
     args = argparse.Namespace(agent_subcommand="wait", names=["02p"])

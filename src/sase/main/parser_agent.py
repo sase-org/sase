@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.main.parser_agent_lifecycle import (
+    register_agent_drain_parser,
     register_agent_kill_parser,
     register_agent_list_parser,
     register_agent_restart_parser,
@@ -45,6 +46,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
 
     add_agent_operation_parsers(agents_sub)
 
+    register_agent_drain_parser(agents_sub)
     register_agent_kill_parser(agents_sub)
     register_agent_show_parser(agents_sub)
     register_agent_retire_v1_parser(agents_sub)
