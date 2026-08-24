@@ -577,7 +577,7 @@ def test_lifecycle_logs_once_per_release_failure_and_still_finalizes(
     )
 
     with patch(
-        "sase.axe.chop_lifecycle.release_chop_once_per_keys",
+        "sase.axe._chop_lifecycle_keys.release_chop_once_per_keys",
         side_effect=OSError("seen store unavailable"),
     ):
         assert finalize_launched_chop_runs("docs", ["docs"]) == 1
@@ -607,7 +607,7 @@ def test_lifecycle_does_not_release_keys_for_incomplete_launch_linkage(
     )
     _record_agent(run_id, pid=321)
 
-    with patch("sase.axe.chop_lifecycle.release_chop_once_per_keys") as release:
+    with patch("sase.axe._chop_lifecycle_keys.release_chop_once_per_keys") as release:
         assert finalize_launched_chop_runs("docs", ["docs"]) == 1
 
     release.assert_not_called()
@@ -628,8 +628,10 @@ def test_lifecycle_fails_dead_agent_without_done_marker(
     _record_agent(run_id, pid=654)
 
     with (
-        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
-        patch("sase.axe.chop_lifecycle.release_chop_once_per_keys") as release,
+        patch(
+            "sase.axe._chop_lifecycle_completion.is_process_running", return_value=False
+        ),
+        patch("sase.axe._chop_lifecycle_keys.release_chop_once_per_keys") as release,
     ):
         assert finalize_launched_chop_runs("docs", ["docs"]) == 1
     release.assert_not_called()
@@ -662,9 +664,11 @@ def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
     )
 
     with (
-        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
         patch(
-            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            "sase.axe._chop_lifecycle_completion.is_process_running", return_value=False
+        ),
+        patch(
+            "sase.axe._chop_lifecycle_completion.load_dismissed_bundle_summaries",
             return_value=[child, root],
         ) as load_summaries,
     ):
@@ -702,9 +706,11 @@ def test_lifecycle_uses_failed_dismissed_bundle_when_done_marker_is_missing(
     )
 
     with (
-        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
         patch(
-            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            "sase.axe._chop_lifecycle_completion.is_process_running", return_value=False
+        ),
+        patch(
+            "sase.axe._chop_lifecycle_completion.load_dismissed_bundle_summaries",
             return_value=[summary],
         ),
     ):

@@ -137,7 +137,9 @@ def test_lifecycle_follows_retry_chain_until_successor_finishes(
             encoding="utf-8",
         )
 
-    with patch("sase.axe.chop_lifecycle.is_process_running", return_value=True):
+    with patch(
+        "sase.axe._chop_lifecycle_completion.is_process_running", return_value=True
+    ):
         assert finalize_launched_chop_runs("docs", ["docs"]) == 0
     active = read_chop_run("docs", "docs", run_id)
     assert active is not None
@@ -238,7 +240,9 @@ def test_lifecycle_garbage_collects_orphaned_and_terminal_run_records(
     _launched_entry(active_run_id, pid=333)
     _record_agent(active_run_id, pid=333, timestamp="260718_120016")
 
-    with patch("sase.axe.chop_lifecycle.is_process_running", return_value=True):
+    with patch(
+        "sase.axe._chop_lifecycle_completion.is_process_running", return_value=True
+    ):
         assert finalize_launched_chop_runs("docs", ["docs"]) == 0
 
     records = get_chop_agent_records("docs")
