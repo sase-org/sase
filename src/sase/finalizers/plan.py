@@ -89,25 +89,12 @@ class ResolvedFinalizerPlan:
 
 
 @dataclass(frozen=True)
-class AuthenticatedFinalizerPlan:
+class _AuthenticatedFinalizerPlan:
     """The sealed plan, its authenticated config snapshot, and any live drift."""
 
     plan: FinalizerPlanWire
     config: FinalizerConfig
     drift: tuple[FinalizerConfigDiagnostic, ...] = ()
-
-    def agent_meta_projection(self) -> dict[str, Any]:
-        return {
-            "plan_digest": self.plan.plan_digest,
-            "drift": [
-                {
-                    "code": item.code,
-                    "severity": item.severity,
-                    "message": item.message,
-                }
-                for item in self.drift
-            ],
-        }
 
 
 def resolve_and_persist_finalizer_plan(
@@ -166,7 +153,7 @@ def authenticate_resolved_finalizer_plan_full(
     artifacts_dir: str | None,
     *,
     config: FinalizerConfig | None = None,
-) -> AuthenticatedFinalizerPlan:
+) -> _AuthenticatedFinalizerPlan:
     """Return the sealed plan, its authenticated config, and any live drift.
 
     The plan and, when a snapshot was sealed with it, the configuration bodies
@@ -189,7 +176,7 @@ def _authenticate_resolved_finalizer_plan_full(
     artifacts_dir: str | None,
     *,
     config: FinalizerConfig | None,
-) -> AuthenticatedFinalizerPlan:
+) -> _AuthenticatedFinalizerPlan:
     if not artifacts_dir:
         raise FinalizerPlanIntegrityError("finalizer plan authority is missing")
     root = Path(artifacts_dir).expanduser().resolve(strict=False)
@@ -223,14 +210,16 @@ def _authenticate_resolved_finalizer_plan_full(
                 path=FINALIZER_CONFIG_SNAPSHOT_KEY,
             ),
         )
-        return AuthenticatedFinalizerPlan(
+        return _AuthenticatedFinalizerPlan(
             plan=authority,
             config=sealed_config,
             drift=missing_snapshot_drift,
         )
     sealed_config = _sealed_config_snapshot(authority_payload, authority)
     drift = _diagnose_live_configuration(authority, sealed_config, config)
-    return AuthenticatedFinalizerPlan(plan=authority, config=sealed_config, drift=drift)
+    return _AuthenticatedFinalizerPlan(
+        plan=authority, config=sealed_config, drift=drift
+    )
 
 
 def _require_plan_payload(path: Path, missing_message: str) -> Mapping[str, Any]:
@@ -501,7 +490,6 @@ __all__ = [
     "FINALIZER_PLAN_AUTHORITY_FILENAME",
     "FINALIZER_PLAN_FILENAME",
     "SASE_FINALIZER_PLAN_DIGEST_ENV",
-    "AuthenticatedFinalizerPlan",
     "FinalizerPlanError",
     "FinalizerPlanIntegrityError",
     "ResolvedFinalizerPlan",

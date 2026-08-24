@@ -3081,9 +3081,10 @@
               },
               "refusal": {
                 "type": "string",
-                "description": "Policy for model refusal payloads.",
+                "description": "Policy for an upheld deferral: 'fail' ends the turn, 'defer' completes the run with a disclosed dirty tree.",
                 "enum": [
-                  "fail"
+                  "fail",
+                  "defer"
                 ],
                 "default": "fail"
               },
@@ -3100,7 +3101,7 @@
               "use": "builtin@commit",
               "after": [],
               "max_attempts": 2,
-              "refusal": "fail"
+              "refusal": "defer"
             }
           }
         }

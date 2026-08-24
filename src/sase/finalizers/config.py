@@ -100,7 +100,7 @@ class FinalizerConfig:
         )
 
 
-def configured_instance_to_json(
+def _configured_instance_to_json(
     instance: ConfiguredFinalizerInstance,
 ) -> dict[str, Any]:
     """Serialize a configured instance, including field provenance, to JSON."""
@@ -116,7 +116,7 @@ def configured_instance_to_json(
     }
 
 
-def configured_instance_from_json(payload: object) -> ConfiguredFinalizerInstance:
+def _configured_instance_from_json(payload: object) -> ConfiguredFinalizerInstance:
     """Strictly rebuild a configured instance from its JSON snapshot.
 
     A missing or malformed field is a tamper signal, not a fallback: this never
@@ -169,7 +169,7 @@ def finalizer_config_to_json(config: FinalizerConfig) -> dict[str, Any]:
         "defaults": list(config.defaults),
         "required": list(config.required),
         "instances": {
-            instance_id: configured_instance_to_json(instance)
+            instance_id: _configured_instance_to_json(instance)
             for instance_id, instance in config.instances.items()
         },
         "provenance": _provenance_to_json(config.provenance),
@@ -201,7 +201,7 @@ def finalizer_config_from_json(payload: object) -> FinalizerConfig:
     for instance_id, raw_instance in instances_raw.items():
         if not isinstance(instance_id, str) or not isinstance(raw_instance, Mapping):
             raise ValueError("finalizer config snapshot instance entry is malformed")
-        instances[instance_id] = configured_instance_from_json(raw_instance)
+        instances[instance_id] = _configured_instance_from_json(raw_instance)
     return FinalizerConfig(
         defaults=tuple(defaults),
         required=tuple(required),
@@ -524,8 +524,6 @@ __all__ = [
     "FinalizerConfig",
     "FinalizerConfigDiagnostic",
     "FinalizerFieldProvenance",
-    "configured_instance_from_json",
-    "configured_instance_to_json",
     "finalizer_config_from_json",
     "finalizer_config_to_json",
     "load_finalizer_config",

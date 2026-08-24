@@ -93,3 +93,36 @@ def test_config_schema_validates_project_glossary_shape() -> None:
     ):
         with pytest.raises(ValidationError):
             validator.validate({"memory": {"glossary": invalid}})
+
+
+def test_config_schema_accepts_both_finalizer_refusal_policies() -> None:
+    """The public schema must not lag the finalizer config validator.
+
+    ``src/sase/finalizers/config.py`` accepts ``fail`` and ``defer``, and
+    ``default_config.yml`` ships ``defer``. The schema drifted behind both
+    once already, which broke every schema-driven config surface.
+    """
+
+    validator = Draft7Validator(schema())
+
+    for refusal in ("fail", "defer"):
+        validator.validate(
+            {
+                "finalizers": {
+                    "instances": {
+                        "commit": {"use": "builtin@commit", "refusal": refusal}
+                    }
+                }
+            }
+        )
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {
+                "finalizers": {
+                    "instances": {
+                        "commit": {"use": "builtin@commit", "refusal": "ignore"}
+                    }
+                }
+            }
+        )
