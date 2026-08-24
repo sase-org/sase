@@ -13,9 +13,12 @@ from sase.agent.launch_request_types import LaunchRequestError
 from sase.axe.chop_proposal_launch import launch_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_runner import run_configured_chop_once
+from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
 from sase.axe.config import ChopConfig
 from sase.axe.state import chop_run_log_path, read_chop_run
+from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
 from sase.feature_flags import override_flags
+from sase.xprompt import extract_vcs_workflow_tag
 
 from tests._axe_chop_proposal_launch_helpers import (
     config,
@@ -103,7 +106,46 @@ def test_typed_chop_proposal_uses_durable_admission_and_chop_env(
     assert env["SASE_CHOP_PROPOSAL_INDEX"] == "0"
     assert env["SASE_CHOP_ADMISSION_LOGICAL_ID"] == env["SASE_LAUNCH_LOGICAL_ID"]
     assert env["SASE_CHOP_ADMISSION_FINGERPRINT"]
+    assert (extract_vcs_workflow_tag(prompt) or "").strip() == "#git:sase"
     notify.assert_not_called()
+
+
+def test_typed_chop_dispatch_fails_closed_without_workspace_metadata() -> None:
+    unit = LaunchUnitWire(
+        logical_id="unit-1",
+        source_order=0,
+        payload=AgentUnitWire(
+            prompt="Review docs.",
+            identity="refresh",
+            identity_explicit=True,
+        ),
+    )
+
+    def _launch(*args: object, **kwargs: object) -> list[SimpleNamespace]:
+        raise AssertionError("missing workspace metadata reached the launcher")
+
+    dispatcher = make_axe_chop_agent_dispatcher(
+        {
+            "unit_dispatch_metadata": {
+                "unit-1": {
+                    "logical_id": "unit-1",
+                    "lumberjack_name": "docs",
+                    "chop_name": "docs",
+                    "run_id": "run-missing-workspace",
+                    "env": {},
+                }
+            }
+        },
+        launch_agents_from_cwd_fn=_launch,
+    )
+    assert dispatcher is not None
+
+    ok, identity, message, results = dispatcher(unit, "fp-missing-workspace")
+
+    assert ok is False
+    assert identity is None
+    assert message == "missing AXE chop workspace for unit-1"
+    assert results == []
 
 
 def test_typed_chop_proposal_flag_off_rejects_before_launch(

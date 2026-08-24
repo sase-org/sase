@@ -15,9 +15,8 @@ from sase.axe.chop_proposals import prepare_chop_proposals
 from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
 from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
 from sase.feature_flags import override_flags
+from sase.xprompt import extract_vcs_workflow_tag
 from sase.xprompt.directives import extract_prompt_directives
-
-from tests._axe_chop_proposal_launch_helpers import known_project_resolver
 
 pytest_plugins = ["tests.axe_chop_runner_fixtures"]
 
@@ -380,7 +379,7 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
                 {
                     "id": "first",
                     "prompt": "%if::\n```bash\nexit 1\n```\nFirst.",
-                    "workspace": "git:sase",
+                    "workspace": "gh:sase-org/sase",
                     "agent_name": "first",
                     "clan": "toobig-x",
                     "clan_summary": "[bold]Large[/bold]",
@@ -388,23 +387,32 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
                 {
                     "id": "second",
                     "prompt": "%if::\n```bash\nexit 1\n```\nSecond.",
-                    "workspace": "git:sase",
+                    "workspace": "gh:sase-org/sase",
                     "agent_name": "second",
                     "clan": "toobig-x",
                 },
                 {
                     "id": "third",
                     "prompt": "%if::\n```bash\nexit 0\n```\nThird.",
-                    "workspace": "git:sase",
+                    "workspace": "gh:sase-org/sase",
                     "agent_name": "third",
                     "clan": "toobig-x",
                 },
             ]
         },
     )
+
+    def _gh_project_resolver(_prompt: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            workflow_type="gh",
+            ref="sase",
+            workspace_dir=str(repo),
+            project_file="/tmp/projects/sase/sase.sase",
+        )
+
     monkeypatch.setattr(
         "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
-        lambda _prompt: known_project_resolver(repo),
+        _gh_project_resolver,
     )
     calls: list[tuple[str, dict[str, str]]] = []
 
@@ -442,6 +450,7 @@ def test_typed_clan_batch_promotes_first_surviving_member_end_to_end(
     assert len(calls) == 1
     prompt, _env = calls[0]
     assert "%if" not in prompt
+    assert (extract_vcs_workflow_tag(prompt) or "").strip() == "#gh:sase"
     _, directives = extract_prompt_directives(prompt)
     assert directives.name == "toobig-x.third"
     assert directives.clan == "toobig-x"

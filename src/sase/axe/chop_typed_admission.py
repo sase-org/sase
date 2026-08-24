@@ -66,7 +66,10 @@ def make_axe_chop_agent_dispatcher(
                 unit_meta=unit_meta,
             )
 
-        prompt = agent_unit_dispatch_prompt(payload)
+        prompt, prompt_error = _agent_unit_launch_prompt(payload, unit_meta)
+        if prompt_error is not None:
+            return False, None, prompt_error, []
+        assert prompt is not None
         extra_env = _unit_dispatch_env(unit_meta, prompt, unit.logical_id, fingerprint)
         launch = launch_agents_from_cwd_fn
         if launch is None:
@@ -190,6 +193,58 @@ def _clan_declared_marker_path(admission_root: Path, clan: str) -> Path:
     return (
         admission_root / UNITS_DIRNAME / f"clan-declared-{safe_launch_name(clan)}.json"
     )
+
+
+def _agent_unit_launch_prompt(
+    payload: AgentUnitWire,
+    metadata: Mapping[str, Any],
+) -> tuple[str | None, str | None]:
+    """Rebuild an Axe dispatch prompt with its durable project routing."""
+    workspace_tag = _workspace_launch_tag(metadata)
+    if workspace_tag is None:
+        logical_id = _str_or_none(metadata.get("logical_id")) or "unknown"
+        return None, f"missing AXE chop workspace for {logical_id}"
+
+    prompt = agent_unit_dispatch_prompt(payload)
+    return _qualify_prompt_with_workspace(prompt, workspace_tag), None
+
+
+def _workspace_launch_tag(metadata: Mapping[str, Any]) -> str | None:
+    raw_workspace = _str_or_none(metadata.get("workspace"))
+    if raw_workspace is None:
+        return None
+
+    workspace = raw_workspace.strip().lstrip("#").strip()
+    if not workspace:
+        return None
+
+    tag = f"#{workspace}"
+    try:
+        from sase.agent.launch_cwd_common import resolve_known_project_vcs_launch_ref
+
+        known_ref = resolve_known_project_vcs_launch_ref(tag)
+    except Exception:
+        known_ref = None
+    if known_ref is not None:
+        workflow_type = _str_or_none(getattr(known_ref, "workflow_type", None))
+        ref = _str_or_none(getattr(known_ref, "ref", None))
+        if workflow_type is not None and ref is not None:
+            return f"#{workflow_type}:{ref}"
+    return tag
+
+
+def _qualify_prompt_with_workspace(prompt: str, workspace_tag: str) -> str:
+    from sase.xprompt._parsing_vcs_tags import (
+        extract_vcs_workflow_tag,
+        find_vcs_workflow_tag_prepend_offset,
+        replace_vcs_workflow_tags,
+    )
+
+    if extract_vcs_workflow_tag(prompt) is not None:
+        return replace_vcs_workflow_tags(prompt, workspace_tag)
+
+    offset = find_vcs_workflow_tag_prepend_offset(prompt)
+    return f"{prompt[:offset]}{workspace_tag}\n{prompt[offset:]}"
 
 
 def _unit_metadata(data: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
