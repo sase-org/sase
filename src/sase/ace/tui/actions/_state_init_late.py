@@ -97,16 +97,19 @@ def init_late_startup_state(
     self._axe_fold_manager = FoldStateManager()
 
     # Query history stacks for prev/next navigation, namespaced by
-    # Artifacts pane id. Only the Patches pane is wired up to this
-    # mechanism today; other panes' buckets stay absent until requested.
-    from ...query_history import load_query_history
+    # Artifacts pane id.
+    from ...query_history import load_all_query_history
 
-    self._query_history = {"patches": load_query_history("patches")}
+    self._query_history = load_all_query_history()
 
-    # Per-query Patch selection persistence, namespaced by pane id.
-    from ...query_selection import load_query_selections
+    # Per-query Artifacts selection persistence, namespaced by pane id.
+    from ...query_selection import load_all_query_selections
 
-    self._query_selections = {"patches": load_query_selections("patches")}
+    self._query_selections = load_all_query_selections()
+    self._query_history_persist_running = False
+    self._query_history_persist_pending = False
+    self._query_selection_persist_running = False
+    self._query_selection_persist_pending = False
 
     # Saved-query slots cached in memory, namespaced by pane id.
     # Patch query display and keymap/help surfaces read this from memory, so keep it

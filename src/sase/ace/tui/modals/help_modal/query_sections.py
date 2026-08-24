@@ -4,7 +4,7 @@ from collections.abc import Mapping
 
 from rich.text import Text
 
-from ....query_history import load_query_history
+from ....query_history import QueryHistoryStacks, load_query_history
 from ....saved_queries import KEY_ORDER, load_saved_queries
 from ...widgets._completion_match_highlight import append_highlighted
 from ...widgets.patch_detail import build_query_text
@@ -111,22 +111,26 @@ def add_query_history_section(
     text: Text,
     *,
     pane_id: str = "patches",
+    stacks: QueryHistoryStacks | None = None,
     prev_key: str = "^",
     next_key: str = "_",
     border_color: str = "#FFD700",
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Add the query history stacks section for *pane_id* (Patches only today).
+    """Add the query history stacks section for *pane_id*.
 
     Shows last 5 entries from each stack with visual indicators.
 
     Args:
         text: The Text object to append to.
         pane_id: The Artifacts pane whose history stacks to render.
+        stacks: In-memory stack snapshot for *pane_id*. When omitted,
+            storage is consulted for standalone callers/tests only.
         border_color: Color for the border characters.
         title_runs: Matched-query runs to highlight in the section title.
     """
-    stacks = load_query_history(pane_id)
+    if stacks is None:
+        stacks = load_query_history(pane_id)
 
     # Section header
     text.append("\n")

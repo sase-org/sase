@@ -6,7 +6,7 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.query_history import QueryHistoryStacks
-from sase.ace.query_record import QueryRecord
+from sase.ace.query_record import QueryRecord, current_profile_digest
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import SavedQueryPickerModal
 from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
@@ -82,7 +82,11 @@ async def test_picker_digit_loads_query_and_preserves_history_semantics(
         monkeypatch.setattr(page.app, "_load_patches", _tracked_load)
         page.app._query_history = {"patches": QueryHistoryStacks(prev=[], next=[])}
         active_query = page.app.canonical_query_string
-        active_record = QueryRecord(source=active_query, canonical=active_query)
+        active_record = QueryRecord(
+            source=active_query,
+            canonical=active_query,
+            profile_digest=current_profile_digest("patches"),
+        )
         await _open_picker(
             page,
             {"2": '"other"', "5": active_query},

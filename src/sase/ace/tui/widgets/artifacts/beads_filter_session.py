@@ -18,6 +18,7 @@ from .beads_data import BeadsSnapshot
 from .beads_filtering import BeadFilterIndex, build_bead_filter_index
 
 if TYPE_CHECKING:
+    from sase.ace.query_profile import CompiledQueryProfile
     from textual.containers import Vertical as _MixinBase
 
     from .entry_navigation import ArtifactEntryTarget
@@ -38,6 +39,7 @@ class BeadsFilterSessionMixin(_MixinBase):
     _filter_restore_selection: str | None
     _live_filter_values: BeadFilterValues | None
     _filter_query_error: BeadFilterQueryError | None
+    _query_profile: CompiledQueryProfile
 
     if TYPE_CHECKING:
 
@@ -63,6 +65,70 @@ class BeadsFilterSessionMixin(_MixinBase):
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
+
+    def query_history_record(self) -> object:
+        """Return the committed Beads query-history record."""
+        from sase.ace.query_record import QueryRecord
+
+        source = to_query_string(self.filters)
+        return QueryRecord(
+            source=source,
+            canonical=source,
+            profile_digest=getattr(self._query_profile, "digest", None),
+        )
+
+    def apply_query_history_record(self, record: object) -> bool:
+        """Apply a validated query-history record to the Beads pane."""
+        source = getattr(record, "source", "")
+        try:
+            values = parse_bead_filter_query(source)
+        except BeadFilterQueryError:
+            return False
+        canonical = to_query_string(values)
+        if canonical != getattr(record, "canonical", None):
+            return False
+        self._commit_beads_filter_values(values, record_history=False)
+        return True
+
+    def _record_query_history_transition(
+        self,
+        old_values: BeadFilterValues,
+        new_values: BeadFilterValues,
+    ) -> None:
+        recorder = getattr(
+            getattr(self, "app", None),
+            "_record_artifacts_query_transition",
+            None,
+        )
+        if not callable(recorder):
+            return
+        old_source = to_query_string(old_values)
+        new_source = to_query_string(new_values)
+        recorder(
+            "beads",
+            old_source=old_source,
+            old_canonical=old_source,
+            old_profile_digest=getattr(self._query_profile, "digest", None),
+            new_canonical=new_source,
+            selected_target=self.selected_entry_target(),
+        )
+
+    def _commit_beads_filter_values(
+        self,
+        values: BeadFilterValues,
+        *,
+        preferred_id: str | None = None,
+        record_history: bool = True,
+    ) -> None:
+        if record_history:
+            self._record_query_history_transition(self.filters, values)
+        self.filters = values
+        self._live_filter_values = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self.query_one(BeadFilterBar).set_query(to_query_string(values))
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=preferred_id)
 
     def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
         event.stop()
@@ -115,12 +181,9 @@ class BeadsFilterSessionMixin(_MixinBase):
             self.notify(exc.message, severity="error")
             return
 
-        self.filters = values
-        self._live_filter_values = values
         preferred_id = self._selected_option_id()
+        self._commit_beads_filter_values(values, preferred_id=preferred_id)
         self._close_filter_session()
-        self._cancel_jump_mode_for_filter_change()
-        self._refresh_options(preferred_id=preferred_id)
         self.focus_list()
 
     def on_bead_filter_bar_dismissed(
@@ -203,15 +266,9 @@ class BeadsFilterSessionMixin(_MixinBase):
             values = parse_bead_filter_query(query)
         except BeadFilterQueryError:
             return
-        preferred = self.selected_entry_target()
         preferred_id = self._selected_option_id()
-        self.filters = values
-        self._filter_query_error = None
-        if self._filter_session_open:
-            self._live_filter_values = values
-            self.query_one(BeadFilterBar).set_query(query)
-        self._cancel_jump_mode_for_filter_change()
-        self._refresh_options(preferred_id=preferred_id)
+        preferred = self.selected_entry_target()
+        self._commit_beads_filter_values(values, preferred_id=preferred_id)
         restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
 

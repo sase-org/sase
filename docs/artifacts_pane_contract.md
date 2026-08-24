@@ -38,7 +38,7 @@ provider code.
 | `stable_marks`          | Inventory or a built-in list adapter        | `toggle_mark` / `clear_marks`                        |
 | `detail_scroll`         | A detail surface is declared                | Detail `Ctrl+D` / `Ctrl+U`                           |
 | `stable_reference_copy` | Stable identity facts                       | `artifacts_copy_reference` (`y`)                     |
-| `query_history`         | Inventory plus fields                       | `edit_query` history                                 |
+| `query_history`         | Inventory plus fields                       | `edit_query` plus previous/next query history        |
 | `saved_queries`         | Inventory plus fields                       | `start_saved_query_mode`                             |
 | `versions`              | Revision facts                              | Files previous/next version                          |
 | `mutation`              | Built-in adapter with `can_mutate`          | Bead/Patch mutate actions                            |

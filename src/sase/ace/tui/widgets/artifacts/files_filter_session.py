@@ -18,6 +18,7 @@ from .files_filtering import (
 )
 
 if TYPE_CHECKING:
+    from sase.ace.query_profile import CompiledQueryProfile
     from textual.containers import Vertical as _MixinBase
 else:
     _MixinBase = object
@@ -32,6 +33,7 @@ class FilesFilterSessionMixin(_MixinBase):
     _filter_restore_selection: ArtifactEntryTarget | None
     _live_filter_values: FilesFilterValues | None
     _filter_query_error: FilesFilterQueryError | None
+    _query_profile: CompiledQueryProfile
 
     if TYPE_CHECKING:
 
@@ -57,6 +59,73 @@ class FilesFilterSessionMixin(_MixinBase):
         self._filter_restore_selection = None
         self._live_filter_values = None
         self._filter_query_error = None
+
+    def query_history_record(self) -> object:
+        """Return the committed Files query-history record."""
+        from sase.ace.query_record import QueryRecord
+
+        source = to_query_string(self.filters)
+        return QueryRecord(
+            source=source,
+            canonical=source,
+            profile_digest=getattr(self._query_profile, "digest", None),
+        )
+
+    def apply_query_history_record(self, record: object) -> bool:
+        """Apply a validated query-history record to the Files pane."""
+        source = getattr(record, "source", "")
+        try:
+            values = parse_files_filter_query(source)
+        except FilesFilterQueryError:
+            return False
+        canonical = to_query_string(values)
+        if canonical != getattr(record, "canonical", None):
+            return False
+        self._commit_files_filter_values(values, record_history=False)
+        return True
+
+    def _record_query_history_transition(
+        self,
+        old_values: FilesFilterValues,
+        new_values: FilesFilterValues,
+    ) -> None:
+        recorder = getattr(
+            getattr(self, "app", None),
+            "_record_artifacts_query_transition",
+            None,
+        )
+        if not callable(recorder):
+            return
+        old_source = to_query_string(old_values)
+        new_source = to_query_string(new_values)
+        recorder(
+            "files",
+            old_source=old_source,
+            old_canonical=old_source,
+            old_profile_digest=getattr(self._query_profile, "digest", None),
+            new_canonical=new_source,
+            selected_target=self.selected_entry_target(),
+        )
+
+    def _commit_files_filter_values(
+        self,
+        values: FilesFilterValues,
+        *,
+        preferred_target: ArtifactEntryTarget | None = None,
+        grow: bool = False,
+        record_history: bool = True,
+    ) -> None:
+        if record_history:
+            self._record_query_history_transition(self.filters, values)
+        self.filters = values
+        self._live_filter_values = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self.query_one(FileFilterBar).set_query(to_query_string(values))
+        self._cancel_jump_mode_for_filter_change()
+        if grow:
+            self._maybe_grow_files_snapshot(values.limit)
+        self._refresh_options(preferred_target=preferred_target)
 
     def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
         event.stop()
@@ -114,12 +183,9 @@ class FilesFilterSessionMixin(_MixinBase):
             )
             self.notify(exc.message, severity="error")
             return
-        self.filters = values
-        self._live_filter_values = values
         preferred = self.selected_entry_target()
+        self._commit_files_filter_values(values, preferred_target=preferred)
         self._close_filter_session()
-        self._cancel_jump_mode_for_filter_change()
-        self._refresh_options(preferred_target=preferred)
         self.focus_list()
 
     def on_file_filter_bar_dismissed(
@@ -152,12 +218,11 @@ class FilesFilterSessionMixin(_MixinBase):
             next_value = available[index + 1] if index + 1 < len(available) else None
         if self._filter_session_open:
             self._close_filter_session()
-        self.filters = replace(
+        values = replace(
             self.filters,
             kinds=(() if next_value is None else (next_value,)),
         )
-        self._cancel_jump_mode_for_filter_change()
-        self._refresh_options()
+        self._commit_files_filter_values(values)
         self.focus_list()
 
     def _display_filter_values(self) -> FilesFilterValues:
@@ -197,15 +262,11 @@ class FilesFilterSessionMixin(_MixinBase):
         except FilesFilterQueryError:
             return
         preferred = self.selected_entry_target()
-        self.filters = values
-        self._filter_query_error = None
-        if self._filter_session_open:
-            self._live_filter_values = values
-            self.query_one(FileFilterBar).set_query(query)
-        self._cancel_jump_mode_for_filter_change()
-        if grow:
-            self._maybe_grow_files_snapshot(values.limit)
-        self._refresh_options(preferred_target=preferred)
+        self._commit_files_filter_values(
+            values,
+            preferred_target=preferred,
+            grow=grow,
+        )
         restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
     def _maybe_grow_files_snapshot(self, cap: int | None) -> None:

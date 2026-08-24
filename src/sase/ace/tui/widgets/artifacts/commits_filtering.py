@@ -32,6 +32,7 @@ from .commits_timeline import CommitsTimeline
 from .query_rows import commit_query_row_id
 
 if TYPE_CHECKING:
+    from sase.ace.query_profile import CompiledQueryProfile
     from sase.project_display_names import ProjectRefDisplaySnapshot
     from textual.containers import Vertical as _MixinBase
 else:
@@ -63,6 +64,7 @@ class CommitsFilteringMixin(_MixinBase):
     _project_ref_display: ProjectRefDisplaySnapshot
     _query_result_pending: bool
     _query_session: Any
+    _query_profile: CompiledQueryProfile
 
     if TYPE_CHECKING:
 
@@ -99,6 +101,57 @@ class CommitsFilteringMixin(_MixinBase):
         self._pending_filter_values = None
         self._filter_query_error = None
         self._query_result_pending = False
+
+    def query_history_record(self) -> Any:
+        """Return the committed Stitches query-history record."""
+        from sase.ace.query_record import QueryRecord
+
+        source = to_query_string(self.filters)
+        return QueryRecord(
+            source=source,
+            canonical=source,
+            profile_digest=getattr(self._query_profile, "digest", None),
+        )
+
+    def apply_query_history_record(self, record: Any) -> bool:
+        """Apply a validated query-history record to the Stitches pane."""
+        try:
+            values = parse_commit_filter_query(record.source)
+        except CommitFilterQueryError:
+            return False
+        canonical = to_query_string(values)
+        if canonical != record.canonical:
+            return False
+        self._commit_filter_values(
+            values,
+            close_session=False,
+            record_history=False,
+        )
+        return True
+
+    def _record_query_history_transition(
+        self,
+        old_values: CommitLogFilterValues,
+        new_values: CommitLogFilterValues,
+    ) -> None:
+        recorder = getattr(
+            getattr(self, "app", None),
+            "_record_artifacts_query_transition",
+            None,
+        )
+        if not callable(recorder):
+            return
+        old_source = to_query_string(old_values)
+        new_source = to_query_string(new_values)
+        selected = getattr(self, "selected_entry_target", None)
+        recorder(
+            "stitches",
+            old_source=old_source,
+            old_canonical=old_source,
+            old_profile_digest=getattr(self._query_profile, "digest", None),
+            new_canonical=new_source,
+            selected_target=selected() if callable(selected) else None,
+        )
 
     def _filtered_result(
         self,
@@ -394,12 +447,22 @@ class CommitsFilteringMixin(_MixinBase):
         values: CommitLogFilterValues,
         *,
         close_session: bool,
+        record_history: bool = True,
     ) -> None:
         """Commit validated values and reconcile their authoritative result."""
         old_project = self.filters.project
         project = self._project_ref_display.label_for_ref(values.project)
         if project != values.project:
             values = replace(values, project=project)
+        old_values = (
+            self._filter_restore_values
+            if close_session
+            and self._filter_session_open
+            and self._filter_restore_values is not None
+            else self.filters
+        )
+        if record_history:
+            self._record_query_history_transition(old_values, values)
         if values.project != old_project:
             clear_marks = getattr(
                 self.app,

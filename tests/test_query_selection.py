@@ -5,8 +5,10 @@ from unittest.mock import patch
 
 from sase.ace.query_selection import (
     MAX_SELECTIONS,
-    load_query_selections,
+    load_all_query_selections,
+    save_all_query_selections,
     save_query_selections,
+    snapshot_query_selections,
 )
 
 
@@ -15,7 +17,7 @@ def test_load_empty_when_no_file(tmp_path: Path) -> None:
     with patch(
         "sase.ace.query_selection._QUERY_SELECTION_FILE", tmp_path / "nonexistent.json"
     ):
-        result = load_query_selections("patches")
+        result = load_all_query_selections()
         assert result == {}
 
 
@@ -27,7 +29,7 @@ def test_trimming_keeps_most_recent(tmp_path: Path) -> None:
         for i in range(MAX_SELECTIONS + 5):
             selections[f"q{i}"] = f"cl{i}"
         save_query_selections("patches", selections)
-        result = load_query_selections("patches")
+        result = load_all_query_selections()["patches"]
         # Oldest 5 entries (q0..q4) should be trimmed
         for i in range(5):
             assert f"q{i}" not in result
@@ -41,7 +43,7 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     test_file = tmp_path / "query_selections.json"
     test_file.write_text("not valid json {")
     with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        result = load_query_selections("patches")
+        result = load_all_query_selections()
         assert result == {}
 
 
@@ -50,7 +52,7 @@ def test_handles_non_dict_json(tmp_path: Path) -> None:
     test_file = tmp_path / "query_selections.json"
     test_file.write_text('["a", "b"]')
     with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        result = load_query_selections("patches")
+        result = load_all_query_selections()
         assert result == {}
 
 
@@ -61,10 +63,37 @@ def test_save_and_load_is_namespaced_per_pane(tmp_path: Path) -> None:
         save_query_selections("patches", {"q": "v1\x1fpatches\x1fmy-project\x1fpr-1"})
         save_query_selections("stitches", {"q": "v1\x1fstitches\x1fabc123"})
 
-        assert load_query_selections("patches") == {
-            "q": "v1\x1fpatches\x1fmy-project\x1fpr-1"
+        assert load_all_query_selections() == {
+            "patches": {"q": "v1\x1fpatches\x1fmy-project\x1fpr-1"},
+            "stitches": {"q": "v1\x1fstitches\x1fabc123"},
         }
-        assert load_query_selections("stitches") == {"q": "v1\x1fstitches\x1fabc123"}
+
+
+def test_load_and_save_all_query_selections(tmp_path: Path) -> None:
+    """Whole-map helpers preserve every pane's selection bucket."""
+    test_file = tmp_path / "query_selections.json"
+    with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
+        save_all_query_selections(
+            {
+                "patches": {"p": "v1\x1fpatches\x1fp"},
+                "files": {"f": "v1\x1ffiles\x1ff"},
+            }
+        )
+
+        assert load_all_query_selections() == {
+            "patches": {"p": "v1\x1fpatches\x1fp"},
+            "files": {"f": "v1\x1ffiles\x1ff"},
+        }
+
+
+def test_snapshot_query_selections_is_detached() -> None:
+    """Background writers receive a copy, not live mutable maps."""
+    panes = {"beads": {"old": "v1\x1fbeads\x1fold"}}
+    snapshot = snapshot_query_selections(panes)
+
+    panes["beads"]["new"] = "v1\x1fbeads\x1fnew"
+
+    assert snapshot["beads"] == {"old": "v1\x1fbeads\x1fold"}
 
 
 def test_load_query_selections_migrates_legacy_flat_file(tmp_path: Path) -> None:
@@ -74,6 +103,5 @@ def test_load_query_selections_migrates_legacy_flat_file(tmp_path: Path) -> None
     test_file = tmp_path / "query_selections.json"
     test_file.write_text(json.dumps({"status:Ready": "gamma", '"alpha"': "alpha"}))
     with patch("sase.ace.query_selection._QUERY_SELECTION_FILE", test_file):
-        result = load_query_selections("patches")
-        assert result == {"status:Ready": "gamma", '"alpha"': "alpha"}
-        assert load_query_selections("stitches") == {}
+        result = load_all_query_selections()
+        assert result == {"patches": {"status:Ready": "gamma", '"alpha"': "alpha"}}

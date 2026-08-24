@@ -31,10 +31,12 @@ _ARTIFACT_GROUP_CYCLE_ACTIONS = frozenset(
         "cycle_grouping_mode_reverse",
     }
 )
+_ARTIFACT_QUERY_HISTORY_ACTIONS = frozenset({"prev_query", "next_query"})
 _CONTRACT_GATED_ARTIFACT_ACTIONS = (
     _ARTIFACT_RELATION_ACTIONS
     | _ARTIFACT_GROUP_FOLD_ACTIONS
     | _ARTIFACT_GROUP_CYCLE_ACTIONS
+    | _ARTIFACT_QUERY_HISTORY_ACTIONS
 )
 
 
@@ -139,6 +141,11 @@ def check_app_action(
         "cycle_artifacts_split_reverse",
     }:
         if app.current_tab != ARTIFACTS_TAB:
+            return False
+    if action in _ARTIFACT_QUERY_HISTORY_ACTIONS:
+        if app.current_tab != ARTIFACTS_TAB:
+            return False
+        if not _artifact_contract_action_available(app, action):
             return False
     if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
         return False
@@ -280,6 +287,8 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
         return False
     if action in _ARTIFACT_RELATION_ACTIONS:
         return contract.has(PaneCapability.RELATIONS)
+    if action in _ARTIFACT_QUERY_HISTORY_ACTIONS:
+        return contract.has(PaneCapability.QUERY_HISTORY)
     if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
         # Bare ``L`` is artifacts_link_jump on Plan. Fold-snap lives on ``zL``.
         return False

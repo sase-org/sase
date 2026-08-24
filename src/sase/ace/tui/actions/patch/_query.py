@@ -58,6 +58,48 @@ class PatchQueryMixin:
             return
         self._load_patches()  # type: ignore[attr-defined]
 
+    def _record_patch_query_transition(self, new_canonical: str) -> None:
+        """Record the current Patch query before replacing it."""
+        from ....query_history import (
+            QueryHistoryStacks,
+            push_to_prev_stack,
+            save_query_history,
+        )
+        from ....query_record import QueryRecord, current_profile_digest
+
+        current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+        if new_canonical == current_canonical:
+            return
+        pane_id = "patches"
+        recorder = getattr(self, "_record_artifacts_query_transition", None)
+        if callable(recorder):
+            pane = self._artifacts_entry_navigator("patches")  # type: ignore[attr-defined]
+            selected = None
+            if pane is not None:
+                selected_entry = getattr(pane, "selected_entry_target", None)
+                selected = selected_entry() if callable(selected_entry) else None
+            recorder(
+                pane_id,
+                old_source=self.query_string,
+                old_canonical=current_canonical,
+                old_profile_digest=current_profile_digest(pane_id),
+                new_canonical=new_canonical,
+                selected_target=selected,
+            )
+            return
+
+        self._save_selection_for_current_query()  # type: ignore[attr-defined]
+        current_record = QueryRecord(
+            source=self.query_string,
+            canonical=current_canonical,
+            profile_digest=current_profile_digest(pane_id),
+        )
+        stacks = self._query_history.setdefault(
+            pane_id, QueryHistoryStacks(prev=[], next=[])
+        )
+        push_to_prev_stack(current_record, stacks)
+        save_query_history(pane_id, stacks)
+
     def _load_saved_query(self, slot: str) -> None:
         """Load a saved query from a slot on the active Artifacts pane.
 
@@ -83,13 +125,6 @@ class PatchQueryMixin:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ....query_history import (
-            QueryHistoryStacks,
-            push_to_prev_stack,
-            save_query_history,
-        )
-        from ....query_record import QueryRecord
-
         queries = self._saved_queries.get(pane_id, {})
         if slot not in queries:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
@@ -111,17 +146,7 @@ class PatchQueryMixin:
             )
 
             # Only push to history if query actually changes
-            current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
-            if new_canonical != current_canonical:
-                self._save_selection_for_current_query()  # type: ignore[attr-defined]
-                current_record = QueryRecord(
-                    source=self.query_string, canonical=current_canonical
-                )
-                stacks = self._query_history.setdefault(
-                    pane_id, QueryHistoryStacks(prev=[], next=[])
-                )
-                push_to_prev_stack(current_record, stacks)
-                save_query_history(pane_id, stacks)
+            self._record_patch_query_transition(new_canonical)
 
             self.parsed_query = new_parsed
             self.query_string = record.source

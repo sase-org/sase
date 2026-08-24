@@ -485,6 +485,10 @@ class PatchMixin(
             target = patch_row_target(self.patches[idx])
             canonical = self.canonical_query_string  # type: ignore[attr-defined]
             pane_id = "patches"
+            remember = getattr(self, "_remember_artifacts_query_selection", None)
+            if callable(remember):
+                remember(pane_id, canonical, target)
+                return
             selections = dict(self._query_selections.get(pane_id, {}))
             # Pop and re-insert to mark as recently used
             selections.pop(canonical, None)

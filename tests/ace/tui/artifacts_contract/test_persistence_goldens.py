@@ -68,8 +68,9 @@ def test_query_selections_golden_migrates_onto_patches_pane(
         "_QUERY_SELECTION_FILE",
         _copy_golden("query_selections.json", tmp_path),
     )
-    assert query_selection.load_query_selections("patches") == {
-        "status:Ready": "gamma",
-        '"alpha"': "alpha",
+    assert query_selection.load_all_query_selections() == {
+        "patches": {
+            "status:Ready": "gamma",
+            '"alpha"': "alpha",
+        }
     }
-    assert query_selection.load_query_selections("stitches") == {}

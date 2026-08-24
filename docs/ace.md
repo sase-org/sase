@@ -2533,8 +2533,10 @@ Beads, and Plans.
 | `^` | Navigate to previous query in history |
 | `_` | Navigate to next query in history     |
 
-Query history is available on the Patches sub-tab and tracks queries as you switch
-between them.
+Query history is available on every Artifacts sub-tab whose pane contract enables
+`query_history`, including provider-backed document panes. Each pane has its own durable
+previous/next stack, and Help shows the active pane's stack with the configured
+previous/next key labels.
 
 See [`docs/query_language.md`](query_language.md) for the full query syntax reference,
 including boolean expressions, status shorthands, property filters, and searchable

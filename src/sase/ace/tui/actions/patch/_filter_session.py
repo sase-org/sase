@@ -94,13 +94,6 @@ class PatchFilterSessionActionsMixin:
         self._refresh_display()  # type: ignore[attr-defined]
 
     def _commit_patch_query(self, source: str, *, notify: bool = True) -> None:
-        from ....query_history import (
-            QueryHistoryStacks,
-            push_to_prev_stack,
-            save_query_history,
-        )
-        from ....query_record import QueryRecord
-
         new_parsed = self._parse_patch_query(source)
         new_canonical = self._canonical_patch_query(source, new_parsed)
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
@@ -111,17 +104,7 @@ class PatchFilterSessionActionsMixin:
             self._refresh_display()  # type: ignore[attr-defined]
             return
 
-        pane_id = "patches"
-        self._save_selection_for_current_query()  # type: ignore[attr-defined]
-        current_record = QueryRecord(
-            source=self.query_string,
-            canonical=current_canonical,
-        )
-        stacks = self._query_history.setdefault(
-            pane_id, QueryHistoryStacks(prev=[], next=[])
-        )
-        push_to_prev_stack(current_record, stacks)
-        save_query_history(pane_id, stacks)
+        self._record_patch_query_transition(new_canonical)  # type: ignore[attr-defined]
 
         self.query_string = source
         self.parsed_query = new_parsed

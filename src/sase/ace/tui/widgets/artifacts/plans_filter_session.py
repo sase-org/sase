@@ -98,6 +98,74 @@ class PlansFilterSessionMixin(_MixinBase):
         self._deep_archive_cache = {}
         self._host_limit_archive_extended = False
 
+    def query_history_record(self) -> object:
+        """Return the committed document-pane query-history record."""
+        from sase.ace.query_record import QueryRecord
+
+        source = to_query_string(self.filters)
+        return QueryRecord(
+            source=source,
+            canonical=source,
+            profile_digest=getattr(self._query_profile, "digest", None),
+        )
+
+    def apply_query_history_record(self, record: object) -> bool:
+        """Apply a validated query-history record to the document pane."""
+        source = getattr(record, "source", "")
+        try:
+            values = parse_plan_filter_query(source)
+        except PlanFilterQueryError:
+            return False
+        canonical = to_query_string(values)
+        if canonical != getattr(record, "canonical", None):
+            return False
+        self._commit_plans_filter_values(values, record_history=False)
+        return True
+
+    def _record_query_history_transition(
+        self,
+        old_values: PlanFilterValues,
+        new_values: PlanFilterValues,
+    ) -> None:
+        recorder = getattr(
+            getattr(self, "app", None),
+            "_record_artifacts_query_transition",
+            None,
+        )
+        if not callable(recorder):
+            return
+        old_source = to_query_string(old_values)
+        new_source = to_query_string(new_values)
+        recorder(
+            getattr(self, "pane_key", "ref:plan"),
+            old_source=old_source,
+            old_canonical=old_source,
+            old_profile_digest=getattr(self._query_profile, "digest", None),
+            new_canonical=new_source,
+            selected_target=self.selected_entry_target(),
+        )
+
+    def _commit_plans_filter_values(
+        self,
+        values: PlanFilterValues,
+        *,
+        preferred_id: str | None = None,
+        grow: bool = False,
+        record_history: bool = True,
+    ) -> None:
+        if record_history:
+            self._record_query_history_transition(self.filters, values)
+        self.filters = values
+        self._live_filter_values = values
+        self._filter_query_error = None
+        if self._filter_session_open:
+            self.query_one(PlanFilterBar).set_query(to_query_string(values))
+        self._cancel_jump_mode_for_filter_change()
+        if grow:
+            self._host_limit_archive_extended = True
+        self._refresh_options(preferred_id=preferred_id)
+        self._schedule_deep_archive(values)
+
     def on_filter_bar_clicked(self, event: FilterBar.Clicked) -> None:
         event.stop()
         self.show_filters()
@@ -160,13 +228,9 @@ class PlansFilterSessionMixin(_MixinBase):
             self.notify(exc.message, severity="error")
             return
 
-        self.filters = values
-        self._live_filter_values = values
         preferred_id = self._selected_option_id()
+        self._commit_plans_filter_values(values, preferred_id=preferred_id)
         self._close_filter_session()
-        self._cancel_jump_mode_for_filter_change()
-        self._refresh_options(preferred_id=preferred_id)
-        self._schedule_deep_archive(values)
         self.focus_list()
 
     def on_plan_filter_bar_dismissed(
@@ -413,16 +477,11 @@ class PlansFilterSessionMixin(_MixinBase):
             return
         preferred = self.selected_entry_target()
         preferred_id = self._selected_option_id()
-        self.filters = values
-        self._filter_query_error = None
-        if self._filter_session_open:
-            self._live_filter_values = values
-            self.query_one(PlanFilterBar).set_query(query)
-        self._cancel_jump_mode_for_filter_change()
-        if grow:
-            self._host_limit_archive_extended = True
-        self._refresh_options(preferred_id=preferred_id)
-        self._schedule_deep_archive(values)
+        self._commit_plans_filter_values(
+            values,
+            preferred_id=preferred_id,
+            grow=grow,
+        )
         restore_selection_after_limit(self, preferred)  # type: ignore[arg-type]
 
 

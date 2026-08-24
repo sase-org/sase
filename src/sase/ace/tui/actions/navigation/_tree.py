@@ -429,12 +429,6 @@ class TreeNavigationMixin(NavigationMixinBase):
 
         from ...widgets.artifacts.patch_entry import patch_row_target
         from ....query import to_canonical_string
-        from ....query_history import (
-            QueryHistoryStacks,
-            push_to_prev_stack,
-            save_query_history,
-        )
-        from ....query_record import QueryRecord
         from ....relation_reveal import (
             build_relation_reveal_query,
             make_relation_reveal,
@@ -468,15 +462,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             origin_source = self.query_string
 
             if new_canonical != current_canonical:
-                self._save_selection_for_current_query()  # type: ignore[attr-defined]
-                current_record = QueryRecord(
-                    source=origin_source, canonical=current_canonical
-                )
-                stacks = self._query_history.setdefault(
-                    "patches", QueryHistoryStacks(prev=[], next=[])
-                )
-                push_to_prev_stack(current_record, stacks)
-                save_query_history("patches", stacks)
+                self._record_patch_query_transition(new_canonical)  # type: ignore[attr-defined]
 
             self.parsed_query = new_parsed
             self.query_string = new_query

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from sase.ace.query_history import QueryHistoryStacks
+from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.help_modal import HelpModal
@@ -111,3 +113,42 @@ def test_saved_query_help_badges_keep_fixed_box_width() -> None:
     assert lines
     assert all(len(line) == 57 for line in lines)
     assert "[Ctrl+X1]" in text.plain
+
+
+def test_help_modal_renders_active_non_patch_query_history() -> None:
+    modal = HelpModal(
+        current_tab="artifacts",
+        active_query="status:open",
+        registry=load_keymap_registry({}),
+        pane_id="beads",
+        query_history=QueryHistoryStacks(
+            prev=[QueryRecord(source="status:closed", canonical="status:closed")],
+            next=[QueryRecord(source="status:open", canonical="status:open")],
+        ),
+        query_history_enabled=True,
+    )
+
+    combined = modal._build_left_column().plain + modal._build_right_column().plain
+
+    assert "Query History" in combined
+    assert "status:closed" in combined
+    assert "status:open" in combined
+
+
+def test_help_modal_omits_query_history_when_contract_disabled() -> None:
+    modal = HelpModal(
+        current_tab="artifacts",
+        active_query="status:open",
+        registry=load_keymap_registry({}),
+        pane_id="beads",
+        query_history=QueryHistoryStacks(
+            prev=[QueryRecord(source="status:closed", canonical="status:closed")],
+            next=[],
+        ),
+        query_history_enabled=False,
+    )
+
+    combined = modal._build_left_column().plain + modal._build_right_column().plain
+
+    assert "Query History" not in combined
+    assert "status:closed" not in combined

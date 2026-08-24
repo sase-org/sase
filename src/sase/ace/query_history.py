@@ -91,6 +91,34 @@ def _write_all_panes(panes: dict[str, QueryHistoryStacks]) -> bool:
     return write_json_validated(_query_history_file(), payload)
 
 
+def copy_query_history_stacks(stacks: QueryHistoryStacks) -> QueryHistoryStacks:
+    """Return a detached copy of one pane's history stacks."""
+    return QueryHistoryStacks(prev=list(stacks.prev), next=list(stacks.next))
+
+
+def snapshot_query_history(
+    panes: dict[str, QueryHistoryStacks],
+) -> dict[str, QueryHistoryStacks]:
+    """Return a detached, max-bounded copy of every pane history bucket."""
+    return {
+        pane_id: QueryHistoryStacks(
+            prev=list(stacks.prev[-MAX_STACK_SIZE:]),
+            next=list(stacks.next[-MAX_STACK_SIZE:]),
+        )
+        for pane_id, stacks in panes.items()
+    }
+
+
+def load_all_query_history() -> dict[str, QueryHistoryStacks]:
+    """Load every pane's query-history stacks from disk."""
+    return snapshot_query_history(_load_all_panes())
+
+
+def save_all_query_history(panes: dict[str, QueryHistoryStacks]) -> bool:
+    """Persist a detached map of all pane history stacks."""
+    return _write_all_panes(snapshot_query_history(panes))
+
+
 def load_query_history(pane_id: str) -> QueryHistoryStacks:
     """Load query history stacks for *pane_id* from disk.
 
@@ -111,11 +139,8 @@ def save_query_history(pane_id: str, stacks: QueryHistoryStacks) -> bool:
         True if saved successfully, False otherwise.
     """
     panes = _load_all_panes()
-    panes[pane_id] = QueryHistoryStacks(
-        prev=stacks.prev[-MAX_STACK_SIZE:],
-        next=stacks.next[-MAX_STACK_SIZE:],
-    )
-    return _write_all_panes(panes)
+    panes[pane_id] = copy_query_history_stacks(stacks)
+    return save_all_query_history(panes)
 
 
 def _remove_and_append(stack: list[QueryRecord], record: QueryRecord) -> None:
@@ -191,9 +216,13 @@ def navigate_next(
 __all__ = [
     "MAX_STACK_SIZE",
     "QueryHistoryStacks",
+    "copy_query_history_stacks",
+    "load_all_query_history",
     "load_query_history",
     "navigate_next",
     "navigate_prev",
     "push_to_prev_stack",
+    "save_all_query_history",
     "save_query_history",
+    "snapshot_query_history",
 ]

@@ -138,14 +138,23 @@ class AppWatchersMixin:
             if new_tab == "agents":
                 self._prepare_agents_help_guide_state()
             pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+            query_context = getattr(self, "_query_history_help_context", None)
+            if callable(query_context):
+                active_query, query_history, query_history_enabled = query_context()
+            else:
+                active_query = self.canonical_query_string
+                query_history = None
+                query_history_enabled = False
             screen.refresh_for_tab(
                 new_tab,
-                self.canonical_query_string,
+                active_query,
                 registry=self._keymap_registry,
                 saved_queries={
                     slot: record.canonical
                     for slot, record in self._saved_queries.get(pane_id, {}).items()
                 },
+                query_history=query_history,
+                query_history_enabled=query_history_enabled,
                 pane_id=pane_id,
                 agents_launch_targets_available=(
                     self._agents_onboarding_launch_targets_available
@@ -177,6 +186,34 @@ class AppWatchersMixin:
         if self.current_tab != ARTIFACTS_TAB:
             return
         self._sync_active_artifacts_entry_state()
+        from .modals import HelpModal
+
+        screen = self.screen
+        if isinstance(screen, HelpModal):
+            pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+            query_context = getattr(self, "_query_history_help_context", None)
+            if callable(query_context):
+                active_query, query_history, query_history_enabled = query_context()
+            else:
+                active_query = self.canonical_query_string
+                query_history = None
+                query_history_enabled = False
+            screen.refresh_for_tab(
+                self.current_tab,
+                active_query,
+                registry=self._keymap_registry,
+                saved_queries={
+                    slot: record.canonical
+                    for slot, record in self._saved_queries.get(pane_id, {}).items()
+                },
+                query_history=query_history,
+                query_history_enabled=query_history_enabled,
+                pane_id=pane_id,
+                agents_launch_targets_available=(
+                    self._agents_onboarding_launch_targets_available
+                ),
+                agents_plugins_installed=self._agents_onboarding_plugins_installed,
+            )
 
     def watch_artifacts_split_mode(
         self: Any,

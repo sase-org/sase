@@ -17,6 +17,7 @@ from textual.widgets import ContentSwitcher, Input, Static
 from ..base import CopyModeForwardingMixin
 
 if TYPE_CHECKING:
+    from ....query_history import QueryHistoryStacks
     from ...app import AceApp
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
@@ -95,7 +96,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
         ("slash", "focus_filter", "Filter"),
-        # Query history navigation (Patches tab only)
+        # Query history navigation (contract-enabled Artifacts panes only)
         Binding("circumflex_accent", "go_prev_query", "Prev Query", show=False),
         Binding("underscore", "go_next_query", "Next Query", show=False),
     ]
@@ -107,6 +108,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         *,
         registry: KeymapRegistry | None = None,
         saved_queries: Mapping[str, str] | None = None,
+        query_history: QueryHistoryStacks | None = None,
+        query_history_enabled: bool = False,
         pane_id: str = "patches",
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
@@ -119,6 +122,10 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             registry: Active keymap registry; defaults are used outside an app.
             saved_queries: Cached saved-query snapshot for *pane_id*; falls back
                 to storage only for standalone construction outside the app.
+            query_history: Cached query-history snapshot for *pane_id*; falls
+                back to storage only for standalone construction outside the app.
+            query_history_enabled: Whether the active pane's contract enables
+                query-history actions.
             pane_id: The active Artifacts pane id, used to route the saved
                 queries and query history sections through the active pane
                 instead of always assuming Patches.
@@ -130,6 +137,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._active_query = active_query
         self._registry = registry
         self._saved_queries = dict(saved_queries) if saved_queries is not None else None
+        self._query_history = query_history
+        self._query_history_enabled = query_history_enabled
         self._pane_id = pane_id
         self._agents_launch_targets_available = agents_launch_targets_available
         self._agents_plugins_installed = agents_plugins_installed
@@ -244,8 +253,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 saved_query_prefix=key_display_name(km.app.start_saved_query_mode),
                 title_runs=saved_runs or (),
             )
-        # Query history is Patches-pane only
-        if self._current_tab == "artifacts" and self._pane_id == "patches":
+        if self._current_tab == "artifacts" and self._query_history_enabled:
             history_runs = (
                 matches_title("Query History", self._filter_query)
                 if result.active
@@ -256,6 +264,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 add_query_history_section(
                     text,
                     pane_id=self._pane_id,
+                    stacks=self._query_history,
                     prev_key=d(km.app.prev_query),
                     next_key=d(km.app.next_query),
                     title_runs=history_runs or (),
@@ -340,6 +349,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         *,
         registry: KeymapRegistry | None = None,
         saved_queries: Mapping[str, str] | None = None,
+        query_history: QueryHistoryStacks | None = None,
+        query_history_enabled: bool = False,
         pane_id: str | None = None,
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
@@ -351,6 +362,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             self._registry = registry
         if saved_queries is not None:
             self._saved_queries = dict(saved_queries)
+        self._query_history = query_history
+        self._query_history_enabled = query_history_enabled
         if pane_id is not None:
             self._pane_id = pane_id
         self._agents_launch_targets_available = agents_launch_targets_available
@@ -579,18 +592,16 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Switch the underlying ACE app to the previous tab."""
         cast("AceApp", self.app).action_prev_tab()
 
-    # --- Query history navigation actions (Patches tab only) ---
-
     def action_go_prev_query(self) -> None:
         """Navigate to previous query and close modal."""
-        if self._current_tab != "artifacts":
+        if self._current_tab != "artifacts" or not self._query_history_enabled:
             return
         self.dismiss(None)
         cast("AceApp", self.app).action_prev_query()
 
     def action_go_next_query(self) -> None:
         """Navigate to next query and close modal."""
-        if self._current_tab != "artifacts":
+        if self._current_tab != "artifacts" or not self._query_history_enabled:
             return
         self.dismiss(None)
         cast("AceApp", self.app).action_next_query()

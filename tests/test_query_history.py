@@ -6,11 +6,14 @@ from unittest.mock import patch
 from sase.ace.query_history import (
     MAX_STACK_SIZE,
     QueryHistoryStacks,
+    load_all_query_history,
     load_query_history,
     navigate_next,
     navigate_prev,
     push_to_prev_stack,
+    save_all_query_history,
     save_query_history,
+    snapshot_query_history,
 )
 from sase.ace.query_record import QueryRecord
 
@@ -107,6 +110,36 @@ def test_save_and_load_is_namespaced_per_pane(tmp_path: Path) -> None:
 
         assert load_query_history("patches").prev == [_record("p")]
         assert load_query_history("stitches").prev == [_record("s")]
+
+
+def test_load_and_save_all_query_history(tmp_path: Path) -> None:
+    """Whole-map helpers preserve pane isolation for in-memory app state."""
+    test_file = tmp_path / "query_history.json"
+    with patch("sase.ace.query_history._QUERY_HISTORY_FILE", test_file):
+        save_all_query_history(
+            {
+                "patches": QueryHistoryStacks(prev=[_record("p")], next=[]),
+                "beads": QueryHistoryStacks(
+                    prev=[_record("b1")],
+                    next=[_record("b2")],
+                ),
+            }
+        )
+
+        result = load_all_query_history()
+        assert result["patches"].prev == [_record("p")]
+        assert result["beads"].prev == [_record("b1")]
+        assert result["beads"].next == [_record("b2")]
+
+
+def test_snapshot_query_history_is_detached() -> None:
+    """Background writers receive a copy, not live mutable stacks."""
+    panes = {"beads": QueryHistoryStacks(prev=[_record("old")], next=[])}
+    snapshot = snapshot_query_history(panes)
+
+    panes["beads"].prev.append(_record("new"))
+
+    assert snapshot["beads"].prev == [_record("old")]
 
 
 def test_load_query_history_migrates_legacy_flat_file(tmp_path: Path) -> None:

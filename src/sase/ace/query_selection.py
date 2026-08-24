@@ -72,14 +72,29 @@ def _write_all_panes(panes: dict[str, dict[str, str]]) -> bool:
     return write_json_validated(_query_selection_file(), panes)
 
 
-def load_query_selections(pane_id: str) -> dict[str, str]:
-    """Load query-to-selection mapping for *pane_id* from disk.
+def snapshot_query_selections(
+    panes: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    """Return a detached, max-bounded copy of every pane selection bucket."""
+    snapshot: dict[str, dict[str, str]] = {}
+    for pane_id, selections in panes.items():
+        trimmed = dict(selections)
+        if len(trimmed) > MAX_SELECTIONS:
+            keys = list(trimmed.keys())
+            for key in keys[: len(keys) - MAX_SELECTIONS]:
+                del trimmed[key]
+        snapshot[pane_id] = trimmed
+    return snapshot
 
-    Returns:
-        Dict mapping canonical query strings to ``ArtifactEntryTarget``
-        tokens.
-    """
-    return _load_all_panes().get(pane_id, {})
+
+def load_all_query_selections() -> dict[str, dict[str, str]]:
+    """Load every pane's query-to-selection mappings from disk."""
+    return snapshot_query_selections(_load_all_panes())
+
+
+def save_all_query_selections(panes: dict[str, dict[str, str]]) -> bool:
+    """Persist a detached map of all pane selection buckets."""
+    return _write_all_panes(snapshot_query_selections(panes))
 
 
 def save_query_selections(pane_id: str, selections: dict[str, str]) -> bool:
@@ -103,11 +118,13 @@ def save_query_selections(pane_id: str, selections: dict[str, str]) -> bool:
             del trimmed[key]
     panes = _load_all_panes()
     panes[pane_id] = trimmed
-    return _write_all_panes(panes)
+    return save_all_query_selections(panes)
 
 
 __all__ = [
     "MAX_SELECTIONS",
-    "load_query_selections",
+    "load_all_query_selections",
+    "save_all_query_selections",
     "save_query_selections",
+    "snapshot_query_selections",
 ]

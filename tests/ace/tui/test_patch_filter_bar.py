@@ -12,7 +12,7 @@ from sase.ace.config import get_ace_page_size
 from sase.ace.query.limit_token import ensure_limit
 from sase.ace.query.completion import patch_completion_context
 from sase.ace.query_history import QueryHistoryStacks
-from sase.ace.query_record import QueryRecord
+from sase.ace.query_record import QueryRecord, current_profile_digest
 from sase.ace.testing import AcePage, make_patch
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts.panes import ArtifactsPatchesPane
@@ -215,7 +215,11 @@ async def test_patch_filter_submit_commits_history_and_last_query(
         assert not bar._editing  # type: ignore[attr-defined]
         assert [patch.name for patch in page.app.patches] == ["feature_b"]
         assert page.app._query_history["patches"].prev == [
-            QueryRecord(source=_capped('"feature"'), canonical=_capped('"feature"'))
+            QueryRecord(
+                source=_capped('"feature"'),
+                canonical=_capped('"feature"'),
+                profile_digest=current_profile_digest("patches"),
+            )
         ]
         assert (isolated_query_persistence / "last_query.txt").read_text() == (
             '"feature_b"'
