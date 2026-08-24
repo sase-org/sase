@@ -328,11 +328,16 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     )
 
     has_dependency_wait, has_wait = _wait_flags(info)
-    if deferred_workspace and not state.is_home_mode and not has_wait:
-        raise RuntimeError(
-            "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
-            "is empty; refusing to continue in the placeholder workspace"
-        )
+    # Launch preflight is conservative: an explicit `#fork:<name>` is treated
+    # as deferred even when its parent has already gone terminal between
+    # preflight and this extraction, in which case directive extraction
+    # (`fork_parent_wait_is_unreachable()`) correctly drops the now-moot
+    # implicit wait. That leaves `deferred_workspace=True` with `has_wait=False`
+    # as a legitimate state, not a bug: the run below simply skips dependency
+    # waiting and proceeds through runner-slot admission, and the launch
+    # phase's `_prepare_workspace_and_repos()` claims a real workspace before
+    # `launch_agent_run()` ever executes the model. Do not resurrect the old
+    # fatal assertion here; it crashed on exactly this valid state.
     if has_wait:
         _claim_bead_before_wait(
             state,

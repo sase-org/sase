@@ -1,9 +1,12 @@
 """Tests for deferred workspace runner stops and failures."""
 
+import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 from sase.axe.run_agent_repeat_stop import RepeatStopDecision
+from sase.linked_repos import LinkedRepoResolution
 
 from tests._axe_run_agent_runner_retry_helpers import (
     AGENT_INFO,
@@ -88,14 +91,29 @@ class TestDeferredWorkspaceOutcomes:
         # Completion notification is suppressed for a stopped slot.
         notify_mock.assert_not_called()
 
-    def test_deferred_workspace_without_extracted_wait_fails_before_run_loop(
+    def test_deferred_workspace_without_extracted_wait_still_claims_real_workspace(
         self, tmp_path: Path
     ) -> None:
+        """A failed-fork-parent `#fork` reaches the run loop, not a crash.
+
+        Regression for the composition bug from plan
+        ``202608/repair_failed_agent_fork_launch.md``: launch preflight
+        conservatively marks an explicit ``#fork:<name>`` as deferred, but
+        directive extraction can legitimately drop the implicit wait when the
+        named parent has already gone terminal
+        (``fork_parent_wait_is_unreachable()``). That combination -
+        ``deferred_workspace=True`` with no extracted wait metadata at all -
+        must not be treated as a bootstrap failure: it must skip dependency
+        wait machinery entirely and still claim a real, nonzero workspace
+        before the run loop ever executes.
+        """
         artifacts_dir = str(tmp_path / "artifacts")
         placeholder_ws = tmp_path / "placeholder"
+        real_ws = tmp_path / "real-ws"
         placeholder_ws.mkdir()
-        run_loop = MagicMock(return_value=exec_result(artifacts_dir))
-        write_error = MagicMock()
+        real_ws.mkdir()
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+        events: list[str] = []
 
         patches = base_patches(artifacts_dir)
         patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = MagicMock(
@@ -104,9 +122,38 @@ class TestDeferredWorkspaceOutcomes:
                 wait_duration=None,
                 wait_until=None,
                 wait_runners=None,
+                wait_priority=None,
             )
         )
-        patches[f"{LAUNCH}.run_execution_loop"] = run_loop
+        wait_for_dependencies = MagicMock()
+        write_error = MagicMock()
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            events.append("claim")
+            return 3, str(real_ws)
+
+        def run_loop(ctx: Any, _prompt: str) -> Any:
+            events.append("run")
+            # Execution must observe the claimed real workspace, never the
+            # placeholder path/number the run was launched with.
+            assert ctx.workspace_num == 3
+            assert ctx.workspace_num != 0
+            assert ctx.workspace_dir == str(real_ws)
+            assert ctx.workspace_dir != str(placeholder_ws)
+            meta = json.loads(meta_path.read_text())
+            assert meta["workspace_num"] == 3
+            assert meta["workspace_dir"] == str(real_ws)
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies
+        patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{LAUNCH}.claim_deferred_workspace"] = MagicMock(
+            side_effect=claim_deferred
+        )
+        patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = MagicMock(
+            return_value=LinkedRepoResolution(repos=())
+        )
+        patches[f"{LAUNCH}.run_execution_loop"] = MagicMock(side_effect=run_loop)
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
         run_main(
@@ -118,10 +165,9 @@ class TestDeferredWorkspaceOutcomes:
             env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
         )
 
-        run_loop.assert_not_called()
-        assert (
-            "SASE_AGENT_DEFERRED_WORKSPACE=1" in write_error.call_args.kwargs["error"]
-        )
+        assert events == ["claim", "run"]
+        wait_for_dependencies.assert_not_called()
+        write_error.assert_not_called()
 
     def test_bead_claim_failure_writes_error_and_skips_model_execution(
         self, tmp_path: Path
