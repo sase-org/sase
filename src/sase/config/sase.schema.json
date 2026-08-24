@@ -3721,6 +3721,11 @@
           "default": true,
           "deprecated": true
         },
+        "memory_webs": {
+          "type": "boolean",
+          "description": "Beta gate for provider-backed memory webs and managed strand rosters.",
+          "default": false
+        },
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",

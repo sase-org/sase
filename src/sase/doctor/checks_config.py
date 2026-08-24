@@ -11,6 +11,7 @@ from sase.doctor.checks_config_file_hooks import check_config_file_hooks
 from sase.doctor.checks_config_init import check_config_init
 from sase.doctor.checks_config_keymap_actions import check_config_keymap_actions
 from sase.doctor.checks_config_layers import check_config_layers
+from sase.doctor.checks_config_memory_webs import check_config_memory_webs
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
 from sase.doctor.checks_config_notification_tabs import (
     check_config_notification_tabs,
@@ -55,6 +56,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="config",
             title="SDD validation",
             runner=lambda: check_config_sdd(context),
+        ),
+        CheckSpec(
+            id="config.memory_webs",
+            group="config",
+            title="Memory webs",
+            runner=lambda: check_config_memory_webs(context),
         ),
         CheckSpec(
             id="config.model_aliases",
@@ -130,6 +137,7 @@ _check_config_layers = check_config_layers
 _check_config_timezone = check_config_timezone
 _check_config_init = check_config_init
 _check_config_sdd = check_config_sdd
+_check_config_memory_webs = check_config_memory_webs
 _check_config_model_aliases = check_config_model_aliases
 _check_config_keymap_actions = check_config_keymap_actions
 _check_config_notification_tabs = check_config_notification_tabs

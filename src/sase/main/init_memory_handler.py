@@ -32,6 +32,13 @@ from .init_memory.glossary import (
     load_project_glossary_terms as _load_project_glossary_terms,
 )
 from sase.memory.paths import memory_write_root
+from sase.memory.web import (
+    MemoryWeb as _MemoryWeb,
+    cross_scope_keyword_warnings as _memory_web_cross_scope_keyword_warnings,
+    discover_memory_webs as _discover_memory_webs,
+    memory_webs_enabled as _memory_webs_enabled,
+    validate_memory_webs as _validate_memory_webs,
+)
 from sase.project_management import enable_sase_management, project_management_status
 from .init_memory.constants import COMMAND_LABEL
 from .init_memory.git_state import PreInitGitState
@@ -353,6 +360,12 @@ def _memory_plan_blockers(
     return tuple(blockers)
 
 
+def _memory_root_plan_warnings(
+    root_plans: Iterable[_MemoryRootPlan],
+) -> tuple[str, ...]:
+    return tuple(warning for root_plan in root_plans for warning in root_plan.warnings)
+
+
 def _memory_root_plan_blockers(
     root_plans: Iterable[_MemoryRootPlan],
 ) -> tuple[str, ...]:
@@ -360,10 +373,32 @@ def _memory_root_plan_blockers(
 
 
 def _memory_plan_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
-    if not inputs.is_project_dir:
+    warnings: list[str] = []
+    if inputs.is_project_dir:
+        warning = _workspace_pinned_sase_mismatch_warning(inputs.project_root)
+        if warning is not None:
+            warnings.append(warning)
+    warnings.extend(_memory_web_scope_warnings(inputs))
+    return tuple(warnings)
+
+
+def _memory_web_scope_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
+    if not _memory_webs_enabled():
         return ()
-    warning = _workspace_pinned_sase_mismatch_warning(inputs.project_root)
-    return () if warning is None else (warning,)
+    project_webs: tuple[_MemoryWeb, ...] = ()
+    if inputs.is_project_dir and inputs.is_sase_managed:
+        project_discovery = _discover_memory_webs(inputs.project_root)
+        project_report = _validate_memory_webs(project_discovery)
+        if not project_report.blockers:
+            project_webs = project_discovery.webs
+    home_discovery = _discover_memory_webs(inputs.home_root)
+    home_report = _validate_memory_webs(home_discovery)
+    if home_report.blockers:
+        return ()
+    return _memory_web_cross_scope_keyword_warnings(
+        project_webs=project_webs,
+        home_webs=home_discovery.webs,
+    )
 
 
 def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
@@ -417,6 +452,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         )
         actions = (config_action, *actions)
     blockers = _memory_plan_blockers(root_plans)
+    warnings = (*warnings, *_memory_root_plan_warnings(root_plans))
     return InitPlan(
         command="memory",
         label="Memory",
@@ -461,6 +497,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
         render_plan_diff(preview_console(sys.stdout), plan_init_memory(args))
 
     root_plans = _memory_root_plans(inputs)
+    for warning in _memory_root_plan_warnings(root_plans):
+        print(f"{COMMAND_LABEL}: warning: {warning}", file=sys.stderr)
     root_plan_blockers = _memory_root_plan_blockers(root_plans)
     if root_plan_blockers:
         _print_config_errors(root_plan_blockers)

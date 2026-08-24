@@ -233,6 +233,7 @@ def render_expected_memory_files(
     source_memory_root: Path | None = None,
     include_project_memory: bool = False,
     excluded_note_paths: frozenset[str] = frozenset(),
+    additional_note_overlay: Mapping[Path, str] | None = None,
 ) -> tuple[tuple[MemoryExpectedFile, ...], str | None]:
     if generated_sase_body is None:
         generated_sase_body, render_error = render_generated_sase_memory_body(
@@ -308,6 +309,8 @@ def render_expected_memory_files(
         note_overlay.update(
             {update.path: update.content for update in amd_sync.frontmatter_updates}
         )
+    if additional_note_overlay is not None:
+        note_overlay.update(additional_note_overlay)
     rendered_readme, readme_error = _render_memory_readme(
         root,
         overlay=note_overlay,

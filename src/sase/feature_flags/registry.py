@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     admin_center_flags = "admin_center_flags"
+    memory_webs = "memory_webs"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -36,6 +37,14 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.memory_webs: FeatureFlagDefinition(
+        key=FeatureFlag.memory_webs,
+        kind="beta",
+        description=(
+            "Beta gate for provider-backed memory webs and managed strand rosters."
+        ),
+        bead="sase-sy",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

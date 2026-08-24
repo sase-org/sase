@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +13,13 @@ from sase.amd.init import (
     plan_minimal_agents_sync,
 )
 from sase.memory.notes import GeneratedLongMemoryNote
+from sase.memory.web import (
+    discover_memory_webs,
+    memory_webs_enabled,
+    render_web_body_with_roster,
+    render_web_descriptor_with_roster,
+    validate_memory_webs,
+)
 
 from .glossary import (
     ProjectGlossaryTerms,
@@ -61,6 +68,16 @@ class _MemoryRootContext:
     retired_note_paths: tuple[Path, ...] = ()
     source_memory_root: Path | None = None
     blockers: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _MemoryWebRootPlan:
+    expected_files: tuple[MemoryExpectedFile, ...] = ()
+    note_overlay: Mapping[Path, str] | None = None
+    core_note_bodies: Mapping[str, str] | None = None
+    blockers: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
 
 def _retired_note_paths(
@@ -186,6 +203,54 @@ def _amd_sync_plan(
     )
 
 
+def _memory_web_root_plan(
+    root: Path,
+    *,
+    source_memory_root: Path,
+) -> _MemoryWebRootPlan:
+    if not memory_webs_enabled():
+        return _MemoryWebRootPlan()
+
+    discovery = discover_memory_webs(root, source_memory_root=source_memory_root)
+    validation = validate_memory_webs(discovery)
+    if validation.blockers:
+        return _MemoryWebRootPlan(
+            blockers=validation.blockers,
+            warnings=validation.warnings,
+        )
+
+    expected: list[MemoryExpectedFile] = []
+    note_overlay: dict[Path, str] = {}
+    core_note_bodies: dict[str, str] = {}
+    blockers: list[str] = []
+    for web in discovery.webs:
+        body, body_error = render_web_body_with_roster(web)
+        content, content_error = render_web_descriptor_with_roster(web)
+        error = body_error or content_error
+        if error is not None or body is None or content is None:
+            blockers.append(f"{web.path}: {error or 'failed to render strand roster'}")
+            continue
+        note_overlay[web.path] = content
+        if web.rendering_type == "core":
+            core_note_bodies[web.relative_path] = body
+        if content != web.raw_text:
+            expected.append(
+                MemoryExpectedFile(
+                    path=web.path,
+                    content=content,
+                    detail="memory web strand roster",
+                )
+            )
+
+    return _MemoryWebRootPlan(
+        expected_files=tuple(expected),
+        note_overlay=note_overlay,
+        core_note_bodies=core_note_bodies,
+        blockers=tuple(blockers),
+        warnings=validation.warnings,
+    )
+
+
 def memory_root_context(
     root: Path,
     linked_entries: Iterable[LinkedRepoMemoryEntry],
@@ -247,6 +312,20 @@ def memory_root_context(
         path.resolve(strict=False).relative_to(root_resolved).as_posix()
         for path in retired_note_paths
     )
+    memory_web_plan = _memory_web_root_plan(
+        root,
+        source_memory_root=migration.source_memory_root,
+    )
+    if memory_web_plan.blockers:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=memory_web_plan.blockers,
+            warnings=memory_web_plan.warnings,
+        )
 
     generated_sase_body, sase_render_error = render_generated_sase_memory_body(
         root, linked_entries, project_name=project_name
@@ -329,16 +408,22 @@ def memory_root_context(
                 source_memory_root=migration.source_memory_root,
                 blockers=(generated_long_error,),
             )
+    generated_short_note_bodies = generated_short_notes(
+        generated_sase_body,
+        generated_task_types_body,
+        generated_artifact_relations_body,
+        generated_glossary_body,
+    )
+    if memory_web_plan.core_note_bodies is not None:
+        generated_short_note_bodies = {
+            **generated_short_note_bodies,
+            **dict(memory_web_plan.core_note_bodies),
+        }
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
-        generated_short_notes=generated_short_notes(
-            generated_sase_body,
-            generated_task_types_body,
-            generated_artifact_relations_body,
-            generated_glossary_body,
-        ),
+        generated_short_notes=generated_short_note_bodies,
         generated_long_notes=generated_long_notes(generated_project_long_contents),
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
@@ -356,6 +441,7 @@ def memory_root_context(
         source_memory_root=migration.source_memory_root,
         include_project_memory=include_project_memory,
         excluded_note_paths=excluded_note_paths,
+        additional_note_overlay=memory_web_plan.note_overlay,
     )
     if expected_error is not None:
         return _MemoryRootContext(
@@ -369,6 +455,7 @@ def memory_root_context(
     expected_files = merge_expected_files(
         migration.expected_files,
         expected_files,
+        memory_web_plan.expected_files,
     )
     shim_plan = provider_shim_plan(
         root,
@@ -388,6 +475,7 @@ def memory_root_context(
         memory_delete_paths=migration.delete_paths,
         retired_note_paths=retired_note_paths,
         source_memory_root=migration.source_memory_root,
+        warnings=memory_web_plan.warnings,
     )
 
 
@@ -467,4 +555,5 @@ def plan_memory_root(
             + context.shim_plan.blockers
             + provider_shim_plan_blockers(context.additional_shim_plans)
         ),
+        warnings=context.warnings,
     )
